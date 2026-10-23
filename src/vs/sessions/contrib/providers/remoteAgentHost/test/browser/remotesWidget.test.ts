@@ -13,9 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
-import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -73,7 +71,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(operatingSystem = OperatingSystem.Macintosh, realHovers = false) {
+	function createWidget(operatingSystem = OperatingSystem.Macintosh) {
 		const parent = dom.append(document.body, dom.$('div'));
 		parent.style.width = '700px';
 		parent.style.height = '640px';
@@ -81,7 +79,6 @@ suite('RemotesWidget', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
-		const hoverOptions = new Map<HTMLElement, { focus: boolean; trapFocus: boolean }>();
 		const opened: { input: IResourceEditorInput; group: PreferredGroup | undefined }[] = [];
 		const documentation: string[] = [];
 		const settings: Parameters<IPreferencesService['openSettings']>[0][] = [];
@@ -100,10 +97,7 @@ suite('RemotesWidget', () => {
 		instantiationService.stub(IOpenerService, { open: async resource => { documentation.push(resource.toString()); return true; } });
 		instantiationService.stub(IPreferencesService, { openSettings: async options => { settings.push(options); return undefined; } });
 		instantiationService.stub(INotificationService, 'error', (error: Parameters<INotificationService['error']>[0]) => { errors.push(error); });
-		const hoverService = realHovers ? (() => {
-			instantiationService.stub(ILayoutService, { getContainer: () => parent });
-			return store.add(instantiationService.createInstance(HoverService));
-		})() : new class extends mock<IHoverService>() {
+		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
 			override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>) {
 				return NullHoverService.setupManagedHover(...args);
 			}
@@ -116,31 +110,11 @@ suite('RemotesWidget', () => {
 					hoverContents.delete(args[0]);
 				});
 			}
-			override showDelayedHover(options: Parameters<IHoverService['showDelayedHover']>[0]) {
-				return this.showInstantHover(options);
-			}
-			override showInstantHover(options: Parameters<IHoverService['showInstantHover']>[0], focus = false) {
-				const target = options.target;
-				assert.ok(dom.isHTMLElement(target));
-				assert.ok(typeof options.content === 'string');
-				hoverContents.set(target, options.content);
-				hoverOptions.set(target, { focus, trapFocus: options.trapFocus === true });
-				let isDisposed = false;
-				return {
-					get isDisposed() { return isDisposed; },
-					dispose: () => {
-						isDisposed = true;
-						hoverContents.delete(target);
-						hoverOptions.delete(target);
-					},
-				};
-			}
-		}();
-		instantiationService.stub(IHoverService, hoverService);
+		}());
 		const model = store.add(new TestRemotesModel());
 		const widget = store.add(instantiationService.createInstance(RemotesWidget, parent, model, operatingSystem));
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, hoverOptions, hoverService, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, errors, hoverContents, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function getManagementAction(parent: HTMLElement, id: string, action: 'rename'): HTMLElement {
@@ -167,15 +141,17 @@ suite('RemotesWidget', () => {
 				roots: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
 				switches: parent.querySelectorAll('[role="switch"]:not([hidden])').length,
 				checkboxes: parent.querySelectorAll('[role="checkbox"]').length,
+				descriptions: parent.querySelectorAll('.remotes-description').length,
 				accessibleWSL: widget.getAccessibilityContent().includes('Ubuntu'),
 				accessibleContainers: widget.getAccessibilityContent().includes('Project'),
 			}, {
 				tables: 1,
 				trees: 0,
-				columns: ['', 'Name', 'Address', 'Connection', ''],
+				columns: ['', 'Name', 'Connection', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['SSH', 'Tunnels', 'WSL'] : ['SSH', 'Tunnels'],
 				switches: 0,
 				checkboxes: 0,
+				descriptions: 0,
 				accessibleWSL: operatingSystem === OperatingSystem.Windows,
 				accessibleContainers: false,
 			});
@@ -198,16 +174,36 @@ suite('RemotesWidget', () => {
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
 		const cells = [...row.querySelectorAll<HTMLElement>('.monaco-table-td')];
 		assert.deepStrictEqual({
-			values: cells.slice(1, 4).map(cell => cell.textContent),
+			values: cells.slice(1, 3).map(cell => cell.textContent),
 			aligned: cells.every((cell, index) => Math.abs(cell.getBoundingClientRect().x - headers[index].getBoundingClientRect().x) < 1),
 			rowHeight: row.getBoundingClientRect().height,
 			groupHeight: parent.querySelector('.remotes-group-row')!.getBoundingClientRect().height,
 			headerHeight: headers[1].getBoundingClientRect().height,
-			actionsWidth: headers[4].getBoundingClientRect().width === 72,
+			actionsWidth: headers[3].getBoundingClientRect().width === 72,
 			sashes: parent.querySelectorAll('.monaco-sash.vertical').length > 0,
 		}, {
-			values: ['Build server', 'build.example.com', 'Connected'], aligned: true,
+			values: ['Build server', 'Connected'], aligned: true,
 			rowHeight: 26, groupHeight: 30, headerHeight: 30, actionsWidth: true, sashes: true,
+		});
+	});
+
+	test('row actions are right aligned and revealed on hover or keyboard focus', () => {
+		const { parent } = createWidget();
+		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!.closest<HTMLElement>('.monaco-list-row')!;
+		const actions = row.querySelector<HTMLElement>('.remotes-actions-column')!;
+		const toolbar = actions.querySelector<HTMLElement>('.monaco-toolbar')!;
+		const snapshot = () => ({ opacity: dom.getWindow(toolbar).getComputedStyle(toolbar).opacity, pointerEvents: dom.getWindow(toolbar).getComputedStyle(toolbar).pointerEvents });
+		const idle = snapshot();
+		row.classList.add('hovered');
+		const hovered = snapshot();
+		row.classList.remove('hovered');
+		getConnectionAction(parent, 'ssh:build').focus();
+		const focused = snapshot();
+		assert.deepStrictEqual({ idle, hovered, focused, alignment: dom.getWindow(actions).getComputedStyle(actions).justifyContent }, {
+			idle: { opacity: '0', pointerEvents: 'none' },
+			hovered: { opacity: '1', pointerEvents: 'auto' },
+			focused: { opacity: '1', pointerEvents: 'auto' },
+			alignment: 'flex-end',
 		});
 	});
 
@@ -329,6 +325,29 @@ suite('RemotesWidget', () => {
 			}
 		}
 		assert.deepStrictEqual(matches, [['ssh:build'], ['tunnel:laptop'], [], ['ssh:build', 'tunnel:laptop']]);
+	});
+
+	test('search omits empty groups and restores them when cleared, including after inventory changes', async () => {
+		const { parent, widget, model } = createWidget(OperatingSystem.Windows);
+		model.environmentsEnabled.set(true, undefined);
+		const groups = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent);
+		widget.setSearchQuery('build');
+		const matched = groups();
+		const accessible = widget.getAccessibilityContent();
+		model.remotes.set(model.remotes.get().filter(remote => remote.kind !== 'ssh'), undefined);
+		const removed = groups();
+		const noMatches = parent.querySelector('.remotes-message')?.textContent;
+		widget.setVisible(true);
+		await timeout(0);
+		const refreshed = groups();
+		widget.setSearchQuery('');
+		assert.deepStrictEqual({
+			matched, omittedFromAccessibleView: !accessible.includes('Tunnels') && !accessible.includes('Environments') && !accessible.includes('WSL'),
+			removed, noMatches, refreshed, restored: groups(),
+		}, {
+			matched: ['SSH'], omittedFromAccessibleView: true, removed: [], noMatches: 'No matching remotes.', refreshed: [],
+			restored: ['Environments', 'SSH', 'Tunnels', 'WSL'],
+		});
 	});
 
 	test('unavailable remotes cannot connect but can still be renamed', () => {
@@ -499,20 +518,27 @@ suite('RemotesWidget', () => {
 			tabIndex: refresh.tabIndex,
 			disabled: refresh.getAttribute('aria-disabled'),
 		};
+		const beforeRefresh = parent.textContent;
 		model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
 		refresh.focus();
 		refresh.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
 		for (const type of ['keydown', 'keyup']) {
 			refresh.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		}
-		const pendingDisabled = refresh.getAttribute('aria-disabled');
+		const pending = {
+			disabled: refresh.getAttribute('aria-disabled'),
+			spinning: refresh.classList.contains('codicon-loading') && refresh.classList.contains('codicon-modifier-spin'),
+			busy: parent.querySelector('.remotes-table-container')?.getAttribute('aria-busy'),
+			sameText: parent.textContent === beforeRefresh,
+		};
 		refresh.click();
 		await model.pendingRefresh.complete([]);
 		await timeout(0);
-		assert.deepStrictEqual({ idle, pendingDisabled, completedDisabled: refresh.getAttribute('aria-disabled'), refreshCalls: model.refreshCalls }, {
+		assert.deepStrictEqual({ idle, pending, completedDisabled: refresh.getAttribute('aria-disabled'), refreshedIcon: refresh.classList.contains('codicon-refresh'), refreshCalls: model.refreshCalls }, {
 			idle: { label: 'Refresh', role: 'button', text: '', tabIndex: 0, disabled: null },
-			pendingDisabled: 'true',
+			pending: { disabled: 'true', spinning: true, busy: 'true', sameText: true },
 			completedDisabled: null,
+			refreshedIcon: true,
 			refreshCalls: 2,
 		});
 	});
@@ -530,10 +556,10 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		assert.deepStrictEqual({
-			canceled,
+			canceled, spinning: parent.querySelectorAll('.remotes-header-actions .codicon-modifier-spin').length,
 			hidden: parent.querySelectorAll('.remotes-refresh-warning:not([hidden])').length,
 			accessibleWarning: widget.getAccessibilityContent().includes('Window log'),
-		}, { canceled: 0, hidden: 0, accessibleWarning: false });
+		}, { canceled: 0, spinning: 0, hidden: 0, accessibleWarning: false });
 	});
 
 	test('the SSH gear opens the user config in a modal without collapsing its node or connecting', async () => {
@@ -613,163 +639,61 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('offline environment keeps its address and explains its status with an accessible info icon', () => {
-		const { parent, model, widget, hoverContents, hoverOptions } = createWidget();
+	test('offline environment shows Offline without an address or info icon and preserves row focus on updates', () => {
+		const { parent, model, widget, hoverContents } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
 		}], undefined);
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="environment:desktop"]')!;
-		const info = row.querySelector<HTMLElement>('.remotes-connection-info')!;
-		const beforeFocus = info.tabIndex;
 		row.click();
-		info.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		const table = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+		table.focus();
+		const connection = row.querySelector<HTMLElement>('.remotes-connection-state')!;
+		const offline = {
+			connection: connection.textContent,
+			tooltip: hoverContents.get(connection),
+			infoIcons: row.querySelectorAll('.codicon-info').length,
+			addressColumns: parent.querySelectorAll('.remotes-address-column').length,
+			accessibleView: widget.getAccessibilityContent().includes('Desktop. Connection: Offline. Start the owning application.'),
+		};
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
 		assert.deepStrictEqual({
-			address: row.querySelector('.remotes-detail')?.textContent,
-			connection: info.previousElementSibling?.textContent,
-			icon: info.querySelector('.codicon-info')?.getAttribute('aria-hidden'),
-			hidden: info.hidden, role: info.getAttribute('role'), label: info.getAttribute('aria-label'),
-			tooltip: hoverContents.get(info), beforeFocus, focusedTabIndex: info.tabIndex,
-			hoverOptions: hoverOptions.get(info),
-			accessible: row.closest('.monaco-list-row')?.getAttribute('aria-label'),
-			accessibleView: widget.getAccessibilityContent().includes('Desktop. Address: env-desktop. Connection: Disconnected. Start the owning application.'),
+			offline,
+			available: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent,
+			tableFocused: dom.getActiveElement() === table,
 		}, {
-			address: 'env-desktop', connection: 'Disconnected', icon: 'true',
-			hidden: false, role: 'img', label: 'Start the owning application.',
-			tooltip: 'Start the owning application.', beforeFocus: -1, focusedTabIndex: 0,
-			hoverOptions: { focus: true, trapFocus: true },
-			accessible: 'Desktop. Address: env-desktop. Connection: Disconnected. Start the owning application.',
-			accessibleView: true,
+			offline: { connection: 'Offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
+			available: 'Disconnected', tableFocused: true,
 		});
-
-		parent.querySelector<HTMLElement>('.remotes-group-row')!.click();
-		assert.strictEqual(info.tabIndex, -1);
 	});
 
-	test('environment status info is cleared when the row becomes available, connects, or is reused', () => {
-		const { parent, model, hoverContents } = createWidget();
+	test('offline availability does not override an active connection or pending action', async () => {
+		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		const offline: ICustomizationRemote = {
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
 		};
 		const states = [
-			{ ...offline, unavailableReason: undefined },
+			offline,
 			{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 			{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 			{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
 		];
 		const observed = states.map(remote => {
-			model.remotes.set([offline], undefined);
-			const previousInfo = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
-			previousInfo.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			model.remotes.set([remote], undefined);
-			const info = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
-			return {
-				address: parent.querySelector('[data-remote-id] .remotes-detail')?.textContent,
-				hidden: info.hidden, label: info.getAttribute('aria-label'), tabIndex: info.tabIndex,
-				tooltip: hoverContents.get(info), previousTooltip: hoverContents.get(previousInfo),
-			};
+			return parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent;
 		});
-		assert.deepStrictEqual(observed, states.map(() => ({
-			address: 'env-desktop', hidden: true, label: null, tabIndex: -1, tooltip: undefined, previousTooltip: undefined,
-		})));
-	});
-
-	for (const keyboardHover of [false, true]) {
-		for (const removeEnvironment of [false, true]) {
-			test(`restores table focus when an environment ${removeEnvironment ? 'disappears' : 'becomes available'} with its ${keyboardHover ? 'tooltip' : 'info icon'} focused`, () => {
-				const { parent, model } = createWidget(OperatingSystem.Macintosh, true);
-				model.environmentsEnabled.set(true, undefined);
-				model.remotes.set([{
-					id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
-					connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
-				}], undefined);
-				const row = parent.querySelector<HTMLElement>('[data-remote-id="environment:desktop"]')!;
-				row.click();
-				const info = row.querySelector<HTMLElement>('.remotes-connection-info')!;
-				info.focus();
-				if (keyboardHover) {
-					info.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-					assert.ok(parent.querySelector('.monaco-hover')?.contains(dom.getActiveElement()));
-				}
-
-				model.remotes.set(removeEnvironment ? [] : model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
-				const table = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
-				const tableFocused = dom.getActiveElement() === table;
-				assert.deepStrictEqual({
-					tableFocused,
-					hoverCount: parent.querySelectorAll('.monaco-hover').length,
-					visibleInfoCount: parent.querySelectorAll('.remotes-connection-info:not([hidden])').length,
-					focusedRowCount: parent.querySelectorAll('.monaco-list-row.focused').length,
-				}, { tableFocused: true, hoverCount: 0, visibleInfoCount: 0, focusedRowCount: 1 });
-			});
-		}
-	}
-
-	for (const unrelatedHover of [false, true]) {
-		test(`availability updates do not steal focus from ${unrelatedHover ? 'an unrelated tooltip' : 'Search'} or dismiss unrelated hovers`, () => {
-			const { parent, model, hoverService } = createWidget(OperatingSystem.Macintosh, true);
-			model.environmentsEnabled.set(true, undefined);
-			model.remotes.set([{
-				id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
-				connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
-			}], undefined);
-			const info = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
-			info.focus();
-			info.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-			assert.ok(parent.querySelector('.monaco-hover')?.contains(dom.getActiveElement()));
-
-			const search = parent.querySelector<HTMLInputElement>('.remotes-search-container input')!;
-			search.focus();
-			const otherHover = unrelatedHover ? store.add(hoverService.showInstantHover({ target: search, content: 'Search help', trapFocus: true }, true)!) : undefined;
-			const focused = dom.getActiveElement();
-			model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
-			assert.deepStrictEqual({
-				sameFocus: dom.getActiveElement() === focused,
-				hoverCount: parent.querySelectorAll('.monaco-hover').length,
-				otherHoverDisposed: otherHover?.isDisposed,
-			}, { sameFocus: true, hoverCount: unrelatedHover ? 1 : 0, otherHoverDisposed: unrelatedHover ? false : undefined });
-		});
-	}
-
-	test('availability updates cancel a pending info tooltip without moving focus', async () => {
-		const { parent, model } = createWidget(OperatingSystem.Macintosh, true);
-		model.environmentsEnabled.set(true, undefined);
-		model.remotes.set([{
-			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
-			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
-		}], undefined);
-		const search = parent.querySelector<HTMLInputElement>('.remotes-search-container input')!;
-		search.focus();
-		parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
+		model.remotes.set([{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connected }], undefined);
+		model.pendingConnection = new DeferredPromise<void>();
+		getConnectionAction(parent, offline.id).click();
+		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
+		await model.pendingConnection.complete();
 		await timeout(0);
-		assert.deepStrictEqual({ searchFocused: dom.getActiveElement() === search, hoverCount: parent.querySelectorAll('.monaco-hover').length }, {
-			searchFocused: true, hoverCount: 0,
-		});
-	});
-
-	test('keyboard activation focuses an existing pointer tooltip before an availability update', async () => {
-		const { parent, model } = createWidget(OperatingSystem.Macintosh, true);
-		model.environmentsEnabled.set(true, undefined);
-		model.remotes.set([{
-			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
-			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
-		}], undefined);
-		const info = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
-		info.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-		await timeout(0);
-		assert.ok(parent.querySelector('.monaco-hover'));
-		info.focus();
-		info.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
-		const tooltipFocused = parent.querySelector('.monaco-hover')?.contains(dom.getActiveElement());
-		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
-		assert.deepStrictEqual({
-			tooltipFocused, tableFocused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
-			hoverCount: parent.querySelectorAll('.monaco-hover').length,
-		}, { tooltipFocused: true, tableFocused: true, hoverCount: 0 });
+		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
+		assert.deepStrictEqual(observed, ['Offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Offline']);
 	});
 
 	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {
@@ -798,7 +722,12 @@ suite('RemotesWidget', () => {
 		const table = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
 		table.focus();
 		const gear = parent.querySelector<HTMLElement>('.remotes-group-row .codicon-settings-gear')!;
-		const initialGearTabIndex = gear.tabIndex;
+		const info = parent.querySelector<HTMLElement>('.remotes-group-row .codicon-info')!;
+		const initialInfoTabIndex = info.tabIndex;
+		info.focus();
+		info.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		info.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const gearReached = dom.getActiveElement() === gear;
 		gear.focus();
 		gear.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
 		for (const type of ['keydown', 'keyup']) {
@@ -812,13 +741,40 @@ suite('RemotesWidget', () => {
 		link.focus();
 		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({
-			initialGearTabIndex, focusedGearTabIndex: gear.tabIndex, focusedLinkTabIndex, configRequests: configRequests(), documentation,
+			initialInfoTabIndex, gearReached, focusedGearTabIndex: gear.tabIndex, focusedLinkTabIndex, configRequests: configRequests(), documentation,
 			expanded: parent.querySelector('.remotes-group-row')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 		}, {
-			initialGearTabIndex: 0, focusedGearTabIndex: -1, focusedLinkTabIndex: 0, configRequests: 1,
+			initialInfoTabIndex: 0, gearReached: true, focusedGearTabIndex: -1, focusedLinkTabIndex: 0, configRequests: 1,
 			documentation: ['https://aka.ms/vscode-agent-ssh'],
 			expanded: 'true',
 		});
+	});
+
+	test('section info actions open the same setup links for populated, collapsed, and empty groups', async () => {
+		const { widget, parent, model, documentation } = createWidget(OperatingSystem.Windows);
+		const openInfo = () => {
+			for (const action of parent.querySelectorAll<HTMLElement>('.remotes-group-row .remotes-actions-column .codicon-info')) {
+				action.click();
+			}
+		};
+		openInfo();
+		for (const action of parent.querySelectorAll<HTMLElement>('.remotes-gutter-column .codicon-chevron-down')) {
+			action.click();
+		}
+		openInfo();
+		for (const action of parent.querySelectorAll<HTMLElement>('.remotes-gutter-column .codicon-chevron-right')) {
+			action.click();
+		}
+		model.remotes.set([], undefined);
+		widget.setVisible(true);
+		await timeout(0);
+		openInfo();
+		for (const link of parent.querySelectorAll<HTMLElement>('.remotes-empty-actions .monaco-link')) {
+			link.click();
+		}
+		assert.deepStrictEqual(documentation, Array.from({ length: 4 }, () => [
+			'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-remote/wsl/install-wsl',
+		]).flat());
 	});
 
 	test('empty groups show setup guidance and working documentation links', async () => {
@@ -857,10 +813,10 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		const refreshed = labels();
 		widget.setSearchQuery('nonexistent');
-		assert.deepStrictEqual({ loading, refreshed, filtered: labels(), setupLinks: parent.querySelectorAll('.remotes-empty-actions:not([hidden]) .monaco-link').length }, {
-			loading: ['Looking for SSH locations...', 'Looking for Tunnels locations...'],
+		assert.deepStrictEqual({ loading, refreshed, filtered: labels(), message: parent.querySelector('.remotes-message')?.textContent, setupLinks: parent.querySelectorAll('.remotes-empty-actions:not([hidden]) .monaco-link').length }, {
+			loading: [],
 			refreshed: ['No SSH hosts configured.', 'Could not refresh Tunnels.'],
-			filtered: ['No matching remotes.', 'No matching remotes.'],
+			filtered: [], message: 'No matching remotes.',
 			setupLinks: 0,
 		});
 	});

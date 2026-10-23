@@ -7,8 +7,9 @@ import assert from 'assert';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
+import { raceTimeout } from '../../../../../base/common/async.js';
 import * as path from '../../../../../base/common/path.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import type { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
@@ -18,7 +19,7 @@ import { getWindowsTerminateCommand, NodeLongLivedProcessSpawner, NodeProcessCon
 import { buildLlamaServerArgs, buildServerEnvironment, ServerSupervisor, SERVER_LOCK_TYPE, SERVER_RECORD_FILE_NAME, type ILocalModelServerEvent, type IServerLaunchPlan, type IServerRecord, type IServerSupervisorTimings } from '../../../node/copilot/localModelBridge/shim/serverSupervisor.js';
 import type { LocalModelServingError } from '../../../node/copilot/localModelBridge/shim/servingAccess.js';
 import type { IServerStartConfig } from '../../../node/copilot/localModelBridge/shim/servingProfile.js';
-import { createFakeLlamaFetch, FakeLlamaSpawner, FakeProcessControl, settle, waitFor, type IFakeLlamaServerOptions } from './fakeLlamaServer.js';
+import { createFakeLlamaFetch, FakeLlamaSpawner, FakeProcessControl, type IFakeLlamaServerOptions } from './fakeLlamaServer.js';
 import { FakeClock } from './fakeServingAccess.js';
 
 interface ITestPlan extends IServerLaunchPlan {
@@ -133,6 +134,12 @@ suite('localModel server supervisor (§5.8)', () => {
 		}
 		lock.dispose();
 		return true;
+	}
+
+	/** Settles once the server record and lock work `supervisor` has queued so far has run (its private `_recordIo` sequencer). */
+	function recordWorkDone(supervisor: ServerSupervisor): Promise<void> {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- The record and lock work has no public completion signal.
+		return supervisor['_recordIo'].queue(async () => undefined);
 	}
 
 	const outcomeOf = (attempt: Promise<unknown>) => attempt.then(() => 'started', (e: LocalModelServingError) => e.code);
@@ -355,7 +362,7 @@ suite('localModel server supervisor (§5.8)', () => {
 		clock.advance(IDLE_UNLOAD_MS - 1);
 		const beforeTimeout = supervisor.state.get().server;
 		clock.advance(1);
-		await waitFor(() => supervisor.state.get().server === 'stopped');
+		await waitForState(supervisor.state, state => state.server === 'stopped');
 		assert.deepStrictEqual({ whileLeased, beforeTimeout, terminated: control.terminated, events: events.map(event => event.event) }, {
 			whileLeased: 'ready', beforeTimeout: 'ready', terminated: [4000], events: ['ready', 'idleUnload'],
 		});
@@ -369,17 +376,17 @@ suite('localModel server supervisor (§5.8)', () => {
 		for (const backoff of [5_000, 30_000]) {
 			spawner.running!.writeStderr(`ggml_vulkan: device lost while loading ${plan.modelPath}\n`);
 			spawner.running!.exit(0xC0000005);
-			await waitFor(() => supervisor.state.get().server === 'starting');
+			await waitForState(supervisor.state, state => state.server === 'starting');
 			const declared = supervisor.state.get().autoEligible;
 			clock.advance(backoff - 1);
 			const before = spawner.processes.length;
 			clock.advance(1);
-			await waitFor(() => supervisor.state.get().server === 'ready');
+			await waitForState(supervisor.state, state => state.server === 'ready');
 			generations.push(supervisor.state.get().identity?.servingGeneration);
 			assert.deepStrictEqual({ declared, spawnedBeforeBackoff: before === spawner.processes.length - 1 }, { declared: false, spawnedBeforeBackoff: true });
 		}
 		spawner.running!.exit(1);
-		await waitFor(() => supervisor.state.get().server === 'error');
+		await waitForState(supervisor.state, state => state.server === 'error');
 		assert.deepStrictEqual({ generations, spawns: spawner.processes.length, error: supervisor.state.get().error, events: events.map(event => event.event) }, {
 			generations: [2, 3],
 			spawns: 3,
@@ -393,15 +400,15 @@ suite('localModel server supervisor (§5.8)', () => {
 		const identity = await supervisor.start(createPlan());
 		const lease = supervisor.acquireLease(identity)!;
 		const stopping = supervisor.stop('user');
-		await waitFor(() => !!supervisor.state.get().drain);
-		clock.advance(60 * 60_000);
-		await waitFor(() => true);
-		const afterAnHour = { server: supervisor.state.get().server, drain: supervisor.state.get().drain, newLease: supervisor.acquireLease(identity), terminated: [...control.terminated] };
+		await waitForState(supervisor.state, state => !!state.drain);
+		// A drain timeout would be a timer on this clock: none runs in the hour.
+		const timersRun = clock.advance(60 * 60_000);
+		const afterAnHour = { timersRun, server: supervisor.state.get().server, drain: supervisor.state.get().drain, newLease: supervisor.acquireLease(identity), terminated: [...control.terminated] };
 		const cancelled = supervisor.stopNow();
 		const result = await stopping;
 		lease.dispose();
 		assert.deepStrictEqual({ afterAnHour, cancelled, result: { drainedStreams: result.drainedStreams, stopNow: result.stopNow }, server: supervisor.state.get().server, terminated: control.terminated, events: events.map(event => event.event) }, {
-			afterAnHour: { server: 'stopping', drain: { runningStreams: 1, kind: 'user' }, newLease: undefined, terminated: [] },
+			afterAnHour: { timersRun: 0, server: 'stopping', drain: { runningStreams: 1, kind: 'user' }, newLease: undefined, terminated: [] },
 			cancelled: 1,
 			result: { drainedStreams: 1, stopNow: true },
 			server: 'stopped',
@@ -420,7 +427,7 @@ suite('localModel server supervisor (§5.8)', () => {
 		const hold = supervisor.acquireHold(identity)!;
 		const cancellation = new AbortController();
 		const stopping = supervisor.stop('user', cancellation.signal);
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		const draining = { server: supervisor.state.get().server, newLease: !!supervisor.acquireLease(identity), holdAdmitted: supervisor.admitsHold(hold) };
 		cancellation.abort();
 		const cancelled = await stopping;
@@ -432,7 +439,7 @@ suite('localModel server supervisor (§5.8)', () => {
 		// A system stop pending behind it makes the drain a system drain, which a cancel doesn't take back.
 		const escalation = new AbortController();
 		const userStop = supervisor.stop('user', escalation.signal);
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		const systemStop = supervisor.stop('system');
 		escalation.abort();
 		const escalated = await userStop;
@@ -456,14 +463,14 @@ suite('localModel server supervisor (§5.8)', () => {
 		let identity = await supervisor.start(plan);
 		let lease = supervisor.acquireLease(identity)!;
 		const userStop = supervisor.stop('user');
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		lease.dispose();
 		const user = await userStop;
 
 		identity = await supervisor.start(plan);
 		lease = supervisor.acquireLease(identity)!;
 		const systemStop = supervisor.stop('system');
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		clock.advance(SYSTEM_DRAIN_TIMEOUT_MS);
 		const system = await systemStop;
 		lease.dispose();
@@ -595,9 +602,9 @@ suite('localModel server supervisor (§5.8)', () => {
 			const leases = Array.from({ length: requestsBeforeCrash }, () => supervisor.acquireLease(identity));
 			spawner.running!.writeStderr(DFLASH_ASSERT_STDERR);
 			spawner.running!.exit(3);
-			await waitFor(() => supervisor.state.get().server === 'starting');
+			await waitForState(supervisor.state, state => state.server === 'starting');
 			clock.advance(5_000);
-			await waitFor(() => supervisor.state.get().server === 'ready');
+			await waitForState(supervisor.state, state => state.server === 'ready');
 			leases.forEach(lease => lease?.dispose());
 			const result = { draftDevice: spawner.processes.map(child => child.arg('--device-draft') ?? null), recorded, events: events.map(event => `${event.event}:${event.errorCode}`) };
 			// Free the machine-wide server lock for the next scenario.
@@ -656,14 +663,14 @@ suite('localModel server supervisor (§5.8)', () => {
 		const lease = firstRequest.supervisor.acquireLease(identity);
 		firstRequest.spawner.running!.writeStderr(DFLASH_ASSERT_STDERR);
 		firstRequest.spawner.running!.exit(3);
-		await waitFor(() => firstRequest.supervisor.state.get().server === 'starting');
+		await waitForState(firstRequest.supervisor.state, state => state.server === 'starting');
 		firstRequest.clock.advance(5_000);
-		await waitFor(() => firstRequest.supervisor.state.get().server === 'ready');
+		await waitForState(firstRequest.supervisor.state, state => state.server === 'ready');
 		lease?.dispose();
 		firstRequest.spawner.running!.exit(3);
-		await waitFor(() => firstRequest.supervisor.state.get().server === 'starting');
+		await waitForState(firstRequest.supervisor.state, state => state.server === 'starting');
 		firstRequest.clock.advance(5_000);
-		await waitFor(() => firstRequest.supervisor.state.get().server === 'ready');
+		await waitForState(firstRequest.supervisor.state, state => state.server === 'ready');
 		const firstRequestTrace = [...firstRequestLoads];
 		await firstRequest.supervisor.stop('system');
 
@@ -793,7 +800,7 @@ suite('localModel server supervisor (§5.8)', () => {
 			}
 		}));
 		const started = supervisor.start(createPlan());
-		await waitFor(() => supervisor.state.get().load?.step === 'loading');
+		await waitForState(supervisor.state, state => state.load?.step === 'loading');
 		// Loading takes 9.5 s on the clock, then the warm-up 120 ms.
 		clock.advance(9_500);
 		server.loading = false;
@@ -806,7 +813,7 @@ suite('localModel server supervisor (§5.8)', () => {
 	});
 
 	test('a turn hold counts as one running response: a user drain waits for it and still admits its requests, an idle unload waits, a system drain does not, and Stop Now or a crash ends it', async () => {
-		const { supervisor, clock, spawner } = createSupervisor();
+		const { supervisor, clock, spawner, events } = createSupervisor();
 		const counts = (generation: number) => `${supervisor.responseCount(generation)} response(s), ${supervisor.leaseCount(generation)} request(s)`;
 
 		// The turn's request, another session's request, then the turn between requests (running a tool).
@@ -819,11 +826,11 @@ suite('localModel server supervisor (§5.8)', () => {
 		unheld.dispose();
 		const betweenRequests = counts(first.servingGeneration);
 		clock.advance(IDLE_UNLOAD_MS);
-		await settle();
-		const afterIdleTimeout = supervisor.state.get().server;
+		// An idle unload is decided, and reported, when its timer runs.
+		const afterIdleTimeout = { server: supervisor.state.get().server, events: events.map(event => event.event) };
 
 		const userStop = supervisor.stop('user');
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		const next = supervisor.acquireLease(first, hold);
 		const draining = {
 			drain: supervisor.state.get().drain,
@@ -841,7 +848,7 @@ suite('localModel server supervisor (§5.8)', () => {
 		const second = await supervisor.start(createPlan());
 		const stopNowHold = supervisor.acquireHold(second)!;
 		const stopNowStop = supervisor.stop('user');
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		const stopNowRunning = supervisor.stopNow();
 		const stopNow = { running: stopNowRunning, result: await stopNowStop, admits: supervisor.admitsHold(stopNowHold), counts: counts(second.servingGeneration) };
 
@@ -854,14 +861,14 @@ suite('localModel server supervisor (§5.8)', () => {
 		const fourth = await supervisor.start(createPlan());
 		const crashHold = supervisor.acquireHold(fourth)!;
 		spawner.running!.exit(3);
-		await waitFor(() => supervisor.state.get().server !== 'ready');
+		await waitForState(supervisor.state, state => state.server !== 'ready');
 		const crash = { admits: supervisor.admitsHold(crashHold), counts: counts(fourth.servingGeneration) };
 		await supervisor.stop('system');
 
 		assert.deepStrictEqual({ busy, betweenRequests, afterIdleTimeout, draining, stillDraining, userStopped, stopNow, system, crash }, {
 			busy: '2 response(s), 2 request(s)',
 			betweenRequests: '1 response(s), 0 request(s)',
-			afterIdleTimeout: 'ready',
+			afterIdleTimeout: { server: 'ready', events: ['ready'] },
 			draining: { drain: { runningStreams: 1, kind: 'user' }, holderAdmitted: true, othersAdmitted: false, newHold: false, counts: '1 response(s), 1 request(s)' },
 			stillDraining: 'stopping',
 			userStopped: { result: { drainedStreams: 1, drainMs: 0, stopNow: false }, server: 'stopped' },
@@ -873,10 +880,8 @@ suite('localModel server supervisor (§5.8)', () => {
 
 	/** Whether `stop` settled within a short real-time wait, and its result without the timing. */
 	async function stopOutcome(stop: Promise<{ readonly drainedStreams: number; readonly stopNow: boolean }>): Promise<{ readonly drainedStreams: number; readonly stopNow: boolean } | 'pending'> {
-		let outcome: { readonly drainedStreams: number; readonly stopNow: boolean } | 'pending' = 'pending';
-		void stop.then(result => outcome = { drainedStreams: result.drainedStreams, stopNow: result.stopNow });
-		await waitFor(() => outcome !== 'pending', 2_000).catch(() => undefined);
-		return outcome;
+		const result = await raceTimeout(stop, 2_000);
+		return result ? { drainedStreams: result.drainedStreams, stopNow: result.stopNow } : 'pending';
 	}
 
 	test('a crash while a user drain waits for a turn ends its hold and the drain: the stop completes, with no restart', async () => {
@@ -884,9 +889,11 @@ suite('localModel server supervisor (§5.8)', () => {
 		const identity = await supervisor.start(createPlan());
 		const hold = supervisor.acquireHold(identity)!;
 		const stop = supervisor.stop('user');
-		await waitFor(() => !!supervisor.state.get().drain);
-		spawner.running!.exit(3);
-		await settle();
+		await waitForState(supervisor.state, state => !!state.drain);
+		const child = spawner.running!;
+		child.exit(3);
+		// The supervisor's exit handler, attached at spawn, runs before this continues.
+		await child.exited;
 		clock.advance(60_000);
 		const outcome = await stopOutcome(stop);
 		const snapshot = {
@@ -916,7 +923,7 @@ suite('localModel server supervisor (§5.8)', () => {
 		// The turn has a request in flight.
 		const inFlight = supervisor.acquireLease(identity, hold)!;
 		const userStop = supervisor.stop('user');
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		const userDrain = supervisor.state.get().drain;
 		const systemStop = supervisor.stop('system');
 		const refused = supervisor.acquireLease(identity, hold);
@@ -956,7 +963,7 @@ suite('localModel server supervisor (§5.8)', () => {
 		const second = await supervisor.start(createPlan());
 		const laterHold = supervisor.acquireHold(second)!;
 		const laterStop = supervisor.stop('user');
-		await waitFor(() => !!supervisor.state.get().drain);
+		await waitForState(supervisor.state, state => !!state.drain);
 		const later = { drain: supervisor.state.get().drain, admitsHold: supervisor.admitsHold(laterHold) };
 		laterHold.dispose();
 		await laterStop;
@@ -970,7 +977,7 @@ suite('localModel server supervisor (§5.8)', () => {
 	test('a start that is stopped or superseded publishes stopping at once, before its process is gone', async () => {
 		const { supervisor, spawner } = createSupervisor({ server: { loading: true } });
 		const stopped = supervisor.start(createPlan());
-		await waitFor(() => supervisor.state.get().load?.step === 'loading');
+		await waitForState(supervisor.state, state => state.load?.step === 'loading');
 		spawner.processes[0].exitDelayMs = 50;
 		const stopping = supervisor.stop('system');
 		const atOnce = { server: supervisor.state.get().server, load: supervisor.state.get().load, exited: spawner.processes[0].hasExited };
@@ -979,7 +986,7 @@ suite('localModel server supervisor (§5.8)', () => {
 
 		const activation = new AbortController();
 		const superseded = supervisor.start(createPlan({ signal: activation.signal }));
-		await waitFor(() => supervisor.state.get().load?.step === 'loading' && spawner.processes.length === 2);
+		await waitForState(supervisor.state, state => state.load?.step === 'loading' && spawner.processes.length === 2);
 		activation.abort();
 		const onAbort = supervisor.state.get().server;
 		const supersededOutcome = await outcomeOf(superseded);
@@ -1022,16 +1029,16 @@ suite('localModel server supervisor (§5.8)', () => {
 	test('dispose never deletes the record or releases the lock before the child\'s exit is observed', async () => {
 		const { supervisor, spawner } = createSupervisor();
 		await supervisor.start(createPlan());
-		spawner.processes[0].survivesKill = true;
+		const child = spawner.processes[0];
+		child.survivesKill = true;
 		supervisor.dispose();
-		await settle();
-		const afterDispose = { record: await readRecord() !== undefined, lockFree: await lockIsFree(), exited: spawner.processes[0].hasExited };
-		spawner.processes[0].survivesKill = false;
-		spawner.processes[0].exit(undefined, 'SIGKILL');
-		const deadline = Date.now() + 10_000;
-		while ((await readRecord() !== undefined || !await lockIsFree()) && Date.now() < deadline) {
-			await settle();
-		}
+		await recordWorkDone(supervisor);
+		const afterDispose = { record: await readRecord() !== undefined, lockFree: await lockIsFree(), exited: child.hasExited };
+		child.survivesKill = false;
+		child.exit(undefined, 'SIGKILL');
+		// The supervisor's exit handler, attached at spawn, runs first and queues the record deletion and the lock release.
+		await child.exited;
+		await recordWorkDone(supervisor);
 		assert.deepStrictEqual({ afterDispose, afterExit: { record: await readRecord(), lockFree: await lockIsFree() } }, {
 			afterDispose: { record: true, lockFree: false, exited: false },
 			afterExit: { record: undefined, lockFree: true },
@@ -1076,8 +1083,10 @@ suite('localModel server supervisor (§5.8)', () => {
 		let done = false;
 		const tracked = attempt.finally(() => done = true);
 		while (!done) {
-			await settle();
-			clock.advance(100);
+			await Promise.race([tracked, clock.whenTimerDue(100)]);
+			if (!done) {
+				clock.advance(100);
+			}
 		}
 		return tracked;
 	}

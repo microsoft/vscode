@@ -349,6 +349,10 @@ class TestAutomationsWorkspacePicker extends AutomationsWorkspacePicker {
 		return this._buildMobileItems();
 	}
 
+	getListOptions() {
+		return this._buildListOptions(this.getItems(), undefined);
+	}
+
 	getItemStates(): Array<{ readonly label: string; readonly checked: boolean }> {
 		return this.getItems()
 			.filter(entry => entry.item)
@@ -5563,7 +5567,9 @@ suite('AutomationsWorkspacePicker', () => {
 			pickWorkspace: async () => { pickCount++; return repository; },
 			getWorkspaceTarget: uri => extUri.isEqual(uri, folder) || extUri.isEqual(uri, repository)
 				? privateTarget
-				: constObservable({ disabledReason: 'Cloud automations cannot be managed for this repository.', isRepository: extUri.isEqual(uri, publicFolder) }),
+				: extUri.isEqual(uri, publicFolder)
+					? constObservable({ disabledReason: 'Cloud automations cannot be managed for this repository.', isRepository: true, isPrivateRepository: false })
+					: constObservable({ disabledReason: 'Cloud automations cannot be managed for this repository.' }),
 		}));
 		picker.setCloudMode(cloudMode);
 		const rows = () => picker.getItems().filter(row => row.kind === ActionListItemKind.Action)
@@ -5581,39 +5587,37 @@ suite('AutomationsWorkspacePicker', () => {
 		await ready;
 		gitDetected.set(true, undefined);
 		const populated = rows();
-		const publicRow = picker.getMobileItems().find(row => row.item?.folderUri && extUri.isEqual(row.item.folderUri, publicFolder))!;
-		const mobilePublicRow = buildMobileWorkspacePickerRows([publicRow], () => { })[0].sheetItem;
 		const errors: string[] = [];
 		picker.onSelectionError = error => errors.push(error.message);
-		await picker.select('local/public');
 		await picker.select('local/other-git');
 		const rejectedSelections = picker.selectedFolderUri;
 		await picker.select('local/private');
 		const selectedPrivateFolder = picker.selectedFolderUri?.toString();
 		await picker.select('Add repository');
 		const selected = picker.selectedFolderUri?.toString();
+		const publicVisible = picker.getMobileItems().some(row => row.item?.folderUri && extUri.isEqual(row.item.folderUri, publicFolder));
+		const banner = { text: picker.getListOptions().headerText, icon: picker.getListOptions().headerIcon?.id };
 		cloudMode.set(false, undefined);
 		assert.deepStrictEqual({
 			pending, waitedForLocalFolder, populated, rejectedSelections, selectedPrivateFolder, errors, pickCount, selected,
-			publicAriaLabel: publicRow.item?.ariaLabel,
-			mobilePublicRow: { icon: mobilePublicRow.icon?.id, description: mobilePublicRow.description, disabled: mobilePublicRow.disabled },
+			publicVisible,
+			banner,
 			localFolders: picker.getItems().flatMap(row => row.item?.folderUri?.scheme === Schemas.file ? [row.item.folderUri.toString()] : []).sort(),
 			localOffersGitHub: rows().some(row => row.label === 'Add repository'),
 		}, {
-			pending: { label: 'local/private', icon: 'repo', disabled: true, description: '$(info)', reason: 'Checking repository access...', hover: 'Checking repository access...' },
+			pending: { label: 'local/private', icon: 'repo', disabled: true, description: undefined, reason: 'Checking repository access...', hover: 'Checking repository access...' },
 			waitedForLocalFolder: true,
 			populated: [
 				{ label: 'local/private', icon: 'repo', disabled: false, description: undefined, reason: undefined, hover: undefined },
-				{ label: 'local/public', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations cannot be managed for this repository.', hover: 'Cloud automations cannot be managed for this repository.' },
-				{ label: 'local/other-git', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations cannot be managed for this repository.', hover: 'Cloud automations cannot be managed for this repository.' },
+				{ label: 'local/other-git', icon: 'repo', disabled: true, description: undefined, reason: 'Cloud automations cannot be managed for this repository.', hover: 'Cloud automations cannot be managed for this repository.' },
 				{ label: 'Add repository', icon: 'github', disabled: false, description: undefined, reason: undefined, hover: undefined },
 			],
 			rejectedSelections: undefined,
 			selectedPrivateFolder: folder.toString(),
-			errors: ['Cloud automations cannot be managed for this repository.', 'Cloud automations cannot be managed for this repository.'],
+			errors: ['Cloud automations cannot be managed for this repository.'],
 			pickCount: 1, selected: repository.toString(),
-			publicAriaLabel: 'local/public, C:\\src, unavailable. Cloud automations cannot be managed for this repository.',
-			mobilePublicRow: { icon: 'folder', description: 'Cloud automations cannot be managed for this repository.', disabled: true },
+			publicVisible: false,
+			banner: { text: 'Cloud automations are only supported for private repositories.', icon: 'info' },
 			localFolders: [folder, publicFolder, otherGitFolder, plainFolder].map(uri => uri.toString()).sort(),
 			localOffersGitHub: false,
 		});
@@ -5666,6 +5670,7 @@ suite('AutomationsWorkspacePicker', () => {
 		const desktop = picker.getItems().filter(row => row.kind === ActionListItemKind.Action && row.label === 'shared').map(row => ({
 			label: row.label,
 			description: typeof row.description === 'string' ? row.description : row.description?.value,
+			filterText: row.filterText,
 			tooltip: row.tooltip,
 			ariaDescription: row.ariaDescription,
 		}));
@@ -5673,9 +5678,9 @@ suite('AutomationsWorkspacePicker', () => {
 			.map(row => ({ label: row.sheetItem.label, description: row.sheetItem.description, disabled: row.sheetItem.disabled }));
 		assert.deepStrictEqual({ desktop, mobile }, {
 			desktop: [
-				{ label: 'shared', description: 'owner-one/shared', tooltip: 'owner-one/shared', ariaDescription: 'owner-one/shared' },
+				{ label: 'shared', description: undefined, filterText: 'owner-one/shared', tooltip: 'owner-one/shared', ariaDescription: 'owner-one/shared' },
 				{
-					label: 'shared', description: '$(info) owner-two/shared', tooltip: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
+					label: 'shared', description: undefined, filterText: 'owner-two/shared', tooltip: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
 					ariaDescription: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
 				},
 			],
@@ -5863,6 +5868,31 @@ suite('AutomationsWorkspacePicker', () => {
 		}));
 		picker.setCloudMode(constObservable(true));
 		assert.deepStrictEqual(picker.getItems().filter(row => row.kind === ActionListItemKind.Action).map(row => row.label), ['local/repo', 'Add repository']);
+	});
+
+	test('cloud mode filters public repositories before applying the recent-workspace limit', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		providersService.setProviders([provider]);
+		const publicFolders = Array.from({ length: 10 }, (_, index) => URI.file(`/local/public-${index}`));
+		const privateFolder = URI.file('/local/private');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [...publicFolders, privateFolder].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false, configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true } });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => undefined,
+			getWorkspaceTarget: uri => constObservable<IAutomationWorkspaceTarget>(extUri.isEqual(uri, privateFolder)
+				? { workspace: repository }
+				: { isRepository: true, isPrivateRepository: false }),
+		}));
+		picker.setCloudMode(constObservable(true));
+
+		assert.deepStrictEqual(picker.getItems().filter(row => row.kind === ActionListItemKind.Action).map(row => row.label), ['local/private', 'Add repository']);
 	});
 
 	test('a pending Add repository selection is cancelled when the execution mode changes', async () => {
@@ -6763,6 +6793,31 @@ suite('AutomationsWorkspacePicker', () => {
 		const searchInput = workbench.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input');
 		assert.strictEqual(searchInput?.placeholder, 'Search Workspaces...');
 
+		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+		await sheet;
+	});
+
+	test('mobile workspace sheet shows a caller-provided repository policy caption', async () => {
+		const workbench = document.createElement('div');
+		document.body.appendChild(workbench);
+		disposables.add({ dispose: () => workbench.remove() });
+		const trigger = workbench.appendChild(document.createElement('button'));
+		const sheet = showMobileWorkspacePickerSheet(
+			upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }),
+			trigger,
+			[{
+				kind: ActionListItemKind.Action,
+				label: 'workday',
+				item: { folderUri: URI.file('/workday'), providerId: 'local' },
+			}],
+			() => { },
+			[],
+			false,
+			CancellationToken.None,
+			'Cloud automations are only supported for private repositories.',
+		);
+
+		assert.strictEqual(workbench.querySelector('.mobile-picker-sheet-caption')?.textContent, 'Cloud automations are only supported for private repositories.');
 		workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
 		await sheet;
 	});

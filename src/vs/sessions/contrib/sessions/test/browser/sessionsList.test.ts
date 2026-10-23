@@ -2236,8 +2236,8 @@ suite('Sessions - SessionsList', () => {
 
 				const hidden = { titleBadge: undefined, detailsBadge: undefined, ariaIncludesApplication: false };
 				const cliBadge = {
-					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Copilot CLI' : undefined,
-					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Copilot CLI' : undefined,
+					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Copilot CLI' : undefined,
+					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Copilot CLI' : undefined,
 					ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
 				};
 				assert.deepStrictEqual({ vscode, unknownApplications, external, continued, vscodeAgentsWindow, otherApplication }, {
@@ -2247,8 +2247,8 @@ suite('Sessions - SessionsList', () => {
 					continued: cliBadge,
 					vscodeAgentsWindow: hidden,
 					otherApplication: {
-						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Slack' : undefined,
-						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Slack' : undefined,
+						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Slack' : undefined,
+						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Slack' : undefined,
 						ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
 					},
 				});
@@ -10887,11 +10887,43 @@ suite('Sessions - SessionsList', () => {
 			}));
 
 			assert.deepStrictEqual(results, [
-				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
-				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
+				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
 			]);
+		});
+
+		test('keeps compact quick-chat rows the same height whether or not the title application badge is shown', () => {
+			const quickChat = createTestSession('External chat', { isQuickChat: true, application: 'github/cli', environment: 'cloud' }).session;
+			const harness = createListHarness(disposables, [quickChat], instantiationService => {
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Title);
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				useCompactQuickChatRows: true,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([quickChat]);
+			list.layout(list.getContentHeight(), 400);
+
+			const row = container.querySelector<HTMLElement>('.monaco-list-row');
+			const titleRow = container.querySelector<HTMLElement>('.session-title-row');
+			const badge = container.querySelector<HTMLElement>('.session-external-application-badge-title.visible');
+			assert.ok(row && titleRow && badge);
+			const measure = () => ({
+				badgeShown: mainWindow.getComputedStyle(badge).display !== 'none',
+				titleRowHeight: titleRow.getBoundingClientRect().height,
+			});
+			const atRest = measure();
+			row.classList.add('hovered');
+			const hovered = measure();
+
+			assert.deepStrictEqual({ atRest, hovered }, {
+				atRest: { badgeShown: true, titleRowHeight: 16 },
+				hovered: { badgeShown: false, titleRowHeight: 16 },
+			});
 		});
 
 		function createChat(id: string): IChat {
