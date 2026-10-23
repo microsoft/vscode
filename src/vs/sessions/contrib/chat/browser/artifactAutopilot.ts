@@ -5,6 +5,7 @@
 
 import { $, append, getActiveElement, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
+import { HoverStyle, IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { Switch } from '../../../../base/browser/ui/toggle/switch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -24,13 +25,14 @@ class ArtifactAutopilotRule extends Disposable {
 	private readonly picker: ButtonWithIcon | undefined;
 	private data: IArtifactAutopilotRuleViewData;
 
-	constructor(data: IArtifactAutopilotRuleViewData, hoverService: IHoverService) {
+	constructor(data: IArtifactAutopilotRuleViewData, hoverService: IHoverService, hoverLifecycleOptions: IHoverLifecycleOptions) {
 		super();
 		this.data = data;
 		this.toggle = this._register(new Switch({ ariaLabel: data.label }));
 		this.row.insertBefore(this.toggle.domNode, this.label);
 		this.toggle.domNode.id = generateUuid();
 		this.label.htmlFor = this.toggle.domNode.id;
+		this._register(hoverService.setupDelayedHover(this.toggle.domNode, () => ({ content: this.data.description, style: HoverStyle.Pointer }), hoverLifecycleOptions));
 		this._register(this.toggle.onChange(value => this.execute(this.toggle.domNode, () => this.data.setEnabled(value))));
 		if (data.policy !== undefined) {
 			this.picker = this._register(new ButtonWithIcon(this.row, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -41,7 +43,7 @@ class ArtifactAutopilotRule extends Disposable {
 			this.picker.element.setAttribute('aria-haspopup', 'listbox');
 			this._register(this.picker.onDidClick(() => this.execute(this.picker!.element, () => this.data.policy!.choose())));
 		}
-		this._register(hoverService.setupDelayedHover(this.label, () => ({ content: `${this.data.label}\n${this.data.description}` })));
+		this._register(hoverService.setupDelayedHover(this.label, () => ({ content: `${this.data.label}\n${this.data.description}`, style: HoverStyle.Pointer }), hoverLifecycleOptions));
 		this._register(toDisposable(() => this.element.remove()));
 		this.update(data);
 	}
@@ -91,6 +93,7 @@ class ArtifactAutopilotGroup extends ArtifactDetailsCard {
 	private readonly toggle: Switch;
 	private readonly summary = $('span.artifact-card-summary.artifact-autopilot-summary');
 	private readonly rules = this._register(new DisposableMap<string, ArtifactAutopilotRule>());
+	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private orderedRules: readonly ArtifactAutopilotRule[] = [];
 	private data: IArtifactAutopilotGroupViewData;
 
@@ -100,7 +103,7 @@ class ArtifactAutopilotGroup extends ArtifactDetailsCard {
 		this.element.classList.add('artifact-autopilot-group');
 		this.toggle = this._register(new Switch({ ariaLabel: data.toggleLabel }));
 		append(this.heading, this.toggle.domNode, this.summary);
-		this._register(hoverService.setupDelayedHover(this.toggle.domNode, () => ({ content: this.data.description })));
+		this._register(hoverService.setupDelayedHover(this.toggle.domNode, () => ({ content: this.data.description, style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
 		this._register(this.toggle.onChange(enabled => {
 			const focused = getActiveElement() === this.toggle.domNode;
 			const promise = this.data.setEnabled(enabled);
@@ -136,7 +139,7 @@ class ArtifactAutopilotGroup extends ArtifactDetailsCard {
 			const id = `${data.id}:${data.policy !== undefined}`;
 			let rule = this.rules.get(id);
 			if (!rule) {
-				rule = new ArtifactAutopilotRule(data, hoverService);
+				rule = new ArtifactAutopilotRule(data, hoverService, this.hoverLifecycleOptions);
 				this.rules.set(id, rule);
 			} else {
 				rule.update(data);

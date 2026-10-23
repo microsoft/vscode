@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -13,8 +14,12 @@ import { AICustomizationManagementSection } from '../../common/aiCustomizationWo
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	layout?(dimension: Dimension): void;
 	focus?(): void;
+	fireItemCount?(): void;
 	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
+	setCloseCustomizationEditor?(closeCustomizationEditor: () => Promise<boolean>): void;
+	getAccessibilityContent?(): string;
+	readonly onDidChangeItemCount?: Event<number>;
 }
 
 export interface IAICustomizationManagementSectionContribution {
@@ -24,6 +29,8 @@ export interface IAICustomizationManagementSectionContribution {
 	readonly description: string;
 	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
 	readonly enablementSettings?: readonly string[];
+	/** Instantiate while hidden so sidebar metadata such as item counts is available before first navigation. */
+	readonly initializeOnEditorOpen?: boolean;
 	readonly supportsHarness: (harnessId: string) => boolean;
 	/**
 	 * Describes why the section's navigation entry shows a badge, for example because the section has suggestions

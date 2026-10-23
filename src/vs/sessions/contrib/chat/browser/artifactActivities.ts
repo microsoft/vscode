@@ -5,6 +5,7 @@
 
 import { $, addDisposableListener, append, EventType, getActiveElement, isAncestorOfActiveElement, isHTMLElement, reset } from '../../../../base/browser/dom.js';
 import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -39,7 +40,7 @@ class ActivityRenderer implements IListRenderer<IArtifactActivityViewData, IActi
 			label: append(element, $('span.artifact-activity-label')),
 			actions: store.add(new ArtifactButtons(append(element, $('.artifact-controls.artifact-activity-controls')), this.hoverService, 'quiet')),
 		};
-		store.add(this.hoverService.setupDelayedHover(template.label, () => ({ content: template.item?.description ?? '' })));
+		store.add(this.hoverService.setupDelayedHoverAtMouse(template.label, () => ({ content: template.item?.description ?? '', style: HoverStyle.Mouse })));
 		store.add(addDisposableListener(template.actions.element, EventType.CLICK, event => event.stopPropagation()));
 		return template;
 	}

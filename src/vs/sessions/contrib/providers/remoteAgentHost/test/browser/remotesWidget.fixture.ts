@@ -25,11 +25,13 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
 	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1']) },
+	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.connected, removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.' },
+	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.' },
 	{ id: 'container:project', kind: 'devContainer', name: 'Project development container', detail: '/Users/developer/projects/example-project-with-a-long-source-folder-name', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = []): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = '640px';
 	container.classList.add('remotes-editor');
@@ -51,6 +53,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		},
 	});
 	const model = disposableStore.add(new class extends Disposable implements IRemotesModel {
+		readonly environmentsEnabled = observableValue(this, environments);
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
 		async refresh() { return failedKinds; }
 		async rename(id: string) {
@@ -61,7 +64,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		}
 		async setConnected(id: string, connected: boolean) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? {
-				...remote, canRemove: connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
+				...remote, canRemove: remote.kind !== 'environment' && connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
 			} : remote), undefined);
 		}
 	}());
@@ -72,6 +75,10 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
+	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, false, [], true) }),
+	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
+	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
+	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),
 	Table: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000) }),
 	Wide: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1400) }),
 	Windows: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OperatingSystem.Windows) }),

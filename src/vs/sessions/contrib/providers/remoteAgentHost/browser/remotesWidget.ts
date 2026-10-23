@@ -21,6 +21,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -39,7 +40,7 @@ import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind,
 import { getConnectionLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import './media/remotesWidget.css';
 
-const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation: { readonly label: string; readonly href: string } }> = {
+const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation?: { readonly label: string; readonly href: string } }> = {
 	ssh: {
 		label: localize('remotes.empty.ssh', "No SSH hosts configured."),
 		description: localize('remotes.empty.ssh.description', "Use the SSH settings action to add a host."),
@@ -54,6 +55,10 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		label: localize('remotes.empty.tunnels', "No tunnels found for this account."),
 		description: localize('remotes.empty.tunnels.description', "Enable a tunnel on another computer, then sign in with the same account."),
 		documentation: { label: localize('remotes.docs.tunnels', "Remote Tunnels Guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
+	},
+	environment: {
+		label: localize('remotes.empty.environments', "No environments available."),
+		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
@@ -76,7 +81,7 @@ export class RemotesWidget extends Disposable {
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedKinds = new Set<RemoteKind>();
-	private readonly kinds: readonly RemoteKind[];
+	private kinds: readonly RemoteKind[];
 	private rows: IRemoteTableRow[] = [];
 	private visible = false;
 	private query = '';
@@ -211,6 +216,7 @@ export class RemotesWidget extends Disposable {
 		this._register(resizeObserver.observe(this.domNode));
 		this._register(autorun(reader => {
 			this.model.remotes.read(reader);
+			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader));
 			this.render();
 		}));
 	}
@@ -247,6 +253,8 @@ export class RemotesWidget extends Disposable {
 				await this.editorService.openEditor({ resource, options: { pinned: true } }, MODAL_GROUP);
 			} else if (kind === 'tunnel') {
 				await this.preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
+			} else if (kind === 'environment') {
+				await this.preferencesService.openSettings({ query: GitHubEnvironmentsEnabledSettingId });
 			}
 		} catch (error) {
 			this.notificationService.error(error);
@@ -427,6 +435,7 @@ export class RemotesWidget extends Disposable {
 			case 'ssh': return localize('remotes.sshRefreshWarning', "Could not read your SSH hosts. Check your SSH configuration. See the Window log for more details.");
 			case 'wsl': return localize('remotes.wslRefreshWarning', "Could not refresh WSL distributions. Check that WSL is available. See the Window log for more details.");
 			case 'tunnel': return localize('remotes.tunnelRefreshWarning', "Could not refresh tunnels. Check your sign-in and network connection. See the Window log for more details.");
+			case 'environment': return localize('remotes.environmentRefreshWarning', "Could not refresh environments. Check your GitHub sign-in and network connection. See the Window log for more details.");
 			case 'devContainer': return localize('remotes.devContainerRefreshWarning', "Could not refresh Dev Containers. Check that Docker is running. See the Window log for more details.");
 		}
 	}

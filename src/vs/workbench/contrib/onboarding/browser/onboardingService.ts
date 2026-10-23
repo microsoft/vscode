@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -71,6 +71,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	/** Scenario ids currently queued or running (prevents double-scheduling). */
 	private readonly _pending = new Set<string>();
+	private readonly _isPresenting = observableValue(this, false);
+	readonly isPresenting: IObservable<boolean> = this._isPresenting;
 	private readonly _queue: IScenarioRun[] = [];
 	/** Scenarios that have been dequeued and are currently running, keyed by id. */
 	private readonly _inflight = new Map<string, IScenarioRun>();
@@ -137,8 +139,13 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		let entry: IScenarioRun | undefined;
 		while ((entry = this._queue.shift())) {
 			this._pending.delete(entry.scenario.id);
+			this._updatePresenting();
 			entry.deferred.complete(OnboardingOutcome.Aborted);
 		}
+	}
+
+	private _updatePresenting(): void {
+		this._isPresenting.set(this._pending.size > 0, undefined);
 	}
 
 	start(): void {
@@ -187,6 +194,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 				if (index >= 0) {
 					const [entry] = this._queue.splice(index, 1);
 					this._pending.delete(id);
+					this._updatePresenting();
 					entry.deferred.complete(OnboardingOutcome.Aborted);
 				} else if (this._inflight.has(id)) {
 					this._activeAbort?.fire();
@@ -380,6 +388,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 		const deferred = new DeferredPromise<OnboardingOutcome>();
 		this._pending.add(scenario.id);
+		this._updatePresenting();
 		this._queue.push({ scenario, deferred, automatic });
 		// Highest priority first; stable for equal priorities.
 		this._queue.sort((a, b) => (b.scenario.priority ?? 0) - (a.scenario.priority ?? 0));
@@ -416,6 +425,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 				} finally {
 					this._inflight.delete(scenario.id);
 					this._pending.delete(scenario.id);
+					this._updatePresenting();
 				}
 				deferred.complete(outcome);
 			}

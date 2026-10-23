@@ -436,7 +436,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError);
 						if (saveButton && blocked?.message !== saveBlockedMessage) {
 							saveBlockedMessage = blocked?.message;
-							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message }) : undefined;
+							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message, appearance: { showPointer: true } }) : undefined;
 							if (blocked) {
 								saveButton.element.setAttribute('aria-describedby', blocked.elementId);
 							} else {
