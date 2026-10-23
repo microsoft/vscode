@@ -184,7 +184,7 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         shell: pwsh
-        run: .\scripts\test.bat --tfs "Unit Tests"
+        run: .\scripts\test.bat --tfs "Unit Tests" --workers
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
@@ -192,7 +192,7 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         shell: pwsh
-        run: npm run test-node
+        run: npm run test-node -- --workers
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
