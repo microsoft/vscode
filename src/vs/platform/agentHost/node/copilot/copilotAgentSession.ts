@@ -4364,6 +4364,11 @@ export class CopilotAgentSession extends Disposable {
 		return this._launchPlan.workspaceless ? this._launchPlan.workingDirectory : undefined;
 	}
 
+	/** The repository whose trust this session's working directory inherits, when it is the worktree the host created for it. */
+	get worktreeRepository(): URI | undefined {
+		return this._launchPlan.worktreeRepository;
+	}
+
 	get canvasRuntimeEnabled(): boolean {
 		// A session whose initialization never created its SDK session has no runtime, so none of its canvases.
 		return this._wrapper?.canvasRuntimeEnabled ?? false;

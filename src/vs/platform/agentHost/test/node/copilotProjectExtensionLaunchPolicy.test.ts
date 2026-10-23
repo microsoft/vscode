@@ -308,4 +308,51 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 			await fs.rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test('lets a worktree the host created inherit its repository\'s trust, and only that worktree', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-worktree-`);
+		const repository = join(root, 'repo');
+		const worktree = join(root, 'repo.worktrees', 'feature');
+		const sibling = join(root, 'repo.worktrees', 'sibling');
+		const impostor = join(root, 'other.worktrees', 'feature');
+		const module = (folder: string, name: string) => join(folder, '.github', 'extensions', name, 'extension.mjs');
+		for (const path of [module(repository, 'repo-canvas'), module(worktree, 'worktree-canvas'), module(sibling, 'sibling-canvas'), module(impostor, 'impostor-canvas')]) {
+			await fs.mkdir(join(path, '..'), { recursive: true });
+			await fs.writeFile(path, '');
+		}
+		const { configurationService, policy } = createPolicy();
+		const trust = (folders: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => URI.file(folder).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		const launches = async (path: string) => !!(await policy.resolveLaunch(path, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		try {
+			const inheriting = await policy.acquireAdmission([URI.file(worktree)], undefined, URI.file(repository));
+			disposables.add(await policy.acquireAdmission([URI.file(sibling)], undefined, undefined));
+			disposables.add(await policy.acquireAdmission([URI.file(impostor)], undefined, URI.file(repository)));
+			trust([]);
+			const repositoryUntrusted = await launches(module(worktree, 'worktree-canvas'));
+			trust([repository]);
+			const repositoryTrusted = {
+				worktree: await launches(module(worktree, 'worktree-canvas')),
+				siblingWithoutInheritance: await launches(module(sibling, 'sibling-canvas')),
+				impostorOutsideRepositoryWorktrees: await launches(module(impostor, 'impostor-canvas')),
+			};
+			const revokedWithRepository = [...(await policy.reconciliationFor(trust([]))).revokedExtensionNames];
+			trust([repository]);
+			inheriting.dispose();
+			const readmitted = await policy.acquireAdmission([URI.file(worktree)], undefined, undefined);
+			const inheritanceEndsWithAdmission = await launches(module(worktree, 'worktree-canvas'));
+			readmitted.dispose();
+
+			assert.deepStrictEqual({ repositoryUntrusted, repositoryTrusted, revokedWithRepository, inheritanceEndsWithAdmission }, {
+				repositoryUntrusted: false,
+				repositoryTrusted: { worktree: true, siblingWithoutInheritance: false, impostorOutsideRepositoryWorktrees: false },
+				revokedWithRepository: ['worktree-canvas'],
+				inheritanceEndsWithAdmission: false,
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
 });
