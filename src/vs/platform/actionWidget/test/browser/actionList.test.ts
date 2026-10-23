@@ -580,6 +580,27 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
 	});
 
+	test('pointer movement to a disabled hover row clears the previous row focus', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('enabled'), { ...action('disabled'), disabled: true, hover: { content: 'Unavailable' } }],
+			listOptions: { showFilter: false },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const before = widget.getFocusedElement()?.item?.id;
+		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const after = widget.getFocusedElement()?.item?.id;
+		widget.focusNext();
+
+		assert.deepStrictEqual({ before, after, keyboardRecovered: widget.getFocusedElement()?.item?.id }, {
+			before: 'enabled',
+			after: undefined,
+			keyboardRecovered: 'enabled',
+		});
+	});
+
 	for (const filterAsCombobox of [false, true]) {
 		test(`only keyboard navigation draws the selection border (combobox: ${filterAsCombobox})`, () => {
 			const widget = createActionListWidget(disposables, {

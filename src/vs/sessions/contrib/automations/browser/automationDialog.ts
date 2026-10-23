@@ -6,7 +6,7 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -21,7 +21,6 @@ import { IAction } from '../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -29,6 +28,7 @@ import { autorun, constObservable, derived, disposableObservableValue, IObservab
 import { extUriIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -37,7 +37,7 @@ import { Context as SuggestContext } from '../../../../editor/contrib/suggest/br
 import { State as SuggestState } from '../../../../editor/contrib/suggest/browser/suggestModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -245,6 +245,7 @@ export interface IFormState extends IAutomationTriggerFormState {
 	resolvedFolderUri?: URI;
 	targetDisabledReason?: string;
 	targetPending?: { readonly message: string };
+	ownershipPending?: boolean;
 	triggerExternalResource?: URI;
 }
 
@@ -289,6 +290,17 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelPromptSuggestion: () => boolean;
+}
+
+export type AutomationDialogMessageSource = 'immutableSettings' | 'repositoryWarning' | 'targetValidation' | 'scheduleValidation' | 'toolCatalogError' | 'operationError' | 'saveError';
+
+export interface IAutomationDialogMessage {
+	readonly severity: 'info' | 'warning' | 'error';
+	readonly text: string;
+	readonly action?: {
+		readonly label: string;
+		readonly run: () => void;
+	};
 }
 
 export type AutomationSessionDraftTarget =
@@ -1077,8 +1089,11 @@ export function renderForm(
 	notifyError: (error: Error) => void = onUnexpectedError,
 	quickInputService?: IQuickInputService,
 	setRepositoryWarningVisible: (visible: boolean) => void = () => { },
+	setDialogMessage: (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => void = () => { },
+	focusDialogMessage: () => void = () => { },
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
+	let recheckRepositoryOwnership: () => void = () => { };
 	const validateForm = revalidate;
 	revalidate = () => {
 		reloadCustomizations();
@@ -1112,6 +1127,22 @@ export function renderForm(
 		}
 	}));
 	DOM.append(cloudRow, cloudSwitch.domNode);
+	const loadingHoverLifecycleOptions = { groupId: generateUuid() };
+	const cloudLoading = DOM.append(cloudRow, $('.automation-loading-spinner', {
+		role: 'status',
+		'aria-live': 'polite',
+		'aria-atomic': 'true',
+	}));
+	const cloudLoadingIcon = DOM.append(cloudLoading, renderIcon(Codicon.loading));
+	cloudLoadingIcon.classList.add('codicon-modifier-spin');
+	DOM.hide(cloudLoading);
+	let cloudLoadingMessage = '';
+	if (customizations?.hoverService) {
+		disposables.add(customizations.hoverService.setupDelayedHover(cloudLoading, () => ({
+			content: cloudLoadingMessage,
+			style: HoverStyle.Pointer,
+		}), loadingHoverLifecycleOptions));
+	}
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
@@ -1176,7 +1207,7 @@ export function renderForm(
 	const requiredTriggerFields = DOM.append(formContent, $('.automation-trigger-required-fields'));
 	const eventGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-event-group'));
 	const triggerFields = $('.automation-trigger-fields');
-	const scheduleError = DOM.append(formContent, $('span.automation-target-error', { role: 'status', 'aria-live': 'polite' }));
+	const scheduleError = DOM.append(formContent, $('span.automation-target-error.automation-visually-hidden'));
 	scheduleError.id = 'automation-schedule-error';
 	DOM.hide(scheduleError);
 	const customizationSelection = disposables.add(new AutomationCustomizationSelection(
@@ -1483,6 +1514,8 @@ export function renderForm(
 		if (switchingTarget) {
 			return false;
 		}
+		sessionConfigurationErrorMessage.set(undefined, undefined);
+		setDialogMessage('operationError', undefined);
 		if (!runInCloud.get()) {
 			localTarget = { ...state, branch: isolationModel.persistedBranch };
 		}
@@ -1550,6 +1583,7 @@ export function renderForm(
 		switchingTarget = false;
 		syncStateFromPicker();
 		updateAutomationSessionTarget();
+		recheckRepositoryOwnership();
 		revalidate();
 	};
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => applyWorkspaceTarget(uri)));
@@ -1566,6 +1600,9 @@ export function renderForm(
 			? current && (target?.workspace || target?.pending) ? cloudFolderFor(current, target?.workspace) : undefined
 			: localTarget.folderUri;
 		switchingTarget = true;
+		if (checked && state.interval === 'weekdays') {
+			state.interval = 'manual';
+		}
 		runInCloud.set(checked, undefined);
 		if (folder) {
 			workspacePicker.setSelectedWorkspace(folder, { fireEvent: false, persist: false });
@@ -1588,13 +1625,15 @@ export function renderForm(
 			applyWorkspaceTarget(cloudFolder);
 		}
 	}));
-	const connectFailureHover = disposables.add(new MutableDisposable());
 	const connectCloud = async (): Promise<boolean> => {
 		if (cloudCreatable()) {
 			return true;
 		}
 		// Disabling the switch while connecting drops its focus, so return focus once it is usable again.
 		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
+		cloudLoadingMessage = localize('automation.form.connectingCloud', "Connecting to cloud automations...");
+		cloudLoading.setAttribute('aria-label', cloudLoadingMessage);
+		DOM.show(cloudLoading);
 		cloudSwitch.disabled = true;
 		cloudRow.setAttribute('aria-busy', 'true');
 		connectingCloud = true;
@@ -1606,6 +1645,8 @@ export function renderForm(
 		} finally {
 			connectingCloud = false;
 			if (!disposables.isDisposed) {
+				DOM.hide(cloudLoading);
+				cloudLoading.removeAttribute('aria-label');
 				cloudSwitch.disabled = isEdit;
 				cloudRow.removeAttribute('aria-busy');
 				if (hadFocus) {
@@ -1621,15 +1662,10 @@ export function renderForm(
 	const showConnectFailure = () => {
 		const message = localize('automation.form.runInCloudUnavailable', "Unable to load cloud automations. Please try again in a few moments.");
 		status(message);
-		connectFailureHover.value = customizations?.hoverService.showInstantHover({
-			content: message,
-			target: cloudSwitch.domNode,
-			position: { hoverPosition: HoverPosition.BELOW },
-			appearance: { showPointer: true },
-		});
+		setDialogMessage('operationError', { severity: 'error', text: message });
 	};
 	disposables.add(cloudSwitch.onChange(async checked => {
-		connectFailureHover.clear();
+		setDialogMessage('operationError', undefined);
 		if (checked && !await connectCloud()) {
 			if (!disposables.isDisposed) {
 				cloudSwitch.checked = runInCloud.get();
@@ -1654,14 +1690,14 @@ export function renderForm(
 		role: 'group',
 		'aria-label': localize('automation.form.target', "Target"),
 	}));
-	const targetError = DOM.append(targetRow, $('span.automation-target-error', {
+	disposables.add(autorun(reader => {
+		targetContainer.classList.toggle('cloud-target', runInCloud.read(reader));
+	}));
+	const targetError = DOM.append(targetRow, $('span.automation-target-error.automation-visually-hidden', {
 		id: 'automation-target-error',
-		role: 'status',
-		'aria-live': 'polite',
-		'aria-atomic': 'true',
 	}));
 	DOM.hide(targetError);
-	const targetProgress = DOM.append(targetRow, $('span.automation-target-progress', {
+	const targetProgress = DOM.append(targetRow, $('span.automation-target-progress.automation-visually-hidden', {
 		id: 'automation-target-progress',
 		role: 'status',
 		'aria-live': 'polite',
@@ -1669,7 +1705,7 @@ export function renderForm(
 	}));
 	DOM.hide(targetProgress);
 	if (isEdit && initialProviderConfiguration) {
-		DOM.append(targetRow, $('span.automation-form-hint', undefined, initialProviderConfiguration.targetChangeDisabledReason));
+		setDialogMessage('immutableSettings', { severity: 'info', text: initialProviderConfiguration.targetChangeDisabledReason });
 	}
 	const promptSection = DOM.append(sessionSection, $('.automation-prompt-section'));
 	const promptRow = DOM.append(promptSection, $('.automation-form-row'));
@@ -1713,7 +1749,10 @@ export function renderForm(
 		},
 		actionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => {
+					container.classList.add('automation-harness-picker');
+					sessionTypePicker.render(container);
+				}, undefined, itemOptions);
 
 			}
 			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
@@ -1741,6 +1780,19 @@ export function renderForm(
 		relayout: () => targetToolbar.relayout(),
 	}));
 	targetLayout.layout();
+	const targetLoading = DOM.append(targetContainer, $('.automation-loading-spinner', {
+		role: 'img',
+	}));
+	const targetLoadingIcon = DOM.append(targetLoading, renderIcon(Codicon.loading));
+	targetLoadingIcon.classList.add('codicon-modifier-spin');
+	DOM.hide(targetLoading);
+	let targetLoadingMessage = '';
+	if (customizations?.hoverService) {
+		disposables.add(customizations.hoverService.setupDelayedHover(targetLoading, () => ({
+			content: targetLoadingMessage,
+			style: HoverStyle.Pointer,
+		}), loadingHoverLifecycleOptions));
+	}
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-input-background)',
@@ -1873,8 +1925,6 @@ export function renderForm(
 	const toolsNotReported = DOM.append(toolsContainer, $('p', undefined, localize('automation.toolsNotReported', "GitHub did not report the saved tool selection. Unchanged permissions will be preserved. Select tools to replace it explicitly.")));
 	const toolsStatus = DOM.append(providerDetails, $('.automation-provider-tools-status', { role: 'status', 'aria-live': 'polite' }));
 	const toolsStatusText = DOM.append(toolsStatus, $('span'));
-	const toolsRetry = disposables.add(new Button(toolsStatus, { ...defaultButtonStyles, secondary: true }));
-	toolsRetry.label = localize('automation.retryTools', "Retry");
 	const toolsPicker = disposables.add(new MutableDisposable<DisposableStore>());
 	let selectedTools: string[] | undefined;
 	let toolsInitialized = false;
@@ -1898,13 +1948,17 @@ export function renderForm(
 			toolsButton.element.removeAttribute('aria-description');
 		}
 		setAutomationControlVisible(toolsNotReported, selectedTools === undefined);
-		toolsStatusText.textContent = toolCatalog.kind === 'loading'
-			? localize('automation.toolsLoading', "Loading available tools...")
-			: toolCatalog.kind === 'error' ? toolCatalog.message : '';
-		setAutomationControlVisible(toolsStatus, !ready);
-		setAutomationControlVisible(toolsRetry.element, toolCatalog.kind === 'error');
+		toolsStatusText.textContent = toolCatalog.kind === 'loading' ? localize('automation.toolsLoading', "Loading available tools...") : '';
+		setAutomationControlVisible(toolsStatus, toolCatalog.kind === 'loading');
+		setDialogMessage('toolCatalogError', toolCatalog.kind === 'error' ? {
+			severity: 'error',
+			text: toolCatalog.message,
+			action: {
+				label: localize('automation.retryTools', "Retry"),
+				run: () => cloudConfiguration.get()?.loadTools(),
+			},
+		} : undefined);
 	};
-	disposables.add(toolsRetry.onDidClick(() => cloudConfiguration.get()?.loadTools()));
 	disposables.add(toolsButton.onDidClick(() => {
 		if (!quickInputService || toolCatalog.kind !== 'ready') {
 			return;
@@ -1984,21 +2038,94 @@ export function renderForm(
 		items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex, disabled: isEdit })),
 	}));
 	DOM.append(ownerControl, ownerRadio.domNode);
+	const ownerLoadingMessage = localize('automation.owner.checking', "Checking repository settings...");
+	const ownershipEligibilityRequest = disposables.add(new MutableDisposable<DisposableStore>());
+	let ownershipEligibilityGeneration = 0;
+	let repositoryOwnershipAllowed = isEdit && state.ownership === 'repository';
+	let repositoryOwnerDescription = ownerDescriptions[1];
+	const setRepositoryOwnerAvailability = (enabled: boolean, description = ownerDescriptions[1]) => {
+		repositoryOwnershipAllowed = enabled;
+		repositoryOwnerDescription = description;
+		ownerRadio.setEnabled(enabled && !isEdit);
+		ownerRadio.optionElements[1].setAttribute('aria-description', description);
+	};
+	recheckRepositoryOwnership = () => {
+		const generation = ++ownershipEligibilityGeneration;
+		ownershipEligibilityRequest.clear();
+		state.ownershipPending = false;
+		repositoryOwnershipAllowed = isEdit && state.ownership === 'repository';
+		if (!isEdit && state.ownership === 'repository') {
+			state.ownership = 'user';
+			ownerRadio.setActiveItem(0);
+			updateOwnerInfo(0);
+			setRepositoryWarningVisible(false);
+		}
+		const configuration = cloudConfiguration.get();
+		if (isEdit) {
+			setRepositoryWarningVisible(repositoryOwnershipAllowed);
+			revalidate();
+			return;
+		}
+		if (!runInCloud.get()) {
+			setRepositoryOwnerAvailability(false);
+			revalidate();
+			return;
+		}
+		const folder = state.folderUri;
+		if (!folder) {
+			setRepositoryOwnerAvailability(false);
+			setRepositoryWarningVisible(false);
+			revalidate();
+			return;
+		}
+		if (!configuration?.checkRepositoryOwnership) {
+			setRepositoryOwnerAvailability(true);
+			revalidate();
+			return;
+		}
+		const resources = new DisposableStore();
+		ownershipEligibilityRequest.value = resources;
+		const token = cancelOnDispose(resources);
+		state.ownershipPending = true;
+		setRepositoryOwnerAvailability(false, ownerLoadingMessage);
+		setRepositoryWarningVisible(false);
+		revalidate();
+		void configuration.checkRepositoryOwnership(folder, token).then(result => {
+			if (token.isCancellationRequested || generation !== ownershipEligibilityGeneration) {
+				return;
+			}
+			state.ownershipPending = false;
+			setRepositoryOwnerAvailability(result.allowed, result.reason ?? (result.allowed
+				? ownerDescriptions[1]
+				: localize('automation.owner.denied', "Repository owned automations are not supported for this repository.")));
+			revalidate();
+		}, _error => {
+			if (token.isCancellationRequested || generation !== ownershipEligibilityGeneration) {
+				return;
+			}
+			state.ownershipPending = false;
+			setRepositoryOwnerAvailability(false, localize('automation.owner.checkFailed', "Unable to verify repository ownership. Try again."));
+			revalidate();
+		});
+	};
 	for (const [index, element] of ownerRadio.optionElements.entries()) {
 		const description = isEdit
 			? localize('automation.owner.immutableDescription', "{0} Ownership can't be changed after creation.", ownerDescriptions[index])
 			: ownerDescriptions[index];
 		element.setAttribute('aria-description', description);
 		if (customizations) {
-			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description }));
+			disposables.add(customizations.hoverService.setupDelayedHover(element, () => ({
+				content: index === 1 ? repositoryOwnerDescription : description,
+			})));
 		}
 	}
-	setRepositoryWarningVisible(ownerIndex === 1);
+	setRepositoryWarningVisible(repositoryOwnershipAllowed);
 	if (!isEdit) {
-		disposables.add(ownerRadio.onDidSelect(index => {
+		disposables.add(ownerRadio.onDidActivate(index => {
 			state.ownership = index === 1 ? 'repository' : 'user';
 			updateOwnerInfo(index);
 			setRepositoryWarningVisible(index === 1);
+			revalidate();
 		}));
 		// The modal captures arrow keys before the Radio receives them.
 		disposables.add(DOM.addDisposableListener(DOM.getWindow(form), DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
@@ -2021,7 +2148,7 @@ export function renderForm(
 		toolsPicker.clear();
 		updateIntervalOptions(configuration !== undefined);
 		setAutomationControlVisible(providerOptions, configuration !== undefined);
-		setRepositoryWarningVisible(configuration !== undefined && state.ownership === 'repository');
+		recheckRepositoryOwnership();
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
 		if (!configuration) {
@@ -2054,14 +2181,9 @@ export function renderForm(
 		reloadCustomizations();
 	}));
 
-	const saveError = DOM.append(form, $('.automation-form-save-error', { role: 'alert', tabindex: '-1' }));
-	DOM.append(saveError, renderIcon(Codicon.error)).setAttribute('aria-hidden', 'true');
-	const saveErrorText = DOM.append(saveError, $('span'));
-	DOM.hide(saveError);
 	disposables.add(autorun(reader => {
 		const message = sessionConfigurationErrorMessage.read(reader);
-		setAutomationControlVisible(saveError, !!message);
-		saveErrorText.textContent = message ?? '';
+		setDialogMessage('saveError', message ? { severity: 'error', text: message } : undefined);
 	}));
 
 	return {
@@ -2090,8 +2212,8 @@ export function renderForm(
 		getBranch: () => isolationModel.persistedBranch,
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
-			scheduleError.classList.toggle('automation-visually-hidden', message !== undefined && message === state.triggerError);
 			setAutomationControlVisible(scheduleError, message !== undefined);
+			setDialogMessage('scheduleValidation', message ? { severity: 'error', text: message } : undefined);
 		},
 		getCustomizationIds: () => customizationSelection?.getSelectedIds(),
 		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
@@ -2100,7 +2222,12 @@ export function renderForm(
 				message = undefined;
 			}
 			const text = message ?? '';
-			const pending = state.targetPending;
+			const pending = connectingCloud
+				? undefined
+				: state.targetPending ?? (state.ownershipPending ? { message: ownerLoadingMessage } : undefined);
+			targetLoadingMessage = pending?.message ?? '';
+			targetLoading.setAttribute('aria-label', targetLoadingMessage);
+			setAutomationControlVisible(targetLoading, !!pending && message === undefined);
 			setAutomationControlVisible(targetProgress, !!pending && message === undefined);
 			const progressText = pending?.message ?? '';
 			if (targetProgress.textContent !== progressText) {
@@ -2123,6 +2250,7 @@ export function renderForm(
 			if (targetError.textContent !== text) {
 				targetError.textContent = text;
 			}
+			setDialogMessage('targetValidation', message ? { severity: 'error', text: message } : undefined);
 		},
 		getSaveBlockedReason: (targetMessage, scheduleMessage) => scheduleMessage
 			? { message: scheduleMessage, elementId: scheduleError.id }
@@ -2134,7 +2262,7 @@ export function renderForm(
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
 		setSaving: saving => {
-			ownerRadio.setEnabled(!saving && !isEdit);
+			ownerRadio.setEnabled(!saving && !isEdit && repositoryOwnershipAllowed);
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);
@@ -2142,7 +2270,7 @@ export function renderForm(
 		showSaveError: message => {
 			sessionConfigurationErrorMessage.set(message, undefined);
 		},
-		focusSaveError: () => saveError.focus(),
+		focusSaveError: focusDialogMessage,
 		getFocusableElements: () => {
 			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
@@ -2469,7 +2597,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	private readonly targetModelWatch = this._register(new MutableDisposable<IDisposable>());
 	private readonly eligibilityWatch = this._register(new MutableDisposable<IDisposable>());
 	private cloudConfiguration: IObservable<IAutomationProviderConfiguration | undefined> = constObservable(undefined);
-	private cloudMode: IObservable<boolean> | undefined;
+	protected cloudMode: IObservable<boolean> | undefined;
 	private persistSelection = true;
 	private targetModel: AutomationIsolationModel | undefined;
 	private readonly repositorySelection = this._register(new MutableDisposable<DisposableStore>());
@@ -2567,6 +2695,16 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return false;
 	}
 
+	protected override _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
+		const options = super._buildListOptions(items, pickerWidth);
+		return this.cloudMode?.get() ? {
+			...options,
+			widgetClassName: 'automation-cloud-repository-picker',
+			headerText: localize('automation.form.privateRepositoriesOnly', "Cloud automations are only supported for private repositories."),
+			headerIcon: Codicon.info,
+		} : options;
+	}
+
 	private isGitWorkspace(folder: URI, reader?: IReader): boolean {
 		if (folder.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			return true;
@@ -2624,6 +2762,9 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				if (!folder || !this.isCloudCandidate(folder)) {
 					return [];
 				}
+				if (target?.isPrivateRepository === false) {
+					return [];
+				}
 				const reason = target?.pending
 					? localize('automation.form.checkingRepository', "Checking repository access...")
 					: target?.disabledReason
@@ -2647,10 +2788,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					toolbarActions: undefined,
 					iconClasses: undefined,
 					disabled: reason !== undefined,
-					description: reason ? new MarkdownString(repositoryLabel ? localize('automation.form.repositoryDescription', "{0} {1}", '$(info)', repositoryLabel) : '$(info)', { supportThemeIcons: true }) : repositoryLabel,
+					description: undefined,
 					ariaDescription: availabilityDescription,
 					tooltip: availabilityDescription,
-					hover: availabilityDescription ? { content: availabilityDescription } : undefined,
+					hover: availabilityDescription ? { content: availabilityDescription, panelClassName: 'automation-cloud-repository-hover' } : undefined,
 					className: 'automation-cloud-repository',
 					group: { title: '', icon: Codicon.repo },
 				}];
@@ -2870,6 +3011,9 @@ export class MobileAutomationsWorkspacePicker extends AutomationsWorkspacePicker
 		await showMobileWorkspacePickerSheet(
 			layoutService, trigger, this._buildMobileItems(),
 			item => { void this._dispatchPickerItem(item); }, this._getAllBrowseActions(),
+			false, token, this.cloudMode?.get()
+				? localize('automation.form.privateRepositoriesOnly', "Cloud automations are only supported for private repositories.")
+				: undefined,
 		);
 	}
 }

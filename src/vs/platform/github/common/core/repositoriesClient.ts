@@ -197,6 +197,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 const parseRepository = parse.object<Repository>({
 	...repositoryIdentitySchema,
+	visibility: parse.optional(parse.oneOf('public', 'private', 'internal')),
 	default_branch: parse.string,
 	clone_url: parse.nonEmptyString,
 	ssh_url: parse.nonEmptyString,

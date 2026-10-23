@@ -41,6 +41,7 @@ import { RepositoryRef } from '../../../../../../platform/github/common/client/t
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
 import { RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { PaginationLimitError } from '../../../../../../platform/github/common/client/pagination.js';
+import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 
 const account: IDefaultAccount = { accountName: 'octocat', sessionId: 'auth-1', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
 const repository = { owner: 'microsoft', repo: 'vscode-internalbacklog' };
@@ -58,7 +59,12 @@ const reconciliationMessage = 'The automation request may have been accepted. Re
 class TestApi extends mock<IAutomationsClient>() {
 	readonly priorities: { method: string; priority: RequestPriority | undefined }[] = [];
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
+	readonly automationEnabled = new Map<string, boolean>();
 	readonly manageability = new Map<string, boolean | Error | Promise<boolean>>();
+	readonly privateRepositories = new Map<string, boolean | Error | Promise<boolean>>();
+	readonly repositoryVisibilities = new Map<string, Repository['visibility']>();
+	readonly metadataCalls: { readonly repository: RepositoryRef; readonly token: AbortSignal }[] = [];
+	readonly metadataStarted = new DeferredPromise<void>();
 	readonly definitions = new Map<string, readonly AutomationDetail[] | Error | Promise<readonly AutomationDetail[]>>();
 	readonly detailCalls: { id: string; signal: AbortSignal }[] = [];
 	detailResult: ((id: string, signal: AbortSignal) => Promise<AutomationDetail>) | undefined;
@@ -127,7 +133,7 @@ class TestApi extends mock<IAutomationsClient>() {
 			throw result;
 		}
 		return {
-			automations_enabled: true,
+			automations_enabled: this.automationEnabled.get(ref.repo) ?? true,
 			can_manage_automations: await result,
 			allow_read_access_triggers: false,
 			require_trigger_scoped_writes: false,
@@ -202,6 +208,21 @@ suite('GitHubCloudAutomationStore', () => {
 					override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
 					override readonly automations = api;
+					override readonly repositories = upcastDeepPartial<IRepositoriesClient>({
+						get: async (repository: RepositoryRef, token: AbortSignal) => {
+							api.metadataCalls.push({ repository, token });
+							await api.metadataStarted.complete();
+							const result = api.privateRepositories.get(repository.repo) ?? true;
+							if (result instanceof Error) {
+								throw result;
+							}
+							const isPrivate = await result;
+							return upcastDeepPartial<Repository>({
+								private: isPrivate,
+								visibility: api.repositoryVisibilities.get(repository.repo) ?? (isPrivate ? 'private' : 'public'),
+							});
+						},
+					});
 					override readonly tasks = new class extends mock<ITasksClient>() {
 						override get(_id: string, _signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> { return api.getTask(options); }
 						override async abort(): Promise<void> { api.mutations.push('stop'); }
@@ -260,10 +281,152 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
 			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
-		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: ['capability'], entries: [], cached: true });
+		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: [], entries: [], cached: true });
 	});
 
-	test('background refresh updates cached repository eligibility in both directions', async () => {
+	test('public repositories are identified without checking automation manageability', async () => {
+		const { store, api } = setup(() => workspace);
+		api.privateRepositories.set(repository.repo, false);
+		const target = store.getWorkspaceTarget(URI.file('/repo'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			target: target.get(),
+			calls: api.calls.map(call => call.method),
+		}, {
+			target: {
+				disabledReason: 'Cloud automations cannot be managed for this repository.',
+				isRepository: true,
+				isPrivateRepository: false,
+				repositoryLabel: 'microsoft/vscode-internalbacklog',
+			},
+			calls: [],
+		});
+	});
+
+	test('public repositories are excluded from repository search without checking automation manageability', async () => {
+		const { store, api } = setup();
+		api.privateRepositories.set(repository.repo, false);
+
+		assert.deepStrictEqual({
+			selectable: await store.isRepositorySelectable(repository, CancellationToken.None),
+			calls: api.calls.map(call => call.method),
+		}, {
+			selectable: false,
+			calls: [],
+		});
+	});
+
+	for (const outcome of ['allowed', 'disabled', 'unmanageable'] as const) {
+		test(`repository ownership reports ${outcome}`, async () => {
+			const { store, api } = setup();
+			api.automationEnabled.set(repository.repo, outcome !== 'disabled');
+			api.manageability.set(repository.repo, outcome !== 'unmanageable');
+
+			assert.deepStrictEqual(
+				await store.checkRepositoryOwnership(workspace, CancellationToken.None),
+				outcome === 'allowed'
+					? { allowed: true }
+					: { allowed: false, reason: 'Repository owned automations are not supported for this repository.' },
+			);
+		});
+	}
+
+	test('repository ownership rejects internal repositories before capability lookup', async () => {
+		const { store, api } = setup();
+		api.repositoryVisibilities.set(repository.repo, 'internal');
+
+		assert.deepStrictEqual({
+			result: await store.checkRepositoryOwnership(workspace, CancellationToken.None),
+			capabilityCalls: api.calls.filter(call => call.method === 'capability').length,
+		}, {
+			result: { allowed: false, reason: 'Repository owned automations are not supported for this repository.' },
+			capabilityCalls: 0,
+		});
+	});
+
+	test('repository ownership creation errors use product copy and cache the failed check', async () => {
+		const { store, api } = setup();
+		api.mutationResult = new Error('ownership "repository" is not currently available for this repository');
+
+		await assert.rejects(store.create(workspace, { ...createValue, ownership: 'repository' }), /Repository owned automations are not supported for this repository\./);
+		const metadataCalls = api.metadataCalls.length;
+		assert.deepStrictEqual({
+			result: await store.checkRepositoryOwnership(workspace, CancellationToken.None),
+			metadataCalls: api.metadataCalls.length,
+		}, {
+			result: { allowed: false, reason: 'Repository owned automations are not supported for this repository.' },
+			metadataCalls,
+		});
+	});
+
+	test('repository ownership propagates lookup failure and cancellation as unresolved', async () => {
+		const { store, api } = setup();
+		api.manageability.set(repository.repo, new Error('Offline'));
+		await assert.rejects(store.checkRepositoryOwnership(workspace, CancellationToken.None), /Offline/);
+		const pending = new DeferredPromise<boolean>();
+		api.manageability.set(repository.repo, pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const check = assert.rejects(store.checkRepositoryOwnership(workspace, source.token), isCancellationError);
+		await api.manageabilityStarted.p;
+		source.cancel();
+		await pending.complete(true);
+		await check;
+	});
+
+	test('cancelled repository selection does not publish privacy into the cache', async () => {
+		const { store, api } = setup();
+		const pending = new DeferredPromise<boolean>();
+		api.privateRepositories.set(repository.repo, pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const selection = assert.rejects(store.isRepositorySelectable(repository, source.token), isCancellationError);
+		await api.metadataStarted.p;
+		source.cancel();
+		await pending.complete(false);
+		await selection;
+		api.privateRepositories.set(repository.repo, true);
+
+		assert.deepStrictEqual({
+			selectable: await store.isRepositorySelectable(repository, CancellationToken.None),
+			metadataCalls: api.metadataCalls.length,
+		}, {
+			selectable: true,
+			metadataCalls: 2,
+		});
+	});
+
+	for (const eligibilityFirst of [true, false]) {
+		test(`public repository selection remains disabled when ${eligibilityFirst ? 'eligibility precedes refresh' : 'refresh precedes eligibility'}`, async () => {
+			const { store, api, recents } = setup();
+			api.privateRepositories.set(repository.repo, false);
+			api.definitions.set(repository.repo, [definition]);
+			recents.workspaces = [recentWorkspace(workspace)];
+			const target = eligibilityFirst ? store.getWorkspaceTarget(workspace) : undefined;
+			if (target) {
+				await timeout(0);
+			}
+			await store.refresh();
+			const resolvedTarget = store.getWorkspaceTarget(workspace);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				target: resolvedTarget.get(),
+				canManageExisting: store.canManageRepository(repository),
+				selectableFromSearch: await store.isRepositorySelectable(repository, CancellationToken.None),
+			}, {
+				target: {
+					disabledReason: 'Cloud automations cannot be managed for this repository.',
+					isRepository: true,
+					isPrivateRepository: false,
+					repositoryLabel: 'microsoft/vscode-internalbacklog',
+				},
+				canManageExisting: true,
+				selectableFromSearch: false,
+			});
+		});
+	}
+
+	test('background manageability refresh does not change private repository selection eligibility', async () => {
 		const { store, api } = setup();
 		const target = store.getWorkspaceTarget(workspace);
 		await timeout(0);
@@ -279,20 +442,20 @@ suite('GitHubCloudAutomationStore', () => {
 			available: target.get().workspace?.toString(),
 			calls: api.calls.map(call => call.method),
 		}, {
-			unavailable: { blocked: true, repository: true, workspace: undefined },
+			unavailable: { blocked: false, repository: undefined, workspace },
 			available: workspace.toString(),
-			calls: ['capability', 'capability', 'capability', 'list'],
+			calls: ['capability', 'capability', 'list'],
 		});
 	});
 
 	for (const manageability of [false, new Error('Offline')]) {
-		test(`fails closed for ${manageability === false ? 'unmanageable' : 'unverifiable'} repositories`, async () => {
+		test(`private repository selection ignores ${manageability === false ? 'disabled ownership' : 'unresolved ownership'} until Repository is selected`, async () => {
 			const { store, api } = setup();
 			api.manageability.set(repository.repo, manageability);
 			const target = store.getWorkspaceTarget(workspace);
 			await timeout(0);
-			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, repository: target.get().isRepository, workspace: target.get().workspace, calls: api.calls.map(call => call.method) }, {
-				blocked: true, repository: true, workspace: undefined, calls: ['capability'],
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, repository: target.get().isRepository, workspace: target.get().workspace?.toString(), calls: api.calls.map(call => call.method) }, {
+				blocked: false, repository: undefined, workspace: workspace.toString(), calls: [],
 			});
 		});
 	}
@@ -371,7 +534,7 @@ suite('GitHubCloudAutomationStore', () => {
 		test(`invalidates observed eligibility on ${invalidate} and ignores late responses`, async () => {
 			const { store, api, changeAccount } = setup();
 			const pending = new DeferredPromise<boolean>();
-			api.manageability.set(repository.repo, pending.p);
+			api.privateRepositories.set(repository.repo, pending.p);
 			const target = store.getWorkspaceTarget(workspace);
 			await timeout(0);
 			if (invalidate === 'account') {
@@ -381,7 +544,7 @@ suite('GitHubCloudAutomationStore', () => {
 			}
 			await pending.complete(true);
 			await timeout(0);
-			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, workspace: target.get().workspace, cancelled: api.calls[0].token.aborted }, {
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, workspace: target.get().workspace, cancelled: api.metadataCalls[0].token.aborted }, {
 				blocked: true, workspace: undefined, cancelled: true,
 			});
 		});
@@ -391,14 +554,14 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api } = setup();
 		const pending = new DeferredPromise<boolean>();
 		for (let i = 0; i < 12; i++) {
-			api.manageability.set(`repo-${i}`, pending.p);
+			api.privateRepositories.set(`repo-${i}`, pending.p);
 			store.getWorkspaceTarget(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/repo-${i}/HEAD` }));
 		}
 		await timeout(0);
-		assert.strictEqual(api.calls.length, 5);
+		assert.strictEqual(api.metadataCalls.length, 5);
 		await pending.complete(true);
 		await timeout(0);
-		assert.deepStrictEqual(api.calls.map(call => call.method), Array(12).fill('capability'));
+		assert.strictEqual(api.metadataCalls.length, 12);
 	});
 
 	test('coordinates create, preflight update, acknowledgement-only run and deletion', async () => {

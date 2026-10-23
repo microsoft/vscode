@@ -9,6 +9,8 @@ import { Account, ChangedFile, RepositoryIdentity } from './core.js';
 
 /** A repository's metadata, settings, and permissions. */
 export interface Repository extends RepositoryIdentity {
+	/** Effective repository visibility, when reported by the API. */
+	readonly visibility?: 'public' | 'private' | 'internal';
 	/** Default branch name, not a resolved commit. */
 	readonly default_branch: string;
 	/** HTTPS clone URL. */

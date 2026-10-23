@@ -30,6 +30,12 @@ export interface IAutomationProviderConfiguration {
 	loadTriggers?(): void;
 	pickWorkspace(token: CancellationToken): Promise<URI | undefined>;
 	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget>;
+	checkRepositoryOwnership?(workspace: URI, token: CancellationToken): Promise<IAutomationRepositoryOwnershipEligibility>;
+}
+
+export interface IAutomationRepositoryOwnershipEligibility {
+	readonly allowed: boolean;
+	readonly reason?: string;
 }
 
 export interface IAutomationTool {
@@ -62,6 +68,7 @@ export interface IAutomationWorkspaceTarget {
 	readonly disabledReason?: string;
 	readonly pending?: boolean;
 	readonly isRepository?: boolean;
+	readonly isPrivateRepository?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
