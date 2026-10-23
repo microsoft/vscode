@@ -9,7 +9,8 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite, runWithFakedTimers } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -54,6 +55,7 @@ suite('Chatpad contribution', () => {
 	let contextKeyService: ContextKeyService;
 	let instantiationService: TestInstantiationService;
 	let setting: boolean;
+	let configurationService: TestConfigurationService;
 	let hidden: boolean;
 	let confirmed: boolean;
 	let activeWindow: unknown;
@@ -78,7 +80,7 @@ suite('Chatpad contribution', () => {
 		return { id: 'remote', calls };
 	}
 
-	function setup(): void {
+	function init(): void {
 		providers = [];
 		opened = [];
 		messages = [];
@@ -91,7 +93,7 @@ suite('Chatpad contribution', () => {
 		onDidChangeProviders = store.add(new Emitter<void>());
 		windows = observableValue('windows', []);
 		storage = store.add(new InMemoryStorageService());
-		const configurationService = new TestConfigurationService({ [CHATPAD_ENABLED_SETTING]: true });
+		configurationService = new TestConfigurationService({ [CHATPAD_ENABLED_SETTING]: true });
 		contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
@@ -126,15 +128,14 @@ suite('Chatpad contribution', () => {
 	}
 
 	function runCommand(id: string): Promise<void> {
-		return instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		return Promise.resolve(instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor)));
 	}
 
 	function setProviderKey(value: boolean): void {
 		ChatpadProviderContext.bindTo(contextKeyService).set(value);
 	}
 
-	setup();
-	teardown(() => setup());
+	setup(() => init());
 
 	test('only the local provider is asked, to open and to append', async () => {
 		const localCalls: string[] = [];
@@ -174,7 +175,7 @@ suite('Chatpad contribution', () => {
 	test('does nothing when the setting is off', async () => {
 		providers = [localProvider([])];
 		setProviderKey(true);
-		contextKeyService.setContext('config.sessions.chatpad.enabled', false);
+		await configurationService.setUserConfiguration(CHATPAD_ENABLED_SETTING, false);
 		await runCommand('sessions.openChatpad');
 		assert.deepStrictEqual({ opened: opened.length, messages }, { opened: 0, messages: [] });
 	});
