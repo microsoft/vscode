@@ -32,7 +32,7 @@ export const Menus = {
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
 	ChatWindowTitle: new MenuId('SessionsChatWindowTitle'),
-	ChatWindowDockedLayout: new MenuId('SessionsChatWindowDockedLayout'),
+	ChatWindowLayout: new MenuId('SessionsChatWindowLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),

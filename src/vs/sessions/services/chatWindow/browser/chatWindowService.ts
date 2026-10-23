@@ -190,12 +190,12 @@ export interface IChatWindowService {
 /**
  * Where the actions of chat windows show: in the title bar of a chat window of its own (`Menus.TitleBarRightLayout`,
  * when {@link ChatWindowContext}), before Toggle Always on Top at 0, and in the header of a docked one
- * (`Menus.ChatWindowTitle`), before its Close button. Actions of a kind of chat window go before the layout actions:
- * in the title bar, the split direction and Toggle Editor; in the header, the Layout menu.
+ * (`Menus.ChatWindowTitle`), before its Close button. Both end with the Layout menu, which also docks and undocks the
+ * chat window; actions of a kind of chat window go before it.
  */
 export const ChatWindowMenuOrder = {
-	titleBar: { layout: -2, editor: -1.5, dock: -1 },
-	header: { layout: 2, dock: 3 },
+	titleBar: { layout: -1 },
+	header: { layout: 2 },
 } as const;
 
 /** The kind of the chat window, by its {@link IChatWindowKind.id}, or empty outside chat windows. */
