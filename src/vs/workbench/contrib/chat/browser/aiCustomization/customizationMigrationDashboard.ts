@@ -65,6 +65,7 @@ export interface ICustomizationMigrationDashboardCategory {
 	readonly count: number;
 	readonly countLabel: string;
 	readonly highRisk?: boolean;
+	readonly migrationInProgress?: boolean;
 	readonly migrateDisabled?: boolean;
 	readonly selectedCount?: number;
 	readonly destinationLabel?: string;
@@ -89,6 +90,7 @@ export interface ICustomizationMigrationDashboardOverview {
 	readonly categoryErrors?: readonly ICustomizationMigrationDashboardCategoryError[];
 	readonly hasIgnoredGroups?: boolean;
 	readonly supportsAgentMigration?: boolean;
+	readonly migrationInProgress?: boolean;
 }
 
 export interface ICustomizationMigrationDashboardRecovery {
@@ -131,6 +133,7 @@ interface IMigrationGroupEntry extends ICustomizationGroupHeaderEntry {
 	readonly manualReview: boolean;
 	readonly actionLabel: string;
 	readonly learnMoreUrl?: string;
+	readonly migrationInProgress: boolean;
 	selectedCount: number;
 	migrateDisabled: boolean;
 }
@@ -363,6 +366,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				this.callbacks.migrateWithAgent();
 			} : undefined,
 		);
+		page.setAttribute('aria-busy', String(overview.migrationInProgress === true));
 
 		this.renderCategoryErrors(page, categoryErrors);
 		let focusTreeItem: ((item: IMigrationItemEntry) => boolean) | undefined;
@@ -812,6 +816,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 					hasConfigurableDestination: false,
 					manualReview: true,
 					actionLabel: localize('migrate', "Migrate..."),
+					migrationInProgress: false,
 					selectedCount: 0,
 					migrateDisabled: true,
 				};
@@ -858,6 +863,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				manualReview: false,
 				actionLabel: category.actionLabel ?? localize('migrate', "Migrate..."),
 				learnMoreUrl: category.learnMoreUrl,
+				migrationInProgress: category.migrationInProgress === true,
 				selectedCount: category.selectedCount ?? items.length,
 				migrateDisabled: category.migrateDisabled === true,
 			};
@@ -1026,9 +1032,11 @@ export class CustomizationMigrationDashboard extends Disposable {
 		if (!button) {
 			return;
 		}
-		const label = entry.selectedCount === entry.count
+		const label = entry.migrationInProgress
 			? entry.actionLabel
-			: localize('migrationActionSelectedCount', "Migrate {0}...", entry.selectedCount);
+			: entry.selectedCount === entry.count
+				? entry.actionLabel
+				: localize('migrationActionSelectedCount', "Migrate {0}...", entry.selectedCount);
 		button.label = label;
 		button.setAriaLabel(localize('migrationAccessibleActionWithLabel', "{0}: {1}", label, entry.label));
 		button.enabled = !entry.migrateDisabled && entry.selectedCount > 0;

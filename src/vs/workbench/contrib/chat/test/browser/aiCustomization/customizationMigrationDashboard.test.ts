@@ -590,6 +590,35 @@ suite('CustomizationMigrationDashboard', () => {
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
 	});
 
+	test('marks the dashboard busy and labels the active migration group', () => {
+		const { parent, dashboard } = createDashboard();
+		const model = overview();
+		dashboard.showOverview({
+			...model,
+			migrationInProgress: true,
+			scopes: model.scopes.map(scope => ({
+				...scope,
+				categories: scope.categories.map(category => category.id === CustomizationMigrationCategoryId.PluginMarketplaces ? {
+					...category,
+					actionLabel: 'Migrating...',
+					migrationInProgress: true,
+					migrateDisabled: true,
+				} : { ...category, migrateDisabled: true }),
+			})),
+		});
+
+		const migrating = button(parent, 'Migrating...: Plugin Marketplaces (User)');
+		assert.deepStrictEqual({
+			busy: parent.querySelector('.migration-page')?.getAttribute('aria-busy'),
+			label: migrating.textContent,
+			disabled: migrating.getAttribute('aria-disabled'),
+		}, {
+			busy: 'true',
+			label: 'Migrating...',
+			disabled: 'true',
+		});
+	});
+
 	test('keeps category discovery errors scoped and retryable alongside valid migrations', () => {
 		const retried: string[] = [];
 		const { parent, dashboard, telemetryActions } = createDashboard({

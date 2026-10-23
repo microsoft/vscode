@@ -3256,6 +3256,7 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-list-item-description,
+.plugin-list-widget .plugin-list-item-location,
 .plugin-list-widget .plugin-list-item-source,
 .plugin-list-widget .plugin-list-item-metadata {
 	font-size: var(--vscode-agents-fontSize-body2);

@@ -33,6 +33,8 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { NotificationTelemetryId, type NotificationTelemetry } from '../../../../../../platform/notification/common/notificationTelemetry.js';
+import { IProgressService, Progress, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
@@ -53,7 +55,7 @@ import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTar
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionContribution, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestProgressService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import type { ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardItem, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
 import { type ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, updateCustomizationMigrationRecovery } from '../../../browser/aiCustomization/customizationMigrationRecovery.js';
@@ -309,6 +311,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		customizationMigrationInProgress: boolean;
 		customizationMigrationWritesInProgress: boolean;
+		activeCustomizationMigration: { readonly categoryId: CustomizationMigrationCategoryId; readonly storage: PromptsStorage } | undefined;
 		customizationMigrationLoading: boolean;
 		customizationMigrationLoadError: string | undefined;
 		customizationMigrationResultsSettled: boolean;
@@ -406,6 +409,7 @@ suite('aiCustomizationManagementEditor', () => {
 			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | readonly TestQuickPickItem[] | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
+		progressService: IProgressService;
 		fileService: IFileService;
 		environmentService: { workspaceStorageHome: URI };
 		workspaceContextService: { getWorkspace(): { id: string } };
@@ -554,6 +558,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationMigrationTargetFoldersByType = new Map();
 		editor.customizationMigrationInProgress = false;
 		editor.customizationMigrationWritesInProgress = false;
+		editor.activeCustomizationMigration = undefined;
 		editor.customizationMigrationLoading = false;
 		editor.customizationMigrationResultsSettled = false;
 		editor.selectedCustomizationMigrationTargets = new Map();
@@ -663,6 +668,7 @@ suite('aiCustomizationManagementEditor', () => {
 			info: () => { },
 			warn: () => { },
 		};
+		editor.progressService = new TestProgressService();
 		editor.getActiveHarnessLabel = () => 'Copilot';
 		editor.welcomePage = undefined;
 		editor.contributedSectionContainers = new Map();
@@ -3095,15 +3101,44 @@ suite('aiCustomizationManagementEditor', () => {
 				return { confirmed: true };
 			},
 		};
+		const progressEvents: string[] = [];
+		const progressOptions: {
+			readonly location: ProgressLocation | string;
+			readonly telemetry: NotificationTelemetry | undefined;
+			readonly title: string | undefined;
+			readonly cancellable: boolean | string | undefined;
+			readonly activeCategory: CustomizationMigrationCategoryId | undefined;
+		}[] = [];
+		editor.progressService = {
+			_serviceBrand: undefined,
+			async withProgress(options, task) {
+				progressOptions.push({
+					location: options.location,
+					telemetry: options.telemetry,
+					title: typeof options.title === 'string' ? options.title : undefined,
+					cancellable: options.cancellable,
+					activeCategory: editor.activeCustomizationMigration?.categoryId,
+				});
+				progressEvents.push('progress:start');
+				try {
+					return await task(Progress.None);
+				} finally {
+					progressEvents.push('progress:end');
+				}
+			},
+		};
 		const migrated: IPluginMarketplaceCustomizationMigrationCandidate[][] = [];
 		editor.customizationMigrationService = {
 			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
 			migratePluginMarketplaces: async (_sessionResource, candidates) => {
+				progressEvents.push('migration');
 				migrated.push([...candidates]);
 				return { migratedCount: 1, failures: [] };
 			},
 		};
-		editor.refreshCustomizationMigrationInfo = async () => { };
+		editor.refreshCustomizationMigrationInfo = async () => {
+			progressEvents.push(`refresh:${editor.activeCustomizationMigration?.categoryId}`);
+		};
 		let dashboardShown = 0;
 		editor.showCustomizationMigrationDashboard = () => dashboardShown++;
 		const notifications: string[] = [];
@@ -3120,6 +3155,9 @@ suite('aiCustomizationManagementEditor', () => {
 			migrationCompleted,
 			notifications,
 			dashboardShown,
+			progressOptions,
+			progressEvents,
+			activeMigration: editor.activeCustomizationMigration,
 			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PluginMarketplaces)),
 		}, {
 			confirmations: [{
@@ -3132,6 +3170,20 @@ suite('aiCustomizationManagementEditor', () => {
 			migrationCompleted: [[CustomizationMigrationType.PluginMarketplaces, 1, 1, 0, [], 'migration-flow-id']],
 			notifications: ['Migrated 1 plugin marketplace to Copilot.'],
 			dashboardShown: 1,
+			progressOptions: [{
+				location: ProgressLocation.Notification,
+				telemetry: NotificationTelemetryId.CustomizationMigration,
+				title: 'Migrating 1 plugin marketplace...',
+				cancellable: false,
+				activeCategory: CustomizationMigrationCategoryId.PluginMarketplaces,
+			}],
+			progressEvents: [
+				'progress:start',
+				'migration',
+				'refresh:pluginMarketplaces',
+				'progress:end',
+			],
+			activeMigration: undefined,
 			remainingCandidates: [],
 		});
 		editor.editorPreviewDisposables.dispose();

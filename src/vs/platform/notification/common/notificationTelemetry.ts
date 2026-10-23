@@ -41,6 +41,7 @@ export enum NotificationTelemetryId {
 	PluginManagedRetry = 'plugins.managed.retry',
 	PluginManagedRetryComplete = 'plugins.managed.retry.complete',
 	PluginManagedRetryError = 'plugins.managed.retry.error',
+	CustomizationMigration = 'customizations.migration',
 	DictationModelPrepare = 'dictation.model.prepare',
 	DictationModelImport = 'dictation.model.import',
 	FileSaveParticipants = 'files.saveParticipants',
