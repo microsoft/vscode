@@ -69,6 +69,11 @@ const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITH
  */
 const FAILED_FILES_REPORT_ENV = 'VSCODE_TEST_FAILED_FILES_REPORT';
 
+const CHECK_LOADER_ENV = 'VSCODE_TEST_CHECK_LOADER';
+const checkLoader = process.env[CHECK_LOADER_ENV] === undefined
+	? !args.run && !args.runGlob
+	: process.env[CHECK_LOADER_ENV] === '1';
+
 const excludeGlobs = [
 	'**/{browser,electron-browser,electron-main,electron-utility}/**/*.test.js',
 	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
@@ -228,7 +233,7 @@ function main() {
 
 		process.stderr.write = write;
 
-		if (!args.run && !args.runGlob) {
+		if (checkLoader) {
 			// set up last test
 			detachFromTestFiles(Mocha.suite('Loader', function() {
 				test('should not explode while loading', function() {
@@ -372,7 +377,10 @@ function runInFreshProcess(files) {
 			...(args.build ? ['--build'] : []),
 			...(args.timeout !== undefined ? ['--timeout', args.timeout] : []),
 			...files.flatMap(file => ['--run', path.join(src, `${file}.js`)]),
-		], { stdio: 'inherit', env: { ...process.env, [FAILED_FILES_REPORT_ENV]: reportPath } });
+		], {
+			stdio: 'inherit',
+			env: { ...process.env, [FAILED_FILES_REPORT_ENV]: reportPath, [CHECK_LOADER_ENV]: checkLoader ? '1' : '0' },
+		});
 
 		if (child.error) {
 			console.error('\nFailed to start the rerun:', child.error);
