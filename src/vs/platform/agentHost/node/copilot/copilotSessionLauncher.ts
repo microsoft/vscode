@@ -240,9 +240,9 @@ export interface ICopilotSessionRuntime {
 	/** The owner session this launch is configured for; the chat's owner can change later, which relaunches at the next turn boundary. */
 	readonly launchOwner: URI;
 	/** The sandbox policy to pass when the SDK session opens; `undefined` when the launch applies it another way. */
-	getLaunchSandboxConfig(): SandboxConfig | undefined;
+	getLaunchSandboxConfig(isResume: boolean): SandboxConfig | undefined;
 	/** Applies the launch-time sandbox policy and diagnostics before the SDK session is attached. */
-	applyLaunchSandbox(session: CopilotSession): Promise<void>;
+	applyLaunchSandbox(session: CopilotSession, isResume: boolean): Promise<void>;
 	handlePermissionRequest(request: PermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult | AttributedPermissionResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
@@ -936,13 +936,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const modelPolicy = built.modelPolicy;
 		// Applied during construction so MCP servers start sandboxed; the launch apply below still repeats it for runtimes without open-time support.
-		const config: SandboxAwareSessionConfig = { ...built.config, sandboxConfig: runtime.getLaunchSandboxConfig() };
+		const config: SandboxAwareSessionConfig = { ...built.config, sandboxConfig: runtime.getLaunchSandboxConfig(plan.kind === 'resume') };
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
 				this._logService.error(`[Copilot:${plan.sessionId}] Copilot runtime did not report its resolved managed settings; continuing with available sandbox configuration`);
 			}
-			await runtime.applyLaunchSandbox(session);
+			await runtime.applyLaunchSandbox(session, plan.kind === 'resume');
 		};
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig, runtime, modelPolicy);

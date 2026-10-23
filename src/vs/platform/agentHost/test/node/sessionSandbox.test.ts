@@ -94,6 +94,22 @@ suite('Session sandbox configuration', () => {
 		}, { values: {}, property: ['default', 'on', 'off'], mutable: true });
 	});
 
+	test('resume resolution ignores previous bypass authorization without mutating applied state', () => {
+		const { configuration, create } = setupSession();
+		const owner = create('resume');
+		const target = { session: owner, chat: buildDefaultChatUri(owner) };
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true });
+		configuration.setChatSandboxEnabled(target, false);
+		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+
+		assert.deepStrictEqual({
+			live: getSessionSandboxConfig(configuration, target).enabled,
+			resume: getSessionSandboxConfig(configuration, target, process.platform, false).enabled,
+			applied: configuration.getChatSandboxEnabled(target),
+			selection: configuration.getChatConfigValues(target)?.sandboxEnabled,
+		}, { live: 'off', resume: 'on', applied: false, selection: 'off' });
+	});
+
 	test('publishes session-scoped policy changes in serializable subscription state', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('managed');
