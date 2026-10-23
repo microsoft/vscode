@@ -304,6 +304,7 @@ export class MissionControlHost extends Disposable {
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
 			getProjectRoots: () => this._projectRoots(),
+			getCloneRoot: () => this.environment.cloneRoot,
 		}));
 		this.environment = this._register(this._instantiationService.createInstance(MissionControlEnvironment, {
 			userDataPath: environmentService.userDataPath,

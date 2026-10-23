@@ -862,6 +862,8 @@ export interface IMissionControlOptions {
 	/** Catalogue entries, separate from filesystem grants. Defaults to the granted roots when omitted. */
 	readonly projects?: readonly string[];
 	readonly defaultDirectory?: string;
+	/** Host-owned default parent for repository clones; clients can only override it within existing grants. */
+	readonly cloneRoot?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
 	/** Explicit host-owner opt-in to use local Copilot credentials for same-owner relay clients. */

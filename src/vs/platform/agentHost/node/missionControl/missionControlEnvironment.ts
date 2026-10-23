@@ -195,6 +195,8 @@ export class MissionControlEnvironment extends Disposable {
 	get environmentId(): string | undefined { return this._environment?.id; }
 	get isEnabled(): boolean { return this._options?.live === true; }
 
+	get cloneRoot(): string | undefined { return this._options?.cloneRoot; }
+
 	private _getIdentityApiBase(): string {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
 	}
