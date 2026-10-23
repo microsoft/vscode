@@ -16,7 +16,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
@@ -29,6 +29,7 @@ import { AuthenticationSessionAccount, IAuthenticationService } from '../../../.
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
+const gitDefaultCloneDirectorySetting = 'git.defaultCloneDirectory';
 const environmentNameStorageKey = 'agentHost.missionControl.environmentName';
 const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 const missionControlDisableRepositoryMetadata = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
@@ -77,7 +78,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			} else if (e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy) || e.affectsConfiguration(MissionControlUseLocalCredentialsSettingId)) {
 				void this._withdraw().catch(error => this._reportWithdrawalError(error));
 				this._update.schedule();
-			} else if (e.affectsConfiguration(missionControlDisableRepositoryMetadata)) {
+			} else if (e.affectsConfiguration(AgentHostDefaultCloneDirectorySettingId) || e.affectsConfiguration(gitDefaultCloneDirectorySetting) || e.affectsConfiguration(missionControlDisableRepositoryMetadata)) {
 				this._generation++;
 				this._update.schedule();
 			}
@@ -347,6 +348,15 @@ export class MissionControlSharingService extends Disposable implements IMission
 			if (ignoreRemoteControlPolicy) {
 				this._logService.warn('[Mission Control] Device remote-control policy override enabled: registration will omit enterprise remote-control restrictions');
 			}
+			let cloneRoot: string | undefined;
+			for (const settingId of [AgentHostDefaultCloneDirectorySettingId, gitDefaultCloneDirectorySetting]) {
+				const setting = this._configuration.inspect<string | null>(settingId);
+				const value = setting.userLocalValue !== undefined ? setting.userLocalValue : setting.applicationValue;
+				if (value) {
+					cloneRoot = value;
+					break;
+				}
+			}
 			const repositoryMetadataSetting = this._configuration.inspect<boolean>(missionControlDisableRepositoryMetadata);
 			const disableRepositoryMetadata = (repositoryMetadataSetting.userLocalValue ?? repositoryMetadataSetting.applicationValue) === true;
 			await this._agentHost.configureMissionControl?.({
@@ -356,6 +366,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				roots: [...new Set([...fileSystemRoots.map(root => root.fsPath), home.fsPath, ...projects])],
 				projects,
 				defaultDirectory: home.fsPath,
+				...(cloneRoot ? { cloneRoot } : {}),
 				live: true,
 				...(this.environmentName.get() ? { name: this.environmentName.get() } : {}),
 				...(useLocalCredentials ? { useLocalCredentials: true } : {}),

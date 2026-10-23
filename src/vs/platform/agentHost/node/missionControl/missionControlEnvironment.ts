@@ -202,6 +202,8 @@ export class MissionControlEnvironment extends Disposable {
 	get isEnabled(): boolean { return this._options?.live === true; }
 	get isRepositoryMetadataEnabled(): boolean { return this._options?.disableRepositoryMetadata !== true; }
 
+	get cloneRoot(): string | undefined { return this._options?.cloneRoot; }
+
 	private _getIdentityApiBase(): string {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
 	}

@@ -703,10 +703,13 @@ suite('Mission Control host integration', () => {
 		const state = new class extends mock<AgentHostStateManager>() {
 			override getOverlaySessionSummaries() { return []; }
 		}();
-		createHost(instantiation, state);
+		const { host } = createHost(instantiation, state);
 		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
 		const projectOptions = creations.getCalls().find(call => call.args[0] === MissionControlProjects)!.args[1] as ConstructorParameters<typeof MissionControlProjects>[0];
 		const home = '/home/test';
+		const defaultCloneRoot = projectOptions.getCloneRoot!();
+		const cloneRoot = '/another-drive/clones';
+		sinon.stub(host.environment, 'cloneRoot').get(() => cloneRoot);
 		let projects = ['/home/test/code/project'];
 		const relay = new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }();
 		store.add(environment.attach(relay, [home], () => [home], () => projects, `${home}/.copilot`));
@@ -719,10 +722,13 @@ suite('Mission Control host integration', () => {
 			initialProjects,
 			updatedProjects: projectOptions.getProjectRoots!(),
 			catalogueGrants: projectOptions.getRoots(),
+			defaultCloneRoot,
+			cloneRoot: projectOptions.getCloneRoot!(),
 		}, {
 			defaultDirectory: URI.file(`${home}/.copilot`).toString(),
 			grants: [home], initialProjects: ['/home/test/code/project'],
 			updatedProjects: ['/another-drive/project'], catalogueGrants: [home],
+			defaultCloneRoot: undefined, cloneRoot,
 		});
 	});
 
