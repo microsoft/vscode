@@ -1253,27 +1253,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public handleClipboardCopy(event: IClipboardCopyEvent): void {
-		(event.isCut ? this._onWillCut : this._onWillCopy).fire(event);
-		if (!event.isHandled) {
-			event.ensureClipboardGetsEditorData();
+		if (event.isCut) {
+			this._onWillCut.fire(event);
+		} else {
+			this._onWillCopy.fire(event);
 		}
 	}
 
 	public handleClipboardPaste(event: IClipboardPasteEvent): void {
 		this._onWillPaste.fire(event);
-		if (event.isHandled || !event.text) {
-			return;
-		}
-
-		const metadata = event.metadata;
-		this.trigger('keyboard', editorCommon.Handler.Paste, {
-			text: event.text,
-			pasteOnNewLine: this.getOption(EditorOption.emptySelectionClipboard) && !!metadata?.isFromEmptySelection,
-			multicursorText: metadata?.multicursorText ?? null,
-			isBlock: !!metadata?.isBlock,
-			mode: metadata?.mode ?? null,
-			clipboardEvent: event.browserEvent,
-		} satisfies editorBrowser.PastePayload);
 	}
 
 	public pushUndoStop(): boolean {

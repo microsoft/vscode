@@ -213,15 +213,46 @@ suite('Editor clipboard commands', () => {
 		for (const editContext of [false, true]) {
 			await withClipboardEditor('', { editContext }, async ({ editor, clipboard, run }) => {
 				await clipboard.writeText('paste once');
+				let willPastes = 0;
 				let pastes = 0;
+				disposables.add(editor.onWillPaste(() => ++willPastes));
 				disposables.add(editor.onDidPaste(() => ++pastes));
 				const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
 				await run(PasteAction);
-				assert.deepStrictEqual({ text: editor.getValue(), pastes, legacyPastes: legacyPaste.callCount }, {
+				assert.deepStrictEqual({ text: editor.getValue(), willPastes, pastes, legacyPastes: legacyPaste.callCount }, {
 					text: 'paste once',
+					willPastes: 1,
 					pastes: 1,
 					legacyPastes: 0,
 				});
+			});
+		}
+	});
+
+	test('preserves paste metadata and respects the empty-selection clipboard setting', async () => {
+		for (const emptySelectionClipboard of [false, true]) {
+			await withClipboardEditor('', { emptySelectionClipboard }, async ({ editor, clipboard, run }) => {
+				const data = textData('pasted');
+				data.replace('application/vnd.code.editor-data', createStringDataTransferItem(JSON.stringify({
+					version: 1,
+					isFromEmptySelection: true,
+					isBlock: true,
+					multicursorText: ['pasted'],
+					mode: 'typescript',
+				})));
+				await clipboard.writeData(data);
+				const trigger = sinon.spy(editor, 'trigger');
+				await run(PasteAction);
+				assert.deepStrictEqual(trigger.withArgs('keyboard', Handler.Paste).args, [
+					['keyboard', Handler.Paste, {
+						text: 'pasted',
+						pasteOnNewLine: emptySelectionClipboard,
+						multicursorText: ['pasted'],
+						isBlock: true,
+						mode: 'typescript',
+						clipboardEvent: undefined,
+					}],
+				]);
 			});
 		}
 	});

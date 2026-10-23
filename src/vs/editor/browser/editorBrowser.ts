@@ -1056,7 +1056,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/** @internal */
 	handleClipboardCopy(event: IClipboardCopyEvent): void;
 
-	/** @internal */
+	/**
+	 * Fires the clipboard paste interception event.
+	 * @internal
+	 */
 	handleClipboardPaste(event: IClipboardPasteEvent): void;
 
 	/**

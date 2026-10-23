@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import { createFileDataTransferItem, createStringDataTransferItem, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../browser/clipboardData.js';
+import { DeferredPromise } from '../../common/async.js';
+import { createFileDataTransferItem, createStringDataTransferItem, VSDataTransfer } from '../../common/dataTransfer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../browser/clipboard.js';
 
 class TestClipboardItem implements ClipboardItem {
 	readonly presentationStyle = 'unspecified';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createFileDataTransferItem, createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { createFileDataTransferItem, createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../common/dataTransfer.js';
 
 const customFormatPrefix = 'web ';
 const standardFormats = new Set(['text/plain', 'text/html', 'image/png']);

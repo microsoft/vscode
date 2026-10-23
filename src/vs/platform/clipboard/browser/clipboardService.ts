@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../base/browser/clipboard.js';
 import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise } from '../../../base/common/async.js';
@@ -13,7 +14,6 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IReadonlyVSDataTransfer } from '../../../base/common/dataTransfer.js';
 import { IClipboardService } from '../common/clipboardService.js';
-import { readClipboardData, supportsClipboardData, writeClipboardData } from './clipboardData.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { ILogService } from '../../log/common/log.js';
 

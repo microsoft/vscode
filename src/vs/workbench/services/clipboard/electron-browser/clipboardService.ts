@@ -12,7 +12,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
-import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../../platform/clipboard/browser/clipboardData.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../../base/browser/clipboard.js';
 
 export class NativeClipboardService implements IClipboardService {
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument, getActiveWindow, getWindow } from '../../../../base/browser/dom.js';
+import { getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
@@ -18,7 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { CopyOptions, createClipboardCopyEventFromData, createClipboardPasteEventFromData } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
 import { toDataTransfer, toVSDataTransfer } from '../../../browser/dataTransfer.js';
-import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -210,6 +210,9 @@ async function executeClipboardCopy(editor: IActiveCodeEditor, clipboardService:
 	editor.handleClipboardCopy(event);
 	if (event.isHandled) {
 		return;
+	} else {
+		// ?
+		event.ensureClipboardGetsEditorData();
 	}
 
 	try {
@@ -295,8 +298,15 @@ if (PasteAction) {
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
-			return (async () => {
-				const controller = CopyPasteController.get(focusedEditor);
+			return (async (): Promise<void> => {
+				const editContextEnabled = focusedEditor.getOption(EditorOption.effectiveEditContext);
+				if (editContextEnabled) {
+					const nativeEditContext = NativeEditContextRegistry.get(focusedEditor.getId());
+					if (nativeEditContext) {
+						nativeEditContext.handleWillPaste();
+					}
+				}
+
 				let data: IReadonlyVSDataTransfer | undefined;
 				if (clipboardService.supportsClipboardData) {
 					try {
@@ -306,25 +316,49 @@ if (PasteAction) {
 					}
 				}
 
-				if (platform.isNative && !data) {
-					// Preserve native-only formats and paste when the Clipboard API is unavailable.
-					NativeEditContextRegistry.get(focusedEditor.getId())?.handleWillPaste();
-					await clipboardService.triggerPaste(getWindow(focusedEditor.getContainerDomNode()).vscodeWindowId);
-					await controller?.finishedPaste();
-					return;
+				if (!data) {
+					const triggerPaste = clipboardService.triggerPaste(getActiveWindow().vscodeWindowId);
+					if (triggerPaste) {
+						triggerPaste.then(async () => {
+							logService.trace('registerExecCommandImpl (after triggerPaste)');
+							return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+						});
+					} else {
+						const text = await clipboardService.readText();
+						const textData = new VSDataTransfer();
+						textData.replace('text/plain', createStringDataTransferItem(text));
+						data = textData;
+					}
 				}
 
 				if (!data) {
-					const text = await clipboardService.readText();
-					const textData = new VSDataTransfer();
-					textData.replace('text/plain', createStringDataTransferItem(text));
-					data = textData;
+					return;
 				}
-				const clipboardData = await toDataTransfer(data);
 
-				NativeEditContextRegistry.get(focusedEditor.getId())?.handleWillPaste();
-				focusedEditor.handleClipboardPaste(createClipboardPasteEventFromData(clipboardData));
-				await controller?.finishedPaste();
+				const clipboardData = await toDataTransfer(data);
+				const event = createClipboardPasteEventFromData(clipboardData);
+				focusedEditor.handleClipboardPaste(event);
+				if (!event.isHandled) {
+					const metadata = event.metadata;
+					let isBlock = false;
+					let pasteOnNewLine = false;
+					let multicursorText: string[] | null = null;
+					let mode: string | null = null;
+					if (metadata) {
+						isBlock = !!metadata.isBlock;
+						pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+						multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+						mode = metadata.mode;
+					}
+					focusedEditor.trigger('keyboard', Handler.Paste, {
+						text: event.text,
+						pasteOnNewLine,
+						multicursorText,
+						isBlock,
+						mode,
+						clipboardEvent: event.browserEvent,
+					} satisfies PastePayload);
+				}
 			})();
 		}
 		return false;
@@ -333,7 +367,7 @@ if (PasteAction) {
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: unknown) => {
 		const logService = accessor.get(ILogService);
-		logService.trace('Clipboard command DOM fallback: paste');
+		logService.trace('registerClipboardCommandImpl (addImplementation generic-dom for : paste)');
 		const triggerPaste = accessor.get(IClipboardService).triggerPaste(getActiveWindow().vscodeWindowId);
 		return triggerPaste ?? false;
 	});
