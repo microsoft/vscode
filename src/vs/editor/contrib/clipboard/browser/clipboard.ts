@@ -185,36 +185,34 @@ class CopyWithSyntaxHighlightingAction extends EditorAction {
 		}
 
 		editor.focus();
-		await executeClipboardCopy(editor, clipboardService, logService, false, true);
+		const previousForceCopyWithSyntaxHighlighting = CopyOptions.forceCopyWithSyntaxHighlighting;
+		try {
+			CopyOptions.forceCopyWithSyntaxHighlighting = true;
+			// Do not await: the flag must be restored while the clipboard write is pending.
+			return executeClipboardCopy(editor, clipboardService, logService, false);
+		} finally {
+			CopyOptions.forceCopyWithSyntaxHighlighting = previousForceCopyWithSyntaxHighlighting;
+		}
 	}
 }
 
-async function executeClipboardCopy(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService, isCut: boolean, forceCopyWithSyntaxHighlighting = false): Promise<void> {
+async function executeClipboardCopy(editor: IActiveCodeEditor, clipboardService: IClipboardService, logService: ILogService, isCut: boolean): Promise<void> {
+	const forceCopyWithSyntaxHighlighting = CopyOptions.forceCopyWithSyntaxHighlighting;
 	if (!clipboardService.supportsClipboardData && platform.isWeb) {
-		executeLegacyClipboardCopy(editor, isCut, forceCopyWithSyntaxHighlighting);
+		executeLegacyClipboardCopy(editor, isCut);
 		return;
 	}
-
 	const data = new DataTransfer();
 	const event = createClipboardCopyEventFromData(
 		data,
 		isCut,
 		editor._getViewModel(),
 		logService,
-		browser.isFirefox,
-		undefined,
-		forceCopyWithSyntaxHighlighting
+		browser.isFirefox
 	);
-
-	// Let copy/cut listeners prepare data; skip the default write and cut if a listener handles the event.
-	editor.handleClipboardCopy(event);
-	if (event.isHandled) {
-		return;
-	} else {
-		// ?
-		event.ensureClipboardGetsEditorData();
-	}
-
+	// Fires onWillCopy/onWillCut, so listeners can modify the data before the clipboard write.
+	editor.triggerOnWillCopyOrCut(event);
+	event.ensureClipboardGetsEditorData();
 	try {
 		if (clipboardService.supportsClipboardData) {
 			await clipboardService.writeData(toVSDataTransfer(data));
@@ -224,7 +222,13 @@ async function executeClipboardCopy(editor: IActiveCodeEditor, clipboardService:
 	} catch (error) {
 		if (platform.isWeb) {
 			logService.warn('Clipboard API write unavailable; falling back to a clipboard event.', error);
-			executeLegacyClipboardCopy(editor, isCut, forceCopyWithSyntaxHighlighting);
+			const previousForceCopyWithSyntaxHighlighting = CopyOptions.forceCopyWithSyntaxHighlighting;
+			try {
+				CopyOptions.forceCopyWithSyntaxHighlighting = forceCopyWithSyntaxHighlighting;
+				executeLegacyClipboardCopy(editor, isCut);
+			} finally {
+				CopyOptions.forceCopyWithSyntaxHighlighting = previousForceCopyWithSyntaxHighlighting;
+			}
 			return;
 		}
 	}
@@ -233,19 +237,14 @@ async function executeClipboardCopy(editor: IActiveCodeEditor, clipboardService:
 	}
 }
 
-function executeLegacyClipboardCopy(editor: IActiveCodeEditor, isCut: boolean, forceCopyWithSyntaxHighlighting: boolean): void {
-	try {
-		CopyOptions.forceCopyWithSyntaxHighlighting = forceCopyWithSyntaxHighlighting;
-		const cutWithEditContext = isCut && editor.getOption(EditorOption.effectiveEditContext);
-		const command = isCut && !cutWithEditContext ? 'cut' : 'copy';
-		if (!editor.getContainerDomNode().ownerDocument.execCommand(command)) {
-			throw new Error(nls.localize('clipboard.copyFailed', "Unable to copy to the clipboard."));
-		}
-		if (cutWithEditContext) {
-			editor.trigger('keyboard', Handler.Cut, undefined);
-		}
-	} finally {
-		CopyOptions.forceCopyWithSyntaxHighlighting = false;
+function executeLegacyClipboardCopy(editor: IActiveCodeEditor, isCut: boolean): void {
+	const cutWithEditContext = isCut && editor.getOption(EditorOption.effectiveEditContext);
+	const command = isCut && !cutWithEditContext ? 'cut' : 'copy';
+	if (!editor.getContainerDomNode().ownerDocument.execCommand(command)) {
+		throw new Error(nls.localize('clipboard.copyFailed', "Unable to copy to the clipboard."));
+	}
+	if (cutWithEditContext) {
+		editor.trigger('keyboard', Handler.Cut, undefined);
 	}
 }
 
@@ -337,7 +336,7 @@ if (PasteAction) {
 
 				const clipboardData = await toDataTransfer(data);
 				const event = createClipboardPasteEventFromData(clipboardData);
-				focusedEditor.handleClipboardPaste(event);
+				focusedEditor.triggerOnWillPaste(event);
 				if (!event.isHandled) {
 					const metadata = event.metadata;
 					let isBlock = false;

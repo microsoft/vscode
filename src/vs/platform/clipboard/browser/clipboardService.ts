@@ -53,20 +53,18 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	get supportsClipboardData(): boolean {
-		return supportsClipboardData(getActiveWindow().navigator.clipboard, typeof ClipboardItem === 'undefined' ? undefined : ClipboardItem);
+		return supportsClipboardData();
 	}
 
 	readData(): Promise<IReadonlyVSDataTransfer> {
 		this.logService.trace('BrowserClipboardService#readData');
-		return readClipboardData(getActiveWindow().navigator.clipboard);
+		return readClipboardData();
 	}
 
 	writeData(data: IReadonlyVSDataTransfer): Promise<void> {
 		this.logService.trace('BrowserClipboardService#writeData');
-		if (data.size) {
-			this.clearResourcesState();
-		}
-		return writeClipboardData(getActiveWindow().navigator.clipboard, data);
+		this.clearResourcesState();
+		return writeClipboardData(data);
 	}
 
 	async readImage(): Promise<Uint8Array> {

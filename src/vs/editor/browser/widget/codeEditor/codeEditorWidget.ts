@@ -1252,7 +1252,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel;
 	}
 
-	public handleClipboardCopy(event: IClipboardCopyEvent): void {
+	public triggerOnWillCopyOrCut(event: IClipboardCopyEvent): void {
 		if (event.isCut) {
 			this._onWillCut.fire(event);
 		} else {
@@ -1260,7 +1260,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	public handleClipboardPaste(event: IClipboardPasteEvent): void {
+	public triggerOnWillPaste(event: IClipboardPasteEvent): void {
 		this._onWillPaste.fire(event);
 	}
 

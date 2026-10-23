@@ -20,7 +20,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { InMemoryClipboardMetadataManager } from '../../../../browser/controller/editContext/clipboardUtils.js';
+import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../../browser/controller/editContext/clipboardUtils.js';
 import { MultiCommand } from '../../../../browser/editorExtensions.js';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../../../browser/services/bulkEditService.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -82,6 +82,29 @@ suite('Editor clipboard commands', () => {
 			'editor.action.clipboardCutAction',
 			'editor.action.clipboardCopyAction',
 		]);
+	});
+
+	test('copy and cut hooks can override the prepared clipboard data', async () => {
+		for (const isCut of [false, true]) {
+			await withClipboardEditor('source', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				disposables.add((isCut ? editor.onWillCut : editor.onWillCopy)(event => {
+					event.clipboardData.setData('text/plain', 'from hook');
+					event.clipboardData.setData('text/html', '<b>from hook</b>');
+				}));
+				await run(isCut ? CutAction : CopyAction);
+				const data = await clipboard.readData();
+				assert.deepStrictEqual({
+					text: await data?.get('text/plain')?.asString(),
+					html: await data?.get('text/html')?.asString(),
+					editorText: editor.getValue(),
+				}, {
+					text: 'from hook',
+					html: '<b>from hook</b>',
+					editorText: isCut ? '' : 'source',
+				});
+			});
+		}
 	});
 
 	test('round trips multiple selections and copy hook metadata without in-memory metadata', async () => {
@@ -243,7 +266,7 @@ suite('Editor clipboard commands', () => {
 				await clipboard.writeData(data);
 				const trigger = sinon.spy(editor, 'trigger');
 				await run(PasteAction);
-				assert.deepStrictEqual(trigger.withArgs('keyboard', Handler.Paste).args, [
+				assert.deepStrictEqual(trigger.withArgs('keyboard', Handler.Paste, sinon.match.any).args, [
 					['keyboard', Handler.Paste, {
 						text: 'pasted',
 						pasteOnNewLine: emptySelectionClipboard,
@@ -432,6 +455,55 @@ suite('Editor clipboard commands', () => {
 				textMatches: true,
 				hasHtml: true,
 			});
+		});
+	});
+
+	test('copy with syntax highlighting does not affect other copies while its write is pending', async () => {
+		await withClipboardEditor('source', {}, async ({ editor, clipboard, instantiationService, run }) => {
+			sinon.stub(instantiationService.get(IContextKeyService), 'contextMatchesRules').callsFake(rules => !rules);
+			editor.setSelection(new Selection(1, 1, 1, 7));
+			const richText = sinon.spy(editor._getViewModel(), 'getRichTextToCopy');
+			const written = new DeferredPromise<void>();
+			const write = sinon.stub(clipboard, 'writeData').onFirstCall().returns(written.p).onSecondCall().resolves();
+			const action = editor.getAction('editor.action.clipboardCopyWithSyntaxHighlightingAction');
+			assert.ok(action);
+
+			const copy = action.run();
+			const flagWhilePending = CopyOptions.forceCopyWithSyntaxHighlighting;
+			try {
+				await run(CopyAction);
+				assert.deepStrictEqual({ flagWhilePending, richTextCopies: richText.callCount, writes: write.callCount }, {
+					flagWhilePending: false,
+					richTextCopies: 1,
+					writes: 2,
+				});
+			} finally {
+				written.complete();
+				await copy;
+			}
+		});
+	});
+
+	test('copy with syntax highlighting restores the previous flag when preparing data fails', async () => {
+		await withClipboardEditor('source', {}, async ({ editor, instantiationService }) => {
+			sinon.stub(instantiationService.get(IContextKeyService), 'contextMatchesRules').callsFake(rules => !rules);
+			const error = new Error('Copy preparation failed');
+			sinon.stub(editor, '_getViewModel').throws(error);
+			const action = editor.getAction('editor.action.clipboardCopyWithSyntaxHighlightingAction');
+			assert.ok(action);
+
+			const previousForceCopyWithSyntaxHighlighting = CopyOptions.forceCopyWithSyntaxHighlighting;
+			const restoredFlags: boolean[] = [];
+			try {
+				for (const flag of [false, true]) {
+					CopyOptions.forceCopyWithSyntaxHighlighting = flag;
+					await assert.rejects(action.run(), err => err === error);
+					restoredFlags.push(CopyOptions.forceCopyWithSyntaxHighlighting);
+				}
+			} finally {
+				CopyOptions.forceCopyWithSyntaxHighlighting = previousForceCopyWithSyntaxHighlighting;
+			}
+			assert.deepStrictEqual(restoredFlags, [false, true]);
 		});
 	});
 

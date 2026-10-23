@@ -5,12 +5,11 @@
 
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../../base/browser/clipboard.js';
 
@@ -31,23 +30,17 @@ export class NativeClipboardService implements IClipboardService {
 	}
 
 	get supportsClipboardData(): boolean {
-		return supportsClipboardData(getActiveWindow().navigator.clipboard, typeof ClipboardItem === 'undefined' ? undefined : ClipboardItem);
+		return supportsClipboardData();
 	}
 
 	async readData(): Promise<IReadonlyVSDataTransfer | undefined> {
 		this.logService.trace('NativeClipboardService#readData');
-		const clipboard = getActiveWindow().navigator.clipboard;
-		const fileFormats = isMacintosh ? ['public.file-url', 'NSFilenamesPboardType'] : isWindows ? ['FileNameW', 'CF_HDROP'] : ['text/uri-list', 'x-special/gnome-copied-files'];
-		const hasFiles = await Promise.all(fileFormats.map(format => this.nativeHostService.hasClipboard(format)));
-		if (hasFiles.some(Boolean)) {
-			return undefined;
-		}
-		return readClipboardData(clipboard);
+		return readClipboardData();
 	}
 
 	writeData(data: IReadonlyVSDataTransfer): Promise<void> {
 		this.logService.trace('NativeClipboardService#writeData');
-		return writeClipboardData(getActiveWindow().navigator.clipboard, data);
+		return writeClipboardData(data);
 	}
 
 	async readImage(): Promise<Uint8Array> {

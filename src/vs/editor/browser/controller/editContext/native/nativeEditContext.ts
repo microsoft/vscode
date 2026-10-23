@@ -120,18 +120,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false, this._context, this.logService, isFirefox);
 			this._onWillCopy.fire(copyEvent);
-			if (copyEvent.isHandled) {
-				return;
-			}
 			copyEvent.ensureClipboardGetsEditorData();
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
 			this.logService.trace('NativeEditContext#cut');
 			const cutEvent = createClipboardCopyEvent(e, /* isCut */ true, this._context, this.logService, isFirefox);
 			this._onWillCut.fire(cutEvent);
-			if (cutEvent.isHandled) {
-				return;
-			}
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();

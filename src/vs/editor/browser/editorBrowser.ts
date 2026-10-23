@@ -1054,13 +1054,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	_getViewModel(): IViewModel | null;
 
 	/** @internal */
-	handleClipboardCopy(event: IClipboardCopyEvent): void;
+	triggerOnWillCopyOrCut(event: IClipboardCopyEvent): void;
 
 	/**
 	 * Fires the clipboard paste interception event.
 	 * @internal
 	 */
-	handleClipboardPaste(event: IClipboardPasteEvent): void;
+	triggerOnWillPaste(event: IClipboardPasteEvent): void;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
