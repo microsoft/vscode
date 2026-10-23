@@ -829,7 +829,7 @@ export class TabbedModelPicker extends Disposable {
 			});
 		}
 		// Hidden while searching, when the filter takes the tab strip's place.
-		if (context.showManageModels && !this._searchVisible) {
+		if (context.showManageModels && !this._searchVisible && !comparison?.state.get()) {
 			actions.push({
 				id: 'addProvider',
 				icon: Codicon.add,

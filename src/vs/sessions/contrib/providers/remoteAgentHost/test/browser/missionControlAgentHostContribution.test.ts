@@ -69,7 +69,7 @@ suite('Mission Control native provider inventory', () => {
 			assert.ok(item);
 			return typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
 		});
-		assert.deepStrictEqual(labels, ['Environments', 'Connect to Environment...']);
+		assert.deepStrictEqual(labels, ['Environments...', 'Connect to Environment...']);
 	});
 
 	for (const { name, quality, development, hostsEnabled, environmentsEnabled = true, chatEnabled, aiDisabled, available } of [

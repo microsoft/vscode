@@ -32,7 +32,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isChatConfigProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, SessionApprovalLevel, validateChatPickerConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isChatConfigProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, readSessionApprovalLevel, SessionApprovalLevel, validateChatPickerConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
@@ -403,7 +403,8 @@ export function isClaimedByDedicatedPicker(property: string, schema: SessionConf
 }
 
 export function isGenericConfigPickerProperty(property: string, schema: SessionConfigPropertySchema, isStartedSession: boolean, configSchema?: SessionConfigSchema): boolean {
-	return !isClaimedByDedicatedPicker(property, schema, configSchema)
+	return !isHiddenSessionConfigProperty(property)
+		&& !isClaimedByDedicatedPicker(property, schema, configSchema)
 		&& (!isStartedSession || schema.sessionMutable === true)
 		&& (schema.type === 'boolean' || (schema.type === 'string' && (!!schema.enumDynamic || !!schema.enum?.length)));
 }
