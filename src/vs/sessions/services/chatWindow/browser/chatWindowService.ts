@@ -279,6 +279,9 @@ export const CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID = 'sessions.chatWindow.toggl
 /** Whether the chat window shows its terminal row. */
 export const ChatWindowTerminalShownContext = new RawContextKey<boolean>('sessions.chatWindowTerminalShown', false, localize('chatWindowTerminalShown', "Whether the chat window shows a terminal across its bottom."));
 
+/** Whether the editor group is the terminal row of a chat window. Set in the scope of that group. */
+export const ChatWindowTerminalRowContext = new RawContextKey<boolean>('sessions.chatWindowTerminalRow', false, localize('chatWindowTerminalRow', "Whether the editor group is the terminal row of a chat window."));
+
 /** Whether the chat window shows an editor, or an editor area, beside its chat. */
 export const ChatWindowHasEditorContext = new RawContextKey<boolean>('sessions.chatWindowHasEditor', false, localize('chatWindowHasEditor', "Whether the chat window shows an editor beside its chat."));
 

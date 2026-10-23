@@ -10,20 +10,21 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
-import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { editorGroupToColumn } from '../../../../workbench/services/editor/common/editorGroupColumn.js';
 import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
-import { IChatWindow, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowTerminalRowContext, IChatWindow, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -33,7 +34,7 @@ import { ISession, ISessionWorkspace } from '../../../services/sessions/common/s
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
-import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext, ResourceContextKey } from '../../../../workbench/common/contextkeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
@@ -1073,6 +1074,38 @@ class ChatWindowTerminalHostContribution extends Disposable implements IWorkbenc
 }
 
 registerWorkbenchContribution2(ChatWindowTerminalHostContribution.ID, ChatWindowTerminalHostContribution, WorkbenchPhase.AfterRestored);
+
+const NEW_CHAT_WINDOW_TERMINAL_COMMAND_ID = 'sessions.chatWindow.newTerminal';
+
+// The stock New Terminal action of the editor title shows only while the active editor of the group evaluates as a terminal, which the row does not keep once another group has focus.
+registerAction2(class NewChatWindowTerminalAction extends Action2 {
+	constructor() {
+		super({
+			id: NEW_CHAT_WINDOW_TERMINAL_COMMAND_ID,
+			title: localize2('chatWindowNewTerminal', "New Terminal in Chat Window"),
+			icon: Codicon.plus,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 0,
+				// Where the stock action does not show, so that exactly one shows.
+				when: ContextKeyExpr.and(ChatWindowTerminalRowContext, ResourceContextKey.Scheme.notEqualsTo(Schemas.vscodeTerminal)),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const row = accessor.get(IChatWindowService).getActiveWindow()?.terminalGroup.get();
+		if (!row) {
+			return;
+		}
+		const instance = await accessor.get(ITerminalService).createTerminal({
+			location: { viewColumn: editorGroupToColumn(accessor.get(IEditorGroupsService), row) },
+		});
+		await instance.focusWhenReady();
+	}
+});
 
 /**
  * Registers an {@link AgentHostSessionTaskRunner} with the
