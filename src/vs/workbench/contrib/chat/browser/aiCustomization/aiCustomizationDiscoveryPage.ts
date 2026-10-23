@@ -49,7 +49,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -931,7 +931,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly pluginService: IAgentPluginService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -1192,22 +1191,22 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Agents)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newAgent', localize('customizationDiscovery.newAgent', "New Agent"), undefined, true, () => this.createCustomization(PromptsType.agent))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newAgent', localize('customizationDiscovery.newAgent', "New Agent"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Agents))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Skills)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newSkill', localize('customizationDiscovery.newSkill', "New Skill"), undefined, true, () => this.createCustomization(PromptsType.skill))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newSkill', localize('customizationDiscovery.newSkill', "New Skill"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Skills))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Instructions)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newInstructions', localize('customizationDiscovery.newInstructions', "New Instructions"), undefined, true, () => this.createCustomization(PromptsType.instructions))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newInstructions', localize('customizationDiscovery.newInstructions', "New Instructions"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Instructions))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Prompts)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newPrompt', localize('customizationDiscovery.newPrompt', "New Prompt"), undefined, true, () => this.createCustomization(PromptsType.prompt))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newPrompt', localize('customizationDiscovery.newPrompt', "New Prompt"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Prompts))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.McpServers)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.McpServers))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.McpServers))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.Plugins))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Plugins))));
 			}
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
@@ -1219,11 +1218,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			});
 			addButton.element.setAttribute('aria-expanded', 'true');
 		}));
-	}
-
-	private createCustomization(type: PromptsType): Promise<void> {
-		this.callbacks.closeEditor();
-		return this.workspaceService.generateCustomization(type);
 	}
 
 	private updateDescription(): void {
