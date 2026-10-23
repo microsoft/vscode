@@ -43,6 +43,9 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -630,6 +633,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		super(undefined, action, options);
 		this.branchPicker = this._register(instantiationService.createInstance(BranchPicker, {
 			user: 'automationBranchPicker',
+			hoverDelegate: options?.hoverDelegate,
 			slotClassName: 'automation-form-branch-picker-slot',
 			triggerClassName: 'automation-form-branch-slot',
 			labelClassName: 'automation-form-branch-name',
@@ -1701,7 +1705,9 @@ export function renderForm(
 		usesCombinedConfigPicker.set(!!session && sessionsManagementService.usesCombinedNewSessionConfigPicker(session));
 	}));
 
+	const pickerHoverDelegate = disposables.add(createInstantHoverDelegate());
 	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
+		hoverDelegate: pickerHoverDelegate,
 		ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
 		telemetrySource: 'automations.dialog',
 		hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -1713,11 +1719,11 @@ export function renderForm(
 		},
 		actionViewItemProvider: (action, itemOptions) => {
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container), undefined, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => sessionTypePicker.render(container, { hoverDelegate: itemOptions.hoverDelegate }), undefined, itemOptions);
 
 			}
 			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container), undefined, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container, itemOptions.hoverDelegate), undefined, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
 				return instantiationService.createInstance(
@@ -1803,6 +1809,7 @@ export function renderForm(
 		sessionControlsContainer,
 		scopedInstantiationService,
 		localize('automation.form.sessionControls', "Session controls"),
+		pickerHoverDelegate,
 	));
 	const sessionControlsLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.sessionControls', sessionControlsContainer, {
 		getItems: () => getAutomationToolbarResponsiveItems(sessionControlsToolbar),
@@ -1969,12 +1976,13 @@ export function renderForm(
 		localize('automation.owner.repositoryActionDescription', "This automation will act as Copilot."),
 	];
 	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
+	const ownerHoverLifecycleOptions = { groupId: generateUuid() };
 	const ownerInfoHover = disposables.add(new MutableDisposable<IDisposable>());
 	const updateOwnerInfo = (index: number) => {
 		const description = ownerActionDescriptions[index];
 		ownerRow.setAttribute('aria-description', description);
 		ownerInfoHover.clear();
-		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description });
+		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description, style: HoverStyle.Pointer }, ownerHoverLifecycleOptions);
 	};
 	updateOwnerInfo(ownerIndex);
 	const ownerControl = DOM.append(ownerRow, $('.automation-owner-control'));
@@ -1990,7 +1998,7 @@ export function renderForm(
 			: ownerDescriptions[index];
 		element.setAttribute('aria-description', description);
 		if (customizations) {
-			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description }));
+			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description, style: HoverStyle.Pointer }, ownerHoverLifecycleOptions));
 		}
 	}
 	setRepositoryWarningVisible(ownerIndex === 1);
@@ -2320,13 +2328,13 @@ export class AutomationCustomizationSelection extends Disposable {
 			const label = DOM.append(text, $('span.automation-customization-label', { id: `automation-customization-${index}` }, choice.label));
 			checkbox.domNode.setAttribute('aria-labelledby', label.id);
 			if (this.hoverService) {
-				this.rows.add(this.hoverService.setupDelayedHover(label, { content: choice.label }));
+				this.rows.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: choice.label }));
 			}
 			if (choice.description) {
 				const description = DOM.append(text, $('span.automation-customization-description', { id: `automation-customization-description-${index}` }, choice.description));
 				checkbox.domNode.setAttribute('aria-describedby', description.id);
 				if (this.hoverService) {
-					this.rows.add(this.hoverService.setupDelayedHover(description, { content: choice.description }));
+					this.rows.add(this.hoverService.setupDelayedHoverAtMouse(description, { content: choice.description }));
 				}
 			}
 			if (choice.outdated) {
@@ -2582,7 +2590,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	/** Cloud mode lists Git-backed workspaces and any workspace whose cloud target is already known. */
 	private isCloudCandidate(folder: URI): boolean {
 		const target = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get();
-		return this.isGitWorkspace(folder) || !!target?.workspace || !!target?.isPublicRepository;
+		return this.isGitWorkspace(folder) || !!target?.workspace || !!target?.isRepository;
 	}
 
 	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
@@ -2626,16 +2634,15 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				}
 				const reason = target?.pending
 					? localize('automation.form.checkingRepository', "Checking repository access...")
-					: target?.isPublicRepository
-						? localize('automation.form.publicRepository', "Cloud automations require a private GitHub repository. This repository is public.")
-						: target?.disabledReason
-						?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
-						?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+					: target?.disabledReason
+					?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a supported repository on GitHub.com.") : undefined)
+					?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+				const repositoryLabel = target?.repositoryLabel;
+				const availabilityDescription = repositoryLabel && reason
+					? localize('automation.form.repositoryAvailabilityDescription', "{0}. {1}", repositoryLabel, reason)
+					: repositoryLabel ?? reason;
 				const location = typeof item.description === 'string' && item.description ? item.description : undefined;
 				// The location is not shown inline, but it distinguishes repositories with the same name.
-				const details = reason && location
-					? localize('automation.form.repositoryReasonDetails', "{0} — {1}", location, reason)
-					: reason ?? location;
 				const name = location ? localize('automation.form.repositoryAriaLabel', "{0}, {1}", item.label ?? '', location) : item.label ?? '';
 				const ariaLabel = reason
 					? localize('automation.form.disabledRepositoryAriaLabel', "{0}, unavailable. {1}", name, reason)
@@ -2648,10 +2655,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					toolbarActions: undefined,
 					iconClasses: undefined,
 					disabled: reason !== undefined,
-					description: reason ? new MarkdownString('$(info)', { supportThemeIcons: true }) : undefined,
-					ariaDescription: details,
-					tooltip: details,
-					hover: details ? { content: details } : undefined,
+					description: reason ? new MarkdownString(repositoryLabel ? localize('automation.form.repositoryDescription', "{0} {1}", '$(info)', repositoryLabel) : '$(info)', { supportThemeIcons: true }) : repositoryLabel,
+					ariaDescription: availabilityDescription,
+					tooltip: availabilityDescription,
+					hover: availabilityDescription ? { content: availabilityDescription } : undefined,
 					className: 'automation-cloud-repository',
 					group: { title: '', icon: Codicon.repo },
 				}];
@@ -2699,8 +2706,8 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			const configuration = this.cloudConfiguration.get();
 			if (this.cloudMode?.get() && item.folderUri) {
 				const target = configuration?.getWorkspaceTarget(item.folderUri).get();
-				if (!target?.workspace || target.pending || target.disabledReason || target.isPublicRepository) {
-					throw new Error(target?.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
+				if (!target?.workspace || target.pending || target.disabledReason) {
+					throw new Error(target?.disabledReason ?? localize('automation.form.repositoryRequired', "Cloud automations cannot be managed for this repository."));
 				}
 				// A checkout that no provider can run Cloud from is selected through its repository instead.
 				if (item.folderUri.scheme !== GITHUB_REMOTE_FILE_SCHEME && !this.offersCloud(item.folderUri, configuration)) {
@@ -2723,7 +2730,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				}
 				const target = await waitForState(configuration.getWorkspaceTarget(item.folderUri), target => !target.pending, undefined, token);
 				if (!target.workspace || target.disabledReason) {
-					throw new Error(target.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
+					throw new Error(target.disabledReason ?? localize('automation.form.repositoryUnsupported', "Cloud automations cannot be managed for this repository."));
 				}
 				if (configuration !== this.cloudConfiguration.get()) {
 					return false;
@@ -2767,7 +2774,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	}
 
 	/**
-	 * The mobile sheet shows descriptions as text and has no hover, so repository rows carry their location and reason
+	 * The mobile sheet shows descriptions as text and has no hover, so repository rows carry their identity and reason
 	 * instead of the info icon. Add repository comes first because the sheet focuses its first row, which may be disabled.
 	 */
 	protected _buildMobileItems(): IActionListItem<IWorkspacePickerItem>[] {

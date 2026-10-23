@@ -24,6 +24,8 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -625,7 +627,7 @@ class AutomationCardsSection extends Disposable {
 			const info = DOM.append(summary, renderIcon(Codicon.info));
 			info.classList.add('automations-ownership-info');
 			info.setAttribute('aria-hidden', 'true');
-			disposables.add(this.hoverService.setupDelayedHover(info, { content: description }));
+			disposables.add(this.hoverService.setupDelayedHover(info, { content: description, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 			disposables.add(DOM.addDisposableListener(info, DOM.EventType.CLICK, event => {
 				event.preventDefault();
 				event.stopPropagation();
@@ -1150,7 +1152,7 @@ class AutomationCardsSection extends Disposable {
 		const nameRow = DOM.append(card, $('.automations-template-card-name'));
 		const name = DOM.append(nameRow, $('span.automations-template-card-name-text'));
 		name.textContent = template.name;
-		this.templateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(name, { content: template.name, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 		const badge = DOM.append(nameRow, $('span.automations-template-card-badge'));
 		badge.textContent = template.source
 			? localize('automationPluginTemplateBadge', "Plugin")
@@ -1160,12 +1162,12 @@ class AutomationCardsSection extends Disposable {
 		if (template.source) {
 			const source = DOM.append(card, $('span.automations-template-card-source'));
 			source.textContent = localize('automationTemplateSource', "From {0}", template.source.label);
-			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label }));
+			this.templateDisposables.add(this.hoverService.setupDelayedHover(source, { content: template.source.label, style: HoverStyle.Pointer }, { groupId: this.templateAriaId }));
 		}
 		const description = DOM.append(card, $('span.automations-template-card-prompt'));
 		description.id = `automations-template-${this.templateAriaId}-${template.id}-description`;
 		description.textContent = template.description;
-		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt }));
+		this.templateDisposables.add(this.hoverService.setupDelayedHover(description, { content: template.prompt, style: HoverStyle.Pointer, position: { hoverPosition: HoverPosition.RIGHT } }, { groupId: this.templateAriaId }));
 		card.setAttribute('aria-describedby', description.id);
 		const scheduleElement = DOM.append(card, $('span.automations-template-card-schedule'));
 		scheduleElement.textContent = schedule;

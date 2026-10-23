@@ -33,7 +33,8 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, type ModelSelection, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -68,6 +69,9 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
+import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
+import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
@@ -194,12 +198,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	}
 
-	function startTurn(turnId: string, text = 'hello', modelId?: string, chatUri = defaultChatUri, clientContext?: IAgentHostClientTelemetryContext): void {
+	function startTurn(turnId: string, text = 'hello', model?: string | ModelSelection, chatUri = defaultChatUri, clientContext?: IAgentHostClientTelemetryContext): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
 			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text, origin: { kind: MessageKind.User }, model: modelId ? { id: modelId } : undefined },
+			message: { text, origin: { kind: MessageKind.User }, model: typeof model === 'string' ? { id: model } : model },
 		};
 		// Dispatch into the state manager so `getActiveTurnId` returns the
 		// active turn (the progress-listener path relies on this) and then
@@ -333,6 +337,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+		services.set(IAgentHostArtifactIntegrationDirectory, disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry()))));
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,
 			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
@@ -1419,46 +1425,50 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
-	test('classifies HydraFusion phase chats separately from task subagents and reports the phase model', () => {
+	test('reports a HydraFusion cascade as one root turn while phase tool calls keep the phase model', () => {
 		setupSession();
 		agent.setModels([
-			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
-			{ provider: 'mock', id: 'gpt-5.5-mini', name: 'GPT 5.5 Mini', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-6-sol', name: 'GPT 6 Sol', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-6-astra', name: 'GPT 6 Astra', supportsVision: false },
 		]);
 		startTurn('turn-parent');
-		const phaseToolCallId = 'fusion:fusion-1:phase-1';
-		const phaseChatUri = buildSubagentChatUri(sessionUri, phaseToolCallId);
-		stateManager.addChat(sessionKey, phaseChatUri, creationTimeChatStorageResource(sessionKey, phaseChatUri, buildDefaultChatUri(sessionKey)));
-		const runPhaseTurn = (model: string) => {
-			agent.fireProgress({
-				kind: 'subagent_started',
-				chat: URI.parse(defaultChatUri),
-				toolCallId: phaseToolCallId,
-				agentName: 'hydrafusion-phase',
-				agentDisplayName: 'Main pass',
-				subagentKind: 'fusionPhase',
-				model,
-			});
-			const turnId = stateManager.getActiveTurnId(phaseChatUri);
-			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: phaseToolCallId });
+		// Example cascade: the primary phase renders inline in the root chat; the judge and repair
+		// phases each get a presentation-only child chat, and the repair phase runs tools in it.
+		const runPhase = (phaseToolCallId: string, model: string, tools: readonly string[]) => {
+			const phaseChatUri = buildSubagentChatUri(sessionUri, phaseToolCallId);
+			stateManager.addChat(sessionKey, phaseChatUri, creationTimeChatStorageResource(sessionKey, phaseChatUri, buildDefaultChatUri(sessionKey)));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: phaseToolCallId, agentName: 'hydrafusion-phase', agentDisplayName: phaseToolCallId, subagentKind: 'fusionPhase', model });
+			const turnId = stateManager.getActiveTurnId(phaseChatUri) ?? 'missing-phase-turn';
+			for (const tool of tools) {
+				const toolCallId = `${phaseToolCallId}-${tool}`;
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: tool, displayName: tool }, phaseChatUri);
+				fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result: { success: true, pastTenseMessage: `ran ${tool}` } }, phaseChatUri);
+			}
 			return turnId;
 		};
-		const phaseTurnId = runPhaseTurn('gpt-5.5');
-		const resumedPhaseTurnId = runPhaseTurn('gpt-5.5-mini');
+		const judgeTurnId = runPhase('fusion:fusion-1:judge', 'gpt-6-sol', []);
+		const repairTurnId = runPhase('fusion:fusion-1:repair', 'gpt-6-astra', ['view', 'bash']);
+		// The provider closes every phase chat when the root turn goes idle.
+		agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'fusion:fusion-1:judge' });
+		agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'fusion:fusion-1:repair' });
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
 
 		assert.deepStrictEqual({
-			phaseTurnsStarted: phaseTurnId !== undefined && resumedPhaseTurnId !== undefined && phaseTurnId !== resumedPhaseTurnId,
+			phaseChatsTracked: judgeTurnId !== 'missing-phase-turn' && repairTurnId !== 'missing-phase-turn',
 			completed: completedEvents().map(event => {
 				const data = event.data as Record<string, unknown>;
-				return { turnId: data.turnId, isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind, parentToolCallId: data.parentToolCallId, model: capturedModel(data).value };
+				return { turnId: data.turnId, isSubagentSession: data.isSubagentSession };
+			}),
+			phaseTools: telemetry.events.filter(event => event.eventName === 'agentHost.toolInvoked').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { toolCallId: data.toolCallId, subagentKind: data.subagentKind, model: capturedModel(data).value };
 			}),
 		}, {
-			phaseTurnsStarted: true,
-			completed: [
-				{ turnId: phaseTurnId, isSubagentSession: true, subagentKind: 'fusionPhase', parentToolCallId: phaseToolCallId, model: 'gpt-5.5' },
-				{ turnId: resumedPhaseTurnId, isSubagentSession: true, subagentKind: 'fusionPhase', parentToolCallId: phaseToolCallId, model: 'gpt-5.5-mini' },
-				{ turnId: 'turn-parent', isSubagentSession: false, subagentKind: undefined, parentToolCallId: undefined, model: undefined },
+			phaseChatsTracked: true,
+			completed: [{ turnId: 'turn-parent', isSubagentSession: false }],
+			phaseTools: [
+				{ toolCallId: 'fusion:fusion-1:repair-view', subagentKind: 'fusionPhase', model: 'gpt-6-astra' },
+				{ toolCallId: 'fusion:fusion-1:repair-bash', subagentKind: 'fusionPhase', model: 'gpt-6-astra' },
 			],
 		});
 	});
@@ -1481,7 +1491,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			return { parentToolCallId: data.parentToolCallId, subagentKind: data.subagentKind, parentTurnId: data.parentTurnId };
 		}), [
 			{ parentToolCallId: 'call-task', subagentKind: 'task', parentTurnId: 'turn-parent' },
-			{ parentToolCallId: phaseToolCallId, subagentKind: 'fusionPhase', parentTurnId: 'turn-parent' },
 			{ parentToolCallId: undefined, subagentKind: undefined, parentTurnId: undefined },
 		]);
 	});
@@ -1740,6 +1749,69 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			{ model: { trusted: true, value: COPILOT_HYDRA_FUSION_MODEL_ID }, modelSelectionKind: 'hydrafusion', result: 'error' },
 			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'hydrafusionMax', result: 'success' },
 		]);
+	});
+
+	test('classifies Copilot Fusion turns by their Auto tier and records the HydraFusion model that routed them', () => {
+		sinon.stub(agent, 'id').value(COPILOT_CLI_AGENT_PROVIDER_ID);
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: 'auto', name: 'Copilot Fusion', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		const fusionMilestone = (turnId: string, fusionModel: string): ChatAction => ({
+			type: ActionType.ChatResponsePart,
+			turnId,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: { markdown: 'Selected Single workflow' },
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected', fusionModel }),
+			},
+		});
+
+		startTurn('turn-high', 'hello', { id: 'auto', config: { tier: 'hydrafusion' } });
+		fire(fusionMilestone('turn-high', COPILOT_HYDRA_FUSION_MODEL_ID));
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-high', usage: { model: 'gpt-5.5' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-high', duration: 1000 });
+
+		// Cancelled before routing finished: only the selected tier is known.
+		startTurn('turn-max', 'hello', { id: 'auto', config: { tier: COPILOT_HYDRA_FUSION_MAX_MODEL_ID } });
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-max', duration: 1000 });
+
+		startTurn('turn-standard', 'hello', { id: 'auto', config: { tier: 'balance' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-standard', duration: 1000 });
+
+		startTurn('turn-legacy', 'hello', { id: 'auto', config: { autoTier: 'max' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-legacy', duration: 1000 });
+
+		startTurn('turn-unknown', 'hello', { id: 'auto', config: { tier: 'experimental tier' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-unknown', duration: 1000 });
+
+		startTurn('turn-failed', 'hello', { id: 'auto', config: { tier: COPILOT_HYDRA_FUSION_MAX_MODEL_ID } });
+		fire(fusionMilestone('turn-failed', COPILOT_HYDRA_FUSION_MAX_MODEL_ID));
+		fire({ type: ActionType.ChatError, turnId: 'turn-failed', duration: 1000, part: createErrorResponsePart({ errorType: 'query', message: 'routing failed' }) });
+
+		assert.deepStrictEqual({
+			completed: completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { turnId: data.turnId, modelSelectionKind: data.modelSelectionKind, autoTier: data.autoTier, fusionModel: data.fusionModel };
+			}),
+			failed: failedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { turnId: data.turnId, autoTier: data.autoTier, fusionModel: data.fusionModel };
+			}),
+		}, {
+			completed: [
+				{ turnId: 'turn-high', modelSelectionKind: 'hydrafusion', autoTier: 'hydrafusion', fusionModel: 'hydrafusion' },
+				{ turnId: 'turn-max', modelSelectionKind: 'hydrafusionMax', autoTier: 'hydrafusion-max', fusionModel: undefined },
+				{ turnId: 'turn-standard', modelSelectionKind: 'auto', autoTier: 'balance', fusionModel: undefined },
+				{ turnId: 'turn-legacy', modelSelectionKind: 'auto', autoTier: 'intelligence', fusionModel: undefined },
+				{ turnId: 'turn-unknown', modelSelectionKind: 'auto', autoTier: 'other', fusionModel: undefined },
+				{ turnId: 'turn-failed', modelSelectionKind: 'hydrafusionMax', autoTier: 'hydrafusion-max', fusionModel: 'hydrafusion-max' },
+			],
+			failed: [
+				{ turnId: 'turn-failed', autoTier: 'hydrafusion-max', fusionModel: 'hydrafusion-max' },
+			],
+		});
 	});
 
 	test('does not classify another provider model named HydraFusion as the routing mode', () => {

@@ -21,6 +21,8 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -53,6 +55,7 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
@@ -160,7 +163,8 @@ suite('ChatListWidget', () => {
 				},
 			}],
 		});
-		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const { model, container, widget, contextKeyService } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const createOverlay = sinon.spy(contextKeyService, 'createOverlay');
 		const requestText = 'Show documentation';
 		const request = model.addRequest({
 			text: requestText,
@@ -180,6 +184,7 @@ suite('ChatListWidget', () => {
 		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 
 		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const withoutSelection = new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key);
 		const actionContext = menuDelegate?.getActionsContext?.();
 		if (!isChatContextMenuActionContext(actionContext)) {
 			assert.fail('Expected a chat context menu action context.');
@@ -191,6 +196,27 @@ suite('ChatListWidget', () => {
 			linkTarget: 'file:///workspace/README.md',
 			itemKind: 'response',
 		});
+
+		const selection = mainWindow.getSelection();
+		assert.ok(selection);
+		store.add(toDisposable(() => selection.removeAllRanges()));
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(link);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+		const selectionDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const selectionContext = selectionDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(selectionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		selection.removeAllRanges();
+		assert.deepStrictEqual({
+			text: selectionContext.responseSelection?.text,
+			response: selectionContext.responseSelection?.response === selectionContext.item,
+			hasSelection: new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key),
+			withoutSelection,
+		}, { text: 'Documentation', response: true, hasSelection: true, withoutSelection: false });
 	});
 
 	test('shows Open With only for resources backed by a file system provider', () => {
@@ -350,6 +376,45 @@ suite('ChatListWidget', () => {
 		}, { messages: ['say bar', 'say baz'], responseCount: 1, compact: true }, `Bubble gap: pending=${pendingGap}, timestamp=${timestampHeight}, consumed=${gap()}`);
 	});
 
+	for (const { kind, isSystemInitiated } of [
+		{ kind: ChatRequestQueueKind.Queued, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: true },
+	]) {
+		test(`pending messages retain their existing fractional row measurements (${kind}, system=${isSystemInitiated})`, async () => {
+			const { model, container, widget } = createWidget({}, undefined, true);
+			const message = (text: string) => ({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			});
+			const request = model.addRequest(message('Review the changes'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewing the changes.') });
+			model.addPendingRequest(new ChatRequestModel({
+				session: model,
+				message: message('Summarize the findings'),
+				variableData: { variables: [] },
+				isSystemInitiated,
+			}), kind, { isSystemInitiated });
+			widget.refresh();
+			widget.layout(600, 500);
+			await waitForStableLayout(widget);
+			const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')];
+			assert.strictEqual(rows.length, 4);
+			const content = rows.map(row => row.querySelector<HTMLElement>('.interactive-item-container')!);
+			for (const element of content) {
+				element.style.height = `${Math.ceil(element.getBoundingClientRect().height) + 0.25}px`;
+			}
+			widget.layout(600, 501);
+			assert.deepStrictEqual({
+				fractions: content.map(element => element.getBoundingClientRect().height % 1),
+				allocatedHeights: rows.map(row => row.getBoundingClientRect().height),
+			}, {
+				fractions: content.map(() => 0.25),
+				allocatedHeights: content.map(element => element.offsetHeight),
+			});
+		});
+	}
+
 	test('empty intermediate responses retain errors, cancellation, and streaming state', () => {
 		const { model, viewModel } = createWidget();
 		const addRequest = () => model.addRequest({
@@ -371,6 +436,119 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('generated image preview retention', () => {
+		for (const { imageCount, fraction } of [1, 3].flatMap(imageCount => [undefined, 0.25, 0.75].map(fraction => ({ imageCount, fraction })))) {
+			test(`image generation preserves scroll position on every frame before expansion (${imageCount} calls, fraction=${fraction ?? 'natural'})`, async () => {
+				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, configuration => {
+					configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+					configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				}, true);
+				container.classList.remove('monaco-reduce-motion');
+				container.classList.add('interactive-list', 'monaco-enable-motion');
+				container.style.fontSize = '13px';
+				for (const [token, value] of [
+					['--vscode-chat-font-size-body-m', '13px'],
+					['--vscode-chat-font-size-body-s', '0.923em'],
+					['--vscode-chat-font-size-body-xs', '0.846em'],
+					['--vscode-spacing-size40', '4px'],
+					['--vscode-spacing-size80', '8px'],
+					['--vscode-spacing-size120', '12px'],
+					['--vscode-spacing-size160', '16px'],
+					['--vscode-spacing-size240', '24px'],
+					['--vscode-codiconFontSize-compact', '12px'],
+					['--vscode-strokeThickness', '1px'],
+				]) {
+					container.style.setProperty(token, value);
+				}
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced() { return false; }
+				}());
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = 600;
+				canvas.height = 400;
+				const context = canvas.getContext('2d')!;
+				context.fillStyle = '#4682b4';
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				const imageData = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				const imageBytes = new DeferredPromise<typeof imageData>();
+				disposables.add(toDisposable(() => {
+					if (!imageBytes.isSettled) {
+						void imageBytes.complete(imageData);
+					}
+				}));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						return { ...await super.readFile(resource), value: await imageBytes.p };
+					}
+				}()));
+				const text = 'Generate a landscape.';
+				const request = model.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+				}, { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will generate the requested landscape.') });
+				const tools = Array.from({ length: imageCount }, (_, index) => new ChatToolInvocation({
+					invocationMessage: 'Generating image', pastTenseMessage: 'Generated image',
+				}, {
+					id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, `image-${index}`, undefined, {}, {}, request.id));
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+				}
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				if (fraction !== undefined) {
+					const row = container.querySelector<HTMLElement>('.interactive-response')!;
+					const markdown = row.querySelector<HTMLElement>('.chat-markdown-part')!;
+					const height = row.getBoundingClientRect().height;
+					markdown.style.height = `${markdown.getBoundingClientRect().height + Math.ceil(height) - height + fraction}px`;
+					await waitForStableLayout(widget);
+					assert.strictEqual(row.getBoundingClientRect().height % 1, fraction);
+				}
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				assert.ok(widget.scrollTop > 0);
+				const response = viewModel.getItems().filter(isResponseVM)[0];
+				const surface = container.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+				const capture = () => {
+					const bounds = container.querySelector('.chat-image-generation-line')!.getBoundingClientRect();
+					return { scrollTop: widget.scrollTop, scrollHeight: widget.scrollHeight, rowHeight: response.currentRenderedHeight, top: bounds.top, height: bounds.height };
+				};
+				const running = capture();
+				const scrollHeights: number[] = [];
+				const heightListener = disposables.add(widget.onDidChangeContentHeight(() => scrollHeights.push(widget.scrollHeight)));
+				await tools[0].didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'ref', uri: URI.parse('generated-images:/handoff.png'), mimeType: 'image/png' }] },
+				});
+				widget.refresh();
+				const frames = [capture()];
+				for (let frame = 0; frame < 6; frame++) {
+					await nextFrame();
+					frames.push(capture());
+				}
+				const sameSurface = container.querySelector('.chat-image-loading-glyphs') === surface;
+				heightListener.dispose();
+				await imageBytes.complete(imageData);
+				await retry(async () => assert.ok(container.querySelector('.chat-image-reveal.revealing')), 10, 50);
+				disposables.dispose();
+				assert.deepStrictEqual({
+					frames: frames.map(({ scrollTop, scrollHeight, rowHeight }) => ({ scrollTop, scrollHeight, rowHeight })),
+					boundsUnchanged: frames.every(frame => Math.abs(frame.top - running.top) <= 1 / 64 && Math.abs(frame.height - running.height) <= 1 / 64),
+					sameSurface,
+					maxScrollHeightChange: Math.max(0, ...scrollHeights.map(height => Math.abs(height - running.scrollHeight))),
+					disposedSurface: !surface.isConnected && surface.width === 0 && surface.height === 0,
+				}, {
+					frames: Array.from({ length: 7 }, () => ({ scrollTop: running.scrollTop, scrollHeight: running.scrollHeight, rowHeight: running.rowHeight })),
+					boundsUnchanged: true,
+					sameSurface: true,
+					maxScrollHeightChange: 0,
+					disposedSurface: true,
+				});
+			});
+		}
+
 		for (const width of [280, 500]) {
 			test(`virtualized images retain their row and scroll height while reloading (${width}px)`, async () => {
 				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, undefined, true);
@@ -1703,7 +1881,7 @@ suite('ChatListWidget', () => {
 
 		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
 		assert.ok(requestValue);
-		const children = Array.from(requestValue.children);
+		const children = Array.from(requestValue.children).filter(child => child.checkVisibility());
 		assert.deepStrictEqual({
 			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
 			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),

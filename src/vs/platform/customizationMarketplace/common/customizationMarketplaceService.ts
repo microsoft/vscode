@@ -24,6 +24,8 @@ const maxQueryLength = 4096;
 const maxRelevanceScore = 100;
 const maxFeedPriority = 10;
 const continuationLifetimeMs = 30 * 60_000;
+const browseCacheLifetimeMs = 10 * 60_000;
+const maxBrowseCacheEntries = 64;
 
 export const CustomizationMarketplaceMediaType = {
 	Skill: 'application/ai-skill',
@@ -133,6 +135,15 @@ export interface ICustomizationMarketplacePage {
 	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
 }
 
+export interface ICustomizationMarketplaceQueryProgress {
+	readonly page: ICustomizationMarketplacePage;
+	readonly completedSourceIds: readonly string[];
+	readonly cachedSourceIds: readonly string[];
+	readonly totalSourceCount: number;
+}
+
+export type CustomizationMarketplaceQueryProgressCallback = (progress: ICustomizationMarketplaceQueryProgress) => void;
+
 export interface ICustomizationMarketplaceBrowseSection {
 	readonly id: string;
 	readonly title: string;
@@ -143,6 +154,13 @@ export interface ICustomizationMarketplaceBrowseSections {
 	readonly sourceId: string;
 	readonly sections: readonly ICustomizationMarketplaceBrowseSection[];
 	readonly error?: string;
+}
+
+export interface ICustomizationMarketplaceBrowseSectionsProgress {
+	readonly result: ICustomizationMarketplaceBrowseSections;
+	readonly completedSectionCount: number;
+	readonly cachedSectionCount: number;
+	readonly totalSectionCount: number;
 }
 
 export interface ICustomizationMarketplaceSourceError {
@@ -231,15 +249,15 @@ export interface ICustomizationMarketplaceService {
 	readonly allSources?: readonly ICustomizationMarketplaceSourceInfo[];
 	/** Fires when non-configuration inputs change source availability or query identity. */
 	readonly onDidChangeSources?: Event<void>;
-	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+	query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage>;
 	/** Optional ordered editorial sections for queryless Browse. */
-	getBrowseSections?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined>;
+	getBrowseSections?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void): Promise<ICustomizationMarketplaceBrowseSections | undefined>;
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
 
 export interface ICustomizationMarketplaceQueryService {
-	query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+	query(options: ICustomizationMarketplaceRequest, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage>;
 }
 
 interface IMarketplaceSourceState {
@@ -263,9 +281,83 @@ interface IMarketplaceContinuation {
 	readonly expiresAt: number;
 }
 
+interface IMarketplaceBrowseCacheEntry {
+	readonly page: ICustomizationMarketplaceSourcePage;
+	readonly expiresAt: number;
+}
+
+function selectMarketplaceItem(
+	states: readonly IMarketplaceSourceState[],
+	sources: readonly ICustomizationMarketplaceProvider[],
+	query: string,
+	initialSourceIndex: number,
+): { readonly item: ICustomizationMarketplaceResource; readonly nextSourceIndex: number } | undefined {
+	let selected = -1;
+	for (let offset = 0; offset < states.length; offset++) {
+		const index = (initialSourceIndex + offset) % states.length;
+		const candidate = states[index].items[0];
+		const current = selected < 0 ? undefined : states[selected].items[0];
+		const score = query ? candidate?.score ?? 0 : 0;
+		const currentScore = query ? current?.score ?? 0 : 0;
+		if (candidate && (!current || score > currentScore ||
+			(score === currentScore && (candidate.priority ?? 0) > (current.priority ?? 0)))) {
+			selected = index;
+		}
+	}
+	if (selected < 0) {
+		return undefined;
+	}
+	const { priority: _priority, ...item } = states[selected].items.shift()!;
+	return {
+		item: { ...item, sourceId: sources[selected].sourceId ?? sources[selected].id },
+		nextSourceIndex: (selected + 1) % states.length,
+	};
+}
+
+function createMarketplacePage(
+	states: readonly IMarketplaceSourceState[],
+	sources: readonly ICustomizationMarketplaceProvider[],
+	query: string,
+	pageSize: number,
+	initialSourceIndex: number,
+): { readonly page: ICustomizationMarketplacePage; readonly nextSourceIndex: number } {
+	const items: ICustomizationMarketplaceResource[] = [];
+	let nextSourceIndex = initialSourceIndex;
+	while (items.length < pageSize) {
+		const selected = selectMarketplaceItem(states, sources, query, nextSourceIndex);
+		if (!selected) {
+			break;
+		}
+		items.push(selected.item);
+		nextSourceIndex = selected.nextSourceIndex;
+	}
+	const sourceErrorMessages = new Map<string, string[]>();
+	for (let index = 0; index < states.length; index++) {
+		const error = states[index].error;
+		if (error !== undefined) {
+			const sourceId = sources[index].sourceId ?? sources[index].id;
+			const messages = sourceErrorMessages.get(sourceId) ?? [];
+			if (!messages.includes(error)) {
+				messages.push(error);
+			}
+			sourceErrorMessages.set(sourceId, messages);
+		}
+	}
+	const sourceErrors = [...sourceErrorMessages].map(([sourceId, messages]) => ({ sourceId, message: messages.join('; ') }));
+	return {
+		page: {
+			items,
+			total: !sourceErrors.length && states.every(state => state.total !== undefined) ? states.reduce((total, state) => total + state.total!, 0) : undefined,
+			...(sourceErrors.length ? { sourceErrors } : {}),
+		},
+		nextSourceIndex,
+	};
+}
+
 export class CustomizationMarketplaceService implements ICustomizationMarketplaceQueryService {
 
 	private readonly continuations = new LRUCache<string, IMarketplaceContinuation>(maxContinuations);
+	private readonly browseCache = new LRUCache<string, IMarketplaceBrowseCacheEntry>(maxBrowseCacheEntries);
 
 	constructor(private readonly sources: readonly ICustomizationMarketplaceProvider[]) {
 		if (sources.some(source => !source.id || source.sourceId === '') || new Set(sources.map(source => source.id)).size !== sources.length) {
@@ -273,7 +365,11 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 		}
 	}
 
-	async query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+	clearBrowseCache(): void {
+		this.browseCache.clear();
+	}
+
+	async query(options: ICustomizationMarketplaceRequest, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 		if (token.isCancellationRequested || options.sourceIds.length === 0) {
 			throw new CancellationError();
 		}
@@ -304,6 +400,52 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 			? continuation.states.map(state => ({ ...state, items: [...state.items] }))
 			: sources.map(() => ({ items: [], exhausted: false, lastScore: maxRelevanceScore, lastPriority: maxFeedPriority }));
 		let nextSourceIndex = continuation?.nextSourceIndex ?? 0;
+		const browseCacheKeys = !continuation && !query
+			? sources.map(source => JSON.stringify([source.id, options.mediaType ?? null, pageSize]))
+			: undefined;
+		const cachedPages = browseCacheKeys?.map(key => {
+			const cached = this.browseCache.get(key);
+			if (!cached || cached.expiresAt <= Date.now() || cached.page.cacheToken?.isCancellationRequested) {
+				if (cached) {
+					this.browseCache.delete(key);
+				}
+				return undefined;
+			}
+			return cached.page;
+		});
+		const completedProviderIndexes = new Set<number>();
+		const sourceIds = [...new Set(sources.map(source => source.sourceId ?? source.id))];
+		const cachedSourceIds = sourceIds.filter(sourceId => sources.every((source, index) =>
+			(source.sourceId ?? source.id) !== sourceId || cachedPages?.[index] !== undefined));
+		const emitProgress = () => {
+			if (!onProgress || token.isCancellationRequested) {
+				return;
+			}
+			const previewStates = states.map((state, index): IMarketplaceSourceState => {
+				const page = completedProviderIndexes.has(index) ? undefined : cachedPages?.[index];
+				return page ? {
+					cursor: page.nextCursor,
+					total: page.total,
+					items: [...page.items],
+					cacheToken: page.cacheToken,
+					error: page.error ?? page.warning,
+					exhausted: true,
+					lastScore: maxRelevanceScore,
+					lastPriority: maxFeedPriority,
+				} : { ...state, items: [...state.items] };
+			});
+			const completedSourceIds = sourceIds.filter(sourceId => sources.every((source, index) =>
+				(source.sourceId ?? source.id) !== sourceId || completedProviderIndexes.has(index)));
+			onProgress({
+				page: createMarketplacePage(previewStates, sources, query, pageSize, nextSourceIndex).page,
+				completedSourceIds,
+				cachedSourceIds,
+				totalSourceCount: sourceIds.length,
+			});
+		};
+		if (cachedSourceIds.length) {
+			emitProgress();
+		}
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
 		try {
@@ -313,6 +455,7 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					if (state.items.length || state.exhausted) {
 						return;
 					}
+					const isInitialPage = state.cursor === undefined;
 					let page: ICustomizationMarketplaceSourcePage;
 					try {
 						page = await sources[index].query({ query, mediaType: options.mediaType, pageSize, cursor: state.cursor }, cancellation.token);
@@ -322,6 +465,8 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 						}
 						state.error = getErrorMessage(error);
 						state.exhausted = true;
+						completedProviderIndexes.add(index);
+						emitProgress();
 						return;
 					}
 					if (state.cacheToken?.isCancellationRequested || page.cacheToken?.isCancellationRequested ||
@@ -356,29 +501,22 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					state.exhausted = page.error !== undefined || page.nextCursor === undefined;
 					state.lastScore = lastScore;
 					state.lastPriority = lastPriority;
+					if (browseCacheKeys && isInitialPage && page.error === undefined && !page.cacheToken?.isCancellationRequested) {
+						this.browseCache.set(browseCacheKeys[index], { page, expiresAt: Date.now() + browseCacheLifetimeMs });
+					}
+					completedProviderIndexes.add(index);
+					emitProgress();
 				})), cancellation.token);
 
 				if (states.some(state => state.cacheToken?.isCancellationRequested)) {
 					throw new Error(localize('customizationMarketplace.invalidCursor', "The marketplace page is invalid. Start a new search."));
 				}
-				let selected = -1;
-				for (let offset = 0; offset < states.length; offset++) {
-					const index = (nextSourceIndex + offset) % states.length;
-					const candidate = states[index].items[0];
-					const current = selected < 0 ? undefined : states[selected].items[0];
-					const score = query ? candidate?.score ?? 0 : 0;
-					const currentScore = query ? current?.score ?? 0 : 0;
-					if (candidate && (!current || score > currentScore ||
-						(score === currentScore && (candidate.priority ?? 0) > (current.priority ?? 0)))) {
-						selected = index;
-					}
-				}
-				if (selected < 0) {
+				const selected = selectMarketplaceItem(states, sources, query, nextSourceIndex);
+				if (!selected) {
 					break;
 				}
-				const { priority: _priority, ...item } = states[selected].items.shift()!;
-				items.push({ ...item, sourceId: sources[selected].sourceId ?? sources[selected].id });
-				nextSourceIndex = (selected + 1) % states.length;
+				items.push(selected.item);
+				nextSourceIndex = selected.nextSourceIndex;
 			}
 			let nextCursor: ICustomizationMarketplaceCursor | undefined;
 			if (states.some(state => state.items.length || !state.exhausted)) {
@@ -388,24 +526,12 @@ export class CustomizationMarketplaceService implements ICustomizationMarketplac
 					states, nextSourceIndex, expiresAt: Date.now() + continuationLifetimeMs,
 				});
 			}
-			const sourceErrorMessages = new Map<string, string[]>();
-			for (let index = 0; index < states.length; index++) {
-				const error = states[index].error;
-				if (error !== undefined) {
-					const sourceId = sources[index].sourceId ?? sources[index].id;
-					const messages = sourceErrorMessages.get(sourceId) ?? [];
-					if (!messages.includes(error)) {
-						messages.push(error);
-					}
-					sourceErrorMessages.set(sourceId, messages);
-				}
-			}
-			const sourceErrors = [...sourceErrorMessages].map(([sourceId, messages]) => ({ sourceId, message: messages.join('; ') }));
+			const finalPage = createMarketplacePage(states.map(state => ({ ...state, items: [] })), sources, query, 0, nextSourceIndex).page;
 			return {
 				items,
-				total: !sourceErrors.length && states.every(state => state.total !== undefined) ? states.reduce((total, state) => total + state.total!, 0) : undefined,
+				total: finalPage.total,
 				nextCursor,
-				...(sourceErrors.length ? { sourceErrors } : {}),
+				...(finalPage.sourceErrors ? { sourceErrors: finalPage.sourceErrors } : {}),
 			};
 		} finally {
 			cancellation.cancel();

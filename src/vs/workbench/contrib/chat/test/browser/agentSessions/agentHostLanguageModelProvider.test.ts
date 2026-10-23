@@ -243,8 +243,8 @@ suite('AgentHostLanguageModelProvider', () => {
 	test('presents Auto as Fusion only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })), name: 'Copilot Fusion' },
-			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })) },
+			{ ...makeModel('auto', withAgentModelFusionMeta(undefined)), name: 'Copilot Fusion' },
+			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined)) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const fusionOf = async (meta?: Record<string, unknown>) => {
@@ -255,10 +255,10 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.deepStrictEqual({
 			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, detail: m.metadata.detail, tooltip: m.metadata.tooltip })),
 			plain: await fusionOf(),
-			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
+			malformed: [await fusionOf({ 'vscode.chat.fusion': true }), await fusionOf({ 'vscode.chat.fusion': 'fusion' })],
 		}, {
 			models: [
-				{ name: 'Copilot Fusion', fusion: { balanceUsesHydraFusion: false }, detail: undefined, tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'Copilot Fusion', fusion: true, detail: undefined, tooltip: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
 				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,
@@ -319,7 +319,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		const presented = async (fusion: boolean, promotions: IAgentModelAutoTierPromotion[]) => {
 			const provider = createProvider();
 			let meta = withAgentModelAutoTierPromotionsMeta({ discountPercent: 10 }, promotions);
-			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: false }) : meta;
+			meta = fusion ? withAgentModelFusionMeta(meta) : meta;
 			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
 			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
 			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };

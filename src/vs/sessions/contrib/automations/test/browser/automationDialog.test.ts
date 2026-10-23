@@ -46,7 +46,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { IDelayedHoverOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
@@ -120,6 +120,11 @@ suite('Automation dialog creation', () => {
 		let refresh: () => Promise<void> = async () => { };
 		const hovers: string[] = [];
 		const delayedHovers = new Map<HTMLElement, string>();
+		const setupDelayedHover: IHoverService['setupDelayedHover'] = (target, options) => {
+			const content = (typeof options === 'function' ? options() : options).content;
+			delayedHovers.set(target, typeof content === 'string' ? content : String(content));
+			return toDisposable(() => delayedHovers.delete(target));
+		};
 		// A fresh object keeps these fakes off the shared NullHoverService used by other suites.
 		instantiationService.stub(IHoverService, {
 			...NullHoverService,
@@ -127,11 +132,8 @@ suite('Automation dialog creation', () => {
 				hovers.push(typeof options.content === 'string' ? options.content : String(options.content));
 				return undefined;
 			},
-			setupDelayedHover: (target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) => {
-				const content = (typeof options === 'function' ? options() : options).content;
-				delayedHovers.set(target, typeof content === 'string' ? content : String(content));
-				return toDisposable(() => delayedHovers.delete(target));
-			},
+			setupDelayedHover,
+			setupDelayedHoverAtMouse: setupDelayedHover,
 		});
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
@@ -1705,7 +1707,7 @@ suite('Automation dialog creation', () => {
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(previous);
 		await dialog.selectWorkspace(FOLDER);
-		previousTarget.set({ isPublicRepository: true, disabledReason: 'This repository must be private' }, undefined);
+		previousTarget.set({ isRepository: true, disabledReason: 'Cloud automations cannot be managed for this repository.' }, undefined);
 		assert.deepStrictEqual({
 			workspace: dialog.getTarget().workspace,
 			error: dialog.container.querySelector('#automation-target-error')?.textContent,
@@ -2109,8 +2111,8 @@ suite('Automation dialog creation', () => {
 		}, { folder: REPOSITORY.toString(), provider: 'cloud', timeZone: 'UTC' });
 	});
 
-	test('public repository eligibility does not block local creation', async () => {
-		const target = observableValue<IAutomationWorkspaceTarget>('target', { isPublicRepository: true, disabledReason: 'This repository must be private' });
+	test('unmanageable repository eligibility does not block local creation', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { isRepository: true, disabledReason: 'Cloud automations cannot be managed for this repository.' });
 		const dialog = openDialog({}, cloudConfiguration(target));
 		dialog.setPrompt('Review changes');
 		await dialog.selectWorkspace(FOLDER);
@@ -2138,7 +2140,7 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
-	test('public repository eligibility does not transfer an existing cloud automation to another provider', async () => {
+	test('unmanageable repository eligibility does not transfer an existing cloud automation to another provider', async () => {
 		const target = observableValue<IAutomationWorkspaceTarget>('target', { workspace: REPOSITORY });
 		const existing: IAutomationDescriptor = {
 			id: 'existing-cloud', name: 'Review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
@@ -2146,12 +2148,12 @@ suite('Automation dialog creation', () => {
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, timeZone: 'UTC' },
 		};
 		const dialog = openDialog({ existing }, cloudConfiguration(target));
-		target.set({ isPublicRepository: true, disabledReason: 'This repository must be private' }, undefined);
+		target.set({ isRepository: true, disabledReason: 'Cloud automations cannot be managed for this repository.' }, undefined);
 		assert.deepStrictEqual({
 			cloud: !!dialog.container.querySelector('[aria-label="Session Type, Cloud"]'),
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
 			reason: dialog.container.querySelector('.automation-target-error')?.textContent,
-		}, { cloud: true, disabled: 'true', reason: 'This repository must be private' });
+		}, { cloud: true, disabled: 'true', reason: 'Cloud automations cannot be managed for this repository.' });
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
@@ -2394,7 +2396,7 @@ suite('Automation dialog creation', () => {
 			const selection = disposables.add(new AutomationCustomizationSelection(
 				container,
 				upcastPartial<IAutomationService>({ getCustomizationChoices: async () => choices.p }),
-				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				NullHoverService,
 				new NullLogService(),
 				undefined,
 				triggerFields,
@@ -2437,7 +2439,7 @@ suite('Automation dialog creation', () => {
 						return result.p;
 					},
 				}),
-				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				NullHoverService,
 				new NullLogService(),
 				'existing',
 			));
@@ -2481,7 +2483,7 @@ suite('Automation dialog creation', () => {
 						return result.p;
 					},
 				}),
-				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				NullHoverService,
 				new NullLogService(),
 			));
 			selection.updateTarget({ kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'one', isolation: { kind: 'folder' } });
@@ -3636,6 +3638,7 @@ suite('Automation branch picker', () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, actionWidgetService);
+		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IGitService, upcastPartial<IGitService>({
 			openRepository: async folder => {
 				openRepositoryAttempts++;

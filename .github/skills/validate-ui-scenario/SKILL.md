@@ -185,7 +185,7 @@ Always call out, separately from the pass/fail result:
 
 ## Related
 
-- **Interactive exploration.** `test/mcp` also serves these tools over MCP (`vscode_automation_*`), which helps when you need to inspect the UI before knowing what to assert. Configure it as an MCP server with `cwd` `test/mcp` and command `npm run start-stdio`.
+- **Interactive exploration.** Use the `launch` skill to drive a development window with Playwright when you need to inspect the UI before knowing what to assert.
 - **Automated validation on a pull request.** `microsoft/vscode-engineering` runs the same harness in CI: labelling a pull request `~requires-ui-validation` researches the change, runs a scenario against the exact merge candidate, and posts the per-step result with captioned video. Use this skill when a scenario is not yet covered there, or to iterate locally before proposing one.
 
 <example>

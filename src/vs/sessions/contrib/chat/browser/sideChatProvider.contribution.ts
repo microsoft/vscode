@@ -14,22 +14,17 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { isRequestVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatSelection, IChatSideChatService } from '../../../../workbench/contrib/chat/common/chatSideChatService.js';
+import { IChatSideChatOrigin, IChatSideChatProvider, IChatSideChatRequestOptions, IChatSideChatSelection, IChatSideChatService } from '../../../../workbench/contrib/chat/common/chatSideChatService.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAndSendSideChat } from './sideChatOrchestration.js';
 
 const SIDE_CHAT_SOURCE_REVEAL_TIMEOUT = 2_000;
 
-/**
- * Backs the workbench's "Ask in Side Chat" affordance with the Agents window's
- * side chat implementation. The workbench owns the action and its presentation;
- * this provider owns branching a chat from a session turn, which only this layer
- * can do today.
- */
+/** Backs shared side chat affordances with the Agents window's session orchestration. */
 export class SessionsSideChatProviderContribution extends Disposable implements IWorkbenchContribution, IChatSideChatProvider {
 
 	static readonly ID = 'sessions.contrib.sideChatProvider';
@@ -62,13 +57,13 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 		return !!this._resolveSource(sessionResource);
 	}
 
-	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection): Promise<void> {
-		const source = this._resolveSource(sessionResource);
+	async askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void> {
+		const source = this._resolveSource(sessionResource, options?.sourceTurnId);
 		if (!source) {
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
 		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, chatResource, turnId, { query }, selection);
+		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, this.sessionsPartService, session, chatResource, turnId, { query, attachedContext: options?.attachedContext }, selection);
 	}
 
 	/** Observes the source metadata for a side chat. */
@@ -165,16 +160,19 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 	 * archived, its provider lacks side chat support, or nothing has been sent
 	 * yet so there is no turn to anchor to.
 	 */
-	private _resolveSource(sessionResource: URI) {
+	private _resolveSource(sessionResource: URI, sourceTurnId?: string) {
 		const found = this.sessionsManagementService.getSessionForChatResource(sessionResource);
 		if (!found) {
 			return undefined;
 		}
 		const { session, chat } = found;
-		if (session.status.get() === SessionStatus.Untitled || session.isArchived.get() || !session.capabilities.get().supportsSideChat) {
+		if (session.status.get() === SessionStatus.Untitled || session.isArchived.get() || !session.capabilities.get().supportsSideChat || chat.interactivity.get() !== ChatInteractivity.Full) {
 			return undefined;
 		}
-		const sourceTurn = this.chatService.getSession(chat.resource)?.getRequests().at(-1);
+		const model = this.chatService.getSession(chat.resource);
+		const sourceTurn = model && !model.isReadOnly.get()
+			? sourceTurnId === undefined ? model.getRequests().at(-1) : model.getRequests().find(request => request.id === sourceTurnId)
+			: undefined;
 		if (!sourceTurn) {
 			return undefined;
 		}

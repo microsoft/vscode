@@ -5,6 +5,8 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
 import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -13,6 +15,8 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { join } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -32,6 +36,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
 import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
+import { CODEX_COPILOT_MODEL_PROVIDER } from '../../../common/codexModelSelection.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -72,7 +77,7 @@ function hostChatContext(session: URI, chat: URI): IAgentChatContext {
 	return { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
 }
 
-const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
+const COPILOT_TEST_MODEL = toCodexModelSelectionId(CODEX_COPILOT_MODEL_PROVIDER, 'gpt-test');
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -83,6 +88,7 @@ interface ITestWireRequest {
 		readonly threadId?: string;
 		readonly model?: string;
 		readonly modelProvider?: string;
+		readonly serviceTier?: string | null;
 		readonly config?: Readonly<Record<string, JsonValue>>;
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
@@ -233,7 +239,8 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const instantiationService = new TestInstantiationService();
 	const logService = options.logService ?? new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
-	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+	const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+	disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 	const stateManager = options.stateManager ?? disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(IAgentHostStateManager, stateManager);
@@ -273,7 +280,14 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	});
 	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
-	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
+	// Match fsPath's drive-letter casing in the case-sensitive in-memory filesystem.
+	const userHome = URI.parse(URI.file(fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-home-'))).toString());
+	disposables.add(toDisposable(() => fs.rmSync(userHome.fsPath, { recursive: true, force: true, maxRetries: 3 })));
+	if (isWindows) {
+		// FileService assumes drive roots exist; seed the fake filesystem using a provider-native path.
+		await fileSystemProvider.mkdir(URI.from({ scheme: Schemas.inMemory, path: userHome.path.slice(0, 3) }));
+	}
+	instantiationService.stub(INativeEnvironmentService, { userHome });
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -1670,6 +1684,7 @@ suite('CodexAgent createChat', () => {
 			});
 			const sourceEntry = agent['_sessions'].get('session-source')!;
 			const start = await readNextRequest(peer.outbound);
+			assert.strictEqual(start.params.serviceTier, null);
 			peer.push({ id: start.id, result: { thread: { id: 'source-thread', cwd: folder.fsPath } } });
 			await sourceEntry.materializePromise;
 
@@ -1697,6 +1712,7 @@ suite('CodexAgent createChat', () => {
 			const fork = await readNextRequest(peer.outbound);
 			assert.strictEqual(fork.method, 'thread/fork');
 			assert.strictEqual(fork.params.threadId, 'source-thread');
+			assert.strictEqual(fork.params.serviceTier, null);
 			peer.push({
 				id: fork.id,
 				result: { thread: { id: 'forked-thread', cwd: folder.fsPath }, cwd: folder.fsPath },
@@ -1741,6 +1757,7 @@ suite('CodexAgent createChat', () => {
 			const resume = await readNextRequest(peer.outbound);
 			assert.strictEqual(resume.method, 'thread/resume');
 			assert.strictEqual(resume.params.threadId, newThreadId);
+			assert.strictEqual(resume.params.serviceTier, null);
 			peer.push({ id: resume.id, result: { thread: { id: newThreadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
 			const resumeInventory = await readNextRequest(peer.outbound);
 			assert.strictEqual(resumeInventory.method, 'mcpServerStatus/list');
@@ -3933,6 +3950,10 @@ suite('CodexAgent exact chat routing', () => {
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'artifact-thread', cwd: folder.fsPath } } });
 		await agent['_sessions'].get('artifact-tools')!.materializePromise;
+		stateManager.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(0).toISOString(),
+			message: { text: 'Manage the recorded artifacts', origin: { kind: MessageKind.User } },
+		});
 
 		let requestId = 9000;
 		const call = async (tool: string, args: object = {}) => {

@@ -17,6 +17,8 @@ import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
+import { McpServerPolicyValues } from '../../../platform/mcp/common/allowedMcpServers.js';
+import { createEnvVarResolver } from '../../../platform/mcp/common/envVarResolution.js';
 import { expandEnvironmentVariablesInLaunch } from '../../contrib/mcp/common/mcpEnvironmentVariableExpansion.js';
 import { McpConnectionState, McpServerEnvironmentVariableExpansion, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
@@ -49,6 +51,12 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		} else {
 			super.$stopMcp(id);
 		}
+
+	}
+
+	override async $resolveMcpPolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues> {
+		const resolve = createEnvVarResolver(process.env, isWindows);
+		return Object.fromEntries(values.map(value => [value, resolve(value)]));
 	}
 
 	override $sendMessage(id: number, message: string): void {
@@ -118,7 +126,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		}
 
 		// Create the connection manager for graceful shutdown
-		const connectionManager = new McpStdioStateHandler(child);
+		const connectionManager = new McpStdioStateHandler(child, message => this._proxy.$onDidPublishLog(id, LogLevel.Debug, message));
 
 		this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Starting });
 

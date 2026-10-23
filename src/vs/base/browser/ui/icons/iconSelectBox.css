@@ -26,6 +26,11 @@
 	color: var(--vscode-quickInputList-focusForeground);
 }
 
+.icon-select-box .icon-select-icons-container:focus-visible > .icon-container.focused {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .icon-select-box .icon-select-icons-container > .icon-container:hover:not(.focused) {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-list-hoverForeground)

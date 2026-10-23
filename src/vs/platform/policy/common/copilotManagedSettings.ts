@@ -45,6 +45,9 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
 
+/** Managed setting that disables the Assisted permission mode. */
+export const COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY = 'permissions.disableAssistedPermissionsMode';
+
 /** Runtime-owned rule lists that the Local harness cannot enforce. */
 export const COPILOT_PERMISSION_RULES_KEYS = ['permissions.ask', 'permissions.allow', 'permissions.deny'] as const;
 
@@ -145,7 +148,7 @@ export const COPILOT_FUSION_TIER_KEY = 'fusionTier';
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
 	'permissions.defaultMode': { type: 'string' },
-	'permissions.disableAssistedPermissionsMode': { type: 'boolean' },
+	[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: { type: 'boolean' },
 	[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },
@@ -347,10 +350,26 @@ export function requiresCopilotAgentHost(service: IManagedSettingsService, confi
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
 
-/** Trim a managed-settings model value, treating a blank/whitespace-only string as unset. */
+/**
+ * Copilot Fusion is the Copilot runtime's name for the virtual Auto model, so a managed `fusion` default selects
+ * Auto (github/copilot-agent-runtime#28619). Other values pass through unchanged.
+ */
+const COPILOT_FUSION_MODEL_ALIAS = 'fusion';
+
+/**
+ * Normalizes a managed default-model value: trims it, treats a blank or whitespace-only value as unset, and
+ * maps the Copilot Fusion alias to `auto`.
+ */
+export function normalizeManagedModelId(value: string | undefined): string | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	return trimmed.toLowerCase() === COPILOT_FUSION_MODEL_ALIAS ? 'auto' : trimmed;
+}
+
 function normalizeModelValue(value: ManagedSettingValue | undefined): string | undefined {
-	const trimmed = typeof value === 'string' ? value.trim() : undefined;
-	return trimmed ? trimmed : undefined;
+	return typeof value === 'string' ? normalizeManagedModelId(value) : undefined;
 }
 
 /**

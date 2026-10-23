@@ -68,7 +68,7 @@ export interface IAgentModelAutoTierPromotion {
 }
 
 /**
- * The SDK's `AutoTierBillingPromo` (github/copilot-agent-runtime#27103). The runtime has already
+ * The SDK's `AutoTierBillingPromo`, which this layer cannot import. The runtime has already
  * applied `/meta` `service_messages`: unknown kinds and targets and ended promotions are gone,
  * and each tier carries at most one promotion, possibly one that has not started.
  */

@@ -277,8 +277,8 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** How the agent host presents its Auto model as Fusion, when it does. */
-	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
+	/** Whether the agent host presents its Auto model as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
@@ -483,13 +483,17 @@ export namespace ILanguageModelChatMetadata {
 	 */
 	export function getAutoModelDescription(fusion?: boolean): string {
 		if (fusion) {
-			const fusionBase = localize('autoModel.fusionDescription', "Copilot Fusion chooses models and workflows based on your task.");
 			const fusionLearnMore = localize('autoModel.fusionLearnMore', "[Learn more]({0})", fusionDocsUrl);
-			return `${fusionBase} ${fusionLearnMore}`;
+			return `${getFusionSummary()} ${fusionLearnMore}`;
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
+	}
+
+	/** Copilot Fusion's one-sentence description, as plain text without its "Learn more" link. */
+	export function getFusionSummary(): string {
+		return localize('autoModel.fusionDescription', "Copilot Fusion selects a single model or orchestrates multiple models to complete your task.");
 	}
 
 	/**
@@ -497,14 +501,8 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
-	 * @param fusion Whether Auto is presented as Fusion.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, fusion?: boolean): string {
-		if (fusion) {
-			return tierLabel
-				? localize('autoModel.fusionTierDiscount', "Models routed via Copilot Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.fusionDiscount', "Models routed via Copilot Fusion receive a {0}% discount.", discountPercent);
-		}
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
 			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
