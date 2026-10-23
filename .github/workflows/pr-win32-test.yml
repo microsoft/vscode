@@ -53,6 +53,46 @@ jobs:
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
     steps:
+      # The larger runners keep the workspace on the OS disk, where creating many small files, such as
+      # extracting node_modules, takes twice as long as on the 1ES runners' temporary disk. A Dev Drive in
+      # a VHDX on the same disk is faster than both. It is mounted at the parent of the workspace, so that
+      # the workspace keeps its path and is an ordinary, empty folder for actions/checkout, which cannot
+      # clear the root of a volume. WSL cannot open folders on a volume that is mounted in a folder of
+      # drive C:, so the smoke test shard with the WSL suite keeps its workspace on the OS disk.
+      - name: Move the workspace to a Dev Drive
+        if: ${{ !(inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1) }}
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $workspace = $env:GITHUB_WORKSPACE
+          $mount = Split-Path $workspace -Parent
+          $vhd = Join-Path $env:RUNNER_TEMP 'workspace.vhdx'
+          try {
+            if (Get-ChildItem -Force $workspace) { throw "$workspace is not empty" }
+            @(
+              "create vdisk file=`"$vhd`" maximum=204800 type=expandable"
+              "select vdisk file=`"$vhd`""
+              'attach vdisk'
+              'create partition primary'
+              'assign letter=W'
+            ) | Set-Content diskpart.txt
+            diskpart /s diskpart.txt | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
+            Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+            Remove-Item $workspace
+            if (Get-ChildItem -Force $mount) { throw "$mount holds more than the workspace" }
+            Add-PartitionAccessPath -DriveLetter W -AccessPath "$mount\"
+            # Without a drive letter, the native realpath of the workspace files stays under $mount.
+            Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
+            New-Item -ItemType Directory -Path $workspace | Out-Null
+            fsutil devdrv query $mount | Out-Host
+          } catch {
+            Write-Output "::warning::The workspace stays on the OS disk: $_"
+            New-Item -ItemType Directory -Path $workspace -Force | Out-Null
+          }
+          exit 0
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
