@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../files/common/files.js';
+import { getWatcherExcludesFromGitIgnore } from '../../../files/common/watcherGitIgnore.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 
@@ -89,6 +90,53 @@ suite('AgentHostFileMonitorService', () => {
 		});
 	});
 
+	test('applies folder-relative gitignore excludes to the watch request and before debouncing', () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const fileService = new TestFileService();
+			const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
+			const excludes = getWatcherExcludesFromGitIgnore('/target/\nnode_modules/\n');
+			let calls = 0;
+
+			disposables.add(acquire(monitor, URI.file('/repo'), () => calls++, { excludes, debounceMs: 10 }));
+			fileService.fire(URI.file('/repo/target/debug/build.o'));
+			fileService.fire(URI.file('/repo/packages/app/node_modules/dep/index.js'));
+			await timeout(11);
+			const ignoredCalls = calls;
+
+			// `/target/` is anchored to the watched folder, so a nested `target` folder is still reported.
+			fileService.fire(URI.file('/repo/crates/target/lib.rs'));
+			await timeout(11);
+
+			assert.deepStrictEqual({ watchedExcludes: fileService.watchedExcludes, ignoredCalls, calls }, {
+				watchedExcludes: [[...excludes].sort()],
+				ignoredCalls: 0,
+				calls: 1,
+			});
+		});
+	});
+
+	test('swapping excludes starts the new watcher before releasing the old one', () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const fileService = new TestFileService();
+			const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
+			const folder = URI.file('/repo');
+			const calls: string[] = [];
+
+			const previous = acquire(monitor, folder, () => calls.push('previous'), { excludes: getWatcherExcludesFromGitIgnore('/target/\n'), debounceMs: 10 });
+			disposables.add(acquire(monitor, folder, () => calls.push('next'), { excludes: getWatcherExcludesFromGitIgnore('/target/\nnode_modules\n'), debounceMs: 10 }));
+			const overlap = fileService.snapshot();
+			previous.dispose();
+			fileService.fire(URI.file('/repo/src/main.rs'));
+			await timeout(11);
+
+			assert.deepStrictEqual({ overlap, released: fileService.snapshot(), calls }, {
+				overlap: { watches: 2, disposed: 0 },
+				released: { watches: 2, disposed: 1 },
+				calls: ['next'],
+			});
+		});
+	});
+
 	test('sorts excludes when sharing watchers', () => {
 		const fileService = new TestFileService();
 		const monitor = disposables.add(new AgentHostFileMonitorService(fileService.service, new NullLogService()));
@@ -159,6 +207,7 @@ class TestFileService {
 	private _disposeCount = 0;
 	private _fileChangeListenerCount = 0;
 	failWatch = false;
+	readonly watchedExcludes: string[][] = [];
 
 	private readonly _onDidFilesChangeEvent: Event<FileChangesEvent> = (listener, thisArgs, disposables) => {
 		this._fileChangeListenerCount++;
@@ -172,8 +221,9 @@ class TestFileService {
 		onWillActivateFileSystemProvider: Event.None,
 		onDidFilesChange: this._onDidFilesChangeEvent,
 		onDidWatchError: this._onDidWatchError.event,
-		watch: (_resource: URI, _options?: Parameters<IFileService['watch']>[1]): IDisposable => {
+		watch: (_resource: URI, options?: Parameters<IFileService['watch']>[1]): IDisposable => {
 			this._watchCount++;
+			this.watchedExcludes.push(options?.excludes ?? []);
 			if (this.failWatch) {
 				throw new Error('watch failed');
 			}

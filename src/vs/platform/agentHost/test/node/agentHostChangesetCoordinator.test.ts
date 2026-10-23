@@ -5,10 +5,14 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../files/common/files.js';
+import { GIT_IGNORE_FILE_NAME } from '../../../files/common/watcherGitIgnore.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
@@ -23,7 +27,7 @@ import { ChangesetDiffStrategy, IAgentHostChangesetService, StaticChangesetKind 
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
-import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
+import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -76,6 +80,7 @@ suite('ChangesetSessionCoordinator', () => {
 		changesets: TestChangesetService;
 		subscriptions: IAgentHostChangesetSubscriptionService;
 		monitor: TestFileMonitorService;
+		fileService: TestGitIgnoreFileService;
 		gitService: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> };
 		gitStateService: TestGitStateService;
 		coordinator: AgentHostChangesetCoordinator;
@@ -88,6 +93,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		const changesets = new TestChangesetService(subscriptions, stateManager);
 		const monitor = disposables.add(new TestFileMonitorService());
+		const fileService = disposables.add(new TestGitIgnoreFileService());
 		const gitService = gitServiceOverride ?? createGitService(root);
 		const gitStateService = disposables.add(new TestGitStateService());
 		const updateOperationsCalls: string[] = [];
@@ -117,11 +123,12 @@ suite('ChangesetSessionCoordinator', () => {
 			[IAgentHostChangesetService, changesets],
 			[IAgentHostChangesetSubscriptionService, subscriptions],
 			[IAgentHostFileMonitorService, monitor],
+			[IFileService, fileService.service],
 			[IAgentHostGitService, gitService],
 			[IAgentHostGitStateService, gitStateService],
 		), /*strict*/ true));
 		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
-		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator, operationService, updateOperationsCalls };
+		return { stateManager, changesets, subscriptions, monitor, fileService, gitService, gitStateService, coordinator, operationService, updateOperationsCalls };
 	}
 
 	const largeSessionOperations: readonly ChangesetOperation[] = [{
@@ -1553,6 +1560,106 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('excludes the gitignored paths of each repository root from its watcher', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		environment.fileService.writeGitIgnore(rootA, '/target/\n.local/\n');
+		environment.fileService.writeGitIgnore(rootB, 'node_modules\n');
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
+		await environment.monitor.waitForAcquisitions(2);
+
+		assert.deepStrictEqual(environment.monitor.acquiredExcludes, [
+			{ root: rootA.toString(), excludes: [...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target', 'target/**', '**/.local', '**/.local/**'] },
+			{ root: rootB.toString(), excludes: [...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, '**/node_modules', '**/node_modules/**'] },
+		]);
+	});
+
+	test('re-acquires a root watcher only when a .gitignore change alters its excludes', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const root = URI.file('/repo');
+		const environment = createEnvironment(root);
+		environment.fileService.writeGitIgnore(root, '/target/\n');
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
+		await environment.monitor.waitForAcquisitions(1);
+		environment.gitStateService.clearRefreshes();
+
+		// A comment leaves the excludes unchanged, so the watcher is kept.
+		const unchangedRead = Event.toPromise(environment.fileService.onDidStartRead);
+		environment.fileService.writeGitIgnore(root, '# Cargo output\n/target/\n');
+		await unchangedRead;
+		await tick();
+
+		// A new pattern replaces the watcher, and the change it would have reported is refreshed.
+		environment.fileService.writeGitIgnore(root, '/target/\nnode_modules\n');
+		await environment.monitor.waitForDisposals(1);
+
+		assert.deepStrictEqual({
+			acquiredExcludes: environment.monitor.acquiredExcludes.map(acquisition => acquisition.excludes),
+			disposals: environment.monitor.disposals,
+			gitStateRefreshes: environment.gitStateService.refreshed,
+		}, {
+			acquiredExcludes: [
+				[...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target', 'target/**'],
+				[...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target', 'target/**', '**/node_modules', '**/node_modules/**'],
+			],
+			disposals: [root.toString()],
+			gitStateRefreshes: [session],
+		});
+	});
+
+	test('does not acquire a root watcher whose session detaches while its .gitignore read is pending', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const releaseReads = environment.fileService.holdReads();
+		const read = Event.toPromise(environment.fileService.onDidStartRead);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
+		await read;
+		environment.coordinator.onLastSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
+		releaseReads();
+		await tick();
+
+		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals }, { acquisitions: [], disposals: [] });
+	});
+
+	test('does not acquire a root watcher that a turn suspends while its .gitignore read is pending', async () => {
+		const idleSession = AgentSession.uri('mock', 'session-1').toString();
+		const activeSession = AgentSession.uri('mock', 'session-2').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, idleSession, 'file:///repo/worktree-a');
+		createSession(environment.stateManager, activeSession, 'file:///repo/worktree-b');
+		const releaseReads = environment.fileService.holdReads();
+		const read = Event.toPromise(environment.fileService.onDidStartRead);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(idleSession)));
+		await read;
+		environment.coordinator.onSessionTurnActiveChanged(activeSession, true);
+		await environment.gitService.waitForRootLookups(2);
+		await tick();
+		releaseReads();
+		await tick();
+		const acquisitionsDuringTurn = [...environment.monitor.acquisitions];
+
+		// The turn ending re-reads the .gitignore and watches the root again.
+		environment.coordinator.onSessionTurnActiveChanged(activeSession, false);
+		await environment.monitor.waitForAcquisitions(1);
+
+		assert.deepStrictEqual({ acquisitionsDuringTurn, acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals }, {
+			acquisitionsDuringTurn: [],
+			acquisitions: ['file:///repo'],
+			disposals: [],
+		});
+	});
+
 	test('re-attaches root watchers when a working directory is added or removed mid-session', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const rootA = URI.file('/projects/repoA');
@@ -1730,6 +1837,7 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 	declare readonly _serviceBrand: undefined;
 
 	readonly acquisitions: string[] = [];
+	readonly acquiredExcludes: Array<{ readonly root: string; readonly excludes: readonly string[] | undefined }> = [];
 	readonly disposals: string[] = [];
 	failAcquire = false;
 	readonly failAcquireFor = new Set<string>();
@@ -1737,9 +1845,10 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 	private readonly _acquisitionWaiters: Array<{ count: number; deferred: DeferredPromise<void> }> = [];
 	private readonly _disposalWaiters: Array<{ count: number; deferred: DeferredPromise<void> }> = [];
 
-	acquire(folder: URI, callback: () => void, _options?: IAgentHostFileMonitorOptions): IDisposable | undefined {
+	acquire(folder: URI, callback: () => void, options?: IAgentHostFileMonitorOptions): IDisposable | undefined {
 		const root = folder.toString();
 		this.acquisitions.push(root);
+		this.acquiredExcludes.push({ root, excludes: options?.excludes });
 		if (this.failAcquire || this.failAcquireFor.has(root)) {
 			this._releaseAcquisitionWaiters();
 			return undefined;
@@ -1798,6 +1907,51 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 				void waiter.deferred.complete(undefined);
 			}
 		}
+	}
+}
+
+/**
+ * Serves root `.gitignore` reads and reports their changes the way a recursive
+ * root watcher would.
+ */
+class TestGitIgnoreFileService extends Disposable {
+	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
+	private readonly _onDidStartRead = this._register(new Emitter<URI>());
+	/** Fires when a read starts, before a held read completes. */
+	readonly onDidStartRead = this._onDidStartRead.event;
+	private readonly _contents = new Map<string, string>();
+	private _readBarrier: DeferredPromise<void> | undefined;
+
+	readonly service = {
+		_serviceBrand: undefined,
+		onDidFilesChange: this._onDidFilesChange.event,
+		readFile: async (resource: URI): Promise<IFileContent> => {
+			const barrier = this._readBarrier;
+			this._onDidStartRead.fire(resource);
+			await barrier?.p;
+			const contents = this._contents.get(resource.toString());
+			if (contents === undefined) {
+				throw new FileOperationError('File not found', FileOperationResult.FILE_NOT_FOUND);
+			}
+			return { resource, name: basename(resource), value: VSBuffer.fromString(contents), size: contents.length, mtime: 0, ctime: 0, etag: '', readonly: false, locked: false, executable: false };
+		},
+	} as Partial<IFileService> as IFileService;
+
+	writeGitIgnore(root: URI, contents: string): void {
+		const resource = joinPath(root, GIT_IGNORE_FILE_NAME);
+		const type = this._contents.has(resource.toString()) ? FileChangeType.UPDATED : FileChangeType.ADDED;
+		this._contents.set(resource.toString(), contents);
+		this._onDidFilesChange.fire(new FileChangesEvent([{ resource, type }], false));
+	}
+
+	/** Holds reads that start from now on until the returned function is called. */
+	holdReads(): () => void {
+		const barrier = new DeferredPromise<void>();
+		this._readBarrier = barrier;
+		return () => {
+			this._readBarrier = undefined;
+			void barrier.complete();
+		};
 	}
 }
 
