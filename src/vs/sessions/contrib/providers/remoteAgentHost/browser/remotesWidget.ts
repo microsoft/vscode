@@ -86,7 +86,6 @@ export class RemotesWidget extends Disposable {
 	private visible = false;
 	private query = '';
 	private failedKinds: readonly RemoteKind[] = [];
-	private refreshing = false;
 	private hasRefreshed = false;
 
 	constructor(
@@ -101,7 +100,7 @@ export class RemotesWidget extends Disposable {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ISSHRemoteAgentHostService private readonly sshService: ISSHRemoteAgentHostService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IOpenerService openerService: IOpenerService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
@@ -118,7 +117,6 @@ export class RemotesWidget extends Disposable {
 		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
 		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchRow, dom.$('.remotes-header-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
 		toolbar.setActions([this.refreshAction]);
-		dom.append(this.domNode, dom.$('p.remotes-description')).textContent = localize('remotes.description', "Connect to remote environments and manage their settings.");
 		this.message = dom.append(this.domNode, dom.$('.remotes-message', { role: 'status' }));
 		this.tableContainer = dom.append(this.domNode, dom.$('.remotes-table-container'));
 		const viewport = dom.$('.remotes-table-viewport');
@@ -131,21 +129,19 @@ export class RemotesWidget extends Disposable {
 		}));
 		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
-		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Address, Connection, Actions.");
+		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Connection, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
 		const columnDefinitions = [
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 28, maximumWidth: 28 },
-			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.35, minimumWidth: 160 },
-			{ id: 'address', label: localize('remotes.addressColumn', "Address"), weight: 0.45, minimumWidth: 160 },
-			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 136 },
+			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
+			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 112 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action),
-			() => this.table.domFocus(),
 			instantiationService, hoverService, openerService,
 		));
 		const columns = columnDefinitions.map((column, index) => ({
@@ -155,7 +151,7 @@ export class RemotesWidget extends Disposable {
 		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
 			'RemotesTable', this.tableInner, {
 			headerRowHeight: 30,
-			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 60 : 26,
+			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 76 : 26,
 		}, columns, renderers, {
 			identityProvider: { getId: row => row.id },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => row.entry.type === 'remote' ? row.entry.remote.name : row.entry.label },
@@ -228,6 +224,8 @@ export class RemotesWidget extends Disposable {
 				this.toggleGroup(entry.kind);
 			} else if (action === 'configure') {
 				void this.openConfiguration(entry.kind);
+			} else if (action === 'documentation' && entry.documentation) {
+				void this.openDocumentation(entry.documentation.href);
 			}
 		} else if (entry.type === 'remote') {
 			if (action === 'connect') {
@@ -235,6 +233,14 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'rename') {
 				void this.renameRemote(entry.remote.id);
 			}
+		}
+	}
+
+	private async openDocumentation(href: string): Promise<void> {
+		try {
+			await this.openerService.open(href);
+		} catch (error) {
+			this.notificationService.error(error);
 		}
 	}
 
@@ -290,18 +296,18 @@ export class RemotesWidget extends Disposable {
 	private cancelRefresh(): void {
 		this.refreshRequest.value?.cancel();
 		this.refreshRequest.clear();
-		this.refreshing = false;
 		this.refreshAction.enabled = true;
+		this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
+		this.tableContainer.setAttribute('aria-busy', 'false');
 	}
 
 	private async refresh(): Promise<void> {
 		this.cancelRefresh();
 		const request = new CancellationTokenSource();
 		this.refreshRequest.value = request;
-		this.refreshing = true;
 		this.refreshAction.enabled = false;
-		this.message.textContent = localize('remotes.loading', "Looking for remotes...");
-		this.render();
+		this.refreshAction.class = ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin'));
+		this.tableContainer.setAttribute('aria-busy', 'true');
 		try {
 			const failedKinds = await this.model.refresh(request.token);
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
@@ -320,9 +326,9 @@ export class RemotesWidget extends Disposable {
 		} finally {
 			if (this.refreshRequest.value === request) {
 				this.refreshAction.enabled = true;
+				this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
 				this.refreshRequest.clear();
-				this.refreshing = false;
-				this.message.textContent = '';
+				this.tableContainer.setAttribute('aria-busy', 'false');
 				this.render();
 			}
 		}
@@ -335,12 +341,6 @@ export class RemotesWidget extends Disposable {
 
 	private getEmptyEntry(kind: RemoteKind): IRemoteEmptyEntry {
 		const id = `remote-empty-${kind}`;
-		if (this.query) {
-			return { type: 'empty', id, label: localize('remotes.empty.filtered', "No matching remotes.") };
-		}
-		if (this.refreshing || !this.hasRefreshed) {
-			return { type: 'empty', id, label: localize('remotes.empty.loading', "Looking for {0} locations...", remoteKindLabels[kind]) };
-		}
 		if (this.failedKinds.includes(kind)) {
 			return {
 				type: 'empty', id, label: localize('remotes.empty.failed', "Could not refresh {0}.", remoteKindLabels[kind]),
@@ -353,19 +353,24 @@ export class RemotesWidget extends Disposable {
 
 	private render(): void {
 		const remotes = this.getFilteredRemotes();
+		this.message.textContent = this.query && remotes.length === 0 ? localize('remotes.empty.filtered', "No matching remotes.") : '';
 		const entries: RemoteTableEntry[] = [];
 		for (const kind of this.kinds) {
 			const groupRemotes = remotes.filter(remote => remote.kind === kind);
+			if (this.query && groupRemotes.length === 0) {
+				continue;
+			}
 			const collapsed = this.collapsedKinds.has(kind);
 			entries.push({
 				type: 'group', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, warning: this.getRefreshWarning(kind),
+				documentation: remoteSetup[kind].documentation,
 			});
 			if (!collapsed) {
 				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
 					busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
-				})) : [this.getEmptyEntry(kind)]));
+				})) : this.hasRefreshed ? [this.getEmptyEntry(kind)] : []));
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
@@ -424,8 +429,8 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
-		const label = localize('remotes.accessibleRow', "{0}. Address: {1}. Connection: {2}", remote.name,
-			remote.detail, getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
+		const label = localize('remotes.accessibleRow', "{0}. Connection: {1}", remote.name,
+			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}
 
@@ -444,15 +449,23 @@ export class RemotesWidget extends Disposable {
 
 	getAccessibilityContent(): string {
 		const remotes = this.getFilteredRemotes();
+		if (this.query && remotes.length === 0) {
+			return localize('remotes.empty.filtered', "No matching remotes.");
+		}
 		return this.kinds.flatMap(kind => {
 			const warning = this.getRefreshWarning(kind);
 			const entries = remotes.filter(remote => remote.kind === kind);
-			const empty = entries.length ? undefined : this.getEmptyEntry(kind);
+			if (this.query && entries.length === 0) {
+				return [];
+			}
+			const empty = entries.length || !this.hasRefreshed ? undefined : this.getEmptyEntry(kind);
+			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],
 				...(warning ? [warning] : []),
 				...entries.map(remote => this.getRemoteAriaLabel(remote)),
-				...(empty ? [empty.label, empty.description ?? '', empty.documentation ? `${empty.documentation.label}: ${empty.documentation.href}` : ''] : []),
+				...(empty ? [empty.label, empty.description ?? ''] : []),
+				...(documentation ? [`${documentation.label}: ${documentation.href}`] : []),
 			];
 		}).join('\n');
 	}

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -242,20 +243,23 @@ suite('SessionEnvironmentPicker', () => {
 				let accept: ((index: number) => void) | undefined;
 				let hide: (() => void) | undefined;
 				let menu: { label: string | undefined; separator: boolean }[] = [];
+				let submenus: (readonly string[] | undefined)[] = [];
 				instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 					isVisible: false,
 					hide: () => { calls.push('hide'); hide?.(); },
 					show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
 						menu = items.map(item => ({ label: item.label, separator: item.kind === ActionListItemKind.Separator }));
+						submenus = items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.submenuActions?.map(action => action.label));
 						hide = () => delegate.onHide();
 						accept = index => delegate.onSelect(items[index].item!);
 					},
 				}));
 				const selected = observableValue<ISessionCreationEnvironment | undefined>(store, local);
-				const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local]), selected, async environment => {
+				const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
+				const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, remote]), selected, async environment => {
 					calls.push(`select:${environment.id}`);
 					selected.set(environment, undefined);
-				}, () => []));
+				}, environment => environment.kind === 'remote' ? [toAction({ id: 'manage.remote', label: 'Manage Remote', run: () => { } })] : []));
 				const container = dom.$('div');
 				store.add(picker.render(container));
 				const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
@@ -267,14 +271,16 @@ suite('SessionEnvironmentPicker', () => {
 					await Promise.resolve();
 				}
 				assert.deepStrictEqual({
-					menu, calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
+					menu, remoteSubmenu: submenus[1], calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
 				}, {
 					menu: [
 						{ label: 'This Computer', separator: false },
+						{ label: 'Remote', separator: false },
 						{ label: '', separator: true },
 						{ label: 'Connect via SSH...', separator: false },
 						...(showManage ? [{ label: '', separator: true }, { label: 'Manage...', separator: false }] : []),
 					],
+					remoteSubmenu: showManage ? undefined : ['Manage Remote'],
 					calls: showManage ? ['hide', `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}:`] : [],
 					selected: 'local', expanded: showManage ? 'false' : 'true',
 					triggers: remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
@@ -284,9 +290,11 @@ suite('SessionEnvironmentPicker', () => {
 				trigger.click();
 				assert.deepStrictEqual({
 					visibleAfterSettingChange: menu.some(item => item.label === 'Manage...'),
+					remoteSubmenu: submenus[1],
 					triggers: telemetry.triggers,
 				}, {
 					visibleAfterSettingChange: remotesEnabled && !manageEnabled,
+					remoteSubmenu: remotesEnabled && !manageEnabled ? undefined : ['Manage Remote'],
 					triggers: remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
 				});
 			});

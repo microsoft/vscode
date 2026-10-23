@@ -77,7 +77,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	}());
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));
 	widget.setVisible(true);
-	await waitForFixtureCondition(() => content.querySelector('.remotes-message')?.textContent === '', 'Remotes refresh should finish before capture');
+	await waitForFixtureCondition(() => content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should finish before capture');
 	widget.layout();
 }
 

@@ -8097,31 +8097,15 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(svc, agent);
 
 				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
-				svc.dispatchAction(ROOT_STATE_URI, {
+				await svc.dispatchAction(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
 					config: { customizations: [customization] },
 				}, 'test-client', 1);
+				// The dispatch queues the serialized root-config write.
+				await getConfigurationService(svc).whenIdle();
 
-				let persisted = false;
-				for (let attempt = 0; attempt < 20; attempt++) {
-					try {
-						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
-						assert.deepStrictEqual(
-							parsed.customizations,
-							[customization],
-						);
-						persisted = true;
-						break;
-					} catch {
-						// Wait for the serialized root-config write to complete.
-					}
-					if (attempt === 19) {
-						break;
-					}
-					await new Promise(resolve => setTimeout(resolve, 5));
-				}
-
-				assert.ok(persisted, 'should persist the root config change');
+				const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
+				assert.deepStrictEqual(parsed.customizations, [customization]);
 
 				// Drain any in-flight root-config write so its file handle is
 				// closed before we delete the temp directory.
