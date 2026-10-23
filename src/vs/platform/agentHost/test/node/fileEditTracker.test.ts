@@ -428,7 +428,7 @@ suite('FileEditTracker', () => {
 		await localTracker.trackEditStart('/workspace/non-blocking.txt', 'plan');
 		await fileService.writeFile(URI.file('/workspace/non-blocking.txt'), VSBuffer.fromString('after'));
 		await localTracker.completeEdit('/workspace/non-blocking.txt');
-		const resultPromise = localTracker.takeCompletedEdit('turn-1', 'tc-non-blocking', '/workspace/non-blocking.txt', 'apply_patch', undefined, 'model', false);
+		const resultPromise = localTracker.takeCompletedEdit('turn-1', 'tc-non-blocking', '/workspace/non-blocking.txt', 'apply_patch', undefined, 'model', false, undefined, undefined, 'hydrafusion-max', 'hydrafusion-max');
 		const report = await reportStarted.p;
 		let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 		const completion = await Promise.race([
@@ -450,6 +450,8 @@ suite('FileEditTracker', () => {
 			detailedDiffCallCount: localDiffComputeService.detailedCallCount,
 			initialEdit: report.initialEdit,
 			mode: report.mode,
+			autoTier: report.autoTier,
+			fusionModel: report.fusionModel,
 		}, {
 			completion: 'complete',
 			resultType: ToolResultContentType.FileEdit,
@@ -459,6 +461,8 @@ suite('FileEditTracker', () => {
 				replacements: [{ start: 0, endExclusive: 6, text: 'after' }]
 			},
 			mode: 'plan',
+			autoTier: 'hydrafusion-max',
+			fusionModel: 'hydrafusion-max',
 		});
 	});
 
