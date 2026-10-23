@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IDiscoveredDevContainer } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -25,13 +27,14 @@ import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvide
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { reconnectRemoteHost, removeRemoteHost, renameRemoteHost } from './remoteHostOptions.js';
 
-export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'devContainer'] as const;
+export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'devContainer'] as const;
 export type RemoteKind = typeof remoteKinds[number];
 
 export const remoteKindLabels: Record<RemoteKind, string> = {
 	ssh: localize('remotes.ssh', "SSH"),
 	wsl: localize('remotes.wsl', "WSL"),
 	tunnel: localize('remotes.tunnels', "Tunnels"),
+	environment: localize('remotes.environments', "Environments"),
 	devContainer: localize('remotes.devContainers', "Dev Containers"),
 };
 
@@ -43,10 +46,12 @@ export interface ICustomizationRemote {
 	readonly canRemove: boolean;
 	readonly connectionStatus: RemoteAgentHostConnectionStatus;
 	readonly unavailableReason?: string;
+	readonly removeUnavailableReason?: string;
 }
 
 export interface IRemotesModel extends IDisposable {
 	readonly remotes: IObservable<readonly ICustomizationRemote[]>;
+	readonly environmentsEnabled: IObservable<boolean>;
 	/** Returns the kinds that failed to refresh; diagnostic details are written to the log. */
 	refresh(token: CancellationToken): Promise<readonly RemoteKind[]>;
 	setConnected(id: string, connected: boolean): Promise<void>;
@@ -54,14 +59,19 @@ export interface IRemotesModel extends IDisposable {
 	remove(id: string): Promise<void>;
 }
 
-export function getVisibleRemoteKinds(operatingSystem: OperatingSystem): readonly RemoteKind[] {
-	return operatingSystem === OperatingSystem.Windows ? ['wsl', 'ssh', 'tunnel'] : ['ssh', 'tunnel'];
+export function getVisibleRemoteKinds(operatingSystem: OperatingSystem, environmentsEnabled = false): readonly RemoteKind[] {
+	return [
+		...(operatingSystem === OperatingSystem.Windows ? ['wsl' as const] : []),
+		'ssh', 'tunnel',
+		...(environmentsEnabled ? ['environment' as const] : []),
+	];
 }
 
 type RemoteTarget =
 	| { readonly kind: 'ssh'; readonly entry: IRemoteAgentHostEntry }
 	| { readonly kind: 'wsl'; readonly distro: string; readonly name: string }
 	| { readonly kind: 'tunnel'; readonly tunnel: ITunnelInfo; readonly authProvider?: 'github' | 'microsoft' }
+	| { readonly kind: 'environment'; readonly host: IMissionControlHost; readonly account: string }
 	| { readonly kind: 'devContainer'; readonly container: IDiscoveredDevContainer; readonly workspaceUri?: URI };
 
 export class RemotesModel extends Disposable implements IRemotesModel {
@@ -69,6 +79,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	private readonly registered = new Set<string>();
 	private readonly _remotes = observableValue<readonly ICustomizationRemote[]>(this, []);
 	readonly remotes = this._remotes;
+	private readonly _environmentsEnabled = observableValue(this, false);
+	readonly environmentsEnabled = this._environmentsEnabled;
 
 	constructor(
 		private readonly discoverDevContainers: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]>,
@@ -82,6 +94,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
+		@IMissionControlAvailabilityService environmentAvailabilityService: IMissionControlAvailabilityService,
 	) {
 		super();
 		// Lazy services can publish providers while the initial cached state is being read.
@@ -92,6 +106,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const providersChanged = observableSignalFromEvent(this, providersService.onDidChangeProviders);
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
+			environmentAvailabilityService.available.read(reader);
 			this.update(reader);
 		}));
 		this._register(remoteAgentHostService.onDidChangeConnections(() => this.update()));
@@ -140,6 +155,12 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			discover('tunnel', async () => {
 				const authProvider = await this.tunnelService.getAuthProvider({ silent: true });
 				return (await this.tunnelService.listTunnels({ silent: true, authProvider })).map(tunnel => ({ kind: 'tunnel', tunnel, authProvider }));
+			}),
+			discover('environment', async () => {
+				if (this.environmentService.enabled) {
+					await this.environmentService.refresh(token);
+				}
+				return [];
 			}),
 			discover('devContainer', async () => getVisibleRemoteKinds(OS).includes('devContainer') && this.configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId)
 				? (await this.discoverDevContainers(token)).map(container => ({
@@ -191,6 +212,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					this.devContainerService.addWorkspace(target.workspaceUri, target.container.name);
 				}
 				break;
+			case 'environment':
+				break;
 		}
 		this.update();
 	}
@@ -200,8 +223,16 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (!remote || !this.enabled) {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
+		const target = this.targets.get(id);
 		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
-		await renameRemoteHost(provider ?? { remoteAddress: id, label: remote.name }, this.quickInputService, this.remoteAgentHostService);
+		const renameTarget = target?.kind === 'environment' ? {
+			remoteAddress: id, label: remote.name,
+			setDisplayName: (name: string | undefined) => {
+				this.checkEnvironment(target);
+				this.environmentService.setDisplayName(target.host.id, name);
+			},
+		} : provider ?? { remoteAddress: id, label: remote.name };
+		await renameRemoteHost(renameTarget, this.quickInputService, this.remoteAgentHostService);
 		if (!this._store.isDisposed) {
 			this.update();
 		}
@@ -236,7 +267,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (!target || !this.enabled) {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
-		if (connected) {
+		if (target.kind === 'environment') {
+			this.checkEnvironment(target);
+		} else if (connected) {
 			await this.registerRemote(id);
 		}
 		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
@@ -246,8 +279,14 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				if (RemoteAgentHostConnectionStatus.isConnected(connectionStatus)) {
 					return;
 				}
+				const unavailableReason = this._remotes.get().find(remote => remote.id === id)?.unavailableReason;
+				if (unavailableReason) {
+					throw new Error(unavailableReason);
+				}
 				if (provider) {
 					await reconnectRemoteHost(provider, this.remoteAgentHostService);
+				} else if (target.kind === 'environment') {
+					await this.environmentService.connect(target.host.id, CancellationToken.None);
 				} else if (target.kind === 'tunnel') {
 					await this.tunnelService.connect(target.tunnel, target.authProvider, { userInitiated: true });
 				} else if (target.kind === 'ssh' || target.kind === 'wsl') {
@@ -271,11 +310,19 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 	}
 
+	private checkEnvironment(target: Extract<RemoteTarget, { kind: 'environment' }>): void {
+		if (!this.environmentService.enabled || this.environmentService.accountKey !== target.account
+			|| !this.environmentService.hosts.get().some(host => host.id === target.host.id)) {
+			throw new CancellationError();
+		}
+	}
+
 	private getId(target: RemoteTarget): string {
 		switch (target.kind) {
 			case 'ssh': return getEntryAddress(target.entry);
 			case 'wsl': return `${WSL_ADDRESS_PREFIX}${target.distro}`;
 			case 'tunnel': return `${TUNNEL_ADDRESS_PREFIX}${target.tunnel.tunnelId}`;
+			case 'environment': return cloudSandboxAddress(target.host.id);
 			case 'devContainer': return `devcontainer:${target.workspaceUri ? getComparisonKey(target.workspaceUri) : target.container.id}`;
 		}
 	}
@@ -285,6 +332,22 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const distros = this.wslService.getCachedDistros();
 		const tunnels = this.tunnelService.getCachedTunnels().filter(tunnel => !this.tunnelService.isTunnelDismissed(tunnel.tunnelId));
 		const workspaces = this.devContainerService.getWorkspaces();
+		const environments = this.environmentService.hosts.read(reader);
+		const environmentsEnabled = this.enabled && this.environmentService.enabled;
+		for (const [id, target] of this.targets) {
+			if (target.kind === 'environment') {
+				this.targets.delete(id);
+			}
+		}
+		const account = this.environmentService.accountKey;
+		if (environmentsEnabled && account) {
+			for (const host of environments) {
+				if (host.kind === 'user-local') {
+					const target = { kind: 'environment' as const, host, account };
+					this.targets.set(this.getId(target), target);
+				}
+			}
+		}
 		const providers = this.providersService.getProviders().filter(isAgentHostProvider);
 		const providersByAddress = new Map(providers.map(provider => [provider.remoteAddress, provider]));
 		const connectionStatuses = new Map(providers.map(provider => [provider.remoteAddress, provider.connectionStatus?.read(reader)]));
@@ -313,6 +376,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			let name: string;
 			let detail: string;
 			let unavailableReason: string | undefined;
+			let removeUnavailableReason: string | undefined;
 			switch (target.kind) {
 				case 'ssh':
 					name = target.entry.name;
@@ -326,6 +390,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					name = target.tunnel.name;
 					detail = target.tunnel.tunnelId;
 					break;
+				case 'environment':
+					name = target.host.displayName ?? target.host.name;
+					detail = target.host.id;
+					unavailableReason = target.host.status !== 'online'
+						? localize('remotes.environmentOffline', "This environment is not online. Start its owning application before connecting.") : undefined;
+					removeUnavailableReason = localize('remotes.environmentRemoveUnavailable', "Environments are managed by GitHub and cannot be removed here.");
+					break;
 				case 'devContainer':
 					name = target.container.name;
 					detail = target.workspaceUri?.fsPath ?? target.container.id;
@@ -335,10 +406,15 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					break;
 			}
 			const provider = providersByAddress.get(id);
-			name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? provider?.label ?? name;
-			const canRemove = this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
-			remotes.push({ id, kind: target.kind, name, detail, canRemove, unavailableReason, connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected });
+			if (target.kind !== 'environment') {
+				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? provider?.label ?? name;
+			}
+			const canRemove = target.kind !== 'environment' && this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
+			remotes.push({ id, kind: target.kind, name, detail, canRemove, unavailableReason, removeUnavailableReason, connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected });
 		}
-		this._remotes.set(remotes.sort((a, b) => remoteKinds.indexOf(a.kind) - remoteKinds.indexOf(b.kind) || a.name.localeCompare(b.name)), undefined);
+		transaction(tx => {
+			this._environmentsEnabled.set(environmentsEnabled, tx);
+			this._remotes.set(remotes.sort((a, b) => remoteKinds.indexOf(a.kind) - remoteKinds.indexOf(b.kind) || a.name.localeCompare(b.name)), tx);
+		});
 	}
 }

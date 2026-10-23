@@ -16,6 +16,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
@@ -26,6 +27,7 @@ import { ICustomizationRemote, IRemotesModel, RemoteKind } from '../../browser/r
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
+	readonly environmentsEnabled = observableValue(this, false);
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
@@ -526,6 +528,44 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ settings, opened, configRequests: configRequests() }, {
 			settings: [{ query: 'chat.remoteAgentHosts' }], opened: [], configRequests: 0,
+		});
+	});
+
+	test('Environments appears only when enabled and offers settings and empty guidance', async () => {
+		const { widget, parent, model, settings } = createWidget();
+		const groups = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(node => node.textContent);
+		const hidden = groups();
+		model.environmentsEnabled.set(true, undefined);
+		widget.setVisible(true);
+		await timeout(0);
+		const shown = groups();
+		parent.querySelector<HTMLElement>('[aria-label="Open Environment Settings"]')!.click();
+		await timeout(0);
+		const guidance = widget.getAccessibilityContent().includes('No environments available.');
+		model.environmentsEnabled.set(false, undefined);
+		assert.deepStrictEqual({ hidden, shown, settings, guidance, disabled: groups() }, {
+			hidden: ['SSH', 'Tunnels'], shown: ['SSH', 'Tunnels', 'Environments'],
+			settings: [{ query: GitHubEnvironmentsEnabledSettingId }], guidance: true, disabled: ['SSH', 'Tunnels'],
+		});
+	});
+
+	test('offline environment connection and removal explain their disabled states while Rename stays available', () => {
+		const { parent, model } = createWidget();
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: false,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
+			removeUnavailableReason: 'Managed by GitHub.',
+		}], undefined);
+		const connect = getConnectionAction(parent, 'environment:desktop');
+		const remove = getManagementAction(parent, 'environment:desktop', 'remove');
+		assert.deepStrictEqual({
+			connect: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled'),
+			remove: remove.getAttribute('aria-label'), renameDisabled: getManagementAction(parent, 'environment:desktop', 'rename').getAttribute('aria-disabled'),
+		}, { connect: 'Connect to Desktop: Start the owning application.', disabled: 'true', remove: 'Remove Desktop: Managed by GitHub.', renameDisabled: null });
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
+		assert.deepStrictEqual({ label: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled') }, {
+			label: 'Disconnect Desktop', disabled: null,
 		});
 	});
 

@@ -7,17 +7,20 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IDiscoveredDevContainer } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -55,6 +58,16 @@ suite('RemotesModel', () => {
 		const displayNamesChanged = store.add(new Emitter<string>());
 		const renameInputs: IInputOptions[] = [];
 		let renameInput: string | undefined;
+		const environmentHosts = observableValue<readonly IMissionControlHost[]>(store, []);
+		const environmentAvailable = observableValue<boolean | undefined>(store, false);
+		const environmentState = {
+			account: 'account-one' as string | undefined,
+			refreshCalls: 0,
+			refreshFailure: undefined as Error | undefined,
+			pendingRename: undefined as DeferredPromise<string | undefined> | undefined,
+		};
+		const environmentConnections: string[] = [];
+		const environmentNames: { id: string; name: string | undefined }[] = [];
 		const setDisplayName = (address: string, name: string | undefined) => {
 			if (name?.trim()) {
 				displayNames.set(address, name.trim());
@@ -92,7 +105,26 @@ suite('RemotesModel', () => {
 				if (options) {
 					renameInputs.push(options);
 				}
-				return renameInput;
+				return environmentState.pendingRename?.p ?? renameInput;
+			},
+		});
+		instantiationService.stub(IMissionControlAvailabilityService, { available: environmentAvailable });
+		instantiationService.stub(IMissionControlEnvironmentService, {
+			hosts: environmentHosts,
+			get enabled() {
+				return environmentAvailable.get() === true && configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true;
+			},
+			get accountKey() { return environmentState.account; },
+			refresh: async () => {
+				environmentState.refreshCalls++;
+				if (environmentState.refreshFailure) {
+					throw environmentState.refreshFailure;
+				}
+			},
+			connect: async id => { environmentConnections.push(id); },
+			setDisplayName: (id, name) => {
+				environmentNames.push({ id, name });
+				environmentHosts.set(environmentHosts.get().map(host => host.id === id ? { ...host, displayName: name?.trim() || undefined } : host), undefined);
 			},
 		});
 		instantiationService.stub(ISSHRemoteAgentHostService, {
@@ -135,44 +167,44 @@ suite('RemotesModel', () => {
 			addWorkspace: (workspaceUri, name) => { workspaces = [{ workspaceUri, name }]; },
 			removeWorkspace: async () => { workspaces = []; removals.push('container'); },
 		});
-		const providers = new Map(['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop'].map(address => {
-			const provider = new class extends mock<IAgentHostSessionsProvider>() {
-				override readonly id = `agenthost-${address}`;
-				override readonly remoteAddress = address;
-				override canRemove = true;
-				override get label(): string {
-					return displayNames.get(address) ?? (address === 'ssh:build' ? 'build' : address === 'wsl:Ubuntu' ? 'Ubuntu' : 'Laptop');
+		const createProvider = (address: string) => new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = `agenthost-${address}`;
+			override readonly remoteAddress = address;
+			override canRemove = true;
+			override get label(): string {
+				return displayNames.get(address) ?? (address === 'ssh:build' ? 'build' : address === 'wsl:Ubuntu' ? 'Ubuntu' : 'Laptop');
+			}
+			override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
+			override async connect() {
+				connectionChanges.push({ id: address, connected: true });
+				if (connectionFailure) {
+					throw connectionFailure;
 				}
-				override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
-				override async connect() {
-					connectionChanges.push({ id: address, connected: true });
-					if (connectionFailure) {
-						throw connectionFailure;
-					}
-					this.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+				this.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			}
+			override async disconnect() {
+				connectionChanges.push({ id: address, connected: false });
+				if (connectionFailure) {
+					throw connectionFailure;
 				}
-				override async disconnect() {
-					connectionChanges.push({ id: address, connected: false });
-					if (connectionFailure) {
-						throw connectionFailure;
-					}
+				if (!environmentHosts.get().some(host => cloudSandboxAddress(host.id) === address)) {
 					await this.remove();
-					this.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
 				}
-				override async remove() {
-					removals.push(address);
-					if (address === 'ssh:build') {
-						removeSSHRemoteAgentHostEntry(storage, address);
-					} else if (address === 'wsl:Ubuntu') {
-						distros = [];
-					} else {
-						dismissed.add('laptop');
-						tunnels = [];
-					}
+				this.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			}
+			override async remove() {
+				removals.push(address);
+				if (address === 'ssh:build') {
+					removeSSHRemoteAgentHostEntry(storage, address);
+				} else if (address === 'wsl:Ubuntu') {
+					distros = [];
+				} else {
+					dismissed.add('laptop');
+					tunnels = [];
 				}
-			}();
-			return [address, provider] as const;
-		}));
+			}
+		}();
+		const providers = new Map(['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop'].map(address => [address, createProvider(address)]));
 		instantiationService.stub(ISessionsProvidersService, {
 			onDidChangeProviders: providersChanged.event,
 			getProviders: () => [...providers.values()],
@@ -184,6 +216,21 @@ suite('RemotesModel', () => {
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames,
+			setConfiguration: async (key: string, value: boolean) => {
+				await configuration.setUserConfiguration(key, value);
+				configuration.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER, affectedKeys: new Set([key]),
+					change: { keys: [key], overrides: [] }, affectsConfiguration: section => section === key,
+				});
+			},
+			addEnvironmentProvider: (id: string) => {
+				const address = cloudSandboxAddress(id);
+				const provider = createProvider(address);
+				providers.set(address, provider);
+				providersChanged.fire({ added: [], removed: [] });
+				return provider;
+			},
 		};
 	}
 
@@ -443,5 +490,114 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual({ name: remote.name, canRemove: remote.canRemove, entries: readSSHRemoteAgentHostEntries(storage), connectionChanges }, {
 			name: 'Discovered server', canRemove: false, entries: [], connectionChanges: [],
 		});
+	});
+
+	test('environment inventory is gated and reacts to availability, configuration and account changes', async () => {
+		const { model, configuration, setConfiguration, environmentAvailable, environmentHosts, environmentState } = setup();
+		environmentHosts.set([{ id: 'env-one', name: 'Shared desktop', kind: 'user-local', status: 'online' }], undefined);
+		const snapshot = () => ({ enabled: model.environmentsEnabled.get(), names: model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => remote.name) });
+		await model.refresh(CancellationToken.None);
+		const hidden = snapshot();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		const unavailable = snapshot();
+		environmentAvailable.set(true, undefined);
+		const available = snapshot();
+		await model.refresh(CancellationToken.None);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, false);
+		const configurationDisabled = snapshot();
+		await model.refresh(CancellationToken.None);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentState.account = undefined;
+		environmentHosts.set([], undefined);
+		const signedOut = snapshot();
+		environmentAvailable.set(false, undefined);
+		assert.deepStrictEqual({ hidden, unavailable, available, configurationDisabled, signedOut, disabled: snapshot(), refreshCalls: environmentState.refreshCalls }, {
+			hidden: { enabled: false, names: [] }, unavailable: { enabled: false, names: [] },
+			available: { enabled: true, names: ['Shared desktop'] }, configurationDisabled: { enabled: false, names: [] }, signedOut: { enabled: true, names: [] },
+			disabled: { enabled: false, names: [] }, refreshCalls: 1,
+		});
+	});
+
+	test('environments include offline hosts but exclude managed sandboxes and cannot be removed', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([
+			{ id: 'online', name: 'A desktop', kind: 'user-local', status: 'online' },
+			{ id: 'offline', name: 'B desktop', kind: 'user-local', status: 'offline' },
+			{ id: 'sandbox', name: 'Task sandbox', kind: 'sandbox', status: 'online' },
+		], undefined);
+		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => ({
+			id: remote.id, name: remote.name, unavailable: !!remote.unavailableReason, canRemove: remote.canRemove,
+		})), [
+			{ id: cloudSandboxAddress('online'), name: 'A desktop', unavailable: false, canRemove: false },
+			{ id: cloudSandboxAddress('offline'), name: 'B desktop', unavailable: true, canRemove: false },
+		]);
+		await assert.rejects(model.setConnected(cloudSandboxAddress('offline'), true), /not online/);
+		await assert.rejects(model.remove(cloudSandboxAddress('online')), /cannot be removed/);
+	});
+
+	test('environment connections prefer provider hooks and retain inventory on disconnect', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' }], undefined);
+		const id = cloudSandboxAddress('desktop');
+		await model.setConnected(id, true);
+		addEnvironmentProvider('desktop');
+		await model.setConnected(id, true);
+		await model.setConnected(id, false);
+		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id) }, {
+			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true,
+		});
+	});
+
+	test('environment rename uses inventory names and cancels when the account changes during the prompt', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, environmentState, environmentNames, setRenameInput } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		const host: IMissionControlHost = { id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' };
+		environmentHosts.set([host], undefined);
+		const id = cloudSandboxAddress(host.id);
+		setRenameInput('Office desktop');
+		await model.rename(id);
+		const name = model.remotes.get().find(remote => remote.id === id)?.name;
+		environmentState.pendingRename = new DeferredPromise<string | undefined>();
+		const rename = model.rename(id);
+		environmentState.account = 'account-two';
+		environmentHosts.set([{ ...host, name: 'Other account desktop' }], undefined);
+		await environmentState.pendingRename.complete('Stale name');
+		await assert.rejects(rename, isCancellationError);
+		assert.deepStrictEqual({ name, environmentNames, currentName: model.remotes.get().find(remote => remote.id === id)?.name }, {
+			name: 'Office desktop', environmentNames: [{ id: 'desktop', name: 'Office desktop' }], currentName: 'Other account desktop',
+		});
+	});
+
+	test('environment refresh failures retain current inventory and later removals are reflected immediately', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, environmentState } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' }], undefined);
+		environmentState.refreshFailure = new Error('Network unavailable');
+		const failures = await model.refresh(CancellationToken.None);
+		const retained = model.remotes.get().filter(remote => remote.kind === 'environment').length;
+		environmentHosts.set([], undefined);
+		assert.deepStrictEqual({ failures, retained, current: model.remotes.get().filter(remote => remote.kind === 'environment').length }, {
+			failures: ['environment'], retained: 1, current: 0,
+		});
+		await assert.rejects(model.setConnected(cloudSandboxAddress('desktop'), true), /no longer available/);
+	});
+
+	test('disabled AI withdraws environment rows and blocks subsequent connection or rename actions', async () => {
+		const { model, configuration, setConfiguration, environmentAvailable, environmentHosts, environmentNames, environmentConnections } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' }], undefined);
+		await setConfiguration('chat.disableAIFeatures', true);
+		await assert.rejects(model.setConnected(cloudSandboxAddress('desktop'), true), /no longer available/);
+		await assert.rejects(model.rename(cloudSandboxAddress('desktop')), /no longer available/);
+		assert.deepStrictEqual({
+			enabled: model.environmentsEnabled.get(), environments: model.remotes.get().filter(remote => remote.kind === 'environment'), environmentNames, environmentConnections,
+		}, { enabled: false, environments: [], environmentNames: [], environmentConnections: [] });
 	});
 });
