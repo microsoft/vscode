@@ -2163,6 +2163,10 @@ export function getSessionOnboardingTargetId(session: ISession): string {
 	return `sessions.session.${session.sessionId}`;
 }
 
+function getWorkspaceSectionOnboardingTargetId(sectionId: string): string {
+	return `sessions.section.${sectionId}`;
+}
+
 /**
  * The folder a chat works in, shown on its row when the session spans more than
  * one project and the chat works in exactly one folder.
@@ -2562,6 +2566,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		} else {
 			renderSessionHeaderToolbar(template, element, this.select);
 		}
+		if (element.id.startsWith('workspace:')) {
+			template.elementDisposables.add(markOnboardingTarget(template.container, getWorkspaceSectionOnboardingTargetId(element.id)));
+		}
 		if (element.id === NEW_SESSION_SECTION_ID) {
 			template.container.classList.add('session-section-new-session');
 			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.newSession.button', {
@@ -2600,6 +2607,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.updateChevron(template, collapsible, collapsed);
 
 		if (element.id === AUTOMATIONS_SECTION_ID) {
+			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.automations.entry'));
 			DOM.clearNode(template.icon);
 			template.icon.style.display = '';
 			template.elementDisposables.add(autorun(reader => {
@@ -5935,6 +5943,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** Keeps a session visible for a spotlight without changing the user's filters. */
 	revealSessionForOnboarding(session: ISession): IDisposable & { readonly targetId: string } {
 		return this.revealOnboardingTarget(session, false);
+	}
+
+	/**
+	 * Keeps a session visible like {@link revealSessionForOnboarding}, and targets the header of the
+	 * workspace section that contains it. Targets the session row when it is not in a workspace section,
+	 * for example when the list is grouped by date.
+	 */
+	revealSessionWorkspaceForOnboarding(session: ISession): IDisposable & { readonly targetId: string } {
+		const reveal = this.revealOnboardingTarget(session, false);
+		const section = this.tree.hasElement(session) ? this.tree.getParentElement(session) : undefined;
+		if (!section || !isSessionSection(section) || !section.id.startsWith('workspace:')) {
+			return reveal;
+		}
+		if (this.tree.getRelativeTop(section) === null) {
+			this.tree.reveal(section);
+		}
+		return { targetId: getWorkspaceSectionOnboardingTargetId(section.id), dispose: () => reveal.dispose() };
 	}
 
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
