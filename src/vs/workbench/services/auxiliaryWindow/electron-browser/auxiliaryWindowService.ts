@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
-import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowCloseHandler, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
+import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
 import { ISandboxGlobals } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -34,7 +34,7 @@ type NativeCodeWindow = CodeWindow & {
 };
 
 interface ICloseHandlerRegistration {
-	readonly handler: IAuxiliaryWindowCloseHandler;
+	readonly close: () => Promise<boolean>;
 	state: 'idle' | 'pending' | 'approved';
 }
 
@@ -113,11 +113,11 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		return this.nativeHostService.positionWindow(bounds, { targetWindowId: this.window.vscodeWindowId });
 	}
 
-	registerCloseHandler(handler: IAuxiliaryWindowCloseHandler): IDisposable {
+	registerCloseHandler(close: () => Promise<boolean>): IDisposable {
 		if (this.closeHandler || this._store.isDisposed) {
 			throw new Error('An auxiliary window close handler is already registered or the window is disposed.');
 		}
-		const registration: ICloseHandlerRegistration = { handler, state: 'idle' };
+		const registration: ICloseHandlerRegistration = { close, state: 'idle' };
 		this.closeHandler = registration;
 		return toDisposable(() => {
 			if (this.closeHandler === registration) {
@@ -135,16 +135,17 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		try {
 			if (registration.state === 'approved') {
 				registration.state = 'idle';
-				if (!registration.handler.isReadyToClose()) {
-					throw new Error('Auxiliary window contents changed before closing.');
-				}
-				super.handleBeforeUnload(event, true);
+				return;
+			}
+			if (registration.state === 'pending') {
+				this.preventUnload(event);
+				return;
+			}
+			super.handleBeforeUnload(event, true);
+			if (event.defaultPrevented) {
 				return;
 			}
 			this.preventUnload(event);
-			if (registration.state === 'pending') {
-				return;
-			}
 			registration.state = 'pending';
 			void this.closeWithHandler(registration);
 		} catch (error) {
@@ -156,16 +157,13 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
 	private async closeWithHandler(registration: ICloseHandlerRegistration): Promise<void> {
 		try {
-			const closed = await registration.handler.close();
+			const closed = await registration.close();
 			if (this.closeHandler !== registration || this._store.isDisposed) {
 				return;
 			}
 			if (!closed) {
 				registration.state = 'idle';
 				return;
-			}
-			if (!registration.handler.isReadyToClose()) {
-				throw new Error('Auxiliary window contents changed while closing.');
 			}
 			registration.state = 'approved';
 			await this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
@@ -179,7 +177,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
 	private reportCloseError(error: unknown): void {
 		this.logService.error('[NativeAuxiliaryWindow] Close failed:', error);
-		void this.dialogService.error(localize('auxiliaryWindowCloseFailed', "The window could not be closed. Review its open editors and try again."))
+		void this.dialogService.error(localize('auxiliaryWindowCloseFailed', "The window could not be closed. Please try again."))
 			.catch(error => this.logService.error('[NativeAuxiliaryWindow] Close error dialog failed:', error));
 	}
 
@@ -219,13 +217,6 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		};
 	}
 
-	override dispose(): void {
-		if (this.closeHandler) {
-			this.skipUnloadConfirmation = true;
-		}
-		this.closeHandler = undefined;
-		super.dispose();
-	}
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {

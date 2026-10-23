@@ -5,7 +5,6 @@
 
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -72,8 +71,6 @@ class ReporterWindow extends DisposableStore {
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
 
-	static readonly ZOOM_COMMAND_ID = '_workbench.action.issueReporter.zoom';
-
 	private openingReporter: Promise<void> | undefined;
 	private readonly reporterWindows = this._register(new DisposableMap<number, ReporterWindow>());
 
@@ -112,12 +109,6 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			}
 		}));
 		this._register(lifecycleService.onWillShutdown(() => this.reporterWindows.clearAndDisposeAll()));
-		this._register(CommandsRegistry.registerCommand(NativeIssueFormService.ZOOM_COMMAND_ID, (_accessor, windowId: number, commandId: string) => {
-			const window = this.reporterWindows.get(windowId);
-			if (window) {
-				this.zoomReporterWindow(window, commandId);
-			}
-		}));
 	}
 
 	private async vetoShutdown(): Promise<boolean> {
@@ -195,12 +186,12 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			auxiliaryWindow = await this.auxiliaryWindowService.open({
 				mode: AuxiliaryWindowMode.Normal,
 				nativeTitlebar: true,
-				disableWorkbenchMenu: true,
 				bounds: { width: 800, height: 900 },
 			});
 			if (this._store.isDisposed) {
 				return;
 			}
+			auxiliaryWindow.container.style.opacity = '0';
 			if (!auxiliaryWindow.registerCloseHandler) {
 				throw new Error(localize('reporterWindowCloseUnsupported', "The issue reporter window could not be opened with safe close handling."));
 			}
@@ -210,10 +201,12 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			const window = reporterWindow;
 			window.add(Event.once(auxiliaryWindow.onWillDispose)(() => this.reporterWindows.deleteAndDispose(windowId)));
 			window.add(Event.once(auxiliaryWindow.onUnload)(() => window.auxiliaryWindow.dispose()));
-			window.add(auxiliaryWindow.registerCloseHandler({
-				close: () => this.closeReporterWindow(window),
-				isReadyToClose: () => !window.isDisposed && window.ready.isSettled && input.isDisposed(),
-			}));
+			window.add(auxiliaryWindow.registerCloseHandler(() => this.closeReporterWindow(window)));
+			void auxiliaryWindow.whenStylesHaveLoaded.then(() => {
+				if (!window.isDisposed) {
+					window.auxiliaryWindow.container.style.removeProperty('opacity');
+				}
+			});
 			this.registerReporterWindowKeys(window);
 			auxiliaryWindow.window.document.title = localize('issueReporterWindowTitle', "Issue Reporter");
 			auxiliaryWindow.container.classList.add('issue-reporter-window');

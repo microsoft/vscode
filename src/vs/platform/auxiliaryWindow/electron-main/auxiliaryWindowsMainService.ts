@@ -36,7 +36,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
-	private readonly pendingWindowOptionsQueue: { readonly options: BrowserWindowConstructorOptions; readonly disableMaximize: boolean; readonly disableWorkbenchMenu: boolean }[] = [];
+	private readonly pendingWindowOptionsQueue: { readonly options: BrowserWindowConstructorOptions; readonly disableMaximize: boolean }[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -93,19 +93,18 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	}
 
 	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
-		const { state, overrides, disableMaximize, disableWorkbenchMenu } = this.computeWindowStateAndOverrides(details);
+		const { state, overrides, disableMaximize } = this.computeWindowStateAndOverrides(details);
 		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
 			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
-		this.pendingWindowOptionsQueue.push({ options, disableMaximize, disableWorkbenchMenu });
+		this.pendingWindowOptionsQueue.push({ options, disableMaximize });
 		return options;
 	}
 
-	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides; readonly disableMaximize: boolean; readonly disableWorkbenchMenu: boolean } {
+	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides; readonly disableMaximize: boolean } {
 		const windowState: IWindowState = {};
 		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
 		let disableMaximize = false;
-		let disableWorkbenchMenu = false;
 
 		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
 		for (const feature of features) {
@@ -150,9 +149,6 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-disable-maximize':
 					disableMaximize = true;
 					break;
-				case 'window-disable-workbench-menu':
-					disableWorkbenchMenu = value === 'yes';
-					break;
 				case 'window-background-color':
 					if (typeof value === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) {
 						overrides.backgroundColor = value;
@@ -165,7 +161,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		this.logService.trace('[aux window] using window state', state);
 
-		return { state, overrides, disableMaximize, disableWorkbenchMenu };
+		return { state, overrides, disableMaximize };
 	}
 
 	registerWindow(webContents: WebContents): void {
@@ -173,7 +169,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 		const pendingWindowOptions = this.pendingWindowOptionsQueue.shift();
 
-		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, pendingWindowOptions?.options, pendingWindowOptions?.disableMaximize ?? false, pendingWindowOptions?.disableWorkbenchMenu ?? false);
+		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, pendingWindowOptions?.options, pendingWindowOptions?.disableMaximize ?? false);
 
 		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
 		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));

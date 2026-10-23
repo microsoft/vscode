@@ -20,7 +20,7 @@ import { decodeKeybinding, Keybinding } from '../../../../../base/common/keybind
 import { isMacintosh, OS } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -45,7 +45,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { AuxiliaryWindowMode, IAuxiliaryWindow, IAuxiliaryWindowCloseHandler, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { AuxiliaryWindowMode, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -88,7 +88,7 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	readonly frame = $<HTMLIFrameElement>('iframe');
 	readonly window: CodeWindow;
 	readonly document: Document;
-	handler: IAuxiliaryWindowCloseHandler | undefined;
+	handler: (() => Promise<boolean>) | undefined;
 	lastClose: Promise<boolean> | undefined;
 	closeCalls = 0;
 	disposeCalls = 0;
@@ -112,7 +112,7 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 			override readonly vscodeWindowId = id;
 			override close = close;
 		}();
-		this.registerCloseHandler = supported ? (handler: IAuxiliaryWindowCloseHandler) => {
+		this.registerCloseHandler = supported ? (handler: () => Promise<boolean>) => {
 			assert.strictEqual(this.handler, undefined);
 			this.handler = handler;
 			if (closeOnRegister) {
@@ -123,7 +123,7 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	}
 
 	private async requestClose(): Promise<boolean> {
-		if (this.handler && (!await this.handler.close() || !this.handler.isReadyToClose())) {
+		if (this.handler && !await this.handler()) {
 			return false;
 		}
 		this.fireUnload();
@@ -320,13 +320,13 @@ suite('NativeIssueFormService reporter windows', () => {
 			await service.openReporter(data({ isSessionsWindow }));
 			assert.deepStrictEqual({
 				editorParts: editorParts(), opens: opens.length, editors: main.editors.length, osReads: osReads(),
-				mode: windowOptions[0]?.mode, nativeTitlebar: windowOptions[0]?.nativeTitlebar, disableWorkbenchMenu: windowOptions[0]?.disableWorkbenchMenu,
+				mode: windowOptions[0]?.mode, nativeTitlebar: windowOptions[0]?.nativeTitlebar,
 				form: windows[0].container.querySelectorAll('.issue-reporter-wizard').length,
 				textarea: windows[0].container.querySelectorAll('textarea.wizard-description-input').length,
 				chrome: windows[0].container.querySelectorAll('.editor-group-container, .tabs-container, .command-center, .statusbar, .monaco-editor').length,
 				sourceCaptureBar: source.querySelectorAll('.issue-reporter-floating-bar').length,
 				reporterCaptureBar: windows[0].container.querySelectorAll('.issue-reporter-floating-bar').length,
-			}, { editorParts: 0, opens: 0, editors: 0, osReads: 0, mode: AuxiliaryWindowMode.Normal, nativeTitlebar: true, disableWorkbenchMenu: true, form: 1, textarea: 1, chrome: 0, sourceCaptureBar: 1, reporterCaptureBar: 0 });
+			}, { editorParts: 0, opens: 0, editors: 0, osReads: 0, mode: AuxiliaryWindowMode.Normal, nativeTitlebar: true, form: 1, textarea: 1, chrome: 0, sourceCaptureBar: 1, reporterCaptureBar: 0 });
 		});
 
 		test(`preserves editor routing for ${isSessionsWindow ? 'Agents' : 'Editor'} with the editor preference`, async () => {
@@ -392,8 +392,8 @@ suite('NativeIssueFormService reporter windows', () => {
 		await service.openReporter(data());
 		const handler = windows[0].handler!;
 		controls.confirm = false;
-		const first = handler.close();
-		const repeated = handler.close();
+		const first = handler();
+		const repeated = handler();
 		const cancelled = await first;
 		const retained = !inputs()[0].isDisposed();
 		controls.confirm = true;
@@ -491,6 +491,30 @@ suite('NativeIssueFormService reporter windows', () => {
 		await windows[0].lastClose;
 		assert.deepStrictEqual({ disposed: other.isDisposed(), main: main.editors[0] === other, auxiliary: group.editors[0] === other, confirmations }, {
 			disposed: false, main: true, auxiliary: true, confirmations: ['Discard issue report?'],
+		});
+	});
+
+	test('reveals only the reporter after styles settle without blocking native input focus', async () => {
+		const { service, windows, inputs } = createService();
+		await service.openReporter(data());
+		const window = windows[0];
+		const editor = inputs()[0].descriptionInput;
+		editor.focus();
+		const pending = { opacity: window.container.style.opacity, focused: window.document.activeElement === editor, mounted: window.container.contains(editor) };
+		await window.stylesReady.complete();
+		assert.deepStrictEqual({ pending, ready: { opacity: window.container.style.opacity, focused: window.document.activeElement === editor } }, {
+			pending: { opacity: '0', focused: true, mounted: true }, ready: { opacity: '', focused: true },
+		});
+	});
+
+	test('does not reveal a disposed reporter when styles settle', async () => {
+		const { service, windows, inputs } = createService();
+		await service.openReporter(data());
+		const window = windows[0];
+		service.dispose();
+		await window.stylesReady.complete();
+		assert.deepStrictEqual({ opacity: window.container.style.opacity, disposed: inputs()[0].isDisposed(), hostDisposals: window.disposeCalls }, {
+			opacity: '0', disposed: true, hostDisposals: 1,
 		});
 	});
 
@@ -627,7 +651,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		assert.deepStrictEqual({
 			disposed: inputs()[0].isDisposed(), connected: windows[0].frame.isConnected, disposals: windows[0].disposeCalls,
 			registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length,
-			lateClose: await handler.close(), live: !!IssueReporterController.getAnyLiveInstance(), windows: windows.length, writes,
+			lateClose: await handler(), live: !!IssueReporterController.getAnyLiveInstance(), windows: windows.length, writes,
 		}, { disposed: true, connected: false, disposals: 1, registered: false, captureBars: 0, lateClose: false, live: false, windows: 1, writes: [] });
 	});
 
@@ -743,33 +767,6 @@ suite('NativeIssueFormService reporter windows', () => {
 			ordinary: [{ prevented: true, level: initialLevel + 1 }, { prevented: true, level: initialLevel }, { prevented: true, level: 2 }, { prevented: false, level: 2 }, { prevented: false, level: 2 }],
 			customized: [{ prevented: true, level: 3 }, { prevented: true, level: 2 }, { prevented: true, level: 2 }, { prevented: false, level: 2 }],
 			sourceUnchanged: true, opens: [],
-		});
-	});
-
-	test('routes native menu zoom commands to their registered reporter rather than the source window', async () => {
-		const { service, instantiation, windows, configuration, opens } = createService();
-		await configuration.setUserConfiguration('window.zoomPerWindow', false);
-		await configuration.setUserConfiguration('window.zoomLevel', 2);
-		await service.openReporter(data());
-		const sourceLevel = getZoomLevel(mainWindow);
-		const target = windows[0].window;
-		const initialLevel = getZoomLevel(target);
-		const command = CommandsRegistry.getCommand(NativeIssueFormService.ZOOM_COMMAND_ID)!;
-		const zoom = (windowId: number, commandId: string) => {
-			instantiation.invokeFunction(accessor => command.handler(accessor, windowId, commandId));
-			return getZoomLevel(target);
-		};
-		const levels = [
-			zoom(target.vscodeWindowId, 'workbench.action.zoomIn'),
-			zoom(target.vscodeWindowId, 'workbench.action.zoomOut'),
-			zoom(target.vscodeWindowId, 'workbench.action.zoomReset'),
-			zoom(mainWindow.vscodeWindowId, 'workbench.action.zoomIn'),
-			zoom(target.vscodeWindowId, 'workbench.action.quickOpen'),
-		];
-		service.dispose();
-		const afterClose = zoom(target.vscodeWindowId, 'workbench.action.zoomIn');
-		assert.deepStrictEqual({ levels, afterClose, sourceUnchanged: getZoomLevel(mainWindow) === sourceLevel, opens }, {
-			levels: [initialLevel + 1, initialLevel, 2, 2, 2], afterClose: 2, sourceUnchanged: true, opens: [],
 		});
 	});
 
@@ -900,7 +897,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 	}
 
-	test('keeps native text, selection and undo when an editor tab is hidden and restored', async () => {
+	test('keeps native text, selection and attachments when an editor tab is detached, without retaining undo', async () => {
 		const { instantiation, createInput, source, main } = createService('editor');
 		class TestPane extends IssueReporterEditorPane {
 			mount(container: HTMLElement): void { this.createEditor(container); }
@@ -910,17 +907,21 @@ suite('NativeIssueFormService reporter windows', () => {
 		const input = createInput();
 		await pane.setInput(input, undefined, {}, CancellationToken.None);
 		const controller = IssueReporterController.getAnyLiveInstance();
+		input.savedAttachments = [{ id: 'kept-file', kind: 'file', file: { filePath: '/test/notes.txt', name: 'notes.txt', mimeType: 'text/plain' } }];
 		input.descriptionInput.focus();
 		input.descriptionInput.select();
 		document.execCommand('insertText', false, 'Edited description');
 		input.descriptionInput.setSelectionRange(2, 6);
 		pane.clearInput();
+		const page = source.querySelector<HTMLElement>('.issue-reporter-editor-tab')!;
+		page.remove();
+		source.appendChild(page);
 		await pane.setInput(input, undefined, {}, CancellationToken.None);
-		const restored = { same: controller === IssueReporterController.getAnyLiveInstance(), text: input.descriptionInput.value, selection: [input.descriptionInput.selectionStart, input.descriptionInput.selectionEnd] };
+		const restored = { same: controller === IssueReporterController.getAnyLiveInstance(), text: input.descriptionInput.value, selection: [input.descriptionInput.selectionStart, input.descriptionInput.selectionEnd], attachments: controller?.getWizard()?.getAttachments().map(attachment => attachment.id) };
 		input.descriptionInput.focus();
 		document.execCommand('undo');
 		assert.deepStrictEqual({ restored, undone: input.descriptionInput.value }, {
-			restored: { same: true, text: 'Edited description', selection: [2, 6] }, undone: 'Original description',
+			restored: { same: true, text: 'Edited description', selection: [2, 6], attachments: ['kept-file'] }, undone: 'Edited description',
 		});
 	});
 

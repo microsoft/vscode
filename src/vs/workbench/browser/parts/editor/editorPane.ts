@@ -64,9 +64,6 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
 	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
-	/** Keep a hidden pane connected when native control state, such as textarea undo, depends on its DOM lifetime. */
-	get retainDomOnHide(): boolean { return false; }
-
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }
 

@@ -338,9 +338,7 @@ export class EditorPanes extends Disposable {
 
 		// Show editor
 		const container = assertReturnsDefined(editorPane.getContainer());
-		if (container.parentElement !== this.editorPanesParent) {
-			this.editorPanesParent.appendChild(container);
-		}
+		this.editorPanesParent.appendChild(container);
 		show(container);
 
 		// Indicate to editor that it is now visible
@@ -506,9 +504,7 @@ export class EditorPanes extends Disposable {
 		// Remove editor pane from parent
 		const editorPaneContainer = this._activeEditorPane.getContainer();
 		if (editorPaneContainer) {
-			if (!this._activeEditorPane.retainDomOnHide) {
-				editorPaneContainer.remove();
-			}
+			editorPaneContainer.remove();
 			hide(editorPaneContainer);
 		}
 

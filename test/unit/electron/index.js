@@ -300,12 +300,6 @@ app.on('ready', async () => {
 			view.webContents.focus();
 		}
 	});
-	ipcMain.handle('vscode:test-standalone-window-menu', async () => {
-		const outDir = args.build ? 'out-build' : 'out';
-		const { testStandaloneWindowMenu } = await import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/menubar/test/electron-main/standaloneMenuTest.js`)).href);
-		return testStandaloneWindowMenu();
-	});
-
 	ipcMain.handle('vscode:test-remote-resource', async () => {
 		const remoteResourceTestWindow = new BrowserWindow({ show: false });
 		try {

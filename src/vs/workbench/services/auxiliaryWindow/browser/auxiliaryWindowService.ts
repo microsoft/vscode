@@ -56,8 +56,6 @@ export interface IAuxiliaryWindowOpenOptions {
 	readonly transparent?: boolean;
 	readonly notResizable?: boolean;
 	readonly disableMaximize?: boolean;
-	/** Limit native menus to text editing and window controls instead of routing commands to the workbench. */
-	readonly disableWorkbenchMenu?: boolean;
 	readonly noBackgroundThrottling?: boolean;
 	readonly backgroundColor?: string;
 }
@@ -75,12 +73,6 @@ export interface IAuxiliaryWindowService {
 
 export interface BeforeAuxiliaryWindowUnloadEvent {
 	veto(reason: string | undefined): void;
-}
-
-/** Close removes owned content or returns false to cancel; readiness is rechecked immediately before native unload. */
-export interface IAuxiliaryWindowCloseHandler {
-	close(): Promise<boolean>;
-	isReadyToClose(): boolean;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -105,8 +97,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	createState(): IAuxiliaryWindowOpenOptions;
 
-	/** Registers the single close owner for this native window until the registration is disposed. */
-	registerCloseHandler?(handler: IAuxiliaryWindowCloseHandler): IDisposable;
+	/** Runs after synchronous vetoes. Returning true approves the native close without further confirmation. */
+	registerCloseHandler?(close: () => Promise<boolean>): IDisposable;
 }
 
 const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);
@@ -144,15 +136,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	) {
 		super(window, undefined, hostService, environmentService, contextMenuService, layoutService);
 
-		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => {
-			if (this._store.isDisposed) {
-				return;
-			}
-			this.layout();
-			if (!this._store.isDisposed) {
-				this.container.style.removeProperty('opacity');
-			}
-		});
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => undefined);
 
 		this.registerListeners();
 	}
@@ -400,7 +384,6 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.transparent ? 'window-transparent=yes' : undefined,
 			options?.notResizable ? 'window-not-resizable=yes' : undefined,
 			options?.disableMaximize ? 'window-disable-maximize=yes' : undefined,
-			options?.disableWorkbenchMenu ? 'window-disable-workbench-menu=yes' : undefined,
 			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
 			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
 		]);
@@ -576,8 +559,6 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		container.style.display = 'flex';
 		container.style.height = '100%';
 		container.style.flexDirection = 'column';
-		// Preserve focus requests made by editors while their styles are still loading.
-		container.style.opacity = '0';
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes

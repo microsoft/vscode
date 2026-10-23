@@ -80,7 +80,7 @@ suite('NativeAuxiliaryWindow close handler', () => {
 		test(`uses one owner decision without generic confirmation for ${setting}`, async () => {
 			const { window, nativeCloses, retries, errors } = createWindow(setting);
 			let decisions = 0;
-			store.add(window.registerCloseHandler({ close: async () => { decisions++; return true; }, isReadyToClose: () => true }));
+			store.add(window.registerCloseHandler(async () => { decisions++; return true; }));
 			const prevented = window.requestClose();
 			await timeout(0);
 			assert.deepStrictEqual({ prevented, decisions, nativeCloses, retries, generic: window.genericConfirmations, errors }, {
@@ -94,14 +94,11 @@ suite('NativeAuxiliaryWindow close handler', () => {
 		const decision = new DeferredPromise<boolean>();
 		let decisions = 0;
 		let recursive = false;
-		store.add(window.registerCloseHandler({
-			close: async () => {
-				decisions++;
-				const confirmed = await decision.p;
-				recursive = window.requestClose();
-				return confirmed;
-			},
-			isReadyToClose: () => true,
+		store.add(window.registerCloseHandler(async () => {
+			decisions++;
+			const confirmed = await decision.p;
+			recursive = window.requestClose();
+			return confirmed;
 		}));
 		const prevented = [window.requestClose(), window.requestClose(), window.requestClose()];
 		await decision.complete(true);
@@ -114,7 +111,7 @@ suite('NativeAuxiliaryWindow close handler', () => {
 	test('cancellation leaves the window open and permits a later decision', async () => {
 		const { window, nativeCloses, retries } = createWindow();
 		let decisions = 0;
-		store.add(window.registerCloseHandler({ close: async () => ++decisions > 1, isReadyToClose: () => true }));
+		store.add(window.registerCloseHandler(async () => ++decisions > 1));
 		window.requestClose();
 		await timeout(0);
 		const cancelled = { decisions, nativeCloses: nativeCloses.length };
@@ -125,38 +122,26 @@ suite('NativeAuxiliaryWindow close handler', () => {
 		});
 	});
 
-	test('refuses an accepted close when new contents arrive before native unload', async () => {
-		const { window, nativeCloses, controls, errors, loggedErrors } = createWindow();
-		controls.retry = false;
-		let ready = true;
-		store.add(window.registerCloseHandler({ close: async () => true, isReadyToClose: () => ready }));
-		window.requestClose();
-		await timeout(0);
-		ready = false;
-		const prevented = window.requestClose();
-		await timeout(0);
-		assert.deepStrictEqual({ nativeCloses, prevented, errors: errors.length, logged: loggedErrors() }, {
-			nativeCloses: [mainWindow.vscodeWindowId], prevented: true, errors: 1, logged: 1,
-		});
-	});
-
-	test('does not arm native unload when the owner still has editors', async () => {
-		const { window, nativeCloses, errors } = createWindow();
-		store.add(window.registerCloseHandler({ close: async () => true, isReadyToClose: () => false }));
-		window.requestClose();
-		await timeout(0);
-		assert.deepStrictEqual({ nativeCloses, errors: errors.length }, { nativeCloses: [], errors: 1 });
-	});
-
-	test('retains independent synchronous vetoes on the approved retry', async () => {
+	test('checks independent vetoes before discarding owned content', async () => {
 		const { window, nativeCloses, retries, errors } = createWindow();
 		let vetoChecks = 0;
-		store.add(window.onBeforeUnload(event => { vetoChecks++; event.veto('Independent veto'); }));
-		store.add(window.registerCloseHandler({ close: async () => true, isReadyToClose: () => true }));
+		let veto = true;
+		let discarded = false;
+		store.add(window.onBeforeUnload(event => {
+			vetoChecks++;
+			if (veto) {
+				event.veto('Independent veto');
+			}
+		}));
+		store.add(window.registerCloseHandler(async () => { discarded = true; return true; }));
 		window.requestClose();
 		await timeout(0);
-		assert.deepStrictEqual({ nativeCloses, retries, vetoChecks, errors, generic: window.genericConfirmations }, {
-			nativeCloses: [mainWindow.vscodeWindowId], retries: [true], vetoChecks: 1, errors: ['Independent veto'], generic: 0,
+		const blocked = { discarded, closes: nativeCloses.length };
+		veto = false;
+		window.requestClose();
+		await timeout(0);
+		assert.deepStrictEqual({ blocked, discarded, nativeCloses, retries, vetoChecks, errors, generic: window.genericConfirmations }, {
+			blocked: { discarded: false, closes: 0 }, discarded: true, nativeCloses: [mainWindow.vscodeWindowId], retries: [false], vetoChecks: 2, errors: ['Independent veto'], generic: 0,
 		});
 	});
 
@@ -164,7 +149,7 @@ suite('NativeAuxiliaryWindow close handler', () => {
 		test(`ignores a pending owner result after ${action}`, async () => {
 			const { window, nativeCloses, errors } = createWindow();
 			const decision = new DeferredPromise<boolean>();
-			const registration = store.add(window.registerCloseHandler({ close: () => decision.p, isReadyToClose: () => true }));
+			const registration = store.add(window.registerCloseHandler(() => decision.p));
 			window.requestClose();
 			if (action === 'dispose') {
 				window.dispose();
@@ -179,7 +164,7 @@ suite('NativeAuxiliaryWindow close handler', () => {
 
 	test('rejects conflicting close owners and restores default behavior on unregister', () => {
 		const { window } = createWindow();
-		const handler = { close: async () => true, isReadyToClose: () => true };
+		const handler = async () => true;
 		const registration = store.add(window.registerCloseHandler(handler));
 		assert.throws(() => window.registerCloseHandler(handler));
 		registration.dispose();
@@ -192,14 +177,11 @@ suite('NativeAuxiliaryWindow close handler', () => {
 			const { window, controls, nativeCloses, retries, errors, loggedErrors } = createWindow();
 			let fail = true;
 			controls.fail = failure === 'native';
-			store.add(window.registerCloseHandler({
-				close: async () => {
-					if (failure === 'owner' && fail) {
-						throw new Error('Owner close failed');
-					}
-					return true;
-				},
-				isReadyToClose: () => true,
+			store.add(window.registerCloseHandler(async () => {
+				if (failure === 'owner' && fail) {
+					throw new Error('Owner close failed');
+				}
+				return true;
 			}));
 			window.requestClose();
 			await timeout(0);
@@ -208,9 +190,9 @@ suite('NativeAuxiliaryWindow close handler', () => {
 			controls.fail = false;
 			window.requestClose();
 			await timeout(0);
-			assert.deepStrictEqual({ beforeRetry, retries, errors: errors.length, logged: loggedErrors() }, {
+			assert.deepStrictEqual({ beforeRetry, retries, errors, logged: loggedErrors() }, {
 				beforeRetry: { closes: failure === 'native' ? 1 : 0, errors: 1, retries: 0 },
-				retries: [false], errors: 1, logged: 1,
+				retries: [false], errors: ['The window could not be closed. Please try again.'], logged: 1,
 			});
 		});
 	}

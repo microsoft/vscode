@@ -20,8 +20,6 @@ import { IssueReporterController } from './issueReporterController.js';
 export class IssueReporterEditorPane extends EditorPane {
 	static readonly ID = 'workbench.editor.issueReporter';
 
-	override get retainDomOnHide(): boolean { return true; }
-
 	private controller: IssueReporterController | undefined;
 
 	constructor(
