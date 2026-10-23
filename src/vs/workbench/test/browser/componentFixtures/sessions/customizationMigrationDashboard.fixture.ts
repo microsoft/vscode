@@ -100,6 +100,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'disabled'),
 	}),
+	MigrationsPending: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'pending'),
+	}),
+	MigrationsActive: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The workspace prompt migration group shows a disabled Migrating button while the page is marked busy. Other migration groups remain visible but unavailable until the active migration finishes.'],
+		render: ctx => renderDashboard(ctx, 860, 'active'),
+	}),
+	MigrationsMarketplaceActive: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Plugin Marketplaces user group shows four selected marketplaces and a disabled Migrating button while the page is marked busy.'],
+		render: ctx => renderDashboard(ctx, 860, 'marketplaceActive'),
+	}),
+	MigrationsMarketplaceActiveNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 360, 'marketplaceActive'),
+	}),
 	MigrationsIgnored: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'ignored'),
@@ -139,7 +159,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 });
 
-async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
+async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'pending' | 'active' | 'marketplaceActive' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
 	const { container, disposableStore, theme } = ctx;
 	container.classList.add('ai-customization-management-editor');
 	const dashboardContainer = state === 'tooltip' ? DOM.append(container, DOM.$('.customization-migration-dashboard-fixture')) : container;
@@ -200,6 +220,52 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 					items: category.items.map(item => ({ ...item, selected: false })),
 				} : category),
 			} : scope),
+		};
+	} else if (state === 'pending' || state === 'active') {
+		model = {
+			...model,
+			migrationInProgress: state === 'active',
+			scopes: model.scopes.map(scope => scope.storage === PromptsStorage.local ? {
+				...scope,
+				categories: scope.categories.map(category => category.id === CustomizationMigrationCategoryId.PromptFiles ? {
+					...category,
+					...(state === 'active' ? { actionLabel: 'Migrating...', migrationInProgress: true } : {}),
+					migrateDisabled: true,
+				} : { ...category, migrateDisabled: true }),
+			} : {
+				...scope,
+				categories: scope.categories.map(category => ({ ...category, migrateDisabled: true })),
+			}),
+		};
+	} else if (state === 'marketplaceActive') {
+		model = {
+			...model,
+			migrationInProgress: true,
+			manualReviewItems: [],
+			scopes: [{
+				storage: PromptsStorage.user,
+				label: 'Your profile',
+				count: 4,
+				hasConfigurableDestinations: false,
+				categories: [{
+					id: CustomizationMigrationCategoryId.PluginMarketplaces,
+					label: 'Plugin Marketplaces',
+					description: 'Migrate plugin marketplaces to Copilot settings while keeping them available to the Local agent.',
+					actionLabel: 'Migrating...',
+					count: 4,
+					selectedCount: 4,
+					countLabel: '4 marketplaces',
+					migrationInProgress: true,
+					migrateDisabled: true,
+					destinationLabel: '~/.copilot/settings.json',
+					items: [
+						{ id: 'marketplace-team-kit', label: 'microsoft/vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-engineering', label: 'contoso/engineering-plugins', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-data', label: 'contoso/data-agents', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-security', label: 'contoso/security-tools', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+					],
+				}],
+			}],
 		};
 	} else if (state === 'ignored') {
 		model = {
