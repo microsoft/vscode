@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { Barrier, DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -27,6 +27,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -56,8 +57,13 @@ suite('DesktopLayoutController', () => {
 
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
+	let controllers: TestDesktopController[] = [];
 
 	class TestDesktopController extends DesktopLayoutController {
+		constructor(...args: ConstructorParameters<typeof DesktopLayoutController>) {
+			super(...args);
+			controllers.push(this);
+		}
 		/** Runs `work` while a session-switch layout restore is held (see `_withSessionLayoutRestore`). */
 		runWithRestore(work: () => void | Promise<unknown>): void {
 			this._withSessionLayoutRestore(work);
@@ -117,7 +123,10 @@ suite('DesktopLayoutController', () => {
 		harness.onWillOpenEditor.fire(event);
 	}
 
-	teardown(() => store.clear());
+	teardown(() => {
+		store.clear();
+		controllers = [];
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const isCreated of [false, true]) {
@@ -1932,10 +1941,9 @@ suite('DesktopLayoutController', () => {
 
 	// --- Desktop managed docked tabs (Changes + Files placeholder) ---
 
+	/** Awaits the layout work of every controller the current test created, including disposed ones. */
 	async function settle(): Promise<void> {
-		for (let i = 0; i < 6; i++) {
-			await timeout(0);
-		}
+		await Promise.all(controllers.map(controller => controller.whenIdle()));
 	}
 
 	function hasFilesTab(): boolean {
@@ -1956,6 +1964,36 @@ suite('DesktopLayoutController', () => {
 		await new NewFileTabAction().run(harness.instaService);
 		await settle();
 	}
+
+	test('[whenIdle] awaits the detail panel, and the managed tabs once the Restored phase is reached', async () => {
+		// Details only, so the created session's reconcile ensures both managed tabs.
+		harness = createTestHarness(store, {
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: true },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: true },
+			},
+		});
+		const restored = new Barrier();
+		let phase = LifecyclePhase.Ready;
+		harness.instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
+			override get phase() { return phase; }
+			override async when(): Promise<void> { await restored.wait(); }
+		});
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1'), { isCreated: true, changes: [makeChange('/file.ts')] }), undefined);
+
+		await controller.whenIdle();
+		const beforeRestored = { openedViewContainers: [...harness.openedViewContainers], hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() };
+		phase = LifecyclePhase.Restored;
+		restored.open();
+		await controller.whenIdle();
+
+		assert.deepStrictEqual({ beforeRestored, afterRestored: { hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() } }, {
+			beforeRestored: { openedViewContainers: [CHANGES_VIEW_CONTAINER_ID], hasChangesTab: false, hasFilesTab: false },
+			afterRestored: { hasChangesTab: true, hasFilesTab: true },
+		});
+	});
 
 	test('[managed tabs / session switch] keeps the Changes header active while the working set replaces its editor', async () => {
 		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
@@ -2472,10 +2510,12 @@ suite('DesktopLayoutController', () => {
 		// Pause the very next Changes open so A's submit reconcile stalls mid-open.
 		let releaseChangesOpen!: () => void;
 		const changesOpenGate = new Promise<void>(resolve => { releaseChangesOpen = resolve; });
+		const changesOpenStalled = new DeferredPromise<void>();
 		let gateArmed = true;
 		harness.onOpenChangesEditor = () => {
 			if (gateArmed) {
 				gateArmed = false;
+				changesOpenStalled.complete();
 				return changesOpenGate;
 			}
 			return undefined;
@@ -2485,15 +2525,15 @@ suite('DesktopLayoutController', () => {
 		// stalls awaiting the gated open.
 		(sessionA.isCreated as ISettableObservable<boolean>).set(true, undefined);
 		(sessionA.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
-		await settle();
+		await changesOpenStalled.p;
 		const aActiveCalls = harness.openChangesEditorCalls.filter(c => isEqual(c.sessionResource, sessionA.resource) && c.active);
 		assert.strictEqual(aActiveCalls.length, 1, 'A\'s submit should open its Changes tab active (and stall on the gate)');
 
 		// While A\'s submit reconcile is stalled, switch to a different created
-		// session B (a plain switch — never a submit).
+		// session B (a plain switch — never a submit). B's reconcile queues behind
+		// A's stalled one, so no layout work can run until the gate is released.
 		const sessionB = makeSession(URI.parse('session:b'), { isCreated: true });
 		harness.activeSessionObs.set(sessionB, undefined);
-		await settle();
 
 		// Release the gate: A\'s reconcile resumes, finds itself superseded, and must
 		// NOT hand its "activate Changes" intent to B.
@@ -2534,10 +2574,12 @@ suite('DesktopLayoutController', () => {
 
 		let releaseClose!: () => void;
 		const closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
+		const replaceStalled = new DeferredPromise<void>();
 		let gateArmed = true;
 		harness.onReplaceEditors = () => {
 			if (gateArmed) {
 				gateArmed = false;
+				replaceStalled.complete();
 				return closeGate;
 			}
 			return undefined;
@@ -2554,7 +2596,7 @@ suite('DesktopLayoutController', () => {
 			}
 		});
 		harness.activeSessionObs.set(sessionB, undefined);
-		await settle();
+		await replaceStalled.p;
 
 		const sessionC = makeSession(URI.parse('session:c'), {
 			workspace: {
@@ -2588,10 +2630,12 @@ suite('DesktopLayoutController', () => {
 		// Pause the reconcile at the first Changes open so it stalls before the Files tab opens.
 		let releaseChangesOpen!: () => void;
 		const changesOpenGate = new Promise<void>(resolve => { releaseChangesOpen = resolve; });
+		const changesOpenStalled = new DeferredPromise<void>();
 		let gateArmed = true;
 		harness.onOpenChangesEditor = () => {
 			if (gateArmed) {
 				gateArmed = false;
+				changesOpenStalled.complete();
 				return changesOpenGate;
 			}
 			return undefined;
@@ -2599,7 +2643,7 @@ suite('DesktopLayoutController', () => {
 
 		// The created session's reconcile stalls awaiting the gated Changes open before the Files tab.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1'), { isCreated: true, changes: [makeChange('/file.ts')] }), undefined);
-		await settle();
+		await changesOpenStalled.p;
 		assert.deepStrictEqual({ changesOpenRequests: harness.openChangesEditorCalls.length, hasFilesTab: hasFilesTab() }, { changesOpenRequests: 1, hasFilesTab: false }, 'reconcile should be stalled before opening the Files tab');
 
 		// Dispose while stalled: the generation bump on dispose must make the resumed reconcile bail before any later editor open.
@@ -2621,18 +2665,18 @@ suite('DesktopLayoutController', () => {
 			await settle();
 			await openManagedTabs();
 
-			let replaceStarted = false;
+			const replaceStarted = new DeferredPromise<void>();
 			let rejectReplace!: (error: Error) => void;
 			const replaceGate = new Promise<void>((_, reject) => { rejectReplace = reject; });
 			harness.onReplaceEditors = replacements => {
-				replaceStarted = true;
+				replaceStarted.complete();
 				store.add(replacements[0].replacement);
 				return replaceGate;
 			};
 
 			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
-			await settle();
-			assert.strictEqual(replaceStarted, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
+			await replaceStarted.p;
+			assert.strictEqual(replaceStarted.isSettled, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
 
 			controller.dispose();
 			rejectReplace(new Error('InstantiationService has been disposed'));
@@ -2655,18 +2699,18 @@ suite('DesktopLayoutController', () => {
 			await settle();
 			await openManagedTabs();
 
-			let replaceStarted = false;
+			const replaceStarted = new DeferredPromise<void>();
 			let rejectReplace!: (error: Error) => void;
 			const replaceGate = new Promise<void>((_, reject) => { rejectReplace = reject; });
 			harness.onReplaceEditors = replacements => {
-				replaceStarted = true;
+				replaceStarted.complete();
 				store.add(replacements[0].replacement);
 				return replaceGate;
 			};
 
 			harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
-			await settle();
-			assert.strictEqual(replaceStarted, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
+			await replaceStarted.p;
+			assert.strictEqual(replaceStarted.isSettled, true, 'the reconcile should be stalled replacing the outgoing Changes editor');
 
 			harness.onWillDisposeActiveGroup.fire();
 			rejectReplace(new Error('InstantiationService has been disposed'));
