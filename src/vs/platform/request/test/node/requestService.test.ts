@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type * as http from 'http';
+import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { IRawRequestFunction, lookupKerberosAuthorization, nodeRequest } from '../../node/requestService.js';
+import { IRawRequestFunction, lookupKerberosAuthorization, NodeRequestOptions, nodeRequest } from '../../node/requestService.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -319,5 +321,143 @@ suite('Request Service', () => {
 		}
 
 		assert.strictEqual(attemptCount, 1, 'PATCH request should not have been retried');
+	});
+
+	suite('redirects', () => {
+		const headers = Object.freeze({
+			Authorization: 'Bearer token',
+			aUtHoRiZaTiOn: 'Basic other-token',
+			cOoKiE: 'session=secret',
+			CoOkIe2: 'session=other-secret',
+			'Proxy-Authorization': 'Basic proxy-token',
+			'X-Other': 'keep'
+		});
+		const strippedHeaders = { 'Proxy-Authorization': 'Basic proxy-token', 'X-Other': 'keep' };
+
+		async function requestRedirects(locations: readonly string[], options: Partial<NodeRequestOptions> = {}) {
+			const http = await import('http');
+			const captured: http.RequestOptions[] = [];
+			const received: http.IncomingHttpHeaders[] = [];
+			const server = http.createServer((req, res) => {
+				const location = locations[received.length];
+				received.push(req.headers);
+				if (location) {
+					res.writeHead(302, { location });
+				}
+				res.end();
+			});
+			await new Promise<void>((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			const rawRequest: IRawRequestFunction = (opts, callback) => {
+				captured.push(opts);
+				// Keep the logical destination for assertions, but send every hop to the test server.
+				return http.request({ ...opts, protocol: 'http:', hostname: '127.0.0.1', port: address.port }, callback);
+			};
+			try {
+				const context = await nodeRequest({
+					url: 'https://market.example/api/asset',
+					headers,
+					user: 'user',
+					password: 'password',
+					getRawRequest: () => rawRequest,
+					callSite: 'requestService.test.redirects',
+					...options
+				}, CancellationToken.None);
+				await streamToBuffer(context.stream);
+				return { captured, received, context };
+			} finally {
+				server.closeAllConnections();
+				await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+			}
+		}
+
+		for (const { name, from, location, target, crossOrigin } of [
+			{ name: 'host change', from: 'https://market.example/api/asset', location: 'https://cdn.example/asset', target: 'https://cdn.example:443/asset', crossOrigin: true },
+			{ name: 'scheme change', from: 'http://market.example/api/asset', location: 'https://market.example/asset', target: 'https://market.example:443/asset', crossOrigin: true },
+			{ name: 'scheme downgrade', from: 'https://market.example/api/asset', location: 'http://market.example/asset', target: 'http://market.example:80/asset', crossOrigin: true },
+			{ name: 'port change', from: 'https://market.example/api/asset', location: 'https://market.example:8443/asset', target: 'https://market.example:8443/asset', crossOrigin: true },
+			{ name: 'protocol-relative host change', from: 'https://market.example/api/asset', location: '//cdn.example/asset', target: 'https://cdn.example:443/asset', crossOrigin: true },
+			{ name: 'root-relative path', from: 'https://market.example/api/asset', location: '/asset', target: 'https://market.example:443/asset', crossOrigin: false },
+			{ name: 'relative path', from: 'https://market.example/api/asset', location: '../asset?version=2', target: 'https://market.example:443/asset?version=2', crossOrigin: false },
+			{ name: 'protocol-relative same origin', from: 'https://market.example/api/asset', location: '//market.example/asset', target: 'https://market.example:443/asset', crossOrigin: false },
+			{ name: 'explicit HTTPS default port and host case', from: 'https://market.example/api/asset', location: 'https://MARKET.example:443/asset', target: 'https://market.example:443/asset', crossOrigin: false },
+			{ name: 'implicit HTTPS default port', from: 'https://market.example:443/api/asset', location: 'https://market.example/asset', target: 'https://market.example:443/asset', crossOrigin: false },
+			{ name: 'explicit HTTP default port', from: 'http://market.example/api/asset', location: 'http://market.example:80/asset', target: 'http://market.example:80/asset', crossOrigin: false }
+		]) {
+			test(name, async () => {
+				const { captured } = await requestRedirects([location], { url: from });
+				assert.deepStrictEqual({
+					credentials: captured.map(request => ({ headers: request.headers, auth: request.auth })),
+					target: captured.slice(1).map(request => `${request.protocol}//${request.hostname}:${request.port}${request.path}`)
+				}, {
+					credentials: [
+						{ headers, auth: 'user:password' },
+						{ headers: crossOrigin ? strippedHeaders : headers, auth: crossOrigin ? undefined : 'user:password' }
+					],
+					target: [target]
+				});
+			});
+		}
+
+		test('does not restore credentials when a redirect returns to the original origin', async () => {
+			const { captured } = await requestRedirects(['https://cdn.example/asset', 'https://market.example/asset', '/final']);
+			assert.deepStrictEqual(captured.map(request => ({ headers: request.headers, auth: request.auth })), [
+				{ headers, auth: 'user:password' },
+				{ headers: strippedHeaders, auth: undefined },
+				{ headers: strippedHeaders, auth: undefined },
+				{ headers: strippedHeaders, auth: undefined }
+			]);
+		});
+
+		for (const location of ['/asset', 'https://cdn.example/asset']) {
+			test(`handles explicit basic credentials for ${location}`, async () => {
+				const basic = `Basic ${Buffer.from('user:password').toString('base64')}`;
+				const { received } = await requestRedirects([location], { headers: undefined });
+				assert.deepStrictEqual(received.map(request => request.authorization), [basic, location === '/asset' ? basic : undefined]);
+			});
+		}
+
+		for (const location of ['file:///private/asset', 'data:text/plain,asset', 'ftp://market.example/asset', 'http://[invalid']) {
+			test(`does not follow ${location}`, async () => {
+				const { captured, context } = await requestRedirects([location]);
+				assert.deepStrictEqual({ requests: captured.length, statusCode: context.res.statusCode }, { requests: 1, statusCode: 302 });
+			});
+		}
+
+		for (const followRedirects of [undefined, 0, 1, 3]) {
+			test(`respects a redirect limit of ${followRedirects ?? 'default'}`, async () => {
+				const { captured, context } = await requestRedirects(['/1', '/2', '/3', '/4'], { followRedirects });
+				assert.deepStrictEqual({ requests: captured.length, statusCode: context.res.statusCode }, { requests: (followRedirects ?? 3) + 1, statusCode: 302 });
+			});
+		}
+
+		test('cancels while following a redirect', async () => {
+			const http = await import('http');
+			const source = store.add(new CancellationTokenSource());
+			const requested: string[] = [];
+			const server = http.createServer((req, res) => {
+				requested.push(req.url!);
+				if (req.url === '/pending') {
+					source.cancel();
+				} else {
+					res.writeHead(302, { location: '/pending' });
+					res.end();
+				}
+			});
+			await new Promise<void>((resolve, reject) => server.once('error', reject).listen(0, '127.0.0.1', resolve));
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			try {
+				await assert.rejects(nodeRequest({
+					url: `http://127.0.0.1:${address.port}/start`,
+					callSite: 'requestService.test.cancelRedirect'
+				}, source.token), CancellationError);
+				assert.deepStrictEqual(requested, ['/start', '/pending']);
+			} finally {
+				server.closeAllConnections();
+				await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+			}
+		});
 	});
 });
