@@ -17,7 +17,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -263,13 +263,23 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 	private registerReporterWindowKeys(window: ReporterWindow): void {
 		const targetWindow = window.auxiliaryWindow.window;
 		window.add(addDisposableListener(targetWindow.document, EventType.KEY_DOWN, (event: KeyboardEvent) => {
-			// Let controls and native editing handle keys, but never dispatch them to the workbench.
+			// Keep keybindings local to the standalone form.
 			event.stopPropagation();
 			const key = new StandardKeyboardEvent(event);
 			const resolved = this.keybindingService.softDispatch(key, key.target ?? targetWindow.document.body);
-			if (resolved.kind === ResultKind.KbFound && this.zoomReporterWindow(window, resolved.commandId)) {
-				event.preventDefault();
-				return;
+			if (resolved.kind === ResultKind.KbFound) {
+				if (this.zoomReporterWindow(window, resolved.commandId)) {
+					event.preventDefault();
+					return;
+				}
+				const target = key.target;
+				if ((isHTMLInputElement(target) || isHTMLTextAreaElement(target)) &&
+					(resolved.commandId === 'undo' || resolved.commandId === 'redo' || resolved.commandId === 'editor.action.selectAll')) {
+					// macOS menu shortcuts can reach the form without a native browser editing action.
+					event.preventDefault();
+					target.ownerDocument.execCommand(resolved.commandId === 'editor.action.selectAll' ? 'selectAll' : resolved.commandId);
+					return;
+				}
 			}
 			const primary = isMacintosh ? key.metaKey : key.ctrlKey;
 			const secondary = isMacintosh ? key.ctrlKey : key.metaKey;

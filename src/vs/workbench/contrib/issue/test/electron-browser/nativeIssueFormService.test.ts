@@ -852,6 +852,66 @@ suite('NativeIssueFormService reporter windows', () => {
 		assert.deepStrictEqual(dispatched, ['source', 'ordinary auxiliary']);
 	});
 
+	for (const field of ['description', 'title'] as const) {
+		test(`runs resolved editing shortcuts in the reporter ${field} without editing the source window`, async () => {
+			const { service, windows, inputs, source, keybindings, opens } = createService();
+			keybindings.bindings = [
+				{ command: 'undo', key: KeyMod.CtrlCmd | KeyCode.KeyZ },
+				{ command: 'redo', key: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ },
+				{ command: 'editor.action.selectAll', key: KeyMod.CtrlCmd | KeyCode.KeyA },
+			];
+			await service.openReporter(data({ issueTitle: '', issueBody: '' }));
+			const sourceInput = source.appendChild($<HTMLTextAreaElement>('textarea'));
+			sourceInput.focus();
+			sourceInput.ownerDocument.execCommand('insertText', false, 'source edit');
+			const input = field === 'description' ? inputs()[0].descriptionInput : windows[0].container.querySelector<HTMLInputElement>('input[aria-label="Title"]')!;
+			const text = 'report edit';
+			input.focus();
+			input.ownerDocument.execCommand('insertText', false, text);
+			const commands = spy(windows[0].document, 'execCommand');
+			store.add(toDisposable(() => commands.restore()));
+			const send = (keyCode: number, key: string, modifiers: KeyboardEventInit = { metaKey: isMacintosh, ctrlKey: !isMacintosh }, target: HTMLElement = input) => {
+				const event = new KeyboardEvent('keydown', { ...modifiers, keyCode, key, bubbles: true, cancelable: true });
+				target.dispatchEvent(event);
+				return { prevented: event.defaultPrevented, value: input.value, selection: [input.selectionStart, input.selectionEnd] };
+			};
+			const selected = send(65, 'a');
+			const undone = send(90, 'z');
+			const exhausted = send(90, 'z');
+			const redone = send(90, 'z', { metaKey: isMacintosh, ctrlKey: !isMacintosh, shiftKey: true });
+			keybindings.bindings = [
+				{ command: 'editor.action.selectAll', key: KeyMod.Alt | KeyCode.F8 },
+				{ command: 'undo', key: KeyMod.Alt | KeyCode.F9 },
+				{ command: 'redo', key: KeyMod.Alt | KeyCode.F10 },
+				{ command: 'workbench.action.quickOpen', key: KeyMod.CtrlCmd | KeyCode.KeyA },
+			];
+			input.setSelectionRange(3, 3);
+			const remapped = send(65, 'a');
+			const customized = [send(119, 'F8', { altKey: true }), send(120, 'F9', { altKey: true }), send(121, 'F10', { altKey: true })];
+			const preview = windows[0].container.querySelector<HTMLElement>('.wizard-preview')!;
+			preview.focus();
+			const outsideTextInput = send(120, 'F9', { altKey: true }, preview);
+			assert.deepStrictEqual({
+				selected, undone, exhausted, redone, remapped, customized,
+				outsideTextInput: { prevented: outsideTextInput.prevented, value: outsideTextInput.value },
+				commands: commands.args.map(([command]) => command), source: sourceInput.value, opens,
+			}, {
+				selected: { prevented: true, value: text, selection: [0, text.length] },
+				undone: { prevented: true, value: '', selection: [0, 0] },
+				exhausted: { prevented: true, value: '', selection: [0, 0] },
+				redone: { prevented: true, value: text, selection: [text.length, text.length] },
+				remapped: { prevented: false, value: text, selection: [3, 3] },
+				customized: [
+					{ prevented: true, value: text, selection: [0, text.length] },
+					{ prevented: true, value: '', selection: [0, 0] },
+					{ prevented: true, value: text, selection: [text.length, text.length] },
+				],
+				outsideTextInput: { prevented: false, value: text },
+				commands: ['selectAll', 'undo', 'undo', 'redo', 'selectAll', 'undo', 'redo'], source: 'source edit', opens: [],
+			});
+		});
+	}
+
 	test('routes configured zoom commands only to the reporter and blocks other resolved commands', async () => {
 		const { service, windows, inputs, configuration, keybindings, opens } = createService();
 		await configuration.setUserConfiguration('window.zoomPerWindow', false);
