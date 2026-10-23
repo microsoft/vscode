@@ -25579,7 +25579,9 @@ suite('AgentService (node dispatcher)', () => {
 						return super.materializeChat(...args);
 					}
 				}
-				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+				// A server-spawned host (e.g. for a remote window) reports its launch kind, so local and remote migration can be compared.
+				const hostLaunchKind = scenario === 'migrated' ? AgentHostLaunchKind.VSCodeCLI : AgentHostLaunchKind.Unknown;
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry, undefined, undefined, undefined, undefined, hostLaunchKind));
 				registerTestAgentProvider(localService, disposables.add(new MigrationAgent()));
 				getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: scenario !== 'settingDisabled' });
 				if (scenario === 'skipped' || scenario === 'migrated') {
@@ -25602,6 +25604,7 @@ suite('AgentService (node dispatcher)', () => {
 					advertisedAsAdoptable: data.advertisedAsAdoptable,
 					errorCode: data.errorCode,
 					errorMessage: data.errorMessage,
+					hostLaunchKind: data.hostLaunchKind,
 				})), [{
 					error: failed,
 					migrationSessionId: getTelemetryMigrationSessionId(session),
@@ -25616,6 +25619,7 @@ suite('AgentService (node dispatcher)', () => {
 					advertisedAsAdoptable: false,
 					errorCode: scenario === 'adoptionFailed' ? String(JSON_RPC_INTERNAL_ERROR) : undefined,
 					errorMessage: scenario === 'adoptionFailed' ? 'Migration error details redacted: invalid session identifier or argument.' : failed ? 'restore failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]' : undefined,
+					hostLaunchKind,
 				}]);
 			});
 		}
