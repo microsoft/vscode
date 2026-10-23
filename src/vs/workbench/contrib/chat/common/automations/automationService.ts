@@ -30,6 +30,7 @@ export interface IAutomationProviderConfiguration {
 	loadTriggers?(): void;
 	pickWorkspace(token: CancellationToken): Promise<URI | undefined>;
 	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget>;
+	readonly repositoryOwnershipInvalidation?: IObservable<void>;
 	checkRepositoryOwnership?(workspace: URI, token: CancellationToken): Promise<IAutomationRepositoryOwnershipEligibility>;
 }
 

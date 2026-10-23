@@ -7,6 +7,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -110,6 +111,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			pickWorkspace: token => this.pickWorkspace(token),
 			getWorkspaceTarget: workspace => derived(reader => this.store.read(reader)?.getWorkspaceTarget(workspace).read(reader)
 				?? { disabledReason: localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable.") }),
+			repositoryOwnershipInvalidation: observableSignalFromEvent(this, Event.any(defaultAccountService.onDidChangeDefaultAccount, workbenchGitHubService.onDidChangeDefaultClient)),
 			checkRepositoryOwnership: (workspace, token) => this.requireStore().checkRepositoryOwnership(workspace, token),
 		};
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);

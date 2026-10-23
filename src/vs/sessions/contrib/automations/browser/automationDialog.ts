@@ -2145,6 +2145,7 @@ export function renderForm(
 	}
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
+		configuration?.repositoryOwnershipInvalidation?.read(reader);
 		toolsPicker.clear();
 		updateIntervalOptions(configuration !== undefined);
 		setAutomationControlVisible(providerOptions, configuration !== undefined);
@@ -2734,7 +2735,11 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			if (!this.isCloudCandidate(folder)) {
 				return [];
 			}
-			const repository = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get().workspace;
+			const target = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get();
+			if (target?.isPrivateRepository === false) {
+				return [];
+			}
+			const repository = target?.workspace;
 			return [{ recent, key: repository ? extUriIgnorePathCase.getComparisonKey(repository) : getComparisonKey(folder) }];
 		});
 		const localRepositoryKeys = new Set(candidates

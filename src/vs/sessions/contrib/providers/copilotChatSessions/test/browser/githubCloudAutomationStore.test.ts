@@ -281,7 +281,7 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
 			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
-		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: [], entries: [], cached: true });
+		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: ['capability'], entries: [], cached: true });
 	});
 
 	test('public repositories are identified without checking automation manageability', async () => {
@@ -426,7 +426,7 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	}
 
-	test('background manageability refresh does not change private repository selection eligibility', async () => {
+	test('background manageability refresh updates private repository selection eligibility', async () => {
 		const { store, api } = setup();
 		const target = store.getWorkspaceTarget(workspace);
 		await timeout(0);
@@ -442,20 +442,20 @@ suite('GitHubCloudAutomationStore', () => {
 			available: target.get().workspace?.toString(),
 			calls: api.calls.map(call => call.method),
 		}, {
-			unavailable: { blocked: false, repository: undefined, workspace },
+			unavailable: { blocked: true, repository: true, workspace: undefined },
 			available: workspace.toString(),
-			calls: ['capability', 'capability', 'list'],
+			calls: ['capability', 'capability', 'capability', 'list'],
 		});
 	});
 
 	for (const manageability of [false, new Error('Offline')]) {
-		test(`private repository selection ignores ${manageability === false ? 'disabled ownership' : 'unresolved ownership'} until Repository is selected`, async () => {
+		test(`private repository selection blocks ${manageability === false ? 'disabled' : 'unresolved'} automation management`, async () => {
 			const { store, api } = setup();
 			api.manageability.set(repository.repo, manageability);
 			const target = store.getWorkspaceTarget(workspace);
 			await timeout(0);
 			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, repository: target.get().isRepository, workspace: target.get().workspace?.toString(), calls: api.calls.map(call => call.method) }, {
-				blocked: false, repository: undefined, workspace: workspace.toString(), calls: [],
+				blocked: true, repository: true, workspace: undefined, calls: ['capability'],
 			});
 		});
 	}

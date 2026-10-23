@@ -163,12 +163,25 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let notificationText: HTMLElement | undefined;
 		let notificationAction: Button | undefined;
 		let activeNotificationAction: IAutomationDialogMessage['action'];
+		let renderedNotification: { readonly source: AutomationDialogMessageSource; readonly severity: IAutomationDialogMessage['severity']; readonly text: string; readonly actionLabel: string | undefined } | undefined;
 		const messagePriority: readonly AutomationDialogMessageSource[] = ['operationError', 'saveError', 'targetValidation', 'scheduleValidation', 'toolCatalogError', 'immutableSettings', 'repositoryWarning'];
 		const updateNotificationCenter = () => {
-			const message = messagePriority.map(source => dialogMessages.get(source)).find(candidate => candidate !== undefined);
+			const candidate = messagePriority
+				.map(source => ({ source, message: dialogMessages.get(source) }))
+				.find(candidate => candidate.message !== undefined);
+			const message = candidate?.message;
 			if (!notificationCenter || !notificationIcon || !notificationText) {
 				return;
 			}
+			activeNotificationAction = message?.action;
+			const next = candidate && message ? { source: candidate.source, severity: message.severity, text: message.text, actionLabel: message.action?.label } : undefined;
+			if (renderedNotification?.source === next?.source
+				&& renderedNotification?.severity === next?.severity
+				&& renderedNotification?.text === next?.text
+				&& renderedNotification?.actionLabel === next?.actionLabel) {
+				return;
+			}
+			renderedNotification = next;
 			if (message) {
 				DOM.show(notificationCenter);
 				notificationCenter.setAttribute('aria-hidden', 'false');
@@ -179,7 +192,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 			notificationCenter.classList.toggle('error', message?.severity === 'error');
 			notificationCenter.classList.toggle('warning', message?.severity === 'warning');
 			notificationCenter.classList.toggle('info', message?.severity === 'info');
-			activeNotificationAction = message?.action;
 			if (notificationAction) {
 				notificationAction.label = message?.action?.label ?? '';
 				DOM.setVisibility(!!message?.action, notificationAction.element);
@@ -460,6 +472,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						DOM.getWindow(container),
 						() => [
 							...getFocusableElements(),
+							...(notificationAction ? [notificationAction.element] : []),
 							...(saveButton ? [saveButton.element] : []),
 							...(cancelButton ? [cancelButton.element] : []),
 						],

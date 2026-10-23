@@ -17,7 +17,7 @@ import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -307,6 +307,7 @@ suite('Automation dialog creation', () => {
 		tools: IObservable<AutomationToolCatalog> = constObservable(toolCatalog()),
 		loadTools: () => void = () => { },
 		checkRepositoryOwnership: IAutomationProviderConfiguration['checkRepositoryOwnership'] = async () => ({ allowed: true }),
+		repositoryOwnershipInvalidation?: IAutomationProviderConfiguration['repositoryOwnershipInvalidation'],
 	): IAutomationProviderConfiguration {
 		return {
 			sessionTypes: ['cloud-agent'], timeZone: 'UTC', description: 'Runs on GitHub',
@@ -314,6 +315,7 @@ suite('Automation dialog creation', () => {
 			tools, loadTools,
 			pickWorkspace: async () => REPOSITORY,
 			getWorkspaceTarget: uri => uri ? target : constObservable({ disabledReason: 'Choose a repository.' }),
+			repositoryOwnershipInvalidation,
 			checkRepositoryOwnership,
 		};
 	}
@@ -949,19 +951,16 @@ suite('Automation dialog creation', () => {
 
 	test('Repository ownership is rechecked when the Cloud configuration reconnects', async () => {
 		const reconnectedEligibility = new DeferredPromise<{ readonly allowed: boolean }>();
+		const invalidation = observableSignal('repository ownership invalidation');
 		let checks = 0;
 		const dialog = openDialog({}, cloudConfiguration(undefined, undefined, undefined, async () => {
 			checks++;
 			return checks === 1 ? { allowed: true } : reconnectedEligibility.p;
-		}));
+		}, invalidation));
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(REPOSITORY);
 		await timeout(0);
-		dialog.cloudEnabled.set(false, undefined);
-		dialog.providers.set([{ id: 'host', label: 'Host' }], undefined);
-		await timeout(0);
-		dialog.cloudEnabled.set(true, undefined);
-		dialog.providers.set([{ id: 'host', label: 'Host' }, { id: 'cloud', label: 'Cloud' }], undefined);
+		invalidation.trigger(undefined);
 		await timeout(0);
 
 		const spinner = dialog.container.querySelector<HTMLElement>('.automation-target-toolbar > .automation-loading-spinner')!;
@@ -1743,6 +1742,7 @@ suite('Automation dialog creation', () => {
 		const dialog = openDialog({}, cloudConfiguration(undefined, catalog, () => loads++));
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(REPOSITORY);
+		dialog.setPrompt('Review changes');
 		const button = dialog.container.querySelector<HTMLElement>('.automation-provider-tools .monaco-button')!;
 		const status = dialog.container.querySelector<HTMLElement>('.automation-provider-tools-status')!;
 		const snapshot = () => ({
@@ -1755,13 +1755,17 @@ suite('Automation dialog creation', () => {
 		catalog.set({ kind: 'error', message: 'Available tools could not be loaded.' }, undefined);
 		const failed = snapshot();
 		const retry = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center > .monaco-button')!;
+		dialog.saveButton.focus();
+		dispatchKey(dialog.saveButton, 'keydown', 'Tab', true);
+		const retryKeyboardReachable = DOM.getActiveElement() === retry;
 		retry.click();
 		catalog.set(toolCatalog(), undefined);
 		const retried = { loads, ...snapshot() };
 		catalog.set({ kind: 'loading' }, undefined);
-		assert.deepStrictEqual({ loading, failed, retried, accountChangeLoads: loads }, {
+		assert.deepStrictEqual({ loading, failed, retryKeyboardReachable, retried, accountChangeLoads: loads }, {
 			loading: { loads: 1, buttonDisabled: 'true', status: 'Loading available tools...', role: 'status', message: undefined, count: null },
 			failed: { buttonDisabled: 'true', status: undefined, role: 'status', message: 'Available tools could not be loaded.Retry', count: null },
+			retryKeyboardReachable: true,
 			retried: { loads: 2, buttonDisabled: 'false', status: undefined, role: 'status', message: undefined, count: '0 of 2 tools selected' },
 			accountChangeLoads: 3,
 		});
@@ -2159,10 +2163,11 @@ suite('Automation dialog creation', () => {
 		await dialog.selectWorkspace(REPOSITORY);
 		const progress = dialog.container.querySelector<HTMLElement>('.automation-target-progress')!;
 		const error = dialog.container.querySelector<HTMLElement>('#automation-target-error')!;
+		const notification = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
 		const observer = new (DOM.getWindow(progress).MutationObserver)(() => { });
 		disposables.add(toDisposable(() => observer.disconnect()));
 		const counts: number[] = [];
-		for (const node of [progress, error]) {
+		for (const node of [progress, error, notification]) {
 			if (node === error) {
 				target.set({ disabledReason: 'Access denied' }, undefined);
 			}
@@ -2172,7 +2177,7 @@ suite('Automation dialog creation', () => {
 			counts.push(observer.takeRecords().length);
 			observer.disconnect();
 		}
-		assert.deepStrictEqual(counts, [0, 0]);
+		assert.deepStrictEqual(counts, [0, 0, 0]);
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
