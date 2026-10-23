@@ -233,6 +233,7 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
+	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService());
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
@@ -2335,6 +2336,30 @@ suite('ProtocolServerHandler', () => {
 
 		teardown(async () => {
 			await rm(root, { recursive: true, force: true });
+		});
+
+		test('routes cleanup state and retry requests to the owning host', async () => {
+			const calls: { session: string; retry: boolean }[] = [];
+			agentService.sessionWorktreeCleanup = async (session, retry) => {
+				calls.push({ session: session.toString(), retry });
+				return { state: 'failed', message: 'permission denied' };
+			};
+			const transport = connectClient('worktree-cleanup');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: true }));
+			assert.deepStrictEqual({ response: await response, calls }, {
+				response: { jsonrpc: '2.0', id: 20, result: { state: 'failed', message: 'permission denied' } },
+				calls: [{ session: 'opaque-session://host/session', retry: true }],
+			});
+		});
+
+		test('rejects malformed cleanup requests without scheduling removal', async () => {
+			agentService.sessionWorktreeCleanup = async () => { throw new Error('Must not be called'); };
+			const transport = connectClient('worktree-cleanup-invalid');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: 'true' }));
+			const result = await response;
+			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
 		});
 
 		test('returns aggregate bytes without routing per-file resource requests', async () => {

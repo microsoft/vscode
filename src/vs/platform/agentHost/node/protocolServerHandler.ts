@@ -42,6 +42,8 @@ import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
 import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
+import { AgentHostWorktreeCleanupCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -1111,6 +1113,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							&& !transport.relayPassive,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
+						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -3621,6 +3624,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === SessionWorktreeCleanupExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta
+			&& client.transport.relayClientId === undefined && !client.transport.relayPassive && this._agentService.sessionWorktreeCleanup) {
+			const validated = sessionWorktreeCleanupParamsValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			if (!this._isChannelVisible(client, validated.content.session)) {
+				return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'Session is outside the host workspace grants'));
+			}
+			return this._agentService.sessionWorktreeCleanup(URI.parse(validated.content.session), validated.content.retry);
+		}
 		if ((method === MeasureWorktreeDiskUsageExtensionMethod || method === CancelWorktreeDiskUsageExtensionMethod)
 			&& !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
 			if (method === MeasureWorktreeDiskUsageExtensionMethod) {
