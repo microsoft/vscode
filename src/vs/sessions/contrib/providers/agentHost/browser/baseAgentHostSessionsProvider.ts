@@ -5684,7 +5684,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const policyDefaults = this._baseConfigurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration).policyValue;
 		const effectiveDefaults = getChatDefaultConfiguration(this._baseConfigurationService);
 
-		// Approval axis: policy > remembered > effective.
+		// Approval axis: policy > remembered > effective. A remembered
+		// host-native `approvalMode` would otherwise win over the policy seed
+		// when discovery maps it onto that binding.
+		if (normalizeAutoApproveValue(policyDefaults?.approvals)) {
+			delete remembered.approvalMode;
+		}
 		const resolvedAutoApprove =
 			normalizeAutoApproveValue(policyDefaults?.approvals)
 			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove])

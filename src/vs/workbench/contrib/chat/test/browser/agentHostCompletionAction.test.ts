@@ -171,6 +171,18 @@ suite('applyAgentHostCompletionAction', () => {
 		});
 	});
 
+	test('an organization-managed approval default merges unmanaged properties across configuration scopes', () => {
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const value = super.inspect<T>(key);
+				return key === ChatConfiguration.DefaultConfiguration
+					? { ...value, policyValue: { approvals: 'assisted' } as T, userValue: { mode: 'plan' } as T, workspaceValue: { approvals: 'manual' } as T, value: { approvals: 'assisted' } as T }
+					: value;
+			}
+		}();
+		assert.deepStrictEqual(getChatDefaultConfiguration(config), { mode: 'plan', approvals: 'assisted' });
+	});
+
 	for (const native of [false, true]) {
 		for (const hostPolicy of [false, true]) {
 			test(`initial approval preference is clamped only after discovery (native=${native}, hostPolicy=${hostPolicy})`, async () => {

@@ -31,7 +31,8 @@ export function getAgentHostApprovalDefault(configurationService: IConfiguration
 
 /**
  * The effective `chat.defaultConfiguration`. Organization policy replaces the whole object but may
- * manage only some of its properties, so each unmanaged property keeps the configured value.
+ * manage only some of its properties, so each unmanaged property keeps the value merged from the
+ * configured scopes, as it would without policy.
  */
 export function getChatDefaultConfiguration(configurationService: IConfigurationService): IChatDefaultConfiguration | undefined {
 	const inspected = configurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
@@ -39,9 +40,9 @@ export function getChatDefaultConfiguration(configurationService: IConfiguration
 	if (!policy) {
 		return inspected.value;
 	}
-	const configured = [inspected.memoryValue, inspected.workspaceFolderValue, inspected.workspaceValue, inspected.userRemoteValue,
-	inspected.userLocalValue, inspected.userValue, inspected.applicationValue].find(value => value !== undefined) ?? inspected.defaultValue;
-	return { ...configured, ...policy };
+	const layers = [inspected.defaultValue, inspected.applicationValue, inspected.userLocalValue, inspected.userRemoteValue, inspected.userValue,
+	inspected.workspaceValue, inspected.workspaceFolderValue, inspected.memoryValue, policy];
+	return Object.assign({}, ...layers.filter(isObject));
 }
 
 /**
