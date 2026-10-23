@@ -42,7 +42,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 
 	async $startProgress(handle: number, options: IProgressOptionsDto, extensionId?: string): Promise<void> {
 		const task = this._createTask(handle);
-		let progressOptions: IProgressOptions = { ...options, legacyExtensionLinkParsing, telemetry: options.telemetryId ?? extensionNotificationTelemetry(extensionId, 'progress') };
+		let progressOptions: IProgressOptions = { ...options, legacyExtensionLinkParsing, telemetry: options.telemetryId ?? extensionNotificationTelemetry(extensionId, 'progress', options.notificationId) };
 
 		if (options.location === ProgressLocation.Notification && extensionId) {
 			const sourceIsUrgent = MainThreadProgress.URGENT_PROGRESS_SOURCES.includes(extensionId);
