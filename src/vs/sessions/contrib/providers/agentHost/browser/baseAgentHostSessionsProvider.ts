@@ -3159,6 +3159,7 @@ interface INewSessionConstructionContext {
 	 */
 	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
 	readonly onSessionCreated: (backendSession: URI) => void;
+	readonly onSessionUsed: (sessionId: string) => void;
 	readonly activeClientScope: IAgentCustomizationScope;
 }
 
@@ -3296,6 +3297,9 @@ class NewSession extends Disposable {
 	private readonly _activeClientPublisher = this._register(new MutableDisposable());
 	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
 	private readonly _onSessionCreated: INewSessionConstructionContext['onSessionCreated'];
+	private readonly _onSessionUsed: INewSessionConstructionContext['onSessionUsed'];
+	private _hasBeenUsed = false;
+	get hasBeenUsed(): boolean { return this._hasBeenUsed; }
 
 	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
@@ -3341,6 +3345,7 @@ class NewSession extends Disposable {
 		this._logService = ctx.logService;
 		this._onSessionState = ctx.onSessionState;
 		this._onSessionCreated = ctx.onSessionCreated;
+		this._onSessionUsed = ctx.onSessionUsed;
 		this._activeClientScope = ctx.activeClientScope;
 		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
@@ -3954,9 +3959,9 @@ class NewSession extends Disposable {
 				this._chatSubscription = chatRef;
 				const initialChatState = chatRef.object.value;
 				if (initialChatState && !(initialChatState instanceof Error)) {
-					this.updateChangesets(initialChatState.changesets);
+					this.updateChatState(initialChatState);
 				}
-				this._chatStateListener.value = chatRef.object.onDidChange(chatState => this.updateChangesets(chatState.changesets));
+				this._chatStateListener.value = chatRef.object.onDidChange(chatState => this.updateChatState(chatState));
 				return true;
 			};
 			// The session state may not be hydrated yet: subscribe to its default chat once it advertises one.
@@ -4026,6 +4031,14 @@ class NewSession extends Disposable {
 		if (this._eagerCreateTask) {
 			await raceCancellationError(this._eagerCreateTask, this.cancellationToken);
 		}
+	}
+
+	private updateChatState(state: ChatState): void {
+		if (!this._hasBeenUsed && (state.activeTurn !== undefined || state.turns.length > 0)) {
+			this._hasBeenUsed = true;
+			this._onSessionUsed(this.sessionId);
+		}
+		this.updateChangesets(state.changesets);
 	}
 
 	private updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
@@ -4098,7 +4111,7 @@ class NewSession extends Disposable {
 		const connection = this._connection;
 		this._backendUri = undefined;
 		this._connection = undefined;
-		if (oldUri && connection) {
+		if (oldUri && connection && !this._hasBeenUsed) {
 			connection.disposeSession(oldUri).catch(err => {
 				this._logService.warn(`[${this._providerId}] Failed to dispose eager backend session ${oldUri.toString()}: ${err}`);
 			});
@@ -4372,6 +4385,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _isUnpublishedDraft(session: ISession): boolean {
 		return this._unpublishedDraftSessions.has(session.resource) && !this._pendingSessions.has(session.sessionId);
+	}
+
+	private _publishUsedDraft(sessionId: string): void {
+		const draft = this._newSessions.get(sessionId);
+		if (!draft || !this._unpublishedDraftSessions.delete(draft.session.resource)) {
+			return;
+		}
+		const cached = this._sessionCache.get(draft.backendUri.toString());
+		if (cached) {
+			this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
+		}
 	}
 
 	getBackendSessionResource(sessionId: string): URI | undefined {
@@ -5425,6 +5449,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata,
 				onSessionCreated: backendSession => this.registerBackendSession(backendSession, sessionType.id),
+				onSessionUsed: sessionId => this._publishUsedDraft(sessionId),
 				instantiationService: this._instantiationService,
 				onSessionState: (id, state) => state === undefined
 					? this._handleNewSessionStateGone(id)
@@ -9174,6 +9199,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const evictUnlistedAgents = listedAgentProviders.size === 0;
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
+					if (this._newSessions.has(cached.sessionId)) {
+						continue;
+					}
 					if (pendingRawIds.has(cached.resource.toString())) {
 						continue;
 					}

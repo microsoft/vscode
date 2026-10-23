@@ -33,7 +33,7 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, createActiveTurn, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -1364,6 +1364,98 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			isDraft: false,
 		});
 	});
+
+	test('delayed listings cannot publish an owned eager draft during rediscovery', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const host = createEagerCopilotConnection();
+		const listing = new DeferredPromise<IAgentSessionMetadata[]>();
+		const listingStarted = new DeferredPromise<void>();
+		let listCalls = 0;
+		host.listSessions = async () => {
+			if (listCalls++ === 0) {
+				void listingStarted.complete();
+				return listing.p;
+			}
+			return host.createdSessionUris.map(session => createSession(AgentSession.id(session), { session, provider: 'copilot', summary: AgentSession.id(session) }));
+		};
+		const storageService = disposables.add(new InMemoryStorageService());
+		const provider = createProvider(disposables, host, {
+			storageService, sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+		});
+		await listingStarted.p;
+		const announced: string[] = [];
+		disposables.add(provider.onDidChangeSessions(event => announced.push(...event.added.map(session => session.sessionId), ...event.changed.map(session => session.sessionId))));
+		provider.setAuthenticationPending(false);
+		const draft = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), 'copilot');
+		await waitForSessionConfig(provider, draft, config => config?.values.mode === 'plan');
+		await timeout(0);
+		await listing.complete([]);
+		await timeout(0);
+		const backend = host.createdSessionUris[0];
+		fireSessionAdded(host, AgentSession.id(backend), { session: backend, provider: 'copilot', title: AgentSession.id(backend) });
+		await timeout(500);
+		await storageService.flush();
+		const restored = createProvider(disposables, host, { noConnection: true, storageService });
+		assert.deepStrictEqual({
+			listed: provider.getSessions().map(session => session.sessionId),
+			announced,
+			restored: restored.getSessions().map(session => session.sessionId),
+			agents: provider.getCustomAgents(draft.sessionId).map(agent => agent.name),
+		}, { listed: [], announced: [], restored: [], agents: ['Reviewer'] });
+	}));
+
+	for (const completed of [false, true]) {
+		test(`a peer controller's ${completed ? 'completed' : 'active'} turn publishes an eager draft without disposing its session`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const host = createEagerCopilotConnection();
+			const storageService = disposables.add(new InMemoryStorageService());
+			const deletedWorktrees: string[] = [];
+			const provider = createProvider(disposables, host, {
+				storageService, sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				localAgentHostService: new class extends mock<IAgentHostService>() {
+					override async deleteDetachedWorktree(handle: string): Promise<void> {
+						deletedWorktrees.push(handle);
+					}
+				}(),
+			});
+			provider.setAuthenticationPending(false);
+			const draft = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), 'copilot', {
+				metadata: { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } },
+			});
+			await waitForSessionConfig(provider, draft, config => config?.values.mode === 'plan');
+			await timeout(0);
+			const backend = host.createdSessionUris[0];
+			const chat = URI.parse('host-chat:/conversation/primary');
+			const summary = { resource: chat.toString(), title: 'Peer conversation', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() };
+			host.setChannelState(chat, createChatState(summary));
+			host.setChannelState(backend, {
+				provider: 'copilot', title: 'Peer conversation', status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat: chat.toString(), chats: [summary],
+			});
+			const announced: string[] = [];
+			disposables.add(provider.onDidChangeSessions(event => announced.push(...event.added.map(session => session.resource.toString()))));
+			host.setChannelState(chat, {
+				...createChatState(summary),
+				...completed ? {
+					turns: [{ id: 'peer-turn', state: TurnState.Complete, message: { text: 'Hello', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
+				} : {
+					activeTurn: createActiveTurn('peer-turn', { text: 'Hello', origin: { kind: MessageKind.User } }, new Date(2000).toISOString()),
+				},
+			});
+			provider.deleteNewSession(draft.sessionId);
+			await timeout(500);
+			await storageService.flush();
+			const restored = createProvider(disposables, host, { noConnection: true, storageService });
+			assert.deepStrictEqual({
+				listed: provider.getSessions().map(session => session.resource.toString()),
+				announced,
+				restored: restored.getSessions().map(session => session.resource.toString()),
+				disposed: host.disposedSessions,
+				deletedWorktrees,
+			}, {
+				listed: [draft.resource.toString()], announced: [draft.resource.toString()],
+				restored: [draft.resource.toString()], disposed: [], deletedWorktrees: [],
+			});
+		}));
+	}
 
 	test('createNewSession does not eagerly create the backend session in an untrusted folder', async () => {
 		const provider = createProvider(disposables, connection, { workspaceTrusted: false });
