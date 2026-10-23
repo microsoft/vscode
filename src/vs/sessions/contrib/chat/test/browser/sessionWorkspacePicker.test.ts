@@ -688,6 +688,38 @@ suite('WorkspacePicker - Environment', () => {
 		});
 	});
 
+	test('keeps local-capable repository actions when the environment picker comes first', () => {
+		const environmentFirst = observableValue('environmentFirst', false);
+		const providers = disposables.add(new MockSessionsProvidersService());
+		providers.setProviders([
+			createMockProvider('local-agent-host'),
+			{
+				...createMockProvider('default-copilot', {
+					browseActions: [makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Work in Repository...')],
+				}),
+				supportsLocalWorkspaces: true,
+			},
+			createMockProvider('agenthost-remote-1', {
+				browseActions: [makeBrowseAction('agenthost-remote-1', SESSION_WORKSPACE_GROUP_REMOTE, 'Remote Folder...')],
+			}),
+		]);
+		const picker = createTestPicker(disposables, providers, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+			environment: derived(reader => environmentFirst.read(reader) ? localEnvironment : undefined),
+			restoreFromSessions: false,
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const actions = () => picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label);
+		const workspaceFirst = actions();
+		environmentFirst.set(true, undefined);
+		const environmentFirstActions = actions();
+
+		assert.deepStrictEqual({ workspaceFirst, environmentFirstActions }, {
+			workspaceFirst: ['Open Folder...', 'Work in Repository', 'Remote Folder'],
+			environmentFirstActions: ['Open Folder...', 'Work in Repository'],
+		});
+	});
+
 	test('omits redundant environment labels in folder rows and triggers only for the selected environment', () => {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		const base = createMockProvider('agenthost-remote-1', { group: SESSION_WORKSPACE_GROUP_REMOTE });

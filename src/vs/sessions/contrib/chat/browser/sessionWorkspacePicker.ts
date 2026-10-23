@@ -1556,7 +1556,7 @@ export class WorkspacePicker extends Disposable {
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		const environment = this._getEnvironment();
 		const providers = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id)
-			&& (!environment || environment.providerIds.includes(provider.id)));
+			&& (!environment || environment.providerIds.includes(provider.id) || environment.kind === 'local' && provider.supportsLocalWorkspaces));
 		const all = providers.flatMap(p => p.browseActions);
 		const hasLocalSupport = providers.some(p => p.supportsLocalWorkspaces);
 		if (hasLocalSupport) {
