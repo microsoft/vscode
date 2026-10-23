@@ -708,7 +708,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[COMPARE_AGENTS_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Compare Models action is shown in the model picker for eligible new Agent sessions."),
 			tags: ['experimental'],
