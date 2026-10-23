@@ -13,7 +13,9 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { EditorsOrder } from '../../../../workbench/common/editor.js';
+import { EditorsOrder, GroupModelChangeKind } from '../../../../workbench/common/editor.js';
+import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorResolverService } from '../../../../workbench/services/editor/common/editorResolverService.js';
@@ -328,6 +330,13 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			// What extensions open in a numbered view column, such as `ViewColumn.One`, opens in its editor area while it is
 			// the active window, rather than in the main window.
 			windowDisposables.add(part.setViewColumnGroup(editorGroup));
+			// Terminals show in the terminal row only: one opened in the editor area, such as by a New Terminal action
+			// that targets the active group, moves to the row.
+			windowDisposables.add(editorGroup.onDidModelChange(e => {
+				if (e.kind === GroupModelChangeKind.EDITOR_OPEN && e.editor?.typeId === TerminalEditorInput.ID) {
+					void this._moveTerminalToRow(window, editorGroup, e.editor);
+				}
+			}));
 			// What the Session Activity Bar of the chat window shows as checked, and offers, as it does for the main window.
 			const editorAreaEditorContext = ChatWindowEditorAreaEditorContext.bindTo(windowContextKeyService);
 			const activeEditor = observableFromEvent(this, editorGroup.onDidActiveEditorChange, () => editorGroup.activeEditorPane?.getId() ?? '');
@@ -514,6 +523,16 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			this._terminalRows.get(window)?.dispose();
 			this._terminalRows.delete(window);
 			window.part.removeGroup(group);
+		}
+	}
+
+	private async _moveTerminalToRow(window: ChatWindow, from: IEditorGroup, editor: EditorInput): Promise<void> {
+		if (!window.terminalGroup.get()) {
+			await this.setTerminalShown(window, true, false);
+		}
+		const row = window.terminalGroup.get();
+		if (row && row !== from && from.contains(editor)) {
+			from.moveEditor(editor, row, { pinned: true });
 		}
 	}
 
