@@ -308,6 +308,55 @@ suite('IssueReporterOverlay', () => {
 		}, { write: preview, padding: '16px', previewPadding: '16px', proportional: true });
 	});
 
+	for (const [theme, markerColor] of [
+		['dark', 'rgb(231, 231, 231)'],
+		['light', 'rgb(51, 51, 51)'],
+		['hc-dark', 'rgb(111, 195, 223)'],
+		['hc-light', 'rgb(181, 32, 13)'],
+	]) {
+		test(`keeps the selected description mode visible without focus (${theme})`, () => {
+			const { container, editor, writeTab, previewTab, descriptionPreview } = createReporter();
+			container.style.setProperty('--vscode-panelTitle-activeBorder', markerColor);
+			container.style.setProperty('--vscode-fontWeight-semiBold', '600');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			const selection = () => [writeTab, previewTab].map(tab => {
+				const marker = mainWindow.getComputedStyle(tab, '::after');
+				return {
+					selected: tab.getAttribute('aria-selected'),
+					emphasized: mainWindow.getComputedStyle(tab).fontWeight === '600',
+					marked: marker.content === '""' && marker.backgroundColor === markerColor && marker.height === '1px',
+					focused: mainWindow.document.activeElement === tab,
+				};
+			});
+			editor.focus();
+			const write = selection();
+			writeTab.focus();
+			writeTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+			descriptionPreview.focus();
+			const preview = selection();
+			writeTab.click();
+			editor.focus();
+			assert.deepStrictEqual({
+				buttonInlineStyles: [writeTab, previewTab].every(tab => !!tab.style.color && !!tab.style.border),
+				write, preview, restored: selection(),
+			}, {
+				buttonInlineStyles: true,
+				write: [
+					{ selected: 'true', emphasized: true, marked: true, focused: false },
+					{ selected: 'false', emphasized: false, marked: false, focused: false },
+				],
+				preview: [
+					{ selected: 'false', emphasized: false, marked: false, focused: false },
+					{ selected: 'true', emphasized: true, marked: true, focused: false },
+				],
+				restored: [
+					{ selected: 'true', emphasized: true, marked: true, focused: false },
+					{ selected: 'false', emphasized: false, marked: false, focused: false },
+				],
+			});
+		});
+	}
+
 	test('previews rendered Markdown without submitting and preserves edits and undo across toggles', async () => {
 		const markdown = '# Heading\n\nA **bold** description with [a link](https://example.com).\n\n- first\n- second\n\n```ts\nconst answer = 42;\n```';
 		const { overlay, editor, setSelection, preview, previewTab, writeTab, description, descriptionPreview, data } = createReporter({ issueBody: markdown });

@@ -336,12 +336,22 @@
 }
 
 .issue-reporter-wizard .wizard-description-tabs .monaco-button {
+	position: relative;
 	width: auto;
 }
 
 .issue-reporter-wizard .wizard-description-tabs [aria-selected="true"] {
-	color: var(--vscode-foreground);
-	border-bottom-color: var(--vscode-focusBorder);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.issue-reporter-wizard .wizard-description-tabs [aria-selected="true"]::after {
+	content: '';
+	position: absolute;
+	inset-inline: var(--vscode-spacing-size80);
+	bottom: var(--vscode-spacing-size20);
+	height: var(--vscode-strokeThickness);
+	background-color: var(--vscode-panelTitle-activeBorder);
+	pointer-events: none;
 }
 
 .issue-reporter-wizard .wizard-description-editor,
