@@ -12,11 +12,47 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentConnection, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { resolveCloudSandboxSessionConfig } from '../../../browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig } from '../../../browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 
 suite('CloudSandboxSessionConfig', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const imageGeneration: SessionConfigPropertySchema = { type: 'boolean', title: 'Image Generation', default: false, sessionMutable: false };
+
+	for (const restricted of [false, true]) {
+		test(`draft options preserve cloud values without duplicate generic pickers (restricted=${restricted})`, () => {
+			const configuration = new class extends TestConfigurationService {
+				override inspect<T>(key: string): IConfigurationValue<T> {
+					const result = super.inspect<T>(key);
+					return { ...result, policyValue: restricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
+				}
+			}({ [ChatConfiguration.GlobalAutoApprove]: false });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const config = createCloudSandboxSessionConfig(configuration);
+			const groups = createCloudSandboxDraftOptionGroups(config);
+			const approvalGroup = groups.find(group => group.id === 'approvalMode')!;
+			assert.deepStrictEqual({
+				pickersVisible: groups.map(group => ContextKeyExpr.deserialize(group.when)?.evaluate({ getValue: () => undefined })),
+				approvals: approvalGroup.items.map(item => ({ id: item.id, label: item.name, description: item.description })),
+				defaults: readCloudSandboxDraftConfig(undefined, config),
+				selected: readCloudSandboxDraftConfig(new Map([['mode', 'plan'], ['approvalMode', 'allow-all'], ['unrelated', 'ignored']]), config),
+			}, {
+				pickersVisible: [false, false],
+				approvals: [
+					{ id: 'manual', label: 'Manual permissions', description: 'Asks when approval settings don\'t apply' },
+					...restricted ? [] : [
+						{ id: 'assisted', label: 'Assisted permissions', description: 'Evaluates risk before running tools' },
+						{ id: 'allow-all', label: 'Allow all', description: 'Runs tool calls without asking' },
+					],
+				],
+				defaults: { mode: 'interactive', approvalMode: restricted ? 'manual' : 'assisted' },
+				selected: { mode: 'plan', approvalMode: restricted ? 'manual' : 'allow-all' },
+			});
+		});
+	}
 
 	function createConfig(property?: SessionConfigPropertySchema): ResolveSessionConfigResult {
 		return {
