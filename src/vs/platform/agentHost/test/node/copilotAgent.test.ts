@@ -134,6 +134,7 @@ import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copil
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
 import { getCopilotAutoTier, getCopilotCustomAgents, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
+import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { registerPendingEditContentProvider } from '../../node/copilot/pendingEditContentStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -855,6 +856,7 @@ class TestCopilotClient implements ITestCopilotClient {
 						startTime: session.startTime.toISOString(),
 						modifiedTime: session.modifiedTime.toISOString(),
 						summary: session.summary,
+						...(session.name !== undefined ? { name: session.name } : {}),
 						clientName: session.clientName,
 						isRemote: false,
 						...(session.context ? {
@@ -18540,6 +18542,51 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('titles a legacy chat by its CLI name, then its staged custom title, then the SDK summary', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/legacy-title-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/legacy-title-discovery-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([
+				{ ...sdkSession('ehcli-named', workingDirectory), name: 'Renamed In VS Code' },
+				sdkSession('ehcli-staged', workingDirectory),
+				sdkSession('ehcli-plain', workingDirectory),
+			]);
+			await writeExtensionHostMarker(userHome, 'ehcli-named', { origin: 'vscode', customTitle: 'Staged Title' });
+			await writeExtensionHostMarker(userHome, 'ehcli-staged', { origin: 'vscode', customTitle: 'Staged Title' });
+			await writeExtensionHostMarker(userHome, 'ehcli-plain');
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
+			});
+			const discovered: IAgentDiscoveredChat[] = [];
+			const listener = agent.onDidDiscoverChats(chats => discovered.push(...chats));
+			try {
+				await agent.startChatDiscovery();
+				const staged = AgentSession.uri('copilotcli', 'ehcli-staged');
+				const stagedChat = defaultChatUri(staged);
+				const stagedMetadata = await agent.getChatMetadata(stagedChat, exactChatContext(staged, stagedChat, staged));
+
+				assert.deepStrictEqual({
+					discovered: discovered.map(chat => ({ id: sessionIdOfChat(chat.chat), summary: chat.summary })).sort((a, b) => a.id.localeCompare(b.id)),
+					metadata: stagedMetadata?.summary,
+				}, {
+					discovered: [
+						{ id: 'ehcli-named', summary: 'Renamed In VS Code' },
+						{ id: 'ehcli-plain', summary: 'SDK ehcli-plain' },
+						{ id: 'ehcli-staged', summary: 'Staged Title' },
+					],
+					metadata: 'Staged Title',
+				});
+			} finally {
+				listener.dispose();
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('does not surface a session Agent Host owns or one the SDK reports without a working directory', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/owned-discovery-home-`));
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/owned-discovery-cwd-`);
@@ -27097,6 +27144,201 @@ suite('CopilotAgent', () => {
 					const { kind, cause, firstTurn, phase } = event.data as { kind: string; cause: string; firstTurn: boolean; phase: string };
 					return { kind, cause, firstTurn, phase };
 				}), [{ kind: 'sdkSession', cause: 'workingDirectoryChanged', firstTurn: true, phase: 'turnPrepare' }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('re-applies the uncommitted model selection to the session a turn-preparation refresh replaces it with', async () => {
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			// This turn's Auto tier was applied to the old runtime, which only journals it once a turn commits it.
+			const selection: ModelSelection = { id: 'auto', config: { tier: 'intelligence', thinkingLevel: 'high' } };
+			const previousSession = { ...refreshSessionStub([]), requiresRestartAfterWorkingDirectoryChange: true, appliedModelSelection: selection };
+			const events: string[] = [];
+			const replacement = {
+				...refreshSessionStub([]),
+				async setModel(...args: Parameters<CopilotAgentSession['setModel']>) { events.push(`setModel ${JSON.stringify(args)}`); },
+				async send(prompt: string) { events.push(`send ${prompt}`); },
+			};
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+			};
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			internals._resumeSession = async () => {
+				setDefaultSessionStub(agent, sessionId, replacement);
+				return replacement as unknown as CopilotAgentSession;
+			};
+			try {
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'refresh-turn');
+				assert.deepStrictEqual(events, [`setModel ${JSON.stringify(['auto', 'high', undefined, 'intelligence', selection])}`, 'send hello']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		function createModelRefreshTest() {
+			const client = new TestCopilotClient([]);
+			const context = createTestAgentContext(disposables, { copilotClient: client });
+			const { agent } = context;
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const modelSession = () => ({
+				...refreshSessionStub([]),
+				appliedModelSelection: undefined as ModelSelection | undefined,
+				setModelError: undefined as Error | undefined,
+				modelCalls: [] as Parameters<CopilotAgentSession['setModel']>[],
+				async setModel(...args: Parameters<CopilotAgentSession['setModel']>) {
+					this.modelCalls.push(args);
+					if (this.setModelError) {
+						throw this.setModelError;
+					}
+					this.appliedModelSelection = args[4];
+				},
+			});
+			const previous = modelSession();
+			const replacement = modelSession();
+			const launch = { error: undefined as Error | undefined, count: 0 };
+			setDefaultSessionStub(agent, sessionId, previous);
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, chat: URI) => Promise<CopilotAgentSession>;
+			};
+			internals._resumeSession = async () => {
+				launch.count++;
+				if (launch.error) {
+					throw launch.error;
+				}
+				setDefaultSessionStub(agent, sessionId, replacement);
+				return replacement as unknown as CopilotAgentSession;
+			};
+			const send = (prompt: string) => agent.chats.sendMessage(chat, prompt, undefined, undefined, undefined, undefined, exactChatContext(session, chat, session));
+			return { ...context, client, session, chat, previous, replacement, launch, send };
+		}
+
+		for (const retry of ['send', 'resume'] as const) {
+			test(`retries a rejected model replay before ${retry} without another configuration change`, async () => {
+				const { agent, session, chat, previous, replacement, launch, send } = createModelRefreshTest();
+				const selection: ModelSelection = { id: 'auto', config: { tier: 'intelligence' } };
+				const error = new Error('Model replay rejected');
+				try {
+					await agent.chats.changeModel(chat, selection, session);
+					previous.requiresRestartAfterWorkingDirectoryChange = true;
+					replacement.setModelError = error;
+					await assert.rejects(send('blocked'), error);
+					const blocked = { sends: [...replacement.sendCalls], resumes: [...replacement.resumeCalls] };
+					replacement.setModelError = undefined;
+					if (retry === 'send') {
+						await send('retry');
+					} else {
+						await agent.chats.resumeTurn!(chat, 'retry-turn', exactChatContext(session, chat, session));
+					}
+					await send('after success');
+					assert.deepStrictEqual({
+						blocked, launches: launch.count, calls: replacement.modelCalls,
+						sends: replacement.sendCalls, resumes: replacement.resumeCalls,
+					}, {
+						blocked: { sends: [], resumes: [] }, launches: 1,
+						calls: Array.from({ length: 2 }, () => ['auto', undefined, undefined, 'intelligence', selection]),
+						sends: retry === 'send' ? ['retry', 'after success'] : ['after success'],
+						resumes: retry === 'resume' ? ['retry-turn'] : [],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		test('retains pending model intent when launching the replacement fails', async () => {
+			const { agent, session, chat, previous, replacement, launch, send } = createModelRefreshTest();
+			const selection: ModelSelection = { id: 'auto', config: { tier: 'balance' } };
+			const error = new Error('Resume rejected');
+			try {
+				await agent.chats.changeModel(chat, selection, session);
+				previous.requiresRestartAfterWorkingDirectoryChange = true;
+				launch.error = error;
+				await assert.rejects(send('blocked'), error);
+				launch.error = undefined;
+				await send('retry');
+				assert.deepStrictEqual({
+					calls: replacement.modelCalls, sends: replacement.sendCalls,
+				}, {
+					calls: [['auto', undefined, undefined, 'balance', selection]], sends: ['retry'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a newer explicit model selection supersedes a failed replay', async () => {
+			const { agent, session, chat, previous, replacement, send } = createModelRefreshTest();
+			const selection: ModelSelection = { id: 'auto', config: { tier: 'intelligence' } };
+			const next: ModelSelection = { id: 'auto', config: { tier: 'balance' } };
+			const error = new Error('Model replay rejected');
+			try {
+				await agent.chats.changeModel(chat, selection, session);
+				previous.requiresRestartAfterWorkingDirectoryChange = true;
+				replacement.setModelError = error;
+				await assert.rejects(send('blocked'), error);
+				replacement.setModelError = undefined;
+				await agent.chats.changeModel(chat, next, session);
+				await send('new selection');
+				assert.deepStrictEqual({
+					calls: replacement.modelCalls, sends: replacement.sendCalls,
+				}, {
+					calls: [
+						['auto', undefined, undefined, 'intelligence', selection],
+						['auto', undefined, undefined, 'balance', next],
+					],
+					sends: ['new selection'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const removeOverride of [false, true]) {
+			test(`refresh resolves current effort and Auto tier overrides (removed=${removeOverride})`, async () => {
+				const { agent, session, chat, previous, replacement, configurationService } = createModelRefreshTest();
+				const selection: ModelSelection = { id: 'auto', config: { tier: 'intelligence', thinkingLevel: 'medium' } };
+				try {
+					configurationService.updateRootConfig({ modelCapabilityOverrides: { auto: { reasoningEffort: 'low' } }, autoModeTierOverride: 'efficiency' });
+					await agent.chats.changeModel(chat, selection, session);
+					configurationService.updateRootConfig({
+						modelCapabilityOverrides: removeOverride ? {} : { auto: { reasoningEffort: 'high' } },
+						autoModeTierOverride: removeOverride ? '' : 'balance',
+					});
+					previous.requiresRestartAfterWorkingDirectoryChange = true;
+					await agent.chats.resumeTurn!(chat, 'refresh-turn', exactChatContext(session, chat, session));
+					assert.deepStrictEqual({
+						before: previous.modelCalls, after: replacement.modelCalls, resumes: replacement.resumeCalls,
+					}, {
+						before: [['auto', 'low', undefined, 'efficiency', selection]],
+						after: [['auto', removeOverride ? 'medium' : 'high', undefined, removeOverride ? 'intelligence' : 'balance', selection]],
+						resumes: ['refresh-turn'],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		test('replay leaves inherited Auto options to newly resolved managed defaults', async () => {
+			const { agent, session, chat, previous, replacement, client, send } = createModelRefreshTest();
+			const selection: ModelSelection = { id: 'auto', config: { tier: 'intelligence', [modelConfigurationSourceKey('tier')]: 'managed' } };
+			try {
+				await agent.chats.changeModel(chat, selection, session);
+				client.managedSettingsResolution = { ...client.managedSettingsResolution, values: { autoTier: 'balance' } };
+				previous.requiresRestartAfterWorkingDirectoryChange = true;
+				await send('new managed default');
+				assert.deepStrictEqual({
+					before: previous.modelCalls, after: replacement.modelCalls,
+				}, {
+					before: [['auto', undefined, undefined, 'intelligence', selection]],
+					after: [['auto', undefined, undefined, undefined, selection]],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
