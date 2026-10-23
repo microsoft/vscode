@@ -72,6 +72,7 @@ import { ISessionModelSelection, SessionModelSelection } from './sessionModelSel
 import { SessionReferenceCompletions } from './sessionReferenceCompletions.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 
@@ -351,6 +352,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const inputContainer = widget.inputPart.inputContainerElement;
 		if (inputContainer) {
 			this._register(this.instantiationService.createInstance(NewChatVoiceInputDecorations, inputContainer, this.options.inputVisible ?? constObservable(true), ownsDraftVoiceSession));
+			if (this.options.onboardingTargetId) {
+				this._register(markOnboardingTarget(inputContainer, this.options.onboardingTargetId, { focusTarget: { element: inputContainer, focus: () => this.focus() } }));
+			}
 		}
 		this._register(widget.input.registerChatPetHorizontalPlatformProvider({
 			onDidChange: Event.any(this.options.onDidChangeChatPetPlatform ?? Event.None, this.sessionTypePicker.onDidChangeChatPetPlatform),

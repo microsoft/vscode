@@ -16,6 +16,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
@@ -26,6 +27,7 @@ import { ICustomizationRemote, IRemotesModel, RemoteKind } from '../../browser/r
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
+	readonly environmentsEnabled = observableValue(this, false);
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
@@ -143,7 +145,7 @@ suite('RemotesWidget', () => {
 				tables: 1,
 				trees: 0,
 				columns: ['', 'Name', 'Address', 'Connection', ''],
-				roots: operatingSystem === OperatingSystem.Windows ? ['WSL', 'SSH', 'Tunnels'] : ['SSH', 'Tunnels'],
+				roots: operatingSystem === OperatingSystem.Windows ? ['SSH', 'Tunnels', 'WSL'] : ['SSH', 'Tunnels'],
 				switches: 0,
 				checkboxes: 0,
 				accessibleWSL: operatingSystem === OperatingSystem.Windows,
@@ -151,6 +153,16 @@ suite('RemotesWidget', () => {
 			});
 		});
 	}
+
+	test('orders enabled sections alphabetically in the table and accessible view', () => {
+		const { widget, parent, model } = createWidget(OperatingSystem.Windows);
+		model.environmentsEnabled.set(true, undefined);
+		const headings = ['Environments', 'SSH', 'Tunnels', 'WSL'];
+		assert.deepStrictEqual({
+			table: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
+			accessible: widget.getAccessibilityContent().split('\n').filter(line => headings.includes(line)),
+		}, { table: headings, accessible: headings });
+	});
 
 	test('aligns compact rows under resizable column headers', () => {
 		const { parent } = createWidget();
@@ -529,6 +541,47 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('Environments appears only when enabled and offers settings and empty guidance', async () => {
+		const { widget, parent, model, settings } = createWidget();
+		const groups = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(node => node.textContent);
+		const hidden = groups();
+		model.environmentsEnabled.set(true, undefined);
+		widget.setVisible(true);
+		await timeout(0);
+		const shown = groups();
+		parent.querySelector<HTMLElement>('[aria-label="Open Environment Settings"]')!.click();
+		await timeout(0);
+		const guidance = widget.getAccessibilityContent().includes('No environments available.');
+		model.environmentsEnabled.set(false, undefined);
+		assert.deepStrictEqual({ hidden, shown, settings, guidance, disabled: groups() }, {
+			hidden: ['SSH', 'Tunnels'], shown: ['Environments', 'SSH', 'Tunnels'],
+			settings: [{ query: GitHubEnvironmentsEnabledSettingId }], guidance: true, disabled: ['SSH', 'Tunnels'],
+		});
+	});
+
+	test('offline environment connection and removal explain their disabled states while Rename stays available', () => {
+		const { parent, model } = createWidget();
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: false,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
+			removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.',
+		}], undefined);
+		const connect = getConnectionAction(parent, 'environment:desktop');
+		const remove = getManagementAction(parent, 'environment:desktop', 'remove');
+		assert.deepStrictEqual({
+			connect: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled'),
+			remove: remove.getAttribute('aria-label'), renameDisabled: getManagementAction(parent, 'environment:desktop', 'rename').getAttribute('aria-disabled'),
+		}, {
+			connect: 'Connect to Desktop: Start the owning application.', disabled: 'true',
+			remove: 'Remove Desktop: Removing environments is not supported here. Manage sharing in the application running on that machine.', renameDisabled: null,
+		});
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
+		assert.deepStrictEqual({ label: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled') }, {
+			label: 'Disconnect Desktop', disabled: null,
+		});
+	});
+
 	test('Rename and Remove are reachable and operable through toolbar keyboard navigation', async () => {
 		const { parent, model } = createWidget();
 		const connection = getConnectionAction(parent, 'ssh:build');
@@ -598,12 +651,12 @@ suite('RemotesWidget', () => {
 			documentation,
 			accessibleGuidance: widget.getAccessibilityContent().includes('SSH Setup Guide: https://aka.ms/vscode-agent-ssh'),
 		}, {
-			labels: ['No WSL 2 distributions found.', 'No SSH hosts configured.', 'No tunnels found for this account.'],
+			labels: ['No SSH hosts configured.', 'No tunnels found for this account.', 'No WSL 2 distributions found.'],
 			counts: ['0', '0', '0'],
 			documentation: [
-				'https://aka.ms/vscode-remote/wsl/install-wsl',
 				'https://aka.ms/vscode-agent-ssh',
 				'https://aka.ms/vscode-agent-tunnel',
+				'https://aka.ms/vscode-remote/wsl/install-wsl',
 			],
 			accessibleGuidance: true,
 		});
