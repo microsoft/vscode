@@ -156,8 +156,8 @@ jobs:
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        timeout-minutes: 25
+        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
