@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -381,6 +382,31 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual(snapshots, [
 			{ nameEditing: false, announcementSetting: false },
 			{ nameEditing: true, announcementSetting: true },
+		]);
+	});
+
+	test('describes pull request feedback banners only when artifact integrations are disabled', () => {
+		const snapshots = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return {
+				pullRequestBanner: content.includes('When pull requests have failing checks or unreviewed comments, one banner appears above the input.'),
+				failingChecksBanner: content.includes('use Reveal in its banner item to open that pull request'),
+				artifactIntegrations: content.includes(`While the ${ArtifactIntegrationsSettingId} setting is enabled, pull request failing-check and review-comment banners do not appear above the input.`),
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ pullRequestBanner: true, failingChecksBanner: true, artifactIntegrations: false },
+			{ pullRequestBanner: false, failingChecksBanner: false, artifactIntegrations: true },
 		]);
 	});
 
