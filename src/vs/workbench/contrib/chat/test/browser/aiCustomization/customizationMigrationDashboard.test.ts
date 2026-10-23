@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -57,6 +58,7 @@ suite('CustomizationMigrationDashboard', () => {
 			deleteAgentMigrationRecovery: () => { },
 			retryCategory: () => { },
 			openCustomization: () => { },
+			openGuidanceSource: () => { },
 			...callbacks,
 		}));
 		dashboard.layout(1000);
@@ -93,7 +95,7 @@ suite('CustomizationMigrationDashboard', () => {
 						},
 						{
 							id: CustomizationMigrationCategoryId.PluginMarketplaces, label: 'Plugin Marketplaces', description: 'Move marketplaces to Copilot settings.', count: 1, selectedCount: 1, countLabel: '1 marketplace',
-							actionLabel: 'Migrate',
+							actionLabel: 'Migrate...',
 							destinationLabel: '~/.copilot/settings.json',
 							items: [
 								{ id: 'user-marketplace', label: 'vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
@@ -132,6 +134,125 @@ suite('CustomizationMigrationDashboard', () => {
 		};
 	}
 
+	test('guidance groups are read-only and open item-specific review details', () => {
+		const actions: string[] = [];
+		const { parent, dashboard, openedLinks } = createDashboard({
+			setItemSelected: () => actions.push('select'),
+			openCustomization: () => actions.push('open'),
+			migrateCategory: () => actions.push('migrate'),
+			ignoreCategory: (id, storage) => actions.push(`ignore:${id}:${storage}`),
+			openGuidanceSource: item => actions.push(`source:${item.id}`),
+		});
+		const participantUrl = 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants';
+		const toolSetUrl = 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets';
+		const guidanceOverview: ICustomizationMigrationDashboardOverview = {
+			scopes: [
+				{
+					storage: PromptsStorage.user,
+					label: 'Your profile',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						id: CustomizationMigrationCategoryId.ToolSets,
+						label: 'Tool Sets',
+						learnMoreUrl: toolSetUrl,
+						description: 'Automatic migration is unavailable.',
+						count: 1,
+						countLabel: '1 customization',
+						items: [{ id: 'tool-set', label: 'review-tools', scopeLabel: 'User', sourceLabel: 'review.toolsets.jsonc', resource: URI.file('/profile/review.toolsets.jsonc') }],
+					}],
+				},
+				{
+					storage: PromptsStorage.extension,
+					label: 'Extensions',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						id: CustomizationMigrationCategoryId.ChatParticipants,
+						label: 'Chat Participants',
+						learnMoreUrl: participantUrl,
+						description: 'Automatic migration is unavailable.',
+						count: 1,
+						countLabel: '1 customization',
+						items: [{ id: 'participant', label: '@review', scopeLabel: 'Extension', sourceLabel: 'Review Extension', extensionId: 'example.review' }],
+					}],
+				},
+			],
+		};
+		dashboard.showOverview(guidanceOverview);
+		dashboard.focus();
+		const links = [...parent.querySelectorAll<HTMLElement>('.migration-tree [role="link"]')];
+		const focusedLabel = DOM.getActiveElement()?.getAttribute('aria-label');
+		const nativeNavigationAllowed = links[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const guidanceRows = [...parent.querySelectorAll<HTMLElement>('.migration-tree-item')];
+		const checkboxesHidden = guidanceRows.every(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-hidden') === 'true');
+		const rowActionsHidden = guidanceRows.every(row => row.querySelector<HTMLElement>('.migration-tree-item-more')?.style.display === 'none');
+		const reviewActionsVisible = guidanceRows.every(row => row.querySelector<HTMLElement>('.migration-tree-item-review')?.style.display !== 'none');
+		button(parent, 'Review @review').click();
+		const detailFocus = DOM.getActiveElement()?.textContent;
+		const detailAccessibilityContent = dashboard.getGuidanceDetailAccessibilityContent();
+		const detail = parent.querySelector<HTMLElement>('.migration-guidance-detail');
+		const detailStructure = {
+			header: [...detail?.querySelector('.editor-header')?.children ?? []].map(child => child.className),
+			name: detail?.querySelector('.editor-item-name')?.textContent,
+			source: detail?.querySelector('.editor-item-path')?.textContent,
+			card: detail?.querySelector('.mcp-detail-diagnostic-card')?.className,
+			summary: detail?.querySelector('.mcp-detail-diagnostic-summary')?.textContent,
+		};
+		const sourceNavigationAllowed = parent.querySelector<HTMLElement>('[aria-label="View the extension that contributes @review"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		[...parent.querySelectorAll<HTMLElement>('.migration-guidance-card a')].find(link => link.textContent === 'Learn how to replace chat participants')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		dashboard.showOverview(guidanceOverview);
+		const detailPreservedOnRefresh = parent.querySelector('.migration-guidance-detail .editor-item-name')?.textContent;
+		(DOM.getActiveElement() as HTMLElement | null)?.blur();
+		dashboard.focus();
+		const refocusedDetail = DOM.getActiveElement()?.textContent;
+		parent.querySelector<HTMLElement>('button.editor-back-button[aria-label="Back to migrations"]')!.click();
+		const restoredRow = parent.querySelector('.monaco-list-row.focused')?.getAttribute('aria-label');
+		const restoredFocusInTree = parent.querySelector('.migration-tree')?.contains(DOM.getActiveElement()) ?? false;
+		assert.deepStrictEqual({
+			urls: links.map(link => link.getAttribute('href')),
+			opened: openedLinks,
+			nativeNavigationAllowed,
+			focusedLabel,
+			actions,
+			checkboxesHidden,
+			rowActionsHidden,
+			reviewActionsVisible,
+			migrateActions: [...parent.querySelectorAll('[role="button"]')].filter(button => button.textContent?.startsWith('Migrate')).length,
+			detailFocus,
+			detailStructure,
+			sourceNavigationAllowed,
+			detailPreservedOnRefresh,
+			refocusedDetail,
+			restoredRow,
+			restoredFocusInTree,
+			detailAccessibilityContent,
+		}, {
+			urls: [participantUrl, toolSetUrl],
+			opened: [participantUrl, participantUrl],
+			nativeNavigationAllowed: false,
+			focusedLabel: 'Learn how to migrate Chat Participants (Extensions)',
+			actions: ['source:participant'],
+			checkboxesHidden: true,
+			rowActionsHidden: true,
+			reviewActionsVisible: true,
+			migrateActions: 0,
+			detailFocus: 'Learn how to replace chat participants',
+			detailStructure: {
+				header: ['editor-back-button', 'editor-item-info'],
+				name: '@review',
+				source: 'Review Extension',
+				card: 'mcp-detail-diagnostic-card migration warning migration-guidance-card',
+				summary: 'Replace Chat Participant',
+			},
+			sourceNavigationAllowed: false,
+			detailPreservedOnRefresh: '@review',
+			refocusedDetail: 'Learn how to replace chat participants',
+			restoredRow: '@review, Extension, source Review Extension',
+			restoredFocusInTree: true,
+			detailAccessibilityContent: '@review\n\nSource: Review Extension\n\nReplace Chat Participant\n\nChat participants are deprecated and are not supported by the Copilot harness.\n\nAsk the extension publisher whether it provides an agent plugin, MCP server, or extension tools. Use a custom agent when the integration needs an ongoing specialist role.\n\nLearn how to replace chat participants: https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants',
+		});
+	});
 	test('renders migration groups with destination paths and sends scoped actions', () => {
 		const actions: string[] = [];
 		const { parent, dashboard, hoverContents, telemetryActions } = createDashboard({
@@ -143,14 +264,14 @@ suite('CustomizationMigrationDashboard', () => {
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		const agentMigrationButton = button(parent, 'Start a guided migration of all customization files that need migration');
-		const migrateButton = button(parent, 'Migrate: Convert Prompt to Skills (Workspace)');
+		const migrateButton = button(parent, 'Migrate...: Convert Prompt to Skills (Workspace)');
 		agentMigrationButton.click();
 		migrateButton.click();
-		button(parent, 'Migrate: Convert Prompt to Skills (User)').click();
-		button(parent, 'Migrate: MCP Servers (Workspace)').click();
-		button(parent, 'Migrate: Plugin Marketplaces (User)').click();
-		button(parent, 'Migrate: User Data (User)').click();
-		button(parent, 'Migrate: Custom location settings (Workspace)').click();
+		button(parent, 'Migrate...: Convert Prompt to Skills (User)').click();
+		button(parent, 'Migrate...: MCP Servers (Workspace)').click();
+		button(parent, 'Migrate...: Plugin Marketplaces (User)').click();
+		button(parent, 'Migrate...: User Data (User)').click();
+		button(parent, 'Migrate...: Custom location settings (Workspace)').click();
 		button(parent, 'Change destination for user prompt migrations').click();
 		dashboard.focusDestination(PromptsStorage.user);
 		assert.deepStrictEqual({
@@ -200,7 +321,7 @@ suite('CustomizationMigrationDashboard', () => {
 				'Migrate user data customizations to the active harness (User)',
 				'Migrate customizations from VS Code-configured locations (Workspace)',
 			],
-			initialFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
+			initialFocus: 'Migrate...: Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',
 			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
 			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
@@ -263,7 +384,7 @@ suite('CustomizationMigrationDashboard', () => {
 			overviewFocus: document.activeElement?.getAttribute('aria-label'),
 		}, {
 			loadingFocus: 'Migrations',
-			overviewFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
+			overviewFocus: 'Migrate...: Convert Prompt to Skills (Workspace)',
 		});
 	});
 
@@ -286,13 +407,13 @@ suite('CustomizationMigrationDashboard', () => {
 		button(parent, 'Show and restore ignored migrations').click();
 
 		assert.deepStrictEqual({
-			migrateLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').textContent,
-			migrateAriaLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').getAttribute('aria-label'),
-			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1: Convert Prompt to Skills (User)')),
+			migrateLabel: button(parent, 'Migrate 1...: Convert Prompt to Skills (User)').textContent,
+			migrateAriaLabel: button(parent, 'Migrate 1...: Convert Prompt to Skills (User)').getAttribute('aria-label'),
+			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1...: Convert Prompt to Skills (User)')),
 			actions,
 		}, {
-			migrateLabel: 'Migrate 1',
-			migrateAriaLabel: 'Migrate 1: Convert Prompt to Skills (User)',
+			migrateLabel: 'Migrate 1...',
+			migrateAriaLabel: 'Migrate 1...: Convert Prompt to Skills (User)',
 			migrateTooltip: 'Convert prompt files to skills (User)',
 			actions: [
 				'selected:user-prompt-1:false',
@@ -467,6 +588,35 @@ suite('CustomizationMigrationDashboard', () => {
 			focus: document.activeElement?.textContent,
 			telemetryActions,
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
+	});
+
+	test('marks the dashboard busy and labels the active migration group', () => {
+		const { parent, dashboard } = createDashboard();
+		const model = overview();
+		dashboard.showOverview({
+			...model,
+			migrationInProgress: true,
+			scopes: model.scopes.map(scope => ({
+				...scope,
+				categories: scope.categories.map(category => category.id === CustomizationMigrationCategoryId.PluginMarketplaces ? {
+					...category,
+					actionLabel: 'Migrating...',
+					migrationInProgress: true,
+					migrateDisabled: true,
+				} : { ...category, migrateDisabled: true }),
+			})),
+		});
+
+		const migrating = button(parent, 'Migrating...: Plugin Marketplaces (User)');
+		assert.deepStrictEqual({
+			busy: parent.querySelector('.migration-page')?.getAttribute('aria-busy'),
+			label: migrating.textContent,
+			disabled: migrating.getAttribute('aria-disabled'),
+		}, {
+			busy: 'true',
+			label: 'Migrating...',
+			disabled: 'true',
+		});
 	});
 
 	test('keeps category discovery errors scoped and retryable alongside valid migrations', () => {

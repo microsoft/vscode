@@ -580,6 +580,33 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'third');
 	});
 
+	test('pointer movement to a disabled hover row restores list focus before hiding the previous toolbar', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('enabled'), toolbarActions: [toAction({ id: 'configure', label: 'Configure', run: () => { } })] },
+				{ ...action('disabled'), disabled: true, hover: { content: 'Unavailable' } },
+			],
+			listOptions: { showFilter: false, tabThroughItemActions: true },
+		});
+		const rows = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row');
+		widget.focus();
+		rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		widget.domNode.querySelector<HTMLElement>('.action-list-item-toolbar .action-label')!.focus();
+		const before = widget.getFocusedElement()?.item?.id;
+		rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const after = widget.getFocusedElement()?.item?.id;
+		const focusRestored = document.activeElement === widget.domNode.querySelector('.monaco-list');
+		widget.focusNext();
+
+		assert.deepStrictEqual({ before, after, focusRestored, keyboardRecovered: widget.getFocusedElement()?.item?.id }, {
+			before: 'enabled',
+			after: undefined,
+			focusRestored: true,
+			keyboardRecovered: 'enabled',
+		});
+	});
+
 	for (const filterAsCombobox of [false, true]) {
 		test(`only keyboard navigation draws the selection border (combobox: ${filterAsCombobox})`, () => {
 			const widget = createActionListWidget(disposables, {
@@ -1291,6 +1318,25 @@ suite('ActionListWidget', () => {
 		await timeout(0);
 		assert.ok(widget.domNode.textContent?.includes('server-ranked-result'));
 	}));
+
+	test('matches nonvisual filter text without rendering it', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('shared'), filterText: 'owner-one/shared' },
+				{ ...action('shared'), filterText: 'owner-two/shared' },
+			],
+		});
+
+		typeFilter(widget, 'owner-one/shared');
+
+		assert.deepStrictEqual({
+			rows: getVisibleRowText(widget),
+			nonvisualTextRendered: widget.domNode.textContent?.includes('owner-one/shared'),
+		}, {
+			rows: ['shared'],
+			nonvisualTextRendered: false,
+		});
+	});
 
 	test('ignores stale dynamic filter results', async () => {
 		const firstResult = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();

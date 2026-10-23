@@ -6265,6 +6265,14 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.uninstallPlugin(request, session, chat);
 	}
 
+	listPluginInstallations(providerId: AgentProvider, session?: URI, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.listPluginInstallations) {
+			throw new Error(`Plugin installation inventory is unavailable for provider '${providerId}'.`);
+		}
+		return provider.listPluginInstallations(session, chat);
+	}
+
 	async listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		this._assertCanvasesEnabled();
 		await this._restoreSessionChat(session, chat, 'Canvas operation');

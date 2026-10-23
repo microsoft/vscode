@@ -5902,6 +5902,101 @@ suite('AgentHostProtocolClient', () => {
 			}
 		}
 
+		test('lifecycle diagnostic state distinguishes failed responses and resets on replacement transport', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const initial = client.getConnectionDiagnosticState();
+			await completeHandshake(transports[0], client.connect());
+			await timeout(25);
+			const beforeFailure = client.getConnectionDiagnosticState();
+			const failed = assert.rejects(client.listSessions(), /authorization unavailable/);
+			const request = await waitForRequestAtWithin(transports[0], 'listSessions', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: -32007, message: 'authorization unavailable' } });
+			await failed;
+			const afterFailure = client.getConnectionDiagnosticState();
+			transports[0].fireClose();
+			client.reconnectNow();
+			const replacement = await waitForTransport(transports, 1);
+			const whileReconnecting = client.getConnectionDiagnosticState();
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			const recovered = client.getConnectionDiagnosticState();
+			client.dispose();
+			assert.deepStrictEqual({
+				initial: [initial.connectionState, initial.lastSuccessfulResponseAgeMs, initial.authenticationRestorePending],
+				before: [beforeFailure.connectionState, beforeFailure.lastSuccessfulResponseAgeMs],
+				after: [afterFailure.connectionState, afterFailure.lastSuccessfulResponseAgeMs],
+				reconnecting: [whileReconnecting.connectionState, whileReconnecting.lastSuccessfulResponseAgeMs, whileReconnecting.reconnectAttempt],
+				recovered: [recovered.connectionState, recovered.lastSuccessfulResponseAgeMs, recovered.reconnectScheduled],
+				requests: transports.flatMap(transport => transport.sentMessages).filter(message => hasKey(message, { method: true }) && message.method === 'listSessions').length,
+			}, {
+				initial: ['connecting', undefined, false], before: ['connected', 25], after: ['connected', 25],
+				reconnecting: ['reconnecting', undefined, 1], recovered: ['connected', 0, false], requests: 1,
+			});
+		}));
+
+		test('lifecycle diagnostics preserve opaque session and chat resources without extra protocol requests', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const transport = transports[0];
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase.startsWith('session.') || event.phase === 'chat.binding') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transport, client.connect());
+			const session = URI.parse('other-host:/opaque-session');
+			const chat = 'other-chat:/unrelated-chat';
+			const creation = client.createSession({ session, provider: 'other' });
+			const create = await waitForRequestAtWithin(transport, 'createSession', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: create.id, result: {} });
+			const created = await creation;
+			const subscription = disposables.add(client.getSubscription(StateComponents.Session, session, 'lifecycle-test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribe.id,
+				result: {
+					snapshot: {
+						resource: session.toString(), fromSeq: 0,
+						state: {
+							...createSessionState({ resource: session.toString(), provider: 'other', title: 'private title', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }),
+							lifecycle: SessionLifecycle.Ready,
+							defaultChat: chat,
+							chats: [{ resource: chat, title: 'private chat', origin: { kind: 'user' }, status: SessionStatus.Idle }],
+						},
+					},
+				},
+			});
+			await flushMicrotasks();
+			subscription.dispose();
+			const disposal = client.disposeSession(session);
+			const dispose = await waitForRequestAtWithin(transport, 'disposeSession', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: dispose.id, result: {} });
+			await disposal;
+			client.dispose();
+			assert.deepStrictEqual({
+				created: created.toString(),
+				diagnostics: diagnostics.map(event => [event.phase, event.outcome, event.sessionResource, event.chatResource, event.sessionState]),
+				logicalOperationsHaveNoAttempt: diagnostics.filter(event => ['session.create', 'session.subscribe', 'session.dispose'].includes(event.phase)).every(event => event.attemptId === undefined),
+				privateContent: JSON.stringify(diagnostics).includes('private'),
+				requests: transport.sentMessages.filter(message => hasKey(message, { method: true }) && ['createSession', 'subscribe', 'disposeSession'].includes(message.method)).length,
+			}, {
+				created: session.toString(),
+				diagnostics: [
+					['session.create', 'started', session.toString(), undefined, undefined],
+					['session.create', 'succeeded', session.toString(), undefined, undefined],
+					['session.subscribe', 'started', session.toString(), undefined, undefined],
+					['session.snapshot', 'info', session.toString(), undefined, 'ready'],
+					['chat.binding', 'info', session.toString(), chat, undefined],
+					['session.subscribe', 'succeeded', session.toString(), undefined, undefined],
+					['session.dispose', 'started', session.toString(), undefined, undefined],
+					['session.dispose', 'succeeded', session.toString(), undefined, undefined],
+				],
+				logicalOperationsHaveNoAttempt: true, privateContent: false, requests: 3,
+			});
+		}));
+
 		test('observes only the first post-readiness session request per recovery without issuing extra requests', () => runWithFakedTimers({}, async () => {
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
 			const diagnostics: IConnectionDiagnosticEvent[] = [];

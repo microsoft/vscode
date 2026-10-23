@@ -3605,7 +3605,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const cancellation = disposables.add(new CancellationTokenSource());
 		measurements.set(requestId, cancellation);
 		const cancelOnDisconnect = client.disposables.add(toDisposable(() => cancellation.cancel()));
-		disposables.add(disposableTimeout(() => cancellation.cancel(), 10_000));
 		try {
 			const sizeBytes = await raceCancellationError(
 				this._agentService.measureWorktreeDiskUsage(root, cancellation.token),
