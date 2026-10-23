@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.144.0",
-  "distro": "eb93e228cf5aa5544a0eccb94616d63902d7e4e8",
+  "distro": "521818f764541475ae887336c771834dbb3c71af",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -84,8 +84,9 @@
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
     "compile-extensions-build": "npm run gulp compile-extensions-build",
-    "hygiene": "npm run gulp hygiene",
+    "hygiene": "npm run gulp -- hygiene",
     "core-ci": "npm run gulp core-ci",
+    "core-ci-pr": "npm run gulp core-ci-pr",
     "perf": "node scripts/code-perf.js",
     "perf:css": "node .github/skills/auto-perf-optimize/scripts/workbench-css-performance.mts",
     "perf:chat": "node scripts/chat-simulation/test-chat-perf-regression.js",

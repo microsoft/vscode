@@ -61,17 +61,6 @@ export function enableNodeCompileCache(kind: NodeCompileCacheKind): boolean {
 		return false;
 	}
 
-	// TODO: Re-enable POSIX caches once the runtime fixes portable caching with eager/read-only options.
-	if (process.platform !== 'win32') {
-		setNodeCompileCacheStatus({
-			kind,
-			status: 'disabled',
-			configuredDirectory: cacheDirectory,
-			isPackagedCacheEnabled: false
-		});
-		return false;
-	}
-
 	const isGeneratingCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
 	const runtimeCachePrefix = `${process.version}-${process.arch}-`;
 	// eslint-disable-next-line local/code-no-sync-fs -- The cache must be validated before enableCompileCache and subsequent module imports; an async probe would miss compilation of those startup modules.

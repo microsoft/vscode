@@ -10,8 +10,6 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -19,7 +17,6 @@ import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../../workbench/contrib/f
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { FixtureKeybindingService, FixtureMenuService, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
 import { EmptyFileEditor, OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID } from '../../browser/emptyFileEditor.js';
 
@@ -55,11 +52,6 @@ function renderEditor({ container, disposableStore, theme, focus }: ComponentFix
 	container.style.height = '360px';
 	container.classList.add('agent-sessions-workbench');
 	const instantiationService = workbenchInstantiationService(undefined, disposableStore);
-	const configurationService = new TestConfigurationService({
-		[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
-	});
-	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
-	instantiationService.stub(IConfigurationService, configurationService);
 	const themeService = new TestThemeService(theme);
 	disposableStore.add(themeService._onThemeChange);
 	disposableStore.add(themeService._onFileIconThemeChange);
