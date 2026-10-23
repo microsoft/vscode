@@ -799,12 +799,17 @@ suite('Automation dialog creation', () => {
 		await committing.complete();
 		await timeout(0);
 		const error = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
+		const style = DOM.getWindow(error).getComputedStyle(error);
 		assert.deepStrictEqual({
 			disabledDuringSave, selected: repository.getAttribute('aria-checked'),
 			retryEnabled: dialog.saveButton.getAttribute('aria-disabled'), message: error.textContent,
-			visible: error.style.display !== 'none', focused: DOM.getActiveElement() === error,
+			visible: error.style.display !== 'none', focused: DOM.getActiveElement() === error, role: error.getAttribute('role'),
+			severity: error.classList.contains('error'), outline: style.outlineStyle,
 			dialogOpen: !!dialog.container.querySelector('.automation-dialog'),
-		}, { disabledDuringSave: 'true', selected: 'true', retryEnabled: 'false', message: reason, visible: true, focused: true, dialogOpen: true });
+		}, {
+			disabledDuringSave: 'true', selected: 'true', retryEnabled: 'false', message: reason,
+			visible: true, focused: true, role: 'alert', severity: true, outline: 'none', dialogOpen: true,
+		});
 		dialog.cancelButton.click();
 		assert.strictEqual(await dialog.result, undefined);
 	});

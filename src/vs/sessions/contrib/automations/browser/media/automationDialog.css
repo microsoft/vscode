@@ -372,6 +372,10 @@
 	border-color: var(--vscode-inputValidation-errorBorder);
 }
 
+.automation-dialog-notification-center:focus {
+	outline: none;
+}
+
 .automation-dialog-notification-icon,
 .automation-dialog-notification-icon > .codicon {
 	flex: 0 0 auto;
