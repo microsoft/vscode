@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryReceipts, type AgentHostAutomationHistoryState } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -36,6 +36,15 @@ import type { ISessionsProviderAutomations } from '../../../../services/sessions
 const MUTATION_TIMEOUT_MS = 30_000;
 const LEGACY_RUN_ARCHIVE_VERSION = 1;
 const ARCHIVE_CLEANUP_VERSION = 1;
+const HISTORY_DELETION_REQUEST_VERSION = 1;
+
+interface IHistoryDeletionRequest {
+	readonly requestId: string;
+	readonly resource: string;
+	readonly title: string;
+	readonly rows: readonly { readonly id: string; readonly session?: string }[];
+	readonly sessions: readonly string[];
+}
 
 /** The AHP connection surface for Automation catalogue subscriptions and commands. */
 export type IAgentHostAutomationConnection = Pick<IAgentConnection,
@@ -44,6 +53,7 @@ export type IAgentHostAutomationConnection = Pick<IAgentConnection,
 	| 'onDidAction'
 	| 'runAutomation'
 	| 'deleteAutomation'
+	| 'acknowledgeAutomationDeletion'
 > & {
 	getSubscription(
 		kind: StateComponents.AutomationCatalog,
@@ -85,7 +95,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private readonly _archiveKey: string;
 	private readonly _archivedRuns;
 	private readonly _cleanupKey: string;
+	private readonly _deletionRequestKey: string;
 	private readonly _deletingResources = new Set<string>();
+	private readonly _historyDeletionPromises = new Map<string, Promise<void>>();
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	/** Authoritative host runs, including those of retained history owners, merged with historical archive rows. */
@@ -105,6 +117,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		super();
 		this._archiveKey = `agentHostAutomation.legacyRunArchive.${_providerId}`;
 		this._cleanupKey = `${this._archiveKey}.acknowledgedCleanup`;
+		this._deletionRequestKey = `${this._archiveKey}.pendingDeletion`;
 		this._archivedRuns = observableValue<readonly IAutomationRun[]>(this, this._loadArchivedRuns());
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._archiveKey, this._store)(() => {
 			this._archivedRuns.set(this._loadArchivedRuns(), undefined);
@@ -119,6 +132,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._catalogError = observableSignalFromEvent(this, this._catalog.onDidError ?? Event.None);
 		this._register(this._catalog.onDidChange(() => this._reconcileArchiveCleanup()));
 		this._reconcileArchiveCleanup();
+		this._resumeHistoryDeletion();
 		const sessionResolutionChanged = observableSignalFromEvent(this, _boundaryMapper?.onDidChangeSessionResolution ?? Event.None);
 		this.catalogueState = derived(this, reader => {
 			this._catalogChanged.read(reader);
@@ -145,7 +159,17 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	getAutomationHistoryName(id: string): string | undefined {
-		return this._findAutomationEntry(id, true)?.definition.title;
+		const entry = this._findAutomationEntry(id, true);
+		if (entry) {
+			return entry.definition.title;
+		}
+		const request = this._readHistoryDeletionRequests()?.find(request => this._resourceId(request.resource) === id);
+		return request && this._resourceId(request.resource) === id ? request.title : undefined;
+	}
+
+	getAutomationHistoryState(id: string): AgentHostAutomationHistoryState | undefined {
+		const entry = this._findAutomationEntry(id, true);
+		return entry ? getAgentHostAutomationHistoryState(entry) : this._readHistoryDeletionRequests()?.some(request => this._resourceId(request.resource) === id) ? 'deleting' : undefined;
 	}
 
 	canRunAutomation(automationId: string): boolean {
@@ -158,6 +182,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	canDeleteAutomation(automationId: string): boolean {
 		return this._operationAvailable(automationId, AutomationOperation.Remove);
+	}
+
+	canDeleteAutomationHistory(automationId: string): boolean {
+		const state = this.getAutomationHistoryState(automationId);
+		return this.catalogueState.get() === 'ready'
+			&& this._connection.deleteAutomation !== undefined
+			&& (state === 'retained' || state === 'deleting');
 	}
 
 	supportsDeleteHistoryChoice(automationId: string): boolean {
@@ -290,24 +321,88 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		await this._waitForCatalog(() => true);
 		mutationGuard?.();
 		const { resource } = this._requireOperation(id, AutomationOperation.Remove);
-		const cleanup = deleteHistory ? this._prepareArchiveCleanup(resource) : undefined;
+		if (!deleteHistory) {
+			return this._doExecuteHistoryDeletion(resource, false, undefined, undefined);
+		}
+		return this._coalesceHistoryDeletion(resource, async () => {
+			const cleanup = this._prepareArchiveCleanup(resource);
+			const pending = this._readHistoryDeletionRequests()?.find(request => request.resource === resource);
+			const request = supportsAgentHostAutomationHistoryReceipts(this._connection.initializeResult.get()) && this._connection.acknowledgeAutomationDeletion
+				? pending ?? this._createHistoryDeletionRequest(resource, this.getAutomationHistoryName(id) ?? localize('agentHostAutomation.deleted', "Deleted automation"), cleanup)
+				: undefined;
+			if (request && !pending) {
+				this._writeHistoryDeletionRequests([...this._requireHistoryDeletionRequests().filter(candidate => candidate.resource !== resource), request]);
+				await this._storageService.flush();
+			}
+			await this._doExecuteHistoryDeletion(resource, true, cleanup, request);
+		});
+	}
+
+	async deleteAutomationHistory(id: string): Promise<void> {
+		await this._waitForCatalog(() => true);
+		const pending = this._readHistoryDeletionRequests()?.find(request => this._resourceId(request.resource) === id);
+		const entry = this._findAutomationEntry(id, true);
+		const resource = entry?.resource ?? (pending && this._resourceId(pending.resource) === id ? pending.resource : undefined);
+		if (!resource || !this.canDeleteAutomationHistory(id)) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.historyDeleteUnavailable', "This Automation's retained run history cannot currently be deleted."));
+		}
+		await this._coalesceHistoryDeletion(resource, async () => {
+			const cleanup = pending ? undefined : this._prepareArchiveCleanup(resource);
+			const request = pending ?? (
+				supportsAgentHostAutomationHistoryReceipts(this._connection.initializeResult.get()) && this._connection.acknowledgeAutomationDeletion
+					? this._createHistoryDeletionRequest(resource, entry?.definition.title ?? localize('agentHostAutomation.deleted', "Deleted automation"), cleanup)
+					: undefined
+			);
+			if (request && !pending) {
+				this._writeHistoryDeletionRequests([...this._requireHistoryDeletionRequests().filter(candidate => candidate.resource !== resource), request]);
+				await this._storageService.flush();
+			}
+			await this._doExecuteHistoryDeletion(resource, true, cleanup, request);
+		});
+		this._runsForCache.delete(id);
+	}
+
+	private _coalesceHistoryDeletion(resource: string, operation: () => Promise<void>): Promise<void> {
+		const current = this._historyDeletionPromises.get(resource);
+		if (current) {
+			return current;
+		}
+		const tracked = operation().finally(() => this._historyDeletionPromises.delete(resource));
+		this._historyDeletionPromises.set(resource, tracked);
+		return tracked;
+	}
+
+	private async _doExecuteHistoryDeletion(
+		resource: string,
+		deleteHistory: boolean,
+		cleanup: ReturnType<AgentHostAutomationStore['_prepareArchiveCleanup']> | undefined,
+		request: IHistoryDeletionRequest | undefined,
+	): Promise<void> {
 		this._deletingResources.add(resource);
 		let completed = false;
 		try {
 			if (this._store.isDisposed) {
 				throw new CancellationError();
 			}
-			const deleted = await this._connection.deleteAutomation!(resource, deleteHistory, cleanup?.sessions ?? []);
+			const sessions = request?.sessions.map(session => URI.parse(session)) ?? cleanup?.sessions ?? [];
+			const deleted = await this._connection.deleteAutomation!(resource, deleteHistory, sessions, request?.requestId);
 			await this._waitForCatalog(catalog => {
 				const entry = catalog.entries.find(automation => automation.resource === resource);
 				return deleteHistory ? entry === undefined : entry !== undefined && getAgentHostAutomationHistoryState(entry) === 'retained';
 			});
-			const acknowledged = cleanup?.rowIds.filter(id => {
-				const session = cleanup.backendSessions.get(id);
-				return session === undefined || deleted.includes(session);
-			});
+			const acknowledged = request
+				? request.rows.filter(row => row.session === undefined || deleted.includes(row.session)).map(row => row.id)
+				: cleanup?.rowIds.filter(id => {
+					const session = cleanup.backendSessions.get(id);
+					return session === undefined || deleted.includes(session);
+				});
 			if (acknowledged && acknowledged.length > 0) {
 				this._recordArchiveCleanupIntent(resource, acknowledged);
+				await this._storageService.flush();
+			}
+			if (request) {
+				await this._connection.acknowledgeAutomationDeletion!(request.requestId);
+				this._writeHistoryDeletionRequests(this._requireHistoryDeletionRequests().filter(candidate => candidate.requestId !== request.requestId));
 				await this._storageService.flush();
 			}
 			completed = true;
@@ -909,6 +1004,68 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return cleanup;
 	}
 
+	private _createHistoryDeletionRequest(
+		resource: string,
+		title: string,
+		cleanup: ReturnType<AgentHostAutomationStore['_prepareArchiveCleanup']> | undefined,
+	): IHistoryDeletionRequest {
+		return {
+			requestId: generateUuid(),
+			resource,
+			title,
+			rows: cleanup?.rowIds.map(id => ({ id, ...(cleanup.backendSessions.get(id) ? { session: cleanup.backendSessions.get(id) } : {}) })) ?? [],
+			sessions: cleanup?.sessions.map(session => session.toString()) ?? [],
+		};
+	}
+
+	private _resumeHistoryDeletion(): void {
+		const requests = this._readHistoryDeletionRequests();
+		if (!requests || requests.length === 0 || !supportsAgentHostAutomationHistoryReceipts(this._connection.initializeResult.get()) || !this._connection.acknowledgeAutomationDeletion) {
+			return;
+		}
+		for (const request of requests) {
+			void this._coalesceHistoryDeletion(request.resource, () => this._doExecuteHistoryDeletion(request.resource, true, undefined, request)).catch(error => {
+				this._logService.error(`[AgentHostAutomationStore] Failed to resume Automation history deletion: ${request.resource}`, error);
+			});
+		}
+	}
+
+	private _readHistoryDeletionRequests(): readonly IHistoryDeletionRequest[] | undefined {
+		const raw = this._storageService.get(this._deletionRequestKey, StorageScope.APPLICATION);
+		if (!raw) {
+			return [];
+		}
+		try {
+			const value: Record<string, unknown> | null = JSON.parse(raw);
+			const requests = value && typeof value === 'object' && value.version === HISTORY_DELETION_REQUEST_VERSION
+				? value.requests ?? (value.request ? [value.request] : undefined)
+				: undefined;
+			if (!Array.isArray(requests) || !requests.every(isHistoryDeletionRequest)) {
+				throw new Error('Unsupported history deletion request');
+			}
+			return requests;
+		} catch (error) {
+			this._logService.warn('[AgentHostAutomationStore] Preserving unreadable pending history deletion.', error);
+			return undefined;
+		}
+	}
+
+	private _requireHistoryDeletionRequests(): readonly IHistoryDeletionRequest[] {
+		const requests = this._readHistoryDeletionRequests();
+		if (!requests) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.deletionRequestUnreadable', "The pending run history deletion could not be read."));
+		}
+		return requests;
+	}
+
+	private _writeHistoryDeletionRequests(requests: readonly IHistoryDeletionRequest[]): void {
+		if (requests.length > 0) {
+			this._storageService.store(this._deletionRequestKey, JSON.stringify({ version: HISTORY_DELETION_REQUEST_VERSION, requests }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this._storageService.remove(this._deletionRequestKey, StorageScope.APPLICATION);
+		}
+	}
+
 	private _recordArchiveCleanupIntent(resource: string, rowIds: readonly string[]): void {
 		const intents = this._readCleanupIntents();
 		if (!intents) {
@@ -1182,6 +1339,17 @@ interface IArchiveCleanupIntent {
 function isArchiveCleanupIntent(value: unknown): value is IArchiveCleanupIntent {
 	return !!value && typeof value === 'object' && 'resource' in value && 'rowIds' in value && typeof value.resource === 'string'
 		&& Array.isArray(value.rowIds) && value.rowIds.every(id => typeof id === 'string');
+}
+
+function isHistoryDeletionRequest(value: unknown): value is IHistoryDeletionRequest {
+	return !!value && typeof value === 'object'
+		&& 'requestId' in value && typeof value.requestId === 'string'
+		&& 'resource' in value && typeof value.resource === 'string'
+		&& 'title' in value && typeof value.title === 'string'
+		&& 'rows' in value && Array.isArray(value.rows) && value.rows.every(row =>
+			!!row && typeof row === 'object' && 'id' in row && typeof row.id === 'string'
+			&& (!('session' in row) || row.session === undefined || typeof row.session === 'string'))
+		&& 'sessions' in value && Array.isArray(value.sessions) && value.sessions.every(session => typeof session === 'string');
 }
 
 function readArchiveRows(raw: string): { readonly archive: Record<string, unknown>; readonly rows: readonly unknown[] } | undefined {

@@ -19,7 +19,7 @@ import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.j
 import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
-import { supportsAgentHostAutomationHistory } from '../../common/meta/agentHostAutomationsMeta.js';
+import { supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryReceipts } from '../../common/meta/agentHostAutomationsMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
@@ -255,7 +255,8 @@ class MockAgentService extends Disposable implements IAgentService {
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
-	readonly deletedAutomations: { resource: string; deleteHistory: boolean; legacySessions: string[] | undefined }[] = [];
+	readonly deletedAutomations: { resource: string; deleteHistory: boolean; legacySessions: string[] | undefined; requestId?: string }[] = [];
+	readonly acknowledgedAutomationDeletions: string[] = [];
 	agentExtensionInventory: IAgentExtensionInventory = { mode: 'load_and_augment', extensions: [] };
 	readonly listAgentExtensionsCalls: { session: string | undefined; chat: string | undefined }[] = [];
 	readonly setAgentExtensionEnabledCalls: { extensionId: string; enabled: boolean; session: string | undefined; chat: string | undefined }[] = [];
@@ -427,10 +428,11 @@ class MockAgentService extends Disposable implements IAgentService {
 	async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session.toString());
 	}
-	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<readonly string[]> {
-		this.deletedAutomations.push({ resource, deleteHistory, legacySessions: legacySessions?.map(session => session.toString()) });
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]> {
+		this.deletedAutomations.push({ resource, deleteHistory, legacySessions: legacySessions?.map(session => session.toString()), ...(requestId ? { requestId } : {}) });
 		return legacySessions?.map(session => session.toString()) ?? [];
 	}
+	async acknowledgeAutomationDeletion(requestId: string): Promise<void> { this.acknowledgedAutomationDeletions.push(requestId); }
 	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		this.listAgentExtensionsCalls.push({ session: session?.toString(), chat: chat?.toString() });
 		return this.agentExtensionInventory;
@@ -691,6 +693,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.automationHistory': true,
+				'vscode.automationHistoryReceipts': true,
 				'vscode.devContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
@@ -1949,17 +1952,29 @@ suite('ProtocolServerHandler', () => {
 		const result = initialized.result as InitializeResult;
 		const response = waitForResponse(transport, 20);
 		transport.simulateMessage(request(20, 'vscode/deleteAutomation', {
-			automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'],
+			automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'], requestId: 'delete-request',
 		}));
+		const acknowledgement = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, 'vscode/acknowledgeAutomationDeletion', { requestId: 'delete-request' }));
 		assert.deepStrictEqual({
 			supported: supportsAgentHostAutomationHistory(result),
+			receipts: supportsAgentHostAutomationHistoryReceipts(result),
 			legacy: supportsAgentHostAutomationHistory({ ...result, _meta: undefined }),
+			legacyClient: {
+				history: supportsAgentHostAutomationHistory({ ...result, _meta: { 'vscode.automationHistory': true } }),
+				receipts: supportsAgentHostAutomationHistoryReceipts({ ...result, _meta: { 'vscode.automationHistory': true } }),
+			},
 			response: await response,
 			deleted: agentService.deletedAutomations,
 		}, {
-			supported: true, legacy: false,
+			supported: true, receipts: true, legacy: false,
+			legacyClient: { history: true, receipts: false },
 			response: { jsonrpc: '2.0', id: 20, result: ['ahp-session://tenant/opaque'] },
-			deleted: [{ resource: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'] }],
+			deleted: [{ resource: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'], requestId: 'delete-request' }],
+		});
+		assert.deepStrictEqual({ response: await acknowledgement, requests: agentService.acknowledgedAutomationDeletions }, {
+			response: { jsonrpc: '2.0', id: 21, result: null },
+			requests: ['delete-request'],
 		});
 	});
 

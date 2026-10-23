@@ -254,6 +254,8 @@ export interface IDeleteAutomationOptions {
 	readonly deleteHistory: boolean;
 }
 
+export type AutomationHistoryState = 'retained' | 'deleting';
+
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
@@ -293,6 +295,11 @@ export interface IAutomationStore {
 	supportsDeleteHistoryChoice?(id: string): boolean;
 	/** Includes removed definitions whose run history is retained. */
 	getAutomationHistoryName?(id: string): string | undefined;
+	/** State of a removed definition's retained history. */
+	getAutomationHistoryState?(id: string): AutomationHistoryState | undefined;
+	/** Permanently deletes retained history or retries an interrupted deletion. */
+	deleteAutomationHistory?(id: string): Promise<void>;
+	canDeleteAutomationHistory?(id: string): boolean;
 	/**
 	 * Lists the customizations an automation targeting `target` can sync, including
 	 * those saved in automation `existingId`. Resolves `undefined` when the provider

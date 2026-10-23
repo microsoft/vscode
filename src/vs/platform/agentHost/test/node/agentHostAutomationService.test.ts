@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
@@ -476,9 +476,19 @@ suite('AgentHostAutomationService', () => {
 			state: getAgentHostAutomationHistoryState(owner), enabled: owner.definition.enabled, operations: owner.operations,
 			runs: owner.runs.map(run => run.primarySession),
 			origin: restored.getLegacySessionOrigin(session.toString(), 'codex'),
+			definition: owner.definition,
+			customizations: owner.customizations,
 		}, {
 			state: 'retained', enabled: false, operations: [AutomationOperation.Remove], runs: [session.toString()],
 			origin: { kind: SessionOriginKind.Automation, automation: createAction().resource, run: run.resource },
+			definition: {
+				title: 'Review changes',
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			customizations: undefined,
 		});
 		await assert.rejects(restored.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: owner.resource, requestId: 'retained-again' }), /not available/);
 	});
@@ -516,15 +526,113 @@ suite('AgentHostAutomationService', () => {
 			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
 			history: stateManager.getAutomationCatalogState()!.entries[0].runs.length,
 			secondary: service.getLegacySessionOrigin('ahp-session:/secondary-0', 'codex')?.run,
-		}, { deleted: 101, remaining: [{ automation, sessions: [{ session: 'ahp-session:/0', provider: 'codex' }] }], history: 50, secondary: runs[0].resource });
+		}, {
+			deleted: 101,
+			remaining: [{
+				automation,
+				sessions: [{ session: 'ahp-session:/0', provider: 'codex' }],
+				deletedSessions: deleted,
+			}],
+			history: 50,
+			secondary: runs[0].resource,
+		});
 		fail = false;
 		const acknowledged = await service.deleteAutomation(automation, true);
 		const missingOwner = await service.deleteAutomation(automation, true, [URI.parse('ahp-session:/unrelated')]);
 		assert.deepStrictEqual({
 			deleted: deleted.length, entries: stateManager.getAutomationCatalogState()?.entries,
 			runs: storageService.get<{ runs: object[] }>('automations')?.runs,
-			acknowledged, missingOwner,
-		}, { deleted: 102, entries: [], runs: [], acknowledged: ['ahp-session:/0'], missingOwner: [] });
+			acknowledged: [...acknowledged].sort(), missingOwner,
+		}, {
+			deleted: 102,
+			entries: [],
+			runs: [],
+			acknowledged: runs.flatMap(run => run.sessions).sort(),
+			missingOwner: [],
+		});
+	});
+
+	test('receipts completed history deletion until the client acknowledges it', async () => {
+		const automation = createAction().resource;
+		const session = URI.parse('ahp-session:/receipted');
+		const started = new DeferredPromise<void>();
+		const creating = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async () => session,
+			startSession: async () => { started.complete(); },
+		});
+		await enableAndCreate(creating);
+		const run = await creating.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'receipted-run' });
+		await started.p;
+		creating.dispose();
+		const deleting = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => { },
+		});
+		await terminalRun(run.resource);
+
+		const first = await deleting.deleteAutomation(automation, true, [], 'delete-request');
+		deleting.dispose();
+		const retrying = createService();
+		const retry = await retrying.deleteAutomation(automation, true, [], 'delete-request');
+		await retrying.acknowledgeAutomationDeletion('delete-request');
+		retrying.dispose();
+		const acknowledged = createService();
+		const afterAcknowledgement = await acknowledged.deleteAutomation(automation, true, [], 'delete-request');
+
+		assert.deepStrictEqual({ first, retry, afterAcknowledgement }, {
+			first: [session.toString()],
+			retry: [session.toString()],
+			afterAcknowledgement: [],
+		});
+	});
+
+	test('history deletion does not block unrelated Automation mutations', async () => {
+		const automation = createAction().resource;
+		const session = URI.parse('ahp-session:/slow-delete');
+		const runStarted = new DeferredPromise<void>();
+		const deletionStarted = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const creating = createService({
+			allocateSession: async () => ({ session, provider: 'copilotcli' }),
+			createSession: async () => session,
+			startSession: async (createdSession, message) => {
+				stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'slow-delete-turn',
+					startedAt: new Date().toISOString(),
+					message,
+				});
+				runStarted.complete();
+			},
+		});
+		await enableAndCreate(creating);
+		const run = await creating.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'delete-with-slow-provider' });
+		await runStarted.p;
+		creating.dispose();
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => {
+				deletionStarted.complete();
+				await release.p;
+			},
+		});
+		await terminalRun(run.resource);
+
+		const deletion = service.deleteAutomation(automation, true);
+		await deletionStarted.p;
+		const unrelated = service.handleCreate(createAction('ahp-automation:/unrelated'));
+		const winner = await raceTimeout(unrelated.then(() => 'created'), 50) ?? 'blocked';
+		release.complete();
+		await deletion;
+
+		assert.deepStrictEqual({
+			winner,
+			automations: stateManager.getAutomationCatalogState()?.entries.map(entry => entry.resource),
+		}, {
+			winner: 'created',
+			automations: ['ahp-automation:/unrelated'],
+		});
 	});
 
 	test('coalesces repeated recovery signals while history deletion is in flight', async () => {
@@ -614,7 +722,7 @@ suite('AgentHostAutomationService', () => {
 				session: 'opaque:/supported', provider: 'codex',
 				intent: [{ session: 'opaque:/unsupported' }, { session: 'opaque:/supported', provider: 'codex' }],
 			}],
-			remaining: [{ automation, sessions: [{ session: 'opaque:/unsupported' }] }],
+			remaining: [{ automation, sessions: [{ session: 'opaque:/unsupported' }], deletedSessions: ['opaque:/supported'] }],
 		});
 	});
 

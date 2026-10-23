@@ -65,28 +65,48 @@ class TestAutomationConnection {
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
 	readonly updateRequested = new DeferredPromise<void>();
-	readonly historyDeletes: { resource: string; deleteHistory: boolean; sessions: string[] }[] = [];
+	readonly historyDeletes: { resource: string; deleteHistory: boolean; sessions: string[]; requestId?: string }[] = [];
+	readonly historyDeletionReceipts = new Map<string, readonly string[]>();
+	readonly historyDeletionAcknowledgements: string[] = [];
+	readonly historyDeletionAcknowledged = new DeferredPromise<void>();
 	historyDeleteError: Error | undefined;
 	historyDeleteErrorBeforePublication = false;
 	historyDeleteAcknowledgements: readonly string[] | undefined;
 
-	async deleteAutomation(resource: string, deleteHistory: boolean, sessions: readonly URI[] = []): Promise<readonly string[]> {
-		this.historyDeletes.push({ resource, deleteHistory, sessions: sessions.map(session => session.toString()) });
+	async deleteAutomation(resource: string, deleteHistory: boolean, sessions: readonly URI[] = [], requestId?: string): Promise<readonly string[]> {
+		this.historyDeletes.push({ resource, deleteHistory, sessions: sessions.map(session => session.toString()), ...(requestId ? { requestId } : {}) });
 		if (this.historyDeleteError && this.historyDeleteErrorBeforePublication) {
 			throw this.historyDeleteError;
 		}
 		const entry = this._catalog.entries.find(entry => entry.resource === resource);
+		const receipt = requestId ? this.historyDeletionReceipts.get(requestId) : undefined;
+		if (!entry && receipt) {
+			return receipt;
+		}
 		assert.ok(entry);
-		if (deleteHistory && !this.historyDeleteError) {
+		const deleted = this.historyDeleteAcknowledgements ?? (deleteHistory ? sessions.map(session => session.toString()) : []);
+		if (deleteHistory && (!this.historyDeleteError || !this.historyDeleteErrorBeforePublication)) {
 			this._catalog = { entries: this._catalog.entries.filter(entry => entry.resource !== resource) };
 			this._onDidCatalogChange.fire(this._catalog);
+			if (requestId) {
+				this.historyDeletionReceipts.set(requestId, deleted);
+			}
+			if (this.historyDeleteError) {
+				throw this.historyDeleteError;
+			}
 		} else {
 			this.setAutomation({ ...entry, _meta: withAgentHostAutomationHistoryState(entry._meta, deleteHistory ? 'deleting' : 'retained') });
 			if (this.historyDeleteError) {
 				throw this.historyDeleteError;
 			}
 		}
-		return this.historyDeleteAcknowledgements ?? (deleteHistory ? sessions.map(session => session.toString()) : []);
+		return deleted;
+	}
+
+	async acknowledgeAutomationDeletion(requestId: string): Promise<void> {
+		this.historyDeletionAcknowledgements.push(requestId);
+		this.historyDeletionReceipts.delete(requestId);
+		this.historyDeletionAcknowledged.complete();
 	}
 
 	constructor(catalogAvailable = true) {
@@ -1117,7 +1137,7 @@ suite('AgentHostAutomationStore', () => {
 		}, { definitions: [], name: automation.name, requests: [false] });
 	});
 
-	for (const outcome of ['acknowledged', 'unacknowledged', 'failureBeforePublication', 'failureAfterPublication'] as const) {
+	for (const outcome of ['acknowledged', 'unacknowledged', 'failureBeforePublication'] as const) {
 		test(`legacy cleanup requires exact backend acknowledgement (${outcome})`, async () => {
 			const connection = disposables.add(new TestAutomationConnection());
 			const storage = disposables.add(new InMemoryStorageService());
@@ -1143,9 +1163,9 @@ suite('AgentHostAutomationStore', () => {
 			if (outcome === 'unacknowledged') {
 				connection.historyDeleteAcknowledgements = [];
 			}
-			if (outcome === 'failureBeforePublication' || outcome === 'failureAfterPublication') {
+			if (outcome === 'failureBeforePublication') {
 				connection.historyDeleteError = new Error('offline');
-				connection.historyDeleteErrorBeforePublication = outcome === 'failureBeforePublication';
+				connection.historyDeleteErrorBeforePublication = true;
 				await assert.rejects(store.deleteAutomation(automation.id, undefined, { deleteHistory: true }), /offline/);
 				connection.historyDeleteError = undefined;
 				await connection.deleteAutomation(created.action.resource, true);
@@ -1164,6 +1184,87 @@ suite('AgentHostAutomationStore', () => {
 		});
 	}
 
+	test('resumes a receipted history deletion after the response is lost', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true) }, undefined);
+		const mapper: IAgentHostAutomationBoundaryMapper = {
+			toHost: uri => uri, fromHost: uri => uri, resourceSchemeForProvider: () => 'agent-host-mock',
+			resolveBackendSession: uri => uri.toString() === 'agent-host-mock:/frontend' ? URI.parse('ahp-session://tenant/backend') : undefined,
+		};
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, mapper, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		const created = connection.dispatched.find(item => item.action.type === ActionType.AutomationCreateRequested);
+		assert.ok(created?.action.type === ActionType.AutomationCreateRequested);
+		const archiveKey = 'agentHostAutomation.legacyRunArchive.local-agent-host';
+		storage.store(archiveKey, JSON.stringify({
+			version: 1,
+			runs: [{
+				id: 'legacy', automationId: URI.parse(created.action.resource).path.slice(1),
+				status: 'completed', trigger: 'manual', startedAt: '2026-01-01T00:00:00Z',
+				sessionResource: 'agent-host-mock:/frontend',
+			}],
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		connection.historyDeleteError = new Error('response lost');
+
+		await assert.rejects(store.deleteAutomation(automation.id), /response lost/);
+		const requestKey = `${archiveKey}.pendingDeletion`;
+		const pending = JSON.parse(storage.get(requestKey, StorageScope.APPLICATION)!);
+		const requestId = pending.requests[0].requestId;
+		connection.historyDeleteError = undefined;
+		store.dispose();
+		disposables.add(new AgentHostAutomationStore('local-agent-host', connection, mapper, new NullLogService(), storage, activeClientService));
+		await connection.historyDeletionAcknowledged.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requestIds: connection.historyDeletes.map(request => request.requestId),
+			archive: JSON.parse(storage.get(archiveKey, StorageScope.APPLICATION)!),
+			pending: storage.get(requestKey, StorageScope.APPLICATION),
+			acknowledged: connection.historyDeletionAcknowledgements,
+		}, {
+			requestIds: [requestId, requestId],
+			archive: { version: 1, runs: [] },
+			pending: undefined,
+			acknowledged: [requestId],
+		});
+	});
+
+	test('concurrent history deletion reuses one durable request', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true) }, undefined);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		const flushStarted = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		let firstFlush = true;
+		storage.flush = async () => {
+			if (firstFlush) {
+				firstFlush = false;
+				flushStarted.complete();
+				await release.p;
+			}
+		};
+
+		const first = store.deleteAutomation(automation.id);
+		await flushStarted.p;
+		const second = store.deleteAutomation(automation.id);
+		assert.strictEqual(connection.historyDeletes.length, 0, 'dispatch waits for the durable request');
+		release.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			requests: connection.historyDeletes.map(request => request.requestId),
+			acknowledged: connection.historyDeletionAcknowledgements,
+			pending: storage.get('agentHostAutomation.legacyRunArchive.local-agent-host.pendingDeletion', StorageScope.APPLICATION),
+		}, {
+			requests: [connection.historyDeletes[0].requestId],
+			acknowledged: [connection.historyDeletes[0].requestId],
+			pending: undefined,
+		});
+	});
+
 	test('resumes acknowledged archive cleanup after a local flush failure', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1180,13 +1281,19 @@ suite('AgentHostAutomationStore', () => {
 				status: 'completed', trigger: 'manual', startedAt: '2026-01-01T00:00:00Z',
 			}]
 		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		let flushes = 0;
 		storage.flush = async () => {
-			throw new Error('disk unavailable');
+			flushes++;
+			if (flushes === 2) {
+				throw new Error('disk unavailable');
+			}
 		};
 		await assert.rejects(store.deleteAutomation(automation.id), /disk unavailable/);
 		const acknowledged = storage.get(`${key}.acknowledgedCleanup`, StorageScope.APPLICATION);
 		store.dispose();
 		disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		await connection.historyDeletionAcknowledged.p;
+		await timeout(0);
 		assert.deepStrictEqual({
 			acknowledged: acknowledged ? JSON.parse(acknowledged) : undefined,
 			archive: JSON.parse(storage.get(key, StorageScope.APPLICATION)!),

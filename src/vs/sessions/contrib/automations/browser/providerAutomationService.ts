@@ -165,6 +165,23 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return undefined;
 	}
 
+	getAutomationHistoryState(id: string) {
+		return this.findAutomationStore(id, true)?.getAutomationHistoryState?.(id);
+	}
+
+	async deleteAutomationHistory(id: string): Promise<void> {
+		const store = this.requireAutomationStore(id, true);
+		if (!store.deleteAutomationHistory || store.canDeleteAutomationHistory?.(id) !== true) {
+			throw new AutomationUnavailableError(localize('automations.deleteRetainedHistoryUnavailable', "This automation's retained run history cannot currently be deleted."));
+		}
+		await store.deleteAutomationHistory(id);
+		this.runsForCache.delete(id);
+	}
+
+	canDeleteAutomationHistory(id: string): boolean {
+		return this.findAutomationStore(id, true)?.canDeleteAutomationHistory?.(id) === true;
+	}
+
 	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void> {
 		const store = this.requireAutomationStore(id);
 		if (options !== undefined && store.supportsDeleteHistoryChoice?.(id) !== true) {
@@ -219,14 +236,14 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	}
 
 	/** Resolves an already provider-scoped identifier; a missing owner is never replaced by another host. */
-	private findAutomationStore(id: string): ISessionsProviderAutomations | undefined {
+	private findAutomationStore(id: string, includeHistoryOwners = false): ISessionsProviderAutomations | undefined {
 		return this.sessionsProvidersService.getProviders()
 			.map(provider => provider.automations)
-			.find(store => store && store.enabled?.get() !== false && !!store.getAutomation(id));
+			.find(store => store && store.enabled?.get() !== false && (!!store.getAutomation(id) || includeHistoryOwners && store.getAutomationHistoryName?.(id) !== undefined));
 	}
 
-	private requireAutomationStore(id: string): ISessionsProviderAutomations {
-		const store = this.findAutomationStore(id);
+	private requireAutomationStore(id: string, includeHistoryOwners = false): ISessionsProviderAutomations {
+		const store = this.findAutomationStore(id, includeHistoryOwners);
 		if (!store) {
 			throw new AutomationUnavailableError(localize('automationUnavailable', "Automation '{0}' is unavailable. Its Agent Host may be disconnected or the automation may have been deleted.", id));
 		}

@@ -11,6 +11,7 @@ export const AgentHostAutonomousAutomationsCapabilityMetaKey = 'vscode.autonomou
 
 /** Initialize presence flag for retaining or deleting an Automation's run history when the Automation is removed. */
 export const AgentHostAutomationHistoryCapabilityMetaKey = 'vscode.automationHistory';
+export const AgentHostAutomationHistoryReceiptsCapabilityMetaKey = 'vscode.automationHistoryReceipts';
 
 const AgentHostAutomationHistoryStateMetaKey = 'vscode.automationHistoryState';
 
@@ -25,6 +26,11 @@ export function supportsAgentHostAutonomousAutomations(result: InitializeResult 
 /** Whether the host can keep or delete an Automation's run history on removal. */
 export function supportsAgentHostAutomationHistory(result: InitializeResult | undefined): boolean {
 	return result?._meta?.[AgentHostAutomationHistoryCapabilityMetaKey] === true;
+}
+
+/** Whether the host durably receipts history deletion until the client acknowledges it. */
+export function supportsAgentHostAutomationHistoryReceipts(result: InitializeResult | undefined): boolean {
+	return result?._meta?.[AgentHostAutomationHistoryReceiptsCapabilityMetaKey] === true;
 }
 
 /** Reads the namespaced history state of an Automation entry, ignoring unrecognized values. */

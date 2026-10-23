@@ -10110,8 +10110,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._automationService.fetchAutomationRuns(params);
 	}
 
-	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<readonly string[]> {
-		return this._automationService.deleteAutomation(resource, deleteHistory, legacySessions);
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]> {
+		return this._automationService.deleteAutomation(resource, deleteHistory, legacySessions, requestId);
+	}
+
+	async acknowledgeAutomationDeletion(requestId: string): Promise<void> {
+		await this._automationService.acknowledgeAutomationDeletion(requestId);
 	}
 
 	private async _persistAutomationSessionOrigin(session: URI, origin: SessionOrigin): Promise<SessionOrigin> {

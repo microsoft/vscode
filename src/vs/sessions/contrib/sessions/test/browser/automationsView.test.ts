@@ -202,6 +202,9 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	canDelete = true;
 	historyChoice = false;
 	readonly deleteOptions: (IDeleteAutomationOptions | undefined)[] = [];
+	readonly historyStates = new Map<string, 'retained' | 'deleting'>();
+	readonly deleteHistoryCalls: string[] = [];
+	canDeleteHistory = true;
 
 	override supportsDeleteHistoryChoice(): boolean { return this.historyChoice; }
 	canUpdate = true;
@@ -305,6 +308,27 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 	override canDeleteAutomation(): boolean {
 		return this.canDelete;
+	}
+
+	override getAutomationHistoryName(id: string): string | undefined {
+		return this.historyStates.has(id) ? 'Daily review' : undefined;
+	}
+
+	override getAutomationHistoryState(id: string) {
+		return this.historyStates.get(id);
+	}
+
+	override canDeleteAutomationHistory(id: string): boolean {
+		return this.canDeleteHistory && this.historyStates.has(id);
+	}
+
+	override async deleteAutomationHistory(id: string): Promise<void> {
+		this.deleteHistoryCalls.push(id);
+		if (this.deleteError) {
+			throw this.deleteError;
+		}
+		this.historyStates.delete(id);
+		this.setRuns(this.runValue.get().filter(run => run.automationId !== id));
 	}
 
 	override canUpdateAutomation(): boolean {
@@ -3541,12 +3565,21 @@ suite('AutomationsCardsWidget', () => {
 		const command = CommandsRegistry.getCommand('sessions.automations.delete');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		const accessible = buildAutomationsAccessibleContent([], automationService.runs.get(), 'ready', [], [], 'ready', [], () => source.name, () => 'retained', () => true);
 		assert.deepStrictEqual({
 			checkbox: dialogService.confirmations[0].checkbox,
 			options: automationService.deleteOptions,
 			runs: automationService.runs.get().length,
-			accessible: buildAutomationsAccessibleContent([], automationService.runs.get(), 'ready', [], [], 'ready', [], () => source.name).includes('Daily review,'),
-		}, { checkbox: { label: 'Delete Run History', checked: true }, options: [{ deleteHistory: false }], runs: 1, accessible: true });
+			accessible: {
+				owner: accessible.includes('Daily review,'),
+				retained: accessible.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
+			},
+		}, {
+			checkbox: { label: 'Delete Run History', checked: true },
+			options: [{ deleteHistory: false }],
+			runs: 1,
+			accessible: { owner: true, retained: true },
+		});
 	});
 
 	test('delete context menu action confirms before deleting the automation and its history', async () => {
@@ -4160,9 +4193,9 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('does not expose delete action on run history rows', async () => {
-		const { automationService, contextMenuService, widget } = setup();
-		automationService.setAutomations([automation()]);
+	test('retained history exposes confirmed deletion and interrupted deletion exposes retry', async () => {
+		const { automationService, contextMenuService, dialogService, widget } = setup();
+		automationService.historyStates.set('automation-1', 'retained');
 		automationService.setRuns([run()]);
 		await waitForSessionActions();
 
@@ -4171,9 +4204,43 @@ suite('AutomationsCardsWidget', () => {
 		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
 		assert.ok(row);
 		dispatchContextMenu(row);
-		const actionIds = (contextMenuService.delegate?.getActions() ?? []).map(a => a.id);
+		const delegate = contextMenuService.delegate;
+		const actions = delegate?.getActions() ?? [];
+		const deleteAction = actions.find(action => action.id === 'sessions.automations.deleteHistory');
+		assert.ok(deleteAction);
+		dialogService.confirmResult = { confirmed: true };
+		await delegate?.actionRunner?.run(deleteAction, delegate.getActionsContext?.());
+		delegate?.onHide?.(false);
+
+		automationService.historyStates.set('automation-1', 'deleting');
+		automationService.canDeleteHistory = false;
+		automationService.setRuns([run()]);
+		await waitForSessionActions();
+		const retryRow = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(retryRow);
+		dispatchContextMenu(retryRow);
+		const retryAction = (contextMenuService.delegate?.getActions() ?? []).find(action => action.id === 'sessions.automations.retryDeleteHistory');
+		assert.ok(retryAction);
 		contextMenuService.delegate?.onHide?.(false);
-		assert.ok(!actionIds.includes('sessions.automations.deleteRunSession'), 'delete absent from context menu');
+
+		assert.deepStrictEqual({
+			confirmation: dialogService.confirmations[0],
+			deleteHistoryCalls: automationService.deleteHistoryCalls,
+			retry: { label: retryAction.label, enabled: retryAction.enabled },
+			accessible: buildAutomationsAccessibleContent(
+				[], automationService.runs.get(), 'ready', [], [], 'ready', [],
+				() => 'Daily review', () => 'deleting', () => false,
+			).includes('Run history deletion for Daily review was interrupted. Retry is currently unavailable.'),
+		}, {
+			confirmation: {
+				message: 'Delete run history for "Daily review"?',
+				detail: 'This permanently deletes every retained run for this automation.',
+				primaryButton: 'Delete',
+			},
+			deleteHistoryCalls: ['automation-1'],
+			retry: { label: 'Retry Delete Run History...', enabled: false },
+			accessible: true,
+		});
 	});
 
 	test('edit conflict stays in the automation dialog', async () => {

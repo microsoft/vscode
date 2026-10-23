@@ -105,19 +105,24 @@ function encode(data: AgentHostCatalogData = createData()) {
 }
 
 suite('AgentHostCatalogProjection', () => {
-	test('optional automation provenance round trips without invalidating existing v2 payloads', () => {
+	test('V2 canonicalization and hash include optional automation provenance while the older shape stays valid', () => {
 		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
 		const data = createData();
-		const withOrigin = decodeAgentHostCatalogPayload(encode({ ...data, origin }).payload);
+		const encoded = encode({ ...data, origin });
+		const withOrigin = decodeAgentHostCatalogPayload(encoded.payload);
 		const withoutOrigin = decodeAgentHostCatalogPayload(encode(data).payload);
 		assert.deepStrictEqual({
 			version: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 			current: withOrigin.ok && withOrigin.value.data.origin,
 			legacy: withoutOrigin.ok && withoutOrigin.value.data.origin,
+			canonical: withOrigin.ok && withOrigin.value.payload,
+			hash: encoded.payloadHash,
 		}, {
 			version: 2,
 			current: origin,
 			legacy: undefined,
+			canonical: encoded.payload,
+			hash: hashAgentHostCatalogPayload(encoded.payload),
 		});
 	});
 

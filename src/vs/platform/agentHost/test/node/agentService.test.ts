@@ -3001,6 +3001,80 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('pending V2 older-writer metadata remains recoverable without erasing central Automation origin', async () => {
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+			const database = new TestSessionDatabase();
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const sessionDataService = createSessionDataService(database);
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const svc = createService();
+			registerTestAgentProvider(svc, copilotAgent);
+			const internal = svc as unknown as { _createSessionWithOrigin: AgentService['_createSessionWithOrigin'] };
+			const session = await internal._createSessionWithOrigin({ legacyChatUris: false, provider: 'copilot' }, origin);
+			await svc.whenCatalogReconciliationIdle();
+			const current = await catalogDatabase.getSessionV2(session.toString());
+			assert.ok(current);
+			const data = catalogDataOf(current);
+			assert.ok(data);
+			(svc as unknown as { _catalogReconciliationService: { dispose(): void } })._catalogReconciliationService.dispose();
+			const pending = catalogEnvelope(session, {
+				...data,
+				summary: 'Pending older-writer title',
+				titleSource: 'user',
+				isRead: false,
+				origin: undefined,
+			}, current.sessionGeneration, current.sourceRevision + 1);
+			await database.setMetadataValuesAndCatalogSyncSnapshot({
+				[SESSION_CUSTOM_TITLE_KEY]: 'Pending older-writer title',
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_USER,
+			}, {
+				sessionGeneration: pending.sessionGeneration,
+				sourceRevision: pending.sourceRevision,
+				projectionVersion: pending.payloadVersion,
+				payload: pending.payload,
+				payloadHash: pending.payloadHash,
+				state: 'pending',
+			});
+
+			const restarted = createService();
+			await restarted.whenCatalogReconciliationIdle();
+			const [listed] = await restarted.listSessions();
+			const centralWhileUnavailable = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+			const receiptWhileUnavailable = (await database.getCatalogSyncSnapshot())?.state;
+			registerTestAgentProvider(restarted, copilotAgent);
+			await restarted.restoreSession(session);
+			await restarted.whenCatalogReconciliationIdle();
+			const recovered = getStateManager(restarted).getSessionState(session.toString());
+			const centralAfterRecovery = catalogDataOf(await catalogDatabase.getSessionV2(session.toString()));
+
+			assert.deepStrictEqual({
+				whileUnavailable: {
+					origin: listed.origin,
+					centralOrigin: centralWhileUnavailable?.origin,
+					receipt: receiptWhileUnavailable,
+				},
+				afterRecovery: {
+					origin: recovered?.origin,
+					title: recovered?.title,
+					centralOrigin: centralAfterRecovery?.origin,
+					centralTitle: centralAfterRecovery?.summary,
+					receipt: (await database.getCatalogSyncSnapshot())?.state,
+				},
+			}, {
+				whileUnavailable: { origin, centralOrigin: origin, receipt: 'pending' },
+				afterRecovery: {
+					origin,
+					title: 'Pending older-writer title',
+					centralOrigin: origin,
+					centralTitle: 'Pending older-writer title',
+					receipt: 'acknowledged',
+				},
+			});
+		});
+
 		test('malformed persisted automation origin does not block a known origin', async () => {
 			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
 			const svc = disposables.add(createTestAgentService(

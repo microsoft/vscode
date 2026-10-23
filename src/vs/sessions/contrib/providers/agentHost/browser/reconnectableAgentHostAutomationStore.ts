@@ -134,6 +134,22 @@ export class ReconnectableAgentHostAutomationStore extends Disposable implements
 		return this.currentStore.get()?.getAutomationHistoryName(id);
 	}
 
+	getAutomationHistoryState(id: string) {
+		return this.currentStore.get()?.getAutomationHistoryState(id);
+	}
+
+	deleteAutomationHistory(id: string): Promise<void> {
+		const store = this.requireStore();
+		if (!store.deleteAutomationHistory) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.historyDeleteUnavailable', "This Automation's retained run history cannot currently be deleted."));
+		}
+		return store.deleteAutomationHistory(id);
+	}
+
+	canDeleteAutomationHistory(id: string): boolean {
+		return this.currentStore.get()?.canDeleteAutomationHistory(id) === true;
+	}
+
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
 		let result = this.runsForCache.get(automationId);
 		if (!result) {

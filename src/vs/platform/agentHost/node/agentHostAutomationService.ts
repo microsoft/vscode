@@ -71,7 +71,15 @@ interface IStoredSessionCreation {
 
 interface IStoredHistoryDeletion {
 	readonly automation: string;
+	readonly requestId?: string;
 	readonly sessions: readonly { readonly session: string; readonly provider?: string }[];
+	readonly deletedSessions?: readonly string[];
+}
+
+interface IStoredHistoryDeletionReceipt {
+	readonly requestId: string;
+	readonly automation: string;
+	readonly sessions: readonly string[];
 }
 
 interface IStoredAutomations {
@@ -82,6 +90,7 @@ interface IStoredAutomations {
 	readonly manualRunRequests?: readonly IStoredManualRunRequest[];
 	readonly sessionCreations?: readonly IStoredSessionCreation[];
 	readonly historyDeletions?: readonly IStoredHistoryDeletion[];
+	readonly historyDeletionReceipts?: readonly IStoredHistoryDeletionReceipt[];
 }
 
 /** Host-side session operations for executing an Automation's saved template. */
@@ -108,7 +117,8 @@ export interface IAgentHostAutomationService {
 	handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void>;
 	handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void>;
 	handleRemove(action: AutomationRemovedAction): Promise<void>;
-	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<readonly string[]>;
+	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]>;
+	acknowledgeAutomationDeletion(requestId: string): Promise<void>;
 	handleCancel(resource: string, action: AutomationRunCancelRequestedAction): Promise<void>;
 	listTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
 	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
@@ -130,6 +140,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _manualRunRequests = new Map<string, IStoredManualRunRequest>();
 	private _sessionCreations = new Map<string, IStoredSessionCreation>();
 	private _historyDeletions = new Map<string, IStoredHistoryDeletion>();
+	private _historyDeletionReceipts = new Map<string, IStoredHistoryDeletionReceipt>();
+	private readonly _historyDeletionPromises = new Map<string, Promise<readonly string[]>>();
 	private readonly _runsToRecover = new Set<string>();
 	private readonly _recoveringRuns = new Set<string>();
 	private readonly _recoveringHistoryDeletions = new Set<string>();
@@ -169,6 +181,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._runProviders = new Map(Object.entries(stored?.runProviders ?? {}));
 		this._sessionCreations = new Map(stored?.sessionCreations?.map(creation => [creation.run, creation]));
 		this._historyDeletions = new Map(stored?.historyDeletions?.map(deletion => [deletion.automation, deletion]));
+		this._historyDeletionReceipts = new Map(stored?.historyDeletionReceipts?.map(receipt => [receipt.requestId, receipt]));
 		for (const run of this._runs.values()) {
 			if (run.lifecycle.status === AutomationRunStatus.Running || this._sessionCreations.has(run.resource)) {
 				this._runsToRecover.add(run.resource);
@@ -392,34 +405,48 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		await this.deleteAutomation(action.resource, true);
 	}
 
-	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = []): Promise<readonly string[]> {
-		return this._enqueueMutation(() => this._collectingCustomizations(() => this._deleteAutomation(resource, deleteHistory, legacySessions)));
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = [], requestId?: string): Promise<readonly string[]> {
+		const prepared = await this._enqueueMutation(() => this._prepareAutomationDeletion(resource, deleteHistory, legacySessions, requestId));
+		await this._enqueueMutation(() => this._customizations.collectGarbage(this._requireCatalog().entries));
+		return prepared ?? this._runHistoryDeletion(resource);
 	}
 
-	private async _deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[]): Promise<readonly string[]> {
+	async acknowledgeAutomationDeletion(requestId: string): Promise<void> {
+		await this._enqueueMutation(async () => {
+			if (!this._historyDeletionReceipts.has(requestId)) {
+				return;
+			}
+			const receipts = new Map(this._historyDeletionReceipts);
+			receipts.delete(requestId);
+			await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, this._historyDeletions, receipts);
+		});
+	}
+
+	private async _prepareAutomationDeletion(resource: string, deleteHistory: boolean, legacySessions: readonly URI[], requestId: string | undefined): Promise<readonly string[] | undefined> {
 		const catalog = this._requireCatalog();
 		const existing = catalog.entries.find(automation => automation.resource === resource);
 		if (!existing) {
-			return [];
+			const receipt = requestId ? this._historyDeletionReceipts.get(requestId) : undefined;
+			return receipt?.automation === resource ? receipt.sessions : [];
 		}
 		if (this._historyDeletions.has(resource)) {
 			if (!deleteHistory) {
 				throw new Error(`Automation history deletion is already in progress: ${resource}`);
 			}
-			return this._deleteHistory(resource);
+			const current = this._historyDeletions.get(resource)!;
+			if (requestId && !current.requestId) {
+				const deletions = new Map(this._historyDeletions);
+				deletions.set(resource, { ...current, requestId });
+				await this._persist(catalog, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+			}
+			return undefined;
 		}
 		this._requireOperation(existing, AutomationOperation.Remove);
 		const runs = [...this._runs.values()].filter(run => run.automation === resource);
 		if (runs.some(run => !isTerminalLifecycle(run.lifecycle) || this._sessionCreations.has(run.resource))) {
 			throw new Error(`Automation has an active or recovering run and cannot be removed: ${resource}`);
 		}
-		const automation: AutomationEntry = {
-			...existing,
-			definition: { ...existing.definition, enabled: false, triggers: [] },
-			nextRunAt: undefined,
-			operations: deleteHistory ? [] : [AutomationOperation.Remove],
-			_meta: withAgentHostAutomationHistoryState(withScheduleCursors(existing._meta, {}), deleteHistory ? 'deleting' : 'retained'),
-		};
+		const automation = this._historyOwner(existing, deleteHistory ? 'deleting' : 'retained');
 		const deletions = new Map(this._historyDeletions);
 		if (deleteHistory) {
 			const sessions = new Map<string, { session: string; provider?: string }>();
@@ -433,7 +460,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					sessions.set(session.toString(), { session: session.toString() });
 				}
 			}
-			deletions.set(resource, { automation: resource, sessions: [...sessions.values()] });
+			deletions.set(resource, {
+				automation: resource,
+				...(requestId ? { requestId } : {}),
+				sessions: [...sessions.values()],
+			});
 		}
 		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
 		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
@@ -441,22 +472,41 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._publishAutomation(next, resource);
 		logAutomationDeleted(this._telemetryService, this._definitionTelemetry(existing));
 		this._scheduleNext();
-		if (deleteHistory) {
-			return this._deleteHistory(resource);
+		return deleteHistory ? undefined : [];
+	}
+
+	private _historyOwner(existing: AutomationEntry, state: 'retained' | 'deleting'): AutomationEntry {
+		return withRunWindow({
+			resource: existing.resource,
+			definition: {
+				title: existing.definition.title,
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			createdAt: existing.createdAt,
+			modifiedAt: existing.modifiedAt,
+			operations: state === 'retained' ? [AutomationOperation.Remove] : [],
+			runs: [],
+			_meta: withAgentHostAutomationHistoryState(undefined, state),
+		}, this._runs, RUN_HISTORY_PAGE_SIZE);
+	}
+
+	private _runHistoryDeletion(resource: string): Promise<readonly string[]> {
+		const current = this._historyDeletionPromises.get(resource);
+		if (current) {
+			return current;
 		}
-		return [];
+		const deletion = this._deleteHistory(resource).finally(() => this._historyDeletionPromises.delete(resource));
+		this._historyDeletionPromises.set(resource, deletion);
+		return deletion;
 	}
 
 	private async _deleteHistory(resource: string): Promise<readonly string[]> {
-		const deletion = this._historyDeletions.get(resource);
-		if (!deletion) {
-			return [];
-		}
-		const deleted: string[] = [];
 		let failure: unknown;
-		const remaining: IStoredHistoryDeletion['sessions'][number][] = [];
-		for (const entry of deletion.sessions) {
-			let retained = entry;
+		const sessions = await this._enqueueMutation(() => Promise.resolve(this._historyDeletions.get(resource)?.sessions ?? []));
+		for (const entry of sessions) {
 			try {
 				const session = URI.parse(entry.session);
 				const provider = entry.provider ?? await this._execution.getRecoverableSessionProvider(session);
@@ -464,32 +514,65 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					throw new Error(`Cannot resolve the persisted provider for Automation history session: ${entry.session}`);
 				}
 				if (entry.provider === undefined) {
-					retained = { ...entry, provider };
-					const deletions = new Map(this._historyDeletions);
-					const current = deletions.get(resource)!;
-					deletions.set(resource, { ...current, sessions: current.sessions.map(candidate => candidate.session === entry.session ? retained : candidate) });
-					await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+					await this._enqueueMutation(() => this._recordHistoryDeletionProvider(resource, entry.session, provider));
 				}
 				await this._execution.deleteSession(session, provider);
-				deleted.push(entry.session);
+				await this._enqueueMutation(() => this._recordDeletedHistorySession(resource, entry.session));
 			} catch (error) {
 				this._logService.error(`[AgentHostAutomationService] Failed to delete Automation history session ${entry.session}`, error);
 				failure = error;
-				remaining.push(retained);
 			}
 		}
-		const deletions = new Map(this._historyDeletions);
-		if (remaining.length > 0) {
-			deletions.set(resource, { automation: resource, sessions: remaining });
-			await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+		if (failure) {
 			throw failure;
 		}
+		return this._enqueueMutation(() => this._completeHistoryDeletion(resource));
+	}
+
+	private async _recordHistoryDeletionProvider(resource: string, session: string, provider: string): Promise<void> {
+		const current = this._historyDeletions.get(resource);
+		if (!current) {
+			return;
+		}
+		const deletions = new Map(this._historyDeletions);
+		deletions.set(resource, {
+			...current,
+			sessions: current.sessions.map(candidate => candidate.session === session ? { ...candidate, provider } : candidate),
+		});
+		await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+	}
+
+	private async _recordDeletedHistorySession(resource: string, session: string): Promise<void> {
+		const current = this._historyDeletions.get(resource);
+		if (!current) {
+			return;
+		}
+		const deletions = new Map(this._historyDeletions);
+		deletions.set(resource, {
+			...current,
+			sessions: current.sessions.filter(candidate => candidate.session !== session),
+			deletedSessions: [...new Set([...(current.deletedSessions ?? []), session])],
+		});
+		await this._persist(this._requireCatalog(), this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations, deletions);
+	}
+
+	private async _completeHistoryDeletion(resource: string): Promise<readonly string[]> {
+		const deletion = this._historyDeletions.get(resource);
+		if (!deletion || deletion.sessions.length > 0) {
+			return [];
+		}
+		const deleted = deletion.deletedSessions ?? [];
+		const deletions = new Map(this._historyDeletions);
 		deletions.delete(resource);
 		const runs = new Map([...this._runs].filter(([, run]) => run.automation !== resource));
 		const requests = new Map([...this._manualRunRequests].filter(([, request]) => request.automation !== resource));
 		const action: AutomationRemovedAction = { type: ActionType.AutomationRemoved, resource };
 		const catalog = automationReducer(this._requireCatalog(), action, this._log);
-		await this._persist(catalog, runs, requests, this._runProviders, this._sessionCreations, deletions);
+		const receipts = new Map(this._historyDeletionReceipts);
+		if (deletion.requestId) {
+			receipts.set(deletion.requestId, { requestId: deletion.requestId, automation: resource, sessions: deleted });
+		}
+		await this._persist(catalog, runs, requests, this._runProviders, this._sessionCreations, deletions, receipts);
 		this._catalog = catalog;
 		this._runs = runs;
 		this._manualRunRequests = requests;
@@ -627,6 +710,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		runProviders: ReadonlyMap<string, string> = this._runProviders,
 		sessionCreations: ReadonlyMap<string, IStoredSessionCreation> = this._sessionCreations,
 		historyDeletions: ReadonlyMap<string, IStoredHistoryDeletion> = this._historyDeletions,
+		historyDeletionReceipts: ReadonlyMap<string, IStoredHistoryDeletionReceipt> = this._historyDeletionReceipts,
 	): Promise<void> {
 		const nextRunProviders = new Map([...runProviders].filter(([resource]) => runs.has(resource)));
 		await this._storageService.setAndFlush<IStoredAutomations>(STORAGE_KEY, {
@@ -640,10 +724,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			manualRunRequests: [...manualRunRequests.values()],
 			...(sessionCreations.size > 0 ? { sessionCreations: [...sessionCreations.values()] } : {}),
 			...(historyDeletions.size > 0 ? { historyDeletions: [...historyDeletions.values()] } : {}),
+			...(historyDeletionReceipts.size > 0 ? { historyDeletionReceipts: [...historyDeletionReceipts.values()] } : {}),
 		});
 		this._runProviders = nextRunProviders;
 		this._sessionCreations = new Map(sessionCreations);
 		this._historyDeletions = new Map(historyDeletions);
+		this._historyDeletionReceipts = new Map(historyDeletionReceipts);
 	}
 
 	private _requireCatalog(): AutomationState {
@@ -822,7 +908,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				continue;
 			}
 			this._recoveringHistoryDeletions.add(resource);
-			void this._enqueueMutation(() => this._collectingCustomizations(() => this._deleteHistory(resource))).catch(error => {
+			void this._runHistoryDeletion(resource).catch(error => {
 				this._logService.error(`[AgentHostAutomationService] Failed to recover Automation history deletion: ${resource}`, error);
 			}).finally(() => this._recoveringHistoryDeletions.delete(resource));
 		}
@@ -1427,6 +1513,7 @@ function isStoredAutomations(value: unknown): value is IStoredAutomations {
 			&& Object.values(runProviders).every(provider => typeof provider === 'string' && provider.length > 0))
 		&& (stored['sessionCreations'] === undefined || Array.isArray(stored['sessionCreations']) && stored['sessionCreations'].every(isStoredSessionCreation))
 		&& (stored['historyDeletions'] === undefined || Array.isArray(stored['historyDeletions']) && stored['historyDeletions'].every(isStoredHistoryDeletion))
+		&& (stored['historyDeletionReceipts'] === undefined || Array.isArray(stored['historyDeletionReceipts']) && stored['historyDeletionReceipts'].every(isStoredHistoryDeletionReceipt))
 		&& (stored['manualRunRequests'] === undefined || Array.isArray(stored['manualRunRequests']) && stored['manualRunRequests'].every(isStoredManualRunRequest));
 }
 
@@ -1444,10 +1531,19 @@ function isStoredHistoryDeletion(value: unknown): value is IStoredHistoryDeletio
 		return false;
 	}
 	return 'automation' in value && typeof value.automation === 'string'
+		&& (!('requestId' in value) || value.requestId === undefined || typeof value.requestId === 'string')
 		&& 'sessions' in value && Array.isArray(value.sessions) && value.sessions.every((entry: unknown) =>
 			!!entry && typeof entry === 'object'
 			&& 'session' in entry && typeof entry.session === 'string'
-			&& (!('provider' in entry) || entry.provider === undefined || typeof entry.provider === 'string'));
+			&& (!('provider' in entry) || entry.provider === undefined || typeof entry.provider === 'string'))
+		&& (!('deletedSessions' in value) || value.deletedSessions === undefined || Array.isArray(value.deletedSessions) && value.deletedSessions.every(session => typeof session === 'string'));
+}
+
+function isStoredHistoryDeletionReceipt(value: unknown): value is IStoredHistoryDeletionReceipt {
+	return !!value && typeof value === 'object'
+		&& 'requestId' in value && typeof value.requestId === 'string'
+		&& 'automation' in value && typeof value.automation === 'string'
+		&& 'sessions' in value && Array.isArray(value.sessions) && value.sessions.every(session => typeof session === 'string');
 }
 
 function isAutomationEntry(value: unknown): value is AutomationEntry {

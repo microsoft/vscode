@@ -3635,13 +3635,22 @@ suite('AgentHostProtocolClient', () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true));
 		const before = transport.sentMessages.length;
-		const result = client.deleteAutomation('ahp-automation:/a', true, [URI.parse('ahp-session://tenant/opaque')]);
+		const result = client.deleteAutomation('ahp-automation:/a', true, [URI.parse('ahp-session://tenant/opaque')], 'delete-request');
 		const sent = transport.sentMessages.at(-1) as JsonRpcRequest;
 		transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: ['ahp-session://tenant/opaque'] });
 		assert.deepStrictEqual(await result, ['ahp-session://tenant/opaque']);
 		assert.deepStrictEqual({ count: transport.sentMessages.length - before, method: sent.method, params: sent.params }, {
 			count: 1, method: 'vscode/deleteAutomation',
-			params: { automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'] },
+			params: { automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'], requestId: 'delete-request' },
+		});
+
+		const acknowledgement = client.acknowledgeAutomationDeletion('delete-request');
+		const acknowledgementSent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: acknowledgementSent.id, result: null });
+		await acknowledgement;
+		assert.deepStrictEqual({ method: acknowledgementSent.method, params: acknowledgementSent.params }, {
+			method: 'vscode/acknowledgeAutomationDeletion',
+			params: { requestId: 'delete-request' },
 		});
 	});
 
