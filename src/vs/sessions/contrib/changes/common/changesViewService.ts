@@ -7,6 +7,7 @@ import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
 export interface ActiveSessionState {
@@ -55,8 +56,30 @@ export interface IChangesDetailsViewStateTransfer {
 	readonly to: URI;
 }
 
+/** Observables describing the changes of one session. */
+export interface IChangesSessionObservables {
+	readonly resourceObs: IObservable<URI | undefined>;
+	readonly typeObs: IObservable<string | undefined>;
+	readonly isVirtualWorkspaceObs: IObservable<boolean>;
+	readonly hasGitRepositoryObs: IObservable<boolean>;
+	readonly reviewCommentCountByFileObs: IObservable<Map<string, number>>;
+	readonly changesetsLoadingObs: IObservable<boolean>;
+	readonly changesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
+	readonly changesetObs: IObservable<ISessionChangeset | undefined>;
+	readonly changesetLoadingObs: IObservable<boolean>;
+	readonly changesetOperationsObs: IObservable<readonly ISessionChangesetOperation[]>;
+	readonly changesObs: IObservable<readonly ISessionFileChange[]>;
+	readonly loadingObs: IObservable<boolean>;
+	readonly changesSummaryObs: IObservable<ISessionChangesSummary | undefined>;
+	readonly sectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	readonly stateObs: IObservable<ActiveSessionState | undefined>;
+}
+
 export interface IChangesViewService {
 	readonly _serviceBrand: undefined;
+
+	/** Creates the changes observables for the given session; the `activeSession*` observables are this over the active session. */
+	getSessionChanges(sessionObs: IObservable<IActiveSession | undefined>): IChangesSessionObservables;
 
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;

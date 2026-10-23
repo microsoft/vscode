@@ -311,6 +311,37 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('getSessionChanges observes its own session independently of the active session', () => {
+		const changesetA = createChangeset([upcastPartial<ISessionChangesetOperation>({ id: 'op-a', scopes: [] })]);
+		const changesetB = createChangeset([upcastPartial<ISessionChangesetOperation>({ id: 'op-b', scopes: [] })]);
+		const sessionA = createSession('a', { changesets: [changesetA] });
+		const sessionB = createSession('b', { changesets: [changesetB] });
+		const { activeSession, service } = createHarness(sessionA);
+		const scopedSession = observableValue<IActiveSession | undefined>('test.scopedSession', sessionB);
+
+		const scoped = service.getSessionChanges(scopedSession);
+		const read = () => ({
+			scopedResource: scoped.resourceObs.get()?.toString(),
+			scopedChangeset: scoped.changesetOperationsObs.get().map(o => o.id).join(),
+			activeResource: service.activeSessionResourceObs.get()?.toString(),
+			activeChangeset: service.activeSessionChangesetOperationsObs.get().map(o => o.id).join(),
+		});
+		const initial = read();
+		activeSession.set(sessionB, undefined);
+		const activeSwitched = read();
+		scopedSession.set(sessionA, undefined);
+		const scopedSwitched = read();
+		scopedSession.set(undefined, undefined);
+		const scopedCleared = { resource: scoped.resourceObs.get(), changeset: scoped.changesetOperationsObs.get().map(o => o.id).join() };
+
+		assert.deepStrictEqual({ initial, activeSwitched, scopedSwitched, scopedCleared }, {
+			initial: { scopedResource: sessionB.resource.toString(), scopedChangeset: 'op-b', activeResource: sessionA.resource.toString(), activeChangeset: 'op-a' },
+			activeSwitched: { scopedResource: sessionB.resource.toString(), scopedChangeset: 'op-b', activeResource: sessionB.resource.toString(), activeChangeset: 'op-b' },
+			scopedSwitched: { scopedResource: sessionA.resource.toString(), scopedChangeset: 'op-a', activeResource: sessionB.resource.toString(), activeChangeset: 'op-b' },
+			scopedCleared: { resource: undefined, changeset: '' },
+		});
+	});
+
 	test('scopes a transient changeset to its session and clears it on provider selection', () => {
 		const branchChangeset = createChangeset([]);
 		const transientChangeset = createTransientChangeset();

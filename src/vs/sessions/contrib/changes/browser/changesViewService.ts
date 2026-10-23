@@ -16,12 +16,12 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
-import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
@@ -193,49 +193,101 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		super();
 		this._loadViewState();
 
-		// Active session resource
-		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.resource;
+		const active = this.getSessionChanges(this.sessionsService.activeSession);
+		this.activeSessionResourceObs = active.resourceObs;
+		this.activeSessionSectionCollapseStateObs = active.sectionCollapseStateObs;
+		this.activeSessionTypeObs = active.typeObs;
+		this.activeSessionIsVirtualWorkspaceObs = active.isVirtualWorkspaceObs;
+		this.activeSessionHasGitRepositoryObs = active.hasGitRepositoryObs;
+		this.activeSessionReviewCommentCountByFileObs = active.reviewCommentCountByFileObs;
+		this.activeSessionAgentFeedbackCountByFileObs = this._getActiveSessionAgentFeedback();
+		this.activeSessionChangesetsLoadingObs = active.changesetsLoadingObs;
+		this.activeSessionChangesetsObs = active.changesetsObs;
+		this.activeSessionChangesetObs = active.changesetObs;
+		this.activeSessionChangesetLoadingObs = active.changesetLoadingObs;
+		this.activeSessionChangesetOperationsObs = active.changesetOperationsObs;
+		this.activeSessionChangesObs = active.changesObs;
+		this.activeSessionLoadingObs = active.loadingObs;
+		this.activeSessionChangesSummaryObs = active.changesSummaryObs;
+		this.activeSessionStateObs = active.stateObs;
+
+		// View mode
+		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
+		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
+		this._viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
+
+		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			this._transferChangesetSelections(from, to);
+			const sectionCollapseState = this._sectionCollapseStateBySession.get(from.resource);
+			if (sectionCollapseState) {
+				this._sectionCollapseStateBySession.delete(from.resource);
+				this._sectionCollapseStateBySession.set(to.resource, sectionCollapseState);
+				this._sectionCollapseStateChanged.trigger(undefined);
+			}
+
+			const detailsViewState = this._detailsViewStateBySession.get(from.resource.toString());
+			if (detailsViewState) {
+				this._detailsViewStateBySession.delete(from.resource.toString());
+				this._detailsViewStateBySession.set(to.resource.toString(), detailsViewState);
+				this._saveViewState();
+			}
+			this.detailsViewStateTransferObs.set({ from: from.resource, to: to.resource }, undefined);
+		}));
+		this._register(sessionsManagementService.onDidDeleteSession(session => {
+			this._deleteChangesetSelections(session.resource);
+			this._deleteSessionViewState(session.resource);
+		}));
+		this._register(sessionsManagementService.onDidDeleteChat(({ sessionResource, chatResource }) => this._deleteChatChangesetSelection(sessionResource, chatResource)));
+		this._register(sessionsManagementService.onDidDiscardNewSession(session => {
+			this._deleteChangesetSelections(session.resource);
+			this._deleteSessionViewState(session.resource);
+		}));
+		this._register(sessionsManagementService.onDidReplaceNewDraftSession(({ from }) => {
+			this._deleteChangesetSelections(from.resource);
+			this._deleteSessionViewState(from.resource);
+		}));
+
+		// Global context keys
+		this._bindContextKeys();
+	}
+
+	getSessionChanges(sessionObs: IObservable<IActiveSession | undefined>): IChangesSessionObservables {
+		const resourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
+			const session = sessionObs.read(reader);
+			return session?.resource;
 		});
-		this.activeSessionSectionCollapseStateObs = derivedOpts({ equalsFn: structuralEquals }, reader => {
-			const sessionResource = this.activeSessionResourceObs.read(reader);
+		const sectionCollapseStateObs = derivedOpts<IChangesViewSectionCollapseState>({ equalsFn: structuralEquals }, reader => {
+			const sessionResource = resourceObs.read(reader);
 			this._sectionCollapseStateChanged.read(reader);
 			return sessionResource ? this._sectionCollapseStateBySession.get(sessionResource) ?? DEFAULT_SECTION_COLLAPSE_STATE : DEFAULT_SECTION_COLLAPSE_STATE;
 		});
 
-		// Active session type
-		this.activeSessionTypeObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.sessionType;
+		const typeObs = derived(reader => {
+			const session = sessionObs.read(reader);
+			return session?.sessionType;
 		});
 
-		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.activeChat.read(reader).workspace.read(reader)?.isVirtualWorkspace ?? false;
+		const isVirtualWorkspaceObs = derived(reader => {
+			const session = sessionObs.read(reader);
+			return session?.activeChat.read(reader).workspace.read(reader)?.isVirtualWorkspace ?? false;
 		});
 
-		// Active session has git repository
-		this.activeSessionHasGitRepositoryObs = derived(reader => {
-			const isVirtualWorkspace = this.activeSessionIsVirtualWorkspaceObs.read(reader);
+		const hasGitRepositoryObs = derived(reader => {
+			const isVirtualWorkspace = isVirtualWorkspaceObs.read(reader);
 			if (isVirtualWorkspace) {
 				return true;
 			}
 
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			const workspace = activeSession?.activeChat.read(reader).workspace.read(reader);
+			const session = sessionObs.read(reader);
+			const workspace = session?.activeChat.read(reader).workspace.read(reader);
 			return workspace?.folders[0].gitRepository !== undefined;
 		});
 
-		// Active session review comment count by file
-		this.activeSessionReviewCommentCountByFileObs = this._getActiveSessionReviewComments();
-
-		// Active session agent feedback count by file
-		this.activeSessionAgentFeedbackCountByFileObs = this._getActiveSessionAgentFeedback();
+		const reviewCommentCountByFileObs = this._getReviewComments(resourceObs);
 
 		// Changesets
 		const currentChangesetsObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = sessionObs.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const changesets = activeChat?.changesets.read(reader);
 			this._changesetSelectionChanged.read(reader);
@@ -251,18 +303,18 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return changesetsWithTransientSelection;
 		});
 
-		this.activeSessionChangesetsLoadingObs = derived(reader => currentChangesetsObs.read(reader) === undefined);
-		this.activeSessionChangesetsObs = derivedObservableWithCache<readonly ISessionChangeset[] | undefined>(this, (reader, lastValue) => {
-			if (!this.sessionsService.activeSession.read(reader)) {
+		const changesetsLoadingObs = derived(reader => currentChangesetsObs.read(reader) === undefined);
+		const changesetsObs = derivedObservableWithCache<readonly ISessionChangeset[] | undefined>(this, (reader, lastValue) => {
+			if (!sessionObs.read(reader)) {
 				return undefined;
 			}
 			const changesets = currentChangesetsObs.read(reader);
-			return this.activeSessionChangesetsLoadingObs.read(reader) ? lastValue : changesets;
+			return changesetsLoadingObs.read(reader) ? lastValue : changesets;
 		});
 
 		// Changeset
 		const activeSessionChangesetProjectionObs = derivedObservableWithCache<IActiveChangesetProjection>(this, (reader, lastValue) => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = sessionObs.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const chatWorkspace = activeChat?.workspace.read(reader);
 			this._changesetSelectionChanged.read(reader);
@@ -317,16 +369,16 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				changeset,
 			};
 		});
-		this.activeSessionChangesetObs = derived(reader => activeSessionChangesetProjectionObs.read(reader).changeset);
+		const changesetObs = derived(reader => activeSessionChangesetProjectionObs.read(reader).changeset);
 
 		const activeChangesStateObs = derivedObservableWithCache<IActiveChangesState>(this, (reader, lastValue) => {
-			const changeset = this.activeSessionChangesetObs.read(reader);
+			const changeset = changesetObs.read(reader);
 			if (!changeset) {
-				const activeSession = this.sessionsService.activeSession.read(reader);
+				const activeSession = sessionObs.read(reader);
 				return {
 					changeset: undefined,
 					changes: [],
-					isLoading: !!activeSession && this.activeSessionChangesetsLoadingObs.read(reader),
+					isLoading: !!activeSession && changesetsLoadingObs.read(reader),
 					preservingEquivalentChangeset: false,
 				};
 			}
@@ -356,49 +408,48 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			};
 		});
 
-		this.activeSessionChangesetLoadingObs = derived(reader => {
+		const changesetLoadingObs = derived(reader => {
 			return activeChangesStateObs.read(reader).isLoading;
 		});
 
-		const activeSessionBaseBranchProtection = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected;
+		const baseBranchProtection = derived(reader => {
+			const session = sessionObs.read(reader);
+			return session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected;
 		});
 
-		this.activeSessionChangesetOperationsObs = derived(reader => {
-			const changeset = this.activeSessionChangesetObs.read(reader);
+		const changesetOperationsObs = derived(reader => {
+			const changeset = changesetObs.read(reader);
 			const operations = (changeset?.operations.read(reader) ?? [])
 				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID);
-			return activeSessionBaseBranchProtection.read(reader) === false
+			return baseBranchProtection.read(reader) === false
 				? operations
 				: operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID);
 		});
 
-		// Changes
-		this.activeSessionChangesObs = derivedOpts({
+		const changesObs = derivedOpts({
 			equalsFn: sessionFileChangesEqual,
 		}, reader => {
 			return activeChangesStateObs.read(reader).changes;
 		});
 
-		this.activeSessionLoadingObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			const activeSessionLoading = activeSession?.loading.read(reader) ?? true;
-			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
-			const activeSessionChangeset = this.activeSessionChangesetObs.read(reader);
-			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
+		const loadingObs = derived(reader => {
+			const session = sessionObs.read(reader);
+			const sessionLoading = session?.loading.read(reader) ?? true;
+			const changesetsLoading = changesetsLoadingObs.read(reader);
+			const changeset = changesetObs.read(reader);
+			const changesetLoading = changesetLoadingObs.read(reader);
 
-			return activeSessionLoading
-				|| (activeSessionChangesetsLoading && !activeSessionChangeset)
-				|| activeSessionChangesetLoading;
+			return sessionLoading
+				|| (changesetsLoading && !changeset)
+				|| changesetLoading;
 		});
 
-		const activeSessionChangesSummaryObs = derivedObservableWithCache<ISessionChangesSummary | undefined>(this, (reader, lastValue) => {
-			if (this.activeSessionLoadingObs.read(reader)) {
+		const cachedChangesSummaryObs = derivedObservableWithCache<ISessionChangesSummary | undefined>(this, (reader, lastValue) => {
+			if (loadingObs.read(reader)) {
 				return lastValue;
 			}
 
-			const changes = this.activeSessionChangesObs.read(reader);
+			const changes = changesObs.read(reader);
 			if (changes.length === 0) {
 				return undefined;
 			}
@@ -416,51 +467,29 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				files: changes.length,
 			};
 		});
-		this.activeSessionChangesSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({
+		const changesSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({
 			equalsFn: structuralEquals
-		}, reader => activeSessionChangesSummaryObs.read(reader));
+		}, reader => cachedChangesSummaryObs.read(reader));
 
-		// Active session state
-		this.activeSessionStateObs = this._getActiveSessionState();
+		const stateObs = this._getSessionState(sessionObs, loadingObs, hasGitRepositoryObs);
 
-		// View mode
-		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
-		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
-		this._viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
-
-		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
-			this._transferChangesetSelections(from, to);
-			const sectionCollapseState = this._sectionCollapseStateBySession.get(from.resource);
-			if (sectionCollapseState) {
-				this._sectionCollapseStateBySession.delete(from.resource);
-				this._sectionCollapseStateBySession.set(to.resource, sectionCollapseState);
-				this._sectionCollapseStateChanged.trigger(undefined);
-			}
-
-			const detailsViewState = this._detailsViewStateBySession.get(from.resource.toString());
-			if (detailsViewState) {
-				this._detailsViewStateBySession.delete(from.resource.toString());
-				this._detailsViewStateBySession.set(to.resource.toString(), detailsViewState);
-				this._saveViewState();
-			}
-			this.detailsViewStateTransferObs.set({ from: from.resource, to: to.resource }, undefined);
-		}));
-		this._register(sessionsManagementService.onDidDeleteSession(session => {
-			this._deleteChangesetSelections(session.resource);
-			this._deleteSessionViewState(session.resource);
-		}));
-		this._register(sessionsManagementService.onDidDeleteChat(({ sessionResource, chatResource }) => this._deleteChatChangesetSelection(sessionResource, chatResource)));
-		this._register(sessionsManagementService.onDidDiscardNewSession(session => {
-			this._deleteChangesetSelections(session.resource);
-			this._deleteSessionViewState(session.resource);
-		}));
-		this._register(sessionsManagementService.onDidReplaceNewDraftSession(({ from }) => {
-			this._deleteChangesetSelections(from.resource);
-			this._deleteSessionViewState(from.resource);
-		}));
-
-		// Global context keys
-		this._bindContextKeys();
+		return {
+			resourceObs,
+			typeObs,
+			isVirtualWorkspaceObs,
+			hasGitRepositoryObs,
+			reviewCommentCountByFileObs,
+			changesetsLoadingObs,
+			changesetsObs,
+			changesetObs,
+			changesetLoadingObs,
+			changesetOperationsObs,
+			changesObs,
+			loadingObs,
+			changesSummaryObs,
+			sectionCollapseStateObs,
+			stateObs,
+		};
 	}
 
 	private _createSessionChangesetSelections(sessionResource: URI): ISessionChangesetSelections {
@@ -609,14 +638,18 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		changeset.setReviewState(resources, reviewed);
 	}
 
-	private _getActiveSessionState(): IObservable<ActiveSessionState | undefined> {
+	private _getSessionState(
+		sessionObs: IObservable<IActiveSession | undefined>,
+		loadingObs: IObservable<boolean>,
+		hasGitRepositoryObs: IObservable<boolean>,
+	): IObservable<ActiveSessionState | undefined> {
 		const activeSessionStateObs = derivedObservableWithCache<ActiveSessionState | undefined>(this, (reader, lastValue) => {
-			const loading = this.activeSessionLoadingObs.read(reader);
+			const loading = loadingObs.read(reader);
 			if (loading) {
 				return lastValue;
 			}
 
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = sessionObs.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const activeSessionChanges = activeChat?.changes.read(reader) ?? [];
 			const workspace = activeChat?.workspace.read(reader);
@@ -624,7 +657,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			// Session state
 			const workspaceFolder = workspace?.folders[0];
 			const gitRepository = workspaceFolder?.gitRepository;
-			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
+			const hasGitRepository = hasGitRepositoryObs.read(reader);
 
 			const branchName = gitRepository?.branchName;
 			const baseBranchName = gitRepository?.baseBranchName;
@@ -682,9 +715,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			reader => activeSessionStateObs.read(reader));
 	}
 
-	private _getActiveSessionReviewComments(): IObservable<Map<string, number>> {
+	private _getReviewComments(resourceObs: IObservable<URI | undefined>): IObservable<Map<string, number>> {
 		return derived(reader => {
-			const sessionResource = this.activeSessionResourceObs.read(reader);
+			const sessionResource = resourceObs.read(reader);
 			if (!sessionResource) {
 				return new Map<string, number>();
 			}
