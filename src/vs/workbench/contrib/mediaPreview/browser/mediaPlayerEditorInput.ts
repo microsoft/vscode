@@ -298,6 +298,8 @@ export class MediaPlayerEditorInput extends WebviewInput {
 
 			// Some Electron builds ship an FFmpeg without the WebM container, so a WebM file
 			// cannot be opened directly. Media Source Extensions parse WebM in Chromium itself.
+			// Remove this fallback once the shipped FFmpeg supports WebM:
+			// https://github.com/microsoft/vscode/issues/195758
 			const webmCodecs = { V_VP8: 'vp8', V_VP9: 'vp9', V_AV1: 'av01.0.08M.08', A_OPUS: 'opus', A_VORBIS: 'vorbis' };
 			const getWebmType = bytes => {
 				if (bytes.length < 4 || bytes[0] !== 0x1a || bytes[1] !== 0x45 || bytes[2] !== 0xdf || bytes[3] !== 0xa3) {
