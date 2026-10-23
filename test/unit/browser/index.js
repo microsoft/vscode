@@ -34,6 +34,7 @@ const { execFile } = require('node:child_process');
  * 'reporter-options': string;
  * tfs: string;
  * 'stall-timeout': string;
+ * testSplit: string;
  * build: boolean;
  * debug: boolean;
  * sequential: boolean;
@@ -42,7 +43,7 @@ const { execFile } = require('node:child_process');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout'],
+	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'testSplit'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
@@ -67,6 +68,7 @@ const args = minimist(process.argv.slice(2), {
 		'reporter-options': 'the mocha reporter options',
 		tfs: 'tfs',
 		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
+		testSplit: 'split the test files into <n> parts and run the <i>th part, e.g. 1/2',
 		help: 'show the help'
 	}
 });
@@ -85,6 +87,7 @@ Options:
 --reporter-options <reporter-options> the mocha reporter options
 --tfs <tfs>          tfs
 --stall-timeout <seconds> abort with diagnostics when no test progress is reported for <seconds> (default 300, 0 disables)
+--testSplit <i>/<n>  split the test files into <n> parts and run the <i>th part
 --help, -h           show the help`);
 	process.exit(0);
 }
@@ -160,6 +163,11 @@ const testModules = (async function () {
 			} else if (!isDefaultModules) {
 				console.warn(`DROPPING ${file} because it cannot be run inside a browser`);
 			}
+		}
+		if (args.testSplit) {
+			// Deal the files out in turn, so that adjacent slow files end up in different parts.
+			const [index, total] = args.testSplit.split('/').map(Number);
+			return modules.filter((_, moduleIndex) => moduleIndex % total === index - 1);
 		}
 		return modules;
 	});

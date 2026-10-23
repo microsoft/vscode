@@ -272,15 +272,21 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   linux-browser-unit-tests:
-    name: Linux (unit)
+    name: Linux (unit ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Browser
       browser_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_shard_index: ${{ matrix.shard }}
+      unit_test_shard_total: ${{ strategy.job-total }}
 
   linux-browser-integration-tests:
     name: Linux (integration & smoke)
@@ -394,15 +400,21 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   macos-browser-unit-tests:
-    name: macOS (unit)
+    name: macOS (unit ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Browser
       browser_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_shard_index: ${{ matrix.shard }}
+      unit_test_shard_total: ${{ strategy.job-total }}
 
   macos-browser-integration-tests:
     name: macOS (integration & smoke)
@@ -522,15 +534,21 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   windows-browser-unit-tests:
-    name: Windows (unit)
+    name: Windows (unit ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Browser
       browser_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_shard_index: ${{ matrix.shard }}
+      unit_test_shard_total: ${{ strategy.job-total }}
 
   windows-browser-integration-tests:
     name: Windows (integration & smoke)
