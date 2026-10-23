@@ -51,7 +51,7 @@ import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '.
 import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
+import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionContribution, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -488,6 +488,8 @@ suite('aiCustomizationManagementEditor', () => {
 		updateContentVisibility(): void;
 		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void;
 		rebuildVisibleSections(): void;
+		sectionBadges: Map<AICustomizationManagementSection, string>;
+		registerContributedSectionBadges(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
 		editorGroupsService: {
@@ -658,6 +660,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.welcomePage = undefined;
 		editor.contributedSectionContainers = new Map();
 		editor.contributedSectionWidgets = new Map();
+		editor.sectionBadges = new Map();
 		editor.editorPreviewRenderScheduler = {
 			cancel(): void { },
 			schedule(): void { },
@@ -880,7 +883,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[], getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -906,6 +909,7 @@ suite('aiCustomizationManagementEditor', () => {
 			icon: Codicon.search,
 			enablementSettings,
 			supportsHarness: id => id === harnessId,
+			getBadge,
 			create: () => {
 				state.created++;
 				return {
@@ -921,13 +925,13 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
-	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]) {
-		const context = createContributedSectionEditor(enablementSettings);
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
+		const context = createContributedSectionEditor(enablementSettings, getBadge);
 		const { editor, section } = context;
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;
 		Object.assign(editor, { marketplaceService: { sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed] } });
-		const sections: { id: AICustomizationManagementSection }[] = [];
+		const sections: { id: AICustomizationManagementSection; badge?: string }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
 		Object.assign(editor, {
 			allSections: [
@@ -969,6 +973,26 @@ suite('aiCustomizationManagementEditor', () => {
 			});
 		});
 	}
+
+	test('shows contributed section badges, including after the visible sections are rebuilt', () => {
+		const badge = observableValue<string | undefined>('badge', 'Suggestions to review.');
+		const { editor, section, sections } = createGatedSectionEditor(true, undefined, () => badge);
+		Object.assign(editor.workspaceService, { managementSections: [AICustomizationManagementSection.Agents, section] });
+		const readBadges = () => sections.map(item => ({ id: item.id, badge: item.badge }));
+
+		editor.registerContributedSectionBadges();
+		editor.rebuildVisibleSections();
+		const shown = readBadges();
+		badge.set(undefined, undefined);
+		const cleared = readBadges();
+		badge.set('More suggestions to review.', undefined);
+
+		assert.deepStrictEqual({ shown, cleared, updated: readBadges() }, {
+			shown: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'Suggestions to review.' }],
+			cleared: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: undefined }],
+			updated: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'More suggestions to review.' }],
+		});
+	});
 
 	test('disabling a section experiment disposes its widget and restores the overview', async () => {
 		const { editor, section, state, sections, getOverview, configuration } = createGatedSectionEditor(true);
@@ -1880,8 +1904,8 @@ suite('aiCustomizationManagementEditor', () => {
 			categories: [CustomizationMigrationCategoryId.PromptFiles],
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		});
 		editor.editorPreviewDisposables.dispose();

@@ -3,22 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IVoicePendingQuestion } from './voiceClientService.js';
 
-/**
- * Render the canonical spoken form of a pending question.
- *
- * Mirrors `format_question_prompt` in the voice backend's `session_pending.py`,
- * against the same fixtures. The client speaks the first question of a form and
- * the backend speaks the rest, so a divergence is audible mid-form.
- *
- * Renders the wire shape rather than the carousel, because that is where the
- * ordinals the user says back were assigned. Numbering from a second source
- * could read out a number that selects something else.
- */
-export function formatQuestionPrompt(question: IVoicePendingQuestion, allowSkip: boolean): string {
-	const parts: string[] = [];
+export function formatQuestionPromptTitle(question: IVoicePendingQuestion, context?: string, questionIndex = 0, questionCount = 1): string {
 	const title = question.title.trim();
+	if (questionCount > 1) {
+		// A form-level message can ask for several fields, but each reply fills only the current field.
+		const prompt = localize('voice.questionNumber', "Question {0} of {1}: {2}", questionIndex + 1, questionCount, title);
+		return questionIndex === 0
+			? localize('voice.oneQuestionAtATime', "Please answer one question at a time. {0}", prompt)
+			: prompt;
+	}
+	const formContext = context?.trim();
+	return formContext && formContext !== title
+		? localize('voice.questionWithContext', "{0} {1}", formContext, title).trim()
+		: title;
+}
+
+/** Render the spoken question and choices, optionally preceded by form-level context. Choice ordinals follow the displayed order in the wire payload. */
+export function formatQuestionPrompt(question: IVoicePendingQuestion, allowSkip: boolean, context?: string, questionCount = 1): string {
+	const parts: string[] = [];
+	const title = formatQuestionPromptTitle(question, context, 0, questionCount);
 	if (title) {
 		parts.push(title);
 	}

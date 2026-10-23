@@ -354,8 +354,32 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return parseSealedTokenResponse(response);
 	}
 
-	private _requestIdentityToken(session: AuthenticationSession, token: CancellationToken): Promise<ICloudSandboxIdentityTokenResponse | undefined> {
-		return this._requestCredential('mintIdentityToken', 'tokens', {}, token, session);
+	private async _requestIdentityToken(session: AuthenticationSession, token: CancellationToken): Promise<ICloudSandboxIdentityTokenResponse | undefined> {
+		const store = new DisposableStore();
+		try {
+			const signal = AbortSignal.any([CancellationToken.toAbortSignal(token, store), AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+			const client = store.add(await this._githubService.acquireAccountApiClient({
+				providerId: this._authenticationProviderId, sessionId: session.id, accountId: session.account.id,
+				scopes: session.scopes, authorizationServer: session.authorizationServer?.toString(),
+			}, signal));
+			const result = await client.environments.mintIdentityToken(signal, { caller: 'mc.tokens.create', deadline: Date.now() + REQUEST_TIMEOUT_MS });
+			this._telemetry.reportRequest('mintIdentityToken', 'succeeded');
+			return result;
+		} catch (error) {
+			if (token.isCancellationRequested || isCancellationError(error)) {
+				throw new CancellationError();
+			}
+			if (error instanceof ApiRequestError) {
+				this._telemetry.reportRequest('mintIdentityToken', requestOutcomeForStatus(error.statusCode));
+				throw new CloudSandboxRequestError(error.statusCode, error.message, error.retryAfterSeconds, {
+					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
+				});
+			}
+			this._telemetry.reportRequest('mintIdentityToken', 'networkError');
+			throw new Error(localize('cloudSandbox.identityClientFailed', "The sandbox identity-token request failed or returned an invalid response."));
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private async _requestCredential<T>(action: 'mintIdentityToken' | 'sealToken', path: string, body: Record<string, unknown>, token: CancellationToken, session?: AuthenticationSession): Promise<T | undefined> {

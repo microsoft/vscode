@@ -145,8 +145,12 @@ await joinSession({
 			await client.start();
 			session = await client.resumeSession(sessionId, config);
 			observe(session);
-			await waitForOpen(session, reloadedUrl);
+			const restoredUrl = await waitForOpen(session, reloadedUrl);
 			await capture(session, 'cold resume');
+
+			const explicitlyReopened = await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
+			assert.strictEqual(explicitlyReopened.url, restoredUrl);
+			await capture(session, 'explicit reopen after resume');
 
 			assert.deepStrictEqual(observations, [
 				{ phase: 'first open', live: 1, history: 1 },
@@ -154,6 +158,7 @@ await joinSession({
 				{ phase: 'provider reload', live: 1, history: 1 },
 				{ phase: 'close and reopen', live: 2, history: 2 },
 				{ phase: 'cold resume', live: 2, history: 2 },
+				{ phase: 'explicit reopen after resume', live: 2, history: 2 },
 			]);
 		} finally {
 			listeners.dispose();

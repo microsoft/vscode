@@ -27,9 +27,10 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptHoverProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,10 +39,12 @@ suite('PromptHoverProvider', () => {
 	let hoverProvider: PromptHoverProvider;
 	let activeTarget: Target;
 	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[];
+	let copilotSkillInventory: ICustomizationItem[];
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
 		copilotToolInventory = [];
+		copilotSkillInventory = [];
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -108,7 +111,7 @@ suite('PromptHoverProvider', () => {
 			customAgentTarget: Target.GitHubCopilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => copilotSkillInventory,
 				provideAgentFileTools: async () => copilotToolInventory,
 			},
 		};
@@ -458,6 +461,25 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hover, 'GitHub tools\n\nThis tool is recognized but disabled for the matching GitHub Copilot harness.');
 		});
 
+		test('hover on github-copilot skill shows description, source, and availability', async () => {
+			copilotSkillInventory = [createSkill('review', {
+				description: 'Review changes',
+				status: 'error',
+				statusMessage: 'Skill failed to load',
+			})];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				`skills: ['review']`,
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 12, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Review changes\n\nSource: Workspace\n\nSkill failed to load\n\nThis skill is recognized but currently unavailable for the matching GitHub Copilot harness.');
+		});
+
 		test('hover on github-copilot tool with target undefined', async () => {
 			const content = [
 				'---',
@@ -474,6 +496,19 @@ suite('PromptHoverProvider', () => {
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
 			assert.strictEqual(hoverEdit, 'ToolSet: read\n\n\nRead files in your workspace');
 		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
 
 		test('hover on vscode tool shows detailed description', async () => {
 			const content = [

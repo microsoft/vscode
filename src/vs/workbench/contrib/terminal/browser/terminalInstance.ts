@@ -578,6 +578,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.setShellType(guessShellTypeFromExecutable(os, this.shellLaunchConfig.executable));
 			}
 
+			// Starts the window handle lookup early; createProcess waits for it before starting the shell
+			this._processManager.setParentWindow(dom.getWindow(this._container).vscodeWindowId);
+
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
@@ -1084,6 +1087,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+		this._processManager.setParentWindow(dom.getWindow(container).vscodeWindowId);
 
 		// If xterm is already attached, call open again to pick up any changes to the window.
 		if (this.xterm?.raw.element) {
@@ -2473,21 +2477,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
-		if (icon) {
-			this._icon = icon;
-			this._onIconChanged.fire({ instance: this, userInitiated: true });
-			return icon;
+	async changeIcon(icon?: TerminalIcon | null): Promise<TerminalIcon | null | undefined> {
+		if (icon === undefined) {
+			const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
+			try {
+				icon = await iconPicker.pickIcons();
+			} finally {
+				iconPicker.dispose();
+			}
 		}
-		const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
-		const pickedIcon = await iconPicker.pickIcons();
-		iconPicker.dispose();
-		if (!pickedIcon) {
+		if (icon === undefined) {
 			return undefined;
 		}
-		this._icon = pickedIcon;
+		this._icon = icon ?? undefined;
 		this._onIconChanged.fire({ instance: this, userInitiated: true });
-		return pickedIcon;
+		return icon;
 	}
 
 	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {

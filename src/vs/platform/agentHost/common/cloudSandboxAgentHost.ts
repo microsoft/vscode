@@ -15,7 +15,7 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession } from './agent.js';
+import { AgentSession, type AuthenticateParams } from './agent.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
@@ -525,6 +525,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly name: string;
 	/** Local identity that owns this staged user-local connection; never sent to MC. */
 	readonly accountKey?: string;
+	/** Recipient keys from this account's environment descriptor, fetched over authenticated HTTPS. */
+	readonly trustedEncryptionKeys?: readonly IHostEncryptionKey[];
 	/** Caller provenance, not a claim about warm or cold compute. */
 	readonly connectionSource?: 'created' | 'existing';
 	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
@@ -563,6 +565,9 @@ export interface ICloudSandboxAgentHostService {
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
+
+	/** Resolves identity-only authentication for a user-local host; the protocol client seals it for each handshake. */
+	resolveUserLocalAuthentication(environmentId: string, resource: string, forceRefresh?: boolean): Promise<AuthenticateParams>;
 
 	/** Renew a live connection's sealed credential, rejecting missing or reused envelopes while sharing its refresh and retry budget. */
 	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;

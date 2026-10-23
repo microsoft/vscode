@@ -102,6 +102,34 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
+	test('omits unknown creating applications without hiding their sessions', () => {
+		const filters = createFilters();
+		const sessions = ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'].map(application =>
+			buildTestSession({ id: application, title: application, environment: 'cloud', application }).session);
+		for (const id of ['vscode', 'unknown', 'agent_tasks_api']) {
+			filters.setExcluded({ kind: 'application', environment: 'cloud', id }, true);
+		}
+		const visible = () => sessions.filter(session => filters.matches(session)).map(session => session.sessionId);
+		const before = visible();
+		filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
+		const excludedEnvironment = visible();
+		filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
+		filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
+		assert.deepStrictEqual({
+			applications: getSessionFilterOptions(sessions, [])
+				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
+				.map(option => option.label),
+			before,
+			excludedEnvironment,
+			excludedHarness: visible(),
+		}, {
+			applications: ['VS Code (Cloud)'],
+			before: ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'],
+			excludedEnvironment: [],
+			excludedHarness: [],
+		});
+	});
+
 	for (const environment of ['local', 'remote-id', 'agenthost-build-server:8080']) {
 		test(`defaults ${environment} applications to VS Code and preserves explicit choices through reload and reset`, () => {
 			const storage = store.add(new InMemoryStorageService());
