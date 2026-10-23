@@ -59,6 +59,7 @@ export interface IAgentHostChatpadService {
 
 const CHATPAD_SESSION_STORAGE_KEY = 'chatpad.session';
 const NOTE_TEMPLATE = '# Chatpad\n\n';
+const MAX_APPEND_ATTEMPTS = 3;
 
 /**
  * Whether `id` is a single path segment, so that the scratch folder of its session, and the note in it, is a direct
@@ -140,8 +141,9 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 				this._logService.info(`[AgentHostChatpad] ${key} stays an ordinary chat: Chatpad chat ${current} exists`);
 				return false;
 			}
-			await this._storageService.setAndFlush(CHATPAD_SESSION_STORAGE_KEY, key);
+			// The note first: a claim that cannot have a note must not leave a hidden Chatpad chat behind.
 			await this._ensureNote(this.getNote(key));
+			await this._storageService.setAndFlush(CHATPAD_SESSION_STORAGE_KEY, key);
 			return true;
 		});
 	}
@@ -154,10 +156,22 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 			}
 			const note = this.getNote(session);
 			await this._ensureNote(note);
-			const content = (await this._fileService.readFile(note)).value.toString();
-			const separator = content.length === 0 || content.endsWith('\n') ? '' : '\n';
 			const line = text.endsWith('\n') ? text : `${text}\n`;
-			await this._fileService.writeFile(note, VSBuffer.fromString(`${content}${separator}${line}`));
+			// The Chatpad chat edits the note too: write only over the content that was read, and read again when it changed.
+			for (let attempt = 1; ; attempt++) {
+				const { value, mtime, etag } = await this._fileService.readFile(note);
+				const content = value.toString();
+				const separator = content.length === 0 || content.endsWith('\n') ? '' : '\n';
+				try {
+					await this._fileService.writeFile(note, VSBuffer.fromString(`${content}${separator}${line}`), { mtime, etag });
+					return;
+				} catch (error) {
+					if (attempt >= MAX_APPEND_ATTEMPTS || !(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
+						throw error;
+					}
+					this._logService.trace(`[AgentHostChatpad] The note changed while appending, retrying (attempt ${attempt})`);
+				}
+			}
 		});
 	}
 
