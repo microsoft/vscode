@@ -37,6 +37,10 @@ Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to
 
     npm run test-node -- --timeout 10000 --run src/vs/base/test/common/async.test.ts
 
+Use `--rerun-failed-files <count>` to rerun the test files that failed, each time in a fresh process, up to `<count>` more times, as with the Electron runner. Pull request CI uses `--rerun-failed-files 2`. Failures of the runner's own checks, such as unexpected errors, do not belong to a test file and are not rerun.
+
+A rerun must exit normally with an exit code matching its reported results. A startup failure, signal, or inconsistent exit code fails the run, even if the rerun wrote a passing report.
+
 ## Coverage
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:
