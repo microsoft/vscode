@@ -20,6 +20,7 @@ import { IFileContent, IFileService } from '../../../../../platform/files/common
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IExternalUriOpenerService } from '../../../../contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
@@ -191,11 +192,18 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 }
 
 function registerSessionChatPillFixtureServices(registration: ServiceRegistration, sessionMock: IMockSessionAndChat): void {
+	registration.defineInstance(IExternalUriOpenerService, new class extends mock<IExternalUriOpenerService>() {
+		override async getOpener() { return undefined; }
+	}());
 	registration.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override getProvider() { return undefined; }
 	}());
 	registration.defineInstance(IBrowserViewWorkbenchService, createBrowserViewService(sessionMock.browsers));
 	registration.defineInstance(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		override readonly onDidChangePartVisibility = Event.None;
+		override isSidePaneVisible(): boolean { return false; }
+		override isEditorPaneVisible(): boolean { return false; }
+		override isVisible(): boolean { return false; }
 		override revealEditorPartExplicitly(): void { }
 	}());
 	registration.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {

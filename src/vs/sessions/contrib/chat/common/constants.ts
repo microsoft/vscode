@@ -15,6 +15,7 @@ export const COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING = 'sessions.chat.compareAge
 export const EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING = 'sessions.chat.experimental.newSessionComposerLayout';
 export const WORKSPACE_OPT_OUT_SETTING = 'sessions.chat.experimental.workspaceOptOut';
 export const ENVIRONMENT_PICKER_SETTING = 'sessions.chat.experimental.environmentPicker';
+export const ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING = 'sessions.chat.experimental.environmentPickerLocalIsolation';
 export const ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING = 'sessions.chat.experimental.environmentPickerBeforeWorkspace';
 export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
 export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = 'sessions.chat.experimental.agentsPickerInAttachContextMenu';

@@ -22,7 +22,7 @@ import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposab
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -245,6 +245,8 @@ interface ISectionItem {
 	readonly label: string;
 	readonly description: string;
 	count: number;
+	/** Describes why the entry shows a badge, if it does. */
+	badge?: string;
 }
 
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
@@ -289,6 +291,7 @@ class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
 interface ISectionItemTemplateData {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
+	readonly badge: HTMLElement;
 	readonly count: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 }
@@ -301,14 +304,17 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 	renderTemplate(container: HTMLElement): ISectionItemTemplateData {
 		container.classList.add('section-list-item');
 		const label = DOM.append(container, $('.section-label'));
+		// The row's accessible name includes the badge description.
+		const badge = DOM.append(container, $('.section-badge', { 'aria-hidden': 'true' }));
 		const count = DOM.append(container, $('.section-count'));
 		const templateDisposables = new DisposableStore();
-		return { container, label, count, templateDisposables };
+		return { container, label, badge, count, templateDisposables };
 	}
 
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.label.textContent = element.label;
+		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {
 			templateData.count.textContent = String(element.count);
 			templateData.count.style.display = '';
@@ -316,7 +322,7 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 			templateData.count.textContent = '';
 			templateData.count.style.display = 'none';
 		}
-		templateData.templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.container, element.description));
+		templateData.templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.container, element.badge ?? element.description));
 	}
 
 	disposeTemplate(templateData: ISectionItemTemplateData): void {
@@ -476,6 +482,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
+	private readonly sectionBadges = new Map<AICustomizationManagementSection, string>();
 	private readonly allSections: ISectionItem[] = [];
 	private selectedSection: AICustomizationManagementSection | undefined;
 	private contentNavigationGeneration = 0;
@@ -750,7 +757,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
 			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
-				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description } : s);
+				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description, badge: this.sectionBadges.get(s.id) } : s);
 			}
 		}
 
@@ -806,9 +813,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel: (item: ISectionItem) => item.count > 0
-						? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
-						: item.label,
+					getAriaLabel: (item: ISectionItem) => {
+						const label = item.count > 0
+							? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
+							: item.label;
+						return item.badge ? localize('sectionAriaLabelWithBadge', "{0}, {1}", label, item.badge) : label;
+					},
 					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "Agent Customization Sections"),
 				},
 				openOnSingleClick: true,
@@ -848,6 +858,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
+		this.registerContributedSectionBadges();
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.welcomePage?.isMarketplaceConfigurationChange(e)) {
@@ -2545,8 +2556,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				&& this.getAllMigrationCandidates().some(candidate => !isPluginMarketplaceCustomizationMigrationCandidate(candidate)),
 			categoryErrors: this.pluginMarketplaceMigrationDiscoveryError ? [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: localize('pluginMarketplaceMigrationLoadError', "Plugin marketplaces could not be checked"),
-				description: localize('pluginMarketplaceMigrationLoadErrorDescription', "Check the active agent connection, then try again."),
+				label: localize('pluginMarketplaceMigrationLoadError', "Couldn't load Copilot's plugin marketplaces"),
+				description: localize('pluginMarketplaceMigrationLoadErrorDescription', "Check the Copilot connection, then try again."),
 			}] : undefined,
 			manualReviewItems: storages.flatMap(storage => this.getMcpMigrationExclusions(storage).map(exclusion => ({
 				id: `${CustomizationMigrationCategoryId.McpServers}:${storage}:exclusion:${exclusion.id}`,
@@ -3322,6 +3333,45 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Re-splice the sections list to trigger re-render
 		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
 		this.ensureSectionsListReflectsActiveSection();
+	}
+
+	/**
+	 * Shows the badges that contributed sections describe on their navigation entries.
+	 */
+	private registerContributedSectionBadges(): void {
+		// Resolve the badge observables once per harness so that badge changes only re-read them.
+		const sectionBadges = derived(this, reader => {
+			const activeHarness = this.harnessService.activeHarness.read(reader);
+			return this.workspaceService.managementSections.map(section => {
+				const getBadge = aiCustomizationManagementSectionRegistry.get(section, activeHarness)?.getBadge;
+				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
+			});
+		});
+		this.editorDisposables.add(autorun(reader => {
+			for (const { section, badge } of sectionBadges.read(reader)) {
+				this.updateSectionBadge(section, badge?.read(reader));
+			}
+		}));
+	}
+
+	/**
+	 * Updates the badge of a section, which also applies when the visible sections are rebuilt, and re-renders the sidebar.
+	 */
+	private updateSectionBadge(sectionId: AICustomizationManagementSection, badge: string | undefined): void {
+		if (badge === undefined) {
+			this.sectionBadges.delete(sectionId);
+		} else {
+			this.sectionBadges.set(sectionId, badge);
+		}
+		const section = this.sections.find(s => s.id === sectionId);
+		if (!section || section.badge === badge) {
+			return;
+		}
+		section.badge = badge;
+		if (this.sectionsList) {
+			this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+			this.ensureSectionsListReflectsActiveSection();
+		}
 	}
 
 	//#endregion

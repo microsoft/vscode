@@ -151,6 +151,7 @@ suite('Sessions - Layout Actions', () => {
 
 	test('toggles the session activity bar layout actions from its context menu', async () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
+			.filter(item => item.group === 'navigation')
 			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
 			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
 		const configurationService = new class extends TestConfigurationService {

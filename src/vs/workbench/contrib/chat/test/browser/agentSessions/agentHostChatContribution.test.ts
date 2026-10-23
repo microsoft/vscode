@@ -204,6 +204,7 @@ class ControlledPeerTransport extends Disposable implements IProtocolTransport {
 	readonly onClose = Event.None;
 	private readonly _onRequest = this._register(new Emitter<JsonRpcRequest>());
 	private readonly _onDispatch = this._register(new Emitter<DispatchActionParams>());
+	readonly onDispatch = this._onDispatch.event;
 
 	send(message: Parameters<IProtocolTransport['send']>[0]): void {
 		const decoded: Parameters<IProtocolTransport['send']>[0] = JSON.parse(JSON.stringify(message));
@@ -1782,7 +1783,7 @@ suite('AgentHostChatContribution', () => {
 		});
 	});
 
-	suite('metadata wire-to-feature', () => {
+	suite('wire-to-feature', () => {
 		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata> }) {
 			const { instantiationService, chatAgentService, modelService, chatService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
 			const quotaUpdates: Parameters<IChatEntitlementService['acceptQuotas']>[0][] = [];
@@ -1847,23 +1848,25 @@ suite('AgentHostChatContribution', () => {
 				jsonrpc: '2.0', method: 'action',
 				params: { channel, serverSeq: ++serverSeq, origin: undefined, action },
 			});
-			const echo = (sent: DispatchActionParams) => peer.deliver({
+			const echo = (sent: DispatchActionParams, rejectionReason?: string, clientId = client.clientId) => peer.deliver({
 				jsonrpc: '2.0', method: 'action',
-				params: { channel: sent.channel, serverSeq: ++serverSeq, action: sent.action, origin: { clientId: client.clientId, clientSeq: sent.clientSeq } },
+				params: { channel: sent.channel, serverSeq: ++serverSeq, action: sent.action, origin: { clientId, clientSeq: sent.clientSeq }, rejectionReason },
 			});
-			const startRequest = async (overrides: Parameters<typeof makeRequest>[0] = {}) => {
+			const startRequest = async (overrides: Parameters<typeof makeRequest>[0] = {}, options: { acknowledge?: boolean; token?: CancellationToken } = {}) => {
 				const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
 				assert.ok(registered);
 				const started = peer.nextDispatch(ActionType.ChatTurnStarted);
 				const progress: IChatProgress[] = [];
 				const result = registered.impl.invoke(
 					makeRequest({ sessionResource, requestId: 'req-wire-test', message: 'Hello', ...overrides }),
-					parts => progress.push(...parts), [], CancellationToken.None,
+					parts => progress.push(...parts), [], options.token ?? CancellationToken.None,
 				);
 				const sent = await Promise.race([started, result.then(() => { throw new Error('Invocation completed without dispatching a turn'); })]);
 				assert.ok(sent.action.type === ActionType.ChatTurnStarted);
 				const turnId = sent.action.turnId;
-				echo(sent);
+				if (options.acknowledge !== false) {
+					echo(sent);
+				}
 				return {
 					sent, progress, result, turnId,
 					finish: async () => {
@@ -1874,6 +1877,107 @@ suite('AgentHostChatContribution', () => {
 			};
 			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, instantiationService, chatService };
 		}
+
+		for (const synchronous of [false, true]) {
+			test(`rejected turn starts surface the reason and settle without a host turn (synchronous: ${synchronous})`, async () => {
+				const { startRequest, echo, peer, client, chatUri, chatSession } = await openWireSession();
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const reason = 'The host cannot accept this request.';
+				let cancellations = 0;
+				disposables.add(peer.onDispatch(sent => {
+					if (sent.action.type === ActionType.ChatTurnCancelled) {
+						cancellations++;
+					} else if (synchronous && sent.action.type === ActionType.ChatTurnStarted) {
+						echo(sent, reason);
+					}
+				}));
+				const { sent, result, progress } = await startRequest({}, { acknowledge: false, token: cancellation.token });
+				const rejected = assert.rejects(result, { message: `Your message could not be sent: ${reason}` });
+				if (!synchronous) {
+					echo(sent, reason);
+				}
+				await rejected;
+				cancellation.cancel();
+				const state = client.getSubscriptionUnmanaged<ChatState>(StateComponents.Chat, URI.parse(chatUri))?.value;
+				assert.ok(state && !(state instanceof Error));
+
+				assert.deepStrictEqual({
+					complete: chatSession.isCompleteObs?.get(),
+					activeTurn: state.activeTurn,
+					turns: state.turns,
+					markdown: progress.filter(part => part.kind === 'markdownContent'),
+					cancellations,
+				}, {
+					complete: true,
+					activeTurn: undefined,
+					turns: [],
+					markdown: [],
+					cancellations: 0,
+				});
+			});
+		}
+
+		for (const refreshFails of [false, true]) {
+			test(`rejected turn starts during a subscription refresh surface the reason (refresh fails: ${refreshFails})`, async () => {
+				const { startRequest, echo, peer, client, chatUri, chatSession } = await openWireSession();
+				const { sent, result } = await startRequest({}, { acknowledge: false });
+				const resource = URI.parse(chatUri);
+				const subscription = client.getSubscriptionUnmanaged<ChatState>(StateComponents.Chat, resource);
+				assert.ok(subscription?.verifiedValue);
+				const snapshot = subscription.verifiedValue;
+				const subscribe = peer.nextRequest('subscribe');
+				const refreshing = client.refreshSubscription(resource);
+				const refreshResult = refreshFails ? assert.rejects(refreshing, /Snapshot unavailable/) : refreshing;
+				const request = await subscribe;
+				const reason = 'The host cannot accept this request.';
+				const rejected = assert.rejects(result, { message: `Your message could not be sent: ${reason}` });
+				echo(sent, reason);
+				peer.deliver(refreshFails
+					? { jsonrpc: '2.0', id: request.id, error: { code: -32603, message: 'Snapshot unavailable' } }
+					: { jsonrpc: '2.0', id: request.id, result: { snapshot: { resource: chatUri, fromSeq: 0, state: snapshot } } });
+				await refreshResult;
+				await rejected;
+				const state = subscription.value;
+				assert.ok(state && !(state instanceof Error));
+
+				assert.deepStrictEqual({
+					complete: chatSession.isCompleteObs?.get(),
+					activeTurn: state.activeTurn,
+					turns: state.turns,
+				}, {
+					complete: true,
+					activeTurn: undefined,
+					turns: [],
+				});
+			});
+		}
+
+		test('turn-start rejections for another client, chat or turn do not fail the pending request', async () => {
+			const { startRequest, echo, fire, chatSession } = await openWireSession();
+			const { sent, turnId, progress, finish } = await startRequest({}, { acknowledge: false });
+			assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+			echo(sent, 'Another client was rejected', 'other-client');
+			echo({ ...sent, channel: 'ahp-chat:/another-conversation' }, 'Another chat was rejected');
+			echo({ ...sent, clientSeq: sent.clientSeq + 100, action: { ...sent.action, turnId: 'another-turn' } }, 'Another turn was rejected');
+			echo(sent);
+			fire({
+				type: ActionType.ChatResponsePart,
+				turnId,
+				part: { kind: ResponsePartKind.Markdown, id: 'accepted-response', content: 'Accepted response' },
+			});
+			const result = await finish();
+			echo(sent, 'A late rejection must not change the completed request');
+
+			assert.deepStrictEqual({
+				errorDetails: result.errorDetails,
+				markdown: progress.filter(part => part.kind === 'markdownContent').map(part => part.content.value),
+				complete: chatSession.isCompleteObs?.get(),
+			}, {
+				errorDetails: undefined,
+				markdown: ['Accepted response'],
+				complete: true,
+			});
+		});
 
 		test('chat billing snapshots and idle updates reach the UI model without mutating canceled history or a peer', async () => {
 			const chatUri = 'ahp-chat:/host-assigned-conversation-73';
@@ -2525,6 +2629,45 @@ suite('AgentHostChatContribution', () => {
 				peer: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
 				link: './images/my%20robot.png',
 			});
+		});
+
+		test('resolves tool-result image bytes only in the owning opaque chat', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'tool-images');
+			const defaultChat = 'host-chat:/opaque-image-main';
+			const peerChat = 'host-chat:/opaque-image-peer';
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Images', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			const main = createDefaultChatSummary(summary, defaultChat);
+			const peer = createDefaultChatSummary(summary, peerChat);
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat, chats: [main, peer],
+			});
+			const mainState = createChatState(main);
+			mainState.activeTurn = createActiveTurn('image-turn', { text: 'Show an image', origin: { kind: MessageKind.User } }, new Date().toISOString());
+			mainState.activeTurn.responseParts.push({
+				kind: ResponsePartKind.ToolCall, toolCall: {
+					toolCallId: 'view-image', toolName: 'view', displayName: 'View', invocationMessage: 'View image', pastTenseMessage: 'Viewed image',
+					status: ToolCallStatus.Completed, success: true, confirmed: ToolCallConfirmationReason.NotNeeded,
+					toolInput: '{"path":"/tmp/result.png"}', content: [{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'aW1hZ2U=' }],
+				},
+			});
+			agentHostService.chatStates.set(defaultChat, mainState);
+			agentHostService.chatStates.set(peerChat, createChatState(peer));
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('sandbox');
+			const resource = URI.parse('agent-host-copilot:/tool-images');
+			const peerResource = resource.with({ query: new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: peerChat }).toString() });
+			disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			disposables.add(await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None));
+			const path = '/tmp/result.png';
+			const hostPath = toAgentHostUri(URI.file(path), 'sandbox').toString();
+			assert.deepStrictEqual({
+				main: sessionHandler.resolveChatResponseUri(resource, path, 'image'),
+				peer: sessionHandler.resolveChatResponseUri(peerResource, path, 'image'),
+				link: sessionHandler.resolveChatResponseUri(resource, path, 'link'),
+			}, { main: 'data:image/png;base64,aW1hZ2U=', peer: hostPath, link: hostPath });
 		});
 
 		for (const host of ['local', 'WSL']) {

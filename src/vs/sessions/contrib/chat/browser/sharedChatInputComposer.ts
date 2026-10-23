@@ -212,6 +212,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
 			comparison: this.options.modelPickerComparison,
+			comparisonBusy: this._sending,
 			modelConfiguration: true,
 			fallbackModelConfiguration: this.languageModelsService,
 		}));
@@ -403,7 +404,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	/** Shows progress in the input toolbar while the draft initializes or the host sends, after a short delay. */
 	private _renderBusyState(busyContextKey: IContextKey<ComposerBusyState>): void {
-		const busy = derived<ComposerBusyState>(this, reader => this._sending.read(reader) ? 'sending' : this.options.loading.read(reader) ? 'initializing' : '');
+		const busy = derived<ComposerBusyState>(this, reader => {
+			const comparisonSending = this._sending.read(reader) && !!this.options.modelPickerComparison?.summary.read(reader);
+			return this._sending.read(reader) && !comparisonSending ? 'sending' : this.options.loading.read(reader) ? 'initializing' : '';
+		});
 		const delay = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			const value = busy.read(reader);

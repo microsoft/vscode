@@ -136,6 +136,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
+import { resolveAgentHostToolResultImage } from './agentHostToolResultImages.js';
 import { getComputerUseActivationCardText, getComputerUseSetupCardText, IComputerUseSetupService } from './computerUseSetup.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -3656,21 +3657,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}, request.hideFromTranscript),
 		};
 		this._ensureTurnStopWatch(turnChannel, turnId);
-		onFailureStage('dispatchTurn');
-		this._config.connection.dispatch(turnChannel, turnAction);
-
-		// Ensure the snapshot controller records a sentinel checkpoint for this
-		// request so it appears in requestDisablement even if the turn
-		// produces no file edits.
-		this._ensureSnapshotController(request.sessionResource)
-			?.ensureRequestCheckpoint(request.requestId);
 
 		// Wait for the turn to reach a terminal state. The observable graph
 		// installed below drives all progress emission via the `progress`
 		// sink and resolves the promise from `onTurnEnded`. Cancellation is
 		// surfaced through the same path: the observer disposes itself when
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
-		onFailureStage('observeTurn');
 		const resourceOpens: Promise<void>[] = [];
 		let resourceOpenError: Error | undefined;
 		const openResponseResource = async ({ resource, preview }: ISlashCommandResource): Promise<void> => {
@@ -3690,6 +3682,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return new Promise<Turn | undefined>((resolve, reject) => {
 			const store = this._createTurnObservation(resolve);
+			const finish = () => {
+				this._turnObservations.deleteAndDispose(store);
+				this._clientDispatchedTurnIds.delete(turnId);
+				this._completeSessionTurn(session, request.sessionResource, turnId);
+			};
+			// Listen before dispatch, including while the subscription buffers incoming actions.
+			store.add(this._config.connection.onDidAction(envelope => {
+				if (envelope.channel !== turnChannel
+					|| envelope.action.type !== ActionType.ChatTurnStarted
+					|| envelope.action.turnId !== turnId
+					|| envelope.origin?.clientId !== this._config.connection.clientId
+					|| !envelope.rejectionReason) {
+					return;
+				}
+				reject(new Error(localize('agentHost.turnRejected', "Your message could not be sent: {0}", envelope.rejectionReason)));
+				this._clearTurnStopWatch(turnChannel, turnId);
+				finish();
+			}));
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
@@ -3700,39 +3710,51 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}, turnChannel);
 			}));
 
-			store.add(this._observeTurn({
-				backendSession: session,
-				sessionResource: request.sessionResource,
-				chatURI,
-				turnId,
-				sink: progress,
-				cancellationToken,
-				suppressErrorMarkdown: true,
-				onResponseText,
-				onOpenResponseResource: request.message.trimStart().startsWith('/')
-					? resource => {
-						resourceOpens.push(openResponseResource(resource).catch(error => {
-							resourceOpenError = error instanceof Error ? error : new Error(String(error));
-							this._logService.error('[AgentHost] Failed to open slash command resource', resourceOpenError);
-						}));
-					}
-					: undefined,
-				onTurnEnded: async (lastTurn) => {
-					try {
-						await raceCancellation(Promise.all(resourceOpens), cancellationToken);
-						if (resourceOpenError) {
-							throw resourceOpenError;
+			try {
+				onFailureStage('dispatchTurn');
+				this._config.connection.dispatch(turnChannel, turnAction);
+				if (store.isDisposed) {
+					return;
+				}
+				this._ensureSnapshotController(request.sessionResource)
+					?.ensureRequestCheckpoint(request.requestId);
+				onFailureStage('observeTurn');
+				store.add(this._observeTurn({
+					backendSession: session,
+					sessionResource: request.sessionResource,
+					chatURI,
+					turnId,
+					sink: progress,
+					cancellationToken,
+					suppressErrorMarkdown: true,
+					onResponseText,
+					onOpenResponseResource: request.message.trimStart().startsWith('/')
+						? resource => {
+							resourceOpens.push(openResponseResource(resource).catch(error => {
+								resourceOpenError = error instanceof Error ? error : new Error(String(error));
+								this._logService.error('[AgentHost] Failed to open slash command resource', resourceOpenError);
+							}));
 						}
-						resolve(lastTurn);
-					} catch (error) {
-						reject(error);
-					} finally {
-						this._turnObservations.deleteAndDispose(store);
-						this._clientDispatchedTurnIds.delete(turnId);
-						this._completeSessionTurn(session, request.sessionResource, turnId);
-					}
-				},
-			}));
+						: undefined,
+					onTurnEnded: async (lastTurn) => {
+						try {
+							await raceCancellation(Promise.all(resourceOpens), cancellationToken);
+							if (resourceOpenError) {
+								throw resourceOpenError;
+							}
+							resolve(lastTurn);
+						} catch (error) {
+							reject(error);
+						} finally {
+							finish();
+						}
+					},
+				}));
+			} catch (error) {
+				reject(error);
+				this._clearTurnStopWatch(turnChannel, turnId);
+				finish();
+			}
 		});
 	}
 
@@ -8431,10 +8453,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
 		const session = this._resolveSessionUri(sessionResource);
+		const chatUri = this._getChatURIOrDefault(sessionResource, session);
 		const directory = kind === 'image'
-			? this._getSessionState(session.toString(), this._getChatURIOrDefault(sessionResource, session))?.workingDirectories?.[0]
+			? this._getSessionState(session.toString(), chatUri)?.workingDirectories?.[0]
 			: undefined;
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
+		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
+		const resolved = resolve(href);
+		const chat = chatUri === this._getRawSessionState(session.toString())?.defaultChat
+			? this._getDefaultChatState(session.toString())
+			: chatUri ? this._getAdditionalChatState(chatUri) : undefined;
+		return (kind === 'image' ? resolveAgentHostToolResultImage(chat, resolved, resolve) : undefined) ?? resolved;
 	}
 
 	/**

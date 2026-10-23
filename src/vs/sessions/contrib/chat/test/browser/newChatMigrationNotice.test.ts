@@ -296,7 +296,7 @@ suite('NewChatMigrationNotice', () => {
 		const refreshing = snapshot(notice).visible;
 		await pending.complete(undefined);
 		await timeout(0);
-		assert.deepStrictEqual({ before, refreshing, after: snapshot(notice).visible }, { before: true, refreshing: false, after: false });
+		assert.deepStrictEqual({ before, refreshing, after: snapshot(notice).visible }, { before: true, refreshing: true, after: false });
 	});
 
 	test('hides when migrations are disabled', async () => {

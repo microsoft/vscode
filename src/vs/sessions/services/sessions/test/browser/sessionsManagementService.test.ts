@@ -44,9 +44,11 @@ import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -1867,7 +1869,9 @@ suite('SessionsManagementService', () => {
 
 		for (const registerBeforeManagement of [true, false]) {
 			test(`routes existing environment sessions without advertising their backends (${registerBeforeManagement ? 'initial' : 'late'} registration)`, async () => {
-				const providers = disposables.add(new SessionsProvidersService());
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				const providers = disposables.add(instantiationService.createInstance(SessionsProvidersService));
 				const cloudSession = stubSession({ sessionId: 'cloud:draft', providerId: 'cloud' });
 				const workspace = upcastPartial<ISessionWorkspace>({ uri: URI.file('/repository') });
 				const cloud = new class extends TestSessionsProvider {

@@ -15,7 +15,7 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../..
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../common/chatLayout.js';
-import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
 
@@ -70,6 +70,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('sessions.sessionActivityBar.showLayoutActions', "Controls whether the Session Activity Bar shows the Toggle Side Panel and Toggle Panel actions in place of their title bar buttons. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
+		},
+		[SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('sessions.sessionActivityBar.showGitHubActions', "Controls whether the Session Activity Bar shows pull request and issue actions for the active chat when a contributed opener is available for their links. Does not affect pills above the chat input. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
 		},
 	},
 });
