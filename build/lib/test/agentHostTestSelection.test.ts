@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -287,6 +288,52 @@ suite('Agent Host PR test selection', () => {
 		});
 	});
 
+	test('Windows shards the Agent Host E2E suites so that every suite runs exactly once', () => {
+		interface IRunnerSuite { readonly label: string }
+		interface IShard { readonly index: number; readonly total: number }
+		interface IRunner {
+			readonly suites: readonly IRunnerSuite[];
+			parseShard(value: string): IShard;
+			selectShardSuites(shard: IShard): readonly IRunnerSuite[];
+		}
+		interface IStep { readonly name?: string; readonly env?: Record<string, string> }
+		const runner: IRunner = createRequire(import.meta.url)('../../../test/integration/agentHost/runner.ts');
+		const pr = load(readFileSync(path.join(repositoryRoot, '.github/workflows/pr.yml'), 'utf8')) as {
+			jobs: Record<string, { name?: string; strategy?: { matrix?: { shard?: number[] } }; with?: Record<string, unknown> }>;
+		};
+		const win32 = load(readFileSync(path.join(repositoryRoot, '.github/workflows/pr-win32-test.yml'), 'utf8')) as { jobs: Record<string, { steps: IStep[] }> };
+		const job = pr.jobs['windows-agent-host-e2e-tests'];
+		const step = Object.values(win32.jobs).flatMap(windowsJob => windowsJob.steps).find(windowsStep => windowsStep.name?.includes('Run Agent Host E2E tests (Electron)'));
+		const shards = (total: number) => Array.from({ length: total }, (_, index) => runner.selectShardSuites(runner.parseShard(`${index + 1}/${total}`)).map(suite => suite.label));
+		const allSuites = runner.suites.map(suite => suite.label).sort();
+		const parse = (value: string) => {
+			try {
+				const shard = runner.parseShard(value);
+				return `${shard.index}/${shard.total}`;
+			} catch {
+				return 'rejected';
+			}
+		};
+		assert.deepStrictEqual({
+			job: { name: job.name, shards: job.strategy?.matrix?.shard, index: job.with?.agent_host_e2e_shard_index, total: job.with?.agent_host_e2e_shard_total },
+			stepShard: step?.env?.AGENT_HOST_E2E_SHARD,
+			windowsShards: shards(3),
+			suitesPerTotal: Array.from({ length: allSuites.length }, (_, index) => shards(index + 1).flat().sort()),
+			parsed: ['1/1', '3/3', '0/3', '4/3', '1/7', 'one/three'].map(parse),
+		}, {
+			job: { name: 'Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})', shards: [1, 2, 3], index: '${{ matrix.shard }}', total: '${{ strategy.job-total }}' },
+			stepShard: '${{ inputs.agent_host_e2e_shard_index }}/${{ inputs.agent_host_e2e_shard_total }}',
+			// About two suites per machine: the suites slow each other down when more share one.
+			windowsShards: [
+				['Copilot', 'Copilot managed settings'],
+				['Conformance', 'Copilot OTel'],
+				['Claude', 'Codex'],
+			],
+			suitesPerTotal: Array.from({ length: allSuites.length }, () => allSuites),
+			parsed: ['1/1', '3/3', 'rejected', 'rejected', 'rejected', 'rejected'],
+		});
+	});
+
 	test('every CI step that runs the integration tests is paired with an Agent Host E2E step', () => {
 		interface ICommandStep {
 			readonly command: string;
@@ -317,10 +364,10 @@ suite('Agent Host PR test selection', () => {
 			if (integration.length === 0 && agentHost.length === 0) {
 				return [];
 			}
-			// The change-detection skip only applies to the Agent Host E2E step.
+			// The change-detection skip and the Windows shard selection only apply to the Agent Host E2E step.
 			const signature = (step: ICommandStep) => JSON.stringify({
 				command: step.command.replace('test-agent-host-e2e.', 'test-integration.'),
-				environment: Object.fromEntries(Object.entries(step.environment).filter(([name]) => name !== 'VSCODE_SKIP_AGENT_HOST_E2E').sort()),
+				environment: Object.fromEntries(Object.entries(step.environment).filter(([name]) => name !== 'VSCODE_SKIP_AGENT_HOST_E2E' && name !== 'AGENT_HOST_E2E_SHARD').sort()),
 			});
 			const agentHostSignatures = agentHost.map(signature).sort();
 			return [{

@@ -34,6 +34,14 @@ on:
         description: Whether to run the Agent Host E2E tests
         type: boolean
         default: false
+      agent_host_e2e_shard_index:
+        description: 1-based index of the Agent Host E2E shard to run
+        type: number
+        default: 1
+      agent_host_e2e_shard_total:
+        description: Number of shards the Agent Host E2E suites are split into
+        type: number
+        default: 1
       agent_host_test_profile:
         description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
         type: string
@@ -46,10 +54,10 @@ on:
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
-    # JobId must be unique per job, so smoke test shards and the browser unit tests part add a suffix
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    # JobId must be unique per job, so smoke test shards, Agent Host E2E shards and the browser unit tests part add a suffix
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.agent_host_e2e_shard_total > 1 && format('-shard{0}', inputs.agent_host_e2e_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.agent_host_e2e_shard_total > 1 && format('-shard{0}', inputs.agent_host_e2e_shard_index) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -242,6 +250,7 @@ jobs:
         shell: pwsh
         run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests"
         env:
+          AGENT_HOST_E2E_SHARD: ${{ inputs.agent_host_e2e_shard_index }}/${{ inputs.agent_host_e2e_shard_total }}
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
           VSCODE_SKIP_PRELAUNCH: '1'
