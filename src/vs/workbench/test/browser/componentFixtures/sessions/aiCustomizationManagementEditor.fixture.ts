@@ -2788,7 +2788,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
-function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false): IAgentPlugin {
+function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
 	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
 	const enablementState = typeof enablement === 'boolean'
 		? (enablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
@@ -2797,6 +2797,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly uri = uri;
 		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
+		override readonly fromMarketplace = fromMarketplace;
 		override readonly version = constObservable('1.0.0');
 		override readonly enablement = constObservable(enablementState);
 		override readonly policyBlocked = constObservable(policyBlocked);
@@ -2821,8 +2822,8 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 }
 
 const installedPlugins: IAgentPlugin[] = [
-	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true),
-	makeInstalledPlugin('Sentry', URI.file('/workspace/.copilot/plugins/sentry'), true),
+	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true, false, makeMarketplacePlugin('Linear', 'Issue tracking and project management integration', 'linear-plugin')),
+	makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/github.com/example/sentry-plugin'), true, false, makeMarketplacePlugin('Sentry', 'Error monitoring and performance tracing', 'sentry-plugin')),
 	makeInstalledPlugin('Datadog', URI.file('/workspace/.copilot/plugins/datadog'), true),
 	makeInstalledPlugin('Notion', URI.file('/workspace/.copilot/plugins/notion'), true),
 	makeInstalledPlugin('Confluence', URI.file('/workspace/.copilot/plugins/confluence'), true),
