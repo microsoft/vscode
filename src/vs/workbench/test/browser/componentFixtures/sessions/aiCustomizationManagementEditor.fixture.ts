@@ -4123,8 +4123,10 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			migrationGuidance: true,
 			files: [],
 			openMigrationItemLabel: 'review-tools',
+			// Omits the extension tool set so the user tool set row is rendered in the short viewport.
+			toolSets: [],
 			width: 550,
-			height: 500,
+			height: 560,
 		}),
 	}),
 

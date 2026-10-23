@@ -1919,7 +1919,8 @@ suite('aiCustomizationManagementEditor', () => {
 			{ type: CustomizationMigrationType.ChatParticipants, items: [{ id: 'review', name: '@review', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' }] },
 			{ type: CustomizationMigrationType.ToolSets, items: [{ id: 'tools', name: 'reviewTools', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' }] },
 		];
-		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+		const confirmations: string[] = [];
+		editor.dialogService = { confirm: async confirmation => { confirmations.push(confirmation.message); return { confirmed: true }; } };
 		editor.quickInputService = { pick: async items => items };
 		editor.setCustomizationsToMigrate(new Map(), new Map());
 		const initial = editor.getCustomizationMigrationDashboardOverview();
@@ -1948,6 +1949,7 @@ suite('aiCustomizationManagementEditor', () => {
 			hasIgnoredGroups: ignored.hasIgnoredGroups,
 			restored: restored.scopes.flatMap(scope => scope.categories.map(category => category.id)),
 			restoredIgnoredState: restored.hasIgnoredGroups,
+			confirmations,
 		}, {
 			groups: [
 				{ id: CustomizationMigrationCategoryId.ChatParticipants, count: 1, url: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants', destination: undefined },
@@ -1962,6 +1964,7 @@ suite('aiCustomizationManagementEditor', () => {
 			hasIgnoredGroups: true,
 			restored: [CustomizationMigrationCategoryId.ChatParticipants, CustomizationMigrationCategoryId.ToolSets],
 			restoredIgnoredState: false,
+			confirmations: ['Ignore Chat Participants (Extensions) migrations?'],
 		});
 	});
 

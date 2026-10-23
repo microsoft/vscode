@@ -2470,7 +2470,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async ignoreMigrationCategory(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void> {
 		const scope = storage === PromptsStorage.local
 			? localize('migrationWorkspaceScope', "Workspace")
-			: localize('migrationUserScope', "User");
+			: storage === PromptsStorage.extension
+				? localize('migrationExtensionsScope', "Extensions")
+				: localize('migrationUserScope', "User");
 		const confirmation = await this.dialogService.confirm({
 			message: localize('ignoreMigrationCategoryConfirmation', "Ignore {0} ({1}) migrations?", this.getMigrationDashboardCategoryLabel(id), scope),
 			detail: localize('ignoreMigrationCategoryDetail', "This migration group stays hidden until you restore it from Show Ignored Migrations."),

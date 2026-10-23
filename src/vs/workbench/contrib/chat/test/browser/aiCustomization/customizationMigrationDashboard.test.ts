@@ -203,6 +203,9 @@ suite('CustomizationMigrationDashboard', () => {
 		[...parent.querySelectorAll<HTMLElement>('.migration-guidance-card a')].find(link => link.textContent === 'Learn how to replace chat participants')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		dashboard.showOverview(guidanceOverview);
 		const detailPreservedOnRefresh = parent.querySelector('.migration-guidance-detail .editor-item-name')?.textContent;
+		(DOM.getActiveElement() as HTMLElement | null)?.blur();
+		dashboard.focus();
+		const refocusedDetail = DOM.getActiveElement()?.textContent;
 		parent.querySelector<HTMLElement>('button.editor-back-button[aria-label="Back to migrations"]')!.click();
 		const restoredRow = parent.querySelector('.monaco-list-row.focused')?.getAttribute('aria-label');
 		const restoredFocusInTree = parent.querySelector('.migration-tree')?.contains(DOM.getActiveElement()) ?? false;
@@ -220,6 +223,7 @@ suite('CustomizationMigrationDashboard', () => {
 			detailStructure,
 			sourceNavigationAllowed,
 			detailPreservedOnRefresh,
+			refocusedDetail,
 			restoredRow,
 			restoredFocusInTree,
 			detailAccessibilityContent,
@@ -243,6 +247,7 @@ suite('CustomizationMigrationDashboard', () => {
 			},
 			sourceNavigationAllowed: false,
 			detailPreservedOnRefresh: '@review',
+			refocusedDetail: 'Learn how to replace chat participants',
 			restoredRow: '@review, Extension, source Review Extension',
 			restoredFocusInTree: true,
 			detailAccessibilityContent: '@review\n\nSource: Review Extension\n\nReplace Chat Participant\n\nChat participants are deprecated and are not supported by the Copilot harness.\n\nAsk the extension publisher whether it provides an agent plugin, MCP server, or extension tools. Use a custom agent when the integration needs an ongoing specialist role.\n\nLearn how to replace chat participants: https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants',

@@ -500,8 +500,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 			summary: localize('replaceChatParticipant', "Replace Chat Participant"),
 			reason: localize('chatParticipantMigrationManualReviewReason', "Chat participants are deprecated and are not supported by the Copilot harness."),
 			guidance: localize('chatParticipantMigrationManualReviewGuidance', "Ask the extension publisher whether it provides an agent plugin, MCP server, or extension tools. Use a custom agent when the integration needs an ongoing specialist role."),
-						learnMoreLabel: localize('learnHowToReplaceChatParticipants', "Learn how to replace chat participants"),
-						sourceLabel,
+			learnMoreLabel: localize('learnHowToReplaceChatParticipants', "Learn how to replace chat participants"),
+			sourceLabel,
 			sourceAriaLabel,
 		};
 	}
@@ -569,6 +569,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	focus(): void {
+		if (this.guidanceDetail) {
+			(this.focusTargets.get('guidanceLearnMore') ?? this.focusTargets.get('guidanceBack'))?.focus();
+			return;
+		}
 		if (this.allMigrationsComplete) {
 			return;
 		}
