@@ -115,14 +115,6 @@ function getComparisonSessionFolder(session: ISession | undefined, selectedFolde
 	return session?.workspace.get()?.folders.find(folder => isEqual(folder.root, selectedFolderUri));
 }
 
-function getComparisonHasGitRemote(session: ISession | undefined, selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): boolean | undefined {
-	const selectedWorkspaceHasGitRemote = getComparisonSelectedWorkspaceFolder(selectedWorkspace, selectedFolderUri)?.gitRepository?.hasGitRemote;
-	if (selectedWorkspaceHasGitRemote !== undefined) {
-		return selectedWorkspaceHasGitRemote;
-	}
-	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
-}
-
 export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
@@ -1813,8 +1805,7 @@ export class NewChatWidget extends Disposable {
 		if (!sessionMatchesSelectedFolder) {
 			return false;
 		}
-		const hasGitRemote = getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, selectedFolderUri);
-		if (hasGitRemote !== true) {
+		if (this._getComparisonBranch(session) === undefined) {
 			return false;
 		}
 		const sessionConfig = session && providerIsAgentHost && !resolvingConfig ? provider.getSessionConfig(session.sessionId, session.mainChat.get().resource) : undefined;
@@ -1823,13 +1814,11 @@ export class NewChatWidget extends Disposable {
 		return this._compareAgentsEnabled.get()
 			&& selectedFolderUri !== undefined
 			&& !!session
-			&& hasGitRemote
 			&& providerIsAgentHost
 			&& this.sessionsManagementService.getSessionTypesForFolder(selectedFolderUri).some(type =>
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration)
 			&& !resolvingConfig
-			&& supportsWorktreeIsolation
-			&& this._getComparisonBranch(session) !== undefined;
+			&& supportsWorktreeIsolation;
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
@@ -2004,7 +1993,7 @@ export class NewChatWidget extends Disposable {
 				throw new Error(localize('comparisonPicker.workspaceRequired', "Select a workspace for the comparison."));
 			}
 			const branch = workspace ? this._getComparisonBranch(session) : undefined;
-			const workspaceError = workspace ? getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace)) : undefined;
+			const workspaceError = workspace ? getSessionComparisonWorkspaceError(branch) : undefined;
 			if (workspaceError) {
 				throw new Error(workspaceError);
 			}
