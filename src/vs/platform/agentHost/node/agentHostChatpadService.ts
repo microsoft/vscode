@@ -6,9 +6,9 @@
 import { Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase, joinPath } from '../../../base/common/resources.js';
+import { extUri, extUriIgnorePathCase, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
-import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
+import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
@@ -49,7 +49,7 @@ export interface IAgentHostChatpadService {
 	/** Returns the Chatpad, creating its note when missing; `undefined` when there is no Chatpad chat. */
 	getChatpad(sessions: IAgentHostChatpadSessions): Promise<IAgentHostChatpad | undefined>;
 	/**
-	 * Makes `session` the Chatpad chat unless another Chatpad chat exists, or its id is not a single path segment, in
+	 * Makes `session` the Chatpad chat unless another Chatpad chat exists, or its id is not a plain file name, in
 	 * which case `session` stays an ordinary chat. Resolves to whether `session` is the Chatpad chat.
 	 */
 	claim(session: URI, sessions: IAgentHostChatpadSessions): Promise<boolean>;
@@ -62,21 +62,23 @@ const NOTE_TEMPLATE = '# Chatpad\n\n';
 const MAX_APPEND_ATTEMPTS = 3;
 
 /**
- * Whether `id` is a single path segment, so that the scratch folder of its session, and the note in it, is a direct
- * child of the chats root. Clients choose session ids, and the note is approved for writing without consent.
+ * Whether `id` is a plain file name, so that the scratch folder of its session, and the note in it, is a direct
+ * child of the chats root. Clients choose session ids, the note is approved for writing without consent, and its
+ * path is part of the Chatpad chat's instructions, so only letters, digits, `.`, `_` and `-` are accepted. A
+ * trailing dot, which Windows drops, also rules out `.` and `..`.
  */
 function isSafeSessionId(id: string): boolean {
-	return id.length > 0 && id !== '.' && id !== '..' && !/[\\/]/.test(id);
+	return /^[A-Za-z0-9._-]+$/.test(id) && !id.endsWith('.');
 }
 
 /**
  * The note of the Chatpad chat `session` on a host whose user home is `userHome`: a file in the chat's scratch folder.
- * Throws when the session's id is not a single path segment.
+ * Throws when the session's id is not a plain file name.
  */
 export function getChatpadNote(userHome: URI, session: URI | string): URI {
 	const id = AgentSession.id(session);
 	if (!isSafeSessionId(id)) {
-		throw new Error(`The session ${session.toString()} has no Chatpad note: its id is not a single path segment.`);
+		throw new Error(`The session ${session.toString()} has no Chatpad note: its id is not a plain file name.`);
 	}
 	return joinPath(workspacelessScratchDir(userHome, id), 'chatpad.md');
 }
@@ -106,7 +108,13 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 
 	isNote(resource: URI): boolean {
 		const session = this.session;
-		return session !== undefined && extUriBiasedIgnorePathCase.isEqual(resource, this.getNote(session));
+		if (session === undefined) {
+			return false;
+		}
+		// Exactly the note: a sibling whose name differs only in case is another file where case matters.
+		const note = this.getNote(session);
+		const pathCase = this._fileService.hasCapability(note, FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
+		return pathCase.isEqual(resource, note);
 	}
 
 	getNote(session: string): URI {
@@ -128,7 +136,7 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 
 	claim(session: URI, sessions: IAgentHostChatpadSessions): Promise<boolean> {
 		if (!isSafeSessionId(AgentSession.id(session))) {
-			this._logService.warn(`[AgentHostChatpad] ${session.toString()} stays an ordinary chat: its id is not a single path segment`);
+			this._logService.warn(`[AgentHostChatpad] ${session.toString()} stays an ordinary chat: its id is not a plain file name`);
 			return Promise.resolve(false);
 		}
 		return this._sequencer.queue(async () => {
