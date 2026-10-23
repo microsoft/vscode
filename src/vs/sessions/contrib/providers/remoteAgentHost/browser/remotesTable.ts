@@ -207,14 +207,14 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
 				if (entry.type === 'remote') {
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
-						content: entry.connecting === undefined ? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
+						content: entry.connecting === undefined ? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
 					}));
 				}
 				break;
 			case 'gutter':
 			case 'actions': {
 				const showCollapse = template.column === 'gutter' && entry.type === 'group';
-				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel');
+				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				if (template.column === 'actions' && template.hasManagementActions !== showConnection) {
 					template.hasManagementActions = showConnection;
@@ -222,24 +222,31 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showConfig && !showConnection);
 				template.action.enabled = true;
+				template.action.tooltip = '';
 				if (showCollapse) {
 					template.action.label = entry.collapsed ? localize('remotes.expandGroup', "Expand {0}", entry.label) : localize('remotes.collapseGroup', "Collapse {0}", entry.label);
 					template.action.class = ThemeIcon.asClassName(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown);
 				} else if (showConfig) {
-					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration") : localize('remotes.openTunnelSettings', "Open Tunnel Settings");
+					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
+						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open Environment Settings")
+							: localize('remotes.openTunnelSettings', "Open Tunnel Settings");
 					template.action.class = ThemeIcon.asClassName(Codicon.settingsGear);
 				} else if (showConnection) {
 					const connected = RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
 					template.action.label = connected ? localize('remotes.disconnect', "Disconnect {0}", entry.remote.name) : localize('remotes.connect', "Connect to {0}", entry.remote.name);
 					template.action.class = ThemeIcon.asClassName(connected ? Codicon.debugDisconnect : Codicon.debugConnected);
-					template.action.enabled = !entry.busy && !entry.remote.unavailableReason
+					template.action.enabled = !entry.busy && (connected || !entry.remote.unavailableReason)
 						&& !RemoteAgentHostConnectionStatus.isConnecting(entry.remote.connectionStatus)
 						&& !RemoteAgentHostConnectionStatus.isReconnecting(entry.remote.connectionStatus);
+					template.action.tooltip = !connected && entry.remote.unavailableReason
+						? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason) : template.action.label;
 					template.rename.label = localize('remotes.rename', "Rename {0}...", entry.remote.name);
 					template.rename.enabled = !entry.busy;
 					template.remove.label = localize('remotes.remove', "Remove {0}", entry.remote.name);
 					template.remove.enabled = !entry.busy && entry.remote.canRemove;
-					template.remove.tooltip = entry.remote.canRemove ? template.remove.label : localize('remotes.removeUnavailable', "Remove {0}: only registered remotes that support removal can be removed.", entry.remote.name);
+					template.remove.tooltip = entry.remote.canRemove ? template.remove.label
+						: entry.remote.removeUnavailableReason ? localize('remotes.removeUnavailableReason', "Remove {0}: {1}", entry.remote.name, entry.remote.removeUnavailableReason)
+							: localize('remotes.removeUnavailable', "Remove {0}: only registered remotes that support removal can be removed.", entry.remote.name);
 				}
 				break;
 			}
