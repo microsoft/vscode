@@ -4661,6 +4661,12 @@ suite('CopilotAgent', () => {
 				}
 			};
 
+			// A link named like a session's scratch folder that resolves to a checkout outside the chats root.
+			const linkedScratch = URI.joinPath(chatsRoot, 'linked-session-id');
+			await fs.mkdir(URI.joinPath(userHome, 'checkout').fsPath, { recursive: true });
+			await fs.mkdir(chatsRoot.fsPath, { recursive: true });
+			await fs.symlink(URI.joinPath(userHome, 'checkout').fsPath, linkedScratch.fsPath, process.platform === 'win32' ? 'junction' : 'dir');
+
 			try {
 				assert.deepStrictEqual({
 					defaultChatScratch: await launches(URI.joinPath(chatsRoot, 'session-id'), true),
@@ -4668,12 +4674,14 @@ suite('CopilotAgent', () => {
 					chatNotWorkspaceless: await launches(URI.joinPath(chatsRoot, 'foldered-chat'), false),
 					nestedUnderChatsRoot: await launches(URI.joinPath(chatsRoot, 'other-client', 'chat'), true),
 					outsideChatsRoot: await launches(URI.joinPath(userHome, 'project'), true),
+					linkEscapingChatsRoot: await launches(linkedScratch, true),
 				}, {
 					defaultChatScratch: true,
 					peerChatScratch: true,
 					chatNotWorkspaceless: false,
 					nestedUnderChatsRoot: false,
 					outsideChatsRoot: false,
+					linkEscapingChatsRoot: false,
 				});
 			} finally {
 				await disposeAgent(agent);

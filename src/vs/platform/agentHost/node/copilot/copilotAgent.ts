@@ -2341,10 +2341,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The host allocates each workspace-less chat its own scratch folder directly under the chats root: the default
 		// chat's is named after its session, any other chat's is not. Only that exact folder is exempt from workspace trust.
 		const scratchFolder = session.workspacelessFolder;
-		const workspacelessRoot = scratchFolder && extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.dirname(scratchFolder), workspacelessChatsRoot(this._environmentService.userHome))
-			? scratchFolder
-			: undefined;
-		return this._projectExtensionLaunchPolicy.acquireAdmission(session.extensionLaunchDirectories, workspacelessRoot, session.createdWorktree);
+		return this._projectExtensionLaunchPolicy.acquireAdmission(
+			session.extensionLaunchDirectories,
+			scratchFolder ? { folder: scratchFolder, root: workspacelessChatsRoot(this._environmentService.userHome) } : undefined,
+			session.createdWorktree,
+		);
 	}
 
 	// ---- auth ---------------------------------------------------------------
