@@ -269,7 +269,7 @@ jobs:
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
+        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"${{ inputs.unit_test_shard_total > 1 && format(' --testSplit {0}/{1}', inputs.unit_test_shard_index, inputs.unit_test_shard_total) || '' }}
         env:
           DEBUG: "*browser*"
 

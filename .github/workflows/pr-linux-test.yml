@@ -346,7 +346,7 @@ jobs:
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"${{ inputs.unit_test_shard_total > 1 && format(' --testSplit {0}/{1}', inputs.unit_test_shard_index, inputs.unit_test_shard_total) || '' }}
         env:
           DEBUG: "*browser*"
 
