@@ -628,8 +628,10 @@ suite('SessionWorktreeCleanupService', () => {
 		}));
 		const before = (await service.getWorktrees(0))[0].cleanupStatus;
 		await service.cleanupWorktrees([{ session: archived, sizeBytes: 100, worktreeCount: 1 }]);
-		assert.deepStrictEqual({ before, calls, archived: archived.isArchived.get() }, {
+		const after = (await service.getWorktrees(0))[0].cleanupStatus;
+		assert.deepStrictEqual({ before, after, calls, archived: archived.isArchived.get() }, {
 			before: { state: 'failed', message: 'permission denied' },
+			after: { state: 'pending', message: undefined },
 			calls: [false, true],
 			archived: true,
 		});
@@ -651,6 +653,58 @@ suite('SessionWorktreeCleanupService', () => {
 		const worktree = (await service.getWorktrees(0))[0];
 		assert.deepStrictEqual({ status: worktree.cleanupStatus, error: worktree.cleanupStatusError, size: worktree.sizeBytes }, {
 			status: undefined, error: 'host disconnected', size: 100,
+		});
+	});
+
+	for (const state of ['pending', 'running'] as const) {
+		test(`preserves ${state} cleanup through transient status errors and recovers on polling`, async () => {
+			const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+			let disconnected = false;
+			let complete = false;
+			const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+				onCleanup: async () => {
+					if (disconnected) {
+						throw new Error('host disconnected');
+					}
+					return { state: complete ? 'failed' : state };
+				},
+			}));
+			await service.getWorktrees(0);
+			disconnected = true;
+			const refreshed = (await service.refreshPendingCleanup(['archived'], 0))[0];
+			const forced = (await service.getWorktrees(0, undefined, CancellationToken.None, true))[0];
+			disconnected = false;
+			complete = true;
+			const recovered = (await service.refreshPendingCleanup(['archived'], 0))[0];
+			assert.deepStrictEqual([refreshed, forced, recovered].map(worktree => ({
+				status: worktree.cleanupStatus,
+				error: worktree.cleanupStatusError,
+			})), [
+				{ status: { state }, error: 'host disconnected' },
+				{ status: { state }, error: 'host disconnected' },
+				{ status: { state: 'failed' }, error: undefined },
+			]);
+		});
+	}
+
+	test('clears a cached status-request error when retry starts cleanup', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const calls: boolean[] = [];
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			onCleanup: async (_session, retry) => {
+				calls.push(retry);
+				if (!retry) {
+					throw new Error('host disconnected');
+				}
+				return { state: 'pending' };
+			},
+		}));
+		await service.getWorktrees(0);
+		await service.cleanupWorktrees([{ session: archived, sizeBytes: 100, worktreeCount: 1 }]);
+		const worktree = (await service.getWorktrees(0))[0];
+		assert.deepStrictEqual({ calls, status: worktree.cleanupStatus, error: worktree.cleanupStatusError }, {
+			calls: [false, true], status: { state: 'pending' }, error: undefined,
 		});
 	});
 

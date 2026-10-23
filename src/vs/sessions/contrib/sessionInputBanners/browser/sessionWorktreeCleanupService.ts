@@ -283,6 +283,10 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 					throw error;
 				}
 				cleanupStatusError = getErrorMessage(error);
+				const previousStatus = this._lastMeasuredWorktrees?.find(worktree => worktree.session.sessionId === session.sessionId)?.cleanupStatus;
+				if (previousStatus?.state === 'pending' || previousStatus?.state === 'running') {
+					cleanupStatus = previousStatus;
+				}
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to read cleanup status for session ${session.sessionId}`, error);
 			}
 		}
@@ -480,7 +484,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	async getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token = CancellationToken.None, forceRefresh = false): Promise<readonly ISessionWorktree[]> {
 		if (forceRefresh) {
-			this._lastMeasuredWorktrees = undefined;
+			this._lastMeasurementAt = -Infinity;
 		}
 		if (onUpdate) {
 			const worktrees = await this._getMeasuredWorktrees(minimumAgeDays, token, progress => {
@@ -571,6 +575,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 					if (!result) {
 						throw new Error(localize('worktreeCleanup.retryUnavailable', "Retrying worktree cleanup is unavailable for this session."));
 					}
+					this._lastMeasuredWorktrees = this._lastMeasuredWorktrees?.map(worktree => worktree.session.sessionId === candidate.session.sessionId
+						? { ...worktree, cleanupStatus: result, cleanupStatusError: undefined }
+						: worktree);
 				} else {
 					await this.sessionsManagementService.archiveSession(candidate.session);
 				}

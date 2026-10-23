@@ -123,7 +123,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.filteredIntro', "Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Active sessions and sessions waiting for input can be selected manually but are not selected by default. For sessions already marked as done, select a remaining worktree to retry cleanup when supported by its host. Scheduled or running cleanup cannot be selected again. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Other protected sessions are shown but cannot be selected.")));
+			localize('sessionWorktreeCleanup.filteredIntro', "Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Active sessions and sessions waiting for input can be selected manually but are not selected by default. Remaining worktrees for sessions already marked as done are selected by default when their host supports retrying cleanup, unless a previous removal failed. Failed cleanup can be retried by selecting the worktree manually. Scheduled or running cleanup cannot be selected again. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Other protected sessions are shown but cannot be selected.")));
 		dom.append(content, dom.$('p', undefined,
 			dom.$('strong', undefined, localize('sessionWorktreeCleanup.reopen', "You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette."))));
 
@@ -234,7 +234,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const cancellation = new CancellationTokenSource();
 		this.loadToken = cancellation.token;
 		this.loadDisposables.add(toDisposable(() => cancellation.dispose(true)));
-		const seenEligible = new Set<string>();
+		const seenDefaultSelection = new Set<string>();
 		const update = (worktrees: readonly ISessionWorktree[]) => {
 			if (version !== this.renderVersion || !this.list || !this.summary) {
 				return;
@@ -247,8 +247,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			}
 			this.renderWorkspaceOptions();
 			for (const worktree of this.getVisibleWorktrees()) {
-				if (worktree.cleanupState === 'eligible' && !seenEligible.has(worktree.session.sessionId)) {
-					seenEligible.add(worktree.session.sessionId);
+				const selectByDefault = worktree.cleanupState === 'eligible'
+					|| (worktree.cleanupState === 'archived' && this.isManuallySelectable(worktree) && worktree.cleanupStatus?.state !== 'failed');
+				if (selectByDefault && !seenDefaultSelection.has(worktree.session.sessionId)) {
+					seenDefaultSelection.add(worktree.session.sessionId);
 					this.selectedSessionIds.add(worktree.session.sessionId);
 				}
 			}
@@ -441,7 +443,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			: localize('sessionWorktreeCleanup.matchingWorktreeSummaryNoStorage', "{0} of {1} matching worktrees can be cleaned up.", selectableWorktrees, totalWorktrees);
 		const eligibilityDescription = localize(
 			'sessionWorktreeCleanup.filteredEligibilityDescription',
-			"Active sessions and sessions waiting for input can be selected manually but are not selected by default. Sessions already marked as done can be selected to retry cleanup when supported by their host, unless cleanup is scheduled or running. Running, pinned, untitled, and error sessions cannot be selected. Storage must have been measured successfully. The filters limit the table and cleanup selection.",
+			"Active sessions and sessions waiting for input can be selected manually but are not selected by default. Remaining worktrees for sessions already marked as done are selected by default when their host supports retrying cleanup, unless a previous removal failed. Failed cleanup requires manual selection. Scheduled or running cleanup cannot be selected again. Running, pinned, untitled, and error sessions cannot be selected. Storage must have been measured successfully. The filters limit the table and cleanup selection.",
 		);
 		dom.clearNode(this.summary);
 		dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, summary));
@@ -585,11 +587,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				? localize('sessionWorktreeCleanup.statusError', "Couldn't read cleanup status: {0}", worktree.cleanupStatusError)
 				: worktree.cleanupState === 'archived' && worktree.cleanupStatus
 					? this.getArchivedCleanupLabel(worktree)
-				: cleaning
-					? localize('sessionWorktreeCleanup.cleaning', "Cleaning up…")
-				: worktree.isMeasuring
-					? localize('sessionWorktreeCleanup.calculating', "Calculating storage…")
-					: this.getCleanupStateLabel(worktree.cleanupState);
+					: cleaning
+						? localize('sessionWorktreeCleanup.cleaning', "Cleaning up…")
+						: worktree.isMeasuring
+							? localize('sessionWorktreeCleanup.calculating', "Calculating storage…")
+							: this.getCleanupStateLabel(worktree.cleanupState);
 			const reason = rendered.reason = dom.append(rendered.titleCell, dom.$('span.session-worktree-cleanup-reason', undefined, label));
 			rendered.dynamicDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), reason, label));
 			rendered.checkbox.domNode.setAttribute('aria-description', label);
