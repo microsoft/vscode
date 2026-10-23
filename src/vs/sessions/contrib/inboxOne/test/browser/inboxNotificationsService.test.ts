@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -524,10 +524,7 @@ suite('InboxNotificationsService', () => {
 		fixture.service.requestPreview(item);
 
 		const signature = item.previewSignature!;
-		const deadline = Date.now() + 2000;
-		while (fixture.service.previews.get().get(signature) === undefined && Date.now() < deadline) {
-			await new Promise(resolve => setTimeout(resolve, 5));
-		}
+		await waitForState(fixture.service.previews, previews => previews.has(signature));
 		assert.strictEqual(fixture.service.previews.get().get(signature), item.description);
 	});
 
@@ -538,10 +535,7 @@ suite('InboxNotificationsService', () => {
 		const item = fixture.service.notifications.get()[0];
 		fixture.service.requestPreview(item);
 
-		const deadline = Date.now() + 2000;
-		while (!fixture.telemetryEvents.some(event => event.eventName === 'agents/inboxPreviewGenerated') && Date.now() < deadline) {
-			await new Promise(resolve => setTimeout(resolve, 5));
-		}
+		await waitForState(fixture.service.isLoading, isLoading => !isLoading);
 		const event = fixture.telemetryEvents.find(entry => entry.eventName === 'agents/inboxPreviewGenerated');
 		assert.ok(event, 'expected an agents/inboxPreviewGenerated event');
 		// No model available -> empty outcome; bounded fields only, never the generated/description text.
@@ -667,9 +661,7 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(fixture.service.isLoading.get(), true);
 		assert.ok(resolveAcquire);
 		resolveAcquire();
-		for (let attempt = 0; attempt < 5 && fixture.service.isLoading.get(); attempt++) {
-			await new Promise<void>(resolve => setTimeout(resolve, 0));
-		}
+		await waitForState(fixture.service.isLoading, isLoading => !isLoading);
 		assert.strictEqual(fixture.service.isLoading.get(), false);
 	});
 
