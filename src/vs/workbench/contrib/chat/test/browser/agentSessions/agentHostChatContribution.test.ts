@@ -23400,10 +23400,12 @@ suite('AgentHostChatContribution', () => {
 					CancellationToken.None,
 				);
 
-				assert.deepStrictEqual({ items: result?.items.map(item => ({
-					...item,
-					attachment: item.attachment && hasKey(item.attachment, { uri: true }) ? { ...item.attachment, uri: item.attachment.uri.toString() } : item.attachment,
-				})), original: raw }, {
+				assert.deepStrictEqual({
+					items: result?.items.map(item => ({
+						...item,
+						attachment: item.attachment && hasKey(item.attachment, { uri: true }) ? { ...item.attachment, uri: item.attachment.uri.toString() } : item.attachment,
+					})), original: raw
+				}, {
 					items: [
 						{ insertText: '@file.ts', start: { lineNumber: 1, column: 1 }, end: { lineNumber: 1, column: 2 }, attachment: { kind: 'resource', uri: toAgentHostUri(file, authority).toString(), displayName: 'file.ts', isDirectory: false, _meta: { uri: file.toString() } } },
 						{ insertText: '@folder/', attachment: { kind: 'resource', uri: toAgentHostUri(folder, authority).toString(), displayName: 'folder', isDirectory: true } },
