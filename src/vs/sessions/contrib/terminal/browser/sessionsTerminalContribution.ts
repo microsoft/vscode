@@ -1002,6 +1002,10 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 			this._terminalService.moveToBackground(instance);
 			instance.target = TerminalLocation.Panel;
 		}
+		if (instance && !instance.isDisposed) {
+			// With the row hidden, the terminal is the panel's again.
+			this._contribution.setShownInChatWindow(instance, false);
+		}
 	}
 
 	release(window: IChatWindow): void {

@@ -412,6 +412,11 @@ export class ChatWindowChatEditor extends EditorPane {
 	override clearInput(): void {
 		this._inputDisposables.clear();
 		this._state = undefined;
+		// A later input arranges against its own sizes, not these.
+		this._arrangedSplitLayout = undefined;
+		this._conversationHeight = undefined;
+		this._partHeight = undefined;
+		this._setSizeConstraints(undefined, undefined);
 		super.clearInput();
 	}
 
