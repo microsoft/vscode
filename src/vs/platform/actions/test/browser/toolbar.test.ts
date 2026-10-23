@@ -114,4 +114,25 @@ suite('WorkbenchToolBar', () => {
 			onOptional: ['Configure Keybinding', 'Hide optional1', '---', 'optional1 (checked)', 'optional2', '---', 'Reset Menu'],
 		});
 	});
+
+	test('items that always show ignore a hidden state stored for them', () => {
+		const hidden = new Set(['fixed', 'optional2']);
+		const createHideActions = (id: string): IMenuItemHide => ({
+			get isHidden() { return hidden.has(id); },
+			hide: toAction({ id: `hide/${id}`, label: `Hide ${id}`, run: () => { hidden.add(id); } }),
+			toggle: toAction({ id: `toggle/${id}`, label: id, checked: !hidden.has(id), run: () => { } }),
+		});
+		const createAction = (id: string) => new MenuItemAction({ id, title: id }, undefined, undefined, createHideActions(id), undefined, new class extends mock<IContextKeyService>() { }(), new class extends mock<ICommandService>() { }());
+		let contextMenuActions: readonly string[] = [];
+		const toolBar = createToolBar(new TestTelemetryService(), { hiddenItemStrategy: HiddenItemStrategy.Ignore, alwaysShownItems: ['fixed'] }, delegate => {
+			contextMenuActions = delegate.getActions().map(action => action instanceof Separator ? '---' : `${action.label}${action.checked ? ' (checked)' : ''}`);
+		});
+		toolBar.setActions([createAction('fixed'), createAction('optional1'), createAction('optional2')]);
+		toolBar.getItemElement(1)?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+
+		assert.deepStrictEqual({ shown: [0, 1, 2].map(index => toolBar.getItemAction(index)?.label), contextMenu: contextMenuActions }, {
+			shown: ['fixed', 'optional1', undefined],
+			contextMenu: ['Configure Keybinding', 'Hide optional1', '---', 'optional1 (checked)', 'optional2'],
+		});
+	});
 });
