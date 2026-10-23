@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { AppendToChatpadMaxTextLength } from '../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -283,7 +284,14 @@ registerAction2(class AppendToChatpadAction extends Action2 {
 		const text = await quickInputService.input({
 			placeHolder: localize('appendToChatpad.placeholder', "Text to append to the Chatpad"),
 			prompt: localize('appendToChatpad.prompt', "Press Enter to append the text as typed, without asking the Chatpad chat."),
-			validateInput: async value => value.trim() ? undefined : localize('appendToChatpad.empty', "Enter text to append."),
+			validateInput: async value => {
+				if (!value.trim()) {
+					return localize('appendToChatpad.empty', "Enter text to append.");
+				}
+				return value.length > AppendToChatpadMaxTextLength
+					? localize('appendToChatpad.tooLong', "The text is too long to append: at most {0} characters fit at once.", AppendToChatpadMaxTextLength)
+					: undefined;
+			},
 		});
 		if (!text?.trim()) {
 			return;

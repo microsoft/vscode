@@ -192,6 +192,26 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { nested: true, move: true });
 	});
 
+	test('documents the Chatpad regardless of settings', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			open: content.includes('Open Chatpad command'),
+			setting: content.includes('sessions.chatpad.enabled'),
+			layout: content.includes('The Layout button opens a menu'),
+			chat: content.includes('The note shows above the input of its workspace-less chat.'),
+		}, { open: true, setting: true, layout: true, chat: true });
+	});
+
 	test('documents background sandbox waking and connection feedback on input', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
