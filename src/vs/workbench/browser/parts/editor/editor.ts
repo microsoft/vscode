@@ -332,8 +332,11 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	relayout(): void;
 
-	/** Hides the title of the group, so its editor fills it; see `IEditorPart.hideGroupTitle`. */
-	setTitleHidden(hidden: boolean): void;
+	/**
+	 * Hides the title of the group, so its editor fills it, until the returned disposable is disposed; see
+	 * `IEditorPart.hideGroupTitle`. The title shows again once all holders have disposed.
+	 */
+	hideTitle(): IDisposable;
 }
 
 export function fillActiveEditorSelection(group: IEditorGroup, expectedActiveEditor: EditorInput, options: IEditorOptions): IEditorOptions {
