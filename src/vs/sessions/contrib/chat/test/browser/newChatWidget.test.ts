@@ -382,6 +382,7 @@ interface IWorkspaceRootsHarness {
 interface ICanSendRequestToWorkspaceHarness {
 	readonly _workspacePicker: Pick<WorkspacePicker, 'selectedFolderUri' | 'matchesSelectedWorkspace' | 'getDevContainerWorkspaceAvailability'>;
 	readonly sessionsProvidersService: Pick<ISessionsProvidersService, 'getProviders'>;
+	readonly sessionsManagementService: Pick<ISessionsManagementService, 'isQuickChatTargetAvailable'>;
 }
 
 interface IRestoreNoWorkspaceDraftHarness {
@@ -650,6 +651,7 @@ suite('NewChatWidget', () => {
 				_pickedEnvironment: picked,
 				_session: constObservable({ sessionType: 'copilot' }),
 				_workspaceOptOutEnabled: constObservable(false),
+				_workspaceOptOutTarget: constObservable(undefined),
 				_preferredDevContainerFolderUri: undefined as URI | undefined,
 				_pendingPreferredUpgrade: cancellable('cancelUpgrade'),
 				_newSessionCreation: cancellable('cancelCreation'),
@@ -728,6 +730,7 @@ suite('NewChatWidget', () => {
 			const type = { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub };
 			const remoteTarget = { providerId: remote.id, sessionType: type };
 			const localTarget = { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: type };
+			const cloudTarget = { providerId: 'cloud', sessionType: { ...type, id: 'cloud' } };
 			const targets = observableValue('targets', [remoteTarget, localTarget]);
 			let selectedFolder: URI | undefined = quickChat ? undefined : folder;
 			let noWorkspaceSelected = quickChat;
@@ -802,7 +805,7 @@ suite('NewChatWidget', () => {
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: NewChatWidget, environment: ISessionCreationEnvironment) => Promise<void>;
 			const restore = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: NewChatWidget) => Promise<void>;
 			return {
-				widget, targetHarness, session, picked, remote, tunnel, targets, remoteTarget, localTarget, opened, errors, announcements, traces,
+				widget, targetHarness, session, picked, remote, tunnel, targets, remoteTarget, localTarget, cloudTarget, opened, errors, announcements, traces,
 				select: async (environment: ISessionCreationEnvironment) => {
 					await select.call(widget, environment);
 					await pendingSelection;
@@ -866,6 +869,87 @@ suite('NewChatWidget', () => {
 			await state.select(local);
 			assert.deepStrictEqual({ inCloud, providerId: state.session.get()?.providerId }, {
 				inCloud: undefined, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			});
+		});
+
+		for (const { quickChat, optOutEnabled } of [
+			{ quickChat: true, optOutEnabled: true },
+			{ quickChat: false, optOutEnabled: true },
+			{ quickChat: true, optOutEnabled: false },
+		]) {
+			test(`switches to a supported Cloud quick chat (quick chat: ${quickChat}, workspace opt-out: ${optOutEnabled})`, async () => {
+				const state = createFolderlessHarness(quickChat, optOutEnabled);
+				state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+				await state.select(cloud);
+				await state.restore();
+
+				assert.deepStrictEqual({
+					providerId: state.session.get()?.providerId,
+					sessionType: state.session.get()?.sessionType,
+					workspace: state.session.get()?.workspace.get(),
+					noWorkspaceSelected: state.noWorkspaceSelected,
+					opened: state.opened,
+				}, {
+					providerId: 'cloud', sessionType: 'cloud', workspace: undefined, noWorkspaceSelected: true,
+					opened: [{ providerId: 'cloud' }],
+				});
+			});
+		}
+
+		test('explicit Chat selection stays in Cloud when repository-less chats become available', async () => {
+			const state = createFolderlessHarness();
+			await state.select(cloud);
+			state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+			state.widget.selectNoWorkspace();
+
+			assert.deepStrictEqual({
+				providerId: state.session.get()?.providerId,
+				environment: state.picked.get()?.id,
+				noWorkspaceSelected: state.noWorkspaceSelected,
+				opened: state.opened,
+			}, {
+				providerId: 'cloud', environment: 'cloud', noWorkspaceSelected: true,
+				opened: [{ providerId: 'cloud' }],
+			});
+		});
+
+		test('restores a repository-less Cloud draft without choosing another environment', async () => {
+			const state = createFolderlessHarness();
+			state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+			await state.select(cloud);
+			state.session.set(undefined, undefined);
+			state.opened.length = 0;
+			await state.restore();
+
+			assert.deepStrictEqual({
+				providerId: state.session.get()?.providerId,
+				environment: state.picked.get()?.id,
+				opened: state.opened,
+			}, {
+				providerId: 'cloud', environment: 'cloud', opened: [{ providerId: 'cloud' }],
+			});
+		});
+
+		test('reseeds a Cloud quick chat after a background send and stops when support is withdrawn', async () => {
+			const state = createFolderlessHarness();
+			state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+			await state.select(cloud);
+			state.opened.length = 0;
+			const open = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as (this: NewChatWidget) => IActiveSession | undefined;
+			const reseeded = open.call(state.widget);
+			state.targets.set([state.remoteTarget, state.localTarget], undefined);
+			const unavailable = open.call(state.widget);
+
+			assert.deepStrictEqual({
+				providerId: reseeded?.providerId,
+				unavailable,
+				opened: state.opened,
+				traces: state.traces,
+			}, {
+				providerId: 'cloud',
+				unavailable: undefined,
+				opened: [{ providerId: 'cloud', sessionTypeId: 'cloud' }],
+				traces: ['Waiting for a compatible quick-chat harness in environment \'cloud\' (providers: cloud).'],
 			});
 		});
 
@@ -2015,6 +2099,67 @@ suite('NewChatWidget', () => {
 			});
 	});
 
+	test('offers repository-less Cloud chats only while the selected provider supports them', () => {
+		let supportsQuickChats = true;
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'default-copilot',
+			label: 'Cloud',
+			get supportsQuickChats() { return supportsQuickChats; },
+		});
+		const localProvider = upcastPartial<ISessionsProvider>({
+			id: LOCAL_AGENT_HOST_PROVIDER_ID, label: 'This Computer', supportsQuickChats: true,
+		});
+		const selections: (ICreateNewSessionOptions | undefined)[] = [];
+		const harness: INoWorkspaceOptionHarness = {
+			_environment: constObservable({
+				id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: [provider.id],
+			}),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => [localProvider, provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: options => selections.push(options),
+		};
+		const option = getNoWorkspaceOption.call(harness);
+		option?.select();
+		supportsQuickChats = false;
+		option?.select();
+		const disabledOption = getNoWorkspaceOption.call(harness);
+		supportsQuickChats = true;
+		const restoredOption = getNoWorkspaceOption.call(harness);
+
+		assert.deepStrictEqual({
+			available: !!option,
+			hasSubmenu: !!option?.submenuActions,
+			disabled: !!disabledOption,
+			restored: !!restoredOption,
+			selections,
+		}, {
+			available: !isWeb, hasSubmenu: false, disabled: false, restored: !isWeb,
+			selections: isWeb ? [] : [{ providerId: provider.id }],
+		});
+	});
+
+	test('does not offer repository-less chats for Dev Containers even when their provider supports quick chats', () => {
+		const provider = upcastPartial<ISessionsProvider>({
+			id: LOCAL_AGENT_HOST_PROVIDER_ID, label: 'This Computer', supportsQuickChats: true,
+		});
+		const option = getNoWorkspaceOption.call({
+			_environment: constObservable({
+				id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [provider.id],
+			}),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => [provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => assert.fail('Dev Containers require a workspace'),
+		});
+
+		assert.strictEqual(option, undefined);
+	});
+
 	test('labels selected remote quick chats with their provider', () => {
 		const providers = [
 			upcastPartial<ISessionsProvider>({
@@ -3046,9 +3191,55 @@ suite('NewChatWidget', () => {
 				getDevContainerWorkspaceAvailability: () => true,
 			},
 			sessionsProvidersService: { getProviders: () => supported ? [provider] : [] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => false },
 		}, session, { ...environment, kind: kind as ISessionCreationEnvironment['kind'] }, reader)).get());
 
 		assert.deepStrictEqual(results, [true, false, false, false, false, false]);
+	});
+
+	test('workspace-less submission requires an available quick-chat target, including in Cloud', () => {
+		const session = upcastPartial<ISession>({
+			providerId: 'default-copilot', sessionType: 'cloud',
+			isQuickChat: constObservable(true), workspace: constObservable(undefined),
+		});
+		const environment: ISessionCreationEnvironment = {
+			id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: [session.providerId],
+		};
+		const kinds: ISessionCreationEnvironment['kind'][] = ['cloud', 'local', 'remote', 'container'];
+		const results = kinds.map(kind => {
+			const available = observableValue('available', true);
+			const isQuickChat = observableValue('isQuickChat', true);
+			const canSend = derived(reader => {
+				const supportsQuickChats = available.read(reader);
+				return canSendRequestToWorkspace.call({
+					_workspacePicker: {
+						selectedFolderUri: undefined,
+						matchesSelectedWorkspace: () => assert.fail('A quick chat has no repository to resolve'),
+						getDevContainerWorkspaceAvailability: () => true,
+					},
+					sessionsProvidersService: { getProviders: () => [] },
+					sessionsManagementService: {
+						isQuickChatTargetAvailable: options => supportsQuickChats
+							&& options?.providerId === session.providerId && options.sessionTypeId === session.sessionType,
+					},
+				}, { ...session, isQuickChat }, { ...environment, kind }, reader);
+			});
+			const states = [canSend.get()];
+			available.set(false, undefined);
+			states.push(canSend.get());
+			available.set(true, undefined);
+			states.push(canSend.get());
+			isQuickChat.set(false, undefined);
+			states.push(canSend.get());
+			return { kind, states };
+		});
+
+		assert.deepStrictEqual(results, [
+			{ kind: 'cloud', states: [true, false, true, false] },
+			{ kind: 'local', states: [true, false, true, false] },
+			{ kind: 'remote', states: [true, false, true, false] },
+			{ kind: 'container', states: [false, false, false, false] },
+		]);
 	});
 
 	test('only allows first-run notices once the session count threshold is reached', () => {

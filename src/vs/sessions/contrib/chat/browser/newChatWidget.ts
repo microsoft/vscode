@@ -35,6 +35,7 @@ import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService, W
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -1235,7 +1236,7 @@ export class NewChatWidget extends Disposable {
 		if (this._environment.get() && this._pickedEnvironment.get() && !this._workspacePicker.isNoWorkspaceSelected()) {
 			return;
 		}
-		if (this._environment.get()?.kind === 'cloud' || this._environment.get()?.kind === 'container') {
+		if (this._environment.get()?.kind === 'container') {
 			return;
 		}
 		const cancellation = new CancellationTokenSource();
@@ -1496,7 +1497,7 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
 		const environment = this._environment.get();
 		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
-			? this.sessionsService.openQuickChat(options, selectionOptions?.preserveNavigation)
+			? this.sessionsService.openQuickChat(options ?? this._workspaceOptOutTarget.get(), selectionOptions?.preserveNavigation)
 			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
 		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
 			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
@@ -1517,7 +1518,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
-		if (environment?.kind === 'cloud' || environment?.kind === 'container') {
+		if (environment?.kind === 'container') {
 			return undefined;
 		}
 		if (!environment || (session && environment.providerIds.includes(session.providerId))) {
@@ -1542,7 +1543,7 @@ export class NewChatWidget extends Disposable {
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
 		const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.get();
 		const environment = this._environment.get();
-		if (environment?.kind === 'container' || environment?.kind === 'cloud') {
+		if (environment?.kind === 'container') {
 			return undefined;
 		}
 		if (isWeb
@@ -1550,13 +1551,15 @@ export class NewChatWidget extends Disposable {
 			return undefined;
 		}
 		const quickChatProviders = this.sessionsProvidersService.getProviders()
-			.filter(isAgentHostProvider)
 			.filter(provider => !environment || environment.providerIds.includes(provider.id))
-			.filter(provider => !provider.hostGroup && provider.supportsQuickChats);
-		const providers = quickChatProviders.filter(provider => provider.isVisibleInEnvironmentPicker?.get() !== false);
+			.filter(provider => isAgentHostProvider(provider) ? !provider.hostGroup : !!environment)
+			.filter(provider => provider.supportsQuickChats);
+		const isAvailable = (provider: ISessionsProvider) => provider.supportsQuickChats
+			&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false);
+		const providers = quickChatProviders.filter(isAvailable);
 		if (!isWorkspacePickerQuickChat
 			&& providers.length === 0
-			&& (quickChatProviders.length > 0 || !this.sessionsManagementService.isQuickChatTargetAvailable())) {
+			&& (environment || quickChatProviders.length > 0 || !this.sessionsManagementService.isQuickChatTargetAvailable())) {
 			return undefined;
 		}
 		const activeProviderId = isWorkspacePickerQuickChat ? this._session.get()?.providerId : undefined;
@@ -1571,7 +1574,7 @@ export class NewChatWidget extends Disposable {
 					label,
 					checked: provider.id === activeProviderId,
 					run: () => {
-						if (provider.isVisibleInEnvironmentPicker?.get() !== false && provider.id !== activeProviderId) {
+						if (isAvailable(provider) && provider.id !== activeProviderId) {
 							this.selectNoWorkspace({ providerId: provider.id });
 						}
 					},
@@ -1588,7 +1591,7 @@ export class NewChatWidget extends Disposable {
 			select: () => {
 				if (!isWorkspacePickerQuickChat) {
 					const provider = providers.length === 1 ? providers[0] : undefined;
-					if (provider?.isVisibleInEnvironmentPicker?.get() !== false) {
+					if (!provider || isAvailable(provider)) {
 						this.selectNoWorkspace(provider ? { providerId: provider.id } : undefined);
 					}
 				}
@@ -1733,7 +1736,7 @@ export class NewChatWidget extends Disposable {
 		if (!folderUri || !workspace) {
 			this._changingEnvironment = true;
 			try {
-				if ((environment.kind === 'local' || environment.kind === 'remote')
+				if ((environment.kind === 'local' || environment.kind === 'remote' || this._workspaceOptOutTarget.get())
 					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get())) {
 					this._workspacePicker.selectNoWorkspace(false);
 					await this._onWorkspaceSelected(undefined);
@@ -2178,7 +2181,8 @@ export class NewChatWidget extends Disposable {
 	private _canSendRequestToWorkspace(session: ISession, environment: ISessionCreationEnvironment, reader: IReader): boolean {
 		const folderUri = this._workspacePicker.selectedFolderUri;
 		if (!folderUri) {
-			return environment.kind !== 'cloud' && environment.kind !== 'container' && !!session.isQuickChat?.read(reader);
+			return environment.kind !== 'container' && !!session.isQuickChat?.read(reader)
+				&& this.sessionsManagementService.isQuickChatTargetAvailable({ providerId: session.providerId, sessionTypeId: session.sessionType });
 		}
 		const workspace = session.workspace.read(reader);
 		const matchesWorkspace = workspace && (environment.kind === 'cloud'
