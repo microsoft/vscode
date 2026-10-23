@@ -1051,6 +1051,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const session = agentHost.createdSessionUris.at(0);
 			return session && { note: URI.file(`/home/.copilot/chats${session.path}/chatpad.md`), session, provider: 'copilotcli' };
 		};
+		agentHost.appendToChatpad = async () => { };
 		const provider = createProvider(disposables, agentHost);
 		provider.getSessions();
 		await timeout(0);
