@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -15,7 +17,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CHAT_WINDOWS_ENABLED_SETTING, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatWindowsRestoration, OPEN_CHAT_WINDOWS_STORAGE_KEY } from '../../browser/openChatInWindow.js';
 
 class TestStorageService extends InMemoryStorageService {
@@ -42,7 +45,10 @@ suite('ChatWindowsRestoration', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override initialRestoreComplete = restoreComplete;
 		}());
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { }());
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidChangeSessions = onDidChangeSessions.event;
+		}());
 		instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 			override sentiment = { hidden: !!options.hidden } as IChatEntitlementService['sentiment'];
 		}());
@@ -50,7 +56,7 @@ suite('ChatWindowsRestoration', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		const restoration = disposables.add(instantiationService.createInstance(ChatWindowsRestoration));
-		return { storageService, restoration };
+		return { storageService, restoration, onDidChangeSessions };
 	}
 
 	test('keeps the stored chat windows while their restoration is pending', () => {
@@ -75,5 +81,16 @@ suite('ChatWindowsRestoration', () => {
 		storageService.willSave();
 
 		assert.strictEqual(storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE), stored);
+	});
+
+	test('forgets the stored chat window of a removed session', () => {
+		const { storageService, onDidChangeSessions } = createRestoration({ enabled: false });
+		storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify([{ session: 'test:/session' }, { session: 'test:/other' }]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		onDidChangeSessions.fire({ added: [], changed: [], removed: [{ resource: URI.parse('test:/session') } as ISession] });
+		assert.deepStrictEqual(JSON.parse(storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE)!), [{ session: 'test:/other' }]);
+
+		onDidChangeSessions.fire({ added: [], changed: [], removed: [{ resource: URI.parse('test:/other') } as ISession] });
+		assert.strictEqual(storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE), undefined);
 	});
 });

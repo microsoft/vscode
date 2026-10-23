@@ -98,6 +98,7 @@ export class ChatWindowsRestoration extends Disposable implements IWorkbenchCont
 		super();
 		const stored = this._read();
 		this._register(this._storageService.onWillSaveState(() => this._save()));
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => this._forget(e.removed)));
 		if (!stored.length) {
 			return;
 		}
@@ -125,6 +126,24 @@ export class ChatWindowsRestoration extends Disposable implements IWorkbenchCont
 				&& (entry.terminal === undefined || typeof entry.terminal === 'boolean')) : [];
 		} catch {
 			return [];
+		}
+	}
+
+	/** Storing waits for the next save of the state, which can be far off: a removed session must not be restored by a restart before it. */
+	private _forget(removed: readonly ISession[]): void {
+		if (!removed.length) {
+			return;
+		}
+		const removedResources = new Set(removed.map(session => session.resource.toString()));
+		const stored = this._read();
+		const remaining = stored.filter(entry => !removedResources.has(entry.session));
+		if (remaining.length === stored.length) {
+			return;
+		}
+		if (remaining.length) {
+			this._storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		} else {
+			this._storageService.remove(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
 	}
 
