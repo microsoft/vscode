@@ -162,8 +162,9 @@ const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEna
  * authoritative model selection.
  * `savedState` is only used for `mode` and for the user's custom agent pin overrides: prefer its
  * custom agent over the plain default Agent, but never override a different explicit mode already
- * present in `stateToApply`. Transferred drafts don't carry the overrides, so they are recovered when
- * they were made against the restored agent. An override only stops that agent's pins from being
+ * present in `stateToApply`. Transferred drafts from clients that don't sync the overrides carry none
+ * (`undefined`), so they are recovered when they were made against the restored agent; an explicitly
+ * synced `null` means there are none and is kept. An override only stops that agent's pins from being
  * re-applied; it never replaces the model or configuration in `stateToApply`.
  */
 export function backfillRestoredPickerState(
@@ -177,8 +178,9 @@ export function backfillRestoredPickerState(
 	const mode = (stateToApply.mode.id === defaultAgentModeId && savedState.mode.id !== defaultAgentModeId)
 		? savedState.mode
 		: stateToApply.mode;
-	const agentPinOverrides = stateToApply.agentPinOverrides
-		?? (savedState.agentPinOverrides?.modeId === mode.id ? savedState.agentPinOverrides : undefined);
+	const agentPinOverrides = stateToApply.agentPinOverrides !== undefined
+		? stateToApply.agentPinOverrides
+		: (savedState.agentPinOverrides?.modeId === mode.id ? savedState.agentPinOverrides : undefined);
 	if (mode === stateToApply.mode && agentPinOverrides === stateToApply.agentPinOverrides) {
 		return stateToApply;
 	}

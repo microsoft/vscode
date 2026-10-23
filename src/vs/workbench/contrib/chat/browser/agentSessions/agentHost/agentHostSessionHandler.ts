@@ -7151,8 +7151,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			const localDraft = this._inputStateToDraft(sessionResource, inputModel.state.get());
-			// Overrides are derived from the synced draft itself, so a peer that doesn't sync them isn't a local edit.
-			if (!equals(withoutAgentPinOverridesMeta(draftState.synced), withoutAgentPinOverridesMeta(localDraft))) {
+			// Overrides derived from a synced draft that doesn't sync them aren't a local edit; when it does, they are compared.
+			const synced = draftState.synced;
+			const syncsOverrides = !!synced?._meta && Object.hasOwn(synced._meta, AgentPinOverridesDraftMetaKey);
+			if (!equals(synced, syncsOverrides ? localDraft : withoutAgentPinOverridesMeta(localDraft))) {
 				// The pending outbound debounce will publish the local edit (last writer wins).
 				return;
 			}
@@ -7204,12 +7206,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * when there are `current` overrides to layer on (live drafts, not the first transferred draft, where
 	 * the locally saved overrides are recovered instead), they are derived from the draft's own effort
 	 * provenance: an explicitly sourced effort is the peer's choice over the pin, while an
-	 * `agent`-sourced one means the pin applies again.
+	 * `agent`-sourced one means the pin applies again. Returns `null` when synced intent says there are
+	 * none, so restores can tell that apart from a draft that doesn't sync them (`undefined`).
 	 */
-	private _draftAgentPinOverrides(draft: Message, modeId: string, current: IChatAgentPinOverrides | undefined, derive: boolean): IChatAgentPinOverrides | undefined {
+	private _draftAgentPinOverrides(draft: Message, modeId: string, current: IChatAgentPinOverrides | undefined, derive: boolean): IChatAgentPinOverrides | null | undefined {
 		if (draft._meta && Object.hasOwn(draft._meta, AgentPinOverridesDraftMetaKey)) {
 			const synced = reviveAgentPinOverrides(draft._meta[AgentPinOverridesDraftMetaKey]);
-			return synced?.modeId === modeId ? synced : undefined;
+			return synced?.modeId === modeId ? synced : null;
 		}
 		if (!derive) {
 			return undefined;
@@ -7309,7 +7312,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				id: modeId,
 				kind: agent && readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? ChatModeKind.Ask : ChatModeKind.Agent,
 			},
-			...(agentPinOverrides ? { agentPinOverrides } : {}),
+			...(agentPinOverrides !== undefined ? { agentPinOverrides } : {}),
 			selectedModel: modelId && metadata ? {
 				identifier: modelId,
 				metadata,

@@ -2469,7 +2469,8 @@ export interface ISerializableChatModelInputState {
 	inputText: string;
 	selections: ISelection[];
 	permissionLevel?: ChatPermissionLevel;
-	agentPinOverrides?: IChatAgentPinOverrides;
+	/** `null` when a transferred draft explicitly synced that there are none, unlike an absent value. */
+	agentPinOverrides?: IChatAgentPinOverrides | null;
 	contrib: Record<string, unknown>;
 }
 

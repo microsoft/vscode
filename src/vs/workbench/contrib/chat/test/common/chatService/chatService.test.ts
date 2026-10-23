@@ -6534,6 +6534,29 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({ inputText: restored?.inputText, agentPinOverrides: restored?.agentPinOverrides }, { inputText: 'from host', agentPinOverrides: overrides });
 		});
 
+		test('a transferred draft that synced no pin overrides keeps them cleared on reload', async () => {
+			const { resource, provided } = setupRemoteProvider({ history: [] });
+			const testService = createChatService();
+
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({ inputText: 'unsent draft', mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, agentPinOverrides: { modeId: 'custom-agent-uri', configKeys: ['reasoningEffort'] } });
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			// While this client was closed, a peer re-armed the agent's pins: its draft explicitly syncs that there are none.
+			provided.transferredState = {
+				editingSession: undefined,
+				inputState: { attachments: [], mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, selectedModel: undefined, inputText: 'from host', selections: [], contrib: {}, agentPinOverrides: null },
+			};
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+
+			assert.deepStrictEqual({ inputText: restored?.inputText, agentPinOverrides: restored?.agentPinOverrides }, { inputText: 'from host', agentPinOverrides: undefined });
+		});
+
 		test('restored draft uses the session history model, not the persisted (stale) one', async () => {
 			const historyModelId = 'history-model';
 			const historyMetadata: ILanguageModelChatMetadata = {
@@ -6962,11 +6985,13 @@ suite('backfillRestoredPickerState', () => {
 			keptModel: transferred?.selectedModel?.identifier,
 			otherAgent: backfillRestoredPickerState(state('other-uri', undefined), saved, AGENT)?.agentPinOverrides,
 			newer: backfillRestoredPickerState({ ...state('custom-uri', undefined), agentPinOverrides: transferredOverrides }, saved, AGENT)?.agentPinOverrides,
+			syncedNone: backfillRestoredPickerState({ ...state('custom-uri', undefined), agentPinOverrides: null }, saved, AGENT)?.agentPinOverrides,
 		}, {
 			recovered: saved.agentPinOverrides,
 			keptModel: 'agent-host-claude:opus',
 			otherAgent: undefined,
 			newer: transferredOverrides,
+			syncedNone: null,
 		});
 	});
 });

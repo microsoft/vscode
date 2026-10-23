@@ -4178,13 +4178,13 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			/** A live input matching the session's synced draft, so peer drafts apply to it. */
-			async function setup(name: string, localConfig: Record<string, string>) {
+			async function setup(name: string, localConfig: Record<string, string>, seedMeta?: Record<string, unknown>) {
 				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, {
 					languageModels: new Map([['agent-host-copilot:opus-4.7', modelMetadata]]),
 				});
 				const backendSession = AgentSession.uri('copilot', name);
 				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/${name}` });
-				seedDraftSession(agentHostService, backendSession, name, draftFor('existing text', localConfig));
+				seedDraftSession(agentHostService, backendSession, name, { ...draftFor('existing text', localConfig), ...(seedMeta ? { _meta: seedMeta } : {}) });
 				const { inputModel, inputState } = createDraftInputModel({
 					attachments: [],
 					mode: { id: 'agent://reviewer', kind: ChatModeKind.Agent },
@@ -4202,8 +4202,20 @@ suite('AgentHostChatContribution', () => {
 				}));
 				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 				disposables.add(toDisposable(() => chatSession.dispose()));
-				return { fire: (draft: ChatState['draft']) => fireRemoteDraft(agentHostService, backendSession, draft), inputState, sessionHandler, sessionResource };
+				return { fire: (draft: ChatState['draft']) => fireRemoteDraft(agentHostService, backendSession, draft), inputState, inputModel, sessionHandler, sessionResource };
 			}
+
+			test('a pending local edit that changes only the overrides is not replaced by a peer update', async () => {
+				const overlay = { reasoningEffort: 'high', [source]: PresentedConfigurationSource };
+				const { fire, inputState, inputModel } = await setup('local-override-pending', overlay, { [AgentPinOverridesDraftMetaKey]: null });
+				const overrides = { modeId: 'agent://reviewer', model: true };
+
+				// E.g. the user explicitly reselects the fallback model while the pinned one is unavailable; not yet published.
+				inputModel.setState({ agentPinOverrides: overrides });
+				fire({ ...draftFor('peer edit', overlay), _meta: { [AgentPinOverridesDraftMetaKey]: null } });
+
+				assert.deepStrictEqual({ text: inputState.get()?.inputText, agentPinOverrides: inputState.get()?.agentPinOverrides }, { text: 'existing text', agentPinOverrides: overrides });
+			});
 
 			test('a peer re-arming its pin removes the override its earlier explicit effort created', async () => {
 				const { fire, inputState } = await setup('peer-rearm', { reasoningEffort: 'high', [source]: PresentedConfigurationSource });
@@ -4256,7 +4268,7 @@ suite('AgentHostChatContribution', () => {
 				}, {
 					synced: { modeId: 'agent://reviewer', model: true },
 					unsynced: undefined,
-					none: undefined,
+					none: null,
 				});
 			});
 
