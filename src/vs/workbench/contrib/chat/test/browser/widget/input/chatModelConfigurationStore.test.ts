@@ -1488,6 +1488,34 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	});
 
+	test('restoring captured state recovers an explicitly chosen null underneath the overlay', () => {
+		const nullableSchema: ILanguageModelConfigurationSchema = {
+			properties: { thinkingEffort: { type: ['string', 'null'], enum: ['low', 'high', null] } },
+		};
+		const service = {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: (_id: string) => ({ configurationSchema: nullableSchema } as ILanguageModelChatMetadata),
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const storage = store.add(new InMemoryStorageService());
+		const conversationA = createStore(storage, service);
+		conversationA.setModelConfiguration(MODEL, { thinkingEffort: null });
+		conversationA.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+		const captured = conversationA.getModelConfiguration(MODEL)!;
+
+		// Conversation B chooses Low for the same model; then A is cleared, restored and its pin removed.
+		createStore(storage, service).setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		conversationA.clear();
+		conversationA.restoreModelConfiguration(MODEL, captured);
+		conversationA.setPresentedConfiguration(undefined);
+
+		assert.deepStrictEqual({
+			captured: Object.hasOwn(captured, presentedUnderlyingValueKey('thinkingEffort')) ? captured[presentedUnderlyingValueKey('thinkingEffort')] : 'absent',
+			restored: conversationA.getModelConfiguration(MODEL)?.thinkingEffort,
+		}, { captured: null, restored: null });
+	});
+
 	test('a presented value never overrides host-locked or unavailable choices', () => {
 		const control = createControllableService();
 		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'medium' } } }, ['thinkingEffort']);

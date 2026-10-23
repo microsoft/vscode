@@ -35,8 +35,9 @@ export function presentedUnderlyingSourceKey(key: string): string {
 	return `vscode.modelConfiguration.${key}.underlyingSource`;
 }
 
-function isPrimitive(value: unknown): value is string | number | boolean {
-	return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+/** JSON primitives, including `null`, which nullable configuration schemas accept as a chosen value. */
+function isPrimitive(value: unknown): value is string | number | boolean | null {
+	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
 /**
