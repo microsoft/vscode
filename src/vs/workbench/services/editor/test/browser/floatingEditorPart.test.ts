@@ -163,18 +163,22 @@ suite('Floating Editor Part', () => {
 		dirty.dirty = true;
 		const clean = createTestFileEditorInput(URI.file('clean'));
 		await part.activeGroup.openEditors([{ editor: dirty, options: { pinned: true } }, { editor: clean, options: { pinned: true } }]);
+		let willClose = 0;
 		let willDispose = 0;
+		disposables.add(part.onWillClose(() => willClose++));
 		disposables.add(part.onWillDispose(() => willDispose++));
 
 		const closed = part.close();
 
 		assert.deepStrictEqual({
 			closed,
+			willClose,
 			willDispose,
 			registered: isRegistered(parts, part),
 			mainEditors: parts.mainPart.activeGroup.editors.map(editor => editor.resource?.path),
 		}, {
 			closed: true,
+			willClose: 1,
 			willDispose: 1,
 			registered: false,
 			mainEditors: ['/dirty'],

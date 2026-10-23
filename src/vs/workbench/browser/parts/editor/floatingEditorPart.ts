@@ -174,7 +174,8 @@ export class FloatingEditorPart {
 		disposables.add(editorPart.onDidResetSize(() => layout()));
 		layout();
 
-		disposables.add(Event.once(editorPart.onWillClose)(() => disposables.dispose()));
+		// Dispose after the part closed, so that all listeners of `onWillClose` run first
+		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
 
 		return { part: editorPart, instantiationService: scopedInstantiationService, disposables };
 	}
@@ -195,6 +196,10 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
+
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	/** Fired after {@link onWillClose}, once the part can be disposed. */
+	readonly onDidClose = this._onDidClose.event;
 
 	private readonly _onDidChangeSize = this._register(new Emitter<IDimension>());
 	readonly onDidChangeSize = this._onDidChangeSize.event;
@@ -308,6 +313,7 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 		}
 
 		this._onWillClose.fire();
+		this._onDidClose.fire();
 
 		return result;
 	}
