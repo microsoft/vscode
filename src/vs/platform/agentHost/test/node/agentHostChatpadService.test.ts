@@ -4,16 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer, type VSBufferReadable, type VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { etag, type ICreateFileOptions, type IFileContent, type IFileStatWithMetadata, type IReadFileOptions } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostChatpadService, getChatpadNote, type IAgentHostChatpadSessions } from '../../node/agentHostChatpadService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
+
+/** A file service that can fail creating files, and can run another writer while a read is in flight. */
+class TestFileService extends FileService {
+	failCreate = false;
+	/** Runs after each read, which then returns what it read with an older timestamp, as another writer would leave it. */
+	whileReading: (() => Promise<void>) | undefined;
+
+	override async createFile(resource: URI, bufferOrReadableOrStream?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
+		if (this.failCreate) {
+			throw new Error('The disk is full.');
+		}
+		return super.createFile(resource, bufferOrReadableOrStream, options);
+	}
+
+	override async readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
+		const content = await super.readFile(resource, options, token);
+		if (!this.whileReading) {
+			return content;
+		}
+		await this.whileReading();
+		const mtime = content.mtime - 1;
+		return { ...content, mtime, etag: etag({ mtime, size: content.size }) };
+	}
+}
 
 suite('AgentHostChatpadService', () => {
 
@@ -27,7 +53,7 @@ suite('AgentHostChatpadService', () => {
 
 	function createService() {
 		const logService = new NullLogService();
-		const fileService = disposables.add(new FileService(logService));
+		const fileService = disposables.add(new TestFileService(logService));
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 		const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
 		const service = disposables.add(new AgentHostChatpadService(userHome, storageService, fileService, logService));
@@ -141,6 +167,51 @@ suite('AgentHostChatpadService', () => {
 			session: undefined,
 			isChatpad: false,
 			isNote: false,
+		});
+	});
+
+	test('a claim whose note cannot be created leaves the session an ordinary chat', async () => {
+		const { service, fileService, sessions } = createService();
+
+		fileService.failCreate = true;
+		const failed = await service.claim(first, sessions).then(() => 'claimed', (error: Error) => error.message);
+		const afterFailure = { session: service.session, isChatpad: service.isChatpad(first.toString()), chatpad: await service.getChatpad(sessions) };
+		fileService.failCreate = false;
+		const retried = await service.claim(second, sessions);
+
+		assert.deepStrictEqual({ failed, afterFailure, retried, session: service.session }, {
+			failed: 'The disk is full.',
+			afterFailure: { session: undefined, isChatpad: false, chatpad: undefined },
+			retried: true,
+			session: second.toString(),
+		});
+	});
+
+	test('appends over an edit made while appending instead of losing it, and gives up on a note that keeps changing', async () => {
+		const { service, fileService, existing, sessions, readNote } = createService();
+		await service.claim(first, sessions);
+		existing.add(first.toString());
+
+		fileService.whileReading = async () => {
+			fileService.whileReading = undefined;
+			await fileService.writeFile(firstNote, VSBuffer.fromString('# Chatpad\n\nedited by the chat\n'));
+		};
+		await service.append('appended', sessions);
+		const afterEdit = await readNote(firstNote);
+		let edits = 0;
+		let edited = afterEdit;
+		fileService.whileReading = async () => {
+			edited += `edit ${++edits}\n`;
+			await fileService.writeFile(firstNote, VSBuffer.fromString(edited));
+		};
+		const keepsChanging = await service.append('lost', sessions).then(() => 'appended', () => 'failed');
+		fileService.whileReading = undefined;
+
+		assert.deepStrictEqual({ afterEdit, keepsChanging, edits, content: await readNote(firstNote) }, {
+			afterEdit: '# Chatpad\n\nedited by the chat\nappended\n',
+			keepsChanging: 'failed',
+			edits: 3,
+			content: '# Chatpad\n\nedited by the chat\nappended\nedit 1\nedit 2\nedit 3\n',
 		});
 	});
 });
