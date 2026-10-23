@@ -155,15 +155,16 @@ suite('Sessions - Titlebar Part', () => {
 
 		assert.ok(part instanceof TitlebarPart);
 
+		mainWindow.document.title = 'Agents';
 		const initial = label();
 		part.setTitle('Chatpad');
 		const titled = { label: label(), documentTitle: mainWindow.document.title };
 		part.setTitle(undefined);
 
-		assert.deepStrictEqual({ initial, titled, cleared: label() }, {
+		assert.deepStrictEqual({ initial, titled, cleared: { ...label(), documentTitle: mainWindow.document.title } }, {
 			initial: { text: '', hidden: true },
 			titled: { label: { text: 'Chatpad', hidden: false }, documentTitle: 'Chatpad' },
-			cleared: { text: '', hidden: true },
+			cleared: { text: '', hidden: true, documentTitle: 'Agents' },
 		});
 	});
 

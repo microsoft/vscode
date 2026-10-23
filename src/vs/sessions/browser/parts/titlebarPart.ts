@@ -150,11 +150,24 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	 * that do not show the command center, such as auxiliary windows; `undefined` removes it.
 	 */
 	setTitle(title: string | undefined): void {
+		const targetDocument = getWindow(this.element).document;
+		if (title) {
+			// What the window titled before, for when the title is removed.
+			this.titleBeforeFixed ??= targetDocument.title;
+			targetDocument.title = title;
+		} else if (this.titleBeforeFixed !== undefined) {
+			targetDocument.title = this.titleBeforeFixed;
+			this.titleBeforeFixed = undefined;
+		}
 		this.fixedTitle = title;
 		this.renderFixedTitle();
-		if (title) {
-			getWindow(this.element).document.title = title;
-		}
+	}
+
+	private titleBeforeFixed: string | undefined;
+
+	/** Whether the title bar has the toolbars of chat windows, which only the title bars of auxiliary windows can be. */
+	protected get hasChatWindowActions(): boolean {
+		return true;
 	}
 
 	private renderFixedTitle(): void {
@@ -294,22 +307,27 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Chat window layout actions toolbar (before right toolbar), whose buttons the user can show or hide
-		const chatWindowLayoutContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
-		const chatWindowLayoutToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowLayoutContainer, Menus.ChatWindowTitleBarLayout, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			alwaysShownItems: [Menus.ChatWindowLayout.id],
-			telemetrySource: 'titlePart.chatWindowLayout',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
+		// Chat window toolbars, in the title bars of auxiliary windows
+		if (this.hasChatWindowActions) {
+			// Chat window layout actions toolbar (before right toolbar), whose buttons the user can show or hide
+			const chatWindowLayoutContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
+			const chatWindowLayoutToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowLayoutContainer, Menus.ChatWindowTitleBarLayout, {
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				alwaysShownItems: [Menus.ChatWindowLayout.id],
+				telemetrySource: 'titlePart.chatWindowLayout',
+				toolbarOptions: { primaryGroup: () => true },
+			}));
 
-		// Chat window actions toolbar (before its layout actions)
-		const chatWindowActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
-		const chatWindowActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowActionsContainer, Menus.ChatWindowTitleBar, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: 'titlePart.chatWindow',
-			toolbarOptions: { primaryGroup: () => true },
-		}));
+			// Chat window actions toolbar (before its layout actions)
+			const chatWindowActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
+			const chatWindowActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowActionsContainer, Menus.ChatWindowTitleBar, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				telemetrySource: 'titlePart.chatWindow',
+				toolbarOptions: { primaryGroup: () => true },
+			}));
+			this.registerOverflowManagedToolBar(chatWindowActionsContainer, chatWindowActionsToolBar);
+			this.registerOverflowManagedToolBar(chatWindowLayoutContainer, chatWindowLayoutToolBar);
+		}
 
 		// Session title actions toolbar (before right toolbar)
 		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
@@ -338,8 +356,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
-		this.registerOverflowManagedToolBar(chatWindowActionsContainer, chatWindowActionsToolBar);
-		this.registerOverflowManagedToolBar(chatWindowLayoutContainer, chatWindowLayoutToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
 
 		// Context menu on the titlebar
@@ -466,6 +482,10 @@ export class MainTitlebarPart extends TitlebarPart {
 		@IHostService hostService: IHostService,
 	) {
 		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
+	}
+
+	protected override get hasChatWindowActions(): boolean {
+		return false;
 	}
 }
 
