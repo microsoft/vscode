@@ -275,7 +275,8 @@ export class WorkbenchToolBar extends ToolBar {
 					}
 				}
 
-				const actions = Separator.join(primaryActions, toggleActions);
+				// a copy: join returns `toggleActions` itself when there are no primary actions, and the actions are added to
+				const actions = [...Separator.join(primaryActions, toggleActions)];
 
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {

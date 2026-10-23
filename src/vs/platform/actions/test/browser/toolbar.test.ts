@@ -15,7 +15,7 @@ import { IContextMenuService } from '../../../contextview/browser/contextView.js
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { IMenuItemHide, IMenuService, MenuItemAction } from '../../common/actions.js';
+import { IMenuItemHide, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../common/actions.js';
 import { HiddenItemStrategy, IWorkbenchToolBarOptions, WorkbenchToolBar } from '../../browser/toolbar.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -86,31 +86,32 @@ suite('WorkbenchToolBar', () => {
 
 	test('items that always show cannot be hidden, and list the items that can be', () => {
 		const hidden = new Set(['optional2']);
-		const createAction = (id: string) => {
-			const hideActions: IMenuItemHide = {
-				get isHidden() { return hidden.has(id); },
-				hide: toAction({ id: `hide/${id}`, label: `Hide ${id}`, run: () => { hidden.add(id); } }),
-				toggle: toAction({ id: `toggle/${id}`, label: id, checked: !hidden.has(id), run: () => { } }),
-			};
-			return new MenuItemAction({ id, title: id }, undefined, undefined, hideActions, undefined, new class extends mock<IContextKeyService>() { }(), new class extends mock<ICommandService>() { }());
-		};
+		const createHideActions = (id: string): IMenuItemHide => ({
+			get isHidden() { return hidden.has(id); },
+			hide: toAction({ id: `hide/${id}`, label: `Hide ${id}`, run: () => { hidden.add(id); } }),
+			toggle: toAction({ id: `toggle/${id}`, label: id, checked: !hidden.has(id), run: () => { } }),
+		});
+		const createAction = (id: string) => new MenuItemAction({ id, title: id }, undefined, undefined, createHideActions(id), undefined, new class extends mock<IContextKeyService>() { }(), new class extends mock<ICommandService>() { }());
+		// A submenu, which has no Configure Keybinding action: its context menu has only the items that can be hidden.
+		const fixed = new SubmenuItemAction({ title: 'fixed', submenu: MenuId.CommandPalette }, createHideActions('fixed'), [toAction({ id: 'child', label: 'child', run: () => { } })]);
 		let contextMenuActions: readonly string[] = [];
-		const toolBar = createToolBar(new TestTelemetryService(), { hiddenItemStrategy: HiddenItemStrategy.Ignore, alwaysShownItems: ['fixed'] }, delegate => {
+		const toolBar = createToolBar(new TestTelemetryService(), { hiddenItemStrategy: HiddenItemStrategy.Ignore, alwaysShownItems: [MenuId.CommandPalette.id], resetMenu: MenuId.ViewTitle }, delegate => {
 			contextMenuActions = delegate.getActions().map(action => action instanceof Separator ? '---' : `${action.label}${action.checked ? ' (checked)' : ''}`);
 		});
-		toolBar.setActions([createAction('fixed'), createAction('optional1'), createAction('optional2')]);
-		const shown = [0, 1].map(index => toolBar.getItemAction(index)?.id);
+		toolBar.setActions([fixed, createAction('optional1'), createAction('optional2')]);
+		const shown = [0, 1].map(index => toolBar.getItemAction(index)?.label);
 
 		const rightClick = (index: number) => {
 			toolBar.getItemElement(index)?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
 			return contextMenuActions;
 		};
 
-		assert.deepStrictEqual({ shown, onFixed: rightClick(0), onOptional: rightClick(1) }, {
+		assert.deepStrictEqual({ shown, onFixed: rightClick(0), onFixedAgain: rightClick(0), onOptional: rightClick(1) }, {
 			shown: ['fixed', 'optional1'],
-			onFixed: ['Configure Keybinding', '---', 'optional1 (checked)', 'optional2'],
+			onFixed: ['optional1 (checked)', 'optional2', '---', 'Reset Menu'],
+			onFixedAgain: ['optional1 (checked)', 'optional2', '---', 'Reset Menu'],
 			// The last optional item can be hidden, as the item that always shows remains.
-			onOptional: ['Configure Keybinding', 'Hide optional1', '---', 'optional1 (checked)', 'optional2'],
+			onOptional: ['Configure Keybinding', 'Hide optional1', '---', 'optional1 (checked)', 'optional2', '---', 'Reset Menu'],
 		});
 	});
 });
