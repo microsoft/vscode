@@ -3017,8 +3017,8 @@ export class MobileAutomationsWorkspacePicker extends AutomationsWorkspacePicker
 			layoutService, trigger, this._buildMobileItems(),
 			item => { void this._dispatchPickerItem(item); }, this._getAllBrowseActions(),
 			false, token, this.cloudMode?.get()
-				? localize('automation.form.privateRepositoriesOnly', "Cloud automations are only supported for private repositories.")
-				: undefined,
+			? localize('automation.form.privateRepositoriesOnly', "Cloud automations are only supported for private repositories.")
+			: undefined,
 		);
 	}
 }
