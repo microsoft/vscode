@@ -244,10 +244,12 @@ suite('ChatPetWidget', () => {
 		return event;
 	}
 
-	test('jump game is opt-in for the welcome perch, not ordinary chat surfaces', () => {
+	test('jump game is opt-in for the welcome perch, not ordinary chat surfaces', async () => {
 		const ordinary = createHostTransitionHarness(true);
+		await waitForPetAnimation(() => ordinary.button.dataset.state === 'idle');
 		ordinary.button.click();
 		const welcome = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		await waitForPetAnimation(() => welcome.button.dataset.state === 'idle');
 		const label = welcome.button.getAttribute('aria-label');
 		welcome.button.click();
 		assert.deepStrictEqual({
@@ -3951,7 +3953,7 @@ suite('ChatPetWidget', () => {
 
 	for (const direction of [-1, 1]) {
 		test(`throws still spin in flight without an extra landing rotation (${direction < 0 ? 'left' : 'right'})`, async () => {
-			const { root, firstParent, button, service } = createHostTransitionHarness(false);
+			const { root, firstParent, button, service, widget } = createHostTransitionHarness(false);
 			service.toggle();
 			root.style.width = '1800px';
 			root.style.height = '1000px';
@@ -3959,42 +3961,62 @@ suite('ChatPetWidget', () => {
 			service.setHorizontalPosition(direction < 0 ? 0.75 : 0.25);
 			service.toggle();
 			button.classList.remove('entering');
-			const event = new mainWindow.KeyboardEvent('keydown', {
-				key: direction < 0 ? 'ArrowLeft' : 'ArrowRight',
-				code: direction < 0 ? 'ArrowLeft' : 'ArrowRight',
-				shiftKey: true, bubbles: true, cancelable: true,
-			});
-			Object.defineProperty(event, 'keyCode', { value: direction < 0 ? 37 : 39 });
-			button.dispatchEvent(event);
-			let maximumSpin = 0;
-			let lastAirborneRotation = 0;
-			let visiblySpinning = false;
-			for (let frame = 0; button.classList.contains('throwing') && frame < 180; frame++) {
-				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-				if (button.classList.contains('throwing')) {
-					lastAirborneRotation = Number.parseFloat(button.style.transform.slice('rotate('.length));
-					maximumSpin = Math.max(maximumSpin, Math.abs(lastAirborneRotation));
-					const matrix = new mainWindow.DOMMatrix(mainWindow.getComputedStyle(button).transform);
-					visiblySpinning ||= Math.abs(matrix.b) > 0.5;
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+			const clock = sinon.useFakeTimers({ toFake: ['performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+			try {
+				const bounds = button.getBoundingClientRect();
+				const startX = bounds.left + bounds.width / 2;
+				const startY = bounds.top + bounds.height / 2;
+				button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+					clientX: startX, clientY: startY,
+					button: 0, buttons: 1, pointerId: 1, bubbles: true,
+				}));
+				// A timed flick gives every renderer the same complete spin before the landing.
+				clock.tick(20);
+				button.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+					clientX: startX + direction * 20, clientY: startY - 15,
+					buttons: 1, pointerId: 1, bubbles: true,
+				}));
+				button.dispatchEvent(new mainWindow.PointerEvent('pointerup', {
+					clientX: startX + direction * 20, clientY: startY - 15,
+					button: 0, buttons: 0, pointerId: 1, bubbles: true,
+				}));
+				let maximumSpin = 0;
+				let lastAirborneRotation = 0;
+				let visiblySpinning = false;
+				for (let frame = 0; button.classList.contains('throwing') && frame < 180; frame++) {
+					clock.runToFrame();
+					if (button.classList.contains('throwing')) {
+						lastAirborneRotation = Number.parseFloat(button.style.transform.slice('rotate('.length));
+						maximumSpin = Math.max(maximumSpin, Math.abs(lastAirborneRotation));
+						const matrix = new mainWindow.DOMMatrix(mainWindow.getComputedStyle(button).transform);
+						visiblySpinning ||= Math.abs(matrix.b) > 0.5;
+					}
 				}
+				const landed = !button.classList.contains('throwing');
+				const landingRotation = button.getAnimations().some(animation => animation.effect instanceof mainWindow.KeyframeEffect
+					&& animation.effect.getKeyframes().some(frame => frame.transform !== undefined));
+				const landingTransform = mainWindow.getComputedStyle(button).transform;
+				await waitForPetAnimation(() => button.dataset.state === 'splat');
+				assert.deepStrictEqual({
+					maximumSpin,
+					visiblySpinning,
+					direction: Math.sign(lastAirborneRotation),
+					landed,
+					landingRotation,
+					landingTransform,
+					landingBottom: button.getBoundingClientRect().bottom,
+				}, {
+					maximumSpin: 360, visiblySpinning: true, direction, landed: true, landingRotation: false, landingTransform: 'none',
+					landingBottom: firstParent.getBoundingClientRect().top,
+				});
+			} finally {
+				widget.dispose();
+				clock.runToFrame();
+				clock.restore();
 			}
-			const landed = !button.classList.contains('throwing');
-			const landingRotation = button.getAnimations().some(animation => animation.effect instanceof mainWindow.KeyframeEffect
-				&& animation.effect.getKeyframes().some(frame => frame.transform !== undefined));
-			const landingTransform = mainWindow.getComputedStyle(button).transform;
-			await waitForPetAnimation(() => button.dataset.state === 'splat');
-			assert.deepStrictEqual({
-				spun: maximumSpin >= 350,
-				visiblySpinning,
-				direction: Math.sign(lastAirborneRotation),
-				landed,
-				landingRotation,
-				landingTransform,
-				landingBottom: button.getBoundingClientRect().bottom,
-			}, {
-				spun: true, visiblySpinning: true, direction, landed: true, landingRotation: false, landingTransform: 'none',
-				landingBottom: firstParent.getBoundingClientRect().top,
-			});
 		});
 	}
 
