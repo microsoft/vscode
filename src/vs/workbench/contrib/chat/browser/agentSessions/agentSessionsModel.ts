@@ -971,7 +971,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private isMarkedUnread(session: IInternalAgentSessionData): boolean {
-		if (this.ownsReadState(session)) {
+		if (this.ownsReadState(session) || this.isUnopenedMigratedCopilotCli(session)) {
 			return !this.isRead(session);
 		}
 
@@ -991,6 +991,19 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private isRead(session: IInternalAgentSessionData): boolean {
 		if (this.isArchived(session)) {
 			return true; // archived sessions are always read
+		}
+
+		if (this.isUnopenedMigratedCopilotCli(session)) {
+			// The agent host drops read toggles on these rows, so local state
+			// (including what the legacy row had) wins over its default.
+			const storedReadDate = this.resolveStateEntry(session)?.read;
+			if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
+				return false;
+			}
+			if (storedReadDate !== undefined && this.localReadDateCoversActivity(session, storedReadDate)) {
+				return true;
+			}
+			return session.providerIsRead ?? true;
 		}
 
 		if (this.ownsReadState(session)) {
@@ -1028,7 +1041,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
-		if (this.ownsReadState(session)) {
+		if (this.ownsReadState(session) && !this.isUnopenedMigratedCopilotCli(session)) {
 			if (read) {
 				this.explicitlyMarkedUnreadSessions.delete(session.resource);
 			} else {
@@ -1076,9 +1089,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * One-time hand-off of locally-tracked read state to providers that own it,
 	 * so sessions read before the provider took ownership don't all resurface as
 	 * unread. Only ever promotes to read, and runs at most once per session so a
-	 * later "Mark as Unread" is not undone on the next refresh. The one exception
-	 * is an un-opened migrated Copilot CLI session the user explicitly marked
-	 * unread in the legacy list (see {@link isUnopenedMigratedCopilotCliMarkedUnread}).
+	 * later "Mark as Unread" is not undone on the next refresh. Un-opened
+	 * migrated Copilot CLI sessions are skipped (see {@link isUnopenedMigratedCopilotCli}).
 	 *
 	 * The ledger is application-scoped even though the local state it hands off
 	 * is per-workspace: the provider-owned state it writes to is global, so a
@@ -1089,6 +1101,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		let changed = false;
 		for (const session of sessions) {
 			if (this.migratedReadResources.has(session.resource) || !this.ownsReadState(session)) {
+				continue;
+			}
+
+			// The agent host drops read toggles on an un-opened legacy row, and
+			// its read state is kept locally until then (see `isRead`); opening
+			// marks it read. Leave the one-shot hand-off for later.
+			if (this.isUnopenedMigratedCopilotCli(session)) {
 				continue;
 			}
 
@@ -1103,9 +1122,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			changed = true;
 
 			if (session.providerIsRead) {
-				if (this.isUnopenedMigratedCopilotCliMarkedUnread(session)) {
-					this.setRead(session, false);
-				}
 				continue; // already read on the backend — nothing to hand off
 			}
 
@@ -1129,18 +1145,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	/**
-	 * Whether a migrated Copilot CLI session the user explicitly marked unread
-	 * in the legacy list is still un-opened in the agent host. Until it is
-	 * opened, the host's read state is only the default it announces legacy
-	 * rows with, so the explicit unread mark is newer and must win; once it is
-	 * opened, the host's state is newer and is respected.
+	 * Whether this is a migrated Copilot CLI session the agent host lists but
+	 * that has not been opened (adopted) yet. The host deliberately drops read
+	 * toggles on such rows so listing cannot adopt them, so their read state is
+	 * kept in the local store until they are opened.
 	 */
-	private isUnopenedMigratedCopilotCliMarkedUnread(session: IInternalAgentSessionData): boolean {
-		if (session.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] !== true) {
-			return false;
-		}
-		const migratedFrom = legacyCopilotCliResource(session.resource);
-		return !!migratedFrom && this.sessionStates.get(migratedFrom)?.read === AgentSessionsModel.UNREAD_MARKER;
+	private isUnopenedMigratedCopilotCli(session: IInternalAgentSessionData): boolean {
+		return session.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true && legacyCopilotCliResource(session.resource) !== undefined;
 	}
 
 	private loadMigratedReadResources(): void {

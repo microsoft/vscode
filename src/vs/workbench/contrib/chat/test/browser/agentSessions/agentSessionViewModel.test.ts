@@ -2532,39 +2532,68 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('keeps a legacy explicit unread over the agent host\'s default read until the session is opened', async () => {
+		test('keeps a migrated Copilot CLI session\'s read state locally until it is opened, because the host drops read toggles', async () => {
 			return runWithFakedTimers({}, async () => {
-				const legacyUnopened = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/unopened' });
-				const legacyOpened = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/opened' });
-				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, new StaticChatSessionItemController([
-					{ resource: legacyUnopened, label: 'Unopened', timing: sessionTiming },
-					{ resource: legacyOpened, label: 'Opened', timing: sessionTiming },
-				])));
-				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
-				await viewModel.resolve(undefined);
-				for (const session of viewModel.sessions) {
-					session.setRead(false);
+				/** Mirrors the real host: read toggles on an un-opened adoptable row are dropped. */
+				class DroppingController extends ReadOwningController {
+					override setChatSessionItemRead(resource: URI, isRead: boolean): void {
+						const item = this.items.find(candidate => isEqual(candidate.resource, resource));
+						if (item?.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
+							this.mutations.push({ resource: resource.toString(), isRead });
+							return;
+						}
+						super.setChatSessionItemRead(resource, isRead);
+					}
 				}
-
-				// The agent host announces both twins as read: the un-opened one by
-				// default (still adoptable), the opened one because opening read it.
-				const controller = new ReadOwningController([
-					{ resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/unopened' }), label: 'Unopened', timing: sessionTiming, isRead: true, metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } },
-					{ resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/opened' }), label: 'Opened', timing: sessionTiming, isRead: true },
+				const legacy = (path: string) => URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path });
+				const twin = (path: string) => URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path });
+				// Earlier window: the user marked /unread unread and read /read in the legacy list.
+				instantiationService.get(IStorageService).store('agentSessions.state.cache', JSON.stringify([
+					{ resource: legacy('/unread').toString(), read: -1 },
+					{ resource: legacy('/read').toString(), read: Date.UTC(2026, 1 /* February */, 3) },
+				]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				// The host announces both un-opened twins: /unread with its default read, /read as unread.
+				const adoptable = { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
+				const controller = new DroppingController([
+					{ resource: twin('/unread'), label: 'Unread', timing: sessionTiming, isRead: true, metadata: adoptable },
+					{ resource: twin('/read'), label: 'Read', timing: sessionTiming, isRead: false, metadata: adoptable },
 				]);
 				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, controller));
+				const rows = () => viewModel.sessions.map(session => ({ resource: session.resource.toString(), isRead: session.isRead() }));
+
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				const initial = rows();
+
+				// A later toggle is kept locally too.
+				viewModel.sessions.find(session => isEqual(session.resource, twin('/unread')))!.setRead(true);
+				const afterMarkRead = rows();
+				const mutationsBeforeOpen = [...controller.mutations];
+
+				// Opening adopts: the host owns read state from then on, and the
+				// one-shot hand-off now promotes the legacy read date.
+				controller.setItems([
+					{ resource: twin('/unread'), label: 'Unread', timing: sessionTiming, isRead: true },
+					{ resource: twin('/read'), label: 'Read', timing: sessionTiming, isRead: false },
+				]);
 				await viewModel.resolve(undefined);
 				await viewModel.resolve(undefined); // pick up the provider echo
 
-				assert.deepStrictEqual({
-					mutations: controller.mutations,
-					twins: viewModel.sessions.map(session => ({ resource: session.resource.toString(), isRead: session.isRead() })),
-				}, {
-					mutations: [{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/unopened`, isRead: false }],
-					twins: [
-						{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/unopened`, isRead: false },
-						{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/opened`, isRead: true },
+				assert.deepStrictEqual({ initial, afterMarkRead, mutationsBeforeOpen, afterOpen: rows(), mutationsAfterOpen: controller.mutations.slice(mutationsBeforeOpen.length) }, {
+					initial: [
+						{ resource: twin('/unread').toString(), isRead: false },
+						{ resource: twin('/read').toString(), isRead: true },
 					],
+					afterMarkRead: [
+						{ resource: twin('/unread').toString(), isRead: true },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					mutationsBeforeOpen: [],
+					afterOpen: [
+						{ resource: twin('/unread').toString(), isRead: true },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					mutationsAfterOpen: [{ resource: twin('/read').toString(), isRead: true }],
 				});
 			});
 		});
