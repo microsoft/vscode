@@ -575,9 +575,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				const notificationService = accessor.get(INotificationService) as NotificationService;
 				const markdownRendererService = accessor.get(IMarkdownRendererService);
 
-				// On web, the configuration service needs access to the
-				// instantiation service for dynamic configuration resolution.
-				if (isWeb && typeof (configurationService as IConfigurationService & { acquireInstantiationService?(i: IInstantiationService): void }).acquireInstantiationService === 'function') {
+				// The configuration service is created before the workbench services
+				// and needs the instantiation service to report settings write errors.
+				if (typeof (configurationService as IConfigurationService & { acquireInstantiationService?(i: IInstantiationService): void }).acquireInstantiationService === 'function') {
 					(configurationService as IConfigurationService & { acquireInstantiationService(i: IInstantiationService): void }).acquireInstantiationService(instantiationService);
 				}
 

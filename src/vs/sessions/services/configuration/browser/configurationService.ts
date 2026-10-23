@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
@@ -22,7 +23,9 @@ import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platfo
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IPolicyService, NullPolicyService } from '../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -30,6 +33,8 @@ import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolde
 import { DefaultConfiguration, FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
 import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
 import { Configuration } from '../../../../workbench/services/configuration/common/configurationModels.js';
+import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../workbench/services/configuration/common/configurationEditing.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
 
@@ -69,6 +74,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 	private readonly settingsResource: URI;
 	private readonly configurationEditing: ConfigurationEditing;
+	private instantiationService: IInstantiationService | undefined;
 
 	constructor(
 		userDataProfileService: IUserDataProfileService,
@@ -146,6 +152,14 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		await this.loadFolderConfigurations(workspace.folders);
 	}
 
+	/**
+	 * This service is created before the workbench services, so it acquires
+	 * them later to report settings write errors to the user.
+	 */
+	acquireInstantiationService(instantiationService: IInstantiationService): void {
+		this.instantiationService = instantiationService;
+	}
+
 	// #region IWorkbenchConfigurationService
 
 	getConfigurationData(): IConfigurationData {
@@ -166,7 +180,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
 	updateValue(key: string, value: unknown, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: unknown, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
-	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, _options?: IConfigurationUpdateOptions): Promise<void> {
+	async updateValue(key: string, value: unknown, arg3?: unknown, arg4?: unknown, options?: IConfigurationUpdateOptions): Promise<void> {
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 		let target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
@@ -209,10 +223,10 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			}
 		}
 
-		await Promises.settled(targets.map(t => this.writeConfigurationValue(key, value, t, overrides)));
+		await Promises.settled(targets.map(t => this.writeConfigurationValue(key, value, t, overrides, options)));
 	}
 
-	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined): Promise<void> {
+	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options: IConfigurationUpdateOptions | undefined): Promise<void> {
 		let path = overrides?.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 
 		const settingsResource = this.getSettingsResource(target, overrides?.resource ?? undefined);
@@ -222,8 +236,31 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			path = ['settings', ...path];
 		}
 
-		await this.configurationEditing.write(settingsResource, path, value);
+		try {
+			await this.configurationEditing.write(settingsResource, path, value);
+		} catch (error) {
+			// Like the workbench configuration service, report the failure to the user unless the caller handles it
+			const instantiationService = this.instantiationService;
+			if (options?.donotNotifyError || !instantiationService) {
+				throw error;
+			}
+			instantiationService.invokeFunction(accessor => this.notifyWriteError(accessor, error, settingsResource));
+			return;
+		}
 		await this.reloadConfiguration(target);
+	}
+
+	private notifyWriteError(accessor: ServicesAccessor, error: unknown, settingsResource: URI): void {
+		const notificationService = accessor.get(INotificationService);
+		if (error instanceof ConfigurationEditingError && error.code === ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION) {
+			const editorService = accessor.get(IEditorService);
+			notificationService.prompt(Severity.Error, error.message, [{
+				label: localize('openSettings', "Open Settings"),
+				run: () => editorService.openEditor({ resource: settingsResource, options: { pinned: true } })
+			}]);
+		} else {
+			notificationService.error(error instanceof Error ? error : String(error));
+		}
 	}
 
 	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
@@ -477,7 +514,7 @@ class ConfigurationEditing {
 		const parseErrors: ParseError[] = [];
 		parse(content, parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
 		if (parseErrors.length > 0) {
-			throw new Error('Unable to write into the settings file. Please open the file to correct errors/warnings in the file and try again.');
+			throw new ConfigurationEditingError(localize('errorInvalidConfiguration', "Unable to write into the settings file. Please open the file to correct errors/warnings in the file and try again."), ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
 		}
 
 		const edits = this.getEdits(content, path, value);
