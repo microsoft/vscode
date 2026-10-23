@@ -2160,8 +2160,10 @@ suite('AgentHostProtocolClient', () => {
 				assert.strictEqual(params.transferId, transferId);
 				assert.ok(params.chunk.length <= 1024 * 1024);
 				stagedChunks.push(params.chunk);
+				// Acknowledging the chunk makes the client send the next chunk or `createSession`.
+				const nextSend = Event.toPromise(transport.onDidSend);
 				transport.fireMessage({ jsonrpc: '2.0', id: lastMsg.id, result: null });
-				await new Promise(resolve => setTimeout(resolve, 0));
+				await nextSend;
 				continue;
 			}
 			assert.strictEqual(lastMsg.method, 'createSession');
@@ -4865,27 +4867,27 @@ suite('AgentHostProtocolClient', () => {
 			await Event.toPromise(Event.filter(client.onDidChangeConnectionState, s => s === AgentHostClientState.Reconnecting));
 		}
 
-		/** Wait for the next time a method-named request appears in the transport's outbox. */
+		/** Wait until a method-named request appears in the transport's outbox, re-checking after each send. */
 		async function waitForRequest(transport: TestProtocolTransport, method: string): Promise<JsonRpcRequest> {
-			while (true) {
-				const req = findRequest(transport, method);
-				if (req) {
-					return req;
-				}
-				await Promise.resolve();
+			let request = findRequest(transport, method);
+			while (!request) {
+				await Event.toPromise(transport.onDidSend);
+				request = findRequest(transport, method);
 			}
+			return request;
 		}
 
+		/** Wait until the `index`th method-named request appears in the transport's outbox, re-checking after each send. */
 		async function waitForRequestAt(transport: TestProtocolTransport, method: string, index: number): Promise<JsonRpcRequest> {
-			while (true) {
-				const requests = transport.sentMessages.filter(
-					(message): message is JsonRpcRequest => 'method' in message && message.method === method && 'id' in message,
-				);
-				if (requests[index]) {
-					return requests[index];
-				}
-				await Promise.resolve();
+			const requestAt = () => transport.sentMessages.filter(
+				(message): message is JsonRpcRequest => 'method' in message && message.method === method && 'id' in message,
+			).at(index);
+			let request = requestAt();
+			while (!request) {
+				await Event.toPromise(transport.onDidSend);
+				request = requestAt();
 			}
+			return request;
 		}
 
 		/**
