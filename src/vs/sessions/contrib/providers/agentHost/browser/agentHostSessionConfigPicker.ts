@@ -121,7 +121,7 @@ export interface IConfigPickerItem {
 
 export function getConfigIcon(property: string, value: unknown | undefined, hasUncommittedChanges = false): ThemeIcon | undefined {
 	if (property === SessionConfigKey.Isolation) {
-		if (value === 'folder') {
+		if (value === 'folder' || value === 'workspace') {
 			return Codicon.folder;
 		}
 		if (value === 'worktree') {
@@ -966,7 +966,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const presentation = this._presentationProperty(sessionId, property);
-		const icon = getConfigIcon(presentation, value === 'workspace' ? 'folder' : value);
+		const icon = getConfigIcon(presentation, value);
 		const iconElement = icon
 			? dom.append(trigger, renderIcon(icon))
 			: undefined;
@@ -1584,7 +1584,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 				id: registerId(isolationProperty, item, !!isolationSchema?.enumDynamic),
 				label: item.label,
 				description: item.description,
-				icon: getConfigIcon(SessionConfigKey.Isolation, item.value === 'workspace' ? 'folder' : item.value),
+				icon: getConfigIcon(SessionConfigKey.Isolation, item.value),
 				checked: item.value === isolationValue,
 				sectionTitle: index === 0 ? (isolationSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.isolationSection', "Isolation")) : undefined,
 			});

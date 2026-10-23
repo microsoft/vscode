@@ -446,16 +446,23 @@ suite('Agent Host Session Config Picker', () => {
 		const target = container.querySelector<HTMLElement>('[data-session-config-property="target"] .action-label')!;
 		target.click();
 		await timeout(0);
+		const targetItems = services.actionWidget.items.map(item => ({ value: item.item?.value, icon: item.group?.icon?.id }));
 		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'workspace')!.item!);
 		await timeout(0);
+		const targetIcon = container.querySelector('[data-session-config-property="target"] .codicon')?.className;
 		container.querySelector<HTMLElement>('[data-session-config-property="baseBranch"] .action-label')!.click();
 		await timeout(0);
 		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'main')!.item!);
 		await timeout(0);
 		container.querySelector<HTMLElement>('[data-session-config-property="branch"] .action-label')!.click();
 		await timeout(0);
-		assert.deepStrictEqual({ properties, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
+		assert.deepStrictEqual({ properties, targetItems, targetIcon, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
 			properties: ['target', 'baseBranch', 'branch'],
+			targetItems: [
+				{ value: 'workspace', icon: Codicon.folder.id },
+				{ value: 'worktree', icon: Codicon.worktree.id },
+			],
+			targetIcon: 'codicon codicon-folder',
 			writes: [
 				{ sessionId: SESSION_ID, property: 'target', value: 'workspace' },
 				{ sessionId: SESSION_ID, property: 'baseBranch', value: 'main' },
@@ -520,6 +527,7 @@ suite('Agent Host Session Config Picker', () => {
 				value: item.item?.value,
 				checked: item.item?.checked,
 				detail: item.detail,
+				icon: item.group?.icon?.id,
 			})));
 			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
 			await new Promise(resolve => setTimeout(resolve));
@@ -531,8 +539,8 @@ suite('Agent Host Session Config Picker', () => {
 			checkbox: container.querySelector('.monaco-checkbox'),
 		}, {
 			snapshots: [true, false].map(worktreeSelected => [
-				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer' },
-				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session' },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.folder.id },
+				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session', icon: Codicon.worktree.id },
 			]),
 			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
 			finalLabel: 'New Worktree',
