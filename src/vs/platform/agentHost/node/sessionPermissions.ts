@@ -13,7 +13,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
-import { extUri, extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
+import { basename, dirname, extUri, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../base/common/resources.js';
 import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -320,17 +320,25 @@ export class SessionPermissionManager extends Disposable {
 		// further consent, even from chats of the session that work elsewhere; every
 		// other destination keeps the normal rules below. Symlinks are resolved
 		// and must not lead anywhere else, so a link planted at the note's path
-		// cannot redirect an approved write.
+		// cannot redirect an approved write. Only the exact note qualifies, so the
+		// general path checks of step 5 (unsafe paths, restricted locations such as
+		// home dotfiles) are deliberately not applied to it.
+		const owner = this._ownerOf(sessionKey);
 		if ((e.permissionKind === 'write' || e.permissionKind === 'read')
 			&& e.permissionPath
-			&& this._chatpad.isChatpad(this._ownerOf(sessionKey) ?? '')
+			&& owner !== undefined
+			&& this._chatpad.isChatpad(owner)
 			&& this._chatpad.isNote(URI.file(e.permissionPath))
 		) {
-			const candidates = await this._resolveResourcesForApproval(URI.file(e.permissionPath));
-			if (candidates?.every(candidate => this._chatpad.isNote(candidate))) {
+			const [candidates, realNote] = await Promise.all([
+				this._resolveResourcesForApproval(URI.file(e.permissionPath)),
+				this._resolveChatpadNoteInRealChatsFolder(this._chatpad.getNote(owner)),
+			]);
+			if (candidates?.every(candidate => this._chatpad.isNote(candidate) || (realNote && extUri.isEqual(candidate, realNote)))) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving Chatpad ${e.permissionKind} of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
+			this._logService.trace(`[SessionPermissionManager] Chatpad ${e.permissionKind} of ${e.permissionPath} resolves elsewhere than the note; using the normal rules`);
 		}
 
 		// 4. Read auto-approval
@@ -765,6 +773,21 @@ export class SessionPermissionManager extends Disposable {
 	 * real path. Returns `undefined` when the path cannot be resolved due to
 	 * missing permissions, signalling that confirmation is required.
 	 */
+	/**
+	 * Where the Chatpad note `note` (`<chats>/<id>/chatpad.md`) really is when the chats folder is reached through a
+	 * link, such as a user home or `.copilot` folder linked by a dotfiles manager. Only the chats folder is resolved: a
+	 * link at the chat's scratch folder or at the note itself still leads elsewhere. `undefined` when it cannot be
+	 * resolved.
+	 */
+	private async _resolveChatpadNoteInRealChatsFolder(note: URI): Promise<URI | undefined> {
+		const scratchFolder = dirname(note);
+		try {
+			return joinPath(URI.file(await this._realpath(dirname(scratchFolder).fsPath)), basename(scratchFolder), basename(note));
+		} catch {
+			return undefined;
+		}
+	}
+
 	private async _resolveResourcesForApproval(resource: URI): Promise<URI[] | undefined> {
 		const resourcesToCheck = [resource];
 		if (resource.scheme !== Schemas.file) {

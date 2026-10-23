@@ -159,6 +159,26 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
+	test('auto-approves the Chatpad note when its chats folder is reached through a link, but not when its own folder is a link', async () => {
+		const realChats = join(outsideDir, 'real-chats');
+		const elsewhere = join(outsideDir, 'elsewhere');
+		mkdirSync(join(realChats, 'pad'), { recursive: true });
+		mkdirSync(elsewhere);
+		symlinkSync(realChats, join(outsideDir, 'chats'), directoryLinkType);
+		symlinkSync(elsewhere, join(realChats, 'linked'), directoryLinkType);
+		const writeNote = async (id: string) => {
+			const note = join(outsideDir, 'chats', id, 'chatpad.md');
+			const chatpadPermissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager), createTestChatpadService(sessionUri, URI.file(note))));
+			await chatpadPermissions.initialize();
+			return chatpadPermissions.getAutoApproval(writeEvent(note), buildDefaultChatUri(sessionUri));
+		};
+
+		assert.deepStrictEqual({ linkedChatsFolder: await writeNote('pad'), linkedScratchFolder: await writeNote('linked') }, {
+			linkedChatsFolder: ToolCallConfirmationReason.NotNeeded,
+			linkedScratchFolder: undefined,
+		});
+	});
+
 	test('requires confirmation when a link redirects the Chatpad note elsewhere', async () => {
 		const elsewhere = join(outsideDir, 'elsewhere');
 		mkdirSync(elsewhere);
