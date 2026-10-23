@@ -287,18 +287,19 @@ suite('CopilotCanvasesWidget', () => {
 		const pluginsExpanded = click('Plugins,', '.monaco-tl-twistie');
 		const userStillSelected = row('User,').getAttribute('aria-selected');
 		const pluginsFocused = row('Plugins,').classList.contains('focused');
+		const pluginsSelected = row('Plugins,').getAttribute('aria-selected');
 		const extensionCollapsed = click('Diagram Plugin.', '.copilot-customization-tree-label');
 		const extensionExpanded = click('Diagram Plugin.', '.monaco-tl-twistie');
 
 		assert.deepStrictEqual({
-			userCollapsed, pluginsCollapsed, pluginsExpanded, userStillSelected, pluginsFocused,
+			userCollapsed, pluginsCollapsed, pluginsExpanded, userStillSelected, pluginsFocused, pluginsSelected,
 			extensionCollapsed, extensionExpanded,
 			selectedRows: harness.container.querySelectorAll('.monaco-list-row.selected').length,
 		}, {
 			userCollapsed: 'false', pluginsCollapsed: 'false', pluginsExpanded: 'true',
-			userStillSelected: 'false', pluginsFocused: true,
+			userStillSelected: 'false', pluginsFocused: true, pluginsSelected: 'true',
 			extensionCollapsed: 'false', extensionExpanded: 'true',
-			selectedRows: 0,
+			selectedRows: 1,
 		});
 	});
 

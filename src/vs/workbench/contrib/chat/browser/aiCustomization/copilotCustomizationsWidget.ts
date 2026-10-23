@@ -464,7 +464,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		const description = DOM.append(header, $('p.section-title-description'));
 		DOM.append(description, $('span.section-title-description-text')).textContent = localize('copilotCanvases.description', "Interactive panels that Copilot can open beside a chat.");
 		description.appendChild(document.createTextNode(' '));
-		const learnMore = DOM.append(description, $('a.section-title-link'));
+		const learnMore = DOM.append(description, $<HTMLAnchorElement>('a.section-title-link'));
 		learnMore.textContent = localize('copilotCanvases.learnMore', "Learn more about canvases");
 		learnMore.href = 'https://code.visualstudio.com/docs/agents/run/agent-harnesses#_use-canvases-with-the-copilot-harness';
 		this._register(DOM.addDisposableListener(learnMore, DOM.EventType.CLICK, event => {
@@ -539,7 +539,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				},
 			},
 		));
-		this._register(this.tree.onDidChangeSelection(() => this.tree.setSelection([])));
 		this._register(this.tree.onDidOpen(event => {
 			if (event.element?.type === 'canvas') {
 				this.activateCanvas(event.element.item);
@@ -553,6 +552,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			}
 		}));
 		this._register(this.tree.onDidChangeFocus(event => {
+			this.tree.setSelection([...event.elements]);
 			const entry = event.elements[0];
 			this.extensionRenderer.setFocusedItemKey(entry?.type === 'extension' ? this.getExtensionItemKey(entry.item) : undefined);
 			this.canvasRenderer.setFocusedItemKey(entry?.type === 'canvas' ? this.getItemKey(entry.item) : undefined);
