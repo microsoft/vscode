@@ -277,7 +277,7 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 	dashboard.layout(height);
 	if (state === 'tooltip') {
 		const migrateButton = [...dashboardContainer.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-			.find(element => element.textContent === 'Migrate');
+			.find(element => element.textContent === 'Migrate...');
 		if (!migrateButton) {
 			throw new Error('Prompt migration button was not rendered');
 		}

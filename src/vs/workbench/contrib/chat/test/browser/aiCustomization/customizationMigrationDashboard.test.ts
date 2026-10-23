@@ -93,7 +93,7 @@ suite('CustomizationMigrationDashboard', () => {
 						},
 						{
 							id: CustomizationMigrationCategoryId.PluginMarketplaces, label: 'Plugin Marketplaces', description: 'Move marketplaces to Copilot settings.', count: 1, selectedCount: 1, countLabel: '1 marketplace',
-							actionLabel: 'Migrate',
+							actionLabel: 'Migrate...',
 							destinationLabel: '~/.copilot/settings.json',
 							items: [
 								{ id: 'user-marketplace', label: 'vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
@@ -143,14 +143,14 @@ suite('CustomizationMigrationDashboard', () => {
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		const agentMigrationButton = button(parent, 'Start a guided migration of all customization files that need migration');
-		const migrateButton = button(parent, 'Migrate: Convert Prompt to Skills (Workspace)');
+		const migrateButton = button(parent, 'Migrate...: Convert Prompt to Skills (Workspace)');
 		agentMigrationButton.click();
 		migrateButton.click();
-		button(parent, 'Migrate: Convert Prompt to Skills (User)').click();
-		button(parent, 'Migrate: MCP Servers (Workspace)').click();
-		button(parent, 'Migrate: Plugin Marketplaces (User)').click();
-		button(parent, 'Migrate: User Data (User)').click();
-		button(parent, 'Migrate: Custom location settings (Workspace)').click();
+		button(parent, 'Migrate...: Convert Prompt to Skills (User)').click();
+		button(parent, 'Migrate...: MCP Servers (Workspace)').click();
+		button(parent, 'Migrate...: Plugin Marketplaces (User)').click();
+		button(parent, 'Migrate...: User Data (User)').click();
+		button(parent, 'Migrate...: Custom location settings (Workspace)').click();
 		button(parent, 'Change destination for user prompt migrations').click();
 		dashboard.focusDestination(PromptsStorage.user);
 		assert.deepStrictEqual({
@@ -200,7 +200,7 @@ suite('CustomizationMigrationDashboard', () => {
 				'Migrate user data customizations to the active harness (User)',
 				'Migrate customizations from VS Code-configured locations (Workspace)',
 			],
-			initialFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
+			initialFocus: 'Migrate...: Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',
 			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
 			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
@@ -263,7 +263,7 @@ suite('CustomizationMigrationDashboard', () => {
 			overviewFocus: document.activeElement?.getAttribute('aria-label'),
 		}, {
 			loadingFocus: 'Migrations',
-			overviewFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
+			overviewFocus: 'Migrate...: Convert Prompt to Skills (Workspace)',
 		});
 	});
 
@@ -286,13 +286,13 @@ suite('CustomizationMigrationDashboard', () => {
 		button(parent, 'Show and restore ignored migrations').click();
 
 		assert.deepStrictEqual({
-			migrateLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').textContent,
-			migrateAriaLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').getAttribute('aria-label'),
-			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1: Convert Prompt to Skills (User)')),
+			migrateLabel: button(parent, 'Migrate 1...: Convert Prompt to Skills (User)').textContent,
+			migrateAriaLabel: button(parent, 'Migrate 1...: Convert Prompt to Skills (User)').getAttribute('aria-label'),
+			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1...: Convert Prompt to Skills (User)')),
 			actions,
 		}, {
-			migrateLabel: 'Migrate 1',
-			migrateAriaLabel: 'Migrate 1: Convert Prompt to Skills (User)',
+			migrateLabel: 'Migrate 1...',
+			migrateAriaLabel: 'Migrate 1...: Convert Prompt to Skills (User)',
 			migrateTooltip: 'Convert prompt files to skills (User)',
 			actions: [
 				'selected:user-prompt-1:false',
