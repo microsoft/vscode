@@ -325,11 +325,12 @@ suite('ChatInputPart', () => {
 		});
 
 		suite('agent host harness', () => {
-			const createHostInputPart = (pin: readonly string[] | undefined, reasoningEffort: string | undefined, inputOptions?: object, selected: ILanguageModelChatMetadataAndIdentifier | undefined = hostPickerModel) => createInputPart({
+			// `null` means no model is selected yet; `undefined` would fall back to the default.
+			const createHostInputPart = (pin: readonly string[] | undefined, reasoningEffort: string | undefined, inputOptions?: object, selected: ILanguageModelChatMetadataAndIdentifier | null = hostPickerModel) => createInputPart({
 				mode: { id: 'pinned', pin, reasoningEffort },
 				modes: [{ id: 'pinned', pin, reasoningEffort }, { id: 'agent' }],
 				models: () => [hostPickerModel, hostPinnedModel, hostOtherModel],
-				selected,
+				selected: selected ?? undefined,
 				inputOptions,
 			});
 
@@ -346,7 +347,7 @@ suite('ChatInputPart', () => {
 			});
 
 			test('an effort-only pin follows the current model, including one that registers late', () => {
-				const result = createHostInputPart(undefined, 'high', undefined, undefined);
+				const result = createHostInputPart(undefined, 'high', undefined, null);
 				const noModel = result.presented;
 				result.select(hostPickerModel);
 				const late = result.presented;
