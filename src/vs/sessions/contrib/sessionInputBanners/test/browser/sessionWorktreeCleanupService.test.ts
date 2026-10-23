@@ -411,6 +411,47 @@ suite('SessionWorktreeCleanupService', () => {
 		})), [{ id: 'archived', failed: true, size: undefined }]);
 	});
 
+	test('rechecks requested cleanup without rescanning unrelated worktrees', async () => {
+		const pending = createSession('pending', oldDate(), SessionStatus.Completed, true);
+		const existing = createSession('existing', oldDate(), SessionStatus.Completed, true);
+		const eligible = createSession('eligible', oldDate());
+		const scans: string[] = [];
+		let removed = false;
+		const service = disposables.add(createService([pending, existing, eligible], true, session => {
+			scans.push(session.sessionId);
+			return removed && session === pending ? undefined : ByteSize.GB;
+		}));
+		await service.getWorktrees(14);
+		removed = true;
+		const worktrees = await service.refreshPendingCleanup(['pending'], 14);
+		assert.deepStrictEqual({ scans, ids: worktrees.map(worktree => worktree.session.sessionId) }, {
+			scans: ['pending', 'existing', 'eligible', 'pending'], ids: ['existing', 'eligible'],
+		});
+	});
+
+	test('publishes completed cleanup before another pending recheck finishes', async () => {
+		const slow = new DeferredPromise<number | undefined>();
+		const published = new DeferredPromise<readonly string[]>();
+		let checking = false;
+		const service = disposables.add(createService([
+			createSession('fast', oldDate(), SessionStatus.Completed, true),
+			createSession('slow', oldDate(), SessionStatus.Completed, true),
+		], true, session => checking ? session.sessionId === 'slow' ? slow.p : undefined : ByteSize.GB));
+		await service.getWorktrees(14);
+		checking = true;
+		const refresh = service.refreshPendingCleanup(['fast', 'slow'], 14, worktrees => {
+			if (!published.isSettled) {
+				published.complete(worktrees.map(worktree => worktree.session.sessionId));
+			}
+		});
+		try {
+			assert.deepStrictEqual(await published.p, ['slow']);
+		} finally {
+			await slow.complete(undefined);
+			await refresh;
+		}
+	});
+
 	test('active, pinned, running, and recent sessions are not eligible', async () => {
 		const old = oldDate();
 		const eligible = createSession('eligible', old);
@@ -802,7 +843,7 @@ suite('SessionWorktreeCleanupService', () => {
 		const measurement = service.getWorktrees(14);
 		await measurementStarted.p;
 		service.dispose();
-		await measurement;
+		await assert.rejects(measurement, error => isCancellationError(error));
 
 		assert.strictEqual(canceled, true);
 	});

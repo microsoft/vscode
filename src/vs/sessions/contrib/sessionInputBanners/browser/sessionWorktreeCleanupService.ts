@@ -76,6 +76,7 @@ export interface ISessionWorktreeCleanupService {
 	setAvailableDiskSpace(availableBytes: number | undefined): void;
 	/** Publishes the initial worktree list and individual measurement results without waiting for the entire scan. */
 	getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken): Promise<readonly ISessionWorktree[]>;
+	refreshPendingCleanup(sessionIds: readonly string[], minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken): Promise<readonly ISessionWorktree[]>;
 	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean>;
 }
 
@@ -244,19 +245,50 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
 		return Promise.all(worktreeSessions.map((session, index) => limiter.queue(async () => {
 			const worktreeCount = this._countWorktrees(session);
-			let sizeBytes: number | undefined;
-			let measurementFailed = false;
-			try {
-				sizeBytes = await getDiskUsage.call(this.sessionsManagementService, session, this._measurementCancellation.token);
-			} catch (error) {
-				measurementFailed = true;
-				this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
-			}
+			measured[index] = await this._measureSessionWorktree(session, this._measurementCancellation.token);
 			scannedWorktrees += worktreeCount;
-			measured[index] = { session, sizeBytes, worktreeCount, isMeasuring: false, measurementFailed };
 			onProgress({ scannedWorktrees, totalWorktrees, worktrees: [...measured] });
 			return measured[index];
 		})));
+	}
+
+	private async _measureSessionWorktree(session: ISession, token: CancellationToken): Promise<IMeasuredSessionWorktree> {
+		let sizeBytes: number | undefined;
+		let measurementFailed = false;
+		try {
+			sizeBytes = await this.sessionsManagementService.getSessionWorktreeDiskUsage?.(session, token);
+		} catch (error) {
+			if (token.isCancellationRequested) {
+				throw error;
+			}
+			measurementFailed = true;
+			this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
+		}
+		return { session, sizeBytes, worktreeCount: this._countWorktrees(session), isMeasuring: false, measurementFailed };
+	}
+
+	async refreshPendingCleanup(sessionIds: readonly string[], minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token = CancellationToken.None): Promise<readonly ISessionWorktree[]> {
+		const cached = this._lastMeasuredWorktrees;
+		if (!cached) {
+			return this._getWorktrees(minimumAgeDays, token);
+		}
+		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
+		const pendingIds = new Set(sessionIds);
+		const updated = [...cached];
+		let published = cached;
+		await Promise.all(cached.map((worktree, index) => pendingIds.has(worktree.session.sessionId) && worktree.session.isArchived.get() && (worktree.sizeBytes ?? 0) > 0
+			? limiter.queue(async () => {
+				updated[index] = await this._measureSessionWorktree(worktree.session, token);
+				// Another full scan or refresh may have superseded this snapshot while the request ran.
+				if (this._lastMeasuredWorktrees === published) {
+					published = [...updated];
+					this._lastMeasuredWorktrees = published;
+					onUpdate?.(this._filterWorktrees(this._withCleanupState(published, minimumAgeDays)));
+				}
+				return updated[index];
+			})
+			: worktree));
+		return this._filterWorktrees(this._withCleanupState(this._lastMeasuredWorktrees ?? updated, minimumAgeDays));
 	}
 
 	/** Counts the distinct worktree checkouts a session owns so the threshold measures worktrees, not sessions. */

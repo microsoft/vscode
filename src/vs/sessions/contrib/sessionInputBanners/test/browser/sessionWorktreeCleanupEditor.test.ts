@@ -14,6 +14,7 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -135,6 +136,55 @@ suite('SessionWorktreeCleanupEditor', () => {
 			buttons: [...container.querySelectorAll('.session-worktree-cleanup-controls .monaco-button')].map(button => button.textContent),
 		}, { calls: ['refresh', 'load'], buttons: [] });
 	});
+
+	test('shows cleanup progress and removes completed rows without reopening', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const first = createWorktree('first', '/repos/app');
+		const second = createWorktree('second', '/repos/app');
+		const existing = createWorktree('existing', '/repos/app', 'archived');
+		let archived = false;
+		const checked: string[][] = [];
+		const { editor, container } = createEditor({
+			getWorktrees: async () => [archived ? { ...first, cleanupState: 'archived' } : first, archived ? { ...second, cleanupState: 'archived' } : second, existing],
+			cleanupWorktrees: async () => { archived = true; return true; },
+			refreshPendingCleanup: async ids => { checked.push([...ids]); return checked.length === 1 ? [{ ...second, cleanupState: 'archived' }, existing] : [existing]; },
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+		assert.deepStrictEqual([...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map(row => ({
+			title: row.querySelector('a')?.textContent,
+			spinning: !!row.querySelector('.codicon-loading.codicon-modifier-spin'),
+		})), [{ title: 'first', spinning: true }, { title: 'second', spinning: true }, { title: 'existing', spinning: false }]);
+		await timeout(2_000);
+		assert.deepStrictEqual({
+			checked,
+			rows: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
+		}, { checked: [['first', 'second']], rows: ['second', 'existing'] });
+		await timeout(2_000);
+		assert.deepStrictEqual({
+			checked,
+			rows: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
+		}, { checked: [['first', 'second'], ['second']], rows: ['existing'] });
+	}));
+
+	test('stops showing active progress when cleanup has not completed after repeated checks', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const worktree = createWorktree('first', '/repos/app');
+		let archived = false;
+		const { editor, container } = createEditor({
+			getWorktrees: async () => [archived ? { ...worktree, cleanupState: 'archived' } : worktree],
+			cleanupWorktrees: async () => { archived = true; return true; },
+			refreshPendingCleanup: async () => [{ ...worktree, cleanupState: 'archived' }],
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(30_001);
+		assert.deepStrictEqual({
+			spinning: !!container.querySelector('.codicon-loading.codicon-modifier-spin'),
+			reason: container.querySelector('.session-worktree-cleanup-reason')?.textContent,
+		}, { spinning: false, reason: 'Worktree still present' });
+	}));
 
 	test('shows a text-only settings heading and no configure actions', () => {
 		const { container } = createEditor();

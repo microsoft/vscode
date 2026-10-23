@@ -139,6 +139,11 @@
 	white-space: nowrap;
 }
 
+.session-worktree-cleanup-reason .codicon {
+	margin-right: var(--vscode-spacing-size40);
+	vertical-align: middle;
+}
+
 .session-worktree-cleanup-session-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
