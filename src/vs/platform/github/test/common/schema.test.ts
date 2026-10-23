@@ -55,6 +55,22 @@ suite('GitHub client schema', () => {
 		}
 	});
 
+	test('uses optional defaults only for undefined', () => {
+		const boolean: parse.Parser<boolean> = parse.optional(parse.boolean, true);
+		const text = parse.optional(parse.string, 'default');
+		const nullable = parse.optional(parse.nullable(parse.string), 'default');
+		assert.deepStrictEqual({
+			missing: [boolean(undefined), text(undefined), nullable(undefined)],
+			present: [boolean(false), boolean(true), text(''), nullable(null)],
+		}, {
+			missing: [true, 'default', 'default'],
+			present: [false, true, '', null],
+		});
+		for (const value of [null, 0, 'false']) {
+			assert.throws(() => boolean(value), SchemaError);
+		}
+	});
+
 	test('distinguishes missing optional fields from explicit null', () => {
 		const parser = parse.object({
 			required: parse.string,
@@ -215,7 +231,7 @@ suite('GitHub client schema', () => {
 		const result = parse.object({
 			clear: () => undefined,
 			optional: parse.optional(parse.string),
-			added: value => value === undefined ? 'default' : parse.string(value),
+			added: parse.optional(parse.string, 'default'),
 		})(input);
 		assert.deepStrictEqual({ result, input }, {
 			result: { clear: undefined, optional: undefined, extra: true, added: 'default' },

@@ -210,6 +210,7 @@
 
 			.agent-session-harness-icon {
 				/* muted, details-row scale, so it never competes with the status icon */
+				color: inherit;
 				display: flex;
 				align-items: center;
 				align-self: center;

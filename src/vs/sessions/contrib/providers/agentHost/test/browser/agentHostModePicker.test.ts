@@ -565,6 +565,18 @@ suite('AgentHostModePicker', () => {
 		}, { sameModeButton: true, samePermissionsButton: true, mode: 'Plan', permissions: 'Assisted permissions', focusPreserved: true });
 	});
 
+	test('ignores configuration changes from other sessions', () => {
+		const { trigger, config, configChanged } = setup();
+		const modeButton = trigger.querySelector<HTMLElement>('.agent-host-mode-button')!;
+		config.values.mode = 'plan';
+
+		configChanged.fire('another-session');
+		const afterOtherSession = modeButton.textContent;
+		configChanged.fire('test-session');
+
+		assert.deepStrictEqual({ afterOtherSession, afterOwnSession: modeButton.textContent }, { afterOtherSession: 'Interactive', afterOwnSession: 'Plan' });
+	});
+
 	test('opens permission settings from the gear without changing session configuration', async () => {
 		const { trigger, actionWidget, settingsRequests, writes } = setup();
 		trigger.click();

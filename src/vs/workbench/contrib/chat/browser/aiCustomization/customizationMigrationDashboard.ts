@@ -631,7 +631,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 					collapsed: this.collapsedMigrationGroups.has(groupKey),
 					hasConfigurableDestination: false,
 					manualReview: true,
-					actionLabel: localize('migrate', "Migrate"),
+					actionLabel: localize('migrate', "Migrate..."),
 					selectedCount: 0,
 					migrateDisabled: true,
 				};
@@ -671,7 +671,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				destinationLabel: category.destinationLabel,
 				destinationAriaLabel: category.destinationAriaLabel,
 				manualReview: false,
-				actionLabel: category.actionLabel ?? localize('migrate', "Migrate"),
+				actionLabel: category.actionLabel ?? localize('migrate', "Migrate..."),
 				selectedCount: category.selectedCount ?? items.length,
 				migrateDisabled: category.migrateDisabled === true,
 			};
@@ -814,7 +814,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		}
 		const label = entry.selectedCount === entry.count
 			? entry.actionLabel
-			: localize('migrationActionSelectedCount', "{0} {1}", entry.actionLabel, entry.selectedCount);
+			: localize('migrationActionSelectedCount', "Migrate {0}...", entry.selectedCount);
 		button.label = label;
 		button.setAriaLabel(localize('migrationAccessibleActionWithLabel', "{0}: {1}", label, entry.label));
 		button.enabled = !entry.migrateDisabled && entry.selectedCount > 0;

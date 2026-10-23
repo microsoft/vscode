@@ -1650,6 +1650,9 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _getWorkspaceIcon(workspace: ISessionWorkspace): ThemeIcon {
+		if (this._getEnvironment()?.kind === 'remote' && workspace.group === SESSION_WORKSPACE_GROUP_REMOTE && !workspace.isVirtualWorkspace) {
+			return Codicon.folder;
+		}
 		if (this._useConsolidatedRemoteWorkspaces()) {
 			if (workspace.group === SESSION_WORKSPACE_GROUP_LOCAL) {
 				return Codicon.folder;
@@ -1894,10 +1897,14 @@ export class WorkspacePicker extends Disposable {
 
 		// Browse actions from all providers (filtered to the active tab)
 		const remoteAgentHostsEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		const isEnvironmentFolderAction = (action: ISessionWorkspaceBrowseAction) => environment?.kind === 'remote'
+			&& action.group === SESSION_WORKSPACE_GROUP_REMOTE
+			&& environment.providerIds.includes(action.providerId);
 		const allBrowseActions = this._getAllBrowseActions()
 			.map((action, index) => ({ action, index }))
 			.filter(({ action }) => remoteAgentHostsEnabled || action.group !== SESSION_WORKSPACE_GROUP_REMOTE)
-			.filter(({ action }) => !workspaceGroupAction?.hideWorkspaceItems || action.group !== workspaceGroupActionGroup);
+			.filter(({ action }) => !workspaceGroupAction?.hideWorkspaceItems || action.group !== workspaceGroupActionGroup)
+			.sort((a, b) => Number(isEnvironmentFolderAction(b.action)) - Number(isEnvironmentFolderAction(a.action)));
 		// Remote providers with connection status — shown as dynamic rows in
 		// the Remote tab or the unified picker.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
@@ -1922,11 +1929,12 @@ export class WorkspacePicker extends Disposable {
 		// merging is no longer meaningful.
 		let hasRepositoryAttachmentAction = false;
 		allBrowseActions.forEach(({ action, index }) => {
-			const browseItems = hasEnvironmentPicker && action.group === SESSION_WORKSPACE_GROUP_REMOTE ? environmentItems : items;
-			const actionIcon = action === this._localBrowseAction && this._useConsolidatedRemoteWorkspaces()
+			const isEnvironmentFolder = isEnvironmentFolderAction(action);
+			const browseItems = hasEnvironmentPicker && action.group === SESSION_WORKSPACE_GROUP_REMOTE && !isEnvironmentFolder ? environmentItems : items;
+			const actionIcon = isEnvironmentFolder || action === this._localBrowseAction && this._useConsolidatedRemoteWorkspaces()
 				? Codicon.folder
 				: action.icon;
-			const actionLabel = action === this._localBrowseAction
+			const actionLabel = isEnvironmentFolder || action === this._localBrowseAction
 				&& this._useConsolidatedRemoteWorkspaces()
 				&& this._directPickerAttachesContext !== true
 				? localize('workspacePicker.openFolder', "Open Folder...")

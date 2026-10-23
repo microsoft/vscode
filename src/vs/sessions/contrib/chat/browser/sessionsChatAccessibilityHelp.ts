@@ -35,7 +35,7 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../bro
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -44,7 +44,6 @@ import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId }
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { isEnvironmentPickerLocalIsolationEnabled } from './sessionEnvironmentPicker.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -105,13 +104,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const useExperimentalComposerLayout = configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 			&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 		if (useExperimentalComposerLayout && !isWeb && configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
-			if (isEnvironmentPickerLocalIsolationEnabled(configurationService)) {
-				content.push(localize('sessionsChat.environmentPicker.localIsolation', "Environment offers Local Folder to work in the existing folder, or New Worktree to create an isolated copy for the session. These choices replace This Computer and the separate Branch or New Worktree isolation control for new local sessions. Branch selection remains available. New Worktree requires a workspace and a harness that supports worktrees. Use Enter or Space to open Environment, arrow keys and Enter to select, and Escape to dismiss."));
-			}
-			content.push(configurationService.getValue<boolean>(ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING)
-				? localize('sessionsChat.environmentPicker.beforeWorkspace', "Above the new-session input, Environment is before Workspace and remains visible when session options are collapsed.")
-				: localize('sessionsChat.environmentPicker.afterWorkspace', "Above the new-session input, Environment is after Workspace. Choose from all recent workspaces, then choose an environment where that workspace or a known checkout of its repository is available. Collapsing session options hides Environment unless the collapsed icon rail is enabled."));
-			content.push(localize('sessionsChat.environmentPicker', "Choose This Computer, Cloud, a remote host, or an available Dev Container. When Environment is first, the workspace choices follow the selected environment. Session Type choices always follow the environment. Local folders default to This Computer unless you explicitly choose or restore another environment. Choose Workspace is shown when no workspace is selected. Cloud uses Copilot. Dev Container lists only supported folders and requires a workspace; it does not fall back to Chat. Compare Agents is unavailable when Dev Container is selected. An incompatible workspace is cleared without sending or discarding your prompt. Use Tab or the Left and Right arrow keys to reach Environment, Enter or Space to open it, arrow keys and Enter to select, and Escape to dismiss. Screen-reader optimized mode keeps session options expanded."));
+			content.push(localize('sessionsChat.environmentPicker.beforeWorkspace', "Above the new-session input, Environment is before Workspace and remains visible when session options are collapsed."));
+			content.push(localize('sessionsChat.environmentPicker', "Choose This Computer, Cloud, a remote host, or an available Dev Container. Workspace and Session Type choices follow the selected environment. Local folders default to This Computer unless you explicitly choose or restore another environment. Choose Workspace is shown when no workspace is selected. Cloud uses Copilot. Dev Container lists only supported folders and requires a workspace; it does not fall back to Chat. Compare Agents is unavailable when Dev Container is selected. An incompatible workspace is cleared without sending or discarding your prompt. Use Tab or the Left and Right arrow keys to reach Environment, Enter or Space to open it, arrow keys and Enter to select, and Escape to dismiss. Screen-reader optimized mode keeps session options expanded."));
 			if (configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 				logSettingExperimentTrigger(accessor.get(ITelemetryService), ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 				if (configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
