@@ -114,6 +114,12 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # ESLint runs first so that lint errors fail the job within about a minute, and on its own
+      # so that its worker memory doesn't overlap the parallel compilation checks. Hygiene fails
+      # just as quickly inside Compile & Hygiene, which stops all its checks when one fails.
+      - name: ESLint
+        run: npm run eslint -- --changed-since "$PR_BASE_SHA"
+
       - name: Prepare Electron types
         run: node build/npm/electronTypes.ts
 
@@ -150,10 +156,6 @@ jobs:
         run: npm exec -- npm-run-all2 -lp core-ci-pr "hygiene -- --changed-since $PR_BASE_SHA" valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Avoid overlapping ESLint's worker memory with the parallel compilation checks.
-      - name: ESLint
-        run: npm run eslint -- --changed-since "$PR_BASE_SHA"
 
       - name: Check Codex protocol client is in sync
         run: |
