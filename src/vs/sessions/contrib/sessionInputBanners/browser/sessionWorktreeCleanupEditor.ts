@@ -617,7 +617,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		rendered.element.toggleAttribute('aria-busy', cleaning);
 		rendered.checkbox.domNode.removeAttribute('aria-description');
 		rendered.titleLink.removeAttribute('aria-description');
-		if (worktree.cleanupState !== 'eligible' || cleaning) {
+		if (worktree.cleanupState !== 'eligible') {
 			const label = worktree.cleanupState === 'archived' && worktree.cleanupStatusError
 				? localize('sessionWorktreeCleanup.statusError', "Couldn't read cleanup status: {0}", worktree.cleanupStatusError)
 				: worktree.cleanupState === 'archived' && worktree.cleanupStatus
