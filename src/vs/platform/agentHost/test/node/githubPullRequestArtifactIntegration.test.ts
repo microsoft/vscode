@@ -1047,10 +1047,14 @@ suite('GitHub pull request artifact integration', () => {
 		const f = await fixture(store, base);
 		f.onRefresh(() => {
 			f.snapshot.set({
-				...base, checks: { ...base.checks, value: { ...base.checks.value!, checks: [
-					{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
-					{ id: 'approval', name: 'Awaiting approvals', type: 'checkRun', status: 'IN_PROGRESS' },
-				] } },
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+							{ id: 'approval', name: 'Awaiting approvals', type: 'checkRun', status: 'IN_PROGRESS' },
+						]
+					}
+				},
 			}, undefined);
 		});
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
@@ -1078,9 +1082,13 @@ suite('GitHub pull request artifact integration', () => {
 		f.onRefresh(() => {
 			refreshTimes.push(Date.now() - enabledAt);
 			f.snapshot.set({
-				...base, checks: { ...base.checks, value: { ...base.checks.value!, checks: [
-					{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
-				] } },
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun', status: 'COMPLETED', conclusion: 'FAILURE' },
+						]
+					}
+				},
 			}, undefined);
 		});
 		await timeout(59_999);
@@ -1151,10 +1159,16 @@ suite('GitHub pull request artifact integration', () => {
 	for (const progress of ['new head', 'new failure', 'resolved blocker'] as const) {
 		test(`starts a new repair without the unchanged cooldown after a ${progress}`, () => run(async store => {
 			const base = createPullRequestArtifactSnapshot();
-			const failing = { ...base, checks: { ...base.checks, value: { ...base.checks.value!, checks: [
-				{ id: 'ci', name: 'CI', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
-				{ id: 'lint', name: 'Lint', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
-			] } } };
+			const failing = {
+				...base, checks: {
+					...base.checks, value: {
+						...base.checks.value!, checks: [
+							{ id: 'ci', name: 'CI', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+							{ id: 'lint', name: 'Lint', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+						]
+					}
+				}
+			};
 			const f = await fixture(store, failing);
 			await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
 			await waitForState(f.service.ledger.state, state => state.runs.some(run => run.state === 'running'));
@@ -1167,7 +1181,7 @@ suite('GitHub pull request artifact integration', () => {
 				}, undefined);
 			} else {
 				const checks = progress === 'new failure' ? [...failing.checks.value.checks,
-					{ id: 'test', name: 'Test', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+				{ id: 'test', name: 'Test', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
 				] : failing.checks.value.checks.map(check => check.id === 'ci' ? { ...check, conclusion: 'SUCCESS' } : check);
 				f.snapshot.set({ ...failing, checks: { ...failing.checks, value: { ...failing.checks.value, checks } } }, undefined);
 			}
