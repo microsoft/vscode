@@ -645,6 +645,74 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('installation notifications keep browse cards mounted unless a displayed installation changes', async () => {
+		const fixture = createPage(['agentFinder']);
+		const item = resource('remote-mail', { mediaType: CustomizationMarketplaceMediaType.Skill });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		const primaryAction = card?.querySelector<HTMLElement>('.customization-discovery-card-primary');
+		assert.ok(card && primaryAction);
+		primaryAction.focus();
+
+		fixture.notifyInstallChange();
+		fixture.setInstallState(resource('unrelated'), { kind: 'installing' });
+		fixture.notifyInstallChange();
+		fixture.setInstallState(item, { kind: 'available' });
+		fixture.notifyInstallChange();
+		const unchanged = { mounted: card.isConnected, focused: DOM.getActiveElement() === primaryAction };
+
+		fixture.setInstallState(item, { kind: 'installing' });
+		fixture.notifyInstallChange();
+		const installingCard = fixture.container.querySelector('.customization-discovery-card');
+		fixture.setInstallState(item, { kind: 'installing' });
+		fixture.notifyInstallChange();
+
+		assert.deepStrictEqual({
+			unchanged,
+			oldCardRemoved: !card.isConnected,
+			installingCardKept: installingCard?.isConnected,
+			installing: installingCard?.querySelector('.monaco-button')?.getAttribute('aria-busy'),
+			requests: fixture.requests.length,
+		}, {
+			unchanged: { mounted: true, focused: true },
+			oldCardRemoved: true,
+			installingCardKept: true,
+			installing: 'true',
+			requests: 1,
+		});
+	});
+
+	test('curated browse cards track installation changes independently of catalog results', async () => {
+		const item = resource('curated-skill', { mediaType: CustomizationMarketplaceMediaType.Skill });
+		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, undefined, {
+			sourceId: 'agentFinder',
+			sections: [{ id: 'featured', title: 'Featured', items: [item] }],
+		});
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		assert.ok(card);
+		fixture.notifyInstallChange();
+		const unchangedCardKept = card.isConnected;
+		fixture.setInstallState(item, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed/curated-skill') } });
+		fixture.notifyInstallChange();
+
+		assert.deepStrictEqual({
+			unchangedCardKept,
+			oldCardRemoved: !card.isConnected,
+			action: fixture.container.querySelector('.customization-discovery-card-primary')?.getAttribute('aria-label'),
+			requests: fixture.requests.length,
+		}, {
+			unchangedCardKept: true,
+			oldCardRemoved: true,
+			action: 'Open installed customization curated-skill',
+			requests: 1,
+		});
+	});
+
 	test('browse card images replace fallback icons and restore them on error', async () => {
 		const fixture = createPage(['agentFinder']);
 		fixture.container.style.position = 'absolute';
