@@ -19,8 +19,7 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
-import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
@@ -125,20 +124,6 @@ for (const entry of chatWindowTabEntries) {
 		}
 	});
 }
-
-// The side panel toggle of the main window's Session Activity Bar, while it shows its layout actions: here the editor.
-MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-	command: {
-		id: CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID,
-		title: localize2('chatWindowToggleEditor', "Toggle Editor"),
-		icon: Codicon.layoutSidebarRightOff,
-		toggled: { condition: ChatWindowLayoutContext.notEqualsTo(ChatWindowLayout.ChatOnly), icon: Codicon.layoutSidebarRight },
-		precondition: ChatWindowLayoutContext.notEqualsTo(ChatWindowLayout.EditorOnly),
-	},
-	group: SessionActivityBarGroup.SidePanel,
-	order: 0,
-	when: ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true)),
-});
 
 // The terminal: shown in the row across the bottom of the window, as the panel of the main window shows it.
 registerAction2(class ToggleChatWindowTerminalAction extends Action2 {
