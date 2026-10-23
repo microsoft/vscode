@@ -121,7 +121,6 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 	});
 
 	teardown(() => {
-		testObject.dispose();
 		disposables.dispose();
 	});
 
