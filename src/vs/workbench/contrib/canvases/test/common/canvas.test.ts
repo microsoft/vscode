@@ -9,7 +9,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { CanvasInput, ICanvas, ICanvasContextService } from '../../common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvas, ICanvasContextService } from '../../common/canvas.js';
 
 suite('CanvasInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +59,30 @@ suite('CanvasInput', () => {
 		})));
 
 		assert.deepStrictEqual({ main: input.canMove(1, 1), allowed: input.canMove(1, 2), other: typeof input.canMove(1, 3) }, { main: true, allowed: true, other: 'string' });
+	});
+
+	test('presents canvases in auxiliary window groups only when the context service allows their owner', () => {
+		const owner = { providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') };
+		const other = { ...owner, chat: URI.parse('chat:/other') };
+		const main = editorGroupsService.getGroup(1)!;
+		const auxiliary = editorGroupsService.getGroup(2)!;
+		const allowing = upcastPartial<ICanvasContextService>({
+			canPresentInGroup: (candidate, group) => candidate.chat.toString() === owner.chat.toString() && group === auxiliary,
+		});
+
+		assert.deepStrictEqual({
+			mainWithoutService: canPresentCanvasInGroup(owner, main, editorGroupsService, undefined),
+			auxiliaryWithoutService: canPresentCanvasInGroup(owner, auxiliary, editorGroupsService, undefined),
+			auxiliaryWithoutHook: canPresentCanvasInGroup(owner, auxiliary, editorGroupsService, contextService),
+			auxiliaryAllowed: canPresentCanvasInGroup(owner, auxiliary, editorGroupsService, allowing),
+			auxiliaryOtherOwner: canPresentCanvasInGroup(other, auxiliary, editorGroupsService, allowing),
+		}, {
+			mainWithoutService: true,
+			auxiliaryWithoutService: false,
+			auxiliaryWithoutHook: false,
+			auxiliaryAllowed: true,
+			auxiliaryOtherOwner: false,
+		});
 	});
 
 	test('allows main-window movement but rejects auxiliary windows', () => {

@@ -22,13 +22,13 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { WebContentsViewHost } from '../../../browserView/electron-browser/webContentsViewHost.js';
-import { CanvasInput, ICanvasService } from '../../common/canvas.js';
+import { CanvasInput, ICanvasContextService, ICanvasService } from '../../common/canvas.js';
 import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean }) {
+	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly auxiliaryGroup?: { readonly canPresentInGroup?: boolean } }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -68,7 +68,11 @@ suite('CanvasEditor', () => {
 		});
 		let view = Promise.resolve(model);
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IEditorGroupsService, { mainPart: upcastPartial<IEditorPart>({ windowId: group.windowId }) });
+		instantiationService.stub(IEditorGroupsService, { mainPart: upcastPartial<IEditorPart>({ windowId: harnessOptions?.auxiliaryGroup ? group.windowId + 1 : group.windowId }) });
+		if (harnessOptions?.auxiliaryGroup) {
+			const canPresentInGroup = harnessOptions.auxiliaryGroup.canPresentInGroup;
+			instantiationService.stub(ICanvasContextService, upcastPartial<ICanvasContextService>(canPresentInGroup === undefined ? {} : { canPresentInGroup: () => canPresentInGroup }));
+		}
 		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('enabled', true),
 			isOwnerPresentable: (_reference, reader) => ownerVisible.read(reader),
@@ -130,6 +134,17 @@ suite('CanvasEditor', () => {
 			},
 		};
 	}
+
+	test('opens in a group outside the main window only when the canvas context service allows it', async () => {
+		const results: Record<string, string> = {};
+		for (const [name, canPresentInGroup] of [['without hook', undefined], ['hook declines', false], ['hook allows', true]] as const) {
+			const harness = createHarness({ auxiliaryGroup: { canPresentInGroup } });
+			results[name] = await harness.open().then(() => 'opened', () => 'rejected');
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(results, { 'without hook': 'rejected', 'hook declines': 'rejected', 'hook allows': 'opened' });
+	});
 
 	test('does not revive hidden native content when an old rectangle is laid out', async () => {
 		const harness = createHarness();
