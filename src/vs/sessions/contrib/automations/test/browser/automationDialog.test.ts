@@ -17,7 +17,7 @@ import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -57,7 +57,7 @@ import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/wid
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { AutomationCatalogueState, AutomationToolCatalog, AutomationUnavailableError, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -307,8 +307,6 @@ suite('Automation dialog creation', () => {
 		target = observableValue<IAutomationWorkspaceTarget>('target', { workspace: REPOSITORY }),
 		tools: IObservable<AutomationToolCatalog> = constObservable(toolCatalog()),
 		loadTools: () => void = () => { },
-		checkRepositoryOwnership: IAutomationProviderConfiguration['checkRepositoryOwnership'] = async () => ({ allowed: true }),
-		repositoryOwnershipInvalidation?: IAutomationProviderConfiguration['repositoryOwnershipInvalidation'],
 	): IAutomationProviderConfiguration {
 		return {
 			sessionTypes: ['cloud-agent'], timeZone: 'UTC', description: 'Runs on GitHub',
@@ -316,8 +314,6 @@ suite('Automation dialog creation', () => {
 			tools, loadTools,
 			pickWorkspace: async () => REPOSITORY,
 			getWorkspaceTarget: uri => uri ? target : constObservable({ disabledReason: 'Choose a repository.' }),
-			repositoryOwnershipInvalidation,
-			checkRepositoryOwnership,
 		};
 	}
 
@@ -781,14 +777,14 @@ suite('Automation dialog creation', () => {
 		}
 	});
 
-	test('Repository create failure preserves the dialog and selected Owner with a readable server reason', async () => {
-		const reason = 'Repository automations are not enabled for this repository.';
+	test('Repository ownership rejection preserves the dialog and selected Owner with product copy', async () => {
+		const reason = 'Repository owned automations are not supported for this repository.';
 		const committing = new DeferredPromise<void>();
 		const dialog = openDialog({
 			commit: async result => {
 				assert.ok(result.kind === 'create' && result.value.ownership === 'repository');
 				await committing.p;
-				throw new AutomationUnavailableError(reason);
+				throw new Error(reason);
 			}
 		}, cloudConfiguration());
 		await dialog.setCloud(true);
@@ -869,218 +865,6 @@ suite('Automation dialog creation', () => {
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
-
-	for (const outcome of ['allowed', 'denied', 'failed'] as const) {
-		test(`repository selection ${outcome} settles Repository ownership availability without losing the draft`, async () => {
-			const eligibility = new DeferredPromise<{ readonly allowed: boolean; readonly reason?: string }>();
-			const dialog = openDialog({}, cloudConfiguration(undefined, undefined, undefined, async () => {
-				if (outcome === 'failed') {
-					await eligibility.p;
-					throw new Error('Offline');
-				}
-				return eligibility.p;
-			}));
-			await dialog.setCloud(true);
-			dialog.setName('Ownership review');
-			dialog.setPrompt('Review repository changes');
-			await dialog.selectWorkspace(REPOSITORY);
-			await timeout(0);
-			const spinner = dialog.container.querySelector<HTMLElement>('.automation-target-toolbar > .automation-loading-spinner')!;
-			const ownerOptions = dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]');
-			const pending = {
-				visible: spinner.style.display !== 'none',
-				label: spinner.getAttribute('aria-label'),
-				tooltip: dialog.getTooltip(spinner),
-				save: dialog.saveButton.getAttribute('aria-disabled'),
-				owner: Array.from(ownerOptions, option => option.getAttribute('aria-checked')),
-				ownerDisabled: Array.from(ownerOptions, option => option.getAttribute('aria-disabled')),
-				repositoryTooltip: dialog.getTooltip(ownerOptions[1]),
-			};
-			await eligibility.complete(outcome === 'denied' ? { allowed: false } : { allowed: true });
-			await timeout(0);
-			if (outcome === 'allowed') {
-				ownerOptions[1].click();
-			}
-			const ownerInfo = dialog.container.querySelector<HTMLElement>('.automation-owner-info')!;
-			const toolsButton = dialog.container.querySelector<HTMLElement>('.automation-provider-tools .monaco-button')!;
-			const triggerSelect = dialog.container.querySelector<HTMLElement>('select[aria-label="Trigger"]')!;
-			const keyboardExplanation = outcome === 'allowed' ? undefined : (() => {
-				toolsButton.focus();
-				dispatchKey(toolsButton, 'keydown', 'Tab');
-				const forward = DOM.getActiveElement() === ownerInfo;
-				triggerSelect.focus();
-				dispatchKey(triggerSelect, 'keydown', 'Tab', true);
-				return {
-					forward,
-					backward: DOM.getActiveElement() === ownerInfo,
-					label: ownerInfo.getAttribute('aria-label'),
-					tooltip: dialog.getTooltip(ownerInfo),
-				};
-			})();
-			const message = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center:not([aria-hidden="true"])');
-			assert.deepStrictEqual({
-				pending,
-				settled: {
-					spinnerVisible: spinner.style.display !== 'none',
-					save: dialog.saveButton.getAttribute('aria-disabled'),
-					message: message?.textContent,
-					warning: message?.classList.contains('warning') ?? false,
-					owner: Array.from(ownerOptions, option => option.getAttribute('aria-checked')),
-					ownerDisabled: Array.from(ownerOptions, option => option.getAttribute('aria-disabled')),
-					repositoryTooltip: dialog.getTooltip(ownerOptions[1]),
-				},
-				keyboardExplanation,
-				draft: { name: dialog.nameInput.value, prompt: dialog.container.querySelector<HTMLTextAreaElement>('textarea')?.value },
-			}, {
-				pending: {
-					visible: true,
-					label: 'Checking repository settings...',
-					tooltip: 'Checking repository settings...',
-					save: 'false',
-					owner: ['true', 'false'],
-					ownerDisabled: ['true', 'true'],
-					repositoryTooltip: 'Checking repository settings...',
-				},
-				settled: outcome === 'allowed'
-					? {
-						spinnerVisible: false,
-						save: 'false',
-						message: 'This automation will be visible to everyone with repository access, and can be edited by anyone with write access.',
-						warning: true,
-						owner: ['false', 'true'],
-						ownerDisabled: ['false', 'false'],
-						repositoryTooltip: 'Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot.',
-					}
-					: {
-						spinnerVisible: false,
-						save: 'false',
-						message: undefined,
-						warning: false,
-						owner: ['true', 'false'],
-						ownerDisabled: ['true', 'true'],
-						repositoryTooltip: outcome === 'denied' ? 'Repository owned automations are not supported for this repository.' : 'Unable to verify repository ownership. Try again.',
-					},
-				keyboardExplanation: outcome === 'allowed' ? undefined : {
-					forward: true,
-					backward: true,
-					label: outcome === 'denied' ? 'Repository owned automations are not supported for this repository.' : 'Unable to verify repository ownership. Try again.',
-					tooltip: outcome === 'denied' ? 'Repository owned automations are not supported for this repository.' : 'Unable to verify repository ownership. Try again.',
-				},
-				draft: { name: 'Ownership review', prompt: 'Review repository changes' },
-			});
-			dialog.cancelButton.click();
-			await dialog.result;
-		});
-	}
-
-	test('Repository ownership is rechecked when the Cloud configuration reconnects', async () => {
-		const reconnectedEligibility = new DeferredPromise<{ readonly allowed: boolean }>();
-		const invalidation = observableSignal('repository ownership invalidation');
-		let checks = 0;
-		const dialog = openDialog({}, cloudConfiguration(undefined, undefined, undefined, async () => {
-			checks++;
-			return checks === 1 ? { allowed: true } : reconnectedEligibility.p;
-		}, invalidation));
-		await dialog.setCloud(true);
-		await dialog.selectWorkspace(REPOSITORY);
-		await timeout(0);
-		invalidation.trigger(undefined);
-		await timeout(0);
-
-		const spinner = dialog.container.querySelector<HTMLElement>('.automation-target-toolbar > .automation-loading-spinner')!;
-		assert.deepStrictEqual({
-			checks,
-			spinnerVisible: spinner.style.display !== 'none',
-			save: dialog.saveButton.getAttribute('aria-disabled'),
-		}, {
-			checks: 2,
-			spinnerVisible: true,
-			save: 'true',
-		});
-
-		await reconnectedEligibility.complete({ allowed: true });
-		dialog.cancelButton.click();
-		await dialog.result;
-	});
-
-	test('clicking Repository after repository selection does not repeat the eligibility check', async () => {
-		let checks = 0;
-		const dialog = openDialog({}, cloudConfiguration(undefined, undefined, undefined, async () => {
-			checks++;
-			return { allowed: true };
-		}));
-		await dialog.setCloud(true);
-		await dialog.selectWorkspace(REPOSITORY);
-		const repositoryOwner = dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]')[1];
-		repositoryOwner.click();
-		await timeout(0);
-		repositoryOwner.click();
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			checks,
-			selected: repositoryOwner.getAttribute('aria-checked'),
-			spinnerVisible: dialog.container.querySelector<HTMLElement>('.automation-target-toolbar > .automation-loading-spinner')!.style.display !== 'none',
-		}, {
-			checks: 1,
-			selected: 'true',
-			spinnerVisible: false,
-		});
-
-		dialog.cancelButton.click();
-		await dialog.result;
-	});
-
-	for (const change of ['repository', 'cloudMode'] as const) {
-		test(`Repository ownership ignores a late result after changing ${change === 'repository' ? 'repository' : 'Cloud mode'}`, async () => {
-			const requests: Array<{ deferred: DeferredPromise<{ readonly allowed: boolean; readonly reason?: string }>; cancelled: boolean }> = [];
-			const dialog = openDialog({}, cloudConfiguration(undefined, undefined, undefined, (_workspace, token) => {
-				const request = { deferred: new DeferredPromise<{ readonly allowed: boolean; readonly reason?: string }>(), cancelled: false };
-				disposables.add(token.onCancellationRequested(() => request.cancelled = true));
-				requests.push(request);
-				return request.deferred.p;
-			}));
-			await dialog.setCloud(true);
-			await dialog.selectWorkspace(REPOSITORY);
-			dialog.setName('Keep this name');
-			dialog.setPrompt('Keep this prompt');
-			await timeout(0);
-			const first = requests[0];
-			if (change === 'repository') {
-				await dialog.selectWorkspace(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/other/HEAD' }));
-			} else {
-				await dialog.setCloud(false);
-			}
-			await timeout(0);
-			await first.deferred.complete({ allowed: true });
-			await timeout(0);
-			if (change === 'repository') {
-				assert.strictEqual(requests.length, 2);
-				await requests[1].deferred.complete({ allowed: false, reason: 'Other repository denied.' });
-				await timeout(0);
-			}
-
-			assert.deepStrictEqual({
-				firstCancelled: first.cancelled,
-				requests: requests.length,
-				cloud: dialog.container.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
-				message: dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center:not([aria-hidden="true"])')?.textContent,
-				ownerDisabled: Array.from(dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]'), option => option.getAttribute('aria-disabled')),
-				repositoryTooltip: dialog.getTooltip(dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]')[1]),
-				draft: { name: dialog.nameInput.value, prompt: dialog.container.querySelector<HTMLTextAreaElement>('textarea')?.value },
-			}, {
-				firstCancelled: true,
-				requests: change === 'repository' ? 2 : 1,
-				cloud: change === 'repository' ? 'true' : 'false',
-				message: undefined,
-				ownerDisabled: ['true', 'true'],
-				repositoryTooltip: change === 'repository' ? 'Other repository denied.' : 'Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot.',
-				draft: { name: 'Keep this name', prompt: 'Keep this prompt' },
-			});
-			dialog.cancelButton.click();
-			await dialog.result;
-		});
-	}
 
 	test('Owner is read-only on edit, including legacy Only me, and never enters the update', async () => {
 		for (const ownership of [undefined, 'repository'] as const) {
@@ -2324,14 +2108,20 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('cloud edit disables the immutable workspace while preserving configuration and enabled state', async () => {
+	test('cloud edit preserves an existing manageable public target and immutable configuration', async () => {
 		const existing: IAutomationDescriptor = {
 			id: 'cloud-existing', name: 'Review', prompt: 'Review changes', enabled: false, createdAt: '', updatedAt: '',
 			target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
 			schedule: { interval: 'weekly', scheduleHour: 15, scheduleMinute: 30, scheduleDay: 2, timeZone: 'UTC' },
 			sessionTemplate: { modelId: 'saved-model', config: { tools: ['read', 'future-tool'], reasoningEffort: 'high' } },
 		};
-		const dialog = openDialog({ existing }, cloudConfiguration());
+		const target = observableValue<IAutomationWorkspaceTarget>('target', {
+			disabledReason: 'Cloud automations cannot be managed for this repository.',
+			isRepository: true,
+			isPrivateRepository: false,
+			repositoryLabel: 'owner/public',
+		});
+		const dialog = openDialog({ existing }, cloudConfiguration(target));
 		const notification = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
 		dialog.nameInput.focus();
 		const mouseDownResult = notification.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
@@ -2346,6 +2136,8 @@ suite('Automation dialog creation', () => {
 			focusPreserved: DOM.getWindow(notification).document.activeElement === dialog.nameInput,
 			workspaceDisabledReason: dialog.getWorkspaceDisabledReason(),
 			cloudDisabled: dialog.container.querySelector('[aria-label="Session Type, Cloud"]')?.getAttribute('aria-disabled'),
+			targetError: dialog.container.querySelector('#automation-target-error')?.textContent,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
 		}, {
 			workspacePicker: true,
 			inlineGuidance: undefined,
@@ -2357,6 +2149,8 @@ suite('Automation dialog creation', () => {
 			focusPreserved: true,
 			workspaceDisabledReason: 'Certain settings cannot be changed for an existing cloud automation. Duplicate this automation to change those settings.',
 			cloudDisabled: 'true',
+			targetError: '',
+			saveDisabled: 'false',
 		});
 		dialog.saveButton.click();
 		assert.deepStrictEqual(await dialog.result, {

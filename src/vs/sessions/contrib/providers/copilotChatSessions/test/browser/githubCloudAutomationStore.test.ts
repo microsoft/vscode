@@ -62,7 +62,6 @@ class TestApi extends mock<IAutomationsClient>() {
 	readonly automationEnabled = new Map<string, boolean>();
 	readonly manageability = new Map<string, boolean | Error | Promise<boolean>>();
 	readonly privateRepositories = new Map<string, boolean | Error | Promise<boolean>>();
-	readonly repositoryVisibilities = new Map<string, Repository['visibility']>();
 	readonly metadataCalls: { readonly repository: RepositoryRef; readonly token: AbortSignal }[] = [];
 	readonly metadataStarted = new DeferredPromise<void>();
 	readonly definitions = new Map<string, readonly AutomationDetail[] | Error | Promise<readonly AutomationDetail[]>>();
@@ -219,7 +218,6 @@ suite('GitHubCloudAutomationStore', () => {
 							const isPrivate = await result;
 							return upcastDeepPartial<Repository>({
 								private: isPrivate,
-								visibility: api.repositoryVisibilities.get(repository.repo) ?? (isPrivate ? 'private' : 'public'),
 							});
 						},
 					});
@@ -317,61 +315,11 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
-	for (const outcome of ['allowed', 'disabled', 'unmanageable'] as const) {
-		test(`repository ownership reports ${outcome}`, async () => {
-			const { store, api } = setup();
-			api.automationEnabled.set(repository.repo, outcome !== 'disabled');
-			api.manageability.set(repository.repo, outcome !== 'unmanageable');
-
-			assert.deepStrictEqual(
-				await store.checkRepositoryOwnership(workspace, CancellationToken.None),
-				outcome === 'allowed'
-					? { allowed: true }
-					: { allowed: false, reason: 'Repository owned automations are not supported for this repository.' },
-			);
-		});
-	}
-
-	test('repository ownership rejects internal repositories before capability lookup', async () => {
-		const { store, api } = setup();
-		api.repositoryVisibilities.set(repository.repo, 'internal');
-
-		assert.deepStrictEqual({
-			result: await store.checkRepositoryOwnership(workspace, CancellationToken.None),
-			capabilityCalls: api.calls.filter(call => call.method === 'capability').length,
-		}, {
-			result: { allowed: false, reason: 'Repository owned automations are not supported for this repository.' },
-			capabilityCalls: 0,
-		});
-	});
-
-	test('repository ownership creation errors use product copy and cache the failed check', async () => {
+	test('repository ownership creation errors use product copy', async () => {
 		const { store, api } = setup();
 		api.mutationResult = new Error('ownership "repository" is not currently available for this repository');
 
 		await assert.rejects(store.create(workspace, { ...createValue, ownership: 'repository' }), /Repository owned automations are not supported for this repository\./);
-		const metadataCalls = api.metadataCalls.length;
-		assert.deepStrictEqual({
-			result: await store.checkRepositoryOwnership(workspace, CancellationToken.None),
-			metadataCalls: api.metadataCalls.length,
-		}, {
-			result: { allowed: false, reason: 'Repository owned automations are not supported for this repository.' },
-			metadataCalls,
-		});
-	});
-
-	test('repository ownership propagates lookup failure and cancellation as unresolved', async () => {
-		const { store, api } = setup();
-		api.manageability.set(repository.repo, new Error('Offline'));
-		await assert.rejects(store.checkRepositoryOwnership(workspace, CancellationToken.None), /Offline/);
-		const pending = new DeferredPromise<boolean>();
-		api.manageability.set(repository.repo, pending.p);
-		const source = disposables.add(new CancellationTokenSource());
-		const check = assert.rejects(store.checkRepositoryOwnership(workspace, source.token), isCancellationError);
-		await api.manageabilityStarted.p;
-		source.cancel();
-		await pending.complete(true);
-		await check;
 	});
 
 	test('cancelled repository selection does not publish privacy into the cache', async () => {

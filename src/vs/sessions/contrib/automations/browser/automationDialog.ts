@@ -245,7 +245,6 @@ export interface IFormState extends IAutomationTriggerFormState {
 	resolvedFolderUri?: URI;
 	targetDisabledReason?: string;
 	targetPending?: { readonly message: string };
-	ownershipPending?: boolean;
 	triggerExternalResource?: URI;
 }
 
@@ -1093,7 +1092,6 @@ export function renderForm(
 	focusDialogMessage: () => void = () => { },
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
-	let recheckRepositoryOwnership: () => void = () => { };
 	const validateForm = revalidate;
 	revalidate = () => {
 		reloadCustomizations();
@@ -1366,9 +1364,11 @@ export function renderForm(
 		state.sessionTypeId = pick?.sessionTypeId;
 		const configuration = cloudConfiguration.get();
 		const target = configuration?.getWorkspaceTarget(state.folderUri).get();
-		state.resolvedFolderUri = target?.workspace;
+		const preservesExistingPublicTarget = isEdit && initialTarget?.kind === 'workspace'
+			&& isEqual(state.folderUri, initialTarget.folderUri) && target?.isPrivateRepository === false;
+		state.resolvedFolderUri = preservesExistingPublicTarget ? initialTarget.folderUri : target?.workspace;
 		state.targetPending = target?.pending ? { message: target.disabledReason ?? localize('automation.form.checkingTarget', "Checking target availability...") } : undefined;
-		state.targetDisabledReason = target?.pending ? undefined : target?.disabledReason;
+		state.targetDisabledReason = target?.pending || preservesExistingPublicTarget ? undefined : target?.disabledReason;
 		state.timeZone = configuration?.timeZone;
 		if (runInCloud.get()) {
 			state.isolationMode = undefined;
@@ -1583,7 +1583,6 @@ export function renderForm(
 		switchingTarget = false;
 		syncStateFromPicker();
 		updateAutomationSessionTarget();
-		recheckRepositoryOwnership();
 		revalidate();
 	};
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => applyWorkspaceTarget(uri)));
@@ -2013,7 +2012,6 @@ export function renderForm(
 	const ownerInfo = DOM.append(ownerLabel, renderIcon(Codicon.info));
 	ownerInfo.classList.add('automation-owner-info');
 	ownerInfo.setAttribute('aria-hidden', 'true');
-	ownerInfo.tabIndex = -1;
 	const ownerLabels = [localize('automation.owner.user', "Only me"), localize('automation.owner.repository', "Repository")];
 	const ownerDescriptions = [
 		localize('automation.owner.userDescription', "Only you can see and edit it. Runs act as you."),
@@ -2025,14 +2023,12 @@ export function renderForm(
 	];
 	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
 	const ownerInfoHover = disposables.add(new MutableDisposable<IDisposable>());
-	let repositoryOwnerExplanation: string | undefined;
 	const updateOwnerInfo = (index: number) => {
 		const description = ownerActionDescriptions[index];
 		ownerRow.setAttribute('aria-description', description);
+		ownerInfoHover.clear();
+		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description });
 	};
-	ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, () => ({
-		content: repositoryOwnerExplanation ?? ownerActionDescriptions[state.ownership === 'repository' ? 1 : 0],
-	}), { setupKeyboardEvents: true });
 	updateOwnerInfo(ownerIndex);
 	const ownerControl = DOM.append(ownerRow, $('.automation-owner-control'));
 	const ownerRadio = disposables.add(new Radio({
@@ -2041,99 +2037,16 @@ export function renderForm(
 		items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex, disabled: isEdit })),
 	}));
 	DOM.append(ownerControl, ownerRadio.domNode);
-	const ownerLoadingMessage = localize('automation.owner.checking', "Checking repository settings...");
-	const ownershipEligibilityRequest = disposables.add(new MutableDisposable<DisposableStore>());
-	let ownershipEligibilityGeneration = 0;
-	let repositoryOwnershipAllowed = isEdit && state.ownership === 'repository';
-	let repositoryOwnerDescription = ownerDescriptions[1];
-	const setRepositoryOwnerAvailability = (enabled: boolean, description = ownerDescriptions[1]) => {
-		repositoryOwnershipAllowed = enabled;
-		repositoryOwnerDescription = description;
-		ownerRadio.setEnabled(enabled && !isEdit);
-		ownerRadio.optionElements[1].setAttribute('aria-description', description);
-		repositoryOwnerExplanation = !enabled && description !== ownerDescriptions[1] && description !== ownerLoadingMessage ? description : undefined;
-		ownerInfo.tabIndex = repositoryOwnerExplanation ? 0 : -1;
-		if (repositoryOwnerExplanation) {
-			ownerInfo.removeAttribute('aria-hidden');
-			ownerInfo.setAttribute('role', 'note');
-			ownerInfo.setAttribute('aria-label', repositoryOwnerExplanation);
-		} else {
-			ownerInfo.setAttribute('aria-hidden', 'true');
-			ownerInfo.removeAttribute('role');
-			ownerInfo.removeAttribute('aria-label');
-		}
-	};
-	recheckRepositoryOwnership = () => {
-		const generation = ++ownershipEligibilityGeneration;
-		ownershipEligibilityRequest.clear();
-		state.ownershipPending = false;
-		repositoryOwnershipAllowed = isEdit && state.ownership === 'repository';
-		if (!isEdit && state.ownership === 'repository') {
-			state.ownership = 'user';
-			ownerRadio.setActiveItem(0);
-			updateOwnerInfo(0);
-			setRepositoryWarningVisible(false);
-		}
-		const configuration = cloudConfiguration.get();
-		if (isEdit) {
-			setRepositoryWarningVisible(repositoryOwnershipAllowed);
-			revalidate();
-			return;
-		}
-		if (!runInCloud.get()) {
-			setRepositoryOwnerAvailability(false);
-			revalidate();
-			return;
-		}
-		const folder = state.folderUri;
-		if (!folder) {
-			setRepositoryOwnerAvailability(false);
-			setRepositoryWarningVisible(false);
-			revalidate();
-			return;
-		}
-		if (!configuration?.checkRepositoryOwnership) {
-			setRepositoryOwnerAvailability(true);
-			revalidate();
-			return;
-		}
-		const resources = new DisposableStore();
-		ownershipEligibilityRequest.value = resources;
-		const token = cancelOnDispose(resources);
-		state.ownershipPending = true;
-		setRepositoryOwnerAvailability(false, ownerLoadingMessage);
-		setRepositoryWarningVisible(false);
-		revalidate();
-		void configuration.checkRepositoryOwnership(folder, token).then(result => {
-			if (token.isCancellationRequested || generation !== ownershipEligibilityGeneration) {
-				return;
-			}
-			state.ownershipPending = false;
-			setRepositoryOwnerAvailability(result.allowed, result.reason ?? (result.allowed
-				? ownerDescriptions[1]
-				: localize('automation.owner.denied', "Repository owned automations are not supported for this repository.")));
-			revalidate();
-		}, _error => {
-			if (token.isCancellationRequested || generation !== ownershipEligibilityGeneration) {
-				return;
-			}
-			state.ownershipPending = false;
-			setRepositoryOwnerAvailability(false, localize('automation.owner.checkFailed', "Unable to verify repository ownership. Try again."));
-			revalidate();
-		});
-	};
 	for (const [index, element] of ownerRadio.optionElements.entries()) {
 		const description = isEdit
 			? localize('automation.owner.immutableDescription', "{0} Ownership can't be changed after creation.", ownerDescriptions[index])
 			: ownerDescriptions[index];
 		element.setAttribute('aria-description', description);
 		if (customizations) {
-			disposables.add(customizations.hoverService.setupDelayedHover(element, () => ({
-				content: index === 1 ? repositoryOwnerDescription : description,
-			})));
+			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description }));
 		}
 	}
-	setRepositoryWarningVisible(repositoryOwnershipAllowed);
+	setRepositoryWarningVisible(ownerIndex === 1);
 	if (!isEdit) {
 		disposables.add(ownerRadio.onDidActivate(index => {
 			state.ownership = index === 1 ? 'repository' : 'user';
@@ -2159,11 +2072,10 @@ export function renderForm(
 	}
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
-		configuration?.repositoryOwnershipInvalidation?.read(reader);
 		toolsPicker.clear();
 		updateIntervalOptions(configuration !== undefined);
 		setAutomationControlVisible(providerOptions, configuration !== undefined);
-		recheckRepositoryOwnership();
+		setRepositoryWarningVisible(configuration !== undefined && state.ownership === 'repository');
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
 		if (!configuration) {
@@ -2239,7 +2151,7 @@ export function renderForm(
 			const text = message ?? '';
 			const pending = connectingCloud
 				? undefined
-				: state.targetPending ?? (state.ownershipPending ? { message: ownerLoadingMessage } : undefined);
+				: state.targetPending;
 			targetLoadingMessage = pending?.message ?? '';
 			targetLoading.setAttribute('aria-label', targetLoadingMessage);
 			setAutomationControlVisible(targetLoading, !!pending && message === undefined);
@@ -2277,7 +2189,7 @@ export function renderForm(
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
 		setSaving: saving => {
-			ownerRadio.setEnabled(!saving && !isEdit && repositoryOwnershipAllowed);
+			ownerRadio.setEnabled(!saving && !isEdit);
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);

@@ -219,7 +219,7 @@ suite('CloudAutomationStore', () => {
 				get: async repository => {
 					api.repositoryMetadataRequests.push(repository.repo);
 					const isPrivate = api.repositoryPrivacy.get(repository.repo) ?? true;
-					return upcastPartial<Repository>({ private: isPrivate, visibility: isPrivate ? 'private' : 'public' });
+					return upcastPartial<Repository>({ private: isPrivate });
 				},
 			});
 			override readonly tasks = new class extends mock<ITasksClient>() {
@@ -1023,17 +1023,6 @@ suite('CloudAutomationStore', () => {
 		changed.fire(accounts.currentDefaultAccount);
 		assert.deepStrictEqual({ automation: provider.getAutomation(old.id), canCreate: provider.canCreateAutomation.get(), state: provider.catalogueState.get() },
 			{ automation: undefined, canCreate: false, state: 'unavailable' });
-	});
-
-	test('repository ownership check rejects asynchronously after account loss', async () => {
-		const { provider, accounts, changed, set } = setup();
-		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-		await provider.refresh();
-		accounts.currentDefaultAccount = null;
-		changed.fire(null);
-
-		const check = provider.configuration.checkRepositoryOwnership!(workspace, CancellationToken.None);
-		await assert.rejects(check, /Sign in to GitHub.com and enable cloud automations before continuing/);
 	});
 
 	for (const previousDefinitionError of [false, true]) {

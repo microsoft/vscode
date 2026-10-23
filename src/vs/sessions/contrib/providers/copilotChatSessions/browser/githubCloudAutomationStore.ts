@@ -22,7 +22,7 @@ import { ApiRequestError, MutationUncertainError } from '../../../../../platform
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationRepositoryOwnershipEligibility, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -65,7 +65,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private readonly targetEligibility = new Map<string, ReturnType<typeof observableValue<IAutomationWorkspaceTarget>>>();
 	private readonly targetRepositories = new Map<string, RepositoryRef>();
 	private readonly repositoryPrivacy = new Map<string, boolean>();
-	private readonly repositoryOwnershipUnsupported = new Set<string>();
 	private readonly repositoryManageability = new Map<string, boolean>();
 	private readonly repositoryPrivacyFailures = new LRUCache<string, number>(MAX_REPOSITORY_CAPABILITY_FAILURES);
 	private readonly repositoryManageabilityFailures = new LRUCache<string, number>(MAX_REPOSITORY_CAPABILITY_FAILURES);
@@ -213,37 +212,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.repositoryManageabilityFailures.set(key, retryAfter);
 			this.logService.warn(`[CloudAutomations] Failed to verify ${key}`, error);
 			return false;
-		} finally {
-			resources.dispose();
-		}
-	}
-
-	async checkRepositoryOwnership(workspace: URI, token: CancellationToken): Promise<IAutomationRepositoryOwnershipEligibility> {
-		const resources = new DisposableStore();
-		const signal = AbortSignal.any([this.lifetime.signal, CancellationToken.toAbortSignal(token, resources)]);
-		try {
-			this.requireAccount();
-			const repository = await this.resolveRepository(workspace);
-			signal.throwIfAborted();
-			if (!repository) {
-				return { allowed: false, reason: localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation.") };
-			}
-			const key = repositoryKey(repository);
-			if (this.repositoryOwnershipUnsupported.has(key)) {
-				return { allowed: false, reason: repositoryOwnershipUnsupportedMessage() };
-			}
-			const metadata = await this.withClient(signal, (client, signal) => client.repositories.get(repository, signal));
-			signal.throwIfAborted();
-			if (metadata.visibility !== undefined ? metadata.visibility !== 'private' : !metadata.private) {
-				this.repositoryOwnershipUnsupported.add(key);
-				return { allowed: false, reason: repositoryOwnershipUnsupportedMessage() };
-			}
-			const configuration = await this.withClient(signal, (client, signal) => client.automations.getConfiguration(repository, signal));
-			signal.throwIfAborted();
-			this.setRepositoryManageability(key, configuration.can_manage_automations);
-			return configuration.automations_enabled && configuration.can_manage_automations
-				? { allowed: true }
-				: { allowed: false, reason: repositoryOwnershipUnsupportedMessage() };
 		} finally {
 			resources.dispose();
 		}
@@ -430,7 +398,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 			}, CancellationToken.None, signal);
 		} catch (error) {
 			if (value.ownership === 'repository' && isRepositoryOwnershipUnsupportedError(error)) {
-				this.repositoryOwnershipUnsupported.add(repositoryKey(repository));
 				throw new Error(repositoryOwnershipUnsupportedMessage(), { cause: error });
 			}
 			throw error;
@@ -677,7 +644,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this.clearTargetEligibility();
 		this.repositoryManageability.clear();
 		this.repositoryPrivacy.clear();
-		this.repositoryOwnershipUnsupported.clear();
 		this.repositoryPrivacyFailures.clear();
 		this.repositoryManageabilityFailures.clear();
 		this.lifetime = new AbortController();
