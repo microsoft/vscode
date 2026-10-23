@@ -225,7 +225,7 @@ registerAction2(class ToggleChatWindowDockedAction extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID,
-			title: localize2('toggleDockChatWindow', "Toggle Dock in Main Window"),
+			title: localize2('toggleDockChatWindow', "Toggle Dock to Main Window"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockableContext),
@@ -241,27 +241,27 @@ registerAction2(class ToggleChatWindowDockedAction extends Action2 {
 	}
 });
 
-// What the item does, rather than a checked toggle: Dock in a separate window, and Move to a Separate Window docked.
+// What the item does, rather than a checked toggle: Dock to Main Window in a window of its own, and Move to New Window docked.
 MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
-	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock in Main Window") },
+	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock to Main Window") },
 	group: ChatWindowLayoutMenuGroup.window,
 	when: ContextKeyExpr.and(ChatWindowDockableContext, ChatWindowDockedContext.negate()),
 });
 MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
-	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to a Separate Window") },
+	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to New Window") },
 	group: ChatWindowLayoutMenuGroup.window,
 	when: ChatWindowDockedContext,
 });
 const chatWindowDockButtonOrder = chatWindowArrangementButtonOrder + 1;
 MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, {
-	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock in Main Window"), icon: Codicon.layoutSidebarRightDock },
+	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock to Main Window"), icon: Codicon.layoutSidebarRightDock },
 	group: 'navigation',
 	order: chatWindowDockButtonOrder,
 	when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext.negate()),
 	isHiddenByDefault: true,
 });
 MenuRegistry.appendMenuItem(Menus.ChatWindowTitleLayout, {
-	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to a Separate Window"), icon: Codicon.openInWindow },
+	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to New Window"), icon: Codicon.openInWindow },
 	group: 'navigation',
 	order: chatWindowDockButtonOrder,
 	when: ChatWindowDockedContext,
