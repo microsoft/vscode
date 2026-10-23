@@ -21,15 +21,19 @@ const MAX_GIT_IGNORE_WATCHER_EXCLUDES = 500;
  * Globs that are skipped:
  * - backslashes, which watchers interpret as escapes or path separators
  * - `:`, which can make a glob look like an absolute Windows path
+ * - bracket expressions that start with `]`, which Parcel does not
+ *   recognize as globs and would exclude as literal paths
  * - globs that only consist of `*` and `/`, which match everything
  */
-const UNSUPPORTED_GLOB = /[\\:]|^[*/]+$/;
+const UNSUPPORTED_GLOB = /[\\:]|\[\^?\]|^[*/]+$/;
 
 /**
  * Paths that are never excluded: the ignore file itself, so that changes to it
- * are still reported, and `.git` folders, which git never ignores.
+ * are still reported, and `.git` folders, which git never ignores. A nested
+ * repository is represented by a folder name that patterns are unlikely to
+ * match on purpose, so that patterns for other folders are not skipped.
  */
-const NEVER_EXCLUDED_PATHS = [GIT_IGNORE_FILE_NAME, '.git', '.git/HEAD', 'a/.git', 'a/.git/HEAD'];
+const NEVER_EXCLUDED_PATHS = [GIT_IGNORE_FILE_NAME, '.git', '.git/HEAD', 'vscode-nested-repository/.git', 'vscode-nested-repository/.git/HEAD'];
 
 /**
  * Converts the contents of a `.gitignore` file at the root of a watched folder

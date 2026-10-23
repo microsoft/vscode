@@ -32,6 +32,7 @@ suite('Watcher .gitignore excludes', () => {
 			'/dist/*.o',
 			'**/coverage',
 			'out/**',
+			'/a/',
 			'',
 		].join('\n')), [
 			'target/**/*',
@@ -43,6 +44,7 @@ suite('Watcher .gitignore excludes', () => {
 			'dist/*.o', 'dist/*.o/**',
 			'coverage', 'coverage/**', '*/**/coverage', '*/**/coverage/**',
 			'out/**/*',
+			'a/**/*',
 		]);
 	});
 
@@ -82,6 +84,8 @@ suite('Watcher .gitignore excludes', () => {
 			'foo/**/',
 			'./foo',
 			'foo[',
+			'[]a]',
+			'/foo]',
 			'/out',
 		].join('\r\n')), ['target/**/*', 'out', 'out/**']);
 	});
