@@ -120,7 +120,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual(enabled, [false, true]);
 	});
 
-	test('documents repo-less Cloud chats in the harness picker', () => {
+	test('documents repo-less Cloud chats with and without the Environment picker', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -132,7 +132,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
-		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
+		assert.deepStrictEqual({
+			environmentPicker: content.includes('When GitHub sandboxes are enabled, choose Cloud in the Environment picker, then Chat in the workspace picker, to chat without a repository or pull request.'),
+			harnessPicker: content.includes('If the Environment picker is disabled, choose Cloud in the harness picker instead.'),
+		}, { environmentPicker: true, harnessPicker: true });
 	});
 
 	test('documents nested chats in quick chats and moving chats with their folder', () => {
@@ -847,8 +850,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	for (const { wording, action, dismiss, promoteNewChatAction, expectedSessionListHelp } of [
-		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Nested Session before Archive. Open the session\'s context menu to pin or unpin it.' },
-		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For non-cloud sessions that support multiple chats, the session row toolbar offers New Nested Session before Archive. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For non-cloud sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session\'s context menu to pin or unpin it.' },
 		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
 		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
 	]) {
