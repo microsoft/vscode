@@ -86,7 +86,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -4193,13 +4193,15 @@ suite('Sessions - SessionsList', () => {
 
 			for (const groupExternalSessions of [undefined, false]) {
 				test(`preserves ordinary placement when external grouping is ${groupExternalSessions === undefined ? 'unset' : 'disabled'} (${grouping})`, () => {
-					const external = createSession('external', { workspaceLabel: 'Alpha', isExternal: true });
+					const external = createSession('external', { workspaceLabel: 'Alpha', isExternal: true, createdAt: new Date(Date.now() - 60_000) });
 					const quick = createSession('quick', { isExternal: true });
 					const sections = groupSessionsForList([external, quick], grouping, SessionsSorting.Created, () => false, undefined, 'Done', groupExternalSessions);
 
-					assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
+					assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository ? [
 						{ id: 'quickchats', sessions: ['quick'] },
 						{ id: regularSectionId, sessions: ['external'] },
+					] : [
+						{ id: regularSectionId, sessions: ['quick', 'external'] },
 					]);
 				});
 			}
@@ -4299,20 +4301,27 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sections.map(section => section.id), ['pinned']);
 		});
 
-		test('Chats section sits directly below Pinned when grouping by date', () => {
+		test('quick chats join the other sessions when grouping by date or environment', () => {
 			const pinned = createSession('pinned', { createdAt: new Date('2024-06-03') });
 			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
 			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
-			const sections = groupSessionsForList(
+			const result = [SessionsGrouping.Date, SessionsGrouping.Environment].map(grouping => groupSessionsForList(
 				[pinned, quick, regular],
-				SessionsGrouping.Date,
+				grouping,
 				SessionsSorting.Created,
 				session => session.sessionId === pinned.sessionId,
-			);
+			).map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })));
 
-			assert.strictEqual(sections[0].id, 'pinned');
-			assert.strictEqual(sections[1].id, 'quickchats');
-			assert.deepStrictEqual(sections[1].sessions.map(s => s.sessionId), ['quick']);
+			assert.deepStrictEqual(result, [
+				[
+					{ id: 'pinned', sessions: ['pinned'] },
+					{ id: 'older', sessions: ['quick', 'regular'] },
+				],
+				[
+					{ id: 'pinned', sessions: ['pinned'] },
+					{ id: 'environment:local', sessions: ['quick', 'regular'] },
+				],
+			]);
 		});
 
 		test('excludes automation sessions from every section', () => {
@@ -6142,20 +6151,20 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('returns grouped quick chats to Chats and refuses other sections', () => {
+			test('returns grouped quick chats to Chats and refuses other sections when grouping by workspace', () => {
 				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
 				const grouped = createTestSession('Grouped').session;
 				const chat = createTestSession('Chat', { isQuickChat: true }).session;
 				const regular = createTestSession('Regular').session;
 				const memberships = new Map([[groupedChat.sessionId, group.id], [grouped.sessionId, group.id]]);
-				const { container, removedFromGroup, sortChanges } = renderGroupedList([groupedChat, grouped, chat, regular], memberships, false, SessionsGrouping.Date);
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([groupedChat, grouped, chat, regular], memberships, false, SessionsGrouping.Workspace);
 
-				const chatOntoRecent = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Recent'), container);
+				const chatOntoWorkspace = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Workspace'), container);
 				const sessionOntoChats = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'Chats'), container);
 				const chatOntoChats = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Chats'), container);
 
-				assert.deepStrictEqual({ chatOntoRecent, sessionOntoChats, chatOntoChats, removedFromGroup, reordered: sortChanges.length }, {
-					chatOntoRecent: [],
+				assert.deepStrictEqual({ chatOntoWorkspace, sessionOntoChats, chatOntoChats, removedFromGroup, reordered: sortChanges.length }, {
+					chatOntoWorkspace: [],
 					sessionOntoChats: [],
 					chatOntoChats: ['Chats'],
 					removedFromGroup: ['GroupedChat'],
@@ -6163,11 +6172,30 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('returns the only quick chat to the empty Chats section', () => {
+			test('returns grouped quick chats to the date sections when grouping by date', () => {
 				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
 				const regular = createTestSession('Regular').session;
 				const memberships = new Map([[groupedChat.sessionId, group.id]]);
 				const { container, removedFromGroup } = renderGroupedList([groupedChat, regular], memberships, false, SessionsGrouping.Date, true);
+
+				const chatOntoRecent = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Recent'), container);
+
+				assert.deepStrictEqual({
+					chatOntoRecent,
+					removedFromGroup,
+					hasChatsSection: [...container.querySelectorAll<HTMLElement>('.session-section-label')].some(label => label.textContent === 'Chats'),
+				}, {
+					chatOntoRecent: ['Recent'],
+					removedFromGroup: ['GroupedChat'],
+					hasChatsSection: false,
+				});
+			});
+
+			test('returns the only quick chat to the empty Chats section', () => {
+				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
+				const regular = createTestSession('Regular').session;
+				const memberships = new Map([[groupedChat.sessionId, group.id]]);
+				const { container, removedFromGroup } = renderGroupedList([groupedChat, regular], memberships, false, SessionsGrouping.Workspace, true);
 
 				const chatOntoChats = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Chats'), container);
 
@@ -7731,9 +7759,7 @@ suite('Sessions - SessionsList', () => {
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
 
-			// The Chats section the quick chat renders in starts collapsed.
-			const expandChatsSection = (instantiationService: TestInstantiationService) => instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
-			const { container } = renderSessionChatsList(session, undefined, false, true, false, expandChatsSection);
+			const { container } = renderSessionChatsList(session, undefined, false, true, false);
 
 			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(row => ({
 				hasFolderLabel: row.classList.contains('has-folder-label'),

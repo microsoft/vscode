@@ -5157,7 +5157,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					?? comparison.participants.map(participant => this._sessionsProvidersService.getProvider(participant.harness.providerId)?.environment.id).find(isDefined)
 					: undefined;
 				const environment = environmentId ? environments.find(environment => environment.id === environmentId) ?? { id: environmentId, label: environmentId } : undefined;
-				if (grouping === SessionsGrouping.Environment && comparison.workspace && !environment) {
+				if (grouping === SessionsGrouping.Environment && !environment) {
 					continue;
 				}
 				const repository = grouping === SessionsGrouping.Repository && comparison.workspace
@@ -5167,7 +5167,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				const sectionId = !comparison.workspace ? QUICK_CHATS_SECTION_ID : environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
+				const sectionId = environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
 				this.comparisonSectionIds.set(group.id, sectionId);
 				let workspaceGroups = comparisonGroupsBySectionId.get(sectionId);
 				if (!workspaceGroups) {
@@ -5177,7 +5177,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				workspaceGroups.push(group);
 				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
-					workspaceSection = environment && comparison.workspace
+					workspaceSection = environment
 						? { id: sectionId, label: environment.label, environment, sessions: [] }
 						: repository
 							? { id: sectionId, label: repository.name, repository, sessions: [] }
@@ -5268,8 +5268,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Keep the "Chats" section always visible (even with no quick chats) so its
 		// header — leading chat icon, label, and the "+" create action — is always
-		// reachable. Only when a provider can actually serve quick chats.
-		if (showEmptyDefaultGroups && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
+		// reachable. Only when the grouping lists quick chats there and a provider
+		// can actually serve quick chats.
+		if (showEmptyDefaultGroups && groupingHasQuickChatsSection(grouping) && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
 			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
 		}
 
@@ -5506,10 +5507,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Quick chats render as a single "Chats" entry directly below Pinned (above
-		// the workspace/repository/date groups) in every grouping mode.
+		// the workspace/repository groups) when the grouping lists them there.
 		const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
 		if (quickChatsSection) {
-			children.push(grouping !== SessionsGrouping.Date ? renderWorkspaceSection(quickChatsSection) : renderSection(quickChatsSection));
+			children.push(renderWorkspaceSection(quickChatsSection));
 		}
 
 		const renderGroupById = (groupId: string): void => {
@@ -6125,10 +6126,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.groupExternalSessions && session.isExternal?.get()) {
 			return [EXTERNAL_SESSIONS_SECTION_ID];
 		}
-		if (isQuickChatSession(session)) {
+		const grouping = this.options.grouping();
+		if (groupingHasQuickChatsSection(grouping) && isQuickChatSession(session)) {
 			return [QUICK_CHATS_SECTION_ID];
 		}
-		const grouping = this.options.grouping();
 		if (grouping !== SessionsGrouping.Date) {
 			return [getSessionGroupingSectionId(session, grouping)];
 		}
@@ -8304,6 +8305,15 @@ export function isQuickChatSession(session: ISession): boolean {
 	return session.isQuickChat?.get() ?? false;
 }
 
+/**
+ * Whether the grouping lists quick chats in the dedicated "Chats" section. Only
+ * workspace and repository grouping do; other groupings list quick chats with
+ * the other sessions.
+ */
+function groupingHasQuickChatsSection(grouping: SessionsGrouping): boolean {
+	return grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository;
+}
+
 /** Whether a session is associated with an automation run. */
 export function isAutomationSession(session: ISession): boolean {
 	return session.isAutomation?.get() ?? false;
@@ -8327,6 +8337,7 @@ export function groupSessionsForList(
 	const external: ISession[] = [];
 	const quickChats: ISession[] = [];
 	const regular: ISession[] = [];
+	const hasQuickChatsSection = groupingHasQuickChatsSection(grouping);
 	for (const session of sorted) {
 		if (session.isArchived.get()) {
 			archived.push(session);
@@ -8334,7 +8345,7 @@ export function groupSessionsForList(
 			pinned.push(session);
 		} else if (groupExternalSessions && session.isExternal?.get()) {
 			external.push(session);
-		} else if (isQuickChatSession(session)) {
+		} else if (hasQuickChatsSection && isQuickChatSession(session)) {
 			quickChats.push(session);
 		} else {
 			regular.push(session);
@@ -8347,7 +8358,7 @@ export function groupSessionsForList(
 	}
 
 	// Quick chats render as a single "Chats" entry directly below Pinned (above
-	// the workspace/date groups), regardless of grouping mode.
+	// the workspace/repository groups).
 	if (quickChats.length > 0) {
 		sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: quickChats });
 	}
