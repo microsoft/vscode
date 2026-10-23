@@ -25109,6 +25109,20 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('does not let the Chatpad chat convert itself to a session with a workspace', async () => {
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot', undefined, { workspaceConversion: true }));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ legacyChatUris: true, provider: agent.id });
+			const tools = (localService as unknown as { _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor })._createSessionServerToolAccessor();
+			const beforeClaim = tools.canConvertWorkspace(session);
+
+			const claimed = await localService.claimChatpad(session);
+
+			assert.deepStrictEqual({ beforeClaim, claimed, afterClaim: tools.canConvertWorkspace(session) }, { beforeClaim: true, claimed: true, afterClaim: false });
+		});
+
 		test('restores persisted multi-root metadata', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));

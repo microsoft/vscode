@@ -2080,7 +2080,8 @@ export class AgentService extends Disposable implements IAgentService {
 			isWorkspaceless,
 			// The Chatpad's session is not listed, so chats created in it would not show.
 			canHostNestedChats: session => !this._chatpad.isChatpad(session.toString()),
-			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true,
+			// The Chatpad chat keeps working without a workspace: its note lives in its scratch folder.
+			canConvertWorkspace: session => !this._chatpad.isChatpad(session.toString()) && this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true,
 			supportsChatWorkingDirectories: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories,
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
