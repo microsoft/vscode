@@ -2822,7 +2822,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 }
 
 const installedPlugins: IAgentPlugin[] = [
-	makeInstalledPlugin('Linear', URI.file('/home/dev/.vscode/agent-plugins/github.com/example/linear-plugin'), true, false, makeMarketplacePlugin('Linear', 'Issue tracking and project management integration', 'linear-plugin')),
+	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true, false, makeMarketplacePlugin('Linear', 'Issue tracking and project management integration', 'linear-plugin')),
 	makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/github.com/example/sentry-plugin'), true, false, makeMarketplacePlugin('Sentry', 'Error monitoring and performance tracing', 'sentry-plugin')),
 	makeInstalledPlugin('Datadog', URI.file('/workspace/.copilot/plugins/datadog'), true),
 	makeInstalledPlugin('Notion', URI.file('/workspace/.copilot/plugins/notion'), true),
