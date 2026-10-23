@@ -16,11 +16,11 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ChatWindowDockedOpenContext } from '../../../services/chatWindow/browser/chatWindowService.js';
-import { OPEN_CHATPAD_COMMAND_ID, ChatpadEnabledContext } from './chatpad.js';
+import { OPEN_CHATPAD_COMMAND_ID, ChatpadAvailableContext } from './chatpad.js';
 import './media/chatpadLauncher.css';
 
 /** Shows the launcher wherever Open Chatpad can run, except in the phone layout and while a docked chat window covers it. */
-const ChatpadLauncherVisibleContext = ContextKeyExpr.and(ChatpadEnabledContext, IsPhoneLayoutContext.negate(), ChatWindowDockedOpenContext.negate());
+const ChatpadLauncherVisibleContext = ContextKeyExpr.and(ChatpadAvailableContext, IsPhoneLayoutContext.negate(), ChatWindowDockedOpenContext.negate());
 
 /** A floating button in the bottom right corner of the Agents window that opens the Chatpad. */
 export class ChatpadLauncherContribution extends Disposable implements IWorkbenchContribution {

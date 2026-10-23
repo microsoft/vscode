@@ -1044,6 +1044,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('offers no Chatpad, and creates no session, with a host that lacks the capability', async () => {
+		const calls: string[] = [];
+		agentHost.getChatpad = async () => { calls.push('getChatpad'); return undefined; };
+		agentHost.appendToChatpad = async () => { calls.push('appendToChatpad'); };
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const chatpad = await provider.getChatpad();
+		const appended = await provider.appendToChatpad('text').then(() => 'resolved', () => 'rejected');
+
+		assert.deepStrictEqual({ chatpad, appended, calls, created: agentHost.createdSessionUris.length }, {
+			chatpad: undefined, appended: 'rejected', calls: [], created: 0,
+		});
+	});
+
 	test('publishes a directly imported conversation without creating or sending another session', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.addSession(createSession('copied', { summary: 'Copied conversation' }));
