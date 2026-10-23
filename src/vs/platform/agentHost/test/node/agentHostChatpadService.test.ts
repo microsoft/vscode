@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -35,7 +36,7 @@ suite('AgentHostChatpadService', () => {
 			find: async session => existing.has(session) ? { provider: 'copilot' } : undefined,
 		};
 		const readNote = async (note: URI) => (await fileService.readFile(note)).value.toString();
-		return { service, fileService, existing, sessions, readNote };
+		return { service, fileService, storageService, existing, sessions, readNote };
 	}
 
 	test('keeps the note in the scratch folder of the Chatpad chat while it exists', async () => {
@@ -116,5 +117,30 @@ suite('AgentHostChatpadService', () => {
 		await service.getChatpad(sessions);
 
 		assert.strictEqual(await readNote(firstNote), 'kept');
+	});
+
+	test('rejects a session whose id is not a single path segment, and ignores one recorded before', async () => {
+		const { service, storageService, sessions } = createService();
+		const escaping = URI.from({ scheme: 'copilot', path: '/../escape' });
+		const unsafe = [escaping, URI.from({ scheme: 'copilot', path: '/..' }), URI.from({ scheme: 'copilot', path: '/a/b' }), URI.from({ scheme: 'copilot', path: '/a\\b' }), URI.from({ scheme: 'copilot', path: '/' })];
+		const escapedNote = joinPath(userHome, '.copilot', 'escape', 'chatpad.md');
+
+		const claimed = await Promise.all(unsafe.map(session => service.claim(session, sessions)));
+		const noteOf = unsafe.map(session => { try { return service.getNote(session.toString()).toString(); } catch { return 'rejected'; } });
+		await storageService.setAndFlush('chatpad.session', escaping.toString());
+
+		assert.deepStrictEqual({
+			claimed,
+			noteOf,
+			session: service.session,
+			isChatpad: service.isChatpad(escaping.toString()),
+			isNote: service.isNote(escapedNote),
+		}, {
+			claimed: [false, false, false, false, false],
+			noteOf: ['rejected', 'rejected', 'rejected', 'rejected', 'rejected'],
+			session: undefined,
+			isChatpad: false,
+			isNote: false,
+		});
 	});
 });
