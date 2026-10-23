@@ -504,16 +504,20 @@ suite('ChatPetWidget', () => {
 			sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
 			const waitForLanding = async () => {
 				const bottoms = [button.getBoundingClientRect().bottom];
-				const sample = () => {
-					bottoms.push(button.getBoundingClientRect().bottom);
-					frame = mainWindow.requestAnimationFrame(sample);
-				};
-				let frame = mainWindow.requestAnimationFrame(sample);
-				const sampling = disposables.add(toDisposable(() => mainWindow.cancelAnimationFrame(frame)));
-				// The landing step removes `throwing` and positions the pet synchronously, so the sample taken after it is the landed position.
-				await waitForPetAnimation(() => !button.classList.contains('throwing'));
-				sampling.dispose();
-				bottoms.push(button.getBoundingClientRect().bottom);
+				if (button.classList.contains('throwing')) {
+					// Each physics step writes the pet's position to its style, and the landing step also removes `throwing`, so every rendered position is sampled and the last one is the landing.
+					await new Promise<void>(resolve => {
+						const observer = new mainWindow.MutationObserver(() => {
+							bottoms.push(button.getBoundingClientRect().bottom);
+							if (!button.classList.contains('throwing')) {
+								observer.disconnect();
+								resolve();
+							}
+						});
+						disposables.add(toDisposable(() => observer.disconnect()));
+						observer.observe(button, { attributes: true, attributeFilter: ['style', 'class'] });
+					});
+				}
 				assert.ok(bottoms.every((bottom, i) => i === 0 || bottom >= bottoms[i - 1] - 0.5), 'Falling must never snap upward at the landing');
 				if (!reducedMotion) {
 					assert.ok(bottoms.some(bottom => bottom > bottoms[0] + 1 && bottom < bottoms[bottoms.length - 1] - 1), 'Normal motion must render intermediate gravity positions');
