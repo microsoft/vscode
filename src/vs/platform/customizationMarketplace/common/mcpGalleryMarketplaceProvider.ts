@@ -4,19 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { LRUCache } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
-import { getMcpGalleryServerCardUrl } from '../../mcp/common/mcpGalleryService.js';
+import { getMcpGalleryServerCardUrl, McpGalleryInvalidCursorError } from '../../mcp/common/mcpGalleryService.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
 
-const maxMcpGalleryPageSize = 99;
+const maxMcpGalleryPageSize = 100;
+const fallbackMcpGalleryPageSize = maxMcpGalleryPageSize - 1;
+const maxMcpGalleryEmptyPages = 5;
+const maxMcpGalleryContinuations = 100;
+const mcpGalleryContinuationLifetime = 5 * 60 * 1000;
+
+interface IMcpGalleryMarketplaceContinuation {
+	readonly query: string | undefined;
+	readonly pageSize: number;
+	readonly registryUrl: string;
+	readonly buffered: IGalleryMcpServer[];
+	readonly seenNames: Set<string>;
+	nativePageSize: number;
+	nativeCursor: string | undefined;
+	hasQueried: boolean;
+	recoveryAttempted: boolean;
+	total: number | undefined;
+	expiresAt: number;
+}
+
+function cloneContinuation(continuation: IMcpGalleryMarketplaceContinuation): IMcpGalleryMarketplaceContinuation {
+	return {
+		...continuation,
+		buffered: [...continuation.buffered],
+		seenNames: new Set(continuation.seenNames),
+	};
+}
 
 export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
 	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
@@ -97,6 +125,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceProvider {
 	readonly id: string;
 	readonly sourceId = CustomizationMarketplaceSources.McpGallery.id;
+	private readonly continuations = new LRUCache<string, IMcpGalleryMarketplaceContinuation>(maxMcpGalleryContinuations);
 
 	constructor(
 		private readonly registry: 'custom' | 'default',
@@ -125,25 +154,95 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 		if (!manifest || !registryUrl) {
 			return { items: [], total: 0 };
 		}
-		let cursor = options.cursor;
-		for (let attempt = 0; attempt < 5; attempt++) {
-			const page = await this.galleryService.queryPage({
-				text: options.query,
-				pageSize: Math.min(options.pageSize ?? 30, maxMcpGalleryPageSize),
-				cursor,
-			}, token, manifest);
-			if (page.items.length || !page.nextCursor) {
-				return {
-					items: page.items.map(server => toMarketplaceEntry(server, this.registry, registryUrl, manifest)),
-					total: page.total,
-					nextCursor: page.nextCursor,
-				};
+		const pageSize = options.pageSize ?? 30;
+		const now = Date.now();
+		for (const [key, continuation] of [...this.continuations]) {
+			if (continuation.expiresAt <= now) {
+				this.continuations.delete(key);
 			}
-			if (page.nextCursor === cursor) {
+		}
+		const continuation = options.cursor ? this.continuations.get(options.cursor) : undefined;
+		if (options.cursor && (!continuation || continuation.query !== options.query || continuation.pageSize !== pageSize || continuation.registryUrl !== registryUrl)) {
+			throw new Error(localize('mcpGalleryInvalidPage', "The MCP gallery page is invalid. Start a new search."));
+		}
+		const state = continuation ? cloneContinuation(continuation) : {
+			query: options.query,
+			pageSize,
+			registryUrl,
+			buffered: [],
+			seenNames: new Set<string>(),
+			nativePageSize: maxMcpGalleryPageSize,
+			nativeCursor: undefined,
+			hasQueried: false,
+			recoveryAttempted: false,
+			total: undefined,
+			expiresAt: now + mcpGalleryContinuationLifetime,
+		};
+
+		let cursorError: string | undefined;
+		let emptyPageCount = 0;
+		let recoveryPageCount = 0;
+		let maxRecoveryPages = 0;
+		while (state.buffered.length < pageSize && (!state.hasQueried || state.nativeCursor)) {
+			if (state.recoveryAttempted && recoveryPageCount++ >= maxRecoveryPages) {
+				throw new Error(localize('mcpGalleryRecoveryPages', "The MCP gallery could not recover its pagination cursor. Try the search again."));
+			}
+			if (!state.recoveryAttempted && emptyPageCount >= maxMcpGalleryEmptyPages) {
+				throw new Error(localize('mcpGalleryEmptyPages', "The MCP gallery returned too many empty pages. Try the search again."));
+			}
+			const nativeCursor = state.nativeCursor;
+			try {
+				const page = await this.galleryService.queryPage({
+					text: state.query,
+					pageSize: state.nativePageSize,
+					cursor: nativeCursor,
+				}, token, manifest);
+				const seenCount = state.seenNames.size;
+				state.hasQueried = true;
+				state.nativeCursor = page.nextCursor;
+				state.total = page.total;
+				for (const server of page.items) {
+					if (!state.seenNames.has(server.name)) {
+						state.seenNames.add(server.name);
+						state.buffered.push(server);
+					}
+				}
+				if (!state.recoveryAttempted) {
+					emptyPageCount = state.seenNames.size === seenCount ? emptyPageCount + 1 : 0;
+				}
+				if (page.nextCursor && page.nextCursor === nativeCursor) {
+					throw new Error(localize('mcpGalleryRepeatedCursor', "The MCP gallery returned the same pagination cursor. Try the search again."));
+				}
+			} catch (error) {
+				if (!(error instanceof McpGalleryInvalidCursorError)) {
+					throw error;
+				}
+				if (!state.recoveryAttempted) {
+					state.recoveryAttempted = true;
+					maxRecoveryPages = Math.ceil(state.seenNames.size / fallbackMcpGalleryPageSize) + maxMcpGalleryEmptyPages;
+					state.nativePageSize = fallbackMcpGalleryPageSize;
+					state.nativeCursor = undefined;
+					state.hasQueried = false;
+					continue;
+				}
+				state.nativeCursor = undefined;
+				cursorError = error.message;
 				break;
 			}
-			cursor = page.nextCursor;
 		}
-		throw new Error(localize('mcpGalleryEmptyPages', "The MCP gallery returned too many empty pages. Try the search again."));
+
+		const servers = state.buffered.splice(0, pageSize);
+		let nextCursor: string | undefined;
+		if (!cursorError && (state.buffered.length || state.nativeCursor)) {
+			nextCursor = generateUuid();
+			state.expiresAt = Date.now() + mcpGalleryContinuationLifetime;
+			this.continuations.set(nextCursor, state);
+		}
+		return {
+			items: servers.map(server => toMarketplaceEntry(server, this.registry, registryUrl, manifest)),
+			total: cursorError ? undefined : state.total,
+			nextCursor,
+			...(cursorError ? { error: cursorError } : {}),
+		};
 	}
 }

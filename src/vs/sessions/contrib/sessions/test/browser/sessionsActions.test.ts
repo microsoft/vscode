@@ -58,7 +58,7 @@ import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../.
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -109,15 +109,44 @@ suite('Sessions - Actions', () => {
 				title: 'New Nested Session',
 				group: 'navigation',
 				order: 1,
-				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection',
+				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud',
 			},
 			contextMenu: {
 				title: 'New Nested Session',
 				group: '1_newChat',
 				order: 0,
-				when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection',
+				when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 		});
+	});
+
+	test('hides only the inline New Nested Session action for cloud sessions', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		contextKeyService.createKey('sessionSupportsMultipleChats', true);
+		const isCloud = SessionItemIsCloudContext.bindTo(contextKeyService);
+		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.bindTo(contextKeyService);
+		const hasAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.some(item => item.command.id === 'sessions.chatCompositeBar.addChat' && contextKeyService.contextMatchesRules(item.when));
+		const snapshots = [];
+		for (const promoted of [false, true]) {
+			promoteNewChatAction.set(promoted);
+			for (const cloud of [false, true]) {
+				isCloud.set(cloud);
+				snapshots.push({
+					promoted,
+					cloud,
+					toolbar: hasAction(Menus.SessionItemToolbar),
+					contextMenu: hasAction(Menus.SessionItemContextMenu),
+				});
+			}
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ promoted: false, cloud: false, toolbar: false, contextMenu: true },
+			{ promoted: false, cloud: true, toolbar: false, contextMenu: true },
+			{ promoted: true, cloud: false, toolbar: true, contextMenu: true },
+			{ promoted: true, cloud: true, toolbar: false, contextMenu: true },
+		]);
 	});
 
 	test('swaps the primary session row action when New Chat is promoted', () => {
@@ -141,13 +170,13 @@ suite('Sessions - Actions', () => {
 				contextMenu: snapshot(Menus.SessionItemContextMenu),
 			}, {
 				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
 					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 				],
 				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
 					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_edit', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
 					{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
@@ -1894,6 +1923,53 @@ suite('Sessions - Actions', () => {
 				options: { providerId: session.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
 			}],
 		});
+	});
+
+	test('a repository section starts like its most recent session in an available environment, or in a chosen environment', async () => {
+		const providers = [
+			{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
+			{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
+			{ id: 'host-provider', environment: { id: 'host', label: 'My Host', isConnected: constObservable(false) } },
+		].map(provider => upcastPartial<ISessionsProvider>(provider));
+		const session = (title: string, environment: string, minutesAgo: number) => createTestSession(title, {
+			providerId: `${environment}-provider`,
+			environment,
+			repository: 'microsoft/vscode',
+			workspaceResource: URI.file(`/${title}`),
+			createdAt: new Date(Date.now() - minutesAgo * 60_000),
+		}).session;
+		// The newest session runs on a host that is disconnected, so it can't start new sessions.
+		const section = upcastPartial<ISessionSection>({
+			repository: { owner: 'microsoft', name: 'vscode' },
+			sessions: [session('host', 'host', 1), session('older-local', 'local', 4), session('cloud', 'cloud', 3), session('local', 'local', 2)],
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const selections: string[] = [];
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
+		}));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			activeSession: constObservable(undefined),
+			openNewSession: async () => ({ session: undefined, trustDeclined: false }),
+		}));
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: () => upcastPartial<SessionView>({
+				selectWorkspace: (folder, options) => {
+					selections.push(`${options?.providerId} ${folder.path}`);
+					return 'applied';
+				},
+			}),
+			focusSession: () => { },
+		}));
+		instantiationService.stub(ICommandService, new TestCommandService());
+		const run = (commandId: string, ...args: unknown[]) => CommandsRegistry.getCommand(commandId)!.handler(instantiationService, ...args);
+
+		await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, section);
+		await run(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, section, 'cloud');
+		await run(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, section, 'host');
+
+		assert.deepStrictEqual(selections, ['local-provider /local', 'cloud-provider /cloud']);
 	});
 
 	test('New Session propagates opening failures', async () => {

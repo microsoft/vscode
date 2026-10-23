@@ -234,6 +234,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 			}
 
+			if (await this._isMissingDirectory(workingDirectory.fsPath)) {
+				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
+				return undefined;
+			}
+
 			try {
 				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel'], { throwOnError: true, env: { LC_ALL: 'C' } }))?.trim();
 				if (repositoryRootPath) {
@@ -252,7 +257,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 						roots.delete(workingDirectoryKey);
 						this._repositoryRoots.set(roots, undefined);
 					}
-					this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					if (isSpawnEnoentError(error) && await this._isMissingDirectory(workingDirectory.fsPath)) {
+						this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
+					} else {
+						this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					}
 				}
 			}
 
@@ -288,7 +297,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			args.push('-b', options.newBranchName);
 		}
 
-		args.push(options.path.fsPath, options.commitish);
+		// `--` ends the options: neither the path nor the commit-ish can be read as one.
+		args.push('--', options.path.fsPath, options.commitish);
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
@@ -386,7 +396,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// deleted out-of-band but git still has it registered ("missing but
 		// already registered worktree"). This is our own managed per-session
 		// worktree/branch, so overriding git's safeguards here is safe.
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	/**
@@ -475,6 +485,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			maxRetries: WORKTREE_REMOVAL_MAX_ATTEMPTS,
 			retryDelay: WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS,
 		});
+	}
+
+	/**
+	 * Whether `fsPath` is definitely not a directory: it does not exist, a parent is not a directory, or it is a file.
+	 * Other `stat` failures (e.g. `EACCES`) are not treated as missing, so git still runs and reports them.
+	 */
+	private async _isMissingDirectory(fsPath: string): Promise<boolean> {
+		try {
+			return !(await fsPromises.stat(fsPath)).isDirectory();
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException)?.code;
+			return code === 'ENOENT' || code === 'ENOTDIR';
+		}
 	}
 
 	private async _pathExists(fsPath: string): Promise<boolean> {
@@ -1069,13 +1092,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined> {
+	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined> {
 		const args = ['commit-tree', treeOid];
 		if (parentOid) {
 			args.push('-p', parentOid);
 		}
 		args.push('-m', message);
-		const out = await this._runGit(repositoryRoot, args, { throwOnError: true });
+		const env = options?.useInternalIdentity ? {
+			GIT_AUTHOR_NAME: 'VS Code',
+			GIT_AUTHOR_EMAIL: 'vscode@localhost',
+			GIT_COMMITTER_NAME: 'VS Code',
+			GIT_COMMITTER_EMAIL: 'vscode@localhost',
+		} : undefined;
+		const out = await this._runGit(repositoryRoot, args, { throwOnError: true, ...(env ? { env } : {}) });
 		return out?.trim() || undefined;
 	}
 
@@ -1419,7 +1448,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					child.kill();
 					return;
 				}
-				void killTree(child.pid, true).catch(() => child.kill('SIGKILL'));
+				void killTree(child.pid, true, message => this._logService.debug(`[agentHostGitService] ${message}`)).catch(() => child.kill('SIGKILL'));
 			}, timeoutMs);
 			child.on('exit', () => clearTimeout(timer));
 		});
@@ -1430,6 +1459,11 @@ class GitCommandError extends Error {
 	constructor(message: string, readonly stderr: string, cause: cp.ExecFileException) {
 		super(message, { cause });
 	}
+}
+
+/** Whether spawning git failed with `ENOENT`, raised both for a missing git executable and for a missing working directory. */
+function isSpawnEnoentError(error: unknown): boolean {
+	return error instanceof GitCommandError && (error.cause as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
 }
 
 function isCheckoutBlockedByLocalChanges(stderr: string): boolean {

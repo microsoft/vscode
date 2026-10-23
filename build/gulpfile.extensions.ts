@@ -23,6 +23,7 @@ import { createTsgoStream, spawnTsgo } from './lib/tsgo.ts';
 import { getCompilerOptionsFromTsConfig } from './lib/tsconfigUtils.ts';
 import * as util from './lib/util.ts';
 import watcher from './lib/watch/index.ts';
+import { BuildLifecycle } from './lib/buildEvents.ts';
 
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
@@ -30,21 +31,10 @@ const commit = getVersion(root);
 // Tracks active extension compilations to emit aggregate
 // "Starting compilation" / "Finished compilation" messages
 // that the problem matcher in tasks.json relies on.
-let activeExtensionCompilations = 0;
-
-function onExtensionCompilationStart(): void {
-	if (activeExtensionCompilations === 0) {
-		fancyLog('Starting compilation');
-	}
-	activeExtensionCompilations++;
-}
-
-function onExtensionCompilationEnd(): void {
-	activeExtensionCompilations--;
-	if (activeExtensionCompilations === 0) {
-		fancyLog('Finished compilation');
-	}
-}
+const extensionCompilation = new BuildLifecycle(
+	() => fancyLog('Starting compilation'),
+	() => fancyLog('Finished compilation'),
+);
 
 // To save 250ms for each gulp startup, we are caching the result here
 // const compilations = glob.sync('**/tsconfig.json', {
@@ -198,10 +188,10 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.{ts,mts,cts}'], { dot: true }));
-		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchInput = watcher(path.relative(repoRoot, src).split(path.sep).join('/'), { ...srcOpts, ...{ readDelay: 200 } });
 		const watchNonTs = watchInput.pipe(filter(['**', '!**/*.{ts,mts,cts}'], { dot: true })).pipe(gulp.dest(out));
 		const tsgoStream = watchInput.pipe(util.debounce(() => {
-			onExtensionCompilationStart();
+			const onExtensionCompilationEnd = extensionCompilation.start();
 			const stream = createTsgoStream(absolutePath, { taskName: 'extensions' }, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl));
 			// Wrap in a result stream that always emits 'end' (even on
 			// error) so the debounce resets to idle and can process future
@@ -214,7 +204,7 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 				result.emit('end');
 			});
 			stream.on('error', () => {
-				onExtensionCompilationEnd();
+				onExtensionCompilationEnd(true);
 				result.emit('end');
 			});
 			return result;

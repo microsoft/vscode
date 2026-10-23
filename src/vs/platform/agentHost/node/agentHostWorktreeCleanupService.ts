@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs/promises';
 import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -63,6 +64,8 @@ export interface IAgentHostWorktreeCleanupService {
 	start(): void;
 	/** Runs a pass now and resolves when it completes. */
 	runPass(): Promise<void>;
+	/** Marks a scratch folder's allocation as in flight, so no pass reclaims it, until the result is disposed. */
+	trackScratchAllocation(folder: string): IDisposable;
 }
 
 export interface IAgentHostWorktreeCleanupOptions {
@@ -74,6 +77,8 @@ export interface IAgentHostWorktreeCleanupOptions {
 	readonly backoffMs?: number;
 	readonly maxBackoffMs?: number;
 	readonly now?: () => number;
+	/** Removes a scratch folder; tests inject a failing one so failures don't depend on OS file semantics. */
+	readonly removeScratchFolder?: (path: string) => Promise<void>;
 }
 
 const DEFAULT_DEBOUNCE_MS = 3_000;
@@ -91,11 +96,13 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	private readonly _backoffMs: number;
 	private readonly _maxBackoffMs: number;
 	private readonly _now: () => number;
+	private readonly _removeScratchFolder: (path: string) => Promise<void>;
 	private readonly _scheduler: RunOnceScheduler;
 	private _started = false;
 	private _lastRequestedAt = 0;
 	private _pass: Promise<void> | undefined;
 	private _passAgain = false;
+	private readonly _scratchAllocationsInFlight = new Set<string>();
 
 	constructor(
 		options: IAgentHostWorktreeCleanupOptions | undefined,
@@ -109,6 +116,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		this._backoffMs = options?.backoffMs ?? DEFAULT_BACKOFF_MS;
 		this._maxBackoffMs = options?.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
 		this._now = options?.now ?? Date.now;
+		this._removeScratchFolder = options?.removeScratchFolder ?? (path => fs.rm(path, { recursive: true, force: true }));
 		this._scheduler = this._register(new RunOnceScheduler(() => void this.runPass(), this._debounceMs));
 	}
 
@@ -293,6 +301,11 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		return this._pass;
 	}
 
+	trackScratchAllocation(folder: string): IDisposable {
+		this._scratchAllocationsInFlight.add(folder);
+		return toDisposable(() => this._scratchAllocationsInFlight.delete(folder));
+	}
+
 	private async _runPass(): Promise<void> {
 		const now = this._now();
 		// Rows of sessions deleted since (also by an older build) keep nothing in use; only a folder's marker stays.
@@ -304,6 +317,42 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			if (removal.nextAttemptAt <= now) {
 				await this._process(removal, now);
 			}
+		}
+		await this._runScratchPass(now);
+	}
+
+	/**
+	 * Reclaims chat scratch folders: those of deleted chats (`removing`) and those an allocation that is no longer in
+	 * flight left behind (`allocating`; after a crash nothing is in flight). A folder a live chat or session, archived
+	 * ones included, still lists is kept, and an `allocating` one that is listed belongs to a published chat: it
+	 * becomes `owned`.
+	 */
+	private async _runScratchPass(now: number): Promise<void> {
+		for (const row of await this._database.listScratchFolders()) {
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (row.state === 'owned' || row.nextAttemptAt > now) {
+				continue;
+			}
+			await this._worktree.runExclusive(row.folder, async () => {
+				try {
+					if (row.state === 'allocating' && this._scratchAllocationsInFlight.has(row.folder)) {
+						return;
+					}
+					if (await this._database.isScratchFolderInUse(row.folder)) {
+						if (row.state === 'allocating') {
+							await this._database.markScratchFolderOwned(row.folder);
+						}
+						return;
+					}
+					await this._removeScratchFolder(URI.parse(row.folder).fsPath);
+					await this._database.deleteScratchFolder(row.folder);
+				} catch (error) {
+					await this._database.recordScratchFolderRemovalFailure(row.folder, now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** row.attempts));
+					this._logService.info(`[AgentHostWorktreeCleanup] Failed to remove scratch folder '${row.folder}' (attempt ${row.attempts + 1}): ${errorMessage(error)}`);
+				}
+			});
 		}
 	}
 
@@ -378,7 +427,10 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		if (!this._started || this._store.isDisposed) {
 			return;
 		}
-		const remaining = await this._database.listPendingWorktreeRemovals().catch(() => []);
+		const remaining = [
+			...await this._database.listPendingWorktreeRemovals().catch(() => []),
+			...(await this._database.listScratchFolders().catch(() => [])).filter(row => row.state === 'removing' || (row.state === 'allocating' && !this._scratchAllocationsInFlight.has(row.folder))),
+		];
 		if (remaining.length === 0 || this._scheduler.isScheduled()) {
 			return;
 		}

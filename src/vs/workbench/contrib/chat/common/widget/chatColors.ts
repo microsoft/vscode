@@ -155,25 +155,23 @@ export const chatInputWorkingBorderColor3 = registerColor(
 	localize('chat.inputWorkingBorderColor3.deprecated', "This color is no longer used. Use 'chat.inputWorkingBorderColor1' to customize the animated chat input border."));
 
 // --- Voice Mode ambient glow -------------------------------------------------
-// The listening / processing / speaking glows are derived from a single base
-// accent by hue-shifting (see `resolveVoiceGlowColors` in `voiceGlow.ts`), so the
-// glow harmonizes with whatever accent the active theme uses. Themes can pin any
-// individual state by setting its own token.
+// All connected voice states share the listening accent.
 
 export const chatVoiceGlowBaseColor = registerColor(
 	'chat.voiceGlowBaseColor',
 	focusBorder,
-	localize('chat.voiceGlowBaseColor', 'Base accent the Voice Mode ambient glow is derived from. The listening and speaking glows are hue-shifted from this color.'), true);
+	localize('chat.voiceGlowBaseColor', 'Base accent for the connected Voice Mode ambient glow.'), true);
 
 export const chatVoiceListeningGlow = registerColor(
 	'chat.voiceListeningGlow',
 	{ dark: null, light: null, hcDark: null, hcLight: null },
-	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while listening. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+	localize('chat.voiceListeningGlow', 'Accent color of the Voice Mode glow while connected, including listening and speaking. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
 
 export const chatVoiceSpeakingGlow = registerColor(
 	'chat.voiceSpeakingGlow',
 	{ dark: null, light: null, hcDark: null, hcLight: null },
-	localize('chat.voiceSpeakingGlow', 'Accent color of the Voice Mode glow while the agent is speaking. Derived from {0} when unset.', 'chat.voiceGlowBaseColor'), true);
+	localize('chat.voiceSpeakingGlow', 'Unused speaking accent color.'), true,
+	localize('chat.voiceSpeakingGlow.deprecated', "This color is no longer used. Use 'chat.voiceListeningGlow' to customize the connected Voice Mode glow."));
 
 // Dictation shares Voice Mode's listening accent, so an open microphone reads the
 // same whichever feature opened it.

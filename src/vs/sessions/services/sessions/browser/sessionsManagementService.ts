@@ -7,9 +7,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -26,8 +27,8 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -727,6 +728,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return created;
 	}
 
+	async applyNestedChatWorkspace(session: ISession, chat: IChat, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw NestedChatWorkspaceError.notSupported();
+		}
+		return provider.applyNestedChatWorkspace(session.sessionId, chat.resource, workspace, prompt);
+	}
+
 	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
 		const provider = this._getProvider(session);
 		if (!provider) {
@@ -821,7 +830,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				.catch(e => {
 					if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 						this.logService.error('[SessionsManagement] Failed to send background request:', e);
-						this.notificationService.error(localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+						this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
 					}
 				})
 				.finally(() => inFlightRequest?.dispose());
@@ -1464,6 +1473,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		if (options?.skipConfirmation && !this._isUnsentChat(session, chatUri)) {
+			// Deleting without confirmation is only for drafts with nothing to lose.
+			this.logService.warn(`[SessionsManagement] deleteChat: refusing to delete chat '${chatUri.toString()}' without confirmation: it has been sent`);
+			return false;
+		}
 		const deletedChat = Object.freeze({ session, sessionResource: session.resource, chatResource: chatUri });
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
@@ -1471,6 +1485,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onDidDeleteChat.fire(deletedChat);
 		}
 		return deleted;
+	}
+
+	/** Whether `chatUri` is an `Untitled` chat of `session` without any request. */
+	private _isUnsentChat(session: ISession, chatUri: URI): boolean {
+		const chat = session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatUri));
+		return chat?.status.get() === SessionStatus.Untitled && !this.chatService.getSession(chatUri)?.hasRequests;
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
@@ -1509,7 +1529,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await provider.moveSessionUnder(session.sessionId, destination.sessionId, after?.resource);
 	}
 
-	async listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]> {
+	async listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.listCanvases) {
 			return [];
@@ -1550,6 +1570,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.importSession.unsupported', "Importing is not supported for this session."));
 		}
 		await provider.importSession(session.sessionId);
+	}
+
+	async acquireArtifactIntegration(session: ISession, artifactId: string): Promise<IReference<IArtifactModel> | undefined> {
+		return this._getProvider(session)?.acquireArtifactIntegration?.(session.sessionId, artifactId);
 	}
 }
 

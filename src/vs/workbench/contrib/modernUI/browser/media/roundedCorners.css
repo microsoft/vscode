@@ -194,33 +194,11 @@
 	overflow: hidden;
 }
 
-/* Editor / workbench hover, suggest and parameter hint widgets */
+/* Editor / workbench hover and parameter hints. Suggestion widgets use suggestWidget.css. */
 .modern-ui .monaco-hover,
-.modern-ui .editor-widget.suggest-widget,
 .modern-ui .monaco-editor .parameter-hints-widget {
 	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
-}
-
-.modern-ui .workbench-suggest-widget,
-.modern-ui .workbench-suggest-widget .monaco-list {
-	border-radius: var(--vscode-cornerRadius-large);
-}
-
-/* Virtualized rows use logical boundaries, not their recycled DOM order. */
-.modern-ui :is(.editor-widget.suggest-widget, .workbench-suggest-widget) .monaco-list .monaco-list-row:not(.separator)[data-index="0"] {
-	border-top-left-radius: var(--vscode-cornerRadius-large);
-	border-top-right-radius: var(--vscode-cornerRadius-large);
-}
-
-.modern-ui :is(.editor-widget.suggest-widget, .workbench-suggest-widget):not(.with-status-bar) .monaco-list .monaco-list-row:not(.separator)[data-last-element="true"] {
-	border-bottom-left-radius: var(--vscode-cornerRadius-large);
-	border-bottom-right-radius: var(--vscode-cornerRadius-large);
-}
-
-.modern-ui :is(.editor-widget.suggest-widget, .workbench-suggest-widget).with-status-bar .monaco-list {
-	border-bottom-left-radius: 0;
-	border-bottom-right-radius: 0;
 }
 
 /* Context menus and general menu surfaces */

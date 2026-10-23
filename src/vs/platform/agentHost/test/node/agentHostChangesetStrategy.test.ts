@@ -35,6 +35,7 @@ import { GitRepositoryRootsContribution } from '../../node/chatContributions/git
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -191,6 +192,7 @@ suite('AgentHostChangesetStrategy', () => {
 			createTestChatOwnershipService(state),
 			sessionStateStore,
 			createTestAgentHostProviderService(() => undefined),
+			disposables.add(new AgentHostFileEditCoordinator()),
 		));
 		state.createSession({
 			resource: session,
@@ -202,7 +204,7 @@ suite('AgentHostChangesetStrategy', () => {
 			workingDirectories: options.workingDirectories ?? ['file:///repo'],
 			defaultChat: buildDefaultChatUri(session),
 		});
-		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
+		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false, false));
 		state.dispatchServerAction(session, { type: ActionType.SessionReady });
 		setIsolation(state, options.isolation);
 		addTurn(state, turnId);

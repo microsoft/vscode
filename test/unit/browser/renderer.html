@@ -101,6 +101,9 @@
 				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
 			}
 		}
+		// FileAccess resolves test assets from src, but generated crypto is emitted only to the output tree.
+		const agentHostCryptoPath = 'vs/platform/agentHost/browser/agentHostCryptoModule.js';
+		importMap.imports[new URL(`../../../src/${agentHostCryptoPath}`, baseUrl).href] = new URL(`../../../${out}/${agentHostCryptoPath}`, baseUrl).href;
 
 		// ---- CSS tricks
 

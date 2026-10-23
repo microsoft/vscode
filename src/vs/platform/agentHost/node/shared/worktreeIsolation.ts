@@ -1200,10 +1200,28 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				}
 			}
 
+			let commitish = selectedBranch;
+			if (!branch) {
+				const [head, currentBranch] = await Promise.all([
+					this._gitService.getHEAD(repositoryRoot),
+					this._gitService.getCurrentBranch(repositoryRoot),
+				]);
+				if (!head && currentBranch === selectedBranch) {
+					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRoot);
+					const snapshotCommit = tree
+						? await this._gitService.commitTree(repositoryRoot, tree, undefined, 'Initialize isolated worktree', { useInternalIdentity: true })
+						: undefined;
+					if (!snapshotCommit) {
+						throw new Error(localize('agentHost.worktree.unbornSnapshotFailed', "Couldn't capture the workspace files for the isolated worktree."));
+					}
+					commitish = snapshotCommit;
+				}
+			}
+
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
 					path: worktreePath,
-					commitish: selectedBranch,
+					commitish,
 					newBranchName,
 					track: false,
 					onProgress: progress,
@@ -2015,18 +2033,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return undefined;
 		}
 
-		// Worktree creation requires a valid commit and fails for an unborn HEAD.
-		const headCommit = await this._gitService.revParse(repositoryRoot, 'HEAD').catch(() => undefined);
-		if (!headCommit) {
-			return undefined;
-		}
-
-		// Get HEAD and default branch in parallel
 		const [headRef, defaultBranch] = await Promise.all([
 			this._gitService.getHEAD(repositoryRoot),
 			this._gitService.getDefaultBranch2(repositoryRoot),
 		]);
 
+		// getHEAD only returns an existing ref or commit, so an unborn HEAD cannot offer worktree isolation.
 		if (!headRef) {
 			return undefined;
 		}

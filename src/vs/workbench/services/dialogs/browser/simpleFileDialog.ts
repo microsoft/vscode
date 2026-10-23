@@ -511,7 +511,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					this.filePickBox.validationMessage = undefined;
 					const filePickBoxUri = this.filePickBoxValue();
 					let updated: UpdateResult = UpdateResult.NotUpdated;
-					if (!resources.hasTrailingPathSeparator(filePickBoxUri, this.separator) && resources.extUriIgnorePathCase.isEqual(this.currentFolder, resources.dirname(filePickBoxUri))) {
+					if (!this.endsWithSlash(value) && resources.extUriIgnorePathCase.isEqual(this.currentFolder, resources.dirname(filePickBoxUri))) {
 						this.setActiveItems(value);
 						return;
 					} else if (!resources.extUriIgnorePathCase.isEqual(this.currentFolder, filePickBoxUri)) {

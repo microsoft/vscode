@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/sessionsEmptyState.css';
 import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from '../../../base/browser/dom.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -21,6 +22,7 @@ import { localize } from '../../../nls.js';
 import { getFlatActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -28,6 +30,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { defaultKeybindingLabelStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { EditorAddTabControl } from '../../../workbench/browser/parts/editor/editorAddTabControl.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
+import { SessionsEmptyStateLayout } from './sessionsEmptyStateLayout.js';
 
 /** The parts of an editor group that the empty-group Add Tab UI depends on. */
 export interface IEmptyEditorGroup {
@@ -99,12 +102,14 @@ export class EmptyEditorGroupAddTab extends Disposable {
 		}));
 
 		const lookupKeybinding = (commandId: string) => this.keybindingService.lookupKeybinding(commandId, contextKeyService);
-		const actionBar = store.add(new ActionBar(append(watermarkContainer, $('.sessions-add-tab-watermark-list')), {
+		const listContainer = append(watermarkContainer, $('.sessions-add-tab-watermark-list.sessions-watermark-actions'));
+		const actionBar = store.add(new ActionBar(listContainer, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('addTabWatermark', "Add Tab"),
 			actionRunner,
-			actionViewItemProvider: action => this.instantiationService.createInstance(AddTabWatermarkActionViewItem, action, lookupKeybinding),
+			actionViewItemProvider: action => this.instantiationService.createInstance(SessionsWatermarkActionViewItem, action, lookupKeybinding),
 		}));
+		const layout = store.add(new SessionsEmptyStateLayout(watermarkContainer, [listContainer]));
 
 		// Submenu entries such as Canvas render their items, so changes inside them must refresh the list too.
 		const menu = store.add(this.menuService.createMenu(this.listMenuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
@@ -123,6 +128,7 @@ export class EmptyEditorGroupAddTab extends Disposable {
 			actionBar.clear();
 			actionBar.push(actions);
 			groupElement.classList.toggle(HAS_ADD_TAB_WATERMARK_CLASS, actions.length > 0);
+			layout.layout();
 		};
 		update(true);
 		store.add(menu.onDidChange(() => update(false)));
@@ -143,7 +149,7 @@ function getActionsSignature(actions: readonly IAction[]): string {
 	]));
 }
 
-class AddTabWatermarkActionViewItem extends BaseActionViewItem {
+export class SessionsWatermarkActionViewItem extends BaseActionViewItem {
 
 	private submenuFlyout: SubmenuFlyout | undefined;
 
@@ -151,6 +157,8 @@ class AddTabWatermarkActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		private readonly lookupKeybinding: (commandId: string) => ResolvedKeybinding | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action);
 	}
@@ -160,7 +168,7 @@ class AddTabWatermarkActionViewItem extends BaseActionViewItem {
 		super.render(row);
 		row.setAttribute('role', 'button');
 
-		const icon = append(row, $('span.sessions-add-tab-watermark-icon'));
+		const icon = append(row, $('span.sessions-add-tab-watermark-icon', { 'aria-hidden': 'true' }));
 		const item = this._action instanceof MenuItemAction || this._action instanceof SubmenuItemAction ? this._action.item : undefined;
 		if (item?.icon && ThemeIcon.isThemeIcon(item.icon)) {
 			icon.classList.add(...ThemeIcon.asClassNameArray(item.icon));
@@ -168,16 +176,26 @@ class AddTabWatermarkActionViewItem extends BaseActionViewItem {
 
 		append(row, $('span.sessions-add-tab-watermark-label')).textContent = this._action.label;
 
-		const keybinding = this._action instanceof MenuItemAction ? this.lookupKeybinding(this._action.id) : undefined;
-		// Rows end with their keybinding or submenu chevron, so both line up at the row's trailing edge.
-		if (keybinding) {
-			this._register(new KeybindingLabel(append(row, $('span.sessions-add-tab-watermark-keybinding')), OS, defaultKeybindingLabelStyles)).set(keybinding);
-		}
-
-		const keybindingAriaLabel = keybinding?.getAriaLabel();
-		row.setAttribute('aria-label', keybindingAriaLabel
-			? localize('addTabWatermarkEntryAriaLabel', "{0} ({1})", this._action.label, keybindingAriaLabel)
-			: this._action.label);
+		const keybindingContainer = $('span.sessions-add-tab-watermark-keybinding', { 'aria-hidden': 'true' });
+		const keybindingLabel = this._register(new KeybindingLabel(keybindingContainer, OS, defaultKeybindingLabelStyles));
+		const updateKeybinding = () => {
+			const keybinding = this._action instanceof MenuItemAction ? this.lookupKeybinding(this._action.id) : undefined;
+			keybindingLabel.set(keybinding);
+			if (keybinding) {
+				if (keybindingContainer.parentElement !== row) {
+					append(row, keybindingContainer);
+				}
+			} else {
+				keybindingContainer.remove();
+			}
+			const keybindingAriaLabel = keybinding?.getAriaLabel();
+			row.setAttribute('aria-label', keybindingAriaLabel
+				? localize('addTabWatermarkEntryAriaLabel', "{0} ({1})", this._action.label, keybindingAriaLabel)
+				: this._action.label);
+		};
+		updateKeybinding();
+		this._register(this.keybindingService.onDidUpdateKeybindings(updateKeybinding));
+		this._register(this.hoverService.setupDelayedHover(row, () => ({ content: this._action.label })));
 
 		const action = this._action;
 		if (action instanceof SubmenuItemAction) {

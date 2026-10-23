@@ -103,6 +103,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
 		},
 		{
+			id: AICustomizationManagementSection.Canvases,
+			label: localize('copilotCanvases', "Canvases"),
+			icon: Codicon.preview,
+			description: localize('copilotCanvasesDesc', "Review interactive canvases declared for Copilot chats visible in this window."),
+		},
+		{
 			id: AICustomizationManagementSection.Tools,
 			label: localize('tools', "Tools"),
 			icon: toolsIcon,

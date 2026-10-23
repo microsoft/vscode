@@ -7,8 +7,9 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -18,6 +19,7 @@ import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -27,14 +29,14 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import product from '../../../../platform/product/common/product.js';
-import { URI } from '../../../../base/common/uri.js';
-import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
+import { isPublicVSCodeIssueUrl, resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
+import { renderIssueReporterRepositoryPicker } from './issueReporterRepositoryPicker.js';
 import { IssueReporterModel } from './issueReporterModel.js';
+import { IIssueReporterVideo, ImportedIssueMedia, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
 import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
-const MAX_ATTACHMENTS = 5;
 const MAX_SIMILAR_ISSUES = 5;
 
 const enum WizardStep {
@@ -74,6 +76,8 @@ export class IssueReporterOverlay {
 	private readonly _onDidChangeAttachments = new Emitter<void>();
 	/** Fires whenever the screenshot/recording collection changes so the host can persist it. */
 	readonly onDidChangeAttachments: Event<void> = this._onDidChangeAttachments.event;
+	private readonly _onDidRequestAddAttachments = this.disposables.add(new Emitter<readonly File[]>());
+	readonly onDidRequestAddAttachments = this._onDidRequestAddAttachments.event;
 
 	private wizardPanel!: HTMLElement;
 	private updateBanner!: HTMLElement;
@@ -89,6 +93,7 @@ export class IssueReporterOverlay {
 	private sourceButtonGroup!: HTMLElement;
 	private sourceError!: HTMLElement;
 	private targetStatus!: HTMLElement;
+	private readonly repositoryPicker = this.disposables.add(new MutableDisposable());
 	private extensionField!: HTMLElement;
 	private extensionSelect!: SelectBox;
 	private extensionOptions: { label: string; value: string | undefined; hidden?: boolean }[] = [];
@@ -113,12 +118,19 @@ export class IssueReporterOverlay {
 
 	// Step 0: Screenshots & Recording
 	private screenshotContainer!: HTMLElement;
+	private screenshotAddCard: HTMLElement | undefined;
+	private attachmentStatus!: HTMLElement;
+	private pendingAttachmentImports = 0;
+	private readonly attachmentErrors: string[] = [];
+	private disposed = false;
 	private screenshotDelay = 0;
 	private recordingElapsedTimer: number | undefined;
 	private recordingStartTime = 0;
 	private currentRecordingState = RecordingState.Idle;
+	private recordingSlotReserved = false;
 	private delayedScreenshotPending = false;
-	private readonly recordings: { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] = [];
+	private screenshotCapturePending = false;
+	private readonly recordings: IIssueReporterVideo[] = [];
 
 	// Step 2: Review
 	private reviewThumbCards: HTMLElement[] = [];
@@ -170,6 +182,7 @@ export class IssueReporterOverlay {
 		private readonly refreshPerformanceInfo?: () => Promise<void>,
 		/** Returns the user's currently-bound keybinding for the given command id, or undefined when unbound. */
 		private readonly resolveKeybinding?: (commandId: string) => ResolvedKeybinding | undefined,
+		private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
@@ -234,6 +247,12 @@ export class IssueReporterOverlay {
 		this.updateBanner.textContent = localize('updateAvailable', "A new version of {0} is available.", product.nameLong);
 		this.setUpdateAvailable(this.showUpdateBanner);
 
+		this.attachmentStatus = append(this.wizardPanel, $('p.wizard-subtitle.wizard-attachment-status'));
+		this.attachmentStatus.setAttribute('role', 'status');
+		this.attachmentStatus.setAttribute('aria-live', 'polite');
+		this.attachmentStatus.setAttribute('aria-atomic', 'true');
+		this.attachmentStatus.hidden = true;
+
 		// Step content area
 		this.stepContainer = append(this.wizardPanel, $('div.wizard-step-container'));
 		this.createStep0Attachments();
@@ -258,6 +277,9 @@ export class IssueReporterOverlay {
 		const subtitle = append(page, $('p.wizard-subtitle'));
 		subtitle.textContent = localize('screenshotsSubtitle', "You can add up to {0} screenshots or videos. Navigate VS Code and choose when to capture.", MAX_ATTACHMENTS);
 
+		const importHint = append(page, $('p.wizard-subtitle.wizard-attachment-hint'));
+		importHint.textContent = localize('attachmentImportHint', "Drop images or videos here, or focus the attachments area and paste. Images: PNG, JPEG, GIF, WebP, AVIF (up to 10 MB). Videos: MP4, WebM, MOV (up to 100 MB). Files stay local until you preview on GitHub.");
+
 		const captureShortcut = this.resolveKeybinding?.('workbench.action.issueReporter.captureScreenshot');
 		const recordShortcut = this.recordingSupported ? this.resolveKeybinding?.('workbench.action.issueReporter.toggleRecording') : undefined;
 		if (captureShortcut || recordShortcut) {
@@ -280,6 +302,10 @@ export class IssueReporterOverlay {
 		}
 
 		this.screenshotContainer = append(page, $('div.wizard-screenshots'));
+		this.screenshotContainer.tabIndex = 0;
+		this.screenshotContainer.setAttribute('role', 'group');
+		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop images and videos here."));
+		this.registerAttachmentInput(page);
 		this.updateScreenshotThumbnails();
 
 		this.createFloatingCaptureBar();
@@ -401,11 +427,11 @@ export class IssueReporterOverlay {
 						this.delayedScreenshotPending = false;
 						this.updateScreenshotThumbnails();
 						this.updateAttachmentButtons();
-						this._onDidRequestScreenshot.fire();
+						this.requestScreenshot();
 					}
 				}, 1000));
 			} else {
-				this._onDidRequestScreenshot.fire();
+				this.requestScreenshot();
 			}
 		}));
 
@@ -570,6 +596,7 @@ export class IssueReporterOverlay {
 		}
 		this.sourceError = this.createFieldError(sourceField, localize('targetRequired', "Select a target to continue."));
 		this.targetStatus = append(sourceField, $('div.wizard-target-status'));
+		this.targetStatus.setAttribute('role', 'status');
 
 		this.extensionField = append(targetRow, $('div.wizard-field.wizard-extension-field'));
 		const extensionLabel = append(this.extensionField, $('label.wizard-field-label'));
@@ -695,6 +722,8 @@ export class IssueReporterOverlay {
 		this.updateDescriptionGuidance();
 
 		this.descriptionTextarea = append(descriptionGroup, $('textarea.wizard-textarea')) as HTMLTextAreaElement;
+		this.descriptionTextarea.setAttribute('aria-label', localize('description', "Description"));
+		this.descriptionTextarea.setAttribute('aria-description', localize('descriptionPasteHint', "Paste an image or video to attach it without leaving the description."));
 		this.descriptionTextarea.placeholder = localize('descriptionPlaceholder', "Describe the issue in detail...");
 		this.descriptionTextarea.rows = 6;
 		if (this.data.issueBody) {
@@ -715,6 +744,18 @@ export class IssueReporterOverlay {
 			this.updateGenerateTitleButtonState();
 		}));
 		this.descriptionError = this.createFieldError(descriptionGroup, localize('descriptionRequired', "Enter a description to continue."));
+		append(descriptionGroup, $('p.wizard-subtitle')).textContent = localize('descriptionAttachmentHint', "You can also paste images or videos here to attach them.");
+		this.disposables.add(addDisposableListener(this.descriptionTextarea, EventType.PASTE, (event: ClipboardEvent) => {
+			const files = this.getAttachmentFiles(event.clipboardData);
+			if (!files.length || event.defaultPrevented) {
+				return;
+			}
+			event.stopPropagation();
+			if (!event.clipboardData?.getData('text/plain')) {
+				event.preventDefault();
+			}
+			this.requestAddAttachments(files);
+		}));
 
 		this.updateIssueSourceFlags();
 		this.updateTargetStatus();
@@ -804,6 +845,13 @@ export class IssueReporterOverlay {
 		this.updateTitlePlaceholder();
 		this.updateTargetStatus();
 		this.updateDescriptionGuidance();
+		this.searchSimilarIssues();
+	}
+
+	private setIssueRepository(repository: string): void {
+		this.data.issueRepository = repository;
+		this.updateTargetStatus();
+		this.updateStepUI();
 		this.searchSimilarIssues();
 	}
 
@@ -938,20 +986,7 @@ export class IssueReporterOverlay {
 			return;
 		}
 
-		// Apply any preset extension data BEFORE the built-in source-switch below.
-		// When the reporter is opened programmatically (e.g. via the
-		// `workbench.action.openIssueReporter` command) with a preset `extensionId`
-		// plus extension `data`/`uri`, propagate that data onto the selected
-		// extension and the model so it shows up in the issue body. Doing this
-		// before the built-in early-return is important: extensions bundled with
-		// the dev build (Copilot, etc.) are flagged `isBuiltin`, which triggers
-		// the source switch to VSCode and returns — otherwise the preset data
-		// would be silently lost for every built-in caller. We guard on
-		// `!this.includeExtensionData` (rather than `!extension.data`) because
-		// `issueService` pre-populates `extension.data` on every enabled
-		// extension, so that field is not a reliable "already applied" signal —
-		// `includeExtensionData` is only flipped to `true` by
-		// `applyExtensionIssueData`.
+		// Apply preset data before the built-in source switch can return.
 		const hasPresetData = !this.includeExtensionData && (this.data.data !== undefined || this.data.uri !== undefined || this.data.privateUri !== undefined);
 		if (!loadExtensionData && hasPresetData) {
 			this.applyExtensionIssueData(extension, this.data);
@@ -983,8 +1018,6 @@ export class IssueReporterOverlay {
 		extension.uri = issueData.uri;
 		extension.privateUri = issueData.privateUri;
 		this.data.data = issueData.data;
-		this.data.uri = issueData.uri;
-		this.data.privateUri = issueData.privateUri;
 		this.data.issueBody = issueData.issueBody ?? this.data.issueBody;
 		this.data.issueTitle = issueData.issueTitle ?? this.data.issueTitle;
 		if (issueData.issueTitle && !this.titleInput.value.trim()) {
@@ -1003,6 +1036,7 @@ export class IssueReporterOverlay {
 	}
 
 	private updateTargetStatus(): void {
+		this.repositoryPicker.clear();
 		this.targetStatus.textContent = '';
 		this.extensionStatus.textContent = '';
 		if (!this.selectedIssueSource) {
@@ -1010,10 +1044,7 @@ export class IssueReporterOverlay {
 		}
 
 		if (this.selectedIssueSource !== IssueSource.Extension) {
-			const repo = this.getIssueTargetRepo();
-			this.targetStatus.textContent = repo
-				? localize('issueTargetRepo', "Issue will be created in {0}/{1}.", repo.owner, repo.repositoryName)
-				: '';
+			this.repositoryPicker.value = renderIssueReporterRepositoryPicker(this.targetStatus, this.data, product, this.contextMenuProvider, repository => this.setIssueRepository(repository));
 			return;
 		}
 
@@ -1027,33 +1058,26 @@ export class IssueReporterOverlay {
 		} else if (!this.isGitHubUrl(issueUrl)) {
 			this.extensionStatus.textContent = localize('extensionExternalIssueUrl', "This extension uses an external issue reporter. Preview will open that issue reporter.");
 		} else {
-			const repo = this.getIssueTargetRepo();
-			this.extensionStatus.textContent = repo
-				? localize('issueTargetRepo', "Issue will be created in {0}/{1}.", repo.owner, repo.repositoryName)
-				: '';
+			this.extensionStatus.textContent = this.getIssueRepositoryLabel();
 		}
 	}
 
 	private getIssueTargetRepo(): { owner: string; repositoryName: string } | undefined {
-		const targetUrl = this.getIssueTargetUrl();
-		return targetUrl ? this.parseGitHubUrl(targetUrl) : undefined;
+		return resolveIssueReporterTarget(this.data, product)?.repository;
+	}
+
+	private getIssueRepositoryLabel(): string {
+		const target = resolveIssueReporterTarget(this.data, product);
+		if (!target) {
+			return localize('invalidIssueRepository', "Invalid issue destination");
+		}
+		const repository = target.repository;
+		const label = repository ? `${repository.owner}/${repository.repositoryName}` : target.url;
+		return label;
 	}
 
 	private getSelectedExtensionIssueUrl(): string | undefined {
-		const extension = this.selectedExtension;
-		if (!extension) {
-			return undefined;
-		}
-		if (extension.uri) {
-			return URI.revive(extension.uri).toString();
-		}
-		if (extension.bugsUrl && /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?(\/issues)?\/?$/.test(extension.bugsUrl)) {
-			return `${normalizeGitHubUrl(extension.bugsUrl)}/issues/new`;
-		}
-		if (extension.repositoryUrl && /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?$/.test(extension.repositoryUrl)) {
-			return `${normalizeGitHubUrl(extension.repositoryUrl)}/issues/new`;
-		}
-		return extension.bugsUrl || extension.repositoryUrl;
+		return resolveIssueReporterTarget({ ...this.data, issueSource: IssueSource.Extension }, product)?.url;
 	}
 
 	private getIssueSourceLabel(): string {
@@ -1074,31 +1098,11 @@ export class IssueReporterOverlay {
 	}
 
 	private getIssueTargetUrl(): string | undefined {
-		if (this.selectedIssueSource === IssueSource.Extension) {
-			return this.getSelectedExtensionIssueUrl();
-		}
-		if (this.selectedIssueSource === IssueSource.Marketplace) {
-			return product.reportMarketplaceIssueUrl ?? product.reportIssueUrl;
-		}
-		if (this.data.uri) {
-			return URI.revive(this.data.uri).toString();
-		}
-		if (this.data.privateUri) {
-			return URI.revive(this.data.privateUri).toString();
-		}
-		return product.reportIssueUrl;
+		return resolveIssueReporterTarget(this.data, product)?.url;
 	}
 
 	private isGitHubUrl(url: string): boolean {
 		return /^https?:\/\/github\.com\//i.test(url);
-	}
-
-	private parseGitHubUrl(url: string): { owner: string; repositoryName: string } | undefined {
-		const match = /^https?:\/\/github\.com\/([^\/?#]+)\/([^\/?#]+).*/i.exec(url);
-		if (!match) {
-			return undefined;
-		}
-		return { owner: match[1], repositoryName: match[2] };
 	}
 
 	private searchSimilarIssues(): void {
@@ -1109,6 +1113,10 @@ export class IssueReporterOverlay {
 			this.similarIssuesHandle = undefined;
 		}
 		if (this.currentStep !== WizardStep.Review || !this.similarIssuesContainer) {
+			return;
+		}
+		if (!resolveIssueReporterTarget(this.data, product)?.isPublic) {
+			this.renderSimilarIssuesMessage(localize('privateIssueSearchDisabled', "Similar issues were not searched because this repository may be private."));
 			return;
 		}
 		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
@@ -1123,6 +1131,11 @@ export class IssueReporterOverlay {
 			return;
 		}
 		const title = this.titleInput.value.trim();
+		const target = resolveIssueReporterTarget(this.data, product);
+		if (!target?.isPublic) {
+			this.renderSimilarIssuesMessage(localize('privateIssueSearchDisabled', "Similar issues were not searched because this repository may be private."));
+			return;
+		}
 		const request = ++this.similarIssuesRequest;
 		if (!title || !this.selectedIssueSource) {
 			this.renderSimilarIssuesMessage(localize('similarIssuesNeedsTitle', "Enter a title to search for similar issues."));
@@ -1134,16 +1147,11 @@ export class IssueReporterOverlay {
 		this.similarIssuesOperation.value = toDisposable(() => controller.abort());
 		try {
 			let results: readonly ISimilarIssue[] = [];
-			if (this.selectedIssueSource === IssueSource.Extension) {
-				const extensionIssueUrl = this.getSelectedExtensionIssueUrl();
-				const repo = extensionIssueUrl && this.parseGitHubUrl(extensionIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, controller.signal) : [];
-			} else if (this.selectedIssueSource === IssueSource.Marketplace) {
-				const marketplaceIssueUrl = product.reportMarketplaceIssueUrl ?? product.reportIssueUrl;
-				const repo = marketplaceIssueUrl && this.parseGitHubUrl(marketplaceIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, controller.signal) : [];
-			} else {
+			if (this.selectedIssueSource !== IssueSource.Extension && this.selectedIssueSource !== IssueSource.Marketplace && isPublicVSCodeIssueUrl(target?.url)) {
 				results = await this.searchVSCodeSimilarIssues(title, this.descriptionTextarea.value.trim(), controller.signal);
+			} else {
+				const repo = target?.repository;
+				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, controller.signal) : [];
 			}
 			if (request === this.similarIssuesRequest) {
 				this.renderSimilarIssues(results);
@@ -1156,7 +1164,7 @@ export class IssueReporterOverlay {
 	}
 
 	private async searchVSCodeDuplicates(title: string, body: string, signal: AbortSignal): Promise<ISimilarIssue[]> {
-		const response = await fetch('https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates', {
+		const response = await this.fetcher('https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates', {
 			method: 'POST',
 			body: JSON.stringify({ title, body }),
 			headers: new Headers({ 'Content-Type': 'application/json' }),
@@ -1169,6 +1177,7 @@ export class IssueReporterOverlay {
 	private async searchVSCodeSimilarIssues(title: string, body: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]> {
 		try {
 			const duplicates = await this.searchVSCodeDuplicates(title, body, signal);
+			signal.throwIfAborted();
 			if (duplicates.length) {
 				return duplicates;
 			}
@@ -1312,6 +1321,9 @@ export class IssueReporterOverlay {
 	}
 
 	private goNext(): void {
+		if (this.uploading) {
+			return;
+		}
 		if (this.currentStep === WizardStep.Describe) {
 			this.didAttemptDescribeSubmit = true;
 			const hasIssueSource = this.selectedIssueSource !== undefined;
@@ -1346,6 +1358,9 @@ export class IssueReporterOverlay {
 		}
 
 		if (this.currentStep === WizardStep.Review) {
+			if (this.pendingAttachmentImports > 0 || this.screenshotCapturePending || this.recordingSlotReserved || this.currentRecordingState === RecordingState.Recording) {
+				return;
+			}
 			// Defensive: if user managed to invoke goNext while diagnostics are
 			// still loading (e.g. via Cmd/Ctrl+Enter), block the submit. The
 			// Preview button is also visually disabled in this state.
@@ -1413,7 +1428,7 @@ export class IssueReporterOverlay {
 		}
 
 		// Back button visibility
-		this.backButton.element.style.display = this.currentStep === WizardStep.Attachments ? 'none' : '';
+		this.backButton.element.style.display = this.currentStep === WizardStep.Attachments || this.uploading ? 'none' : '';
 		if (this.closeButton) {
 			const currentDraftPreviewed = this.previewedDraftKey === this.getDraftKey();
 			this.closeButton.element.style.display = this.previewOpened && currentDraftPreviewed && this.currentStep === WizardStep.Review ? '' : 'none';
@@ -1421,14 +1436,14 @@ export class IssueReporterOverlay {
 
 		// Next button label
 		if (this.currentStep === WizardStep.Review) {
-			const externalExtensionUrl = this.selectedIssueSource === IssueSource.Extension && this.getIssueTargetUrl() && !this.isGitHubUrl(this.getIssueTargetUrl()!);
+			const externalIssueUrl = resolveIssueReporterTarget(this.data, product)?.external;
 			const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
 			if (waitingForData) {
 				this.nextButton.label = `$(loading~spin) ${localize('loadingDiagnostics', "Loading diagnostics...")}`;
 				this.nextButton.element.title = localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading");
 				this.nextButton.enabled = false;
 			} else {
-				this.nextButton.label = externalExtensionUrl
+				this.nextButton.label = externalIssueUrl
 					? localize('openExternalIssueReporter', "Open External Issue Reporter")
 					: localize('previewOnGitHub', "Preview on GitHub");
 				this.nextButton.element.title = this.nextButton.label;
@@ -1447,7 +1462,7 @@ export class IssueReporterOverlay {
 		// Show/hide capture strip (only on attachments step)
 		this.updateCaptureStripVisibility();
 		// Reflect recording state on next button
-		this.updateNextButtonForRecording();
+		this.updateNextButtonState();
 	}
 
 	private updateReviewDetails(): void {
@@ -1463,13 +1478,19 @@ export class IssueReporterOverlay {
 		const similarSection = append(details as HTMLElement, $('div.review-section.wizard-review-similar-section'));
 		this.similarIssuesContainer = append(similarSection, $('div.wizard-similar-issues'));
 		this.similarIssuesContainer.setAttribute('aria-live', 'polite');
-		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
+		this.renderSimilarIssuesMessage(!resolveIssueReporterTarget(this.data, product)?.isPublic
+			? localize('privateIssueSearchDisabled', "Similar issues were not searched because this repository may be private.")
+			: localize('searchingSimilarIssues', "Searching similar issues..."));
 
 		const sourceSection = append(details as HTMLElement, $('div.review-section'));
 		const sourceLabel = append(sourceSection, $('div.review-label'));
 		sourceLabel.textContent = localize('target', "Target");
 		const sourceValue = append(sourceSection, $('div.review-value'));
 		sourceValue.textContent = this.getIssueSourceLabel();
+
+		const repositorySection = append(details as HTMLElement, $('div.review-section.wizard-review-repository'));
+		append(repositorySection, $('div.review-label')).textContent = localize('repository', "Repository");
+		append(repositorySection, $('div.review-value')).textContent = this.getIssueRepositoryLabel();
 
 		const catSection = append(details as HTMLElement, $('div.review-section'));
 		const catLabel = append(catSection, $('div.review-label'));
@@ -1524,11 +1545,11 @@ export class IssueReporterOverlay {
 				const progressOverlay = append(card, $('div.review-progress-overlay'));
 				append(progressOverlay, $('div.review-progress-ring'));
 
-				this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
+				this.registerAttachmentAction(card, localize('openScreenshot', "Open screenshot {0}", i + 1), () => {
 					if (!this.uploading) {
 						this._onDidRequestOpenScreenshot.fire(s);
 					}
-				}));
+				}, this.reviewRenderDisposables);
 				this.reviewThumbCards.push(card);
 			}
 
@@ -1540,11 +1561,11 @@ export class IssueReporterOverlay {
 				const progressOverlay = append(card, $('div.review-progress-overlay'));
 				append(progressOverlay, $('div.review-progress-ring'));
 
-				this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
+				this.registerAttachmentAction(card, localize('openRecording', "Open video {0}", i + 1), () => {
 					if (!this.uploading) {
 						this._onDidRequestOpenRecording.fire(rec.filePath);
 					}
-				}));
+				}, this.reviewRenderDisposables);
 				this.reviewThumbCards.push(card);
 			}
 		}
@@ -1882,6 +1903,7 @@ export class IssueReporterOverlay {
 			this.nextButton.enabled = true;
 			this.updateStepUI();
 		}
+		this.updateAttachmentButtons();
 	}
 
 	/** Mark a specific attachment as uploading / done */
@@ -1939,6 +1961,192 @@ export class IssueReporterOverlay {
 		return this.screenshots.length + this.recordings.length;
 	}
 
+	private getOccupiedAttachmentSlots(): number {
+		return this.getTotalAttachments() + this.pendingAttachmentImports
+			+ (this.recordingSlotReserved ? 1 : 0)
+			+ (this.delayedScreenshotPending || this.screenshotCapturePending ? 1 : 0);
+	}
+
+	private getAttachmentFiles(transfer: DataTransfer | null): File[] {
+		if (!transfer) {
+			return [];
+		}
+		if (transfer.files.length) {
+			return Array.from(transfer.files);
+		}
+		return Array.from(transfer.items).filter(item => item.kind === 'file').map(item => item.getAsFile()).filter((file): file is File => !!file);
+	}
+
+	private hasAttachmentFiles(transfer: DataTransfer | null): boolean {
+		return !!transfer && (transfer.types.includes('Files') || transfer.files.length > 0 || Array.from(transfer.items).some(item => item.kind === 'file'));
+	}
+
+	private isTextInputTarget(target: EventTarget | null): boolean {
+		return isHTMLElement(target) && (target.isContentEditable || !!target.closest('input, textarea'));
+	}
+
+	private registerAttachmentInput(page: HTMLElement): void {
+		for (const type of [EventType.DRAG_ENTER, EventType.DRAG_OVER]) {
+			this.disposables.add(addDisposableListener(page, type, (event: DragEvent) => {
+				if (!this.hasAttachmentFiles(event.dataTransfer)) {
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
+				if (event.dataTransfer) {
+					event.dataTransfer.dropEffect = this.getOccupiedAttachmentSlots() < MAX_ATTACHMENTS && !this.uploading ? 'copy' : 'none';
+				}
+				this.screenshotContainer.classList.add('drag-over');
+			}));
+		}
+		this.disposables.add(addDisposableListener(page, EventType.DRAG_LEAVE, () => {
+			this.screenshotContainer.classList.remove('drag-over');
+		}));
+		this.disposables.add(addDisposableListener(page, EventType.DROP, (event: DragEvent) => {
+			this.screenshotContainer.classList.remove('drag-over');
+			if (!this.hasAttachmentFiles(event.dataTransfer)) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			this.requestAddAttachments(this.getAttachmentFiles(event.dataTransfer), event.dataTransfer?.getData('text/plain'));
+		}));
+		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.PASTE, (event: ClipboardEvent) => {
+			if (event.defaultPrevented || this.currentStep !== WizardStep.Attachments || this.isTextInputTarget(event.target)) {
+				return;
+			}
+			const files = this.getAttachmentFiles(event.clipboardData);
+			if (files.length) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.requestAddAttachments(files, event.clipboardData?.getData('text/plain'));
+			}
+		}));
+		for (const type of [EventType.DRAG_ENTER, EventType.DRAG_OVER, EventType.DROP]) {
+			this.disposables.add(addDisposableListener(this.wizardPanel, type, (event: DragEvent) => {
+				if (event.defaultPrevented || !this.hasAttachmentFiles(event.dataTransfer)) {
+					return;
+				}
+				const hasText = type === EventType.DROP
+					? !!event.dataTransfer?.getData('text/plain')
+					: event.dataTransfer?.types.includes('text/plain');
+				if (this.isTextInputTarget(event.target) && hasText) {
+					event.stopPropagation();
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
+				if (event.dataTransfer) {
+					event.dataTransfer.dropEffect = 'none';
+				}
+				if (type === EventType.DROP) {
+					this.attachmentErrors.push(localize('attachmentDropLocation', "Drop files in the Attachments step, or paste them into the description."));
+					this.updateAttachmentImportStatus();
+				}
+			}));
+		}
+		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.DRAG_LEAVE, (event: DragEvent) => {
+			if (this.hasAttachmentFiles(event.dataTransfer)) {
+				event.stopPropagation();
+			}
+		}));
+		this.disposables.add(addDisposableListener(this.wizardPanel, EventType.DRAG_END, () => this.screenshotContainer.classList.remove('drag-over')));
+	}
+
+	private requestAddAttachments(files: readonly File[], text?: string): void {
+		if (this.disposed) {
+			return;
+		}
+		if (this.pendingAttachmentImports === 0) {
+			this.attachmentErrors.length = 0;
+		}
+		if (this.uploading) {
+			this.attachmentErrors.push(localize('attachmentsUploading', "Wait for the current upload to finish before adding attachments."));
+			this.updateAttachmentImportStatus();
+			return;
+		}
+		if (text) {
+			const description = this.descriptionTextarea;
+			description.value += `${description.value ? '\n' : ''}${text}`;
+			description.dispatchEvent(new InputEvent(EventType.INPUT, { bubbles: true, inputType: 'insertFromPaste', data: text }));
+			status(localize('attachmentTextAdded', "Text added to the description."));
+		}
+		const accepted: File[] = [];
+		for (const file of files) {
+			if (this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS) {
+				this.attachmentErrors.push(localize('attachmentImportLimit', "You can attach up to {0} files, including captures and imports in progress. Remove an attachment before adding more.", MAX_ATTACHMENTS));
+				break;
+			}
+			try {
+				validateIssueReporterMediaFile(file);
+				accepted.push(file);
+				this.pendingAttachmentImports++;
+			} catch (error) {
+				this.attachmentErrors.push(toErrorMessage(error));
+			}
+		}
+		this.updateAttachmentButtons();
+		this.updateAttachmentImportStatus();
+		if (accepted.length) {
+			this._onDidRequestAddAttachments.fire(accepted);
+		}
+	}
+
+	completeAttachmentImport(attachment?: ImportedIssueMedia, error?: string): boolean {
+		if (this.disposed || this.pendingAttachmentImports === 0) {
+			return false;
+		}
+		this.pendingAttachmentImports--;
+		const accepted = !!attachment && this.getTotalAttachments() < MAX_ATTACHMENTS;
+		if (accepted) {
+			if (attachment.kind === 'image') {
+				this.screenshots.push(attachment.image);
+			} else {
+				this.recordings.push(attachment.video);
+			}
+			this.attachmentsChanged();
+		} else if (error) {
+			this.attachmentErrors.push(error);
+		} else if (attachment) {
+			this.attachmentErrors.push(localize('attachmentImportNoSpace', "The attachment could not be added because the limit of {0} files was reached.", MAX_ATTACHMENTS));
+		}
+		this.updateAttachmentButtons();
+		this.updateStepUI();
+		this.updateAttachmentImportStatus();
+		if (accepted) {
+			status(localize('attachmentImported', "Attachment added."));
+		}
+		return accepted;
+	}
+
+	private updateAttachmentImportStatus(): void {
+		const messages: string[] = [];
+		if (this.pendingAttachmentImports) {
+			messages.push(localize('attachmentsImporting', "Importing {0} file(s)...", this.pendingAttachmentImports));
+		}
+		messages.push(...this.attachmentErrors);
+		this.attachmentStatus.textContent = messages.join('\n');
+		this.attachmentStatus.hidden = messages.length === 0;
+		this.attachmentStatus.classList.toggle('has-errors', this.attachmentErrors.length > 0);
+		this.screenshotContainer.setAttribute('aria-busy', String(this.pendingAttachmentImports > 0));
+	}
+
+	private requestScreenshot(): void {
+		if (this.uploading || this.screenshotCapturePending || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS) {
+			return;
+		}
+		this.screenshotCapturePending = true;
+		this.updateAttachmentButtons();
+		this._onDidRequestScreenshot.fire();
+	}
+
+	completeScreenshotCapture(): void {
+		this.screenshotCapturePending = false;
+		if (!this.disposed) {
+			this.updateAttachmentButtons();
+		}
+	}
+
 	private getScreenshotDelayOptions(): { label: string; value: number }[] {
 		return [
 			{ label: localize('noDelay', "No delay"), value: 0 },
@@ -1961,7 +2169,7 @@ export class IssueReporterOverlay {
 	}
 
 	addScreenshot(screenshot: IScreenshot): void {
-		if (this.getTotalAttachments() >= MAX_ATTACHMENTS) {
+		if (this.disposed || this.getTotalAttachments() + this.pendingAttachmentImports + (this.recordingSlotReserved ? 1 : 0) >= MAX_ATTACHMENTS) {
 			return;
 		}
 		this.screenshots.push(screenshot);
@@ -1970,24 +2178,22 @@ export class IssueReporterOverlay {
 		if (this.currentStep !== WizardStep.Attachments) {
 			this.setStep(WizardStep.Attachments);
 		}
-		this.updateAttachmentViews();
-		this.updateAttachmentButtons();
-		this.updateStepUI();
-		this._onDidChangeAttachments.fire();
+		this.attachmentsChanged();
 
 		// Immediately open the annotation editor for the new screenshot
 		this.openAnnotationEditor(this.screenshots.length - 1);
 	}
 
 	private updateAttachmentButtons(): void {
-		const atMax = this.getTotalAttachments() >= MAX_ATTACHMENTS;
+		const occupiedSlots = this.getTotalAttachments() + this.pendingAttachmentImports;
+		const atMax = occupiedSlots >= MAX_ATTACHMENTS || this.uploading;
 		const maxMsg = localize('maxAttachmentsReached', "Max attachments reached");
-		const wouldReachMax = this.getTotalAttachments() >= MAX_ATTACHMENTS - 1;
+		const wouldReachMax = occupiedSlots >= MAX_ATTACHMENTS - 1;
 
 		// Screenshot disabled when: at max, OR recording will fill the last slot, OR delayed screenshot pending
-		const screenshotDisabled = atMax || (wouldReachMax && this.currentRecordingState === RecordingState.Recording) || this.delayedScreenshotPending;
+		const screenshotDisabled = atMax || (wouldReachMax && this.recordingSlotReserved) || this.delayedScreenshotPending || this.screenshotCapturePending;
 		// Record disabled when: at max, OR delayed screenshot will fill the last slot
-		const recordDisabled = atMax || (wouldReachMax && this.delayedScreenshotPending);
+		const recordDisabled = atMax || this.recordingSlotReserved || (wouldReachMax && (this.delayedScreenshotPending || this.screenshotCapturePending));
 
 		if (this.captureStripCaptureBtn) {
 			this.captureStripCaptureBtn.enabled = !screenshotDisabled;
@@ -2001,26 +2207,39 @@ export class IssueReporterOverlay {
 		if (this.captureStripRecordBtn) {
 			if (this.currentRecordingState !== RecordingState.Recording) {
 				this.captureStripRecordBtn.enabled = !recordDisabled;
-				this.captureStripRecordBtn.element.title = recordDisabled ? maxMsg : localize('recordVideo', "Record video");
+				this.captureStripRecordBtn.element.title = this.recordingSlotReserved
+					? localize('recordingPending', "Recording in progress")
+					: recordDisabled ? maxMsg : localize('recordVideo', "Record video");
+			} else {
+				this.captureStripRecordBtn.enabled = true;
 			}
 		}
+		this.screenshotAddCard?.classList.toggle('disabled', screenshotDisabled);
+		this.screenshotAddCard?.setAttribute('aria-disabled', String(screenshotDisabled));
 
 		// Disable "Preview on GitHub" while recording
-		this.updateNextButtonForRecording();
+		this.updateNextButtonState();
 	}
 
-	private updateNextButtonForRecording(): void {
+	private updateNextButtonState(): void {
 		if (this.currentStep !== WizardStep.Review) {
+			this.nextButton.enabled = !this.uploading;
 			return;
 		}
-		const recording = this.currentRecordingState === RecordingState.Recording;
-		this.nextButton.enabled = !recording;
-		this.nextButton.element.title = recording
-			? localize('recordingActive', "Recording active")
-			: localize('previewOnGitHub', "Preview on GitHub");
+		const recording = this.recordingSlotReserved || this.currentRecordingState === RecordingState.Recording;
+		const importing = this.pendingAttachmentImports > 0 || this.screenshotCapturePending;
+		const waitingForData = this.selectedIssueType === IssueType.PerformanceIssue && (!this.performanceInfoLoaded || this.performanceInfoRefreshing);
+		this.nextButton.enabled = !recording && !importing && !this.uploading && !waitingForData;
+		if (recording || importing) {
+			this.nextButton.element.title = recording ? localize('recordingActive', "Recording active") : localize('attachmentImportActive', "Wait for attachments to finish importing");
+		} else if (waitingForData) {
+			this.nextButton.element.title = localize('waitingForDiagnostics', "Waiting for performance diagnostics to finish loading");
+		} else {
+			this.nextButton.element.title = this.nextButton.element.textContent ?? '';
+		}
 	}
 
-	private renderRecordingCard(parent: HTMLElement, rec: { filePath: string; durationMs: number; thumbnailDataUrl?: string }, index: number): HTMLElement {
+	private renderRecordingCard(parent: HTMLElement, rec: IIssueReporterVideo, index: number): HTMLElement {
 		const card = append(parent, $('div.wizard-screenshot-card.wizard-recording-card'));
 
 		if (rec.thumbnailDataUrl) {
@@ -2031,18 +2250,45 @@ export class IssueReporterOverlay {
 		}
 
 		const playOverlay = append(card, $('div.wizard-recording-play'));
+		playOverlay.setAttribute('aria-hidden', 'true');
 		playOverlay.appendChild(renderIcon(Codicon.play));
 
-		const durSec = Math.floor(rec.durationMs / 1000);
 		const durLabel = append(card, $('div.wizard-recording-duration'));
-		durLabel.textContent = `${Math.floor(durSec / 60)}:${(durSec % 60).toString().padStart(2, '0')}`;
+		if (rec.durationMs === undefined) {
+			durLabel.textContent = localize('unknownVideoDuration', "Unknown duration");
+		} else {
+			const durSec = Math.floor(rec.durationMs / 1000);
+			durLabel.textContent = `${Math.floor(durSec / 60)}:${(durSec % 60).toString().padStart(2, '0')}`;
+		}
 
 		return card;
+	}
+
+	private registerAttachmentAction(element: HTMLElement, label: string, action: () => void, disposables: DisposableStore): void {
+		element.setAttribute('role', 'button');
+		element.setAttribute('aria-label', label);
+		element.tabIndex = 0;
+		disposables.add(addDisposableListener(element, EventType.CLICK, event => {
+			event.stopPropagation();
+			action();
+		}));
+		disposables.add(addDisposableListener(element, EventType.KEY_DOWN, event => {
+			if (event.target !== element) {
+				return;
+			}
+			const key = new StandardKeyboardEvent(event);
+			if (key.equals(KeyCode.Enter) || key.equals(KeyCode.Space)) {
+				event.preventDefault();
+				event.stopPropagation();
+				action();
+			}
+		}));
 	}
 
 	private updateScreenshotThumbnails(): void {
 		this.screenshotDisposables.clear();
 		this.screenshotContainer.textContent = '';
+		this.screenshotAddCard = undefined;
 
 		for (let i = 0; i < this.screenshots.length; i++) {
 			const screenshot = this.screenshots[i];
@@ -2052,31 +2298,16 @@ export class IssueReporterOverlay {
 			img.src = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
 			img.alt = localize('screenshotAlt', "Screenshot {0}", i + 1);
 
-			card.setAttribute('role', 'button');
-			card.setAttribute('tabindex', '0');
 			card.title = localize('editScreenshot', "Click to edit screenshot");
-			const openEditor = () => this.openAnnotationEditor(i);
-			this.screenshotDisposables.add(addDisposableListener(card, EventType.CLICK, openEditor));
-			this.screenshotDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, e => {
-				const event = new StandardKeyboardEvent(e);
-				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-					e.preventDefault();
-					openEditor();
-				}
-			}));
+			this.registerAttachmentAction(card, localize('editScreenshotLabel', "Edit screenshot {0}", i + 1), () => this.openAnnotationEditor(i), this.screenshotDisposables);
 
 			const deleteBtn = append(card, $('div.wizard-screenshot-delete'));
-			deleteBtn.setAttribute('role', 'button');
-			deleteBtn.setAttribute('aria-label', localize('deleteScreenshot', "Delete screenshot"));
 			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.screenshotDisposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
-				e.stopPropagation();
+			this.registerAttachmentAction(deleteBtn, localize('deleteScreenshot', "Delete screenshot"), () => {
 				this.screenshots.splice(i, 1);
-				this.updateScreenshotThumbnails();
-				this.updateAttachmentButtons();
-				this.updateStepUI();
-				this._onDidChangeAttachments.fire();
-			}));
+				this.attachmentsChanged();
+				this.screenshotContainer.focus();
+			}, this.screenshotDisposables);
 		}
 
 		// Recording thumbnails
@@ -2084,40 +2315,37 @@ export class IssueReporterOverlay {
 			const rec = this.recordings[i];
 			const card = this.renderRecordingCard(this.screenshotContainer, rec, i);
 
-			// Click to open from OS
-			this.screenshotDisposables.add(addDisposableListener(card, EventType.CLICK, () => {
+			this.registerAttachmentAction(card, localize('openRecording', "Open video {0}", i + 1), () => {
 				this._onDidRequestOpenRecording.fire(rec.filePath);
-			}));
+			}, this.screenshotDisposables);
 
 			const deleteBtn = append(card, $('div.wizard-screenshot-delete'));
-			deleteBtn.setAttribute('role', 'button');
-			deleteBtn.setAttribute('aria-label', localize('deleteRecording', "Remove recording"));
 			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.screenshotDisposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
-				e.stopPropagation();
+			this.registerAttachmentAction(deleteBtn, localize('deleteRecording', "Remove recording"), () => {
 				this.recordings.splice(i, 1);
-				this.updateScreenshotThumbnails();
-				this.updateAttachmentButtons();
-				this.updateStepUI();
-				this._onDidChangeAttachments.fire();
-			}));
+				this.attachmentsChanged();
+				this.screenshotContainer.focus();
+			}, this.screenshotDisposables);
 		}
 
 		if (this.getTotalAttachments() < MAX_ATTACHMENTS) {
-			const wouldReachMax = this.getTotalAttachments() >= MAX_ATTACHMENTS - 1;
-			const addDisabled = wouldReachMax && (this.currentRecordingState === RecordingState.Recording || this.delayedScreenshotPending);
+			const addDisabled = this.uploading || this.screenshotCapturePending || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS;
 			const addCard = append(this.screenshotContainer, $('div.wizard-screenshot-card.wizard-screenshot-add'));
+			this.screenshotAddCard = addCard;
+			addCard.setAttribute('aria-disabled', String(addDisabled));
 			if (addDisabled) {
 				addCard.classList.add('disabled');
 				addCard.title = localize('maxAttachmentsReached', "Max attachments reached");
 			}
 			const plus = append(addCard, $('div.wizard-screenshot-plus'));
 			plus.appendChild(renderIcon(Codicon.add));
-			this.screenshotDisposables.add(addDisposableListener(addCard, EventType.CLICK, () => {
+			plus.setAttribute('aria-hidden', 'true');
+			append(addCard, $('span')).textContent = localize('screenshot', "Screenshot");
+			this.registerAttachmentAction(addCard, localize('captureScreenshot', "Capture Screenshot"), () => {
 				if (!addCard.classList.contains('disabled')) {
-					this._onDidRequestScreenshot.fire();
+					this.requestScreenshot();
 				}
-			}));
+			}, this.screenshotDisposables);
 		}
 	}
 
@@ -2153,7 +2381,7 @@ export class IssueReporterOverlay {
 		return this.screenshots;
 	}
 
-	getRecordings(): readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] {
+	getRecordings(): readonly IIssueReporterVideo[] {
 		return this.recordings;
 	}
 
@@ -2164,7 +2392,7 @@ export class IssueReporterOverlay {
 	 * the in-memory screenshots and recordings. Does not fire
 	 * `onDidChangeAttachments` since the host is the source of this state.
 	 */
-	restoreAttachments(screenshots: readonly IScreenshot[], recordings: readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[]): void {
+	restoreAttachments(screenshots: readonly IScreenshot[], recordings: readonly IIssueReporterVideo[]): void {
 		this.screenshots.length = 0;
 		this.screenshots.push(...screenshots.slice(0, MAX_ATTACHMENTS));
 		this.recordings.length = 0;
@@ -2228,6 +2456,7 @@ export class IssueReporterOverlay {
 		const rows: [string, string | undefined][] = [
 			['Issue Category', this.getIssueTypeTitle(this.selectedIssueType ?? IssueType.Bug)],
 			['Target', this.getIssueSourceLabel()],
+			['Repository', this.getIssueRepositoryLabel()],
 			['VS Code Version', modelData.versionInfo?.vscodeVersion ?? product.version],
 			['OS Version', modelData.versionInfo?.os ?? modelData.systemInfo?.os],
 		];
@@ -2442,6 +2671,9 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	hasUnsavedChanges(): boolean {
+		if (this.pendingAttachmentImports > 0 || this.screenshotCapturePending || this.recordingSlotReserved) {
+			return true;
+		}
 		if (this.previewOpened && this.previewedDraftKey === this.getDraftKey()) {
 			return false;
 		}
@@ -2470,6 +2702,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			description: this.descriptionTextarea.value.trim(),
 			issueType: this.selectedIssueType,
 			issueSource: this.selectedIssueSource,
+			issueTarget: this.getIssueTargetUrl(),
 			extensionId: this.selectedExtension?.id,
 			includeSystemInfo: this.includeSystemInfo,
 			includeProcessInfo: this.includeProcessInfo,
@@ -2514,8 +2747,22 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.updateStepUI();
 	}
 
+	reserveRecordingSlot(): boolean {
+		if (this.disposed || this.uploading || this.recordingSlotReserved || this.currentRecordingState === RecordingState.Recording || this.getOccupiedAttachmentSlots() >= MAX_ATTACHMENTS) {
+			return false;
+		}
+		this.recordingSlotReserved = true;
+		this.updateAttachmentButtons();
+		return true;
+	}
+
 	setRecordingState(state: RecordingState): void {
 		this.currentRecordingState = state;
+		if (state === RecordingState.Recording) {
+			this.recordingSlotReserved = true;
+		} else if (state === RecordingState.Idle) {
+			this.recordingSlotReserved = false;
+		}
 
 		if (state === RecordingState.Recording) {
 			this.recordingStartTime = Date.now();
@@ -2559,12 +2806,22 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		this.updateAttachmentButtons();
 	}
 
-	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): void {
+	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): boolean {
+		const pendingScreenshot = this.delayedScreenshotPending || this.screenshotCapturePending;
+		if (this.disposed || this.getTotalAttachments() + this.pendingAttachmentImports + (pendingScreenshot ? 1 : 0) >= MAX_ATTACHMENTS) {
+			return false;
+		}
 		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
+		this.recordingSlotReserved = false;
 		// Navigate to the Attachments step so the user sees the saved recording.
 		if (this.currentStep !== WizardStep.Attachments) {
 			this.setStep(WizardStep.Attachments);
 		}
+		this.attachmentsChanged();
+		return true;
+	}
+
+	private attachmentsChanged(): void {
 		this.updateAttachmentViews();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
@@ -2619,6 +2876,8 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	dispose(): void {
+		this.disposed = true;
+		this.recordingSlotReserved = false;
 		if (this.recordingElapsedTimer !== undefined) {
 			getWindow(this.container).clearInterval(this.recordingElapsedTimer);
 		}

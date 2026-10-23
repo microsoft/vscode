@@ -45,6 +45,15 @@ steps:
       stat $ELECTRON_ROOT/chrome-sandbox
     displayName: Change setuid helper binary permission
 
+  # Flush what the build, the artifact extraction and the downloads above wrote,
+  # so that its writeback doesn't stall the fsync-heavy tests for seconds
+  - script: |
+      set -e
+      grep -E '^(Dirty|Writeback):' /proc/meminfo
+      time sync
+      grep -E '^(Dirty|Writeback):' /proc/meminfo
+    displayName: Flush pending disk writes
+
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'unit-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:

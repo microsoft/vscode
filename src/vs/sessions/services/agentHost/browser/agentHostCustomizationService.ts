@@ -68,7 +68,12 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (!provider) {
 			return undefined;
 		}
+		const backendSession = provider.getBackendSessionResource(session.sessionId);
+		if (!backendSession) {
+			return undefined;
+		}
 		return {
+			backendSession,
 			customizations: provider.getCustomizations(session.sessionId),
 			resourceUris: {
 				fromAgentHost: resource => provider.mapAgentHostResource(resource),
@@ -109,6 +114,23 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			}
 		}
 		return [];
+	}
+
+	getBackendChatResource(sessionResource: URI): URI | undefined {
+		const directSession = this._getSession(sessionResource);
+		const ownedChat = directSession ? undefined : this._sessionsManagementService.getSessionForChatResource(sessionResource);
+		const session = directSession ?? ownedChat?.session;
+		if (!session) {
+			return undefined;
+		}
+		const provider = this._getAHSProvider(session);
+		if (!provider) {
+			return undefined;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		const chat = ownedChat?.chat
+			?? (activeSession && isEqual(activeSession.resource, session.resource) ? activeSession.activeChat.get() : session.mainChat.get());
+		return provider.getBackendChatResource(chat.resource);
 	}
 
 	private _ensureProviderListener(provider: IAgentHostSessionsProvider): void {

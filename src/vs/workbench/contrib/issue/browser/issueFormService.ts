@@ -22,8 +22,8 @@ import { IRectangle } from '../../../../platform/window/common/window.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
-import { IIssueFormService, IIssueSubmissionHost, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueSource } from '../common/issue.js';
-import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { IIssueFormService, IIssueSubmissionHost, ISimilarIssue, IssueReporterData, IssueSource } from '../common/issue.js';
+import { getIssueReporterUrlWithTitle, resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
 import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
 import { IGitHubUploadService } from './githubUploadService.js';
@@ -33,6 +33,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { hash } from '../../../../base/common/hash.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
+import { getIssueReporterMediaFormat } from './issueReporterMedia.js';
 import './media/issueReporter.css';
 import { abortOnDispose } from '../../../../base/common/cancellation.js';
 
@@ -153,18 +154,19 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	async submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string): Promise<boolean> {
-		const screenshots = host.getScreenshots();
-		const recordings = host.getRecordings();
-
-		const issueTarget = this.getIssueTarget(data);
+		const issueTarget = resolveIssueReporterTarget(data, product);
 		if (!issueTarget?.url) {
+			this.logService.error('[IssueFormService] Invalid issue reporting destination.');
+			await this.dialogService.error(localize('invalidIssueDestination', "The selected issue destination is invalid. No issue data was sent."));
 			return false;
 		}
 		if (issueTarget.external) {
 			return this.openerService.open(issueTarget.url, { openExternal: true });
 		}
 
-		const gitHubDetails = this.parseGitHubUrl(issueTarget.url);
+		const screenshots = host.getScreenshots();
+		const recordings = host.getRecordings();
+		const gitHubDetails = issueTarget.repository;
 		let repoId: string | undefined;
 		const resolveRepoId = async (): Promise<string | undefined> => {
 			if (!gitHubDetails) {
@@ -191,20 +193,21 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 					const dataUrl = screenshots[i].annotatedDataUrl ?? screenshots[i].dataUrl;
 					const bytes = this.dataUrlToBytes(dataUrl);
 					if (bytes) {
-						// Screenshots are either annotated (always PNG via canvas.toDataURL)
-						// or raw native captures (always JPEG); fall back to PNG.
-						const isJpeg = dataUrl.startsWith('data:image/jpeg');
-						const extension = isJpeg ? 'jpg' : 'png';
-						const contentType = isJpeg ? 'image/jpeg' : 'image/png';
-						filesToProcess.push({ key: `screenshot:${hash(dataUrl)}`, name: `screenshot-${i + 1}.${extension}`, bytes, contentType });
+						const format = getIssueReporterMediaFormat('', dataUrl.slice(5, dataUrl.indexOf(',')).split(';', 1)[0]);
+						if (!format || format.kind !== 'image') {
+							throw new Error('Unsupported image attachment.');
+						}
+						filesToProcess.push({ key: `screenshot:${hash(dataUrl)}`, name: `screenshot-${i + 1}.${format.extension}`, bytes, contentType: format.mimeType });
 					}
 				}
 				for (let i = 0; i < recordings.length; i++) {
 					const rec = recordings[i];
+					const format = getIssueReporterMediaFormat(rec.filePath);
+					if (!format || format.kind !== 'video') {
+						throw new Error('Unsupported video attachment.');
+					}
 					const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
-					const ext = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
-					const contentType = ext === 'mp4' ? 'video/mp4' : 'video/webm';
-					filesToProcess.push({ key: `recording:${rec.filePath}`, name: `recording-${i + 1}.${ext}`, bytes: fileContent.value.buffer, contentType });
+					filesToProcess.push({ key: `recording:${rec.filePath}`, name: `recording-${i + 1}.${format.extension}`, bytes: fileContent.value.buffer, contentType: format.mimeType });
 				}
 
 				if (filesToProcess.length > 0) {
@@ -215,7 +218,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 					const uploadResults: import('./githubUploadService.js').IGitHubUploadResult[] = [];
 					for (let i = 0; i < filesToProcess.length; i++) {
 						const file = filesToProcess[i];
-						const cached = this.uploadCache.get(file.key);
+						const cacheKey = `${gitHubDetails.owner.toLowerCase()}/${gitHubDetails.repositoryName.toLowerCase()}:${file.key}`;
+						const cached = this.uploadCache.get(cacheKey);
 						if (cached) {
 							uploadResults.push(cached);
 							host.setAttachmentUploadState(i, 'done');
@@ -233,7 +237,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 						if (!result) {
 							throw new Error(`Upload returned no result for ${file.name}.`);
 						}
-						this.uploadCache.set(file.key, result);
+						this.uploadCache.set(cacheKey, result);
 						uploadResults.push(result);
 						host.setAttachmentUploadState(i, 'done');
 					}
@@ -255,7 +259,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 		const issueBody = body + mediaMarkdown;
 
-		const baseUrl = this.getIssueUrlWithTitle(title, issueTarget.url);
+		const baseUrl = getIssueReporterUrlWithTitle(title, issueTarget.url);
 		let previewBody = issueBody;
 		let url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
 
@@ -331,7 +335,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private async uploadIssueDataFile(githubAccessToken: string, repoId: string, fileContent: string): Promise<import('./githubUploadService.js').IGitHubUploadResult> {
-		const key = `${ISSUE_DATA_ATTACHMENT_NAME}:${hash(fileContent)}`;
+		const key = `${repoId}:${ISSUE_DATA_ATTACHMENT_NAME}:${hash(fileContent)}`;
 		const cached = this.uploadCache.get(key);
 		if (cached) {
 			return cached;
@@ -362,95 +366,16 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private createIssuePreviewUrl(baseUrl: string, body: string, gitHubDetails: { owner: string; repositoryName: string } | undefined, issueSource: IssueSource | undefined): string {
-		const url = `${baseUrl}&body=${encodeURIComponent(body)}`;
-		return this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName, issueSource);
-	}
-
-	private getIssueTarget(data: IssueReporterData): { url: string; external: boolean } | undefined {
-		const selectedExtension = this.getSelectedExtension(data);
-		if (data.issueSource === IssueSource.Extension && selectedExtension) {
-			const extensionUrl = this.getExtensionIssueUrl(selectedExtension);
-			if (!extensionUrl) {
-				return undefined;
-			}
-			return { url: extensionUrl, external: !this.isGitHubUrl(extensionUrl) };
-		}
-
-		if (data.issueSource === IssueSource.Marketplace) {
-			const marketplaceIssueUrl = product.reportMarketplaceIssueUrl ?? product.reportIssueUrl;
-			return marketplaceIssueUrl ? { url: marketplaceIssueUrl, external: false } : undefined;
-		}
-
-		if (data.uri) {
-			const url = URI.revive(data.uri).toString();
-			return { url, external: !this.isGitHubUrl(url) };
-		}
-
-		if (data.privateUri) {
-			const url = URI.revive(data.privateUri).toString();
-			return { url, external: !this.isGitHubUrl(url) };
-		}
-
-		return product.reportIssueUrl ? { url: product.reportIssueUrl, external: false } : undefined;
-	}
-
-	private getSelectedExtension(data: IssueReporterData): IssueReporterExtensionData | undefined {
-		return data.extensionId
-			? data.enabledExtensions.find(ext => ext.id.toLowerCase() === data.extensionId?.toLowerCase())
-			: undefined;
-	}
-
-	private getExtensionIssueUrl(extension: IssueReporterExtensionData): string | undefined {
-		if (extension.uri) {
-			return URI.revive(extension.uri).toString();
-		}
-		if (extension.bugsUrl && /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?(\/issues)?\/?$/.test(extension.bugsUrl)) {
-			return `${normalizeGitHubUrl(extension.bugsUrl)}/issues/new`;
-		}
-		if (extension.repositoryUrl && /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*)\/?$/.test(extension.repositoryUrl)) {
-			return `${normalizeGitHubUrl(extension.repositoryUrl)}/issues/new`;
-		}
-		return extension.bugsUrl || extension.repositoryUrl;
-	}
-
-	private isGitHubUrl(url: string): boolean {
-		return /^https?:\/\/github\.com\//i.test(url);
-	}
-
-	private parseGitHubUrl(url: string): { owner: string; repositoryName: string } | undefined {
-		const match = /^https?:\/\/github\.com\/([^\/?#]+)\/([^\/?#]+).*/i.exec(url);
-		if (!match) {
-			return undefined;
-		}
-		return { owner: match[1], repositoryName: match[2] };
-	}
-
-	private getIssueUrlWithTitle(issueTitle: string, issueUrl: string): string {
-		// Point any GitHub target at the new-issue form, not just extensions. The
-		// VS Code / Marketplace targets can be a bare repo URL (e.g. a `data.uri`
-		// override or a `reportIssueUrl` without the `/issues/new` suffix), which
-		// would otherwise open the repo landing page instead of the pre-filled
-		// issue form. The `isGitHubUrl` guard leaves non-GitHub issue trackers
-		// (which open directly as external links) untouched.
-		if (this.isGitHubUrl(issueUrl) && !/\/issues\/new(?:[?#].*)?$/i.test(issueUrl)) {
-			issueUrl = `${normalizeGitHubUrl(issueUrl)}/issues/new`;
-		}
-		const queryStringPrefix = issueUrl.indexOf('?') === -1 ? '?' : '&';
-		return `${issueUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
-	}
-
-	private addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string, issueSource?: IssueSource): string {
-		const needsTemplate = issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow || (owner?.toLowerCase() === 'microsoft' && repositoryName?.toLowerCase() === 'vscode');
-		if (!needsTemplate) {
-			return baseUrl;
-		}
-		try {
-			const url = new URL(baseUrl);
+		const url = new URL(baseUrl);
+		url.searchParams.set('body', body);
+		const owner = gitHubDetails?.owner.toLowerCase();
+		const repositoryName = gitHubDetails?.repositoryName.toLowerCase();
+		const needsTemplate = owner === 'microsoft' && (repositoryName === 'vscode'
+			|| (repositoryName === 'vscode-internalbacklog' && (issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow)));
+		if (needsTemplate && !url.searchParams.has('template')) {
 			url.searchParams.set('template', 'bug_report.md');
-			return url.toString();
-		} catch {
-			return `${baseUrl}&template=bug_report.md`;
 		}
+		return url.toString();
 	}
 
 	private dataUrlToBytes(dataUrl: string): Uint8Array | undefined {

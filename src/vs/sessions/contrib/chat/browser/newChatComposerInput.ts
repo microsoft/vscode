@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
@@ -14,9 +16,11 @@ import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '.
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import type { IChat } from '../../../services/sessions/common/session.js';
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import type { NewChatUserInteraction } from './newChatUserInteraction.js';
 import type { ISessionTypePickerOptions } from './sessionTypePicker.js';
+import type { IChatPetPlatformOccupation } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 
 /**
  * The attachments with the input's GitHub issue and pull request links kept as
@@ -96,9 +100,21 @@ export interface INewChatInputSendRequest {
 	readonly userInteraction?: NewChatUserInteraction;
 }
 
+/** Repository controls a host renders in place of the session provider's. */
+export interface IComposerRepositoryControls extends IDisposable {
+	/** Whether any control is shown, so an otherwise empty controls row can hide. */
+	readonly visible: IObservable<boolean>;
+}
+
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
 	readonly session: IObservable<IActiveSession | undefined>;
+	/**
+	 * The chat the input binds to. Defaults to the session's active chat, such as a new session's
+	 * draft chat. A host that shows one of several chats passes its own, so the input never binds
+	 * to another chat that is active elsewhere.
+	 */
+	readonly chat?: IObservable<IChat | undefined>;
 	readonly getWorkspacePreselectionSource?: () => NewSessionWorkspacePreselectionSource;
 	readonly getWorkspaceSelection?: () => IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
@@ -112,7 +128,14 @@ export interface INewChatComposerInputOptions {
 	readonly loading: IObservable<boolean>;
 	readonly useExperimentalLayout?: IObservable<boolean>;
 	readonly placeholder?: string;
-	readonly renderRepositoryControls?: boolean;
+	/** Marks the input box as this onboarding spotlight target. */
+	readonly onboardingTargetId?: string;
+	/**
+	 * The repository controls (such as isolation and branch). By default the session provider
+	 * contributes them; `false` renders none, and a function renders the host's own controls in
+	 * their place, so they are positioned like the provider's.
+	 */
+	readonly renderRepositoryControls?: boolean | ((container: HTMLElement, hoverDelegate: IHoverDelegate) => IComposerRepositoryControls);
 	readonly sessionTypePickerOptions?: ISessionTypePickerOptions;
 	readonly supportsBackground?: boolean;
 	readonly sendButtonLabel?: IObservable<string | undefined>;
@@ -120,7 +143,9 @@ export interface INewChatComposerInputOptions {
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	readonly petHostPreferred?: IObservable<boolean>;
 	readonly getChatPetPlatformElements?: () => readonly HTMLElement[];
+	readonly getChatPetBasePlatformElement?: () => HTMLElement | undefined;
 	readonly onDidChangeChatPetPlatform?: Event<void>;
+	readonly setChatPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void;
 	/**
 	 * Keep this composer a valid voice target even while a created session
 	 * is active. Used by the in-session "new chat" composer so dictation

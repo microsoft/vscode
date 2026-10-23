@@ -28,18 +28,35 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import type { AgentModelCatalogStatus } from '../../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let testConfigService: TestConfigurationService;
+	let activeTarget: Target;
+	let modelCatalogueStatus: ISettableObservable<AgentModelCatalogStatus | undefined>;
+	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
+	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
+	let copilotSkillInventory: ICustomizationItem[] | Error | undefined;
+	let otherCopilotSkillInventory: ICustomizationItem[] | Error | undefined;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
 	const existingHomeRef = URI.parse('myFs://test/home/work/vscode/');
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
+		modelCatalogueStatus = observableValue('modelCatalogueStatus', 'pending');
+		copilotToolInventory = undefined;
+		otherCopilotToolInventory = undefined;
+		copilotSkillInventory = undefined;
+		otherCopilotSkillInventory = undefined;
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
@@ -123,11 +140,14 @@ suite('PromptValidator', () => {
 		const testModels: ILanguageModelChatMetadata[] = [
 			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata
+			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
+			{ id: 'gemini/Google/models/gemini-flash', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, byokModelIdentifier: 'gemini/Google/models/gemini-flash', maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
+			lookupLanguageModel(id: string) { return testModels.find(model => model.id === id); },
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
@@ -135,7 +155,8 @@ suite('PromptValidator', () => {
 					}
 				}
 				return undefined;
-			}
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customChatMode = new CustomChatMode({
@@ -172,6 +193,55 @@ suite('PromptValidator', () => {
 		};
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = {
+			...localDescriptor,
+			id: 'copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			modelCatalogueStatus,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => {
+					if (copilotSkillInventory instanceof Error) {
+						throw copilotSkillInventory;
+					}
+					return copilotSkillInventory;
+				},
+				provideAgentFileTools: async () => {
+					if (copilotToolInventory instanceof Error) {
+						throw copilotToolInventory;
+					}
+					return copilotToolInventory;
+				},
+			},
+		};
+		const otherCopilotDescriptor = {
+			...localDescriptor,
+			id: 'other-copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			modelCatalogueStatus,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => {
+					if (otherCopilotSkillInventory instanceof Error) {
+						throw otherCopilotSkillInventory;
+					}
+					return otherCopilotSkillInventory;
+				},
+				provideAgentFileTools: async () => {
+					if (otherCopilotToolInventory instanceof Error) {
+						throw otherCopilotToolInventory;
+					}
+					return otherCopilotToolInventory;
+				},
+			},
+		};
+		instaService.stub(ICustomizationHarnessService, {
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor, otherCopilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
+			getSessionResourceForHarness: harnessId => URI.parse(`test:/${harnessId}`),
+		});
 	});
 
 	async function validate(code: string, promptType: PromptsType, uri?: URI): Promise<IMarkerData[]> {
@@ -185,6 +255,40 @@ suite('PromptValidator', () => {
 		return markers;
 	}
 	suite('agents', () => {
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'argument-hint: "test hint"',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				severity: marker.severity,
+				tags: marker.tags,
+				message: marker.message,
+			})), [{
+				severity: MarkerSeverity.Hint,
+				tags: [MarkerTag.Unnecessary],
+				message: `Attribute 'argument-hint' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.`,
+			}]);
+		});
+
+		test('explicit target overrides active harness target', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'argument-hint: "test hint"',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
 
 		test('correct agent', async () => {
 			const content = [
@@ -711,12 +815,525 @@ suite('PromptValidator', () => {
 				'target: github-copilot',
 				'model: ["MAE 4.1 (copilot)", "MAE 4 (olama)"]',
 				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
-				'mcp-servers: []',
+				'mcp-servers: {}',
 				'---',
 				'Body with #search and #edit references',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
+		});
+
+		test('github-copilot agent supports the complete schema', async () => {
+			const content = [
+				'---',
+				'name: reviewer',
+				'description: Reviews code',
+				'target: github-copilot',
+				'model: [model-a, model-b]',
+				'model-policy: preferred',
+				'reasoning-effort: custom-effort',
+				'tools: [execute, read]',
+				'mcp-servers: null',
+				'disable-model-invocation: false',
+				'user-invocable: true',
+				'github:',
+				'  toolsets: [repos, issues]',
+				'  permissions:',
+				'    issues: write',
+				'skills: [review, testing]',
+				'deferred-tool-loading: true',
+				'strict-tools-list: false',
+				'include-custom-instructions: true',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: command',
+				'      bash: echo ready',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent validates models after catalogue resolution', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: [copilot-model, unavailable-model]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [{
+				message: `Model 'unavailable-model' is not available for the GitHub Copilot harness.`,
+				tags: [MarkerTag.Unnecessary],
+			}]);
+		});
+
+		test('github-copilot agent accepts runtime model identifiers and aliases', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model:',
+				'  - copilot-model',
+				'  - Copilot Model',
+				'  - Copilot Model (copilot)',
+				'  - copilot-model:defaultReasoningEffort=high',
+				'  - gemini/Google/models/gemini-flash',
+				'  - gemini/Google/models/gemini-flash:defaultReasoningEffort=high',
+				'  - Private Model',
+				'  - Copilot Model (agent-host-copilotcli)',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => marker.message), [
+				`Model 'Private Model' is not available for the GitHub Copilot harness.`,
+				`Model 'Copilot Model (agent-host-copilotcli)' is not available for the GitHub Copilot harness.`,
+			]);
+		});
+
+		test('github-copilot agent does not validate models while catalogue is pending', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent does not validate models after catalogue failure', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('error', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent does not validate models without a host readiness extension', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set(undefined, undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent validates model-specific reasoning effort', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: copilot-model',
+				'reasoning-effort: unsupported',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [{
+				message: `Reasoning effort 'unsupported' is not supported by the selected model.`,
+				tags: [MarkerTag.Unnecessary],
+			}]);
+		});
+
+		test('github-copilot agent supports all canonical hook events and aliases', async () => {
+			const canonicalEvents = [
+				'sessionStart',
+				'sessionEnd',
+				'userPromptSubmitted',
+				'userPromptTransformed',
+				'preToolUse',
+				'preMcpToolCall',
+				'postToolUse',
+				'postToolUseFailure',
+				'errorOccurred',
+				'agentStop',
+				'subagentStart',
+				'subagentStop',
+				'preCompact',
+				'permissionRequest',
+				'notification',
+			];
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				...canonicalEvents.flatMap(event => [`  ${event}:`, '    - command: echo hook']),
+				'  PreMcpToolCall:',
+				'    - command: echo alias',
+				'  Notification:',
+				'    - command: echo alias',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent supports command, HTTP, and startup prompt hook actions', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: prompt',
+				'      prompt: Check repository status',
+				'    - type: command',
+				'      exec: node',
+				'      args: [script.js]',
+				'      timeout: 2.5',
+				'  preToolUse:',
+				'    - type: http',
+				'      url: https://example.com/approve',
+				'      headers:',
+				'        X-Source: agent',
+				'      allowedEnvVars: [TOKEN]',
+				'      matcher: shell|bash',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent rejects invalid hook action combinations', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  agentStop:',
+				'    - type: prompt',
+				'      prompt: Not allowed here',
+				'    - type: command',
+				'      command: echo shell',
+				'      exec: node',
+				'    - type: http',
+				'    - type: unknown',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`Prompt hook actions are only supported for 'sessionStart'.`,
+				`Hook command must specify either a shell command or 'exec', but not both.`,
+				`HTTP hook action requires the 'url' property.`,
+				`Unknown hook action type 'unknown'. Supported: command, http, prompt.`,
+			]);
+		});
+
+		test('github-copilot agent requires a description', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'name: reviewer',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'description' attribute is required.`,
+			]);
+		});
+
+		test('github-copilot agent validates schema value types', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: []',
+				'model-policy: sometimes',
+				'skills: review',
+				'deferred-tool-loading: "true"',
+				'github: invalid',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'description' attribute must be a scalar value.`,
+				`The 'model-policy' attribute must be one of: preferred, required.`,
+				`The 'skills' attribute must be an array.`,
+				`The 'deferred-tool-loading' attribute must be true or false.`,
+				`The 'github' attribute must be an object.`,
+			]);
+		});
+
+		test('github-copilot agent rejects quoted boolean values', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'infer: "false"',
+				'disable-model-invocation: "true"',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'infer' attribute must be true or false.`,
+				`The 'disable-model-invocation' attribute must be true or false.`,
+				`The 'infer' attribute is legacy. Use 'disable-model-invocation' instead.`,
+			]);
+		});
+
+		test('github-copilot agent validates non-empty name and description', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'name: "   "',
+				'description: ""',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'name' attribute must not be empty.`,
+				`The 'description' attribute should not be empty.`,
+			]);
+		});
+
+		test('github-copilot unsupported prototype property does not crash validation', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'constructor: example',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => marker.message), [
+				`Attribute 'constructor' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.`,
+			]);
+		});
+
+		test('github-copilot required model policy needs a model', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'model-policy: required',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'model-policy' attribute has no effect when 'model' is not specified.`,
+			]);
+		});
+
+		test('validates github-copilot tools from authoritative matching inventories', async () => {
+			copilotToolInventory = [
+				{ name: 'publisher.extension/client-tool', availability: 'available' },
+				{ name: 'disabled', availability: 'disabled' },
+				{ name: 'unavailable', availability: 'unavailable' },
+			];
+			otherCopilotToolInventory = [{ name: 'other.extension/remote-client-tool', availability: 'available' }];
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [web, todo, publisher.extension/client-tool, other.extension/remote-client-tool, disabled, unavailable, missing, newToolSetRef]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({ message: marker.message, tags: marker.tags })), [
+				{ message: `Tool 'disabled' is recognized but disabled for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool 'unavailable' is recognized but currently unavailable for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool 'missing' is not recognized by the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools instead.`, tags: [MarkerTag.Unnecessary] },
+			]);
+		});
+
+		test('github-copilot tool validation remains fail-open until every inventory is ready', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [missing]',
+				'---',
+			].join('\n');
+			const states: (readonly IAgentFileToolInventoryEntry[] | Error | undefined)[] = [undefined, new Error('inventory failed')];
+			const results: string[][] = [];
+			for (const state of states) {
+				copilotToolInventory = state;
+				otherCopilotToolInventory = [];
+				results.push((await validate(content, PromptsType.agent)).map(marker => marker.message));
+			}
+
+			assert.deepStrictEqual(results, [[], []]);
+		});
+
+		test('github-copilot tool validation refreshes when the inventory changes', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [appearing-tool]',
+				'---',
+			].join('\n');
+			copilotToolInventory = [];
+			otherCopilotToolInventory = [];
+			const before = (await validate(content, PromptsType.agent)).map(marker => marker.message);
+			copilotToolInventory = [{ name: 'appearing-tool', availability: 'available' }];
+			const after = (await validate(content, PromptsType.agent)).map(marker => marker.message);
+
+			assert.deepStrictEqual({ before, after }, {
+				before: [`Tool 'appearing-tool' is not recognized by the matching GitHub Copilot harness.`],
+				after: [],
+			});
+		});
+
+		test('validates github-copilot skills from authoritative matching inventories', async () => {
+			copilotSkillInventory = [
+				createSkill('review'),
+				createSkill('disabled', { enabled: false }),
+				createSkill('unavailable', { status: 'error' }),
+			];
+			otherCopilotSkillInventory = [createSkill('testing', { source: AICustomizationSources.plugin })];
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'skills: [review, testing, disabled, unavailable, missing]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({ message: marker.message, tags: marker.tags })), [
+				{ message: `Skill 'disabled' is recognized but disabled for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Skill 'unavailable' is recognized but currently unavailable for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Skill 'missing' is not recognized by the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+			]);
+		});
+
+		test('github-copilot skill validation remains fail-open until every inventory is ready', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'skills: [missing]',
+				'---',
+			].join('\n');
+			const states: (ICustomizationItem[] | Error | undefined)[] = [undefined, new Error('inventory failed')];
+			const results: string[][] = [];
+			for (const state of states) {
+				copilotSkillInventory = state;
+				otherCopilotSkillInventory = [];
+				results.push((await validate(content, PromptsType.agent)).map(marker => marker.message));
+			}
+
+			assert.deepStrictEqual(results, [[], []]);
+		});
+
+		test('github-copilot infer is accepted as legacy', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'infer: false',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => ({
+				message: marker.message,
+				severity: marker.severity,
+				tags: marker.tags,
+			})), [{
+				message: `The 'infer' attribute is legacy. Use 'disable-model-invocation' instead.`,
+				severity: MarkerSeverity.Warning,
+				tags: [MarkerTag.Deprecated],
+			}]);
+		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
+
+		test('github-copilot validates local and remote MCP servers', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'mcp-servers:',
+				'  local:',
+				'    command: node',
+				'    args: [server.js]',
+				'    tools: [search]',
+				'    env:',
+				'      MODE: test',
+				'    timeout: 10',
+				'    deferTools: auto',
+				'  remote:',
+				'    type: http',
+				'    url: https://example.com/mcp',
+				'    tools: [fetch]',
+				'    headers:',
+				'      Authorization: token',
+				'    deferTools: never',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot reports invalid MCP server definitions', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'mcp-servers:',
+				'  local:',
+				'    command: [node]',
+				'    args: value',
+				'    tools: []',
+				'    timeout: 0',
+				'    unknown: value',
+				'  remote:',
+				'    type: http',
+				'    tools: [fetch]',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'command' property for MCP server 'local' must be a string.`,
+				`The 'args' property for MCP server 'local' must be an array of strings.`,
+				`The 'timeout' property for MCP server 'local' must be a positive integer.`,
+				`Unknown property 'unknown' in MCP server 'local'.`,
+				`MCP server 'remote' requires the 'url' property.`,
+			]);
 		});
 
 		test('github-copilot agent warns about handoffs attribute', async () => {
@@ -738,7 +1355,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, model, name, reasoning-effort, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.',
 			], 'Only handoffs is unsupported for github-copilot target, model and reasoning-effort are supported');
 		});
 
@@ -754,7 +1371,38 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			// Variable references should not be validated for github-copilot target
-			assert.deepStrictEqual(markers, [], 'Variable references are not validated for github-copilot target');
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('github-copilot agent validates body syntax', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'---',
+				'Work in {{cwd}} and {{unknownPlaceholder}}.',
+				'Use #file:README.md and #tool:newToolSetRef',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [
+				{
+					message: `Local '#file:' references are not expanded by the GitHub Copilot harness.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Unknown GitHub Copilot placeholder '{{unknownPlaceholder}}'.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools in the 'tools' frontmatter attribute.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+			]);
 		});
 
 		test('github-copilot agent rejects unsupported attributes', async () => {

@@ -19,6 +19,7 @@ import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { URI } from '../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { createSessionViewTestServices, createTestActiveSession } from './sessionViewTestUtils.js';
@@ -714,6 +715,55 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('does not recreate a chat view when preparation ends during disposal', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createSessionViewTestServices(store);
+		const requestInProgress = observableValue('requestInProgress', true);
+		const session = createTestActiveSession('draft', true, { isNewSessionRequestInProgress: requestInProgress });
+		const createdViews: TestNewSessionView[] = [];
+		const requestedKinds: ChatViewKind[] = [];
+
+		class PreparingChatView extends TestNewSessionView {
+			override dispose(): void {
+				super.dispose();
+				if (this.kind === 'chat') {
+					requestInProgress.set(false, undefined);
+				}
+			}
+		}
+
+		const createView = (kind: ChatViewKind, scopedInstantiationService: IInstantiationService | undefined) => {
+			assert.ok(scopedInstantiationService);
+			requestedKinds.push(kind);
+			const view = scopedInstantiationService.createInstance(PreparingChatView, kind);
+			createdViews.push(view);
+			return view;
+		};
+		instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+			override createChatView(scopedInstantiationService?: IInstantiationService): AbstractChatView {
+				return createView('chat', scopedInstantiationService);
+			}
+			override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService): AbstractChatView {
+				return createView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
+			}
+		}());
+		const view = store.add(instantiationService.createInstance(SessionView));
+		view.openSession(session, {});
+		session.isCreated.set(false, undefined);
+
+		view.dispose();
+
+		assert.deepStrictEqual({
+			requestedKinds,
+			disposed: createdViews.map(view => view.disposed),
+			requestInProgress: requestInProgress.get(),
+		}, {
+			requestedKinds: ['newChatInSession', 'chat'],
+			disposed: [true, true],
+			requestInProgress: false,
+		});
+	});
+
 	test('clearing a draft normally replaces the composer unless it requests in-place reuse', () => {
 		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
 		const view = disposables.add(instantiationService.createInstance(SessionView));
@@ -785,6 +835,7 @@ suite('Sessions - Session View', () => {
 					: menu;
 			}
 		}());
+		instantiationService.stub(ISessionActivityBarActivityService, store.add(new SessionActivityBarActivityService()));
 		const { configurationService, chatViews } = createSessionViewTestServices(store, instantiationService);
 		configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
 		const chatLayout = () => ({
