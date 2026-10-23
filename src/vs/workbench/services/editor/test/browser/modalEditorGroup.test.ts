@@ -207,6 +207,51 @@ suite('Modal Editor Group', () => {
 		]);
 	});
 
+	test('Tab and Shift+Tab keep focus inside the modal editor part', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const backgroundControl = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+		disposables.add({ dispose: () => backgroundControl.remove() });
+
+		const modalPart = await parts.createModalEditorPart();
+		const modalElement = modalPart.modalElement as HTMLElement;
+		for (const element of modalElement.querySelectorAll<HTMLElement>('a[href], area[href], button, input, select, textarea, iframe, object, embed, [contenteditable="true"], [tabindex]')) {
+			element.tabIndex = -1;
+		}
+
+		const firstControl = mainWindow.document.createElement('button');
+		modalElement.prepend(firstControl);
+		const lastControl = modalElement.appendChild(mainWindow.document.createElement('button'));
+
+		lastControl.focus();
+		const forwardEvent = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true });
+		lastControl.dispatchEvent(forwardEvent);
+		const forwardFocus = mainWindow.document.activeElement;
+
+		firstControl.focus();
+		const backwardEvent = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true });
+		firstControl.dispatchEvent(backwardEvent);
+
+		assert.deepStrictEqual({
+			forwardWrappedToFirst: forwardFocus === firstControl,
+			forwardPrevented: forwardEvent.defaultPrevented,
+			backwardWrappedToLast: mainWindow.document.activeElement === lastControl,
+			backwardPrevented: backwardEvent.defaultPrevented,
+			backgroundFocused: mainWindow.document.activeElement === backgroundControl,
+		}, {
+			forwardWrappedToFirst: true,
+			forwardPrevented: true,
+			backwardWrappedToLast: true,
+			backwardPrevented: true,
+			backgroundFocused: false,
+		});
+
+		await modalPart.close();
+	});
+
 	test('bubble close keybindings reach focused controls and dispatch once', async () => {
 		let dispatchCount = 0;
 		const keybindingService = new class extends MockKeybindingService {

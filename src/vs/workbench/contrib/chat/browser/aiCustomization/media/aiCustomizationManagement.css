@@ -1879,11 +1879,6 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail {
-	-webkit-user-select: text;
-	user-select: text;
-}
-
 .ai-customization-management-editor .mcp-detail-editor-scrollable,
 .ai-customization-management-editor .marketplace-detail-scrollable,
 .ai-customization-management-editor .plugin-detail-editor-scrollable {
@@ -2053,6 +2048,8 @@ per-word capitalization does not survive translation. */
 	padding: var(--vscode-spacing-size400) 0 var(--vscode-spacing-size160);
 	min-width: 0;
 	box-sizing: border-box;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail.embedded-mcp-detail {
