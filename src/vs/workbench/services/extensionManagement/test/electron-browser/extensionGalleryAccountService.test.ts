@@ -154,16 +154,121 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		{ name: 'missing metadata', response: () => response({}, 404) },
 		{ name: 'invalid metadata', response: () => response({ resource: marketplaceUrl, scopes_supported: 'invalid' }) },
 		{ name: 'metadata without an authorization server', response: () => response({ resource: marketplaceUrl }) },
+		...[
+			{ name: 'a string server list', metadata: { authorization_servers: authorizationServer } },
+			{ name: 'an array-like server list', metadata: { authorization_servers: { 0: authorizationServer, length: 1 } } },
+			{ name: 'a null server list', metadata: { authorization_servers: null } },
+			{ name: 'an empty server list', metadata: { authorization_servers: [] } },
+			{ name: 'a numeric server', metadata: { authorization_servers: [42] } },
+			{ name: 'an object server', metadata: { authorization_servers: [{}] } },
+			{ name: 'a null server after a valid server', metadata: { authorization_servers: [authorizationServer, null] } },
+			{ name: 'an empty server', metadata: { authorization_servers: [''] } },
+			{ name: 'a relative server', metadata: { authorization_servers: ['/tenant'] } },
+			{ name: 'a scheme-relative server', metadata: { authorization_servers: ['//login.example.com/tenant'] } },
+			{ name: 'an invalid server URL', metadata: { authorization_servers: ['https://[invalid]/tenant'] } },
+			{ name: 'a server URL without authority delimiters', metadata: { authorization_servers: ['https:login.example.com/tenant'] } },
+			{ name: 'a server URL with an empty authority', metadata: { authorization_servers: ['https:///login.example.com/tenant'] } },
+			{ name: 'a server URL containing whitespace', metadata: { authorization_servers: [`${authorizationServer}\n`] } },
+			{ name: 'a server URL containing a backslash', metadata: { authorization_servers: ['https://login.example.com\\tenant'] } },
+			{ name: 'an insecure server', metadata: { authorization_servers: ['http://login.example.com/tenant'] } },
+			{ name: 'a non-HTTPS server', metadata: { authorization_servers: ['mailto:login@example.com'] } },
+			{ name: 'a server containing credentials', metadata: { authorization_servers: ['https://user:password@login.example.com/tenant'] } },
+			{ name: 'a server containing a query', metadata: { authorization_servers: [`${authorizationServer}?tenant=other`] } },
+			{ name: 'a server containing a fragment', metadata: { authorization_servers: [`${authorizationServer}#other`] } },
+			{ name: 'null scopes', metadata: { scopes_supported: null } },
+			{ name: 'a numeric scope', metadata: { scopes_supported: [42] } },
+			{ name: 'an object scope', metadata: { scopes_supported: [{}] } },
+			{ name: 'a null scope after a valid scope', metadata: { scopes_supported: [...resourceScopes, null] } },
+			{ name: 'an empty scope', metadata: { scopes_supported: [''] } },
+			{ name: 'a space-separated scope element', metadata: { scopes_supported: ['marketplace.read marketplace.write'] } },
+			{ name: 'a scope ending in a newline', metadata: { scopes_supported: ['marketplace.read\n'] } },
+			{ name: 'a scope containing a quote', metadata: { scopes_supported: ['marketplace."read'] } },
+			{ name: 'a scope containing a backslash', metadata: { scopes_supported: ['marketplace.\\read'] } },
+		].map(({ name, metadata }) => ({
+			name: `metadata with ${name}`,
+			response: () => response({ resource: marketplaceUrl, authorization_servers: [authorizationServer], scopes_supported: resourceScopes, ...metadata }),
+		})),
 	]) {
 		test(`retries ${failure.name} instead of caching them`, async () => {
+			let resourceLookups = 0;
+			resourceSessions = async () => {
+				resourceLookups++;
+				return [{ ...session, accessToken: resourceToken }];
+			};
 			requestHandler = failure.response;
 			const provider = createProvider();
 			await Promise.all([provider.getAccount(marketplaceUrl), provider.getAccount(marketplaceUrl)]);
+			const resourceLookupsBeforeCorrection = resourceLookups;
 			requestHandler = () => metadataResponse();
 			const account = await provider.getAccount(marketplaceUrl);
 			await provider.getAccount(marketplaceUrl);
 
-			assert.deepStrictEqual({ account: account?.accessToken, requests: requests.length }, { account: 'resource-token', requests: 2 });
+			assert.deepStrictEqual({ account: account?.accessToken, requests: requests.length, resourceLookupsBeforeCorrection }, {
+				account: 'resource-token', requests: 2, resourceLookupsBeforeCorrection: 0,
+			});
+		});
+	}
+
+	test('retries malformed metadata before interactive consent once corrected', async () => {
+		requestHandler = () => response({ resource: marketplaceUrl, authorization_servers: authorizationServer, scopes_supported: resourceScopes });
+		resourceSessions = async () => [];
+		const provider = createProvider();
+		await provider.getAccount(marketplaceUrl);
+		await provider.signIn();
+		const consentBeforeCorrection = [...createdSessions];
+		requestHandler = () => metadataResponse();
+		await provider.signIn();
+
+		assert.deepStrictEqual({ requests: requests.length, consentBeforeCorrection, createdSessions }, {
+			requests: 3,
+			consentBeforeCorrection: [{ scopes: signInScopes, authorizationServer: undefined }],
+			createdSessions: [
+				{ scopes: signInScopes, authorizationServer: undefined },
+				{ scopes: signInScopes, authorizationServer: undefined },
+				{ scopes: resourceScopes, authorizationServer },
+			],
+		});
+	});
+
+	test('preserves Entra authority paths and hosts when caching metadata', async () => {
+		const authorities = [
+			'https://login.microsoftonline.com',
+			'https://login.microsoftonline.com/common',
+			'https://login.microsoftonline.com/organizations',
+			'https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47',
+			'https://login.microsoftonline.com/tenant.onmicrosoft.com/oauth2/v2.0',
+			'https://login.microsoftonline.us/tenant/v2.0',
+			'https://login.chinacloudapi.cn/tenant/v2.0',
+		];
+		resourceSessions = async () => [];
+		for (const authority of authorities) {
+			requestHandler = () => metadataResponse(marketplaceUrl, authority);
+			const provider = createProvider();
+			await provider.getAccount(marketplaceUrl);
+			await provider.signIn();
+		}
+
+		assert.deepStrictEqual({ requests: requests.length, authorities: createdSessions.filter(session => session.authorizationServer).map(session => session.authorizationServer) }, {
+			requests: authorities.length,
+			authorities: authorities.map(authority => new URL(authority).toString()),
+		});
+	});
+
+	for (const scopes of [undefined, [], ['api://marketplace.example.com/.default', 'openid']]) {
+		test(`preserves ${scopes === undefined ? 'omitted' : scopes.length ? 'resource' : 'empty'} scopes when caching metadata`, async () => {
+			requestHandler = () => response({ resource: marketplaceUrl, authorization_servers: [authorizationServer], scopes_supported: scopes });
+			resourceSessions = async () => [];
+			const provider = createProvider();
+			await provider.getAccount(marketplaceUrl);
+			await provider.signIn();
+
+			assert.deepStrictEqual({ requests: requests.length, createdSessions }, {
+				requests: 1,
+				createdSessions: [
+					{ scopes: signInScopes, authorizationServer: undefined },
+					{ scopes: scopes?.length ? scopes : signInScopes, authorizationServer },
+				],
+			});
 		});
 	}
 
