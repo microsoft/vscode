@@ -10,6 +10,7 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDi
 import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { ChatOriginKind, isAhpChatChannel } from '../../../common/state/sessionState.js';
+import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
 /**
@@ -27,16 +28,20 @@ export class ChatConfigContribution extends Disposable implements IAgentHostChat
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 	}
 
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
 		if (dispatched.action.type !== ActionType.ChatConfigChanged || dispatched.rejectionReason || !isAhpChatChannel(dispatched.channel)
-			|| this._stateManager.getChatOrigin(dispatched.channel)?.kind === ChatOriginKind.Tool) {
+			|| this._stateManager.getChatOrigin(dispatched.channel)?.kind === ChatOriginKind.Tool
+			// A session before its first message has no database yet: its default chat's values are persisted when it materializes.
+			|| this._stateManager.isIdleProvisionalSession(dispatched.session)) {
 			return;
 		}
-		const values = this._stateManager.getChatConfig(dispatched.channel)?.values ?? {};
+		// A default chat's values the session gives it are the session's, not the chat's own.
+		const values = this._configurationService.getChatPersistedConfigValues(dispatched.channel) ?? {};
 		this._sessionStateStore.chatRows.setChatConfig(URI.parse(dispatched.session), URI.parse(dispatched.channel), values).catch(err => {
 			this._logService.warn(`[ChatConfigContribution] Failed to persist the config of ${dispatched.channel}`, err);
 		});

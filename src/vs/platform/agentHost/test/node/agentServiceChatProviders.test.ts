@@ -260,7 +260,7 @@ suite('AgentService - chats with their own agent', () => {
 			sessionMode: configuration.getSessionConfigValues(session.toString())?.mode,
 			defaultChatMode: configuration.getChatConfigValues({ session: session.toString(), chat: defaultChat })?.mode,
 		}, {
-			chatConfig: { values: { mode: 'plan' } },
+			chatConfig: { schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['agent', 'plan', 'ask'], default: 'agent', chatMutable: true, sessionMutable: true } } }, values: { mode: 'plan' } },
 			ownSchema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['agent', 'plan', 'ask'], default: 'agent', chatMutable: true, sessionMutable: true } } },
 			chatValues: { mode: 'plan' },
 			sessionMode: 'ask',
@@ -268,20 +268,68 @@ suite('AgentService - chats with their own agent', () => {
 		});
 	});
 
-	test('a chat on another agent publishes no config schema, and clients can set only its agent\'s chat-settable keys', async () => {
+	test('a chat on another agent publishes its agent\'s schema with complete values, and clients can set only that schema\'s chat-settable keys', async () => {
 		const { service } = createService(true);
 		const { chat } = await createSessionWithSecondChat(service);
 		const stateManager = getTestAgentStateManager(service);
 		service.dispatchAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { isolationHint: 'client' } }, 'test-client', 1);
 		service.dispatchAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { mode: 'ask' } }, 'test-client', 2);
 		await timeout(0);
-		const state = stateManager.getChatState(chat.toString());
+
+		assert.deepStrictEqual(stateManager.getChatState(chat.toString())?.config, {
+			schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['agent', 'plan', 'ask'], default: 'agent', chatMutable: true, sessionMutable: true } } },
+			values: { mode: 'ask' },
+		});
+	});
+
+	test('a chat on the session\'s agent has complete values and no schema, and a later session change does not change it', async () => {
+		const { service } = createService(true);
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		await service.createChat(session, chat);
+		const configuration = getTestAgentServiceComposition(service).configurationService;
+		const stateManager = getTestAgentStateManager(service);
+		const before = stateManager.getChatState(chat.toString())?.config;
+
+		configuration.updateSessionConfig(session.toString(), { mode: 'ask', isolationHint: 'changed' });
+		// Only what a chat may set can be changed for it.
+		service.dispatchAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { isolationHint: 'client' } }, 'test-client', 1);
+		await timeout(0);
 
 		assert.deepStrictEqual({
-			config: state?.config,
-			stateHasSchema: !!state?.config && Object.hasOwn(state.config, 'schema'),
-			summaryHasSchema: JSON.stringify(stateManager.getSessionSummary(stateManager.getChatOwner(chat.toString())!)).includes('"schema"'),
-		}, { config: { values: { mode: 'ask' } }, stateHasSchema: false, summaryHasSchema: false });
+			before,
+			after: stateManager.getChatState(chat.toString())?.config,
+			effective: configuration.getChatConfigValues({ session: session.toString(), chat: chat.toString() }),
+		}, {
+			before: { values: { mode: 'plan' } },
+			after: { values: { mode: 'plan' } },
+			// A property a chat cannot set stays session-wide.
+			effective: { mode: 'plan', isolationHint: 'changed' },
+		});
+	});
+
+	test('an older build\'s overlay row of a chat on the session\'s agent is restored as complete values', async () => {
+		const { service } = createService(true);
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		await service.createChat(session, chat);
+		const configuration = getTestAgentServiceComposition(service).configurationService;
+		configuration.updateSessionConfig(session.toString(), { mode: 'ask' });
+		await timeout(0);
+		// An older build stored only what the chat set for itself.
+		await getTestSessionStateStore(service).chatRows.setChatConfig(session, chat, {});
+
+		getTestAgentStateManager(service).deleteSession(session.toString());
+		await service.restoreSession(session);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			config: getTestAgentStateManager(service).getChatConfig(chat.toString()),
+			stored: await getTestSessionStateStore(service).chatRows.getChatConfig(session, chat),
+		}, {
+			config: { values: { mode: 'ask' } },
+			stored: { mode: 'ask' },
+		});
 	});
 
 	test('a restored session routes a chat with its own agent to that agent with its own config', async () => {
@@ -306,7 +354,7 @@ suite('AgentService - chats with their own agent', () => {
 		}, {
 			summaryProvider: 'second',
 			chatAgent: 'second',
-			config: { values: { mode: 'ask' } },
+			config: { schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['agent', 'plan', 'ask'], default: 'agent', chatMutable: true, sessionMutable: true } } }, values: { mode: 'ask' } },
 			hasOwnSchema: true,
 			listed: [{ kind: 'default', provider: undefined }, { kind: 'peer', provider: 'second' }],
 			materializedIn: [chat.toString()],

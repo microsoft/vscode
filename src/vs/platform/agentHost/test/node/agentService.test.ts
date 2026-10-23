@@ -9334,8 +9334,8 @@ suite('AgentService (node dispatcher)', () => {
 				created: {
 					// The default chat's own values and the session's for the rest, not read-only or session-only ones.
 					fresh: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
-					// A fork copies its source's own values.
-					fork: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
+					// A fork copies its source's own values, and its values are complete: the session's for the rest it may set.
+					fork: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
 				},
 				restoredDefaultChat: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', effectiveApprovalMode: 'autoApprove' } },
 				afterRestart: { values: { [SessionConfigKey.SandboxEnabled]: 'off', [SessionConfigKey.AutoApprove]: 'autoApprove', [SessionConfigKey.Mode]: 'plan' } },
@@ -35766,6 +35766,8 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				stateManager.setSessionConfig(source.toString(), { schema, values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove', isolation: 'folder' } });
 				stateManager.setSessionConfig(target.toString(), { schema, values: { autoApprove: 'default', effectiveApprovalMode: 'default', isolation: 'worktree' } });
+				// A chat's values are its complete config: the session's config set after the chat was created is not the chat's.
+				stateManager.dispatchServerAction(peer.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
 
 				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
 
@@ -39088,6 +39090,8 @@ suite('AgentService (node dispatcher)', () => {
 				const schema = { type: 'object' as const, properties: { autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true } } };
 				stateManager.setSessionConfig(source.toString(), { schema, values: { autoApprove: 'autoApprove' } });
 				stateManager.setSessionConfig(target.toString(), { schema, values: { autoApprove: 'default' } });
+				// A chat's values are its complete config: the session's config set after the chat was created is not the chat's.
+				stateManager.dispatchServerAction(peer.toString(), { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } });
 				const store = getTestSessionStateStore(service);
 				stub(stateManager, 'transferChats').throws(new Error('memory failure'));
 

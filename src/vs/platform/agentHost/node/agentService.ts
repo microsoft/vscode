@@ -2367,10 +2367,12 @@ export class AgentService extends Disposable implements IAgentService {
 				? session.draft.model
 				: session.turns.at(-1)?.message.model;
 		const chatProvider = this._stateManager.getChatProvider(source.toString()) ?? session.provider;
-		// A chat on another agent never hands on the session's values, which belong to the session's agent.
+		// The calling chat's own effective config: a chat's values are its complete config, and a chat on another
+		// agent never hands on the session's values, which belong to the session's agent.
+		const owner = this._stateManager.getChatOwner(source.toString()) ?? source.toString();
 		const sourceConfig = getNonMergeSessionConfigValues(chatProvider !== session.provider
 			? this._stateManager.getChatConfig(source.toString())?.values ?? {}
-			: session.config?.values);
+			: this._configurationService.getChatConfigValues({ session: owner, chat: source.toString() }) ?? session.config?.values);
 		const config = this._providerService.getProvider(chatProvider)?.getInheritedChatConfig(sourceConfig);
 		const isolation = getNonMergeSessionConfigValues(session.config?.values)[SessionConfigKey.Isolation];
 		return {
@@ -6130,6 +6132,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(session.toString(), withSessionFolderPickerDecision(this._stateManager.getSessionState(session.toString())?._meta, folderPickerDecision));
 		}
 		this._publishWorkingDirectoryIdentities(session.toString());
+		// The default chat registered before its session had config: its values are its complete config from here on.
+		this._configurationService.completeChatConfigs(session.toString());
 		// Seeded config bypasses `onDidChangeSessionConfig`, so index a session
 		// created with Agent Merge already enabled.
 		this._syncAgentMergeIndex(session, undefined, sessionConfig);
@@ -7144,7 +7148,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// The seed makes a new chat's own config values visible to the provider while it creates the chat.
 			const ownConfigSchema = provider === sessionProvider ? undefined : sourceOwnSchema ?? ownAgentConfig?.schema;
 			const configSeed = ownConfigSchema === undefined
-				? this._configurationService.seedChatConfig(chat.toString(), this._initialChatConfig(sessionKey, chat.toString(), peerChatOrigin))
+				? this._configurationService.seedChatConfig(chat.toString(), this._configurationService.getCompleteChatConfigValues(sessionKey, this._initialChatConfig(sessionKey, chat.toString(), peerChatOrigin)))
 				: copiesSource
 					// The source's own values, restricted to what the new chat's schema has.
 					? this._configurationService.seedChatConfig(chat.toString(), toOwnChatConfig({ schema: ownConfigSchema, values: {} }, this._initialChatConfig(sessionKey, chat.toString(), peerChatOrigin)).values, ownConfigSchema)
@@ -7229,7 +7233,7 @@ export class AgentService extends Disposable implements IAgentService {
 						...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 						...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
 						...(ownConfigSchema !== undefined
-							? { config: { values: initialConfig }, configSchema: ownConfigSchema }
+							? { config: { schema: ownConfigSchema, values: initialConfig }, configSchema: ownConfigSchema }
 							: Object.keys(initialConfig).length > 0 ? { config: { values: initialConfig } } : {}),
 					});
 					// The registered chat owns its values from here on.
@@ -9986,6 +9990,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
 			this._persistConfigValues(session, configValues);
+		}
+		// Its default chat's values were not persisted while the session was provisional.
+		const defaultChatConfig = state.defaultChat === undefined ? undefined : this._configurationService.getChatPersistedConfigValues(state.defaultChat);
+		if (state.defaultChat && defaultChatConfig && Object.keys(defaultChatConfig).length > 0) {
+			this._sessionStateStore.chatRows.setChatConfig(session, URI.parse(state.defaultChat), defaultChatConfig).catch(err => {
+				this._logService.warn(`[AgentService] Failed to persist the config of ${state.defaultChat}`, err);
+			});
 		}
 		// Persist the AH-owned workspace-less marker now that the session has a
 		// real on-disk database (deferred from create for provisional sessions).

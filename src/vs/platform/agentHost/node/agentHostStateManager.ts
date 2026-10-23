@@ -10,7 +10,7 @@ import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ChatConfigChangedAction, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isChatInSessionReadAggregate, isSessionStatusArchived, isSessionStatusRead, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatConfigState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
@@ -493,9 +493,9 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeSessionConfig.event;
-	private readonly _onDidChangeChatConfig = this._register(new Emitter<{ session: URI; chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }>());
+	private readonly _onDidChangeChatConfig = this._register(new Emitter<{ session: URI; chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext; readonly action: ChatConfigChangedAction }>());
 	/** Fires when a `chat/configChanged` changed a chat's own config, also before the chat's state is resolved. */
-	readonly onDidChangeChatConfig: Event<{ session: URI; chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext }> = this._onDidChangeChatConfig.event;
+	readonly onDidChangeChatConfig: Event<{ session: URI; chat: URI; previous: ChatConfigState | undefined; current: ChatConfigState | undefined; clientContext?: IAgentHostClientTelemetryContext; readonly action: ChatConfigChangedAction }> = this._onDidChangeChatConfig.event;
 
 	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
 	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
@@ -1697,6 +1697,7 @@ export class AgentHostStateManager extends Disposable {
 		if (existing) {
 			return existing;
 		}
+		const config = withOwnConfigSchema(options?.config, options?.configSchema);
 
 		// A session gains its first additional chat here: snapshot the current
 		// session title onto the still-inheriting default chat so the two
@@ -1722,8 +1723,8 @@ export class AgentHostStateManager extends Disposable {
 			parentChat: registrationParentChat(options?.origin),
 			provider: chatProvider,
 			summary: chatSummary,
-			state: { ...createChatState(chatSummary), turns: options?.turns ?? [], ...(options?.config ? { config: options.config } : {}) },
-			config: options?.config,
+			state: { ...createChatState(chatSummary), turns: options?.turns ?? [], ...(config ? { config } : {}) },
+			config,
 			ownConfigSchema: options?.configSchema,
 			providerData: options?.providerData,
 			inheritedTurnId: options?.inheritedTurnId,
@@ -1772,7 +1773,7 @@ export class AgentHostStateManager extends Disposable {
 				existingEntry.providerData = options.providerData;
 				existingEntry.inheritedTurnId = options.inheritedTurnId;
 				existingEntry.draft = options.draft;
-				existingEntry.config = options.config;
+				existingEntry.config = withOwnConfigSchema(options.config, options.configSchema);
 				existingEntry.ownConfigSchema = options.configSchema;
 				this._noteChatConfig(chatUri, options.configSchema);
 				existingEntry.resolver = options.resolver;
@@ -1811,7 +1812,7 @@ export class AgentHostStateManager extends Disposable {
 			providerData: options.providerData,
 			inheritedTurnId: options.inheritedTurnId,
 			draft: options.draft,
-			config: options.config,
+			config: withOwnConfigSchema(options.config, options.configSchema),
 			ownConfigSchema: options.configSchema,
 			resolver: options.resolver,
 			valid: true,
@@ -2864,7 +2865,7 @@ export class AgentHostStateManager extends Disposable {
 				if (chatAction.type === ActionType.ChatConfigChanged) {
 					const previous = chatEntry.config;
 					chatEntry.config = newChat.config;
-					this._onDidChangeChatConfig.fire({ session: sessionKey, chat: channel, previous, current: chatEntry.config, clientContext });
+					this._onDidChangeChatConfig.fire({ session: sessionKey, chat: channel, previous, current: chatEntry.config, clientContext, action: chatAction });
 				}
 				if (chatAction.type === ActionType.ChatCanvasesChanged) {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
@@ -2878,7 +2879,7 @@ export class AgentHostStateManager extends Disposable {
 				// A chat's own config exists before its state is resolved; reduce it alone.
 				const previous = chatEntry.config;
 				chatEntry.config = chatReducer({ ...createChatState(chatEntry.summary), ...(previous ? { config: previous } : {}) }, chatAction, this._log).config;
-				this._onDidChangeChatConfig.fire({ session: chatEntry.session, chat: channel, previous, current: chatEntry.config, clientContext });
+				this._onDidChangeChatConfig.fire({ session: chatEntry.session, chat: channel, previous, current: chatEntry.config, clientContext, action: chatAction });
 			} else if (chatEntry?.valid && sessionKey !== undefined && (chatAction.type === ActionType.ChatIsReadChanged || chatAction.type === ActionType.ChatIsArchivedChanged)) {
 				// Read and archived state live on the chat summary, so a registered chat
 				// whose history is not materialized yet takes them without resolving that history.
@@ -3353,4 +3354,9 @@ export function resolveChatStateForUri(stateManager: AgentHostStateManager, chat
 		return stateManager.getDefaultChatState(owner);
 	}
 	return undefined;
+}
+
+/** A chat's config as published: a chat with its own agent carries that agent's schema in its `ChatConfigState`. */
+function withOwnConfigSchema(config: ChatConfigState | undefined, schema: SessionConfigSchema | undefined): ChatConfigState | undefined {
+	return schema === undefined ? config : { schema, values: config?.values ?? {} };
 }
