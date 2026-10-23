@@ -821,8 +821,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const label = entry.migrationInProgress
 			? entry.actionLabel
 			: entry.selectedCount === entry.count
-			? entry.actionLabel
-			: localize('migrationActionSelectedCount', "Migrate {0}...", entry.selectedCount);
+				? entry.actionLabel
+				: localize('migrationActionSelectedCount', "Migrate {0}...", entry.selectedCount);
 		button.label = label;
 		button.setAriaLabel(localize('migrationAccessibleActionWithLabel', "{0}: {1}", label, entry.label));
 		button.enabled = !entry.migrateDisabled && entry.selectedCount > 0;
