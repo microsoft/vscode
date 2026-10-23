@@ -15,6 +15,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorsOrder, GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { decideTerminalRowMove, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -311,8 +312,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		windowDisposables.add(autorun(reader => terminalPositionContext.set(state.terminalPosition.read(reader))));
 		// An editor area shows its editors in tabs, and stays when its last editor closes. Tabs show for the whole part.
 		// Double-clicking a tab must not maximize or expand a group: the window arranges its groups.
+		// Editor actions stay on every group, so that the terminal row keeps its New Terminal action while another group has focus.
 		windowDisposables.add(part.enforcePartOptions(content.editorArea
-			? { showTabs: 'multiple', closeEmptyGroups: false, doubleClickTabToToggleEditorGroupSizes: 'off' }
+			? { showTabs: 'multiple', closeEmptyGroups: false, alwaysShowEditorActions: true, doubleClickTabToToggleEditorGroupSizes: 'off' }
 			: { showTabs: 'none', showBreadcrumbs: false, editorActionsLocation: 'hidden', doubleClickTabToToggleEditorGroupSizes: 'off' }));
 		// The chat shows as a chat view, not as an editor: no tab, lock or editor actions.
 		windowDisposables.add(part.hideGroupTitle(chatGroup));
@@ -515,19 +517,22 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			this._terminalRows.set(window, store);
 			// A terminal dragged out of the row, such as onto a locked group that refuses it and so opens a window of its own, would
 			// otherwise be out of sight: it goes back once that move completes.
+			// The row empties while it does, which must not hide it: the terminal is on its way back.
+			let returningTerminals = 0;
 			store.add(row.onWillMoveEditor(e => {
-				if (e.editor.typeId === TerminalEditorInput.ID && e.target !== row.id) {
+				if (decideTerminalRowMove(e.editor.typeId === TerminalEditorInput.ID, row.id, e.target) === TerminalRowMoveAction.ReturnToRow) {
+					returningTerminals++;
 					void timeout(0).then(() => {
 						const target = this._editorGroupsService.getGroup(e.target);
 						if (target?.contains(e.editor) && !row.contains(e.editor)) {
 							target.moveEditor(e.editor, row, { pinned: true });
 						}
-					});
+					}).finally(() => returningTerminals--);
 				}
 			}));
 			// Its last terminal exited or closed.
 			store.add(row.onDidCloseEditor(() => {
-				if (row.isEmpty && !this._emptyingTerminalRows.has(window)) {
+				if (row.isEmpty && !returningTerminals && !this._emptyingTerminalRows.has(window)) {
 					void this.setTerminalShown(window, false, false);
 				}
 			}));
