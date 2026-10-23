@@ -30,6 +30,17 @@ import { IAction } from '../../../../base/common/actions.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+
+export function isEnvironmentPickerLocalIsolationEnabled(configurationService: IConfigurationService): boolean {
+	return !isWeb
+		&& configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING) === true
+		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING) === true
+		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true
+		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING) === true;
+}
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -38,16 +49,25 @@ export interface ISessionCreationEnvironment {
 	readonly icon: ThemeIcon;
 	readonly providerIds: readonly string[];
 	readonly description?: string;
+	readonly isolation?: 'folder' | 'worktree';
 }
 
-export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
+export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[], localIsolation = false): ISessionCreationEnvironment[] {
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
 		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false));
 	const local = visible.filter(provider => provider.environment.id === 'local');
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
-		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
+		if (localIsolation) {
+			environments.push({ id: 'local:folder', kind: 'local', isolation: 'folder', label: localize('environmentPicker.localFolder', "Local Folder"), icon: Codicon.folder, providerIds: local.map(provider => provider.id) });
+			const worktreeProviders = local.filter(provider => provider.setIsolationMode);
+			if (worktreeProviders.length) {
+				environments.push({ id: 'local:worktree', kind: 'local', isolation: 'worktree', label: localize('environmentPicker.localWorktree', "New Worktree"), icon: Codicon.worktree, providerIds: worktreeProviders.map(provider => provider.id) });
+			}
+		} else {
+			environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
+		}
 	}
 	if (cloud.length) {
 		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
@@ -79,6 +99,9 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 			continue;
 		}
 		const workspace = provider.resolveWorkspace(folderUri);
+		if (environment.isolation === 'worktree' && !provider.getSessionTypes(folderUri).some(type => type.supportsWorktreeConfiguration)) {
+			continue;
+		}
 		if (workspace && (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0)) {
 			return { provider, workspace };
 		}

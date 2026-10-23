@@ -11,9 +11,10 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { FocusedViewContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorAreaFocusContext, FocusedViewContext } from '../../../../workbench/common/contextkeys.js';
 import { CHANGES_VIEW_ID, CreatePullRequestFocusedContext } from '../common/changes.js';
 import { ChangesViewPane } from './changesView.js';
+import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 
 /**
  * Accessibility help dialog for the Changes view. Documents the file tree and
@@ -24,7 +25,11 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 	readonly priority = 115;
 	readonly name = 'sessionsChanges';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.or(FocusedViewContext.isEqualTo(CHANGES_VIEW_ID), CreatePullRequestFocusedContext);
+	readonly when = ContextKeyExpr.or(
+		FocusedViewContext.isEqualTo(CHANGES_VIEW_ID),
+		CreatePullRequestFocusedContext,
+		ContextKeyExpr.and(EditorAreaFocusContext, ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID)),
+	);
 
 	getProvider(accessor: ServicesAccessor) {
 		const focusedElement = getActiveElement();
@@ -47,11 +52,17 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 			);
 		}
 		const viewsService = accessor.get(IViewsService);
+		const inEditor = isHTMLElement(focusedElement) && !!focusedElement.closest('.session-changes-editor');
 
 		const content: string[] = [];
-		content.push(localize('sessionsChanges.overview', "You are in the Changes view. It shows the files changed by the current session as a tree, followed by a collapsible Checks section."));
-		content.push(localize('sessionsChanges.tree', "Use the up and down arrow keys to move between changed files, and the left and right arrow keys to collapse or expand folders. Press Enter to open the selected file's diff."));
-		content.push(localize('sessionsChanges.checks', "The Checks section lists the continuous integration checks for the session's pull request. Its header is a button: press Enter or Space to collapse or expand it{0}.", '<keybinding:sessions.action.revealCIChecks>'));
+		content.push(inEditor
+			? localize('sessionsChanges.editorOverview', "You are in the Changes editor. It shows the changed files and their diffs for the current session.")
+			: localize('sessionsChanges.overview', "You are in the Changes view. It shows the files changed by the current session as a tree, followed by a collapsible Checks section."));
+		content.push(localize('sessionsChanges.empty', "When there are no changed files, use Tab to reach Open Files and Search in Files. Use Up Arrow and Down Arrow to move between those actions, and Enter or Space to run one."));
+		if (!inEditor) {
+			content.push(localize('sessionsChanges.tree', "Use the up and down arrow keys to move between changed files, and the left and right arrow keys to collapse or expand folders. Press Enter to open the selected file's diff."));
+			content.push(localize('sessionsChanges.checks', "The Checks section lists the continuous integration checks for the session's pull request. Its header is a button: press Enter or Space to collapse or expand it{0}.", '<keybinding:sessions.action.revealCIChecks>'));
+		}
 		content.push(localize('sessionsChanges.viewMode', "The Changes view can show files as a tree or a flat list. Use Files View in the editor title area's More Actions menu, or the view's toolbar actions, to switch between View as List and View as Tree. Files View shows both options and marks the active one as selected."));
 		content.push(localize('sessionsChanges.editorActions', "Changes actions, including Run Code Review and Commit when available, are in the toolbar beside the editor tabs, before the separator and layout actions. Use its More Actions menu for diff actions and the Files View submenu in the final group."));
 		content.push(localize('sessionsChanges.operations', "When available, a changed file's toolbar provides actions such as Discard Changes. Destructive actions ask for confirmation and are disabled while the agent is working. The Changes toolbar or editor title bar also provides actions to commit, merge, sync, or create a pull request. When Agent Merge is the primary action, activate it to toggle Agent Merge and use its dropdown to configure it. Use Tab and Shift+Tab to move between the file list and toolbar actions."));
@@ -64,6 +75,10 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 			{ type: AccessibleViewType.Help },
 			() => content.join('\n'),
 			() => {
+				if (inEditor && isHTMLElement(focusedElement) && focusedElement.isConnected) {
+					focusedElement.focus();
+					return;
+				}
 				const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
 				view?.focus();
 			},

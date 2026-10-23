@@ -483,13 +483,17 @@ export namespace ILanguageModelChatMetadata {
 	 */
 	export function getAutoModelDescription(fusion?: boolean): string {
 		if (fusion) {
-			const fusionBase = localize('autoModel.fusionDescription', "Copilot Fusion chooses models and workflows based on your task.");
 			const fusionLearnMore = localize('autoModel.fusionLearnMore', "[Learn more]({0})", fusionDocsUrl);
-			return `${fusionBase} ${fusionLearnMore}`;
+			return `${getFusionSummary()} ${fusionLearnMore}`;
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
+	}
+
+	/** Copilot Fusion's one-sentence description, as plain text without its "Learn more" link. */
+	export function getFusionSummary(): string {
+		return localize('autoModel.fusionDescription', "Copilot Fusion selects a single model or orchestrates multiple models to complete your task.");
 	}
 
 	/**

@@ -89,6 +89,7 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { aiCustomizationManagementSectionRegistry } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -3328,6 +3329,40 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// Sessions variant whose contributed section shows a badge in the navigation list.
+	SessionsContributedSectionBadge: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => {
+			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
+				id: AICustomizationManagementSection.Extensions,
+				label: 'Extensions',
+				icon: Codicon.extensions,
+				description: 'Choose which installed extensions run in the Agents window.',
+				supportsHarness: () => true,
+				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
+				create: () => ({ dispose: () => { } }),
+			}));
+			return renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.Agents,
+				availableHarnesses: [
+					createVSCodeHarnessDescriptor(),
+				],
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+					AICustomizationManagementSection.Extensions,
+				],
+			});
+		},
+	}),
+
 	// Sessions Skills tab showing UI Integration badges on built-in skills
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
@@ -4033,6 +4068,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverCopilotConnector: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from Copilot Connectors with a Connect action.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,

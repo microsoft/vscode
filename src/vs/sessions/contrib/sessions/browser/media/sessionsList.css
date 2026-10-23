@@ -1351,6 +1351,7 @@
 .session-item,
 .session-chat-item,
 .session-group,
+.session-section,
 .session-show-more,
 .session-placeholder {
 	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));

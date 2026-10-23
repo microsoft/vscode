@@ -10,6 +10,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
 export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
+export const AgentHostDefaultCloneDirectorySettingId = 'chat.agentHost.defaultCloneDirectory';
 export const MissionControlUseLocalCredentialsSettingId = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 /** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
 export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
@@ -25,6 +26,9 @@ export const IMissionControlSharingService = createDecorator<IMissionControlShar
 export interface IMissionControlSharingService {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<'disabled' | 'connecting' | 'enabled'>;
+	/** Machine-local name override used when registering this environment. */
+	readonly environmentName: IObservable<string | undefined>;
+	setEnvironmentName(name: string): Promise<void>;
 	setEnabled(enabled: boolean): Promise<void>;
 	/** Supplies the local folder catalogue from the window's workspace-selection surface. */
 	setProjectFolders(folders: readonly URI[]): void;
