@@ -119,6 +119,9 @@ suite('ChatInputPart', () => {
 			readonly selected: ILanguageModelChatMetadataAndIdentifier | undefined;
 			readonly inputOptions?: object;
 			readonly isRegistered?: (modeId: string) => boolean;
+			/** The incoming session's type, set by `setInputModel` before the widget's view model changes. */
+			readonly sessionType?: string;
+			readonly modelsForSessionType?: (sessionType: string | undefined) => readonly ILanguageModelChatMetadataAndIdentifier[];
 		}) => {
 			const toMode = (mode: IPinnedMode) => ({ id: mode.id, model: observableValue('pin', mode.pin), reasoningEffort: observableValue('effort', mode.reasoningEffort) });
 			const result = {
@@ -144,6 +147,8 @@ suite('ChatInputPart', () => {
 				configurationService: { getValue: () => true },
 				logService: new NullLogService(),
 				getModels: options.models,
+				getModelsForSessionType: (sessionType: string | undefined) => options.modelsForSessionType?.(sessionType) ?? options.models(),
+				_currentSessionTypeObservable: observableValue<string | undefined>('sessionType', options.sessionType),
 				_restoreReasonFor: () => undefined,
 				_modelSelectionDiagnostics: { report: () => { } },
 				_currentPermissionLevel: observableValue('permission', undefined),
@@ -405,6 +410,19 @@ suite('ChatInputPart', () => {
 					assert.deepStrictEqual([result.selectedModel, result.presented], [hostPinnedModel, undefined]);
 				});
 			}
+
+			test('resolves pins against the incoming session\'s model pool while binding across harnesses', () => {
+				// Binding a Copilot agent-host conversation from Local chat: `getModels` still reads the outgoing (Local) widget session.
+				const localModel = createModel('Claude Sonnet 4.5');
+				const result = createInputPart({
+					mode: { id: 'pinned', pin: ['Claude Sonnet 4.5 (copilot)'] },
+					models: () => [pickerModel, localModel],
+					modelsForSessionType: type => type === sessionType ? [hostPickerModel, hostPinnedModel] : [pickerModel, localModel],
+					sessionType,
+					selected: hostPickerModel,
+				});
+				assert.deepStrictEqual([result.selectedModel, result.inputPart._modePreferredModelPending], [hostPinnedModel, false]);
+			});
 
 			test('an exact advertised model id wins over alias parsing of a configuration suffix', () => {
 				const base = createAgentHostModel('provider/custom', 'Custom');

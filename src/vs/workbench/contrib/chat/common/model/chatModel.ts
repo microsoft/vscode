@@ -400,6 +400,8 @@ export const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason
 export interface IChatRequestModeInfo {
 	kind: ChatModeKind | undefined; // is undefined in case of telemetryModeId === 'applyCodeBlock'
 	isBuiltin: boolean;
+	/** The selected mode's id, as advertised to the input (it can differ from `modeInstructions.uri`, e.g. for remote agents). */
+	modeId?: string;
 	modeInstructions: IChatRequestModeInstructions | undefined;
 	telemetryModeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
 	telemetryModeName?: string;

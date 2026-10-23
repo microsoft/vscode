@@ -2984,26 +2984,49 @@ suite('ChatService', () => {
 			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, selectedMode);
 		});
 
-		test('carries the user\'s agent pin overrides with the mode to the materialized session', async () => {
+		test('carries agent pin overrides with the advertised mode to the materialized session, and clears them on late sends', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-pin-overrides' });
-			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
-			const overrides = { modeId: selectedMode.id, configKeys: ['reasoningEffort'] };
+			// A remote agent's advertised id differs from the wrapped instruction URI the widget submits.
+			const advertisedMode = { id: 'agent://reviewer', kind: ChatModeKind.Agent };
+			const overrides = { modeId: advertisedMode.id, configKeys: ['reasoningEffort'] };
+			const modeInfo = {
+				kind: ChatModeKind.Agent,
+				isBuiltin: false,
+				modeId: advertisedMode.id,
+				modeInstructions: { uri: URI.parse('vscode-remote://wsl%2Bubuntu/home/user/.github/agents/reviewer.agent.md'), name: 'Reviewer', content: '', toolReferences: [] },
+				telemetryModeId: 'custom' as const,
+				applyCodeBlockSuggestionId: undefined,
+			};
 			const { service, untitledResource } = setupUntitledRemote({
 				createItem: async () => realItem(realResource),
 			});
 			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
 			testDisposables.add(untitledRef);
+			const realState = () => (service.getSession(realResource) as ChatModel).inputModel.state.get();
 			// The user explicitly chose an effort over the agent's pin before the first send.
-			untitledRef.object.inputModel.setState({ mode: selectedMode, agentPinOverrides: overrides });
+			untitledRef.object.inputModel.setState({ mode: advertisedMode, agentPinOverrides: overrides });
 
-			const result = await service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
-			ChatSendResult.assertSent(result);
-			await result.data.responseCompletePromise;
+			const first = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo });
+			ChatSendResult.assertSent(first);
+			await first.data.responseCompletePromise;
+			const materialized = { mode: realState()?.mode, agentPinOverrides: realState()?.agentPinOverrides };
 
-			const realState = (service.getSession(realResource) as ChatModel).inputModel.state.get();
-			assert.deepStrictEqual({ mode: realState?.mode, agentPinOverrides: realState?.agentPinOverrides }, { mode: selectedMode, agentPinOverrides: overrides });
+			// The user re-armed the pin (switched agents and back) before a late send through the stale untitled URI.
+			untitledRef.object.inputModel.setState({ agentPinOverrides: undefined });
+			const direct = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme, modeInfo });
+			ChatSendResult.assertSent(direct);
+			await direct.data.responseCompletePromise;
+			const afterDirect = realState()?.agentPinOverrides;
+
+			(service.getSession(realResource) as ChatModel).inputModel.setState({ agentPinOverrides: overrides });
+			await service.sendRequest(untitledResource, 'third', { agentId: remoteScheme, modeInfo, queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+
+			assert.deepStrictEqual({ materialized, afterDirect, afterQueued: realState()?.agentPinOverrides }, {
+				materialized: { mode: advertisedMode, agentPinOverrides: overrides },
+				afterDirect: undefined,
+				afterQueued: undefined,
+			});
 		});
-
 		test('carries the untitled mode when the materialized request is queued', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-queued-mode' });
 			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };

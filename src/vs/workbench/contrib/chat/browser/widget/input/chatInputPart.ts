@@ -961,6 +961,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return {
 			kind: this.currentModeKind,
 			isBuiltin: mode.isBuiltin,
+			modeId: mode.id,
 			modeInstructions: modeInstructions ? {
 				uri: mode.uri?.get(),
 				name: mode.name.get(),
@@ -1569,7 +1570,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * to the agent-file resolver for those models, as the frontmatter validator does.
 	 */
 	private _findModelByQualifiedName(qualifiedModelNames: readonly string[]): ILanguageModelChatMetadataAndIdentifier | undefined {
-		const models = this.getModels();
+		// The incoming session's pool: while binding, `setInputModel` has already set its session type but the
+		// widget's view model (which `getModels` reads) is still the outgoing session.
+		const models = this.getModelsForSessionType(this._currentSessionType ?? this.getCurrentSessionType());
 		const harnessModels = new Map<IAgentFileModel, ILanguageModelChatMetadataAndIdentifier>();
 		for (const model of models) {
 			const harnessId = model.metadata.targetChatSessionType;

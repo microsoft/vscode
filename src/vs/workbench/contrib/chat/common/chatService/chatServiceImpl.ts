@@ -1505,7 +1505,8 @@ export class ChatService extends Disposable implements IChatService {
 		});
 
 		if (transferredMode) {
-			model.inputModel.setState({ mode: transferredMode, ...(transferredAgentPinOverrides ? { agentPinOverrides: transferredAgentPinOverrides } : {}) });
+			// Always set, so cleared overrides replace any the real session still holds from an earlier send.
+			model.inputModel.setState({ mode: transferredMode, agentPinOverrides: transferredAgentPinOverrides });
 		}
 		const deferred = new DeferredPromise<ChatSendResult>();
 		this._queuedRequestDeferreds.set(requestModel.id, deferred);
@@ -1556,7 +1557,9 @@ export class ChatService extends Disposable implements IChatService {
 		const transferOverrides = (state: IChatModelInputState | undefined, mode: IChatModelInputState['mode'] | undefined) =>
 			mode && state?.agentPinOverrides?.modeId === mode.id ? state.agentPinOverrides : undefined;
 		const submittedModeKind = options?.modeInfo?.kind;
-		const submittedModeId = options?.modeInfo?.isBuiltin ? submittedModeKind : options?.modeInfo?.modeInstructions?.uri?.toString();
+		// Prefer the advertised mode id: it matches the untitled input state (and its pin overrides), unlike a
+		// remote agent's wrapped instruction URI.
+		const submittedModeId = options?.modeInfo?.modeId ?? (options?.modeInfo?.isBuiltin ? submittedModeKind : options?.modeInfo?.modeInstructions?.uri?.toString());
 		const submittedMode = submittedModeId && submittedModeKind ? { id: submittedModeId, kind: submittedModeKind } : undefined;
 
 		// A late send may arrive on a stale untitled resource after it already
@@ -1669,7 +1672,8 @@ export class ChatService extends Disposable implements IChatService {
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		if (transferredMode) {
-			model.inputModel.setState({ mode: transferredMode, ...(transferredAgentPinOverrides ? { agentPinOverrides: transferredAgentPinOverrides } : {}) });
+			// Always set, so cleared overrides replace any the real session still holds from an earlier send.
+			model.inputModel.setState({ mode: transferredMode, agentPinOverrides: transferredAgentPinOverrides });
 		}
 		const result: ChatSendResultSent = {
 			kind: 'sent',

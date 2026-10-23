@@ -4202,8 +4202,24 @@ suite('AgentHostChatContribution', () => {
 				}));
 				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 				disposables.add(toDisposable(() => chatSession.dispose()));
-				return { fire: (draft: ChatState['draft']) => fireRemoteDraft(agentHostService, backendSession, draft), inputState, inputModel, sessionHandler, sessionResource };
+				return { fire: (draft: ChatState['draft']) => fireRemoteDraft(agentHostService, backendSession, draft), inputState, inputModel, sessionHandler, sessionResource, agentHostService };
 			}
+
+			test('an effort-only agent\'s overlay on a restored model is published, and peer updates still apply', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const { fire, inputState, inputModel, agentHostService } = await setup('effort-only-restored', {});
+				const overlay = { reasoningEffort: 'high', [source]: PresentedConfigurationSource };
+
+				// The model was restored onto the conversation, not chosen in it, so outgoing drafts keep the channel's model.
+				inputModel.setState({ modelConfiguration: overlay, selectedModelReason: ModelSelectionReason.SessionRestore });
+				await timeout(500);
+				const published = agentHostService.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatDraftChanged ? [entry.action.draft?.model] : []).at(-1);
+				fire({ ...draftFor('peer edit', overlay) });
+
+				assert.deepStrictEqual({ published, text: inputState.get()?.inputText }, {
+					published: { id: 'opus-4.7', config: overlay },
+					text: 'peer edit',
+				});
+			}));
 
 			test('a pending local edit that changes only the overrides is not replaced by a peer update', async () => {
 				const overlay = { reasoningEffort: 'high', [source]: PresentedConfigurationSource };
