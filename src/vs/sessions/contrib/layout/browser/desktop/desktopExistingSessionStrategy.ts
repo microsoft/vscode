@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent, observableSignal } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
@@ -89,6 +89,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	/** Toggle the detail panel and return whether it is now visible. */
 	toggleDetails(): boolean {
 		const nowVisible = !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		const activeEditor = this._editorService.activeEditor;
+		if (nowVisible && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+			&& activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)
+			&& !this._detailPanel.hasChanges.get()) {
+			return false;
+		}
 		this._layoutService.setPartHidden(!nowVisible, Parts.AUXILIARYBAR_PART);
 		return nowVisible;
 	}
@@ -377,6 +383,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	// --- Detail panel ----------------------------------------------------------------------
 
 	private _registerDetailPanel(): void {
+		const layoutRestored = observableSignal(this);
 		const activeEditorObs = observableFromEvent(this, this._editorService.onDidActiveEditorChange, () => this._editorService.activeEditor);
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => isMainPartEmpty(this._editorGroupsService));
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
@@ -393,6 +400,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousQuickChatResource: URI | undefined;
 
 		const sync = (reader: IReader | undefined) => {
+			layoutRestored.read(reader);
 			if (this._ctx.chatLayoutSuspended(reader)) {
 				return;
 			}
@@ -456,7 +464,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			previousActiveEditor = activeEditor;
 			previousEditorPartVisible = editorPartVisible;
 			previousEditorSessionKey = sessionKey;
-			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace);
+			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace);
+			if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
+				detailVisibleObs.read(reader);
+			}
 			const revealOnly = this._multipleLayoutOwnersVisible(reader);
 			if (!isWorkspaceConversion) {
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
@@ -472,7 +483,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			}
 			pendingSessionKey = undefined;
 			pendingOutgoingEditor = undefined;
-			sync(undefined);
+			layoutRestored.trigger(undefined);
 		}));
 		this._register(this._layoutService.onDidChangePartVisibility(event => {
 			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
@@ -521,7 +532,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 	}
 
-	private _computeTarget(activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace): DetailPanelTarget {
+	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace): DetailPanelTarget {
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
 		}
@@ -539,7 +550,9 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 
 		if (isChangesEditorInput(activeEditor, this._sessionChangesService)) {
-			return DetailPanelTarget.ChangesForced;
+			return editorPartVisible && !this._detailPanel.hasChanges.read(reader)
+				? DetailPanelTarget.EditorHidden
+				: DetailPanelTarget.ChangesForced;
 		}
 
 		switch (getFilesDetailsState(activeEditor, workspace)) {

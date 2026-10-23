@@ -212,6 +212,8 @@ export interface ITestLayoutHarness {
 	readonly layoutService: IAgentWorkbenchLayoutService;
 	storageService: TestStorageService;
 	activeSessionObs: ISettableObservable<IActiveSession | undefined>;
+	selectedChangesObs: ISettableObservable<readonly ISessionFileChange[] | undefined>;
+	changesetLoadingObs: ISettableObservable<boolean>;
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	additionalShownChatsObs: ISettableObservable<number>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
@@ -339,6 +341,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		get layoutService() { return layoutService; },
 		storageService,
 		activeSessionObs: observableValue<IActiveSession | undefined>('activeSession', undefined),
+		selectedChangesObs: observableValue<readonly ISessionFileChange[] | undefined>('selectedChanges', undefined),
+		changesetLoadingObs: observableValue('changesetLoading', false),
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		additionalShownChatsObs: observableValue('additionalShownChats', 0),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
@@ -502,6 +506,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 	});
 	instaService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+		override readonly activeSessionChangesetLoadingObs = harness.changesetLoadingObs;
+		override readonly activeSessionChangesObs = derived(reader => harness.selectedChangesObs.read(reader)
+			?? harness.activeSessionObs.read(reader)?.activeChat.read(reader).changes.read(reader) ?? []);
 		override setChangesetId(): void { }
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {

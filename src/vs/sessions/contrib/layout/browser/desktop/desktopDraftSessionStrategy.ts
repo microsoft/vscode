@@ -547,6 +547,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	// --- Detail panel ----------------------------------------------------------------------
 
 	private _registerDetailPanel(): void {
+		const layoutRestored = observableSignalFromEvent(this, this._ctx.onDidEndSessionLayoutRestore);
 		const activeEditorObs = observableFromEvent(
 			this,
 			this._editorService.onDidActiveEditorChange,
@@ -562,12 +563,18 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			this._layoutService.onDidChangeEditorMaximized,
 			() => this._layoutService.isEditorMaximized(),
 		);
+		const detailVisibleObs = observableFromEvent(
+			this,
+			this._layoutService.onDidChangePartVisibility,
+			() => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+		);
 		let previousActiveEditor: EditorInput | undefined;
 		let previousEditorPartVisible = false;
 		let previousEditorSessionKey: string | undefined;
 
 		this._register(
 			autorun((reader) => {
+				layoutRestored.read(reader);
 				const activeSession = this._sessionsService.activeSession.read(reader);
 				if (!activeSession) {
 					previousActiveEditor = undefined;
@@ -602,6 +609,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					editorPartVisible,
 					workspace,
 				);
+				if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
+					detailVisibleObs.read(reader);
+				}
 				const revealOnly = this._multipleLayoutOwnersVisible(reader);
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 				this._detailPanel.sync(target);
@@ -693,7 +703,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}
 
 		if (isChangesEditorInput(activeEditor, this._sessionChangesService)) {
-			return DetailPanelTarget.ChangesForced;
+			return editorPartVisible && !this._detailPanel.hasChanges.read(reader)
+				? DetailPanelTarget.EditorHidden
+				: DetailPanelTarget.ChangesForced;
 		}
 
 		switch (getFilesDetailsState(activeEditor, workspace)) {

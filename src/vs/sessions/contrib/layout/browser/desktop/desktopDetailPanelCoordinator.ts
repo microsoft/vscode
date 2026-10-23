@@ -6,7 +6,7 @@
 import { Sequencer } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derivedObservableWithCache } from '../../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -14,6 +14,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
+import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 
 export const enum DetailPanelTarget {
@@ -37,11 +38,19 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 	private _generation = 0;
 	private _target = DetailPanelTarget.Preserve;
 
+	readonly hasChanges = derivedObservableWithCache<boolean>(this, (reader, lastValue) => {
+		if (this._changesViewService.activeSessionChangesetLoadingObs.read(reader)) {
+			return lastValue ?? true;
+		}
+		return this._changesViewService.activeSessionChangesObs.read(reader).length > 0;
+	});
+
 	constructor(
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 	) {
 		super();
 		this._hasDockedDetailsContext = HasDockedDetailsContext.bindTo(contextKeyService);

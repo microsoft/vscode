@@ -71,7 +71,7 @@ The side pane combines Editor content and the docked Auxiliary Bar detail. Its v
 
 `DesktopDockedTabsCoordinator` owns the managed Changes and Files tabs. `DesktopDetailPanelCoordinator` maps the active editor to Changes or Files detail content and publishes the related context keys. The strategies decide visibility before publishing a content target.
 
-The Auxiliary Bar is visible only when it has an active view container. Browser and unsupported editor tabs may hide Details transiently; activating a supported Changes or file editor reveals the matching detail once while preserving later explicit user hides.
+The Auxiliary Bar is visible only when it has an active view container. Browser, unsupported editor tabs, and a visible Changes editor with an empty selected changeset may hide Details transiently; activating a supported Changes or file editor reveals the matching detail when available while preserving later explicit user hides.
 
 Closing the whole side pane keeps ordinary editors available for restoration. Entering Details-only closes non-docked tabs and captures restorable editors for reopening when Editor content is shown again. Registered live editors remain in the hidden editor group instead of being disposed, preserving runtime state that cannot be reconstructed.
 
