@@ -182,23 +182,53 @@ import { assertNoRpc, closeAllEditors } from '../utils';
 		const tab = await window.openBrowserTab('about:blank');
 		const session = await tab.startCDPSession();
 
-		const response = new Promise<any>(resolve => {
-			const disposable = session.onDidReceiveMessage((msg: any) => {
-				if (msg.id === 1) {
-					disposable.dispose();
-					resolve(msg);
-				}
-			});
+		// openBrowserTab resolves before the tab's initial navigation commits (in remote
+		// workspaces it first waits for the tunnel proxy), and until then CDP reports the
+		// target's URL as ''. Track the URL from target events so we can wait for the commit.
+		const urls = new Map<string, string>();
+		let onUrlChanged: (() => void) | undefined;
+		const responses = new Map<number, (msg: any) => void>();
+		const listener = session.onDidReceiveMessage((msg: any) => {
+			if (msg.method === 'Target.targetCreated' || msg.method === 'Target.targetInfoChanged') {
+				urls.set(msg.params.targetInfo.targetId, msg.params.targetInfo.url);
+				onUrlChanged?.();
+			} else if (typeof msg.id === 'number') {
+				responses.get(msg.id)?.(msg);
+			}
 		});
+		const send = async (id: number, method: string, params?: object) => {
+			const response = new Promise<any>(resolve => responses.set(id, resolve));
+			await session.sendMessage({ id, method, params });
+			return response;
+		};
 
-		await session.sendMessage({ id: 1, method: 'Target.getTargets' });
-		const msg = await response;
-		assert.ok(msg.result);
-		const targets: any[] = msg.result.targetInfos;
-		assert.equal(targets.length, 1);
-		assert.equal(targets[0].url, 'about:blank');
+		try {
+			await send(1, 'Target.setDiscoverTargets', { discover: true });
+			const msg = await send(2, 'Target.getTargets');
+			assert.ok(msg.result);
+			const targets: any[] = msg.result.targetInfos;
+			assert.equal(targets.length, 1);
 
-		await session.close();
+			const targetId: string = targets[0].targetId;
+			if (!urls.has(targetId)) {
+				urls.set(targetId, targets[0].url);
+			}
+			if (urls.get(targetId) !== 'about:blank') {
+				await new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => reject(new Error(`Browser target is still at '${urls.get(targetId)}' 10s after opening about:blank`)), 10_000);
+					onUrlChanged = () => {
+						if (urls.get(targetId) === 'about:blank') {
+							clearTimeout(timeout);
+							resolve();
+						}
+					};
+				});
+			}
+			assert.equal(urls.get(targetId), 'about:blank');
+		} finally {
+			listener.dispose();
+			await session.close();
+		}
 	});
 
 	test('CDP session.close fires onDidClose', async () => {
