@@ -219,11 +219,13 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (!trigger || this.actionWidgetService.isVisible) {
 			return;
 		}
+		const remotesEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		const showManage = remotesEnabled && this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 		const items: IActionListItem<IEnvironmentPickerItem>[] = this.environments.get().map(environment => ({
 			kind: ActionListItemKind.Action,
 			label: environment.label,
 			description: environment.description,
-			submenuActions: this.getActions(environment),
+			submenuActions: showManage ? undefined : this.getActions(environment),
 			group: { title: '', icon: environment.icon },
 			item: { run: () => this.select(environment), checked: environment.id === this.selected.get()?.id },
 		}));
@@ -243,9 +245,9 @@ export class SessionEnvironmentPicker extends Disposable {
 				}
 			}
 		}
-		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+		if (remotesEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
-			if (this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
+			if (showManage) {
 				items.push(
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{
