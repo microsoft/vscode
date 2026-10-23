@@ -47,11 +47,11 @@ on:
         type: boolean
         default: true
       smoke_shard_index:
-        description: 1-based index of the Electron smoke test shard to run
+        description: 1-based index of the Electron or remote smoke test shard to run
         type: number
         default: 1
       smoke_shard_total:
-        description: Number of shards the Electron smoke tests are split into
+        description: Number of shards the Electron or remote smoke tests are split into
         type: number
         default: 1
       agent_host_e2e_tests:
@@ -299,7 +299,7 @@ jobs:
       - name: 🧪 Run smoke tests (Remote)
         if: ${{ inputs.remote_tests && inputs.smoke_tests }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --remote --tracing
+        run: npm run smoketest-no-compile -- --remote --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
 
       - name: Diagnostics after smoke test run
         if: ${{ inputs.smoke_tests && always() }}
