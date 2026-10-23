@@ -6,11 +6,22 @@
 import { ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { pathSegment, withQuery } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
-import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
+import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, EnvironmentIdentityToken, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
 import { MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
 
 export class EnvironmentsClient implements IEnvironmentsClient {
 	constructor(private readonly _client: MissionControlClient) { }
+
+	mintIdentityToken(signal: AbortSignal, options?: ApiRequestOptions): Promise<EnvironmentIdentityToken> {
+		return this._client.request({
+			domain: 'environments', method: 'POST', path: '/environments/tokens', body: {}, expectedStatus: 200,
+			policy: { credential: true }, options,
+		}, signal, response => parse.object<EnvironmentIdentityToken>({
+			token: parse.nonEmptyString,
+			expires_at: parse.optional(parse.dateTime),
+			expires_in: parse.optional(parse.nonNegativeInteger),
+		})(response.data));
+	}
 
 	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
 		const { query, ...requestOptions } = options ?? {};

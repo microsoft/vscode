@@ -3629,6 +3629,91 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	for (const direction of [-1, 1]) {
+		test(`throws still spin in flight without an extra landing rotation (${direction < 0 ? 'left' : 'right'})`, async () => {
+			const { root, firstParent, button, service, widget } = createHostTransitionHarness(false);
+			service.toggle();
+			root.style.width = '1800px';
+			root.style.height = '1000px';
+			firstParent.style.cssText = 'position:absolute;left:40px;top:600px;width:1700px;height:80px';
+			service.setHorizontalPosition(direction < 0 ? 0.75 : 0.25);
+			service.toggle();
+			button.classList.remove('entering');
+			await waitForPetAnimation(() => button.dataset.state === 'idle');
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+			const clock = sinon.useFakeTimers({ toFake: ['performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+			try {
+				const bounds = button.getBoundingClientRect();
+				const startX = bounds.left + bounds.width / 2;
+				const startY = bounds.top + bounds.height / 2;
+				button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+					clientX: startX, clientY: startY,
+					button: 0, buttons: 1, pointerId: 1, bubbles: true,
+				}));
+				// A timed flick gives every renderer the same complete spin before the landing.
+				clock.tick(20);
+				button.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+					clientX: startX + direction * 20, clientY: startY - 15,
+					buttons: 1, pointerId: 1, bubbles: true,
+				}));
+				button.dispatchEvent(new mainWindow.PointerEvent('pointerup', {
+					clientX: startX + direction * 20, clientY: startY - 15,
+					button: 0, buttons: 0, pointerId: 1, bubbles: true,
+				}));
+				let maximumSpin = 0;
+				let lastAirborneRotation = 0;
+				let visiblySpinning = false;
+				for (let frame = 0; button.classList.contains('throwing') && frame < 180; frame++) {
+					clock.runToFrame();
+					if (button.classList.contains('throwing')) {
+						lastAirborneRotation = Number.parseFloat(button.style.transform.slice('rotate('.length));
+						maximumSpin = Math.max(maximumSpin, Math.abs(lastAirborneRotation));
+						const matrix = new mainWindow.DOMMatrix(mainWindow.getComputedStyle(button).transform);
+						visiblySpinning ||= Math.abs(matrix.b) > 0.5;
+					}
+				}
+				const landed = !button.classList.contains('throwing');
+				const landingRotation = button.getAnimations().some(animation => animation.effect instanceof mainWindow.KeyframeEffect
+					&& animation.effect.getKeyframes().some(frame => frame.transform !== undefined));
+				const landingTransform = mainWindow.getComputedStyle(button).transform;
+				await waitForPetAnimation(() => button.dataset.state === 'splat');
+				assert.deepStrictEqual({
+					maximumSpin,
+					visiblySpinning,
+					direction: Math.sign(lastAirborneRotation),
+					landed,
+					landingRotation,
+					landingTransform,
+					landingBottom: button.getBoundingClientRect().bottom,
+				}, {
+					maximumSpin: 360, visiblySpinning: true, direction, landed: true, landingRotation: false, landingTransform: 'none',
+					landingBottom: firstParent.getBoundingClientRect().top,
+				});
+			} finally {
+				widget.dispose();
+				clock.runToFrame();
+				clock.restore();
+			}
+		});
+	}
+
+	test('clears whole-turn rotation before restoring normal landing transitions', () => {
+		const { button, setReducedMotion } = createHostTransitionHarness(false);
+		const throwEvent = new mainWindow.KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', shiftKey: true, bubbles: true, cancelable: true });
+		Object.defineProperty(throwEvent, 'keyCode', { value: 39 });
+		button.dispatchEvent(throwEvent);
+		button.style.transform = `rotate(${getChatPetThrowRotation(358, 20, 100, 16)}deg)`;
+		const uprightTransform = mainWindow.getComputedStyle(button).transform;
+		setReducedMotion(true);
+		assert.deepStrictEqual({
+			uprightTransform,
+			airborne: button.classList.contains('throwing'),
+			landingRotation: button.getAnimations().some(animation => animation.effect instanceof mainWindow.KeyframeEffect
+				&& animation.effect.getKeyframes().some(frame => frame.transform !== undefined)),
+		}, { uprightTransform: 'matrix(1, 0, 0, 1, 0, 0)', airborne: false, landingRotation: false });
+	});
+
 	test('advances wall throws through gravity and bounded collisions', () => {
 		const bounds = { minimumLeft: 0, maximumLeft: 80, minimumTop: 0 };
 		const frames = [

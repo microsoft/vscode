@@ -10,13 +10,13 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
@@ -29,11 +29,15 @@ import { AuthenticationSessionAccount, IAuthenticationService } from '../../../.
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
+const gitDefaultCloneDirectorySetting = 'git.defaultCloneDirectory';
+const environmentNameStorageKey = 'agentHost.missionControl.environmentName';
 const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
+const missionControlDisableRepositoryMetadata = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
 	declare readonly _serviceBrand: undefined;
 	readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
+	readonly environmentName = observableValue<string | undefined>(this, undefined);
 	private _enabled = false;
 	private _configured = false;
 	private _generation = 0;
@@ -61,17 +65,28 @@ export class MissionControlSharingService extends Disposable implements IMission
 		@IPathService private readonly _pathService: IPathService,
 		@IFileService private readonly _fileService: IFileService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
 	) {
 		super();
+		this.environmentName.set(this._storage.get(environmentNameStorageKey, StorageScope.APPLICATION), undefined);
 		if (!this._agentHost.configureMissionControl) {
 			return;
 		}
-		this._enabled = this._usesMissionControl() && this._storage.getBoolean(sharingStorageKey, StorageScope.APPLICATION, false);
+		this._enabled = this._usesMissionControl() && this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true && this._storage.getBoolean(sharingStorageKey, StorageScope.APPLICATION, false);
+		this._register(autorun(reader => {
+			this._availabilityService.available.read(reader);
+			this._generation++;
+			this._update.schedule();
+		}));
 		this._register(this._configuration.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
+			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)
+				|| e.affectsConfiguration(GitHubEnvironmentsEnabledSettingId) && !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId)) {
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
 			} else if (e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy) || e.affectsConfiguration(MissionControlUseLocalCredentialsSettingId)) {
 				void this._withdraw().catch(error => this._reportWithdrawalError(error));
+				this._update.schedule();
+			} else if (e.affectsConfiguration(AgentHostDefaultCloneDirectorySettingId) || e.affectsConfiguration(gitDefaultCloneDirectorySetting) || e.affectsConfiguration(missionControlDisableRepositoryMetadata)) {
+				this._generation++;
 				this._update.schedule();
 			}
 		}));
@@ -86,6 +101,15 @@ export class MissionControlSharingService extends Disposable implements IMission
 					void this._withdraw().catch(error => this._reportWithdrawalError(error));
 				}
 				this._update.schedule();
+			}
+		}));
+		this._register(this._storage.onDidChangeValue(StorageScope.APPLICATION, environmentNameStorageKey, this._store)(e => {
+			if (e.external) {
+				const name = this._storage.get(environmentNameStorageKey, StorageScope.APPLICATION);
+				if (name !== this.environmentName.get()) {
+					this.environmentName.set(name, undefined);
+					void this._applyEnvironmentName().catch(error => this._logService.error('Failed to update GitHub environment name', error));
+				}
 			}
 		}));
 		this._register(this._workspace.onDidChangeWorkspaceFolders(() => {
@@ -154,7 +178,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	async setEnabled(enabled: boolean): Promise<void> {
-		if (enabled && (!this._agentHost.configureMissionControl || !this._usesMissionControl() || this._entitlement.sentiment.hidden)) {
+		if (enabled && (!this._availabilityService.available.get() || !this._agentHost.configureMissionControl || !this._usesMissionControl() || !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) || this._entitlement.sentiment.hidden)) {
 			throw new Error(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."));
 		}
 		this._enabled = enabled;
@@ -169,6 +193,32 @@ export class MissionControlSharingService extends Disposable implements IMission
 		await this._updates.queue(() => this._configure(true));
 	}
 
+	async setEnvironmentName(name: string): Promise<void> {
+		name = name.trim();
+		if (!name || /[\r\n\x00-\x1f\x7f]/.test(name)) {
+			throw new Error(localize('missionControlSharing.invalidName', "Enter an environment name without control characters."));
+		}
+		if (!this._agentHost.configureMissionControl || this._entitlement.sentiment.hidden) {
+			throw new Error(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."));
+		}
+		if (name === this.environmentName.get()) {
+			return;
+		}
+		this.environmentName.set(name, undefined);
+		this._storage.store(environmentNameStorageKey, name, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await this._applyEnvironmentName();
+	}
+
+	private async _applyEnvironmentName(): Promise<void> {
+		this._generation++;
+		this._update.cancel();
+		await this._withdraw();
+		if (this._enabled) {
+			this.state.set('connecting', undefined);
+			await this._updates.queue(() => this._configure());
+		}
+	}
+
 	private _usesMissionControl(): boolean {
 		return isGitHubEnvironmentBackend(this._configuration.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 	}
@@ -178,12 +228,24 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	private async _withdraw(): Promise<void> {
-		this._generation++;
+		const generation = ++this._generation;
 		this._configured = false;
 		this._accountSessionIds.clear();
 		this.state.set('disabled', undefined);
-		if (this._accountId !== undefined) {
-			await this._agentHost.configureMissionControl?.(undefined, this._accountId);
+		let accountId = this._accountId;
+		if (accountId === undefined && await this._agentHost.getMissionControlEnvironmentId?.()) {
+			const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
+			const defaultAccount = await this._defaultAccountService.getDefaultAccount();
+			const sessions = await this._authentication.getSessions(providerId, undefined, undefined, true);
+			accountId = defaultAccount
+				? defaultAccount.authenticationProvider.id === providerId ? sessions.find(session => session.id === defaultAccount.sessionId)?.account.id : undefined
+				: new Set(sessions.map(session => session.account.id)).size === 1 ? sessions[0].account.id : undefined;
+			if (accountId === undefined) {
+				this._logService.warn('Cannot withdraw existing Mission Control sharing without an unambiguous signed-in owner');
+			}
+		}
+		if (accountId !== undefined && generation === this._generation && !this._store.isDisposed) {
+			await this._agentHost.configureMissionControl?.(undefined, accountId);
 		}
 	}
 
@@ -219,7 +281,12 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	private async _configure(interactive = false): Promise<void> {
 		const generation = this._generation;
-		if (!this._enabled || !this._usesMissionControl() || this._entitlement.sentiment.hidden) {
+		const available = this._availabilityService.available.get();
+		if (available === false || available !== undefined && !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId)) {
+			await this._withdraw();
+			return;
+		}
+		if (!available || !this._enabled || !this._usesMissionControl() || this._entitlement.sentiment.hidden) {
 			return;
 		}
 		if (!this._configured) {
@@ -295,8 +362,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			}
 			this._accountId = sessions[0].account.id;
 			this._accountSessionIds = new Set(sessions.map(session => session.id));
-			const localCredentialSetting = this._configuration.inspect<boolean>(MissionControlUseLocalCredentialsSettingId);
-			const useLocalCredentials = (localCredentialSetting.userLocalValue ?? localCredentialSetting.applicationValue) === true;
+			const useLocalCredentials = this._configuration.getValue<boolean>(MissionControlUseLocalCredentialsSettingId) === true;
 			if (useLocalCredentials) {
 				this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run Copilot work with the desktop credential and its permissions');
 			}
@@ -305,6 +371,17 @@ export class MissionControlSharingService extends Disposable implements IMission
 			if (ignoreRemoteControlPolicy) {
 				this._logService.warn('[Mission Control] Device remote-control policy override enabled: registration will omit enterprise remote-control restrictions');
 			}
+			let cloneRoot: string | undefined;
+			for (const settingId of [AgentHostDefaultCloneDirectorySettingId, gitDefaultCloneDirectorySetting]) {
+				const setting = this._configuration.inspect<string | null>(settingId);
+				const value = setting.userLocalValue !== undefined ? setting.userLocalValue : setting.applicationValue;
+				if (value) {
+					cloneRoot = value;
+					break;
+				}
+			}
+			const repositoryMetadataSetting = this._configuration.inspect<boolean>(missionControlDisableRepositoryMetadata);
+			const disableRepositoryMetadata = (repositoryMetadataSetting.userLocalValue ?? repositoryMetadataSetting.applicationValue) === true;
 			await this._agentHost.configureMissionControl?.({
 				baseUrl: 'https://api.github.com',
 				accountId: sessions[0].account.id,
@@ -312,9 +389,12 @@ export class MissionControlSharingService extends Disposable implements IMission
 				roots: [...new Set([...fileSystemRoots.map(root => root.fsPath), home.fsPath, ...projects])],
 				projects,
 				defaultDirectory: home.fsPath,
+				...(cloneRoot ? { cloneRoot } : {}),
 				live: true,
+				...(this.environmentName.get() ? { name: this.environmentName.get() } : {}),
 				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 				...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),
+				...(disableRepositoryMetadata ? { disableRepositoryMetadata: true } : {}),
 			});
 			if (generation === this._generation && !this._store.isDisposed) {
 				this._configured = true;

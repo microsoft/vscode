@@ -1938,7 +1938,7 @@ suite('AgentMergeController', () => {
 	 * for that folder and owned by `owningChat` (the peer chat by default). The
 	 * pull request has a failing check, so the controller starts a repair turn.
 	 */
-	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: PullRequestMutationApi) {
+	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: PullRequestMutationApi, beforeCredential?: () => Promise<void>) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1987,6 +1987,7 @@ suite('AgentMergeController', () => {
 				override readonly mutations = mutations ?? new class extends mock<PullRequestMutationApi>() { }();
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
+						await beforeCredential?.();
 						return { account: snapshot.get().ref, token: 'test-token', generation: 1, signal };
 					}
 				}();
@@ -2018,6 +2019,146 @@ suite('AgentMergeController', () => {
 		};
 		return { stateManager, configurationService, gitService, gitStateService, controller, session, peerChat, otherKey, startTurns, turnStart, cancelledTurns, notices, snapshot, refreshes, start };
 	}
+
+	suite('moving the chat that runs Agent Merge', () => {
+		/**
+		 * Moves the harness's peer chat into a new session as the host publishes a move: its folder's monitoring moves
+		 * first, then the chat, then each session's Agent Merge. With `conflict`, the new session already runs Agent
+		 * Merge for the pull request, so the peer's stays off.
+		 */
+		function movePeer(h: ReturnType<typeof createPeerRepairHarness>, conflict = false): string {
+			const target = `copilot:/agent-merge-controller-${++sessionCounter}`;
+			h.stateManager.createSession(summary(target));
+			h.stateManager.setSessionConfig(target, { schema: platformSessionSchema.toProtocol(), values: {} });
+			h.stateManager.setSessionMeta(target, withFolderGitHubState(undefined, h.otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
+			h.stateManager.dispatchServerAction(target, { type: ActionType.SessionReady });
+			const values = h.configurationService.getSessionConfigValues(h.session) ?? {};
+			const transfer = h.controller.transferFolders(h.session, target, conflict ? [] : [h.otherKey], conflict ? [{ folderKey: h.otherKey, chat: h.peerChat }] : []);
+			h.stateManager.transferChats(h.session, target, [h.peerChat], undefined);
+			if (!conflict) {
+				h.configurationService.updateSessionConfig(target, {
+					[SessionConfigKey.AgentMergeFolders]: values[SessionConfigKey.AgentMergeFolders],
+					[SessionConfigKey.AgentMergeControllerFolders]: values[SessionConfigKey.AgentMergeControllerFolders],
+				});
+			}
+			h.configurationService.updateSessionConfig(h.session, {
+				[SessionConfigKey.AgentMergeFolders]: { [h.otherKey]: { enabled: false } },
+				[SessionConfigKey.AgentMergeControllerFolders]: {},
+			});
+			transfer.dispose();
+			return target;
+		}
+
+		test('a repair turn keeps running in the session its chat moved to and ends there, without another one starting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createPeerRepairHarness(disposables);
+			await h.start();
+			const noticesBefore = h.notices.length;
+			const target = movePeer(h);
+			await timeout(0);
+			const moved = { session: h.controller.getTurnContext(h.peerChat)?.session === target, cancelled: [...h.cancelledTurns], notices: h.notices.slice(noticesBefore) };
+
+			const turnId = h.stateManager.getChatState(h.peerChat)!.activeTurn!.id;
+			const refreshesBefore = h.refreshes.count;
+			h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				moved,
+				ended: h.controller.getTurnContext(h.peerChat),
+				// Its end is handled where it runs now, which looks at the pull request again.
+				refreshedAfterTurn: h.refreshes.count > refreshesBefore,
+				starts: h.startTurns,
+				target: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(target), h.otherKey, getWorkingDirectoryKey(REPOSITORY))?.lastPromptFingerprint !== undefined,
+				source: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), h.otherKey, getWorkingDirectoryKey(REPOSITORY)),
+			}, {
+				moved: { session: true, cancelled: [], notices: [] },
+				ended: undefined,
+				refreshedAfterTurn: true,
+				starts: [h.peerChat],
+				target: true,
+				source: { enabled: false },
+			});
+		}));
+
+		test('a repair turn whose end is being handled when its chat moves is handled in the session the chat moved to', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createPeerRepairHarness(disposables);
+			await h.start();
+			const turnId = h.stateManager.getChatState(h.peerChat)!.activeTurn!.id;
+			const refreshesBefore = h.refreshes.count;
+			h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			const target = movePeer(h);
+			await timeout(1000);
+			const refreshedAfterTurn = h.refreshes.count > refreshesBefore;
+			// The pull request now conflicts: the next repair runs, in the session the chat moved to.
+			const conflicting = repairSnapshot();
+			h.snapshot.set({ ...conflicting, mergeability: { ...conflicting.mergeability, value: { ...conflicting.mergeability.value!, mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY' } } }, undefined);
+			// Past the debounce of pull request changes.
+			await timeout(60_000);
+
+			assert.deepStrictEqual({
+				refreshedAfterTurn,
+				starts: h.startTurns,
+				nextRepairIn: h.controller.getTurnContext(h.peerChat)?.session === target,
+				cancelled: h.cancelledTurns,
+			}, {
+				refreshedAfterTurn: true,
+				starts: [h.peerChat, h.peerChat],
+				nextRepairIn: true,
+				cancelled: [],
+			});
+		}));
+
+		test('an evaluation running when its chat moves stops, and the next one runs in the session the chat moved to', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gate = new DeferredPromise<void>();
+			const requested = new DeferredPromise<void>();
+			const credentialRequests = { count: 0 };
+			const h = createPeerRepairHarness(disposables, undefined, undefined, undefined, () => {
+				if (++credentialRequests.count > 1) {
+					return Promise.resolve();
+				}
+				requested.complete();
+				return gate.p;
+			});
+			const started = h.start();
+			await requested.p;
+			const target = movePeer(h);
+			await timeout(60_000);
+			// The next evaluation waits for the one still running for the source.
+			const requestsWhileRunning = credentialRequests.count;
+			gate.complete();
+			await started;
+
+			assert.deepStrictEqual({
+				requestsWhileRunning,
+				starts: h.startTurns,
+				session: h.controller.getTurnContext(h.peerChat)?.session === target,
+				cancelled: h.cancelledTurns,
+			}, {
+				requestsWhileRunning: 1,
+				starts: [h.peerChat],
+				session: true,
+				cancelled: [],
+			});
+		}));
+
+		test('a moved chat whose new session already runs Agent Merge for its pull request stops its repair and is told why', async () => {
+			const h = createPeerRepairHarness(disposables);
+			await h.start();
+			const noticesBefore = h.notices.length;
+			movePeer(h, true);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				cancelled: h.cancelledTurns,
+				context: h.controller.getTurnContext(h.peerChat),
+				notices: h.notices.slice(noticesBefore),
+			}, {
+				cancelled: [h.peerChat],
+				context: undefined,
+				notices: [{ chat: h.peerChat, kind: AgentSystemNotificationKind.AgentMergeDisabled, content: 'Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.' }],
+			});
+		});
+	});
 
 
 	for (const state of ['merged', 'closed'] as const) {

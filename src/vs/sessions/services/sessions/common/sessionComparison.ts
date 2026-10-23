@@ -183,12 +183,9 @@ export interface ISessionComparisonService {
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
 
-export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+export function getSessionComparisonWorkspaceError(branch: string | undefined): string | undefined {
 	if (!branch) {
-		return localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.");
-	}
-	if (hasGitRemote !== true) {
-		return localize('sessionComparison.gitRemoteRequired', "Comparisons require a Git remote.");
+		return localize('sessionComparison.gitBranchRequired', "Comparisons require a Git repository with branch information.");
 	}
 	return undefined;
 }

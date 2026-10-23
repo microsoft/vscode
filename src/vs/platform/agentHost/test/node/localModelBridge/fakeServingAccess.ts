@@ -12,6 +12,7 @@ export class FakeClock implements ILocalModelClock {
 
 	private _now = 1_000_000;
 	private readonly _timers: { readonly at: number; readonly callback: () => void; active: boolean }[] = [];
+	private _dueWaiters: { readonly withinMs: number; readonly resolve: () => void }[] = [];
 
 	now(): number {
 		return this._now;
@@ -20,6 +21,9 @@ export class FakeClock implements ILocalModelClock {
 	setTimeout(callback: () => void, ms: number): IDisposable {
 		const timer = { at: this._now + ms, callback, active: true };
 		this._timers.push(timer);
+		const due = this._dueWaiters.filter(waiter => ms <= waiter.withinMs);
+		this._dueWaiters = this._dueWaiters.filter(waiter => ms > waiter.withinMs);
+		due.forEach(waiter => waiter.resolve());
 		return { dispose: () => { timer.active = false; } };
 	}
 
@@ -27,8 +31,18 @@ export class FakeClock implements ILocalModelClock {
 		return this._timers.filter(timer => timer.active).length;
 	}
 
-	advance(ms: number): void {
+	/** Resolves once a timer due within `withinMs` is pending: at once when one is, else when one is scheduled. */
+	whenTimerDue(withinMs: number): Promise<void> {
+		if (this._timers.some(timer => timer.active && timer.at <= this._now + withinMs)) {
+			return Promise.resolve();
+		}
+		return new Promise(resolve => this._dueWaiters.push({ withinMs, resolve }));
+	}
+
+	/** Advances by `ms`, running the timers due in order; returns how many ran. */
+	advance(ms: number): number {
 		const target = this._now + ms;
+		let ran = 0;
 		while (true) {
 			const next = this._timers.filter(timer => timer.active && timer.at <= target).sort((a, b) => a.at - b.at)[0];
 			if (!next) {
@@ -36,9 +50,11 @@ export class FakeClock implements ILocalModelClock {
 			}
 			this._now = next.at;
 			next.active = false;
+			ran++;
 			next.callback();
 		}
 		this._now = target;
+		return ran;
 	}
 }
 

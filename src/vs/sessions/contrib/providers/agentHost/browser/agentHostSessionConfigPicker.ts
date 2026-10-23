@@ -14,7 +14,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
-import { toAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Delayer, SequencerByKey } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -56,7 +56,8 @@ import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQui
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { isEnvironmentPickerLocalIsolationEnabled } from '../../../chat/browser/sessionEnvironmentPicker.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -524,7 +525,7 @@ class ConfigCheckboxControl extends Disposable {
 
 		if (this._tooltip !== tooltip) {
 			this._tooltip = tooltip;
-			this._hover.value = tooltip ? this._hoverService.setupDelayedHover(this._row, { content: tooltip }) : undefined;
+			this._hover.value = tooltip ? this._hoverService.setupDelayedHover(this._row, { content: tooltip, appearance: { showPointer: true } }) : undefined;
 		}
 	}
 
@@ -1692,8 +1693,10 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 		disposable?: IDisposable,
 		private readonly _manageFocusableElement = false,
 		options?: IActionViewItemOptions,
+		/** The menu action this picker renders, so toolbars can identify the picker. */
+		action: IAction = { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } },
 	) {
-		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } }, options);
+		super(undefined, action, options);
 		if (disposable) {
 			this._register(disposable);
 		}
@@ -1856,6 +1859,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
+				|| e.affectsConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING)
+				|| e.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)
 				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
 				this._refreshRepositoryMenuItems(actionViewItemService);
 			}
@@ -1951,11 +1956,16 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
 			const workspace = getSessionWorkspaceProperties(config.schema);
+			const isolationInEnvironment = isEnvironmentPickerLocalIsolationEnabled(this._configurationService)
+				&& isNewSession && provider.environment.id === 'local'
+				&& !isPhoneLayout(this._layoutService)
+				&& !provider.isDevContainerRequested?.(session.sessionId);
 			const properties = orderSessionConfigProperties(
 				Object.entries(config.schema.properties),
 				isPhoneLayout(this._layoutService),
 			).filter(([property, schema]) =>
 				isRenderableSessionConfigProperty(property, schema, config.schema, isNewSession) &&
+				(!isolationInEnvironment || property !== workspace.isolation?.key) &&
 				(isNewSession || schema.sessionMutable || property === workspace.isolation?.key || property === workspace.baseBranch?.key)
 			);
 			const branchIndex = properties.findIndex(([property]) => property === workspace.baseBranch?.key);
@@ -1998,13 +2008,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		store.add(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig,
 			commandId,
-			(_action, _options, scopedInstantiationService) => {
+			(action, options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(
 					scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session, property),
 					undefined,
 					true,
-					_options,
+					options,
+					action,
 				);
 			},
 		));

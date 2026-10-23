@@ -474,14 +474,19 @@ suite('AgentHostChatMovability', () => {
 		assert.deepStrictEqual(results, { off: [off, off], onWithWorktree: [onWithWorktree, onWithWorktree] });
 	});
 
-	test('a chat that runs Agent Merge for a folder of its session is not movable until it stops', async () => {
+	test('a chat that runs Agent Merge for a folder of its session stays movable: its Agent Merge moves with it', async () => {
 		const { stateManager, peer, flip } = await setupStrict();
 		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: {} });
 		const agentMerge = (enabled: boolean) => stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionConfigChanged,
 			config: { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(folder)]: { enabled, chat: peer } } },
 		});
-		assert.deepStrictEqual(await flip(() => agentMerge(true), () => agentMerge(false)), flipped);
+		assert.deepStrictEqual(await flip(() => agentMerge(true), () => agentMerge(false)), {
+			before: { summary: true, state: true },
+			refused: { summary: true, state: true },
+			allowed: { summary: true, state: true },
+			announced: [],
+		});
 	});
 
 	test('a restored chat, which registers once its session lists it, is published at once and follows its session\'s inputs', async () => {

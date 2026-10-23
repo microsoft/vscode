@@ -585,7 +585,8 @@
 
 	.session-external-application-badge-title {
 		display: none;
-		height: 17px;
+		/* Match the title row's line height (17px, or 16px in compact, quick-chat, and comparison rows) so showing the badge never grows the row. */
+		height: 1lh;
 		max-width: 40%;
 		margin-left: var(--vscode-spacing-size60);
 

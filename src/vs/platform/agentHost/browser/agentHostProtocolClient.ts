@@ -241,6 +241,8 @@ type ClientState =
 
 /** Optional configuration for an {@link AgentHostProtocolClient}. */
 export interface IAgentHostProtocolClientOptions {
+	/** Seals relay credentials only after independently authenticating the requested recipient key. */
+	readonly sealAuthenticationToken?: (request: IMissionControlCredentialSealingRequest) => Promise<string>;
 	/** Estimator used to suppress watchdog closes while the local event loop is saturated. Defaults to the shared instance. */
 	readonly loadEstimator?: ILoadEstimator;
 	/** Stable client identity. Generated when omitted. */
@@ -316,6 +318,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _channelScheduler = this._register(new MutableDisposable<AgentHostChannelScheduler>());
 	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 	private _authenticationTokenSealer: ((request: IMissionControlCredentialSealingRequest) => Promise<string>) | undefined;
+	private readonly _trustedAuthenticationTokenSealer: IAgentHostProtocolClientOptions['sealAuthenticationToken'];
 
 	declare readonly _serviceBrand: undefined;
 
@@ -575,6 +578,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._prepareReconnect = options?.prepareReconnect;
 		this._prepareAuthentication = options?.prepareAuthentication;
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
+		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
 		this._onDispose = options?.onDispose;
 
@@ -2224,9 +2228,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				? 'auth-token' : 'mcp-auth-token';
 			const encryption = readAgentHostAuthenticationEncryption(root, this._authenticationHandshake, purpose);
 			if (!encryption) {
+				if (this._isWebPubSubRelay() && this._trustedAuthenticationTokenSealer) {
+					throw new Error('Mission Control host has no supported credential encryption key.');
+				}
 				return params;
 			}
-			if (this._isWebPubSubRelay()) {
+			if (this._isWebPubSubRelay() && !this._trustedAuthenticationTokenSealer) {
 				throw new Error('Relay credentials must be sealed using an independently trusted recipient key.');
 			}
 			return this._sealAuthentication(params, encryption);
@@ -2237,7 +2244,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _sealAuthentication(params: CommandMap['authenticate']['params'], encryption: IAgentHostAuthenticationEncryption): Promise<CommandMap['authenticate']['params']> {
 		try {
-			const token = await (this._authenticationTokenSealer ?? sealAgentHostCredential)({
+			const token = await (this._trustedAuthenticationTokenSealer ?? this._authenticationTokenSealer ?? sealAgentHostCredential)({
 				token: params.token, resource: params.resource, key: encryption.key, challenge: encryption.challenge,
 			});
 			if (!/^copilot-sealed\.v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
