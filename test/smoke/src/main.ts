@@ -476,6 +476,6 @@ const smokeTestSuite = describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Elect
 
 if (shard && shard.total > 1) {
 	const allSuites = smokeTestSuite.suites;
-	smokeTestSuite.suites = selectShardSuites(allSuites, shard);
+	smokeTestSuite.suites = selectShardSuites(allSuites, shard, !opts.web && !opts.remote);
 	logger.log(`Running smoke test shard ${shard.index}/${shard.total} with ${smokeTestSuite.suites.length} of ${allSuites.length} suites: ${smokeTestSuite.suites.map(suite => suite.title).join(', ')}`);
 }

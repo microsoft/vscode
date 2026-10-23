@@ -20,7 +20,7 @@ export interface Shard {
  */
 const suiteDurations = new Map<string, number>([
 	['Data Loss (insiders -> insiders)', 210],
-	['Terminal', 150],
+	['Terminal', process.platform === 'linux' ? 20 : 150],
 	['Agents Window (Dev Container AgentHost)', process.platform === 'linux' ? 115 : 5], // skips itself without Docker
 	['Agents Window (WSL Dev Container AgentHost)', 175], // includes the ~80s WSL setup step
 	['Chat Sessions', 85],
@@ -38,9 +38,9 @@ const suiteDurations = new Map<string, number>([
 const defaultSuiteDuration = 20;
 
 // Coupled to the PR workflows: pr-win32-test.yml only provisions WSL in the first
-// shard, and pr-darwin-test.yml runs the PAC proxy suites after the last shard.
+// shard, and pr-darwin-test.yml runs the PAC proxy suites after the last Electron shard.
 const firstShardSuite = 'Agents Window (WSL Dev Container AgentHost)';
-const lastShardExtraDuration = process.platform === 'darwin' ? 270 : 0;
+const pacProxySuitesDuration = process.platform === 'darwin' ? 270 : 0;
 
 /**
  * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`.
@@ -68,11 +68,12 @@ function estimateDuration(suite: Suite): number {
  * Returns the suites of the given shard, in their original order. Suites go
  * longest first to the shard with the least estimated time. Every shard
  * computes the same assignment, so each suite runs exactly once.
+ * @param electron Whether the shards run the Electron smoke tests, rather than the web or remote ones.
  */
-export function selectShardSuites(suites: readonly Suite[], shard: Shard): Suite[] {
+export function selectShardSuites(suites: readonly Suite[], shard: Shard, electron: boolean): Suite[] {
 	const durations = suites.map(estimateDuration);
 	const shardDurations = new Array<number>(shard.total).fill(0);
-	shardDurations[shard.total - 1] += lastShardExtraDuration;
+	shardDurations[shard.total - 1] += electron ? pacProxySuitesDuration : 0;
 	const assignments: (number | undefined)[] = suites.map(suite => suite.title === firstShardSuite ? 0 : undefined);
 	assignments.forEach((target, suiteIndex) => {
 		if (target !== undefined) {

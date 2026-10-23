@@ -261,7 +261,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron-Smoke
@@ -292,14 +292,27 @@ jobs:
       browser_tests: true
       unit_tests: false
 
+  # The remote integration tests and two shards of the remote smoke tests run on separate machines, so that they finish sooner.
   linux-remote-tests:
-    name: Linux (run)
+    name: Linux (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: integration, integration: true, smoke: false, shard: 1 }
+          - { part: smoke 1/2, integration: false, smoke: true, shard: 1 }
+          - { part: smoke 2/2, integration: false, smoke: true, shard: 2 }
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Remote
       remote_tests: true
+      unit_tests: false
+      integration_tests: ${{ matrix.integration }}
+      smoke_tests: ${{ matrix.smoke }}
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: ${{ matrix.smoke && 2 || 1 }}
 
   macos-electron-unit-tests:
     name: macOS (${{ matrix.part }})
@@ -370,7 +383,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron-Smoke
@@ -402,13 +415,25 @@ jobs:
       unit_tests: false
 
   macos-remote-tests:
-    name: macOS (run)
+    name: macOS (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: integration, integration: true, smoke: false, shard: 1 }
+          - { part: smoke 1/2, integration: false, smoke: true, shard: 1 }
+          - { part: smoke 2/2, integration: false, smoke: true, shard: 2 }
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Remote
       remote_tests: true
+      unit_tests: false
+      integration_tests: ${{ matrix.integration }}
+      smoke_tests: ${{ matrix.smoke }}
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: ${{ matrix.smoke && 2 || 1 }}
 
   windows-electron-unit-tests:
     name: Windows (${{ matrix.part }})
@@ -486,7 +511,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron-Smoke
@@ -518,13 +543,25 @@ jobs:
       unit_tests: false
 
   windows-remote-tests:
-    name: Windows (run)
+    name: Windows (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: integration, integration: true, smoke: false, shard: 1 }
+          - { part: smoke 1/2, integration: false, smoke: true, shard: 1 }
+          - { part: smoke 2/2, integration: false, smoke: true, shard: 2 }
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Remote
       remote_tests: true
+      unit_tests: false
+      integration_tests: ${{ matrix.integration }}
+      smoke_tests: ${{ matrix.smoke }}
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: ${{ matrix.smoke && 2 || 1 }}
 
   # Reports the required "<OS> / <job>" checks. A check passes when each of its
   # jobs succeeded or was skipped because the changes cannot affect it. Uses
