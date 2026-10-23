@@ -33,13 +33,14 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
-import { AgentPolicyError, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, type AgentExtensionStatus, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
@@ -94,6 +95,28 @@ import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgent
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+
+function toAgentExtensionMode(value: unknown): AgentExtensionMode | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	return value === 'disabled' || value === 'load_only' || value === 'load_and_augment' || value === 'unknown'
+		? value
+		: 'unknown';
+}
+
+function isAgentExtensionSource(value: unknown): value is AgentExtensionSource {
+	return value === 'user' || value === 'project' || value === 'plugin';
+}
+
+function toAgentExtensionStatus(value: unknown): AgentExtensionStatus | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	return value === 'running' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown'
+		? value
+		: 'unknown';
+}
 
 /**
  * After this much inbound silence, send an application-level `ping` to
@@ -218,6 +241,8 @@ type ClientState =
 
 /** Optional configuration for an {@link AgentHostProtocolClient}. */
 export interface IAgentHostProtocolClientOptions {
+	/** Seals relay credentials only after independently authenticating the requested recipient key. */
+	readonly sealAuthenticationToken?: (request: IMissionControlCredentialSealingRequest) => Promise<string>;
 	/** Estimator used to suppress watchdog closes while the local event loop is saturated. Defaults to the shared instance. */
 	readonly loadEstimator?: ILoadEstimator;
 	/** Stable client identity. Generated when omitted. */
@@ -293,6 +318,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _channelScheduler = this._register(new MutableDisposable<AgentHostChannelScheduler>());
 	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 	private _authenticationTokenSealer: ((request: IMissionControlCredentialSealingRequest) => Promise<string>) | undefined;
+	private readonly _trustedAuthenticationTokenSealer: IAgentHostProtocolClientOptions['sealAuthenticationToken'];
 
 	declare readonly _serviceBrand: undefined;
 
@@ -552,6 +578,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._prepareReconnect = options?.prepareReconnect;
 		this._prepareAuthentication = options?.prepareAuthentication;
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
+		this._trustedAuthenticationTokenSealer = options?.sealAuthenticationToken;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
 		this._onDispose = options?.onDispose;
 
@@ -2004,6 +2031,72 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return URI.parse(result.session);
 	}
 
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		if (!supportsAgentHostCopilotExtensions(this.initializeResult.get())) {
+			throw new Error('Agent Host does not support Copilot extension inventory.');
+		}
+		const result = await this._sendExtensionRequest(ListAgentExtensionsExtensionMethod, session || chat ? {
+			...(session ? { session: session.toString() } : {}),
+			...(chat ? { chat: chat.toString() } : {}),
+		} : undefined);
+		const mode = toAgentExtensionMode(result.mode);
+		if (!mode || !Array.isArray(result.extensions)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory');
+		}
+		const extensions = result.extensions.flatMap((extension, index) => {
+			if (!extension || typeof extension !== 'object'
+				|| typeof extension.id !== 'string' || !extension.id
+				|| typeof extension.name !== 'string' || !extension.name
+				|| extension.resource !== undefined && typeof extension.resource !== 'string'
+				|| extension.pluginName !== undefined && typeof extension.pluginName !== 'string') {
+				this._logService.warn(`[AgentHostProtocolClient] Ignoring invalid extension inventory item at index ${index}`);
+				return [];
+			}
+			if (!isAgentExtensionSource(extension.source)) {
+				this._logService.warn(`[AgentHostProtocolClient] Ignoring extension inventory item with unsupported source at index ${index}`);
+				return [];
+			}
+			const status = toAgentExtensionStatus(extension.status);
+			if (!status) {
+				this._logService.warn(`[AgentHostProtocolClient] Ignoring extension inventory item with invalid status at index ${index}`);
+				return [];
+			}
+			let resource: URI | undefined;
+			if (extension.resource) {
+				try {
+					const hostResource = URI.parse(extension.resource, true);
+					if (hostResource.scheme !== Schemas.file || !hostResource.path.startsWith('/') || hostResource.query || hostResource.fragment) {
+						throw new Error('Expected a file resource');
+					}
+					resource = this._toClientUri(hostResource);
+				} catch {
+					this._logService.warn(`[AgentHostProtocolClient] Ignoring extension inventory item with invalid resource at index ${index}`);
+				}
+			}
+			return [{
+				id: extension.id,
+				name: extension.name,
+				...(resource ? { resource } : {}),
+				source: extension.source,
+				status,
+				...(extension.pluginName ? { pluginName: extension.pluginName } : {}),
+			}];
+		});
+		return { mode, extensions };
+	}
+
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		if (!supportsAgentHostCopilotExtensions(this.initializeResult.get())) {
+			throw new Error('Agent Host does not support Copilot extension management.');
+		}
+		await this._sendExtensionRequest(SetAgentExtensionEnabledExtensionMethod, {
+			extensionId,
+			enabled,
+			...(session ? { session: session.toString() } : {}),
+			...(chat ? { chat: chat.toString() } : {}),
+		});
+	}
+
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		const result = await this._sendExtensionRequest(CreateAgentHostDetachedWorktreeExtensionMethod, {
 			session: session.toString(),
@@ -2135,9 +2228,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				? 'auth-token' : 'mcp-auth-token';
 			const encryption = readAgentHostAuthenticationEncryption(root, this._authenticationHandshake, purpose);
 			if (!encryption) {
+				if (this._isWebPubSubRelay() && this._trustedAuthenticationTokenSealer) {
+					throw new Error('Mission Control host has no supported credential encryption key.');
+				}
 				return params;
 			}
-			if (this._isWebPubSubRelay()) {
+			if (this._isWebPubSubRelay() && !this._trustedAuthenticationTokenSealer) {
 				throw new Error('Relay credentials must be sealed using an independently trusted recipient key.');
 			}
 			return this._sealAuthentication(params, encryption);
@@ -2148,7 +2244,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _sealAuthentication(params: CommandMap['authenticate']['params'], encryption: IAgentHostAuthenticationEncryption): Promise<CommandMap['authenticate']['params']> {
 		try {
-			const token = await (this._authenticationTokenSealer ?? sealAgentHostCredential)({
+			const token = await (this._trustedAuthenticationTokenSealer ?? this._authenticationTokenSealer ?? sealAgentHostCredential)({
 				token: params.token, resource: params.resource, key: encryption.key, challenge: encryption.challenge,
 			});
 			if (!/^copilot-sealed\.v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {

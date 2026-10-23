@@ -170,6 +170,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private _container: HTMLElement | undefined;
 	private _repositoryControlsContainer: HTMLElement | undefined;
 	private _repositoryControlsHome: HTMLElement | undefined;
+	private _repositoryToolbar: MenuWorkbenchToolBar | undefined;
 	private _updateBottomContainerVisibility: (() => void) | undefined;
 	private _bottomPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private _lastLayoutWidth: number | undefined;
@@ -211,6 +212,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
 			comparison: this.options.modelPickerComparison,
+			comparisonBusy: this._sending,
 			modelConfiguration: true,
 			fallbackModelConfiguration: this.languageModelsService,
 		}));
@@ -402,7 +404,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	/** Shows progress in the input toolbar while the draft initializes or the host sends, after a short delay. */
 	private _renderBusyState(busyContextKey: IContextKey<ComposerBusyState>): void {
-		const busy = derived<ComposerBusyState>(this, reader => this._sending.read(reader) ? 'sending' : this.options.loading.read(reader) ? 'initializing' : '');
+		const busy = derived<ComposerBusyState>(this, reader => {
+			const comparisonSending = this._sending.read(reader) && !!this.options.modelPickerComparison?.summary.read(reader);
+			return this._sending.read(reader) && !comparisonSending ? 'sending' : this.options.loading.read(reader) ? 'initializing' : '';
+		});
 		const delay = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			const value = busy.read(reader);
@@ -438,7 +443,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			hostRepositoryControls = this._register(this.options.renderRepositoryControls(repositoryControlsContainer));
 		} else if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
-			repositoryToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repositoryControlsContainer, Menus.NewSessionRepositoryConfig, {
+			repositoryToolbar = this._repositoryToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repositoryControlsContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				hoverDelegate: this.pickerHoverDelegate,
 				ariaLabel: localize('sessionsSharedChatInput.repositoryControls', "Repository Controls"),
@@ -770,6 +775,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	selectVoiceModel(identifier: string): boolean {
 		return this._modelSelection.selectModel(identifier);
+	}
+
+	/** The id of the repository control action that renders `element`, if any. */
+	getRepositoryControlId(element: HTMLElement): string | undefined {
+		return this._repositoryToolbar?.getItemAction(element)?.id;
 	}
 
 	placeRepositoryControls(container?: HTMLElement): void {

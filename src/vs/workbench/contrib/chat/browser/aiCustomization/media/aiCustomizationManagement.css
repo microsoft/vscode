@@ -207,6 +207,17 @@
 	line-height: 16px;
 }
 
+/* Signals that a section needs attention, such as suggestions to review. */
+.ai-customization-management-editor .section-list-item .section-badge {
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityBarBadge-background);
+}
+
 /* Content area */
 .ai-customization-management-editor .management-content {
 	background-color: var(--vscode-editor-background);

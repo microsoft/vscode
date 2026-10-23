@@ -381,6 +381,14 @@ class ChangesHeaderActionsAction extends Action2 {
 
 registerAction2(ChangesHeaderActionsAction);
 
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	submenu: Menus.ChangesFilesView,
+	title: localize('filesView', "Files View"),
+	group: 'z_filesView',
+	order: 20,
+	when: ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext),
+});
+
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
 
@@ -390,14 +398,11 @@ class SetChangesListViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesListViewMode', "View as List"),
 			icon: Codicon.listFlat,
 			f1: false,
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
-				order: 20,
-				when: ContextKeyExpr.and(
-					desktopDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
+				id: Menus.ChangesFilesView,
+				group: '1_viewMode',
+				order: 1,
 			}
 		});
 	}
@@ -419,14 +424,11 @@ class SetChangesTreeViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesTreeViewMode', "View as Tree"),
 			icon: Codicon.listTree,
 			f1: false,
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
-				order: 20,
-				when: ContextKeyExpr.and(
-					desktopDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
+				id: Menus.ChangesFilesView,
+				group: '1_viewMode',
+				order: 2,
 			}
 		});
 	}
@@ -449,8 +451,8 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/1_diff',
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					desktopChangesEditorTitleVisible,
@@ -479,8 +481,8 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/1_diff',
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
 					desktopChangesEditorActive,

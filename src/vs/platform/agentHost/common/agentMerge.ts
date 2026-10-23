@@ -515,6 +515,14 @@ export function agentMergeMergePullRequestDemotedNotice(): string {
 	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was disabled for this session. Review the changes, then enable it again if you want it merged automatically.");
 }
 
+/**
+ * The transcript notice shown when a chat that runs Agent Merge moves into a
+ * session where another chat already runs it for the same pull request.
+ */
+export function agentMergeMoveConflictNotice(): string {
+	return localize('agentMerge.notice.moveConflict', "Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.");
+}
+
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined, sessionFolderKey?: string): AgentMergeSessionState | undefined {
 	if (sessionFolderKey !== undefined) {
 		const folderState = readAgentMergeFolderState(values, sessionFolderKey, sessionFolderKey);

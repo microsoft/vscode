@@ -9,13 +9,14 @@
  * With the Modern UI floating-panel treatment the workbench parts read as
  * separate cards with a gap between them, which hides where one part ends and
  * the next begins. Sashes are invisible until hovered, so the resize boundary
- * is hard to find. This module gives every inter-panel sash a persistent,
+ * is hard to find. This module gives every inter-panel sash a
  * low-contrast grip — three small dots — so users can see where parts meet and
  * where to grab to resize. The grip is suppressed for modal editors and sashes
  * within a part (editor splits, tree/view resizers) so only the boundaries
  * between top-level parts are marked. On hover/active the grip fades out in favour of the
  * existing full-length highlight (see base sash.css), so behaviour while
- * dragging is unchanged.
+ * dragging is unchanged. With `workbench.sash.autoHideGrippers` enabled, grips also
+ * recede while the mouse is idle.
  *
  * The grip color is themeable through `modernSash.gripForeground`, which also
  * carries the opaque high contrast default.
@@ -26,7 +27,7 @@
  * Without that class these rules never apply.
  */
 
-/* Persistent grip handle, centered on the sash, drawn via the spare pseudo. */
+/* Grip handle, centered on the sash, drawn via the spare pseudo. */
 .modern-ui .monaco-sash:not(.disabled)::after {
 	content: '';
 	position: absolute;
@@ -37,10 +38,11 @@
 	background: var(--vscode-modernSash-gripForeground);
 	/* The orientation rules below repeat the dot via `box-shadow`, which reads `currentColor`. */
 	color: var(--vscode-modernSash-gripForeground);
+	opacity: var(--sash-grip-opacity, 1);
 }
 
-.monaco-enable-motion .modern-ui .monaco-sash:not(.disabled)::after {
-	transition: opacity 0.1s ease-out;
+:is(.monaco-enable-motion .modern-ui, .monaco-enable-motion.modern-ui) .monaco-sash:not(.disabled)::after {
+	transition: opacity var(--sash-grip-transition-duration, 0.15s) ease-out;
 }
 
 /* Vertical sash: three dots stacked vertically, centered. */

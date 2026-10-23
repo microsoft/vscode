@@ -472,7 +472,7 @@
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button:hover:not(.active),
-.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover {
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover:not(.disabled) {
 	color: var(--vscode-modernTab-hoverForeground);
 	background: var(--vscode-modernTab-hoverBackground);
 }
