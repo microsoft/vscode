@@ -200,6 +200,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 		bracketPairColorizationOptions: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions,
+		textDirection: EDITOR_MODEL_DEFAULTS.textDirection,
 	};
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
@@ -212,6 +213,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
 				bracketPairColorizationOptions: options.bracketPairColorizationOptions,
+				textDirection: options.textDirection,
 			});
 		}
 
@@ -693,6 +695,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		const trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 		const bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
+		const textDirection = (typeof _newOpts.textDirection !== 'undefined') ? _newOpts.textDirection : this._options.textDirection;
 
 		const newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
@@ -701,6 +704,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			defaultEOL: this._options.defaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
 			bracketPairColorizationOptions,
+			textDirection,
 		});
 
 		if (this._options.equals(newOpts)) {
