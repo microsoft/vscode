@@ -1175,7 +1175,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override async getSessions(_providerId: string, _scopes?: readonly string[], options?: IAuthenticationGetSessionsOptions) {
-				if (unavailable) {
+				if (unavailable && options?.authorizationServer) {
 					throw new Error('Authentication provider unavailable');
 				}
 				return options?.authorizationServer
@@ -1201,6 +1201,35 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			duringFailure: { status: ExtensionGalleryManifestStatus.Available, token: 'resource-1', resourceRequests: 1 },
 			resourceRequests: 2,
 			token: 'resource-2',
+		});
+	});
+
+	test('Microsoft resource acquisition failure after an account switch retracts previous credentials', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		stubResourceScopedAuthentication(() => {
+			if (microsoftSessions[0].account.id === 'ms-account-2') {
+				throw new Error('Resource session unavailable for the new account');
+			}
+			return { ...createMicrosoftSession('resource-token'), expiresAfter: 60_000 };
+		});
+		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		microsoftSessions = [createMicrosoftSession('other-signin-token', 'ms-account-2')];
+		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		await clock.tickAsync(0);
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			publishedTokens: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			status: ExtensionGalleryManifestStatus.RequiresSignIn,
+			token: undefined,
+			publishedTokens: ['resource-token', undefined],
 		});
 	});
 
