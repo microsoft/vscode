@@ -348,6 +348,7 @@ suite('SessionsTerminalContribution', () => {
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSessionObs;
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {

@@ -75,6 +75,7 @@ suite('Changes Actions', () => {
 		const register = spy(actionViewItemService, 'register');
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(sessionsService, new class extends mock<IChangesViewService>() { }(), actionViewItemService));
 
@@ -287,6 +288,7 @@ suite('Changes Actions', () => {
 		}));
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetObs = constObservable(changeset);

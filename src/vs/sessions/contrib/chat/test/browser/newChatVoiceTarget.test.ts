@@ -45,6 +45,7 @@ suite('NewChatVoiceTargetService', () => {
 
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession: ISettableObservable<IActiveSession | undefined> = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidChangeFocusedSession = focusEmitter.event;

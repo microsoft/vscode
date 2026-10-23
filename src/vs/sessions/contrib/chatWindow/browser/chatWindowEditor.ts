@@ -27,9 +27,9 @@ import type { AbstractChatView } from '../../../browser/parts/chatView.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ChatWindowLayout } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowLayout, ChatWindowSplitLayout } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ChatWindowSplitLayout, ChatWindowState } from './chatWindowState.js';
+import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
 /** The most the chat input, with the progress and approvals above it, grows to. */

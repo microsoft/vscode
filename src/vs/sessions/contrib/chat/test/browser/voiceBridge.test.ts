@@ -43,6 +43,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 			}(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			sessionsManagementService,
 			new class extends mock<INewChatVoiceTargetService>() {
@@ -194,6 +195,7 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 			new class extends mock<IChatWidgetService>() { }(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ resource: activeResource }));
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override getSessions(): ISession[] {
@@ -257,6 +259,7 @@ suite('SessionsVoiceActiveSessionContribution', () => {
 			}(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = activeSession;
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidSendRequest = didSend.event;
@@ -368,6 +371,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 	function createTarget(): NewChatVoiceTargetService {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		}();
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidChangeFocusedSession = Event.None;
@@ -493,6 +497,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		let openOptions: IOpenNewSessionOptions | undefined;
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 			override async openNewSession(options?: IOpenNewSessionOptions) {
 				openOptions = options;
 				return { session: createdSession, trustDeclined: false };
@@ -560,6 +565,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		let openOptions: IOpenNewSessionOptions | undefined;
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 			override async openNewSession(options?: IOpenNewSessionOptions) {
 				openOptions = options;
 				return { session: createdSession, trustDeclined: false };
@@ -607,6 +613,7 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 			override async openNewSession() {
 				return { session: undefined, trustDeclined: true };
 			}

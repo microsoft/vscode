@@ -57,12 +57,15 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const sessionResource = this._sessionChangesService.getSessionResource(uri)!;
 
+		// A session the main window does not show, such as in a chat window, has changes of its own.
+		const otherSessionChangesObs = this.changesViewService.getSessionChanges(sessionResource);
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
 			const activeSessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 			if (!activeSessionResource || !isEqual(activeSessionResource, sessionResource)) {
-				return lastValue ?? [];
+				const otherSessionChanges = otherSessionChangesObs.read(reader);
+				return otherSessionChanges.length || !lastValue ? otherSessionChanges : lastValue;
 			}
 
 			return this.changesViewService.activeSessionChangesObs.read(reader);

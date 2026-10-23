@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -21,11 +21,11 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ChatWindowMenuOrder, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowEditorViewTypeContext, ChatWindowMenuOrder, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider, ISessionsProviderChatpad } from '../../../services/sessions/common/sessionsProvider.js';
-import { getChatpadChatWindowContent, OPEN_CHATPAD_COMMAND_ID, CHATPAD_CHAT_WINDOW_KIND, ChatpadEnabledContext, ChatpadWindowContext } from './chatpad.js';
+import { CHATPAD_NOTE_MARKDOWN_EDITOR, getChatpadChatWindowContent, OPEN_CHATPAD_COMMAND_ID, setChatpadNoteViewType, CHATPAD_CHAT_WINDOW_KIND, ChatpadEnabledContext, ChatpadWindowContext } from './chatpad.js';
 import { ChatpadLauncherContribution } from './chatpadLauncher.js';
 
 interface IResolvedChatpad {
@@ -58,6 +58,9 @@ function notifyUnavailable(notificationService: INotificationService): void {
 /** Where the Clear action shows: before the chat window's Layout and Dock. */
 const CHATPAD_CLEAR_ORDER = { titleBar: ChatWindowMenuOrder.titleBar.layout - 1, header: ChatWindowMenuOrder.header.layout - 1 };
 
+/** Where the action that switches the editor of the note shows: after Clear, before Layout. */
+const CHATPAD_NOTE_EDITOR_ORDER = { titleBar: ChatWindowMenuOrder.titleBar.layout - 0.5, header: ChatWindowMenuOrder.header.layout - 0.5 };
+
 registerAction2(class OpenChatpadAction extends Action2 {
 	constructor() {
 		super({
@@ -75,13 +78,14 @@ registerAction2(class OpenChatpadAction extends Action2 {
 		const chatWindowService = accessor.get(IChatWindowService);
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
+		const storageService = accessor.get(IStorageService);
 
 		const resolved = await resolveChatpad(providersService, logService);
 		if (!resolved) {
 			notifyUnavailable(notificationService);
 			return;
 		}
-		await chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad));
+		await chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad, storageService));
 	}
 });
 
@@ -116,6 +120,7 @@ registerAction2(class ClearChatpadAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
+		const storageService = accessor.get(IStorageService);
 
 		const window = chatWindowService.getActiveWindow();
 		const session = window?.kind.id === CHATPAD_CHAT_WINDOW_KIND.id ? sessionsManagementService.getSession(window.content.get().session) : undefined;
@@ -143,7 +148,7 @@ registerAction2(class ClearChatpadAction extends Action2 {
 					notifyUnavailable(notificationService);
 					return undefined;
 				}
-				return getChatpadChatWindowContent(chatpad);
+				return getChatpadChatWindowContent(chatpad, storageService);
 			})());
 		} catch (error) {
 			logService.error('[Chatpad] Failed to clear the Chatpad', error);
@@ -151,6 +156,55 @@ registerAction2(class ClearChatpadAction extends Action2 {
 		}
 	}
 });
+
+const TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID = 'sessions.chatpad.toggleNoteEditor';
+const ChatpadNoteAsTextContext = ChatWindowEditorViewTypeContext.isEqualTo(CHAT_WINDOW_TEXT_EDITOR);
+
+registerAction2(class ToggleChatpadNoteEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID,
+			title: localize2('toggleChatpadNoteEditor', "Toggle Chatpad Note Between Text and Markdown Editor"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext),
+		});
+	}
+
+	/** Shows the note as text, or back in the Markdown editor, and remembers the choice for when the Chatpad opens. */
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const chatWindowService = accessor.get(IChatWindowService);
+		const storageService = accessor.get(IStorageService);
+		const window = chatWindowService.getActiveWindow();
+		const editor = window?.kind.id === CHATPAD_CHAT_WINDOW_KIND.id ? window.content.get().editor : undefined;
+		if (!window || !editor) {
+			return;
+		}
+		const viewType = editor.viewType === CHAT_WINDOW_TEXT_EDITOR ? CHATPAD_NOTE_MARKDOWN_EDITOR : CHAT_WINDOW_TEXT_EDITOR;
+		setChatpadNoteViewType(storageService, viewType);
+		await window.setEditor({ ...editor, viewType });
+	}
+});
+
+// What the button does, rather than a checked toggle, as Dock does: after Clear, in the title bar and the docked header.
+for (const [asText, title, icon] of [
+	[false, localize2('openChatpadNoteAsText', "Open Note as Text"), Codicon.file],
+	[true, localize2('openChatpadNoteInMarkdownEditor', "Open Note in Markdown Editor"), Codicon.markdown],
+] as const) {
+	const when = asText ? ChatpadNoteAsTextContext : ChatpadNoteAsTextContext.negate();
+	MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+		command: { id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID, title, icon },
+		group: 'navigation',
+		order: CHATPAD_NOTE_EDITOR_ORDER.titleBar,
+		when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext, when),
+	});
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, {
+		command: { id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID, title, icon },
+		group: 'navigation',
+		order: CHATPAD_NOTE_EDITOR_ORDER.header,
+		when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext, when),
+	});
+}
 
 registerAction2(class AppendToChatpadAction extends Action2 {
 	constructor() {
@@ -231,7 +285,7 @@ class ChatpadRestoration extends Disposable implements IWorkbenchContribution {
 				const resolved = await resolveChatpad(this._providersService, this._logService);
 				if (resolved) {
 					if (!this._chatWindowService.windows.get().some(window => window.kind === CHATPAD_CHAT_WINDOW_KIND)) {
-						await this._chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad), { preserveFocus: true });
+						await this._chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad, this._storageService), { preserveFocus: true });
 					}
 					return;
 				}

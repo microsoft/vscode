@@ -21,7 +21,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
@@ -78,6 +78,7 @@ class ChatWindow implements IChatWindow {
 	get kind(): IChatWindowKind { return this.state.kind; }
 	get docked(): boolean { return this.state.docked; }
 	get layout(): IObservable<ChatWindowLayout> { return this.state.layout; }
+	get splitLayout(): IObservable<ChatWindowSplitLayout> { return this.state.splitLayout; }
 	get layouts(): readonly ChatWindowLayout[] { return this.state.layouts; }
 
 	/** The group that shows: focusing or revealing a hidden group would show it. */
@@ -93,6 +94,10 @@ class ChatWindow implements IChatWindow {
 		if (this.editorGroup && this.state.layout.get() === ChatWindowLayout.ChatOnly) {
 			this.state.showBoth();
 		}
+	}
+
+	setEditor(editor: IChatWindowEditor): Promise<void> {
+		return this._service.setEditor(this, editor);
 	}
 
 	toggleConversation(): void {
@@ -242,8 +247,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		ChatWindowDockableContext.bindTo(windowContextKeyService).set(!!kind.dockable);
 		ChatWindowDockedContext.bindTo(windowContextKeyService).set(docked);
 		ChatWindowHasEditorContext.bindTo(windowContextKeyService).set(!!content.editor || !!content.editorArea);
+		const editorViewTypeContext = ChatWindowEditorViewTypeContext.bindTo(windowContextKeyService);
 		const layoutContext = ChatWindowLayoutContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => layoutContext.set(state.layout.read(reader))));
+		const splitLayoutContext = ChatWindowSplitLayoutContext.bindTo(windowContextKeyService);
+		windowDisposables.add(autorun(reader => splitLayoutContext.set(state.splitLayout.read(reader))));
 		// An editor area shows its editors in tabs, and stays when its last editor closes. Tabs show for the whole part.
 		windowDisposables.add(part.enforcePartOptions(content.editorArea
 			? { showTabs: 'multiple', closeEmptyGroups: false }
@@ -256,6 +264,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// One editor is kept in its group; an editor area takes the editors opened from the chat window.
 		editorGroup?.lock(!!content.editor);
 		const window = new ChatWindow(state, part, chatGroup, editorGroup, content, sessionObs, this, close);
+		windowDisposables.add(autorun(reader => editorViewTypeContext.set(window.content.read(reader).editor?.viewType ?? '')));
 		windowDisposables.add(toDisposable(() => this._remove(window)));
 		Event.once(part.onWillDispose)(() => windowDisposables.dispose());
 		this._windows.set([...this._windows.get(), window], undefined);
@@ -297,13 +306,18 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	getActiveWindow(): IChatWindow | undefined {
 		const windows = this._windows.get();
+		// A chat window of its own is the one its window shows: its title bar acts on it, though focus is elsewhere.
+		const activeWindowId = getActiveWindow().vscodeWindowId;
+		const ownWindow = windows.find(window => !window.docked && window.part.windowId === activeWindowId);
+		if (ownWindow) {
+			return ownWindow;
+		}
 		const activePart = this._editorGroupsService.getPart(this._editorGroupsService.activeGroup);
 		const focused = windows.find(window => window.part === activePart);
 		if (focused) {
 			return focused;
 		}
 		// A docked chat window shares the main window, where at most one docks.
-		const activeWindowId = getActiveWindow().vscodeWindowId;
 		const inActiveWindow = windows.filter(window => window.part.windowId === activeWindowId);
 		if (inActiveWindow.length === 1) {
 			return inActiveWindow[0];
@@ -454,6 +468,20 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 	}
 
+	async setEditor(window: ChatWindow, editor: IChatWindowEditor): Promise<void> {
+		const content = window.content.get();
+		if (!content.editor || !window.editorGroup) {
+			return;
+		}
+		// Saved first, as the editor it shows in now is replaced.
+		const previous = window.editorGroup.activeEditor;
+		if (previous?.isDirty()) {
+			await previous.save(window.editorGroup.id);
+		}
+		await this._showEditor(window, editor);
+		window.setContent({ ...content, editor });
+	}
+
 	/** Shows `editor` in the editor group of `window`, in place of the editor it shows. */
 	private async _showEditor(window: ChatWindow, editor: IChatWindowEditor): Promise<void> {
 		const { editorGroup, editorKept } = window;
@@ -462,10 +490,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 		const previous = editorGroup.activeEditor ?? undefined;
 		const options = { pinned: true, preserveFocus: true };
-		// Without the custom editor, the resource opens in its default editor, which can be closed.
-		const input = editor.viewType && this._editorResolverService.getEditors(editor.resource).some(candidate => candidate.id === editor.viewType)
+		// Without the custom editor, the resource opens in the text editor, or its default editor, which can be closed.
+		const asText = editor.viewType === CHAT_WINDOW_TEXT_EDITOR;
+		const input = editor.viewType && !asText && this._editorResolverService.getEditors(editor.resource).some(candidate => candidate.id === editor.viewType)
 			? ChatWindowCustomEditorInput.createInput(this._instantiationService, editor.resource, editor.viewType)
 			: undefined;
+		const override = asText ? CHAT_WINDOW_TEXT_EDITOR : undefined;
 		editorKept.value = input?.keepIn(editorGroup);
 		if (input) {
 			await (previous
@@ -473,8 +503,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				: this._editorService.openEditor(input, options, editorGroup));
 		} else {
 			await (previous
-				? this._editorService.replaceEditors([{ editor: previous, replacement: { resource: editor.resource, options }, forceReplaceDirty: true }], editorGroup)
-				: this._editorService.openEditor({ resource: editor.resource, options }, editorGroup));
+				? this._editorService.replaceEditors([{ editor: previous, replacement: { resource: editor.resource, options: { ...options, override } }, forceReplaceDirty: true }], editorGroup)
+				: this._editorService.openEditor({ resource: editor.resource, options: { ...options, override } }, editorGroup));
 		}
 	}
 

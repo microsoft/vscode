@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
@@ -200,10 +200,20 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _scopedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
 		const editorSession = this._inputSessionResource.read(reader);
 		const activeSession = this.changesViewService.activeSessionResourceObs.read(reader);
-		if (!editorSession || !activeSession || !isEqual(editorSession, activeSession)) {
+		if (editorSession && (!activeSession || !isEqual(editorSession, activeSession))) {
+			// A session the main window does not show, such as in a chat window, has changes of its own.
+			const otherSessionChanges = this._otherSessionChangesObs.read(reader)?.read(reader) ?? [];
+			return otherSessionChanges.length || !lastValue ? otherSessionChanges : lastValue;
+		}
+		if (!editorSession) {
 			return lastValue ?? [];
 		}
 		return this.changesViewService.activeSessionChangesObs.read(reader);
+	});
+
+	private readonly _otherSessionChangesObs = derived(this, reader => {
+		const editorSession = this._inputSessionResource.read(reader);
+		return editorSession ? this.changesViewService.getSessionChanges(editorSession) : undefined;
 	});
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */

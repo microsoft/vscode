@@ -874,6 +874,7 @@ suite('NewSessionViewV3Prompt', () => {
 			new TestConfigurationService(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
@@ -931,6 +932,7 @@ suite('NewSessionViewV3Prompt', () => {
 			new TestConfigurationService(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = activeSession;
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
@@ -1015,6 +1017,7 @@ async function runPrompt(
 	const activeSession = createSession(workspace);
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+		override readonly mainWindowActiveSession = this.activeSession;
 	}();
 	const composerService = new class extends mock<INewSessionComposerService>() {
 		override readonly activeComposer = constObservable({

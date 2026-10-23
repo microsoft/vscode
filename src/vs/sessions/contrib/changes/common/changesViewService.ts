@@ -75,8 +75,16 @@ export interface IChangesViewService {
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
-	setChangesetId(changesetId: string | undefined): void;
-	showChangeset(changeset: ISessionChangeset): void;
+	/** Selects the changeset of the session the main window shows, or of the session with `sessionResource`. */
+	setChangesetId(changesetId: string | undefined, sessionResource?: URI): void;
+	/** Shows `changeset` for the session the main window shows, or for the session with `sessionResource`. */
+	showChangeset(changeset: ISessionChangeset, sessionResource?: URI): void;
+
+	/**
+	 * The changes of the selected, or default, changeset of the chat a session shows outside the main window, such as in
+	 * a chat window. The `activeSession*` state is of the session the main window shows.
+	 */
+	getSessionChanges(sessionResource: URI): IObservable<readonly ISessionFileChange[]>;
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;

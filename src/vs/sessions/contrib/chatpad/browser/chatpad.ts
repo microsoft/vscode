@@ -8,7 +8,8 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../platform/agentHost/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatWindowContext, IChatWindowContent, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, IChatWindowContent, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import type { ISessionsProviderChatpad } from '../../../services/sessions/common/sessionsProvider.js';
 
 /** The command that opens the Chatpad, or reveals it when it is open. */
@@ -35,13 +36,26 @@ export const CHATPAD_CHAT_WINDOW_KIND: IChatWindowKind = {
 /** Within the Chatpad's chat window. */
 export const ChatpadWindowContext = ChatWindowContext.isEqualTo(CHATPAD_CHAT_WINDOW_KIND.id);
 
-/** The editor the Chatpad note is shown with, when available. */
-const CHATPAD_NOTE_VIEW_TYPE = 'vscode.markdown.editor';
+/** The editor the Chatpad note is shown with by default, when available. */
+export const CHATPAD_NOTE_MARKDOWN_EDITOR = 'vscode.markdown.editor';
 
-/** What the chat window of `chatpad` shows: its chat, and its note in the Markdown editor. */
-export function getChatpadChatWindowContent(chatpad: ISessionsProviderChatpad): IChatWindowContent {
+/** Whether the Chatpad note shows as text, rather than in the Markdown editor, as the user last chose. */
+const CHATPAD_NOTE_AS_TEXT_STORAGE_KEY = 'sessions.chatpad.noteAsText';
+
+/** The editor the Chatpad note shows in: the Markdown editor, or the text editor as the user last chose. */
+export function getChatpadNoteViewType(storageService: IStorageService): string {
+	return storageService.getBoolean(CHATPAD_NOTE_AS_TEXT_STORAGE_KEY, StorageScope.PROFILE, false) ? CHAT_WINDOW_TEXT_EDITOR : CHATPAD_NOTE_MARKDOWN_EDITOR;
+}
+
+/** Remembers the editor the Chatpad note shows in; see {@link getChatpadNoteViewType}. */
+export function setChatpadNoteViewType(storageService: IStorageService, viewType: string): void {
+	storageService.store(CHATPAD_NOTE_AS_TEXT_STORAGE_KEY, viewType === CHAT_WINDOW_TEXT_EDITOR, StorageScope.PROFILE, StorageTarget.USER);
+}
+
+/** What the chat window of `chatpad` shows: its chat, and its note in the editor the user last chose. */
+export function getChatpadChatWindowContent(chatpad: ISessionsProviderChatpad, storageService: IStorageService): IChatWindowContent {
 	return {
 		session: chatpad.session.resource,
-		editor: { resource: chatpad.note, viewType: CHATPAD_NOTE_VIEW_TYPE },
+		editor: { resource: chatpad.note, viewType: getChatpadNoteViewType(storageService) },
 	};
 }

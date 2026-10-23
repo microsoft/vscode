@@ -207,6 +207,7 @@ suite('Pull Request Actions', () => {
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, session));
@@ -227,6 +228,7 @@ suite('Pull Request Actions', () => {
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, session));
@@ -243,6 +245,7 @@ suite('Pull Request Actions', () => {
 		instantiationService.stub(IOpenerService, openerService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, session));
@@ -275,6 +278,7 @@ suite('Pull Request Actions', () => {
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, sessions));
@@ -311,6 +315,7 @@ suite('Pull Request Actions', () => {
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, { pullRequest: secondPullRequest }));

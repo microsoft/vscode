@@ -7,20 +7,18 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowMenuOrder, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowMenuOrder, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
-import { ChatWindowLayoutPickerContribution } from './chatWindowLayoutPicker.js';
 import { ChatWindowService } from './chatWindowService.js';
 import './openChatInWindow.js';
 
@@ -36,7 +34,7 @@ const TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID = 'sessions.chatWindow.toggleDocked';
 /** Within a chat window: the kind is set, and not empty. Outside chat windows it is not set at all. */
 const InChatWindowContext = ContextKeyExpr.has(ChatWindowContext.key);
 
-/** A layout of chat windows, as chosen from their Layout button. */
+/** A layout of chat windows, as chosen from the Command Palette or the split direction button of their title bar. */
 interface IChatWindowLayoutChoice {
 	readonly layout: ChatWindowLayout;
 	readonly id: string;
@@ -60,7 +58,6 @@ const chatWindowLayoutChoices: readonly IChatWindowLayoutChoice[] = [{
 	// Docked, the editor shows above the chat, which keeps to its input.
 	when: ChatWindowDockedContext.negate(),
 }, {
-	// The filled half is the pane that shows alone.
 	layout: ChatWindowLayout.EditorOnly,
 	id: 'sessions.chatWindow.showEditorOnly',
 	title: localize2('chatWindowShowEditorOnly', "Show Editor Only"),
@@ -72,8 +69,7 @@ const chatWindowLayoutChoices: readonly IChatWindowLayoutChoice[] = [{
 	icon: Codicon.layoutSidebarLeft,
 }];
 
-for (const [index, choice] of chatWindowLayoutChoices.entries()) {
-	const available = ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, choice.when);
+for (const choice of chatWindowLayoutChoices) {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -82,14 +78,7 @@ for (const [index, choice] of chatWindowLayoutChoices.entries()) {
 				category: SessionsCategories.Sessions,
 				icon: choice.icon,
 				f1: true,
-				precondition: available,
-				toggled: ChatWindowLayoutContext.isEqualTo(choice.layout),
-				menu: [{
-					id: Menus.ChatWindowLayout,
-					group: 'navigation',
-					order: index,
-					when: choice.when,
-				}],
+				precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, choice.when),
 			});
 		}
 
@@ -99,19 +88,44 @@ for (const [index, choice] of chatWindowLayoutChoices.entries()) {
 	});
 }
 
-// Layout, then Dock, end the title bar of a chat window, before Toggle Always on Top, and its header when docked, before
-// Close. The Layout button opens a column of the icons of the layouts (see ChatWindowLayoutPickerContribution).
-const chatWindowLayoutMenu = { submenu: Menus.ChatWindowLayout, title: localize2('chatWindowLayout', "Layout"), icon: Codicon.layout, group: 'navigation' };
-MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.titleBar.layout, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext) });
-// Docked, the header toggles the chat and the editor instead: one of them always shows.
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.header.layout, when: ContextKeyExpr.and(ChatWindowHasEditorContext, ChatWindowDockedContext.negate()) });
+/** In a chat window of its own that shows an editor: where its title bar shows the layout actions. */
+const ChatWindowTitleBarLayoutContext = ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowDockedContext.negate());
 
-/** A pane of a docked chat window that its header shows or hides: the chat, or the editor. */
+// One button switches the direction in which the chat and the editor show together, to the other one. It is disabled
+// while only one of them shows, keeping the direction they show in when both show again.
+const ChatWindowBothShownContext = ContextKeyExpr.or(ChatWindowLayoutContext.isEqualTo(ChatWindowLayout.EditorAboveChat), ChatWindowLayoutContext.isEqualTo(ChatWindowLayout.SideBySide));
+for (const [current, other] of [[ChatWindowLayout.EditorAboveChat, ChatWindowLayout.SideBySide], [ChatWindowLayout.SideBySide, ChatWindowLayout.EditorAboveChat]] as const) {
+	const choice = chatWindowLayoutChoices.find(candidate => candidate.layout === other)!;
+	MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+		command: { id: choice.id, title: choice.title, icon: choice.icon, precondition: ChatWindowBothShownContext },
+		group: 'navigation',
+		order: ChatWindowMenuOrder.titleBar.layout,
+		when: ContextKeyExpr.and(ChatWindowTitleBarLayoutContext, ChatWindowSplitLayoutContext.isEqualTo(current)),
+	});
+}
+
+// Docked, the Layout button of the header opens a menu that shows or hides the chat and the editor.
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, {
+	submenu: Menus.ChatWindowDockedLayout,
+	title: localize2('chatWindowLayout', "Layout"),
+	icon: Codicon.layout,
+	group: 'navigation',
+	order: ChatWindowMenuOrder.header.layout,
+	when: ContextKeyExpr.and(ChatWindowHasEditorContext, ChatWindowDockedContext),
+});
+
+/** A pane of a chat window that can be shown or hidden: the chat, or the editor. One of them always shows. */
 interface IChatWindowPaneToggle {
 	readonly id: string;
 	readonly title: ILocalizedString;
-	readonly hideTitle: string;
+	/** The title of its title bar button, which shows its icons rather than a check. */
+	readonly toggleTitle: ILocalizedString;
+	/** The icons of its title bar button, as those of the main window's side bar and side panel toggles. */
 	readonly icon: ThemeIcon;
+	readonly shownIcon: ThemeIcon;
+	/** Its title bar button: on the left of the title bar, or on the right. */
+	readonly titleBarMenu: MenuId;
+	readonly titleBarOrder: number;
 	/** The layout that shows only this pane: it cannot be hidden there, as the other pane is hidden. */
 	readonly aloneLayout: ChatWindowLayout;
 	/** The layout that hides this pane. */
@@ -122,51 +136,62 @@ interface IChatWindowPaneToggle {
 const chatWindowPaneToggles: readonly IChatWindowPaneToggle[] = [{
 	id: 'sessions.chatWindow.toggleChat',
 	title: localize2('chatWindowShowChat', "Show Chat"),
-	hideTitle: localize('chatWindowHideChat', "Hide Chat"),
-	icon: Codicon.commentDiscussion,
+	toggleTitle: localize2('chatWindowToggleChat', "Toggle Chat"),
+	icon: Codicon.layoutSidebarLeftOff,
+	shownIcon: Codicon.layoutSidebarLeft,
+	titleBarMenu: Menus.TitleBarLeftLayout,
+	titleBarOrder: 0,
 	aloneLayout: ChatWindowLayout.ChatOnly,
 	hiddenLayout: ChatWindowLayout.EditorOnly,
-	order: ChatWindowMenuOrder.header.layout,
+	order: 1,
 }, {
 	id: 'sessions.chatWindow.toggleEditor',
 	title: localize2('chatWindowShowEditor', "Show Editor"),
-	hideTitle: localize('chatWindowHideEditor', "Hide Editor"),
-	icon: Codicon.file,
+	toggleTitle: localize2('chatWindowToggleEditor', "Toggle Editor"),
+	icon: Codicon.layoutSidebarRightOff,
+	shownIcon: Codicon.layoutSidebarRight,
+	titleBarMenu: Menus.TitleBarRightLayout,
+	titleBarOrder: ChatWindowMenuOrder.titleBar.editor,
 	aloneLayout: ChatWindowLayout.EditorOnly,
 	hiddenLayout: ChatWindowLayout.ChatOnly,
-	order: ChatWindowMenuOrder.header.layout + 0.5,
+	order: 2,
 }];
 
 for (const toggle of chatWindowPaneToggles) {
 	const shown = ChatWindowLayoutContext.notEqualsTo(toggle.hiddenLayout);
+	// Shown alone, it cannot be hidden: show the other pane instead.
+	const precondition = ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowLayoutContext.notEqualsTo(toggle.aloneLayout));
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: toggle.id,
 				title: toggle.title,
 				category: SessionsCategories.Sessions,
-				icon: toggle.icon,
 				f1: true,
-				toggled: { condition: shown, title: toggle.hideTitle },
-				// Shown alone, it cannot be hidden: show the other pane instead.
-				precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext, ChatWindowHasEditorContext, ChatWindowLayoutContext.notEqualsTo(toggle.aloneLayout)),
+				toggled: shown,
+				precondition,
 				menu: [{
-					id: Menus.ChatWindowTitle,
+					id: Menus.ChatWindowDockedLayout,
 					group: 'navigation',
 					order: toggle.order,
-					when: ContextKeyExpr.and(ChatWindowDockedContext, ChatWindowHasEditorContext),
 				}],
 			});
 		}
 
 		override run(accessor: ServicesAccessor): void {
 			const window = accessor.get(IChatWindowService).getActiveWindow();
-			if (!window?.docked) {
+			if (!window) {
 				return;
 			}
-			const layout = window.layout.get();
-			window.setLayout(layout === toggle.hiddenLayout ? ChatWindowLayout.EditorAboveChat : toggle.hiddenLayout);
+			// Shown again, both show as they last showed together.
+			window.setLayout(window.layout.get() === toggle.hiddenLayout ? window.splitLayout.get() : toggle.hiddenLayout);
 		}
+	});
+	MenuRegistry.appendMenuItem(toggle.titleBarMenu, {
+		command: { id: toggle.id, title: toggle.toggleTitle, icon: toggle.icon, toggled: { condition: shown, icon: toggle.shownIcon }, precondition },
+		group: 'navigation',
+		order: toggle.titleBarOrder,
+		when: ChatWindowTitleBarLayoutContext,
 	});
 }
 
@@ -221,5 +246,3 @@ registerAction2(class ToggleChatWindowConversationAction extends Action2 {
 		accessor.get(IChatWindowService).getActiveWindow()?.toggleConversation();
 	}
 });
-
-registerWorkbenchContribution2(ChatWindowLayoutPickerContribution.ID, ChatWindowLayoutPickerContribution, WorkbenchPhase.BlockRestore);

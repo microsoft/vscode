@@ -11,6 +11,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../workbench/common/editor.js';
 import { IActiveSession } from '../../sessions/common/sessionsManagement.js';
 
 export const IChatWindowService = createDecorator<IChatWindowService>('chatWindowService');
@@ -26,6 +27,9 @@ export const enum ChatWindowLayout {
 	/** Only the chat, with its conversation. The only layout of a chat window without an editor. */
 	ChatOnly = 'chatOnly',
 }
+
+/** The layouts in which a chat window shows its chat and its editor together. */
+export type ChatWindowSplitLayout = ChatWindowLayout.EditorAboveChat | ChatWindowLayout.SideBySide;
 
 /**
  * A kind of chat window, such as the Chatpad's. Chat windows of a kind share their title and their defaults: the
@@ -62,11 +66,15 @@ export interface IChatWindowKind {
 export interface IChatWindowEditor {
 	readonly resource: URI;
 	/**
-	 * The custom editor to show the resource with, when it is available. A custom editor cannot be closed on its own while
-	 * it is in the chat window; otherwise the resource opens in its default editor.
+	 * The editor to show the resource with: a custom editor, when it is available, which cannot be closed on its own while
+	 * it is in the chat window, or the text editor for {@link CHAT_WINDOW_TEXT_EDITOR}. Otherwise the resource opens in
+	 * its default editor.
 	 */
 	readonly viewType?: string;
 }
+
+/** The {@link IChatWindowEditor.viewType} of the text editor. */
+export const CHAT_WINDOW_TEXT_EDITOR = DEFAULT_EDITOR_ASSOCIATION.id;
 
 /**
  * An editor area a chat window shows beside its chat: a group that editors opened from the chat window open in, as the
@@ -113,6 +121,8 @@ export interface IChatWindow {
 	readonly session: IObservable<IActiveSession | undefined>;
 	/** How it shows its chat and its editor. */
 	readonly layout: IObservable<ChatWindowLayout>;
+	/** How its chat and its editor are arranged while both show, or as they last showed together. */
+	readonly splitLayout: IObservable<ChatWindowSplitLayout>;
 	/** The layouts it can show: none but {@link ChatWindowLayout.ChatOnly} without an editor, and no side by side docked. */
 	readonly layouts: readonly ChatWindowLayout[];
 	/** The group of its editor or editor area, where what its chat opens shows; undefined when it shows only its chat. */
@@ -128,6 +138,8 @@ export interface IChatWindow {
 	toggleConversation(): void;
 	/** Shows its editor, as last arranged with the chat, when only the chat shows. */
 	showEditor(): void;
+	/** Shows the resource of its one editor with another editor, such as as text; see {@link IChatWindowEditor.viewType}. */
+	setEditor(editor: IChatWindowEditor): Promise<void>;
 	/**
 	 * Shows `content` in place of what it shows, keeping the window and its layout. What shows beside the chat keeps its
 	 * form: one editor, an editor area, or nothing. Given a promise, the window stays open while it is pending, even when
@@ -159,8 +171,8 @@ export interface IChatWindowService {
 	open(kind: IChatWindowKind, content: IChatWindowContent, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined>;
 
 	/**
-	 * The chat window that actions run in: the one that has focus, or else the one whose window is active, or else the
-	 * only one open.
+	 * The chat window that actions run in: the one in a window of its own when that window is active, or else the one
+	 * that has focus, or else the one docked in the active window, or else the only one open.
 	 */
 	getActiveWindow(): IChatWindow | undefined;
 
@@ -178,10 +190,11 @@ export interface IChatWindowService {
 /**
  * Where the actions of chat windows show: in the title bar of a chat window of its own (`Menus.TitleBarRightLayout`,
  * when {@link ChatWindowContext}), before Toggle Always on Top at 0, and in the header of a docked one
- * (`Menus.ChatWindowTitle`), before its Close button. Actions of a kind of chat window go before Layout.
+ * (`Menus.ChatWindowTitle`), before its Close button. Actions of a kind of chat window go before the layout actions:
+ * in the title bar, the split direction and Toggle Editor; in the header, the Layout menu.
  */
 export const ChatWindowMenuOrder = {
-	titleBar: { layout: -2, dock: -1 },
+	titleBar: { layout: -2, editor: -1.5, dock: -1 },
 	header: { layout: 2, dock: 3 },
 } as const;
 
@@ -195,6 +208,12 @@ export const ChatWindowDockedContext = new RawContextKey<boolean>('sessions.chat
 
 /** The {@link ChatWindowLayout} of the chat window. */
 export const ChatWindowLayoutContext = new RawContextKey<string>('sessions.chatWindowLayout', ChatWindowLayout.ChatOnly, localize('chatWindowLayout', "How the chat window shows its chat and its editor: editorAboveChat, sideBySide, editorOnly or chatOnly."));
+
+/** The {@link ChatWindowSplitLayout} of the chat window: how its chat and its editor show together, or last showed. */
+export const ChatWindowSplitLayoutContext = new RawContextKey<string>('sessions.chatWindowSplitLayout', ChatWindowLayout.EditorAboveChat, localize('chatWindowSplitLayout', "How the chat window arranges its chat and its editor while both show, or as they last showed together: editorAboveChat or sideBySide."));
+
+/** The editor that the one editor of the chat window shows its resource with; see {@link IChatWindowEditor.viewType}. */
+export const ChatWindowEditorViewTypeContext = new RawContextKey<string>('sessions.chatWindowEditorViewType', '', localize('chatWindowEditorViewType', "The editor the one editor of the chat window shows its resource with, such as the text editor or a custom editor."));
 
 /** Whether the chat window shows an editor, or an editor area, beside its chat. */
 export const ChatWindowHasEditorContext = new RawContextKey<boolean>('sessions.chatWindowHasEditor', false, localize('chatWindowHasEditor', "Whether the chat window shows an editor beside its chat."));

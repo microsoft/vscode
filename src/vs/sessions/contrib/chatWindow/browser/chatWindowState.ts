@@ -5,10 +5,7 @@
 
 import { IObservable, ISettableObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ChatWindowLayout, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
-
-/** The layouts in which a chat window shows its chat and its editor together. */
-export type ChatWindowSplitLayout = ChatWindowLayout.EditorAboveChat | ChatWindowLayout.SideBySide;
+import { ChatWindowLayout, ChatWindowSplitLayout, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
 
 /**
  * The defaults of a kind of chat window, kept in the profile: what its chat windows were last left as, which a new one

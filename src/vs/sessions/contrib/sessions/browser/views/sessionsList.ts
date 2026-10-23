@@ -4833,9 +4833,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
 
-		// Re-render when the active session changes.
+		// Re-render when the session the main window shows changes: chat windows, which are other windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			activeSession?.activeChat.read(reader);
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
@@ -4857,7 +4857,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this.refresh();
-		this.syncActiveChatSelection(this._sessionsService.activeSession.get());
+		this.syncActiveChatSelection(this._sessionsService.mainWindowActiveSession.get());
 	}
 
 	/**
@@ -4905,7 +4905,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(
 			this.sessions

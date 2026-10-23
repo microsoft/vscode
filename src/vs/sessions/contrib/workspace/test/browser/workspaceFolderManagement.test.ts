@@ -176,6 +176,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
