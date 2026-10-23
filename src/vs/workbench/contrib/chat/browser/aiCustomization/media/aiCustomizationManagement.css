@@ -1832,6 +1832,18 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
+/* The theme focus color clashes with the warning card, so the outline follows the link's own color. */
+.ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-migration-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid currentColor;
+	outline-offset: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+}
+
+.hc-black .ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-migration-link:focus-visible,
+.hc-light .ai-customization-management-editor .mcp-detail-diagnostic-card.warning .mcp-detail-migration-link:focus-visible {
+	outline-color: var(--vscode-focusBorder);
+}
+
 /* Embedded plugin detail view */
 .ai-customization-management-editor .marketplace-detail-container,
 .ai-customization-management-editor .plugin-detail-container,
@@ -4049,6 +4061,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
@@ -4056,6 +4069,8 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:hover,
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:active,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link:hover,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link:active,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link:hover,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link:active {
 	color: var(--vscode-textLink-activeForeground);
@@ -4063,13 +4078,15 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .embedded-mcp-detail .editor-item-path.source-link:focus-visible,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.source-link:focus-visible,
 .ai-customization-management-editor .customization-detail-mode .editor-item-path.source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-strokeThickness);
 }
 
 /* A provider name reads as prose rather than a file path, so it keeps the proportional description font. */
-.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.provenance {
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.provenance,
+.ai-customization-management-editor .migration-guidance-detail .editor-item-path.provenance {
 	font-family: inherit;
 }
 

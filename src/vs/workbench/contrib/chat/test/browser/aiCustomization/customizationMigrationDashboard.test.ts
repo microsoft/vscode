@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -57,6 +58,7 @@ suite('CustomizationMigrationDashboard', () => {
 			deleteAgentMigrationRecovery: () => { },
 			retryCategory: () => { },
 			openCustomization: () => { },
+			openGuidanceSource: () => { },
 			...callbacks,
 		}));
 		dashboard.layout(1000);
@@ -132,6 +134,125 @@ suite('CustomizationMigrationDashboard', () => {
 		};
 	}
 
+	test('guidance groups are read-only and open item-specific review details', () => {
+		const actions: string[] = [];
+		const { parent, dashboard, openedLinks } = createDashboard({
+			setItemSelected: () => actions.push('select'),
+			openCustomization: () => actions.push('open'),
+			migrateCategory: () => actions.push('migrate'),
+			ignoreCategory: (id, storage) => actions.push(`ignore:${id}:${storage}`),
+			openGuidanceSource: item => actions.push(`source:${item.id}`),
+		});
+		const participantUrl = 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants';
+		const toolSetUrl = 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets';
+		const guidanceOverview: ICustomizationMigrationDashboardOverview = {
+			scopes: [
+				{
+					storage: PromptsStorage.user,
+					label: 'Your profile',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						id: CustomizationMigrationCategoryId.ToolSets,
+						label: 'Tool Sets',
+						learnMoreUrl: toolSetUrl,
+						description: 'Automatic migration is unavailable.',
+						count: 1,
+						countLabel: '1 customization',
+						items: [{ id: 'tool-set', label: 'review-tools', scopeLabel: 'User', sourceLabel: 'review.toolsets.jsonc', resource: URI.file('/profile/review.toolsets.jsonc') }],
+					}],
+				},
+				{
+					storage: PromptsStorage.extension,
+					label: 'Extensions',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						id: CustomizationMigrationCategoryId.ChatParticipants,
+						label: 'Chat Participants',
+						learnMoreUrl: participantUrl,
+						description: 'Automatic migration is unavailable.',
+						count: 1,
+						countLabel: '1 customization',
+						items: [{ id: 'participant', label: '@review', scopeLabel: 'Extension', sourceLabel: 'Review Extension', extensionId: 'example.review' }],
+					}],
+				},
+			],
+		};
+		dashboard.showOverview(guidanceOverview);
+		dashboard.focus();
+		const links = [...parent.querySelectorAll<HTMLElement>('.migration-tree [role="link"]')];
+		const focusedLabel = DOM.getActiveElement()?.getAttribute('aria-label');
+		const nativeNavigationAllowed = links[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const guidanceRows = [...parent.querySelectorAll<HTMLElement>('.migration-tree-item')];
+		const checkboxesHidden = guidanceRows.every(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-hidden') === 'true');
+		const rowActionsHidden = guidanceRows.every(row => row.querySelector<HTMLElement>('.migration-tree-item-more')?.style.display === 'none');
+		const reviewActionsVisible = guidanceRows.every(row => row.querySelector<HTMLElement>('.migration-tree-item-review')?.style.display !== 'none');
+		button(parent, 'Review @review').click();
+		const detailFocus = DOM.getActiveElement()?.textContent;
+		const detailAccessibilityContent = dashboard.getGuidanceDetailAccessibilityContent();
+		const detail = parent.querySelector<HTMLElement>('.migration-guidance-detail');
+		const detailStructure = {
+			header: [...detail?.querySelector('.editor-header')?.children ?? []].map(child => child.className),
+			name: detail?.querySelector('.editor-item-name')?.textContent,
+			source: detail?.querySelector('.editor-item-path')?.textContent,
+			card: detail?.querySelector('.mcp-detail-diagnostic-card')?.className,
+			summary: detail?.querySelector('.mcp-detail-diagnostic-summary')?.textContent,
+		};
+		const sourceNavigationAllowed = parent.querySelector<HTMLElement>('[aria-label="View the extension that contributes @review"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		[...parent.querySelectorAll<HTMLElement>('.migration-guidance-card a')].find(link => link.textContent === 'Learn how to replace chat participants')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		dashboard.showOverview(guidanceOverview);
+		const detailPreservedOnRefresh = parent.querySelector('.migration-guidance-detail .editor-item-name')?.textContent;
+		(DOM.getActiveElement() as HTMLElement | null)?.blur();
+		dashboard.focus();
+		const refocusedDetail = DOM.getActiveElement()?.textContent;
+		parent.querySelector<HTMLElement>('button.editor-back-button[aria-label="Back to migrations"]')!.click();
+		const restoredRow = parent.querySelector('.monaco-list-row.focused')?.getAttribute('aria-label');
+		const restoredFocusInTree = parent.querySelector('.migration-tree')?.contains(DOM.getActiveElement()) ?? false;
+		assert.deepStrictEqual({
+			urls: links.map(link => link.getAttribute('href')),
+			opened: openedLinks,
+			nativeNavigationAllowed,
+			focusedLabel,
+			actions,
+			checkboxesHidden,
+			rowActionsHidden,
+			reviewActionsVisible,
+			migrateActions: [...parent.querySelectorAll('[role="button"]')].filter(button => button.textContent?.startsWith('Migrate')).length,
+			detailFocus,
+			detailStructure,
+			sourceNavigationAllowed,
+			detailPreservedOnRefresh,
+			refocusedDetail,
+			restoredRow,
+			restoredFocusInTree,
+			detailAccessibilityContent,
+		}, {
+			urls: [participantUrl, toolSetUrl],
+			opened: [participantUrl, participantUrl],
+			nativeNavigationAllowed: false,
+			focusedLabel: 'Learn how to migrate Chat Participants (Extensions)',
+			actions: ['source:participant'],
+			checkboxesHidden: true,
+			rowActionsHidden: true,
+			reviewActionsVisible: true,
+			migrateActions: 0,
+			detailFocus: 'Learn how to replace chat participants',
+			detailStructure: {
+				header: ['editor-back-button', 'editor-item-info'],
+				name: '@review',
+				source: 'Review Extension',
+				card: 'mcp-detail-diagnostic-card migration warning migration-guidance-card',
+				summary: 'Replace Chat Participant',
+			},
+			sourceNavigationAllowed: false,
+			detailPreservedOnRefresh: '@review',
+			refocusedDetail: 'Learn how to replace chat participants',
+			restoredRow: '@review, Extension, source Review Extension',
+			restoredFocusInTree: true,
+			detailAccessibilityContent: '@review\n\nSource: Review Extension\n\nReplace Chat Participant\n\nChat participants are deprecated and are not supported by the Copilot harness.\n\nAsk the extension publisher whether it provides an agent plugin, MCP server, or extension tools. Use a custom agent when the integration needs an ongoing specialist role.\n\nLearn how to replace chat participants: https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants',
+		});
+	});
 	test('renders migration groups with destination paths and sends scoped actions', () => {
 		const actions: string[] = [];
 		const { parent, dashboard, hoverContents, telemetryActions } = createDashboard({
