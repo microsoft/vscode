@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -29,6 +29,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
+			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 			override readonly activeSessionChangesObs = activeChanges;
 			override readonly activeSessionLoadingObs = loading;
 		}();
@@ -71,6 +72,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = activeSessionResource;
 			override readonly activeSessionChangesObs = activeChanges;
+			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 		}();
 		let resolver: IMultiDiffSourceResolver | undefined;
 		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
@@ -125,6 +127,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
 				new class extends mock<IChangesViewService>() {
 					override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
+					override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 					override readonly activeSessionChangesObs = changes;
 				}(),
 				new class extends mock<IMultiDiffSourceResolverService>() {

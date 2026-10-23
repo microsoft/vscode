@@ -413,9 +413,10 @@ export class SessionsView extends ViewPane {
 			}));
 		}
 
-		// When the active session changes, reveal it in the sessions list.
+		// When the session the main window shows changes, reveal it in the sessions list: chat windows, which are other
+		// windows, do not select theirs.
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
+			const activeSession = this.sessionsService.mainWindowActiveSession.read(reader);
 			if (activeSession) {
 				if (!sessionsControl.reveal(activeSession.resource)) {
 					sessionsControl.clearFocus();

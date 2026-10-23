@@ -314,6 +314,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 		super();
 	}
 	override readonly onDidToggleMaximizeSession = Event.None;
+	override readonly onDidFocusWindowSession = Event.None;
 	override get onDidInteractWithGrid() { return this.part?.onDidInteractWithGrid ?? Event.None; }
 	override getGridLayout() { return this.part?.getGridLayout(); }
 	override getSessionAtPosition(index: number) { return this.part?.getSessionAtPosition(index); }

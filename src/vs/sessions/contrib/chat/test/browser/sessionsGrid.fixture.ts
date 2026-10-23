@@ -209,6 +209,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const multipleChatsSession = options.multipleChats ? sessions[multipleChatsIndex] : undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
+		override readonly mainWindowActiveSession = this.activeSession;
 		override readonly visibleSessions = observableValue<readonly IActiveSession[]>(this, sessions);
 		override setActive(session: IActiveSession | undefined): void {
 			this.activeSession.set(session, undefined);

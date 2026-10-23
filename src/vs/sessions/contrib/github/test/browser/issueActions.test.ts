@@ -122,6 +122,7 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IURLService, urlService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openIssue')!.handler(accessor, session));
@@ -150,6 +151,7 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IURLService, urlService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openIssue')!.handler(accessor, session));
@@ -192,6 +194,7 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor));
@@ -212,6 +215,7 @@ suite('Issue Actions', () => {
 		instantiationService.stub(IClipboardService, clipboardService);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor, { issue: secondIssue }));

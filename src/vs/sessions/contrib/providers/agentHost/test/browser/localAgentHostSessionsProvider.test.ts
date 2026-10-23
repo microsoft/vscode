@@ -830,6 +830,8 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const visibleSessionsObs = options?.visibleSessions ?? constObservable<readonly (IActiveSession | undefined)[]>([]);
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
+		override readonly mainWindowActiveSession = this.activeSession;
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
@@ -12341,6 +12343,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { });
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+				override readonly mainWindowActiveSession = this.activeSession;
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
 			const options: IAgentHostAdapterOptions = {

@@ -1668,9 +1668,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.isRead.set(isSessionStatusRead(metadata.status), undefined);
 		}
 
+		// Also while the main window shows it, or a chat window does, when another one is the active session.
 		this.isActiveSessionObs = derived(this, reader => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			return isEqual(activeSession?.resource, this.resource);
+			return isEqual(activeSession?.resource, this.resource)
+				|| isEqual(this._sessionsService.mainWindowActiveSession.read(reader)?.resource, this.resource)
+				|| this._sessionsService.windowSessions.read(reader).some(session => isEqual(session.resource, this.resource));
 		});
 
 		// Set the changes summary from the aggregate. While the session is active,
@@ -8366,7 +8369,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * viewport. Driven reactively by {@link ISessionsService.visibleSessions}.
 	 */
 	private _syncVisibleSessionStatePins(reader: IReader): void {
-		const visible = this._sessionsService.visibleSessions.read(reader);
+		// Sessions in chat windows are visible too.
+		const visible = [...this._sessionsService.visibleSessions.read(reader), ...this._sessionsService.windowSessions.read(reader)];
 		const nowVisible = new Set<string>();
 		for (const session of visible) {
 			if (!session) {

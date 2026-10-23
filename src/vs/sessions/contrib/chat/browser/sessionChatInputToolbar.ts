@@ -846,6 +846,10 @@ export class SessionChatInputToolbar extends Disposable {
 				return session;
 			}
 		}
+		const windowSession = this._sessionsService.windowSessions.read(reader).find(session => isEqual(session.scopedChatResource, chatResource));
+		if (windowSession) {
+			return windowSession;
+		}
 		const active = this._sessionsService.activeSession.read(reader);
 		return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
 	}
