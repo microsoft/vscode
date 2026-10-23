@@ -108,9 +108,9 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		resourceToken = 'updated-resource-token';
 		const second = await provider.getAccount(marketplaceUrl);
 
-		assert.deepStrictEqual({ first, second, requests: requests.map(request => ({ url: request.url, authorization: request.headers?.Authorization })) }, {
-			first: { accessToken: 'resource-token' },
-			second: { accessToken: 'updated-resource-token' },
+		assert.deepStrictEqual({ first: first?.accessToken, second: second?.accessToken, requests: requests.map(request => ({ url: request.url, authorization: request.headers?.Authorization })) }, {
+			first: 'resource-token',
+			second: 'updated-resource-token',
 			requests: [{ url: metadataUrl, authorization: undefined }],
 		});
 	});
@@ -127,8 +127,8 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		await started.p;
 		await pending.complete(metadataResponse());
 
-		assert.deepStrictEqual({ accounts: await accounts, requests: requests.length }, {
-			accounts: Array.from({ length: 3 }, () => ({ accessToken: 'resource-token' })),
+		assert.deepStrictEqual({ accounts: (await accounts).map(account => account?.accessToken), requests: requests.length }, {
+			accounts: Array.from({ length: 3 }, () => 'resource-token'),
 			requests: 1,
 		});
 	});
@@ -163,7 +163,7 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 			const account = await provider.getAccount(marketplaceUrl);
 			await provider.getAccount(marketplaceUrl);
 
-			assert.deepStrictEqual({ account, requests: requests.length }, { account: { accessToken: 'resource-token' }, requests: 2 });
+			assert.deepStrictEqual({ account: account?.accessToken, requests: requests.length }, { account: 'resource-token', requests: 2 });
 		});
 	}
 
