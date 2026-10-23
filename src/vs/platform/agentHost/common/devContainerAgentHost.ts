@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IRelayChannel } from './relayTransport.js';
 import { IDevContainerRepository, IDevContainerSampleSource } from './devContainerSamples.js';
@@ -52,6 +53,12 @@ export interface IDevContainerAgentHostSandboxSupport {
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
+export interface IDiscoveredDevContainer {
+	readonly id: string;
+	readonly name: string;
+	readonly workspaceFolder?: string;
+}
+
 /** Host-side service that owns Dev Container CLI processes and protocol relays. */
 export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly _serviceBrand: undefined;
@@ -63,6 +70,8 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;
+	/** Local desktop discovery only; not exposed by remote protocol clients. */
+	listDevContainers?(token: CancellationToken): Promise<readonly IDiscoveredDevContainer[]>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
 	stopContainer(source: string | IDevContainerSampleSource): Promise<boolean>;
