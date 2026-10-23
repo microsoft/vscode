@@ -16,7 +16,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData } from '../../node/agentHostSessionStateDatabase.js';
 import type { IWorktreeRemovalRequest } from '../../node/agentHostWorktreeRemovalDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { NonDurableAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
+import { InMemoryJournalAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 const WORKTREE = 'file:///repo.worktrees/session';
 const OWNER = 'copilotcli:/owner';
@@ -309,13 +309,13 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 		] as const) {
 			const path = join(tmpdir(), `agent-host-m4-${generateUuid()}.db`);
 			try {
-				let database = new NonDurableAgentHostDatabase(path);
+				let database = new InMemoryJournalAgentHostDatabase(path);
 				await database.upsertPendingWorktreeRemoval(request());
 				for (const statement of prepare) {
 					await sql(database, statement);
 				}
 				await database.close();
-				database = new NonDurableAgentHostDatabase(path);
+				database = new InMemoryJournalAgentHostDatabase(path);
 				try {
 					await database.upsertPendingWorktreeRemoval(request({ kind: 'coOwned', owner: `${OWNER}|${WORKTREE}`, requestedAt: 2 }));
 					outcomes[name] = {
@@ -340,7 +340,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 	test('a database at version 19 keeps its pending removals and accepts co-owner removals after migrating to 20 (Block 5)', async () => {
 		const path = join(tmpdir(), `agent-host-co-owners-${generateUuid()}.db`);
 		try {
-			let database = new NonDurableAgentHostDatabase(path);
+			let database = new InMemoryJournalAgentHostDatabase(path);
 			await database.upsertPendingWorktreeRemoval(request());
 			await sql(database, 'DROP TABLE worktree_co_owners');
 			await sql(database, `CREATE TABLE pending_old (kind TEXT NOT NULL CHECK (kind IN ('session', 'detached')), owner TEXT NOT NULL, owner_session TEXT, worktree_path TEXT NOT NULL, repository_root TEXT NOT NULL, branch TEXT,
@@ -350,7 +350,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			await sql(database, 'ALTER TABLE pending_old RENAME TO pending_worktree_removals');
 			await sql(database, 'PRAGMA user_version = 19');
 			await database.close();
-			database = new NonDurableAgentHostDatabase(path);
+			database = new InMemoryJournalAgentHostDatabase(path);
 			try {
 				await database.upsertPendingWorktreeRemoval(request({ kind: 'coOwned', owner: `${OWNER}|${WORKTREE}`, requestedAt: 2 }));
 				assert.deepStrictEqual({

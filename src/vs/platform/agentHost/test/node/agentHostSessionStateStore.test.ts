@@ -30,7 +30,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import { createLegacySessionFixture, InMemorySessionDataService, legacySessionMetadata, readOldBuildView, writeLegacySessionState, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
-import { NonDurableAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
+import { InMemoryJournalAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 /** Long enough that no mirror flush runs unless a test asks for it. */
 const MANUAL_FLUSH = 60_000;
@@ -635,7 +635,7 @@ suite('AgentHostSessionStateStore', () => {
 			}
 		};
 		const loadWith = async (setup?: (db: AgentHostDatabase) => void) => {
-			const db = new NonDurableAgentHostDatabase(path);
+			const db = new InMemoryJournalAgentHostDatabase(path);
 			setup?.(db);
 			const sessionStore = new AgentHostSessionStateStore(MANUAL_FLUSH, db, sessionData.createService(), new NullLogService());
 			try {
@@ -647,7 +647,7 @@ suite('AgentHostSessionStateStore', () => {
 			}
 		};
 		try {
-			const oldBuild = new NonDurableAgentHostDatabase(path);
+			const oldBuild = new InMemoryJournalAgentHostDatabase(path);
 			await writeLegacySessionState(sessionData.createService(), oldBuild, fixture);
 			await oldBuild.close();
 			// What a build that read the Copilot pin only for `copilot:` sessions imported, and marked as resolved.

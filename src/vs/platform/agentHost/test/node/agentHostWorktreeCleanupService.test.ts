@@ -21,7 +21,7 @@ import type { WorktreeRemovalMode } from '../../node/agentHostWorktreeRemovalDat
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { DetachedWorktreeRemovalGuard, IRecordedWorktree, NullAgentHostWorktreeIsolation, WorktreeRemovalOutcome } from '../../node/shared/worktreeIsolation.js';
-import { NonDurableAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
+import { InMemoryJournalAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 const SESSION = AgentSession.uri('copilotcli', 'archived');
 const OTHER_SESSION = AgentSession.uri('copilotcli', 'other');
@@ -447,7 +447,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		test('a shared worktree is kept while a live co-owner works in it, also only through a chat it archived, also after a restart, and removed once every co-owner is archived', async () => {
 			const path = join(tmpdir(), `agent-host-shared-worktree-${generateUuid()}.db`);
 			try {
-				let database = disposables.add(new NonDurableAgentHostDatabase(path));
+				let database = disposables.add(new InMemoryJournalAgentHostDatabase(path));
 				let worktree = new RecordingWorktreeIsolation();
 				let cleanup = disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
 				// SESSION records the worktree; OTHER_SESSION's moved chat works in it, archived on its own.
@@ -462,7 +462,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 				const kept = { calls: [...worktree.calls], pending: await pending(database) };
 				cleanup.dispose();
 				await database.close();
-				database = disposables.add(new NonDurableAgentHostDatabase(path));
+				database = disposables.add(new InMemoryJournalAgentHostDatabase(path));
 				worktree = new RecordingWorktreeIsolation();
 				cleanup = disposables.add(new AgentHostWorktreeCleanupService(undefined, database, worktree, new NullLogService()));
 				await cleanup.runPass();

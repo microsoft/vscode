@@ -1165,12 +1165,12 @@ function close(database: Database): Promise<void> {
 
 export interface IAgentHostDatabaseOptions {
 	/**
-	 * Whether commits are durable. Defaults to `true`. When `false`, the connection skips fsync
-	 * (`synchronous = OFF`) and keeps its rollback journal in memory, so commits neither create a journal file
-	 * nor wait for the disk. That is faster, but a crash can lose or corrupt the database. Both settings last only
-	 * for this connection: the file format is unchanged, and another connection opens it durably as usual.
+	 * Keeps the connection's rollback journal in memory and skips fsync (`journal_mode = MEMORY`,
+	 * `synchronous = OFF`), so commits neither create a journal file nor wait for the disk. Defaults to `false`.
+	 * That is faster, but a crash can lose or corrupt the database. The database itself stays on disk, and both
+	 * settings last only for this connection: another connection opens the file with a durable journal as usual.
 	 */
-	readonly durable?: boolean;
+	readonly inMemoryJournal?: boolean;
 }
 
 export class AgentHostDatabase implements IAgentHostDatabase {
@@ -4352,7 +4352,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				try {
 					database.serialize();
 					await exec(database, 'PRAGMA foreign_keys = ON');
-					if (this._options.durable === false) {
+					if (this._options.inMemoryJournal) {
 						await exec(database, 'PRAGMA journal_mode = MEMORY; PRAGMA synchronous = OFF');
 					}
 					const versionRow = await get(database, 'PRAGMA user_version', []);

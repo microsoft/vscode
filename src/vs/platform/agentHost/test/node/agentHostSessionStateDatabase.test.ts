@@ -14,7 +14,7 @@ import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionSta
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { SESSION_STATE_TABLES, type IAgentHostSessionStateDatabase, type IAgentHostSessionStateImport } from '../../node/agentHostSessionStateDatabase.js';
 import { createLegacySessionFixture, InMemorySessionDataService, readOldBuildView, writeLegacySessionState } from './sessionStateCompatibilityFixtures.js';
-import { NonDurableAgentHostDatabase, NonDurableCompatibleAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
+import { InMemoryJournalAgentHostDatabase, InMemoryJournalCompatibleAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 /** Tables older builds read; Block 3a never alters them. */
 const PROTECTED_TABLES = ['sessions', 'sessions_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'chats_v2'];
@@ -119,7 +119,7 @@ suite('AgentHostDatabase session state', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function open(): Promise<AgentHostDatabase> {
-		return store.add(new NonDurableAgentHostDatabase(path));
+		return store.add(new InMemoryJournalAgentHostDatabase(path));
 	}
 
 	test('migrates a Block 2b database without changing the tables older builds read, other than adding chat origins', async () => {
@@ -318,7 +318,7 @@ suite('AgentHostDatabase session state', () => {
 	});
 
 	test('the compatibility database stores session state in storage spelling and reads it in runtime spelling', async () => {
-		const compatible = store.add(new NonDurableCompatibleAgentHostDatabase(path));
+		const compatible = store.add(new InMemoryJournalCompatibleAgentHostDatabase(path));
 		await compatible.initialize();
 		const session = 'ahp-session:/compat';
 		await compatible.prepareSessionStorage(session, 'copilotcli');
