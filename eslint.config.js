@@ -976,13 +976,45 @@ export default defineConfig(
 				}
 			],
 			'local/code-run-with-faked-timers-whole-test': 'warn',
+		}
+	},
+	// polling for state in unit tests and their helpers, such as fixtures, harnesses and utilities
+	{
+		files: [
+			'src/vs/**/test/**/*.ts'
+		],
+		ignores: [
+			// integration tests wait on other processes, files or ports
+			'src/vs/**/test/**/e2e/**',
+			'src/vs/**/test/**/*IntegrationTestHelpers.ts',
+			'src/vs/**/test/**/*.integrationTest.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
 			'local/code-no-timeout-polling-loop': [
 				'warn',
 				{
 					// Files should (only) be removed from the list once they no longer poll
 					'exclude': [
+						'src/vs/base/test/browser/animationSync.test.ts',
+						'src/vs/platform/agentHost/test/node/agentService.test.ts',
+						'src/vs/platform/agentHost/test/node/claudeAgent.test.ts',
+						'src/vs/platform/agentHost/test/node/claudeProxyService.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
+						'src/vs/sessions/contrib/sessions/test/browser/sessionsListChatMoveDnd.test.ts',
+						'src/vs/sessions/test/browser/mobileMultiDiffView.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatListWidget.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/input/chatInputPickerResponsiveLayout.test.ts',
+						'src/vs/workbench/contrib/tasks/test/browser/taskTerminalStatus.test.ts',
+						'src/vs/workbench/test/browser/componentFixtures/chat/chatScrollAnchoring.fixture.ts',
+						'src/vs/workbench/test/browser/componentFixtures/fixtureUtils.ts',
+						'src/vs/workbench/test/browser/componentFixtures/imageCarousel.fixture.ts',
 					]
 				}
 			]
