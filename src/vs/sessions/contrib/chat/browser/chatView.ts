@@ -14,6 +14,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -319,6 +320,10 @@ export class ChatView extends AbstractChatView {
 	private readonly _inputOnlyResponseIconElement: HTMLElement;
 	private readonly _inputOnlyResponseText: HTMLElement;
 	private _inputOnlyStatusShown = false;
+	/** What {@link _renderInputOnlyStatus} rendered last, to skip rendering it again. */
+	private _inputOnlyRendered: { readonly shown: boolean; readonly status: IInputOnlyStatus } | undefined;
+	/** The state of the latest message's response last rendered, to announce only when it changes. */
+	private _inputOnlyAnnouncedState: { readonly requestId: string | undefined; readonly state: InputOnlyResponseState } | undefined;
 	private readonly _inputOnlyRequestText: HTMLElement;
 	private readonly _inputOnlyRequestIconElement: HTMLElement;
 	private readonly _inputOnlyRequestIcon: SessionStatusIcon;
@@ -524,7 +529,8 @@ export class ChatView extends AbstractChatView {
 		this._inputOnlyResponseIconElement = $('span.chat-view-input-only-response-icon', { 'aria-hidden': 'true' });
 		this._register(instantiationService.createInstance(SessionStatusIcon, this._inputOnlyResponseIconElement)).setStatus(SessionStatus.InProgress, true, false);
 		this._inputOnlyResponseText = $('span.chat-view-input-only-response-text');
-		this._inputOnlyResponseElement = $('span.chat-view-input-only-response', { role: 'status', 'aria-live': 'polite' }, this._inputOnlyResponseIconElement, this._inputOnlyResponseText);
+		// Not a live region: progress changes too often to announce; state changes are announced once instead.
+		this._inputOnlyResponseElement = $('span.chat-view-input-only-response', undefined, this._inputOnlyResponseIconElement, this._inputOnlyResponseText);
 		// The message, then its response below it, as in the conversation.
 		this._inputOnlyStatusElement = $('.chat-view-input-only-status.hidden', undefined,
 			$('.chat-view-input-only-request-row', undefined, this._inputOnlyRequestElement),
@@ -544,7 +550,8 @@ export class ChatView extends AbstractChatView {
 			}
 			return this._inputOnlyInputHeight === 0 ? 0 : INPUT_ONLY_TOP_PADDING + this._inputOnlyInputHeight + (this._inputOnlyStatus.read(reader).request ? INPUT_ONLY_STATUS_HEIGHT : 0);
 		});
-		const needsConversation = derived(this, reader => needsConversationForInput(chatModel.read(reader), this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel), reader));
+		const needsConversation = derived(this, reader => this._inputOnlyEnabled.read(reader)
+			&& needsConversationForInput(chatModel.read(reader), this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel), reader));
 		this.canShowInputOnly = derived(this, reader => this._inputOnlyEnabled.read(reader) && !needsConversation.read(reader));
 		this._register(autorun(reader => {
 			this._inputOnly.read(reader);
@@ -1216,7 +1223,11 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _createInputOnlyStatus(chatModel: IObservable<IChatModel | undefined>): IObservable<IInputOnlyStatus> {
+		// Until input-only is enabled, nothing is read from the chat, so streaming responses cost nothing here.
 		const lastRequest = derived(this, reader => {
+			if (!this._inputOnlyEnabled.read(reader)) {
+				return undefined;
+			}
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const request = model?.getRequests().findLast(request => !request.isRequestHiddenFromTranscript);
@@ -1225,13 +1236,14 @@ export class ChatView extends AbstractChatView {
 		return derived(this, reader => {
 			const last = lastRequest.read(reader);
 			if (!last) {
-				return {};
+				return NO_INPUT_ONLY_STATUS;
 			}
 			last.onDidChange?.read(reader);
 			const { request } = last;
 			const response = request.response;
 			const state = response ? getInputOnlyResponseState(response.isIncomplete.read(reader), !!response.isPendingConfirmation.read(reader), response.state) : undefined;
 			return {
+				requestId: request.id,
 				request: request.message.text.replace(/\s+/g, ' ').trim() || undefined,
 				state,
 				response: !response ? undefined : state === 'working'
@@ -1242,10 +1254,21 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _renderInputOnlyStatus(): void {
-		const { request, state = 'succeeded', response } = this._inputOnlyStatus.get();
+		const inputOnlyStatus = this._inputOnlyStatus.get();
+		const { requestId, request, state = 'succeeded', response } = inputOnlyStatus;
 		// Nothing is shown before the first message, so an empty chat has just its input.
 		const shown = this._inputOnly.get() && !!request;
+		this._announceInputOnlyStateChange(shown, requestId, state);
+		const previous = this._inputOnlyRendered;
+		if (previous?.shown === shown && (!shown || (previous.status.request === request && previous.status.state === inputOnlyStatus.state && previous.status.response === response))) {
+			return;
+		}
+		this._inputOnlyRendered = { shown, status: inputOnlyStatus };
 		this._inputOnlyStatusElement.classList.toggle('hidden', !shown);
+		if (!shown) {
+			this._updateInputOnlyStatusShown(false);
+			return;
+		}
 		this._inputOnlyRequestText.textContent = request ?? '';
 		this._inputOnlyRequestElement.title = request ?? '';
 		const { status, completedIcon, label } = INPUT_ONLY_REQUEST_STATES[state];
@@ -1259,9 +1282,32 @@ export class ChatView extends AbstractChatView {
 		this._inputOnlyResponseText.textContent = response ?? '';
 		this._inputOnlyResponseElement.title = response ?? '';
 		this._inputOnlyResponseIconElement.classList.toggle('hidden', state !== 'working');
+		this._updateInputOnlyStatusShown(true);
+	}
+
+	private _updateInputOnlyStatusShown(shown: boolean): void {
 		if (shown !== this._inputOnlyStatusShown) {
 			this._inputOnlyStatusShown = shown;
 			this._layoutChatWidget();
+		}
+	}
+
+	/**
+	 * Announces once when the response to the shown message, while only the input is shown, comes to wait for the user,
+	 * fails or is canceled. Its start and its answer are announced by chat already, its progress is not announced.
+	 */
+	private _announceInputOnlyStateChange(shown: boolean, requestId: string | undefined, state: InputOnlyResponseState): void {
+		const previous = this._inputOnlyAnnouncedState;
+		this._inputOnlyAnnouncedState = { requestId, state };
+		const message = INPUT_ONLY_STATE_ANNOUNCEMENTS[state];
+		if (shown && message && requestId !== undefined && previous?.requestId === requestId && previous.state !== state) {
+			this._announce(message);
+		}
+	}
+
+	private _announce(message: string): void {
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			aria.status(message);
 		}
 	}
 
@@ -1422,11 +1468,15 @@ const INPUT_ONLY_TOP_PADDING = 12;
 
 /** What a chat view showing only its input shows above it: the latest message sent, and its response. */
 export interface IInputOnlyStatus {
+	readonly requestId?: string;
 	readonly request?: string;
 	readonly state?: InputOnlyResponseState;
 	/** The response's answer as one line, or what it does while it works. */
 	readonly response?: string;
 }
+
+/** What a chat view shows above its input while input-only is not enabled: nothing. */
+const NO_INPUT_ONLY_STATUS: IInputOnlyStatus = {};
 
 /** Whether a response works, waits for the user, or how it ended. */
 export type InputOnlyResponseState = 'working' | 'waiting' | 'succeeded' | 'failed' | 'canceled';
@@ -1441,6 +1491,13 @@ const INPUT_ONLY_REQUEST_STATES: Record<InputOnlyResponseState, { readonly statu
 	succeeded: { label: localize('inputOnly.succeeded', "Done") },
 	failed: { status: SessionStatus.Error, label: localize('inputOnly.failed', "Failed") },
 	canceled: { status: SessionStatus.Completed, completedIcon: Codicon.circleSlash, label: localize('inputOnly.canceled', "Canceled") },
+};
+
+/** What is announced when the response to the message shown above the input comes to a state; see `_announceInputOnlyStateChange`. */
+const INPUT_ONLY_STATE_ANNOUNCEMENTS: Partial<Record<InputOnlyResponseState, string>> = {
+	waiting: localize('inputOnly.announce.waiting', "Chat is waiting for your input"),
+	failed: localize('inputOnly.announce.failed', "Chat response failed"),
+	canceled: localize('inputOnly.announce.canceled', "Chat response canceled"),
 };
 
 /**

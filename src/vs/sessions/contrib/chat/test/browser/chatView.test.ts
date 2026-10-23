@@ -807,6 +807,7 @@ suite('Sessions - Chat View', () => {
 			_inputOnlyResponseIconElement: responseIconElement,
 			_inputOnlyResponseText: responseText,
 			_layoutChatWidget: () => events.push('layout'),
+			_announce: (message: string) => events.push(`announce: ${message}`),
 			_showPills: true,
 			_chatPills: { element: pillsElement, visible: true },
 			_widget: { inputPart: { persistentContentContainerElement: dom.$('div') } },
@@ -825,14 +826,15 @@ suite('Sessions - Chat View', () => {
 		step('before enabled');
 		view.enableInputOnly({ maxHeight: 400 });
 		step('empty chat');
-		status.set({ request: 'Add a bullet', state: 'working', response: 'Reading chatpad.md' }, undefined);
+		status.set({ requestId: 'r1', request: 'Add a bullet', state: 'working', response: 'Reading chatpad.md' }, undefined);
 		step('working');
 		view.setInputOnly(false);
 		step('show conversation');
 		view.setInputOnly(true);
-		status.set({ request: 'Add a bullet', state: 'waiting', response: 'Adding' }, undefined);
+		status.set({ requestId: 'r1', request: 'Add a bullet', state: 'waiting', response: 'Adding' }, undefined);
 		step('waiting');
-		status.set({ request: 'Add a bullet', state: 'succeeded', response: 'Added the bullet.' }, undefined);
+		step('waiting, rendered again');
+		status.set({ requestId: 'r1', request: 'Add a bullet', state: 'succeeded', response: 'Added the bullet.' }, undefined);
 		step('done');
 		needsConversation.set(true, undefined);
 		view.setInputOnly(false);
@@ -850,12 +852,45 @@ suite('Sessions - Chat View', () => {
 			'enabled=true', 'inputOnly=true', 'layout', 'empty chat: inputOnly=true class=true pills=false status=hidden',
 			'layout', `working: inputOnly=true class=true pills=false status=[Working (no icon): Add a bullet] [spinner Reading chatpad.md]`,
 			'inputOnly=false', 'layout', 'layout', 'show conversation: inputOnly=false class=false pills=true status=hidden',
-			'inputOnly=true', 'layout', 'layout', `waiting: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
+			'inputOnly=true', 'layout', 'layout', 'announce: Chat is waiting for your input', `waiting: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
+			`waiting, rendered again: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
 			'done: inputOnly=true class=true pills=false status=[Done (no icon): Add a bullet] [Added the bullet.]',
 			'inputOnly=false', 'layout', 'layout', 'needs the conversation: inputOnly=false class=false pills=true status=hidden',
 			'inputOnly=false', 'layout', 'enabled=false', 'disabled: inputOnly=false class=false pills=true status=hidden',
 			'enabled=true', 'inputOnly=false', 'layout', 'enabled with the conversation: inputOnly=false class=false pills=true status=hidden',
 		]);
+	});
+
+	test('reads nothing of a streaming response while input-only is not enabled', () => {
+		const onDidChange = disposables.add(new Emitter<void>());
+		const request = {
+			id: 'r1',
+			isRequestHiddenFromTranscript: false,
+			message: { text: 'Add  a\nbullet' },
+			response: {
+				onDidChange: onDidChange.event,
+				isIncomplete: constObservable(true),
+				isPendingConfirmation: constObservable(undefined),
+				state: ResponseModelState.Pending,
+				response: { value: [] },
+			},
+		};
+		const model = { lastRequestObs: constObservable(request), getRequests: () => [request] } as unknown as IChatModel;
+		const enabled = observableValue('enabled', false);
+		const view = Object.assign(Object.create(ChatView.prototype), { _inputOnlyEnabled: enabled }) as { _createInputOnlyStatus(chatModel: IObservable<IChatModel | undefined>): IObservable<IInputOnlyStatus> };
+		const status = view._createInputOnlyStatus(constObservable(model));
+		const statuses: IInputOnlyStatus[] = [];
+		disposables.add(autorun(reader => { statuses.push(status.read(reader)); }));
+		const chunks = () => { for (let i = 0; i < 3; i++) { onDidChange.fire(); } };
+		chunks();
+		const whileDisabled = statuses.length;
+		enabled.set(true, undefined);
+		chunks();
+		assert.deepStrictEqual({ whileDisabled, empty: statuses[0], enabled: statuses.slice(1) }, {
+			whileDisabled: 1,
+			empty: {},
+			enabled: Array(4).fill({ requestId: 'r1', request: 'Add a bullet', state: 'working', response: 'Working...' }),
+		});
 	});
 
 	test('shows what a working response does: its latest progress message or running tool', () => {
