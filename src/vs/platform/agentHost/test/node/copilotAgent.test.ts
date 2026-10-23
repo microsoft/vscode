@@ -27102,6 +27102,36 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('re-applies the uncommitted model selection to the session a turn-preparation refresh replaces it with', async () => {
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			// This turn's Auto tier was applied to the old runtime, which only journals it once a turn commits it.
+			const selection = ['auto', 'high', undefined, 'hydrafusion-max', { id: 'auto', config: { tier: 'hydrafusion-max' } }] as const;
+			const previousSession = { ...refreshSessionStub([]), requiresRestartAfterWorkingDirectoryChange: true, appliedModelSelection: selection };
+			const events: string[] = [];
+			const replacement = {
+				...refreshSessionStub([]),
+				async setModel(...args: readonly unknown[]) { events.push(`setModel ${JSON.stringify(args)}`); },
+				async send(prompt: string) { events.push(`send ${prompt}`); },
+			};
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+			};
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			internals._resumeSession = async () => {
+				setDefaultSessionStub(agent, sessionId, replacement);
+				return replacement as unknown as CopilotAgentSession;
+			};
+			try {
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'refresh-turn');
+				assert.deepStrictEqual(events, [`setModel ${JSON.stringify(selection)}`, 'send hello']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('relaunches a runtime at the next send after its chat changed owner, and only then', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/owner-change-relaunch-`);
 			const sessionId = 'owner-change-relaunch';

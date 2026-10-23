@@ -1908,6 +1908,7 @@ export class CopilotAgentSession extends Disposable {
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
 	private _requestedModel: ModelSelection | undefined;
+	private _appliedModelSelection: Parameters<CopilotAgentSession['setModel']> | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
@@ -6431,6 +6432,14 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	/**
+	 * The arguments of the last successful {@link setModel}. The runtime keeps a selection in memory
+	 * until a turn commits it, so a configuration restart re-applies it to the replacement session.
+	 */
+	get appliedModelSelection(): Parameters<CopilotAgentSession['setModel']> | undefined {
+		return this._appliedModelSelection;
+	}
+
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
@@ -6449,6 +6458,7 @@ export class CopilotAgentSession extends Disposable {
 				...(autoTier !== undefined ? { autoTier } : {}),
 			}));
 			this._requestedModel = requested ?? { id: model };
+			this._appliedModelSelection = [model, reasoningEffort, contextTier, autoTier, requested];
 		} finally {
 			this.refreshModelConfiguration();
 		}
