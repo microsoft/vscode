@@ -8,8 +8,8 @@ From the VS Code repository:
 
 1. Build `@vscode/markdown-editor` and `@vscode/web-editors` in the adjacent
    `vscode-packages` checkout.
-2. Run `npm install` and `npm run build` in this folder, then run `npm install`
-   in `extensions/markdown-language-features`.
+2. Run `pnpm install` and `pnpm run build` in this folder, then run
+   `pnpm install` in `extensions/markdown-language-features`.
 3. Start the **Markdown Code Block Editor Demo** launch configuration.
 4. Open `checkbox-count-demo.md` with the Markdown editor.
 5. Toggle or edit task-list checkboxes. The count rendered by the code block

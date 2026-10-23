@@ -110,7 +110,7 @@ There are two phases:
 ### Phase 1: Generate (uses LLM — slow, run once)
 
 ```bash
-npm run generate
+pnpm run generate
 ```
 
 For each `.scenario.md` file, the generate script:
@@ -136,7 +136,7 @@ test plan that everyone runs.
 ### Phase 2: Test (no LLM — fast, deterministic)
 
 ```bash
-npm test
+pnpm test
 ```
 
 The test runner reads each `.commands.json` and replays the `playwright-cli`
@@ -145,7 +145,7 @@ Just sequential commands and assertions.
 
 ### When to Re-generate
 
-Run `npm run generate` when:
+Run `pnpm run generate` when:
 - You add a new `.scenario.md` file
 - The UI changes and refs are stale (tests start failing)
 - You modify an existing scenario's steps
@@ -187,13 +187,13 @@ scripts/
 
 - VS Code compiled (`out/` at the repo root):
   ```bash
-  npm install && npm run compile
+  pnpm install && pnpm run compile
   ```
 - Dependencies installed:
   ```bash
-  cd src/vs/sessions/test/e2e && npm install
+  cd src/vs/sessions/test/e2e && pnpm install
   ```
-- Copilot CLI available (for `npm run generate` only):
+- Copilot CLI available (for `pnpm run generate` only):
   ```bash
   copilot --version
   ```
@@ -204,10 +204,10 @@ scripts/
 cd src/vs/sessions/test/e2e
 
 # First time or after UI changes:
-npm run generate
+pnpm run generate
 
 # Run tests (fast, deterministic):
-npm test
+pnpm test
 ```
 
 Example test output:
@@ -248,9 +248,9 @@ Results: 6 passed, 0 failed
 4. Verify the repository picker dropdown is visible
 ```
 
-3. Run `npm run generate` to compile it into a `.commands.json` file.
+3. Run `pnpm run generate` to compile it into a `.commands.json` file.
 
-4. Run `npm test` to verify it works.
+4. Run `pnpm test` to verify it works.
 
 5. Commit both the `.scenario.md` and `.commands.json` files.
 
@@ -329,7 +329,7 @@ It shells out to `playwright-cli click e143`. Done. No parsing, no matching.
 - **One action per step** — keep steps atomic for clear failure messages.
 - **Order matters** — scenarios run sequentially; an Escape is pressed between them.
 - **Prefix filenames** with numbers (`01-`, `02-`, …) to control execution order.
-- **Re-generate selectively**: `npm run generate -- 01-repo` to recompile one scenario.
+- **Re-generate selectively**: `pnpm run generate 01-repo` to recompile one scenario.
 
 ### Testing File Diffs
 

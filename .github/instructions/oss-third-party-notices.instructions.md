@@ -298,7 +298,7 @@ Useful options:
 
 What it does:
 
-1. Runs `scan-licenses.ts` through `npx --yes tsx`.
+1. Runs `scan-licenses.ts` through `pnpm dlx tsx`.
 2. Writes `ext-notices.txt` and `ext-notices.txt.presence.json` under `-OutDir`.
 3. Runs `merge-notices.ts` with `cglicenses.json`.
 4. Writes `ThirdPartyNotices.new.txt` and a focused summary.
@@ -306,7 +306,7 @@ What it does:
 Notes:
 
 - Pass `-CgNotice` with a cached CG NOTICE for realistic local validation. Without it, the merge still exercises override injection and stale detection, but it does not represent the full CG base.
-- If root `node_modules` is missing, run `npm i` first or the presence index will be incomplete.
+- If root `node_modules` is missing, run `pnpm install` first or the presence index will be incomplete.
 - Full validation is parity against the legacy OSS tool's `ThirdPartyNotices.txt`: the new output should be at least as good as legacy. Use `parse-notices.ts --diff` to compare NOTICE files and inspect package/version differences.
 
 ## Unit checks
@@ -314,14 +314,14 @@ Notes:
 Run from `build/azure-pipelines/oss`:
 
 ```powershell
-npx tsx cargo-section4.test.ts
-npx tsx platform-binary.test.ts
+pnpm dlx tsx cargo-section4.test.ts
+pnpm dlx tsx platform-binary.test.ts
 ```
 
 Optional live Cargo check:
 
 ```powershell
-npx tsx cargo-section4.live.ts
+pnpm dlx tsx cargo-section4.live.ts
 ```
 
 The live check performs bounded network calls to crates.io and GitHub. It is useful for validating the real Section 4 fetch path without running a full scanner pass over every crate.
@@ -347,7 +347,7 @@ Purpose: pre-ship sanity check that validates a generated NOTICE file against th
 Invocation:
 
 ```sh
-npx tsx build/azure-pipelines/oss/audit-notices.ts \
+pnpm dlx tsx build/azure-pipelines/oss/audit-notices.ts \
   --notice <path-to-ThirdPartyNotices.new.txt> \
   --repo .
 ```
@@ -355,13 +355,13 @@ npx tsx build/azure-pipelines/oss/audit-notices.ts \
 What it checks:
 
 1. **NOTICE stats** — total entries, duplicate detection (same name@version = bug), multi-version packages (expected), license type breakdown.
-2. **Repo manifest cross-reference** — walks all `package.json` (direct deps), `package-lock.json` (full transitive tree, dev filtered out), `Cargo.lock`, and `cgmanifest.json`. Reports overlap, NOTICE-only entries (CG transitive deps), and manifest-only gaps (packages missing from the NOTICE).
+2. **Repo manifest cross-reference** — walks all `package.json` (direct deps), every `pnpm-lock.yaml` (the full transitive tree of each importer, dev filtered out), the `package-lock.json` files that remain for folders still installed with npm (`build/agent-sdk/agents/*`), `Cargo.lock`, and `cgmanifest.json`. Reports overlap, NOTICE-only entries (CG transitive deps), and manifest-only gaps (packages missing from the NOTICE).
 3. **Summary** — coverage percentage and actionable gap list.
-4. **Package source breakdown** — per-lockfile package counts sorted by size. Shows which extensions/directories contribute the most dependencies (e.g., `extensions/copilot: 329 packages`).
+4. **Package source breakdown** — package counts per lockfile project (pnpm importer or npm lockfile folder), sorted by size. Shows which extensions/directories contribute the most dependencies (e.g., `extensions/copilot: 329 packages`).
 
 Key behavior:
 
-- Lockfile parsing filters out `dev: true` and `devOptional: true` entries — only non-dev (shipping) packages are counted.
+- Lockfile parsing filters out dev-only packages (`dev: true`/`devOptional: true` in `package-lock.json`, dev-only packages of each importer in `pnpm-lock.yaml`) — only non-dev (shipping) packages are counted.
 - Cross-reference uses lowercase package names for matching.
 - The "manifest-only" gap list is the primary ship-readiness signal: each gap should be explainable (binary component, known TODO, platform-specific absence).
 

@@ -147,7 +147,7 @@ await new Promise(resolve => setTimeout(resolve, 2400));
 
 ```bash
 ./scripts/test.sh --grep "applyStorageSourceFilter|customizationCounts"
-npm run typecheck-client && npm run valid-layers-check
+pnpm run typecheck-client && pnpm run valid-layers-check
 ```
 
 See the `sessions` skill for sessions-window specific guidance.
