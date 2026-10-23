@@ -110,8 +110,7 @@ suite('DiffEditorWidget2', () => {
 
 		widget.setModel({ original, modified });
 		widget.setModel(null);
-		// The widget releases the previous view model in a timeout. If the view model is not
-		// disposed after that, ensureNoDisposablesAreLeakedInTestSuite fails this test.
+		// The widget releases the previous view model in a timeout.
 		await timeout(0);
 	});
 
