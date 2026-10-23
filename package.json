@@ -86,6 +86,7 @@
     "compile-extensions-build": "npm run gulp compile-extensions-build",
     "hygiene": "npm run gulp -- hygiene",
     "core-ci": "npm run gulp core-ci",
+    "core-ci-pr": "npm run gulp core-ci-pr",
     "perf": "node scripts/code-perf.js",
     "perf:css": "node .github/skills/auto-perf-optimize/scripts/workbench-css-performance.mts",
     "perf:chat": "node scripts/chat-simulation/test-chat-perf-regression.js",
