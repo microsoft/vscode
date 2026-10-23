@@ -44,8 +44,8 @@ export interface IModelPickerDestination {
 	readonly supportsCopilotCuration?: boolean;
 	/** Names the destination in the tab tooltip and as the list heading. */
 	readonly label: string;
-	/** The provider's declared icon, or one recognised from its name. */
-	readonly icon: LanguageModelProviderIcon;
+	/** Omitted for source tabs, whose protocol labels stay visible without inferring a brand. */
+	readonly icon: LanguageModelProviderIcon | undefined;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Providers with nothing to list yet, shown as a welcome body when there are no models. */
 	readonly placeholders: readonly IModelPickerProviderPlaceholder[];
@@ -152,7 +152,7 @@ export function buildModelPickerDestinations(
 			id: `source:${id}`,
 			source: destination.source,
 			label: destination.source.displayName,
-			icon: getProviderIconForIdentity(destination.source.displayName),
+			icon: undefined,
 			models: destination.models,
 			placeholders: [],
 			supportsCopilotCuration: destination.models.some(model => model.metadata.isCopilotModel === true),

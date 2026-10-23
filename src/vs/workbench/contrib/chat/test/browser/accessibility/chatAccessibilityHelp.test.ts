@@ -494,6 +494,16 @@ suite('Chat Accessibility Help', () => {
 		}, { rightArrow: true, selection: true, tabs: true, tabBar: true, back: true });
 	});
 
+	test('explains source identity without promising conversation eligibility or automatic fallback', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			namedTabs: help.includes('each in its own named provider tab'),
+			separateChoices: help.includes('Models with the same name in different sources are separate choices'),
+			eligibility: help.includes('the agent may reject a selection with an explanation'),
+			noFallback: help.includes('it stays selected rather than switching sources automatically'),
+		}, { namedTabs: true, separateChoices: true, eligibility: true, noFallback: true });
+	});
+
 	test('documents keyboard search in the model picker', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

@@ -50,6 +50,40 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
+	test('a Claude-style harness publishes arbitrary sources without optional producer metadata', async () => {
+		const vendor = 'remote-connection-claude';
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-claude', vendor));
+		const modelSources = [{ id: 'urn:source:91', displayName: 'Native' }, { id: 'urn:source:27', displayName: 'Proxied' }];
+		const models = modelSources.map((source, index) => ({
+			id: 'shared-model', name: 'Shared model', provider: 'claude', modelSourceId: source.id, maxPromptTokens: (index + 1) * 100,
+		}));
+		const info = { provider: 'claude', modelSources, capabilities: { modelSourceSelection: {} } };
+		provider.updateModels(models, info);
+		const result = await provider.provideLanguageModelChatCatalog({ silent: true }, CancellationToken.None);
+		const renamed = modelSources.map(source => ({ ...source, displayName: source.id === modelSources[1].id ? 'Another label' : source.displayName }));
+		provider.updateModels(models, { ...info, modelSources: renamed });
+		const refreshed = await provider.provideLanguageModelChatCatalog({ silent: true }, CancellationToken.None);
+		assert.deepStrictEqual({
+			sources: result.sources,
+			rows: result.models.map(model => ({
+				identifier: model.identifier, raw: model.metadata.id, name: model.metadata.name,
+				source: model.metadata.modelSourceId, tokens: model.metadata.maxInputTokens,
+				copilot: model.metadata.isCopilotModel, byok: model.metadata.isBYOK, pricing: model.metadata.pricing,
+			})),
+			renamedSources: refreshed.sources,
+			retainedIdentifiers: refreshed.models.map(model => model.identifier),
+		}, {
+			sources: modelSources,
+			rows: modelSources.map((source, index) => ({
+				identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared-model'),
+				raw: 'shared-model', name: 'Shared model', source: source.id, tokens: (index + 1) * 100,
+				copilot: false, byok: undefined, pricing: undefined,
+			})),
+			renamedSources: renamed,
+			retainedIdentifiers: result.models.map(model => model.identifier),
+		});
+	});
+
 	test('refuses dangling sources and unsupported exact selection instead of making legacy rows', async () => {
 		const provider = createProvider();
 		provider.updateModels([{ ...makeModel('shared'), modelSourceId: 'missing' }], { capabilities: { modelSourceSelection: {} }, modelSources: [] });

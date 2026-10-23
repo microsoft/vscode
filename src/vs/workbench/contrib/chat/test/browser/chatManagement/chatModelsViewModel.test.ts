@@ -356,6 +356,31 @@ suite('ChatModelsViewModel', () => {
 		});
 	});
 
+	test('a Claude-style harness keeps Native and Proxied groups distinct even after their labels collide', async () => {
+		const vendor = 'agent-host-claude';
+		languageModelsService.addVendor({ vendor, displayName: 'Claude-style fixture', configuration: undefined, managementCommand: undefined, when: undefined });
+		const base = languageModelsService.lookupLanguageModel('copilot-gpt-4');
+		assert.ok(base);
+		const sources = [{ id: 'urn:source:91', displayName: 'Native' }, { id: 'urn:source:27', displayName: 'Proxied' }];
+		const identifiers = sources.map(source => getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'));
+		for (const [index, source] of sources.entries()) {
+			languageModelsService.addModel(vendor, identifiers[index], { ...base, vendor, id: 'shared', name: 'Shared', modelSourceId: source.id, isCopilotModel: false, isBYOK: false, targetChatSessionType: vendor });
+		}
+		languageModelsService.setModelGroups(vendor, sources.map((source, index) => ({ source, modelIdentifiers: [identifiers[index]] })));
+		await viewModel.refresh();
+		viewModel.setSessionType(vendor);
+		const sourceGroups = () => viewModel.filter('').filter(isLanguageModelProviderEntry).filter(entry => entry.vendorEntry.modelSource);
+		const before = sourceGroups().map(entry => ({ id: entry.id, label: entry.label, rows: viewModel.getModelsForGroup(entry).map(model => model.identifier) }));
+		languageModelsService.setModelGroups(vendor, sources.map((source, index) => ({ source: { ...source, displayName: 'Same label' }, modelIdentifiers: [identifiers[index]] })));
+		assert.deepStrictEqual({
+			before,
+			after: sourceGroups().map(entry => ({ id: entry.id, label: entry.label, rows: viewModel.getModelsForGroup(entry).map(model => model.identifier) })),
+		}, {
+			before: sources.map((source, index) => ({ id: getLanguageModelSourceIdentifier(vendor, source.id), label: source.displayName, rows: [identifiers[index]] })),
+			after: sources.map((source, index) => ({ id: getLanguageModelSourceIdentifier(vendor, source.id), label: 'Same label', rows: [identifiers[index]] })),
+		});
+	});
+
 	test('should fetch all models without filters', () => {
 		const results = viewModel.filter('');
 

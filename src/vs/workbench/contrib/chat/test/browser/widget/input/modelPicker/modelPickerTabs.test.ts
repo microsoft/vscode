@@ -135,6 +135,41 @@ suite('Model picker destinations', () => {
 		});
 	});
 
+	test('arbitrary source labels stay visible without inferred brands or Copilot curation', () => {
+		const vendor = 'agent-host-claude';
+		const sources = [
+			{ id: 'urn:source:91', displayName: 'Native' },
+			{ id: 'urn:source:27', displayName: 'Proxied' },
+			{ id: 'urn:source:64', displayName: 'Organization gateway' },
+		];
+		const models = sources.map(source => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'auto'),
+			metadata: { ...createModel('auto', 'Shared model', { vendor }).metadata, modelSourceId: source.id, isCopilotModel: false },
+		}));
+		const sourceService: ILanguageModelsService = {
+			...service,
+			getLanguageModelGroups: () => sources.map((source, index) => ({ source, modelIdentifiers: [models[index].identifier] })),
+		};
+		const before = buildModelPickerDestinations(models, sourceService);
+		sources[1] = { ...sources[1], displayName: 'Microsoft 365 proxy' };
+		const after = buildModelPickerDestinations(models, sourceService);
+		assert.deepStrictEqual({
+			before: before.map(destination => ({
+				id: destination.id, label: destination.label, icon: destination.icon,
+				curated: destination.supportsCopilotCuration,
+				models: destination.models.map(model => model.identifier),
+			})),
+			renamed: after.map(destination => [destination.id, destination.label, destination.icon]),
+		}, {
+			before: sources.map((source, index) => ({
+				id: `source:${getLanguageModelSourceIdentifier(vendor, source.id)}`,
+				label: ['Native', 'Proxied', 'Organization gateway'][index],
+				icon: undefined, curated: false, models: [models[index].identifier],
+			})),
+			renamed: sources.map(source => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, source.displayName, undefined]),
+		});
+	});
+
 	test('a host that relays the built-in provider keeps its models built in', () => {
 		// An agent host registers a vendor of its own and republishes the built-in
 		// provider's catalogue under it, so neither the vendor nor the BYOK flags say
@@ -181,7 +216,7 @@ suite('Model picker destinations', () => {
 		// An agent host relays the provider under its own vendor, naming it only by its group.
 		const relayed = createModel('nova-pro', 'Nova Pro', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'openrouter' });
 		const signingIn: IModelPickerProviderPlaceholder = { vendor: 'ollama', label: 'Ollama', message: 'Start Ollama to use its models.' };
-		const describeIcon = (icon: LanguageModelProviderIcon) => ThemeIcon.isThemeIcon(icon) ? icon.id : { light: icon.light.path, dark: icon.dark.path };
+		const describeIcon = (icon: LanguageModelProviderIcon | undefined) => icon === undefined ? undefined : ThemeIcon.isThemeIcon(icon) ? icon.id : { light: icon.light.path, dark: icon.dark.path };
 
 		assert.deepStrictEqual(
 			buildModelPickerDestinations([gpt, routed, relayed, mistral], serviceWithIcons, [signingIn])

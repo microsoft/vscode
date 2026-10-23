@@ -30,7 +30,7 @@ export class ModelPickerWelcome extends DisposableStore {
 			const entry = dom.append(this.element, dom.$('.chat-model-picker-welcome-provider'));
 			if (ThemeIcon.isThemeIcon(icon)) {
 				dom.append(entry, dom.$(`span.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(icon)}`));
-			} else {
+			} else if (icon) {
 				const image = dom.append(entry, dom.$('span.chat-model-picker-welcome-icon.image-icon'));
 				image.style.setProperty('--chat-model-picker-welcome-icon-light', asCSSUrl(icon.light));
 				image.style.setProperty('--chat-model-picker-welcome-icon-dark', asCSSUrl(icon.dark));

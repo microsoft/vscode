@@ -1784,7 +1784,9 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('wire-to-feature', () => {
-		async function openWireSession(options?: { session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata> }) {
+		async function openWireSession(options?: { provider?: string; session?: Partial<SessionState>; chat?: Partial<ChatState>; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata> }) {
+			const provider = options?.provider ?? 'copilot';
+			const sessionType = `agent-host-${provider}`;
 			const { instantiationService, chatAgentService, modelService, chatService } = createTestServices(disposables, undefined, undefined, options?.languageModels);
 			const quotaUpdates: Parameters<IChatEntitlementService['acceptQuotas']>[0][] = [];
 			instantiationService.get(IChatEntitlementService).acceptQuotas = quotas => { quotaUpdates.push(quotas); };
@@ -1812,13 +1814,13 @@ suite('AgentHostChatContribution', () => {
 			await connecting;
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
-				fullName: 'Sandbox Copilot', description: 'test', connection: client, connectionAuthority: agentHostAuthority('sandbox.example:443'),
+				provider, agentId: sessionType, sessionType,
+				fullName: 'Controlled harness', description: 'test', connection: client, connectionAuthority: agentHostAuthority('sandbox.example:443'),
 			}));
-			const sessionResource = URI.parse('agent-host-copilot:/session-from-host');
-			const backendSession = AgentSession.uri('copilot', 'session-from-host');
+			const sessionResource = URI.from({ scheme: sessionType, path: '/session-from-host' });
+			const backendSession = AgentSession.uri(provider, 'session-from-host');
 			instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService))
-				.registerSessionResource(backendSession, undefined, 'copilot');
+				.registerSessionResource(backendSession, undefined, provider);
 			const chatUri = 'ahp-chat:/host-assigned-conversation-73';
 			const summary = { resource: chatUri, title: 'Remote chat', status: SessionStatus.Idle, modifiedAt: '2026-09-30T12:00:00.000Z' };
 			const sessionSubscribe = peer.nextRequest('subscribe');
@@ -1831,7 +1833,7 @@ suite('AgentHostChatContribution', () => {
 					snapshot: {
 						resource: backendSession.toString(), fromSeq: 0,
 						state: {
-							...createSessionState({ resource: backendSession.toString(), provider: 'copilot', title: 'Sandbox', status: SessionStatus.Idle, createdAt: summary.modifiedAt, modifiedAt: summary.modifiedAt }),
+							...createSessionState({ resource: backendSession.toString(), provider, title: 'Sandbox', status: SessionStatus.Idle, createdAt: summary.modifiedAt, modifiedAt: summary.modifiedAt }),
 							lifecycle: SessionLifecycle.Ready, defaultChat: chatUri, chats: [summary],
 							...options?.session,
 						},
@@ -1853,7 +1855,7 @@ suite('AgentHostChatContribution', () => {
 				params: { channel: sent.channel, serverSeq: ++serverSeq, action: sent.action, origin: { clientId, clientSeq: sent.clientSeq }, rejectionReason },
 			});
 			const startRequest = async (overrides: Parameters<typeof makeRequest>[0] = {}, options: { acknowledge?: boolean; token?: CancellationToken } = {}) => {
-				const registered = chatAgentService.registeredAgents.get('agent-host-copilot');
+				const registered = chatAgentService.registeredAgents.get(sessionType);
 				assert.ok(registered);
 				const started = peer.nextDispatch(ActionType.ChatTurnStarted);
 				const progress: IChatProgress[] = [];
@@ -1912,6 +1914,46 @@ suite('AgentHostChatContribution', () => {
 			}, {
 				sentModels: [{ id: 'shared', modelSourceId: 'a', config: { thinkingLevel: 'high' } }, { id: 'shared', modelSourceId: 'b', config: { thinkingLevel: 'high' } }],
 				dispatches: 0,
+			});
+		});
+
+		test('a generic source catalog does not promise unrestricted session eligibility or retry a rejected pair', async () => {
+			const provider = 'claude';
+			const namespace = 'agent-host-claude';
+			const sources = [{ id: 'urn:source:91', displayName: 'Native' }, { id: 'urn:source:27', displayName: 'Proxied' }];
+			const identifiers = sources.map(source => getSourceQualifiedModelIdentifier(namespace, source.id, 'shared'));
+			const models = new Map(identifiers.map((identifier, index) => [identifier, upcastPartial<ILanguageModelChatMetadata>({
+				id: 'shared', name: 'Shared', vendor: namespace, modelSourceId: sources[index].id, targetChatSessionType: namespace,
+			})]));
+			const { startRequest, fire, echo, peer, chatSession } = await openWireSession({ provider, languageModels: models });
+			fire({
+				type: ActionType.RootAgentsChanged,
+				agents: [{
+					provider, displayName: 'Controlled Claude-style harness', description: 'No Claude SDK or inference',
+					capabilities: { modelSourceSelection: {} }, modelSources: sources,
+					models: sources.map(source => ({ provider, id: 'shared', name: 'Shared', modelSourceId: source.id })),
+				}],
+			}, ROOT_STATE_URI);
+			const accepted = await startRequest({ userSelectedModelId: identifiers[0] });
+			await accepted.finish();
+			const attempts: ITurnStartedAction['message']['model'][] = [];
+			disposables.add(peer.onDispatch(sent => {
+				if (sent.action.type === ActionType.ChatTurnStarted) {
+					attempts.push(sent.action.message.model);
+				}
+			}));
+			const rejected = await startRequest({ userSelectedModelId: identifiers[1] }, { acknowledge: false });
+			const reason = 'This source is not available for this conversation.';
+			const failed = assert.rejects(rejected.result, { message: `Your message could not be sent: ${reason}` });
+			echo(rejected.sent, reason);
+			await failed;
+			assert.deepStrictEqual({
+				accepted: accepted.sent.action.type === ActionType.ChatTurnStarted ? accepted.sent.action.message.model : undefined,
+				attempts, complete: chatSession.isCompleteObs?.get(),
+			}, {
+				accepted: { id: 'shared', modelSourceId: sources[0].id },
+				attempts: [{ id: 'shared', modelSourceId: sources[1].id }],
+				complete: true,
 			});
 		});
 
