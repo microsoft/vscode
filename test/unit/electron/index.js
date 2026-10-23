@@ -647,7 +647,10 @@ app.on('ready', async () => {
 			continue;
 		}
 
-		stillFailingFiles = runner.failedFiles;
+		// An interrupted retry does not establish that its remaining files passed.
+		stillFailingFiles = runner.unattributedFailures.length > 0 && Array.isArray(runArgs.run)
+			? new Set([...runArgs.run, ...runner.failedFiles])
+			: runner.failedFiles;
 		exitCode = 1;
 		break;
 	}
