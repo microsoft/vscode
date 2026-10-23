@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
@@ -42,13 +43,22 @@ function readRepositoryFile(relativePath: string): Buffer {
 }
 
 /**
- * The runners of the cache warming jobs, as the cache keys see them.
+ * The runners of the cache warming jobs, as the cache keys see them. The Electron cache path is the
+ * `ELECTRON_CACHE_PATH` that `.github/actions/setup-electron` sets on the runner, which depends on its
+ * user profile and is part of the cache version.
  */
-const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os'] }> = {
-	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux' },
-	'1ES.Pool=1es-vscode-oss-windows-2022-x64': { platform: 'win32', arch: 'x64', os: 'Windows' },
-	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS' },
+const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
+	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux', electronCachePath: '/home/cloudtest/.cache/electron' },
+	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
+	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
 };
+
+function getRunner(job: IJob, name: string) {
+	const runsOn = typeof job['runs-on'] === 'string' ? [job['runs-on']] : job['runs-on'];
+	const runner = runners[runsOn.find(label => runners[label]) ?? ''];
+	assert.ok(runner, `Unknown runner of ${name}: ${runsOn.join(', ')}`);
+	return runner;
+}
 
 suite('Detect missing caches', () => {
 	test('the jobs match pr-node-modules.yml', () => {
@@ -59,9 +69,7 @@ suite('Detect missing caches', () => {
 			if (name === 'caches') {
 				continue;
 			}
-			const runsOn = typeof job['runs-on'] === 'string' ? [job['runs-on']] : job['runs-on'];
-			const runner = runners[runsOn.find(label => runners[label]) ?? ''];
-			assert.ok(runner, `Unknown runner of ${name}: ${runsOn.join(', ')}`);
+			const runner = getRunner(job, name);
 			const evaluate = (value: string) => value
 				.replaceAll('${{ env.VSCODE_ARCH }}', job.env?.VSCODE_ARCH ?? '')
 				.replaceAll('$(node -p process.platform)', runner.platform)
@@ -135,6 +143,19 @@ suite('Detect missing caches', () => {
 				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
 			],
 		});
+	});
+
+	test('the Electron cache versions match the cache paths on the runners of the jobs', () => {
+		// The detector derives each version from its own copy of the cache path, so check it against the runners.
+		const { jobs } = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml');
+		const electronJobs = Object.keys(cacheWarmingJobs).filter(name => cacheWarmingJobs[name].electron);
+		const actual = Object.fromEntries(electronJobs.map(name => [name, getCaches(cacheWarmingJobs[name], readRepositoryFile).find(cache => cache.key.startsWith('electron-download-v1-'))?.version]));
+		const expected = Object.fromEntries(electronJobs.map(name => {
+			const runner = getRunner(jobs[name], name);
+			const components = [runner.electronCachePath, 'zstd-without-long', ...(runner.os === 'Windows' ? ['windows-only'] : []), '1.0'];
+			return [name, createHash('sha256').update(components.join('|')).digest('hex')];
+		}));
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {

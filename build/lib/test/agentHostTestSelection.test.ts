@@ -317,9 +317,9 @@ suite('Agent Host PR test selection', () => {
 			if (integration.length === 0 && agentHost.length === 0) {
 				return [];
 			}
-			// The change-detection skip only applies to the Agent Host E2E step.
+			// The change-detection skip only applies to the Agent Host E2E step, and only Agent Host E2E runs in shards.
 			const signature = (step: ICommandStep) => JSON.stringify({
-				command: step.command.replace('test-agent-host-e2e.', 'test-integration.'),
+				command: step.command.replace('test-agent-host-e2e.', 'test-integration.').replace(/\$\{\{ inputs\.agent_host_e2e_shard_.*? \}\}/g, ''),
 				environment: Object.fromEntries(Object.entries(step.environment).filter(([name]) => name !== 'VSCODE_SKIP_AGENT_HOST_E2E').sort()),
 			});
 			const agentHostSignatures = agentHost.map(signature).sort();
