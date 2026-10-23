@@ -276,6 +276,30 @@ app.on('ready', async () => {
 		throw new Error('Remote resource test server did not bind to a TCP port');
 	}
 	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
+	ipcMain.handle('vscode:test-platform-request', async (_event, options, cancelOnRedirect = false) => {
+		const [{ nodeRequest }, { CancellationTokenSource }, { streamToBuffer }] = await Promise.all([
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/request/node/requestService.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/cancellation.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/buffer.js`)).href),
+		]);
+		const source = new CancellationTokenSource();
+		try {
+			const context = await nodeRequest({
+				...options,
+				isChromiumNetwork: true,
+				getRawRequest: () => (requestOptions, callback) => {
+					const request = electronNet.request(requestOptions, callback);
+					if (cancelOnRedirect) {
+						request.once('redirect', () => queueMicrotask(() => source.cancel()));
+					}
+					return request;
+				},
+			}, source.token);
+			return { statusCode: context.res.statusCode, body: (await streamToBuffer(context.stream)).toString() };
+		} finally {
+			source.dispose();
+		}
+	});
 	// A second view lets tests blur the page without stealing desktop focus.
 	/** @type {Map<number, import('electron').WebContentsView>} */
 	const focusTestViews = new Map();
