@@ -260,7 +260,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
 		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { creationEvents.push('navigate'); }, async createCustomization(section) { creationEvents.push(section); }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
@@ -393,21 +393,25 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	for (const [action, type] of [
-		['newAgent', PromptsType.agent],
-		['newSkill', PromptsType.skill],
-		['newInstructions', PromptsType.instructions],
-		['newPrompt', PromptsType.prompt],
+	for (const [action, section] of [
+		['newAgent', AICustomizationManagementSection.Agents],
+		['newSkill', AICustomizationManagementSection.Skills],
+		['newInstructions', AICustomizationManagementSection.Instructions],
+		['newPrompt', AICustomizationManagementSection.Prompts],
+		['addMcp', AICustomizationManagementSection.McpServers],
+		['addPlugin', AICustomizationManagementSection.Plugins],
 	] as const) {
-		test(`Add Customization > ${action} closes Discover before starting creation`, async () => {
+		test(`Add Customization > ${action} delegates to the section creation flow`, async () => {
 			const fixture = createPage(['agentFinder'], [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Skills,
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
 			]);
 			await fixture.selectAddCustomization(action);
-			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
+			assert.deepStrictEqual(fixture.creationEvents, [section]);
 		});
 	}
 

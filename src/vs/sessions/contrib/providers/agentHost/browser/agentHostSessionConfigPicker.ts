@@ -39,7 +39,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatConfiguration, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
@@ -379,6 +379,9 @@ function applyAutoApproveFiltering(
 }
 
 function isRenderableSessionConfigProperty(property: string, schema: SessionConfigPropertySchema, configSchema: SessionConfigSchema, isNewSession: boolean): boolean {
+	if (isHiddenSessionConfigProperty(property)) {
+		return false;
+	}
 	const presentation = getSessionConfigPresentationKey(property, configSchema);
 	if (schema.type !== 'boolean' && (schema.type !== 'string' || (!schema.enumDynamic && !schema.enum?.length && presentation !== 'newBranch'))) {
 		return false;

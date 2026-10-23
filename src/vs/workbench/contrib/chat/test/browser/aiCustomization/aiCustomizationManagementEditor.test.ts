@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -42,7 +42,7 @@ import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCus
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IPluginMarketplaceCustomizationMigrationCandidate, isFileCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, GuidanceCustomizationMigration, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IPluginMarketplaceCustomizationMigrationCandidate, isFileCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -217,6 +217,115 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	for (const section of [
+		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Skills,
+		AICustomizationManagementSection.Instructions,
+		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.McpServers,
+	]) {
+		test(`Discover creation reuses ${section} page actions`, async () => {
+			const calls: string[] = [];
+			const actions = ['Generate with AI', 'New (Workspace)', 'New (User)'].map(label => ({
+				label,
+				enabled: true,
+				run: () => { calls.push(label); },
+			}));
+			const editor = {
+				selectedSection: undefined as AICustomizationManagementSection | undefined,
+				configurationService: { getValue: () => undefined },
+				listWidgetSectionLoad: Promise.resolve(),
+				selectSection: (value: AICustomizationManagementSection) => {
+					editor.selectedSection = value;
+					calls.push(`section:${value}`);
+				},
+				listWidget: { getCreateActions: () => { calls.push('promptActions'); return actions; } },
+				pluginListWidget: { getAddActions: () => { calls.push('pluginActions'); return actions; } },
+				mcpListWidget: { addServer: async () => { calls.push('addServer'); } },
+				quickInputService: {
+					pick: async (items: { label: string; action: typeof actions[number] }[]) => {
+						calls.push(`pick:${items.map(item => item.label).join(',')}`);
+						return items[1];
+					},
+				},
+			};
+			const createCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'createCustomization') as (
+				this: typeof editor, section: AICustomizationManagementSection,
+			) => Promise<void>;
+
+			await createCustomization.call(editor, section);
+
+			assert.deepStrictEqual(calls, section === AICustomizationManagementSection.McpServers
+				? [`section:${section}`, 'addServer']
+				: [`section:${section}`, section === AICustomizationManagementSection.Plugins ? 'pluginActions' : 'promptActions', 'pick:Generate with AI,New (Workspace),New (User)', 'New (Workspace)']);
+		});
+	}
+
+	for (const outcome of ['single', 'cancel', 'disabled', 'superseded', 'failed'] as const) {
+		test(`Discover creation handles ${outcome} actions`, async () => {
+			const calls: string[] = [];
+			const section = AICustomizationManagementSection.Plugins;
+			const action = {
+				label: 'Install from Source',
+				enabled: outcome !== 'disabled',
+				run: async () => {
+					calls.push('install');
+					if (outcome === 'failed') {
+						throw new Error('Install failed');
+					}
+				},
+			};
+			const editor = {
+				selectedSection: section as AICustomizationManagementSection,
+				configurationService: { getValue: () => undefined },
+				listWidgetSectionLoad: Promise.resolve(),
+				selectSection() { },
+				pluginListWidget: { getAddActions: () => outcome === 'single' || outcome === 'failed' ? [action] : [action, action] },
+				quickInputService: {
+					pick: async (items: { disabled: boolean; action: typeof action }[]) => {
+						calls.push(`pick:${items[0].disabled}`);
+						if (outcome === 'superseded') {
+							editor.selectedSection = AICustomizationManagementSection.Skills;
+						}
+						return outcome === 'cancel' ? undefined : items[0];
+					},
+				},
+			};
+			const createCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'createCustomization') as (
+				this: typeof editor, section: AICustomizationManagementSection,
+			) => Promise<void>;
+
+			if (outcome === 'failed') {
+				await assert.rejects(createCustomization.call(editor, section), /Install failed/);
+			} else {
+				await createCustomization.call(editor, section);
+			}
+
+			assert.deepStrictEqual(calls, outcome === 'single' || outcome === 'failed' ? ['install'] : [`pick:${outcome === 'disabled'}`]);
+		});
+	}
+
+	for (const [section, value] of [
+		[AICustomizationManagementSection.Plugins, false],
+		[AICustomizationManagementSection.McpServers, 'none'],
+	] as const) {
+		test(`Discover creation shows the ${section} disabled explanation without starting creation`, async () => {
+			const calls: AICustomizationManagementSection[] = [];
+			const editor = {
+				selectSection: (section: AICustomizationManagementSection) => calls.push(section),
+				configurationService: { getValue: () => value },
+			};
+			const createCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'createCustomization') as (
+				this: typeof editor, section: AICustomizationManagementSection,
+			) => Promise<void>;
+
+			await createCustomization.call(editor, section);
+
+			assert.deepStrictEqual(calls, [section]);
+		});
+	}
+
 	test('marks an MCP detail migratable from the authoritative candidate', () => {
 		const editor = createTestEditor();
 		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
@@ -305,6 +414,7 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingSource: string | undefined;
 		currentEditingReadOnly: boolean;
 		customizationsByMigrationCategory: Map<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>;
+		guidanceMigrations: readonly GuidanceCustomizationMigration[];
 		pluginMarketplaceMigrationDiscoveryError: Error | undefined;
 		mcpServerMigrationExclusions: readonly IMcpServerCustomizationMigrationExclusion[];
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
@@ -329,7 +439,7 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
 		migrationShortcutCount: HTMLElement | undefined;
-		migrationDashboard: { element: HTMLElement } | undefined;
+		migrationDashboard: { element: HTMLElement; getGuidanceDetailAccessibilityContent(): string | undefined } | undefined;
 		layoutSidebar(width: number, height: number): void;
 		updateSidebarMigrationShortcut(): void;
 		startCustomizationMigration(categoryId?: CustomizationMigrationCategoryId, migrationFlowId?: string): Promise<void>;
@@ -405,7 +515,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
 		dialogService: Pick<IDialogService, 'confirm'>;
 		quickInputService: {
-			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | undefined>;
+			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | readonly TestQuickPickItem[] | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		progressService: IProgressService;
@@ -489,6 +599,7 @@ suite('aiCustomizationManagementEditor', () => {
 		getMigrationCandidates(category: ICustomizationMigrationCategory, storage?: PromptsStorage): readonly CustomizationMigrationCandidate[];
 		getCustomizationMigrationDashboardOverview(): ICustomizationMigrationDashboardOverview;
 		ignoreMigrationCategory(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
+		restoreIgnoredMigrationCategories(): Promise<void>;
 		isMigrationCategoryIgnored(id: CustomizationMigrationCategoryId, storage: PromptsStorage): boolean;
 		configureCustomizationMigrationLocations(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
@@ -550,6 +661,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.currentEditingSource = undefined;
 		editor.currentEditingReadOnly = false;
 		editor.customizationsByMigrationCategory = new Map();
+		editor.guidanceMigrations = [];
 		editor.pluginMarketplaceMigrationDiscoveryError = undefined;
 		editor.mcpServerMigrationExclusions = [];
 		editor.customizationMigrationTargetFoldersByType = new Map();
@@ -1985,6 +2097,64 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('guidance is read-only, accessible, and uses existing ignore and restore persistence', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		store.add(editor.editorPreviewDisposables);
+		editor.guidanceMigrations = [
+			{ type: CustomizationMigrationType.ChatParticipants, items: [{ id: 'review', name: '@review', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' }] },
+			{ type: CustomizationMigrationType.ToolSets, items: [{ id: 'tools', name: 'reviewTools', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' }] },
+		];
+		const confirmations: string[] = [];
+		editor.dialogService = { confirm: async confirmation => { confirmations.push(confirmation.message); return { confirmed: true }; } };
+		editor.quickInputService = { pick: async items => items };
+		editor.setCustomizationsToMigrate(new Map(), new Map());
+		const initial = editor.getCustomizationMigrationDashboardOverview();
+		editor.viewMode = 'migration';
+		const dashboard = document.body.appendChild($('div'));
+		store.add(toDisposable(() => dashboard.remove()));
+		const focused = dashboard.appendChild($('button'));
+		editor.migrationDashboard = { element: dashboard, getGuidanceDetailAccessibilityContent: () => undefined };
+		focused.focus();
+		const accessibleContent = editor.getMigrationAccessibilityContent();
+		editor.migrationDashboard = undefined;
+		await editor.ignoreMigrationCategory(CustomizationMigrationCategoryId.ChatParticipants, PromptsStorage.extension);
+		const ignored = editor.getCustomizationMigrationDashboardOverview();
+		await editor.restoreIgnoredMigrationCategories();
+		const restored = editor.getCustomizationMigrationDashboardOverview();
+		assert.deepStrictEqual({
+			groups: initial.scopes.flatMap(scope => scope.categories.map(category => ({
+				id: category.id, count: category.count, url: category.learnMoreUrl, destination: category.destinationLabel,
+			}))),
+			agentMigration: initial.supportsAgentMigration,
+			executableCandidates: [...editor.customizationsByMigrationCategory.values()].flat(),
+			selectionSize: editor.selectedCustomizationMigrationItems.size,
+			accessibleGuidance: accessibleContent?.includes('@review, source Review Extension. Documentation-only migration guidance.'),
+			accessibleLinks: accessibleContent?.includes('Learn More: https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets'),
+			ignoredGroups: ignored.scopes.flatMap(scope => scope.categories.map(category => category.id)),
+			hasIgnoredGroups: ignored.hasIgnoredGroups,
+			restored: restored.scopes.flatMap(scope => scope.categories.map(category => category.id)),
+			restoredIgnoredState: restored.hasIgnoredGroups,
+			confirmations,
+		}, {
+			groups: [
+				{ id: CustomizationMigrationCategoryId.ChatParticipants, count: 1, url: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants', destination: undefined },
+				{ id: CustomizationMigrationCategoryId.ToolSets, count: 1, url: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets', destination: undefined },
+			],
+			agentMigration: false,
+			executableCandidates: [],
+			selectionSize: 0,
+			accessibleGuidance: true,
+			accessibleLinks: true,
+			ignoredGroups: [CustomizationMigrationCategoryId.ToolSets],
+			hasIgnoredGroups: true,
+			restored: [CustomizationMigrationCategoryId.ChatParticipants, CustomizationMigrationCategoryId.ToolSets],
+			restoredIgnoredState: false,
+			confirmations: ['Ignore Chat Participants (Extensions) migrations?'],
+		});
+	});
+
 	test('preserves a plugin marketplace discovery error alongside valid migration categories', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
@@ -2443,6 +2613,12 @@ suite('aiCustomizationManagementEditor', () => {
 		let hasSecret = true;
 		const computedWithSecret: boolean[] = [];
 		editor.customizationMigrationService.computeMigration = async (_session, type) => {
+			if (type === CustomizationMigrationType.ChatParticipants || type === CustomizationMigrationType.ToolSets) {
+				return { type, items: [] };
+			}
+			if (type === CustomizationMigrationType.PluginMarketplaces) {
+				return { type, candidates: [] };
+			}
 			if (type !== CustomizationMigrationType.McpServers) {
 				return { type, files: [], candidates: [] };
 			}
@@ -2525,6 +2701,9 @@ suite('aiCustomizationManagementEditor', () => {
 			editor.renderCustomizationMigrationDashboardState();
 		};
 		editor.customizationMigrationService.computeMigration = async (session, type, token = CancellationToken.None) => {
+			if (type === CustomizationMigrationType.ChatParticipants || type === CustomizationMigrationType.ToolSets) {
+				return { type, items: [] };
+			}
 			if (type !== CustomizationMigrationType.McpServers) {
 				return { type, files: [], candidates: [] };
 			}
@@ -2719,6 +2898,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationMigrationService.computeMigration = async (_session, type, token = CancellationToken.None) => {
 			migrationTokens.push(token);
 			switch (type) {
+				case CustomizationMigrationType.ChatParticipants:
+				case CustomizationMigrationType.ToolSets:
+					return { type, items: [] };
 				case CustomizationMigrationType.UserData:
 					return { type, files: [candidate.uri], candidates: [candidate] };
 				case CustomizationMigrationType.McpServers:
@@ -2767,7 +2949,7 @@ suite('aiCustomizationManagementEditor', () => {
 			sameTokens: migrationTokens.every(token => folderTokens.includes(token)),
 			applied,
 		}, {
-			firstCancelled: true, migrationRequests: 6, folderRequests: 2, sameTokens: true, applied: [[candidate]],
+			firstCancelled: true, migrationRequests: 10, folderRequests: 2, sameTokens: true, applied: [[candidate]],
 		});
 	}));
 
@@ -3397,7 +3579,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.viewMode = 'migration';
 		const dashboard = document.body.appendChild(document.createElement('div'));
 		const focusedElement = dashboard.appendChild(document.createElement('button'));
-		editor.migrationDashboard = { element: dashboard };
+		editor.migrationDashboard = { element: dashboard, getGuidanceDetailAccessibilityContent: () => undefined };
 		focusedElement.focus();
 
 		assert.strictEqual(
