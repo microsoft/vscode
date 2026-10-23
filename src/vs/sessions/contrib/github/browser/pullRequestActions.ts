@@ -88,8 +88,8 @@ class OpenPullRequestAction extends Action2 {
 				when: SessionHasPullRequestContext
 			}, {
 				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.GitHub,
-				order: 0,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 100,
 				when: sessionActivityBarChatActionContext(OpenPullRequestAction.ID)
 			}],
 		});

@@ -33,7 +33,7 @@ export interface ICopilotFailureCorrelation extends IAgentHostEventTelemetry {
 	readonly sdkSessionId?: string;
 }
 
-type CopilotSessionFailureCorrelation = IAgentHostEventTelemetry & {
+export type CopilotSessionFailureCorrelation = IAgentHostEventTelemetry & {
 	readonly agentSessionId: string;
 	readonly chatSessionId: string;
 	readonly turnId: string | undefined;

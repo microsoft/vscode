@@ -58,11 +58,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
-				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them.'),
-				chatScope: content.includes('Open Pull Request and Open Issue are also available for the active chat\'s pull requests and issues when a contributed opener is available for their links.'),
-				singleAndMultiple: content.includes('A single supported reference opens directly; multiple supported references open a picker.'),
-				cancel: content.includes('Enter to choose a reference, or Escape to cancel.'),
-			}, { optIn: enabled, chatScope: enabled, singleAndMultiple: enabled, cancel: enabled });
+				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them in the side-pane group.'),
+				chatScope: content.includes('Open Pull Request and Open Issue are available for the active chat\'s references when a contributed opener is available for their links.'),
+				reuse: content.includes('Each action reveals an already-open matching editor, preferring the active editor, or opens the first supported reference if none is open.'),
+				checked: content.includes('A checked button means the editor is visible; activating it keeps the editor open and focuses it.'),
+				direct: content.includes('These actions open directly, without a dropdown or picker, even with multiple references.'),
+			}, { optIn: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
 		});
 	}
 
