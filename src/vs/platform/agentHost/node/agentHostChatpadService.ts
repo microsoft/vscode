@@ -19,10 +19,9 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 export const IAgentHostChatpadService = createDecorator<IAgentHostChatpadService>('agentHostChatpadService');
 
 /**
- * The host's sessions. The Chatpad chat counts as existing while clients can list it, or before its first request
- * while it is live; an unused chat that is collected stops existing.
+ * Looks up the host's sessions for the Chatpad service. The Chatpad chat counts as existing while clients can list
+ * it, or before its first request while it is live; an unused chat that is collected stops existing.
  */
-/** Looks up the host's sessions for the Chatpad service. */
 export interface IAgentHostChatpadSessions {
 	/** The session `session`, with its agent provider when known; `undefined` when it doesn't exist. */
 	find(session: string): Promise<{ readonly provider: string | undefined } | undefined>;
@@ -195,7 +194,9 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 				throw error;
 			}
 		}
-		// A link at the note's path would redirect appends to another file.
+		// A link at the note's path would redirect appends to another file. A process of the same user, such as the
+		// chat's own shell, could still swap in a link between this check and a write, or link the scratch folder;
+		// that is accepted, as it could write the target directly. Approving the chat's edits resolves links anyway.
 		if ((await this._fileService.stat(note)).isSymbolicLink) {
 			throw new Error(`The Chatpad note ${note.fsPath} is a symbolic link.`);
 		}
