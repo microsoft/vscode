@@ -45,7 +45,7 @@ import { IChatOpenDiagnosticsService } from '../chatOpenDiagnosticsService.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatAgentPinOverrides, IChatModel, IChatModelInputState, IChatPendingRequest, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState, logChangesToStateModel } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -1483,7 +1483,7 @@ export class ChatService extends Disposable implements IChatService {
 		await this._sendRequestAsync(model, model.sessionResource, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions, preservedRequest, preserveRequestId ? request.id : undefined).responseCompletePromise;
 	}
 
-	private queuePendingRequest(model: ChatModel, sessionResource: URI, request: string, options: IChatSendRequestOptions, transferredMode?: IChatModelInputState['mode']): ChatSendResultQueued {
+	private queuePendingRequest(model: ChatModel, sessionResource: URI, request: string, options: IChatSendRequestOptions, transferredMode?: IChatModelInputState['mode'], transferredAgentPinOverrides?: IChatAgentPinOverrides): ChatSendResultQueued {
 		const location = options.location ?? model.initialLocation;
 		const parsedRequest = this.parseChatRequest(sessionResource, request, location, options);
 		const requestModel = new ChatRequestModel({
@@ -1505,7 +1505,7 @@ export class ChatService extends Disposable implements IChatService {
 		});
 
 		if (transferredMode) {
-			model.inputModel.setState({ mode: transferredMode });
+			model.inputModel.setState({ mode: transferredMode, ...(transferredAgentPinOverrides ? { agentPinOverrides: transferredAgentPinOverrides } : {}) });
 		}
 		const deferred = new DeferredPromise<ChatSendResult>();
 		this._queuedRequestDeferreds.set(requestModel.id, deferred);
@@ -1551,6 +1551,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		let newSessionResource: URI | undefined;
 		let transferredMode: IChatModelInputState['mode'] | undefined;
+		// The user's overrides of the transferred agent's pins travel with it, so the real session keeps them.
+		let transferredAgentPinOverrides: IChatAgentPinOverrides | undefined;
+		const transferOverrides = (state: IChatModelInputState | undefined, mode: IChatModelInputState['mode'] | undefined) =>
+			mode && state?.agentPinOverrides?.modeId === mode.id ? state.agentPinOverrides : undefined;
 		const submittedModeKind = options?.modeInfo?.kind;
 		const submittedModeId = options?.modeInfo?.isBuiltin ? submittedModeKind : options?.modeInfo?.modeInstructions?.uri?.toString();
 		const submittedMode = submittedModeId && submittedModeKind ? { id: submittedModeId, kind: submittedModeKind } : undefined;
@@ -1562,7 +1566,9 @@ export class ChatService extends Disposable implements IChatService {
 		// UI from the untitled resource to the real one (mirroring the first send).
 		const materializedReal = this.chatSessionService.getMaterializedSessionResource(sessionResource);
 		if (materializedReal) {
-			transferredMode = submittedMode ?? this._sessionModels.get(sessionResource)?.inputModel.state.get()?.mode;
+			const untitledState = this._sessionModels.get(sessionResource)?.inputModel.state.get();
+			transferredMode = submittedMode ?? untitledState?.mode;
+			transferredAgentPinOverrides = transferOverrides(untitledState, transferredMode);
 			sessionResource = materializedReal;
 			newSessionResource = materializedReal;
 			if (isSubmission || !this._sessionModels.has(sessionResource)) {
@@ -1595,13 +1601,14 @@ export class ChatService extends Disposable implements IChatService {
 		// and serialized per untitled resource — see
 		// `_materializeUntitledSession`) before processing the request.
 		if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
-			const untitledMode = model.inputModel.state.get()?.mode;
+			const untitledState = model.inputModel.state.get();
 			const materialized = await this._materializeUntitledSession(sessionResource, request, options, model);
 			if (materialized) {
 				model = materialized.model;
 				sessionResource = materialized.sessionResource;
 				newSessionResource = materialized.newSessionResource;
-				transferredMode = submittedMode ?? untitledMode;
+				transferredMode = submittedMode ?? untitledState?.mode;
+				transferredAgentPinOverrides = transferOverrides(untitledState, transferredMode);
 			}
 		}
 		if (model.isReadOnly.get() || model.isInputBlocked.get()) {
@@ -1624,7 +1631,7 @@ export class ChatService extends Disposable implements IChatService {
 		};
 
 		if (options?.queue) {
-			const queued = this.queuePendingRequest(model, sessionResource, request, options, transferredMode);
+			const queued = this.queuePendingRequest(model, sessionResource, request, options, transferredMode, transferredAgentPinOverrides);
 			notifyAccepted();
 			if (!options.pauseQueue) {
 				this.processPendingRequests(sessionResource);
@@ -1662,7 +1669,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		if (transferredMode) {
-			model.inputModel.setState({ mode: transferredMode });
+			model.inputModel.setState({ mode: transferredMode, ...(transferredAgentPinOverrides ? { agentPinOverrides: transferredAgentPinOverrides } : {}) });
 		}
 		const result: ChatSendResultSent = {
 			kind: 'sent',

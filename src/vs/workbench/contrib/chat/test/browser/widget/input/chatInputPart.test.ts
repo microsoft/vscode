@@ -95,6 +95,7 @@ suite('ChatInputPart', () => {
 			setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction?: boolean, storeSelection?: boolean): void;
 			getCurrentInputState(): IChatModelInputState;
 			setChatMode(id: string, storeSelection?: boolean, isUserInitiated?: boolean): void;
+			requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean>;
 			_recordAgentPinOverride(update: { readonly model?: true; readonly configKeys?: readonly string[] }): void;
 			_reconcileModeReasoningEffort(): void;
 			readonly _modePreferredModelPending: boolean;
@@ -125,6 +126,7 @@ suite('ChatInputPart', () => {
 				presented: undefined as [string, object] | undefined,
 				inputPart: undefined as unknown as ITestInputPart,
 				select: (model: ILanguageModelChatMetadataAndIdentifier | undefined) => currentLanguageModel.set(model, undefined),
+				reconcileProgrammaticSelection: () => { },
 			};
 			const currentMode = observableValue('mode', toMode(options.mode));
 			const currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('model', options.selected);
@@ -156,7 +158,24 @@ suite('ChatInputPart', () => {
 					syncFromConversationState: select,
 					applyProgrammaticSelection: select,
 					applySelection: select,
+					// Like the real controller: an unresolved request stays pending until the model list changes.
+					requestProgrammaticSelection: (resolve: () => ILanguageModelChatMetadataAndIdentifier | undefined) => new Promise<boolean>(complete => {
+						const reconcile = () => {
+							const model = resolve();
+							if (!model) {
+								return false;
+							}
+							complete(true);
+							select(model);
+							return true;
+						};
+						if (!reconcile()) {
+							result.reconcileProgrammaticSelection = () => { reconcile(); };
+						}
+					}),
 				},
+				_updateInputContentContextKeys: () => { },
+				_syncInputStateToModel: () => { },
 				_modelConfigStore: {
 					getModelConfiguration: () => undefined,
 					setPresentedConfiguration: (identifier: string | undefined, values?: object) => { result.presented = identifier && values ? [identifier, values] : undefined; },
@@ -242,6 +261,52 @@ suite('ChatInputPart', () => {
 				captured: { modeId: 'reviewer', model: true },
 				selected: otherModel,
 				pending: false,
+			});
+		});
+
+		test('an authored model choice (handoff or prompt file) outranks the pin on later restores; the pin\'s own application does not', async () => {
+			const result = createInputPart({
+				mode: { id: 'agent' },
+				modes: [{ id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] }, { id: 'agent' }],
+				models: () => [pickerModel, pinnedModel, otherModel],
+				selected: pickerModel,
+			});
+			// A handoff switches to the agent, whose pin applies automatically, then requests its authored model.
+			result.inputPart.setChatMode('reviewer', true, true);
+			const afterPin = result.inputPart._agentPinOverrides.get();
+			await result.inputPart.requestModelByQualifiedName(['Other (copilot)']);
+			const captured = result.inputPart.getCurrentInputState().agentPinOverrides;
+
+			result.inputPart._syncFromModel(restoredState('agent', pickerModel), session);
+			result.inputPart._syncFromModel(restoredState('reviewer', otherModel, { selectedModelReason: ModelSelectionReason.ProgrammaticSelection, agentPinOverrides: captured }), session);
+
+			assert.deepStrictEqual({ afterPin, captured, selected: result.selectedModel }, {
+				afterPin: undefined,
+				captured: { modeId: 'reviewer', model: true },
+				selected: otherModel,
+			});
+		});
+
+		test('an authored model registering in the same event as the pending pin wins and is recorded', async () => {
+			let models = [pickerModel];
+			const result = createInputPart({
+				mode: { id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] },
+				models: () => models,
+				selected: pickerModel,
+			});
+			const requested = result.inputPart.requestModelByQualifiedName(['Other (copilot)']);
+
+			// One model-list event publishes both: the controller reconciles the request first, then the input part retries a pending pin.
+			models = [pickerModel, pinnedModel, otherModel];
+			result.reconcileProgrammaticSelection();
+			if (result.inputPart._modePreferredModelPending) {
+				result.inputPart.applyModePreferredModel();
+			}
+
+			assert.deepStrictEqual({ applied: await requested, selected: result.selectedModel, overrides: result.inputPart._agentPinOverrides.get() }, {
+				applied: true,
+				selected: otherModel,
+				overrides: { modeId: 'reviewer', model: true },
 			});
 		});
 

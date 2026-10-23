@@ -1614,7 +1614,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean> {
-		return this._requestProgrammaticLanguageModel(() => this._findModelByQualifiedName(qualifiedModelNames));
+		let recorded = false;
+		// An authored choice (a handoff's or prompt file's `model`) outranks the agent's pin on later restores,
+		// unlike the pin's own automatic application, which shares the programmatic selection reason. Recorded
+		// in the resolver, which runs immediately before the selection applies, so a pending pin retry handled in
+		// the same model-list event can't replace it, and it's attributed to the agent current at that moment.
+		const result = this._requestProgrammaticLanguageModel(() => {
+			const model = this._findModelByQualifiedName(qualifiedModelNames);
+			if (model) {
+				this._modePreferredModelPending = false;
+				recorded = this._recordModelOverrideIfNotPinned(model) || recorded;
+			}
+			return model;
+		});
+		return result.then(applied => {
+			if (applied && recorded) {
+				this._syncInputStateToModel();
+			}
+			return applied;
+		});
+	}
+
+	/** Records a model override when `model` isn't the current agent's resolved pin. Returns whether the overrides changed. */
+	private _recordModelOverrideIfNotPinned(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		const pins = this._currentModeObservable.get().model?.get();
+		if (!pins?.length || this._findModelByQualifiedName(pins)?.identifier === model.identifier) {
+			return false;
+		}
+		const before = this._agentPinOverrides.get();
+		this._recordAgentPinOverride({ model: true });
+		return this._agentPinOverrides.get() !== before;
 	}
 
 	get hasPendingProgrammaticModelSelection(): boolean {
@@ -2194,11 +2223,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserAction) {
 			// An explicit choice outranks an agent pin still waiting for its model to register.
 			this._modePreferredModelPending = false;
-			const pins = this._currentModeObservable.get().model?.get();
 			// Configuration selections re-select the current model, so only a different model counts as an override.
-			if (pins?.length && this._findModelByQualifiedName(pins)?.identifier !== model.identifier) {
-				this._recordAgentPinOverride({ model: true });
-			}
+			this._recordModelOverrideIfNotPinned(model);
 		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
