@@ -75,6 +75,8 @@ import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { IAgentHostChatpadService } from '../../node/agentHostChatpadService.js';
+import { createTestChatpadService } from './chatpadTestUtils.js';
 
 class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
@@ -310,6 +312,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		services.set(IAgentHostProviderService, providerService);
 		const chatOwnership = createTestChatOwnershipService(stateManager);
 		services.set(IAgentHostChatOwnershipService, chatOwnership);
+		services.set(IAgentHostChatpadService, createTestChatpadService());
 		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);

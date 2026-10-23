@@ -37,6 +37,7 @@ import {
 } from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService, type IAgentChatConfigurationTarget } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatpadService } from './agentHostChatpadService.js';
 import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -219,6 +220,7 @@ export class SessionPermissionManager extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostChatpadService private readonly _chatpad: IAgentHostChatpadService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
@@ -310,6 +312,24 @@ export class SessionPermissionManager extends Disposable {
 			if (e.permissionKind === 'write' || e.permissionKind === 'shell') {
 				this._logService.trace(`[SessionPermissionManager] Requiring confirmation for out-of-scope surface ${e.permissionKind}`);
 				return undefined;
+			}
+		}
+
+		// 3.6 Chatpad note. The Chatpad chat exists to maintain one
+		// note in its scratch folder. Reading and writing that note needs no
+		// further consent, even from chats of the session that work elsewhere; every
+		// other destination keeps the normal rules below. Symlinks are resolved
+		// and must not lead anywhere else, so a link planted at the note's path
+		// cannot redirect an approved write.
+		if ((e.permissionKind === 'write' || e.permissionKind === 'read')
+			&& e.permissionPath
+			&& this._chatpad.isChatpad(this._ownerOf(sessionKey) ?? '')
+			&& this._chatpad.isNote(URI.file(e.permissionPath))
+		) {
+			const candidates = await this._resolveResourcesForApproval(URI.file(e.permissionPath));
+			if (candidates?.every(candidate => this._chatpad.isNote(candidate))) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving Chatpad ${e.permissionKind} of ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
 			}
 		}
 

@@ -264,6 +264,7 @@ export function createTestAgentService(
 	});
 	registerAgentHostCoreServices(services, {
 		storageResource,
+		userHome: URI.file('/home'),
 		rootConfigResource,
 		orchestratorDatabase,
 		fetchFn,

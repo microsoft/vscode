@@ -1,0 +1,162 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Sequencer } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase, joinPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentSession } from '../common/agent.js';
+import type { IAgentHostChatpad } from '../common/agentService.js';
+import { workspacelessScratchDir } from '../common/workspacelessScratchDir.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
+
+export const IAgentHostChatpadService = createDecorator<IAgentHostChatpadService>('agentHostChatpadService');
+
+/**
+ * The host's sessions. The Chatpad chat counts as existing while clients can list it, or before its first request
+ * while it is live; an unused chat that is collected stops existing.
+ */
+/** Looks up the host's sessions for the Chatpad service. */
+export interface IAgentHostChatpadSessions {
+	/** The session `session`, with its agent provider when known; `undefined` when it doesn't exist. */
+	find(session: string): Promise<{ readonly provider: string | undefined } | undefined>;
+}
+
+/**
+ * Owns the host's single Chatpad: a session without a workspace whose chat maintains a Markdown note.
+ *
+ * Like a chat without a workspace, the Chatpad chat works in its own scratch folder (see
+ * {@link workspacelessScratchDir}), and the note is a file in it: deleting the chat, or collecting it as an unused
+ * draft, removes the folder and the note with it. Its session is typed as the Chatpad rather than as a chat without
+ * a workspace, and is not listed.
+ */
+export interface IAgentHostChatpadService {
+	readonly _serviceBrand: undefined;
+	/** The Chatpad chat's session, when one was claimed; it may have been removed since. */
+	readonly session: string | undefined;
+	/** Whether `session` is the Chatpad chat. */
+	isChatpad(session: string): boolean;
+	/** Whether `resource` is the note of the Chatpad chat. */
+	isNote(resource: URI): boolean;
+	/** The note of the Chatpad chat `session`. */
+	getNote(session: string): URI;
+	/** Returns the Chatpad, creating its note when missing; `undefined` when there is no Chatpad chat. */
+	getChatpad(sessions: IAgentHostChatpadSessions): Promise<IAgentHostChatpad | undefined>;
+	/**
+	 * Makes `session` the Chatpad chat unless another Chatpad chat exists, in which case `session` stays an
+	 * ordinary chat. Resolves to whether `session` is the Chatpad chat.
+	 */
+	claim(session: URI, sessions: IAgentHostChatpadSessions): Promise<boolean>;
+	/** Appends `text` to the note as its own line(s), creating the note when missing. Fails without a Chatpad chat. */
+	append(text: string, sessions: IAgentHostChatpadSessions): Promise<void>;
+}
+
+const CHATPAD_SESSION_STORAGE_KEY = 'chatpad.session';
+const NOTE_TEMPLATE = '# Chatpad\n\n';
+
+/** The note of the Chatpad chat `session` on a host whose user home is `userHome`: a file in the chat's scratch folder. */
+export function getChatpadNote(userHome: URI, session: URI | string): URI {
+	return joinPath(workspacelessScratchDir(userHome, AgentSession.id(session)), 'chatpad.md');
+}
+
+export class AgentHostChatpadService extends Disposable implements IAgentHostChatpadService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _sequencer = new Sequencer();
+
+	constructor(
+		private readonly _userHome: URI,
+		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+	}
+
+	get session(): string | undefined {
+		const value = this._storageService.get<unknown>(CHATPAD_SESSION_STORAGE_KEY);
+		return typeof value === 'string' && value.length > 0 ? value : undefined;
+	}
+
+	isChatpad(session: string): boolean {
+		return this.session === session;
+	}
+
+	isNote(resource: URI): boolean {
+		const session = this.session;
+		return session !== undefined && extUriBiasedIgnorePathCase.isEqual(resource, this.getNote(session));
+	}
+
+	getNote(session: string): URI {
+		return getChatpadNote(this._userHome, session);
+	}
+
+	getChatpad(sessions: IAgentHostChatpadSessions): Promise<IAgentHostChatpad | undefined> {
+		return this._sequencer.queue(async () => {
+			const session = this.session;
+			const found = session === undefined ? undefined : await sessions.find(session);
+			if (session === undefined || !found) {
+				return undefined;
+			}
+			const note = this.getNote(session);
+			await this._ensureNote(note);
+			return { note, session: URI.parse(session), provider: found.provider };
+		});
+	}
+
+	claim(session: URI, sessions: IAgentHostChatpadSessions): Promise<boolean> {
+		return this._sequencer.queue(async () => {
+			const key = session.toString();
+			const current = this.session;
+			if (current === key) {
+				return true;
+			}
+			if (current !== undefined && await this._exists(sessions, current)) {
+				this._logService.info(`[AgentHostChatpad] ${key} stays an ordinary chat: Chatpad chat ${current} exists`);
+				return false;
+			}
+			await this._storageService.setAndFlush(CHATPAD_SESSION_STORAGE_KEY, key);
+			await this._ensureNote(this.getNote(key));
+			return true;
+		});
+	}
+
+	append(text: string, sessions: IAgentHostChatpadSessions): Promise<void> {
+		return this._sequencer.queue(async () => {
+			const session = this.session;
+			if (session === undefined || !await this._exists(sessions, session)) {
+				throw new Error('There is no Chatpad chat to append to.');
+			}
+			const note = this.getNote(session);
+			await this._ensureNote(note);
+			const content = (await this._fileService.readFile(note)).value.toString();
+			const separator = content.length === 0 || content.endsWith('\n') ? '' : '\n';
+			const line = text.endsWith('\n') ? text : `${text}\n`;
+			await this._fileService.writeFile(note, VSBuffer.fromString(`${content}${separator}${line}`));
+		});
+	}
+
+	private async _exists(sessions: IAgentHostChatpadSessions, session: string): Promise<boolean> {
+		return !!await sessions.find(session);
+	}
+
+	private async _ensureNote(note: URI): Promise<void> {
+		try {
+			await this._fileService.createFile(note, VSBuffer.fromString(NOTE_TEMPLATE), { overwrite: false });
+		} catch (error) {
+			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
+				throw error;
+			}
+		}
+		// A link at the note's path would redirect appends to another file.
+		if ((await this._fileService.stat(note)).isSymbolicLink) {
+			throw new Error(`The Chatpad note ${note.fsPath} is a symbolic link.`);
+		}
+	}
+}

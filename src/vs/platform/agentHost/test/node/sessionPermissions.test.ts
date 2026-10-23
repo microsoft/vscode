@@ -25,6 +25,7 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestChatpadService } from './chatpadTestUtils.js';
 
 suite('SessionPermissionManager', () => {
 
@@ -95,7 +96,7 @@ suite('SessionPermissionManager', () => {
 			...baseSessionDataService,
 			getSessionDataDir: session => URI.joinPath(sessionDataRoot, session.path.slice(1)),
 		};
-		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
+		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager), createTestChatpadService()));
 		await permissions.initialize();
 
 		manager.createSession(makeSummary(sessionUri, URI.file(workDir).toString()));
@@ -113,6 +114,36 @@ suite('SessionPermissionManager', () => {
 	test('auto-approves a normal file inside the working directory', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('auto-approves only the Chatpad chat reading and writing the Chatpad note', async () => {
+		const note = join(outsideDir, 'chatpad', 'chatpad.md');
+		const chatpadPermissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager), createTestChatpadService(sessionUri, URI.file(note))));
+		await chatpadPermissions.initialize();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+
+		assert.deepStrictEqual({
+			writeNote: await chatpadPermissions.getAutoApproval(writeEvent(note), defaultChat),
+			readNote: await chatpadPermissions.getAutoApproval(readEvent(note), defaultChat),
+			writeOtherFile: await chatpadPermissions.getAutoApproval(writeEvent(join(outsideDir, 'chatpad', 'other.md')), defaultChat),
+			otherChatWritesNote: await permissions.getAutoApproval(writeEvent(note), defaultChat),
+		}, {
+			writeNote: ToolCallConfirmationReason.NotNeeded,
+			readNote: ToolCallConfirmationReason.NotNeeded,
+			writeOtherFile: undefined,
+			otherChatWritesNote: undefined,
+		});
+	});
+
+	test('requires confirmation when a link redirects the Chatpad note elsewhere', async () => {
+		const elsewhere = join(outsideDir, 'elsewhere');
+		mkdirSync(elsewhere);
+		symlinkSync(elsewhere, join(outsideDir, 'chatpad'), directoryLinkType);
+		const note = join(outsideDir, 'chatpad', 'chatpad.md');
+		const chatpadPermissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager), createTestChatpadService(sessionUri, URI.file(note))));
+		await chatpadPermissions.initialize();
+
+		assert.strictEqual(await chatpadPermissions.getAutoApproval(writeEvent(note), buildDefaultChatUri(sessionUri)), undefined);
 	});
 
 	test('auto-approves the owning session attachment for a peer chat, not that of the session named by its URI', async () => {
@@ -528,7 +559,7 @@ suite('SessionPermissionManager', () => {
 					error.code = code;
 					throw error;
 				},
-			}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
+			}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager), createTestChatpadService()));
 			await deniedPermissions.initialize();
 			results.push(await deniedPermissions.getAutoApproval(readEvent(join(workDir, 'secret.txt')), sessionUri));
 		}

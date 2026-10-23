@@ -29,6 +29,7 @@ import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConver
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { RemoteSessionOriginContribution } from './remoteSessionOrigin/remoteSessionOriginContribution.js';
 import { ScheduledChatMovesContribution } from './scheduledChatMoves/scheduledChatMovesContribution.js';
+import { ChatpadContribution } from './chatpad/chatpadContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
@@ -71,6 +72,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
 	registrations.add(contributions.registerContribution(ArtifactRunsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
+	registrations.add(contributions.registerContribution(ChatpadContribution));
 	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));
 	registrations.add(contributions.registerContribution(SideChatContribution));
 	registrations.add(contributions.registerContribution(SessionFlagsContribution));

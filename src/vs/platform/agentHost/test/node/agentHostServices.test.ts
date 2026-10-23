@@ -94,6 +94,7 @@ class RecordingServiceCollection extends StrictServiceCollection {
 function registerCoreServices(services: ServiceCollection): void {
 	registerAgentHostCoreServices(services, {
 		storageResource: URI.file('/storage.json'),
+		userHome: URI.file('/home'),
 		fetchFn: globalThis.fetch,
 		gitHubServiceOptions: {
 			fetch: globalThis.fetch,
