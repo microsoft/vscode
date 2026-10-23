@@ -533,6 +533,20 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * but keeps `visibleGroups` shown beside it.
 	 */
 	maximizeGroup(group: IEditorGroup | GroupIdentifier, visibleGroups: readonly (IEditorGroup | GroupIdentifier)[]): void;
+
+	/**
+	 * The group of the part that numbered view columns, such as an extension's
+	 * `ViewColumn.One`, open in while the part is the active one, rather than
+	 * the groups of the main part; see {@link setViewColumnGroup}.
+	 */
+	readonly viewColumnGroup: IEditorGroup | undefined;
+
+	/**
+	 * Makes numbered view columns open in `group` of the part while it is the
+	 * active part, such as a window with one editor area beside other content.
+	 * Undone when the returned disposable is disposed.
+	 */
+	setViewColumnGroup(group: IEditorGroup): IDisposable;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {

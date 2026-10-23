@@ -304,6 +304,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		windowDisposables.add(autorun(reader => terminalShownContext.set(window.terminalShown.read(reader))));
 		windowDisposables.add(toDisposable(() => this._terminalRows.get(window)?.dispose()));
 		if (content.editorArea && editorGroup) {
+			// What extensions open in a numbered view column, such as `ViewColumn.One`, opens in its editor area while it is
+			// the active window, rather than in the main window.
+			windowDisposables.add(part.setViewColumnGroup(editorGroup));
 			// What the Session Activity Bar of the chat window shows as checked, and offers, as it does for the main window.
 			const editorAreaEditorContext = ChatWindowEditorAreaEditorContext.bindTo(windowContextKeyService);
 			const activeEditor = observableFromEvent(this, editorGroup.onDidActiveEditorChange, () => editorGroup.activeEditorPane?.getId() ?? '');

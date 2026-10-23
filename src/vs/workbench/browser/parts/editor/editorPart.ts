@@ -8,7 +8,7 @@ import { Part } from '../../part.js';
 import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement, computeScreenAwareSize } from '../../../../base/browser/dom.js';
 import { Event, Emitter, Relay, PauseableEmitter } from '../../../../base/common/event.js';
 import { contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorGroup, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from '../../../../base/browser/ui/grid/grid.js';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from '../../../common/editor.js';
@@ -479,6 +479,21 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				this.gridWidget.expandView(groupView);
 				break;
 		}
+	}
+
+	private _viewColumnGroup: IEditorGroupView | undefined;
+	get viewColumnGroup(): IEditorGroupView | undefined {
+		return this._viewColumnGroup && !this._viewColumnGroup.disposed ? this._viewColumnGroup : undefined;
+	}
+
+	setViewColumnGroup(group: IEditorGroup): IDisposable {
+		const groupView = this.assertGroupView(group.id);
+		this._viewColumnGroup = groupView;
+		return toDisposable(() => {
+			if (this._viewColumnGroup === groupView) {
+				this._viewColumnGroup = undefined;
+			}
+		});
 	}
 
 	maximizeGroup(group: IEditorGroupView | GroupIdentifier, visibleGroups: readonly (IEditorGroupView | GroupIdentifier)[]): void {
