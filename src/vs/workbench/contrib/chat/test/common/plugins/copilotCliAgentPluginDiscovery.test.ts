@@ -126,9 +126,9 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		return discovery;
 	}
 
-	function reportRuntimePlugins(plugins: readonly IRuntimePluginEnablement[], rejectionReason?: string): void {
+	function reportRuntimePlugins(plugins: readonly IRuntimePluginEnablement[], rejectionReason?: string, channel = 'copilotcli:/session'): void {
 		onDidAction.fire({
-			channel: 'copilotcli:/session',
+			channel,
 			serverSeq: 1,
 			origin: undefined,
 			action: { type: ActionType.SessionMetaChanged, _meta: withRuntimePluginEnablement(undefined, plugins) },
@@ -307,6 +307,66 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 				ContributionEnablementState.EnabledProfile,
 				ContributionEnablementState.EnabledProfile,
 			]);
+		});
+
+		test('an unchanged report republished with unrelated session metadata does not override a newer report', async () => {
+			const { discovery, model } = await setupTeamDefault();
+			await discovery.discoverPluginSources();
+			const evalReport = (enabled: boolean): IRuntimePluginEnablement[] => [{ name: 'eval', marketplace: 'github-copilot-evals', enabled }];
+
+			reportRuntimePlugins(evalReport(false), undefined, 'copilotcli:/session-a');
+			reportRuntimePlugins(evalReport(true), undefined, 'copilotcli:/session-b');
+			// Session A's retained `_meta` is republished by an unrelated update.
+			reportRuntimePlugins(evalReport(false), undefined, 'copilotcli:/session-a');
+			const afterReplay = model.readEnabled(teamPlugin.toString());
+			// A genuine change on session A still applies.
+			reportRuntimePlugins(evalReport(true), undefined, 'copilotcli:/session-a');
+			reportRuntimePlugins(evalReport(false), undefined, 'copilotcli:/session-a');
+
+			assert.deepStrictEqual({
+				afterReplay,
+				afterChange: model.readEnabled(teamPlugin.toString()),
+			}, {
+				afterReplay: ContributionEnablementState.EnabledProfile,
+				afterChange: ContributionEnablementState.DisabledProfile,
+			});
+		});
+
+		test('applies a report received while the first discovery is still resolving later plugins', async () => {
+			const lastPlugin = joinPath(installedPluginsRoot, 'zz-marketplace', 'last');
+			await writePlugin(teamPlugin, 'eval');
+			await writePlugin(lastPlugin, 'last');
+			await writeInstalledPlugins([
+				{ name: 'eval', marketplace: 'github-copilot-evals', uri: teamPlugin, enabled: false },
+				{ name: 'last', marketplace: 'zz-marketplace', uri: lastPlugin, enabled: false },
+			]);
+			const model = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+			const discovery = createDiscovery(true, model);
+			const resolvingLast = new DeferredPromise<void>();
+			const releaseLast = new DeferredPromise<void>();
+			const resolve = fileService.resolve.bind(fileService);
+			sinon.stub(fileService, 'resolve').callsFake(async (resource, options) => {
+				if (resource.toString() === lastPlugin.toString()) {
+					resolvingLast.complete();
+					await releaseLast.p;
+				}
+				return resolve(resource, options);
+			});
+
+			const discovered = discovery.discoverPluginSources();
+			await resolvingLast.p;
+			const duringDiscovery = model.readEnabled(teamPlugin.toString());
+			reportRuntimePlugins([{ name: 'eval', marketplace: 'github-copilot-evals', enabled: true }]);
+			releaseLast.complete();
+			await discovered;
+
+			assert.deepStrictEqual({
+				duringDiscovery,
+				afterDiscovery: model.readEnabled(teamPlugin.toString()),
+			}, {
+				duringDiscovery: ContributionEnablementState.DisabledProfile,
+				afterDiscovery: ContributionEnablementState.EnabledProfile,
+			});
 		});
 	});
 

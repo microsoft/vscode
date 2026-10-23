@@ -1165,6 +1165,11 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	private _refreshScheduler: RunOnceScheduler | undefined;
 	/** Latest session-reported enablement, keyed by {@link getCopilotCliPluginIdentity}. */
 	private readonly _runtimeEnablement = new Map<string, boolean>();
+	/**
+	 * Each session channel's last report. Hosts republish a session's whole `_meta` on unrelated
+	 * updates, so only entries that changed on that channel are fresh runtime values.
+	 */
+	private readonly _reportsByChannel = new Map<string, ReadonlyMap<string, boolean>>();
 	/** Discovered plugin enablement keys, keyed by {@link getCopilotCliPluginIdentity}. */
 	private _discoveredPluginKeys = new Map<string, string>();
 
@@ -1200,16 +1205,18 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		if (!plugins) {
 			return;
 		}
+		const previous = this._reportsByChannel.get(envelope.channel);
+		const report = new Map(plugins.map(plugin => [getCopilotCliPluginIdentity(plugin), plugin.enabled]));
+		this._reportsByChannel.set(envelope.channel, report);
 		transaction(tx => {
-			for (const plugin of plugins) {
-				const identity = getCopilotCliPluginIdentity(plugin);
-				if (this._runtimeEnablement.get(identity) === plugin.enabled) {
+			for (const [identity, enabled] of report) {
+				if (previous?.get(identity) === enabled || this._runtimeEnablement.get(identity) === enabled) {
 					continue;
 				}
-				this._runtimeEnablement.set(identity, plugin.enabled);
+				this._runtimeEnablement.set(identity, enabled);
 				const key = this._discoveredPluginKeys.get(identity);
 				if (key !== undefined) {
-					this._enablementModel?.setDefaultEnabled?.(key, plugin.enabled, tx);
+					this._enablementModel?.setDefaultEnabled?.(key, enabled, tx);
 				}
 			}
 		});
@@ -1254,6 +1261,15 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			}
 		}
 		this._discoveredPluginKeys = discoveredPluginKeys;
+		// A report may have arrived while discovery awaited later plugins, after their default was applied.
+		transaction(tx => {
+			for (const [identity, key] of discoveredPluginKeys) {
+				const enabled = this._runtimeEnablement.get(identity);
+				if (enabled !== undefined) {
+					this._enablementModel.setDefaultEnabled?.(key, enabled, tx);
+				}
+			}
+		});
 		return sources;
 	}
 }
