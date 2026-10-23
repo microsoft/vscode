@@ -4073,6 +4073,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	MigrationGuidanceDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The migrations dashboard lists Chat Participants (Extensions) and Tool Sets (User) groups below the MCP server migration. Guidance groups show Ignore and Learn More actions, and their read-only rows show the item source and a Review button.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+		}),
+	}),
+
 	MigrationToolSetGuidanceDetail: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
