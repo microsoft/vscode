@@ -194,6 +194,15 @@ interface IReplaceCentralOptions {
 	readonly legacyMergeBase?: readonly IPersistedPeerChat[];
 }
 
+/** Runs before each publish of a session's older-build copy (Block 5). */
+export interface IOlderBuildCopyParticipant {
+	/**
+	 * Prepares older-build state the session state store holds (a withheld worktree branch) for the publish of
+	 * `session`'s older-build copy. Its failure is logged and never stops the publish.
+	 */
+	beforeOlderBuildCopyPublish(session: URI): Promise<void>;
+}
+
 export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceService, IDisposable {
 
 	declare readonly _serviceBrand: undefined;
@@ -222,6 +231,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		private readonly _logService: ILogService,
 		private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		private readonly _olderBuildCopyParticipant: IOlderBuildCopyParticipant,
 	) { }
 
 	setMetadataMigration(handler: NonNullable<AgentHostPeerChatStore['_metadataMigration']>): void {
@@ -252,16 +262,34 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return { mutation: target ? { chat: target.chat, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch } : undefined, remaining };
 	}
 
-	/**
-	 * Awaits the writes of every session already in flight: for shutdown and tests only. A per-session path
-	 * awaits its own sessions with {@link whenSessionsIdle}, never other sessions' writes (a background
-	 * conversion pass keeps some in flight continuously). A pending older-build copy is not published: see
-	 * {@link flushCompatibilityPublishes}.
-	 */
-	async whenIdle(): Promise<void> {
-		while (this._writes.size || this._metadataWrites.size) {
-			await Promise.all([...this._writes.values(), ...[...this._metadataWrites.values()].flatMap(writes => [...writes])]);
+	/** Drains all writes, or one session's writes, and propagates failures to callers synchronizing catalog state. */
+	async whenIdle(session?: URI): Promise<void> {
+		const sessionKey = session?.toString();
+		while (true) {
+			const writes = this._pendingWrites(sessionKey);
+			if (writes.length === 0) {
+				return;
+			}
+			await Promise.all(writes);
 		}
+	}
+
+	/** Waits for one session's writes to settle before release; write callers report failures. */
+	whenSessionIdle(session: URI): Promise<void> {
+		return this.whenSessionsIdle([session]);
+	}
+
+	private _pendingWrites(sessionKey?: string): Promise<void>[] {
+		if (sessionKey === undefined) {
+			return [...this._writes.values(), ...[...this._metadataWrites.values()].flatMap(writes => [...writes])];
+		}
+		const writes: Promise<void>[] = [];
+		const queuedWrite = this._writes.get(sessionKey);
+		if (queuedWrite) {
+			writes.push(queuedWrite);
+		}
+		writes.push(...this._metadataWrites.get(sessionKey) ?? []);
+		return writes;
 	}
 
 	/**
@@ -272,7 +300,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	async whenSessionsIdle(sessions: readonly URI[]): Promise<void> {
 		const keys = [...new Set(sessions.map(session => session.toString()))];
 		while (true) {
-			const pending = keys.flatMap(key => [...(this._writes.has(key) ? [this._writes.get(key)!] : []), ...this._metadataWrites.get(key) ?? []]);
+			const pending = keys.flatMap(key => this._pendingWrites(key));
 			if (!pending.length) {
 				return;
 			}
@@ -720,6 +748,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	/**
+	 * A write outside this store changed `session`'s normalized chat list (Block 4's moves, promotions and reorders):
+	 * publishes its older-build copy at the end of the coalescing window, as for a change made here, so older builds
+	 * see the chats where they are now and the chats that left it are recorded as left.
+	 */
+	scheduleOlderBuildCopyPublish(session: URI): void {
+		this._scheduleCompatibilityPublish(session);
+	}
+
+	/**
 	 * Brings a normalized catalog's older-build copy in sync before a move or promotion validates, so it never works
 	 * from a stale list: imports what older builds changed, then publishes the pending copy. Block 4 calls this.
 	 */
@@ -773,12 +810,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 * this build keeps `projected_revision` equal to `revision` through every write of its own (in the same
 	 * transaction). Only when they differ are the rows compared with the projection of the untouched `chats_v2`
 	 * rows, the merge base; a difference then is an older build's committed write. No difference means the other
-	 * writer kept the projection (1.142 writes it itself), and the projection is simply this build's again. A
+	 * writer kept the list: 1.142 writes it itself, and 1.141 re-mirrors it unchanged at quit with its renames only
+	 * in the session database. The session database's copy is read then too, and the list is recorded as this
+	 * build's projection again after it. A
 	 * projection whose definition changed is never mistaken for an edit: the marker stays current, and the next
 	 * write re-projects it. Rows naming chats `chats_v2` records but the projection does not list (private,
 	 * deleted, the default, moved elsewhere) are never imported: older builds never saw them.
 	 *
-	 * `peerChats` (read only when `readSessionCopy`, where the session database is held anyway; the publisher
+	 * `peerChats` (read when `readSessionCopy`, where the session database is held anyway, or when another writer
+	 * advanced the revision; never for a catalog nothing else touched. The publisher
 	 * checks it before overwriting it): a list other than the acknowledged one that is not this build's current
 	 * projection was written by another build and is merged against the acknowledged payload. When it is this
 	 * build's current projection, this build wrote it and stopped before acknowledging: it is just acknowledged.
@@ -827,7 +867,9 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 					}
 					continue;
 				}
-			} else if (readSessionCopy && (source.legacyMirroredPayload !== undefined || source.publishedChatState !== undefined)) {
+			} else if ((readSessionCopy || source.projectionBehind) && (source.legacyMirroredPayload !== undefined || source.publishedChatState !== undefined)) {
+				// Also when another build advanced the revision with the rows unchanged: 1.141 re-mirrors the list at quit,
+				// and its renames are only in the session database. A catalog nothing touched opens no session database.
 				imported = await this._importSessionCopyEdits(session, source, await this._readSessionCopy(session, database, source));
 			}
 			if (imported === 'conflict') {
@@ -839,16 +881,32 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				continue;
 			}
 			this._olderBuildEditsImported.add(sessionKey);
+			const recordProjected = async () => {
+				if (source.projectionBehind && !source.hasOlderBuildEdits) {
+					// What else that build changed is imported: the unchanged list is this build's projection again.
+					await this._database.recordOlderBuildChatListProjected(sessionKey);
+				}
+			};
 			if (imported === 'imported') {
+				// Recorded only once published: an interruption before it leaves the session copy to be read and published again.
 				await this._publishNormalizedCompatibilityState(session, database);
+				await recordProjected();
 				const current = await this._database.readOlderBuildCopySource(sessionKey);
 				return current ? this._normalizedEntriesFromSource(current) : undefined;
 			}
-			if (!this._needsNoOlderBuildCopy(source) && source.legacyMirroredPayload !== JSON.stringify(this._olderBuildCopyEntries(source.peers))) {
+			await recordProjected();
+			if (!this._needsNoOlderBuildCopy(source) && (source.legacyMirroredPayload !== JSON.stringify(this._olderBuildCopyEntries(source.peers)) || this._hasUnpublishedTitles(session, source))) {
 				this._scheduleCompatibilityPublish(session);
 			}
 			return this._normalizedEntriesFromSource(source);
 		}
+	}
+
+	/** Whether the titles older builds read are not what this build last published, e.g. an import was interrupted before publishing. */
+	private _hasUnpublishedTitles(session: URI, source: IAgentHostDatabaseOlderBuildCopySource): boolean {
+		const entries = this._olderBuildCopyEntries(source.peers);
+		const { left } = this._leftChats(session, source, this._parsePublishedChatTitles(session, source.publishedChatState), new Set(entries.map(entry => entry.uri)));
+		return source.publishedChatState !== encodeOlderBuildChatTitleRecord(this._olderBuildChatTitles(source), undefined, left);
 	}
 
 	/** Imports an older build's `session_chats` rows (see {@link _importOlderBuildEdits}). */
@@ -1424,7 +1482,8 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		});
 	}
 
-	updateWorkingDirectories(session: URI, chat: URI, workingDirectories: readonly string[]): Promise<void> {
+	/** Records the folders `chat` works in; `undefined` records that it has none of its own and works in its session's. */
+	updateWorkingDirectories(session: URI, chat: URI, workingDirectories: readonly string[] | undefined): Promise<void> {
 		const chatUri = chat.toString();
 		const mutate = (entries: IPersistedPeerChat[]) => {
 			const existing = entries.find(entry => entry.uri === chatUri);
@@ -1436,17 +1495,17 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(existing?.providerData !== undefined ? { providerData: existing.providerData } : {}),
 				...(existing?.origin !== undefined ? { origin: existing.origin } : {}),
 				...(existing?.inheritedTurnId !== undefined ? { inheritedTurnId: existing.inheritedTurnId } : {}),
-				workingDirectories: [...workingDirectories],
+				...(workingDirectories !== undefined ? { workingDirectories: [...workingDirectories] } : {}),
 			});
 			return next;
 		};
 		return this._trackMetadataWrite(session, async () => {
-			const values = { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(workingDirectories) };
+			const values = { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: workingDirectories !== undefined ? JSON.stringify(workingDirectories) : '' };
 			if (this._metadataMigration && !Object.keys(await this._metadataMigration(session, chat, values)).length) {
 				return;
 			}
 			await this._enqueue(session, async () => {
-				if (!await this._patchNormalized(session, chat, { workingDirectories })) {
+				if (!await this._patchNormalized(session, chat, { workingDirectories: workingDirectories ?? null })) {
 					await this._applyWrite(session, mutate);
 				}
 			});
@@ -1829,13 +1888,24 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		pending.scheduler.dispose();
 		this._pendingCompatibilityPublishes.delete(key);
-		return this._trackMetadataWrite(pending.session, () => this._enqueue(pending.session, async () => {
+		return this._trackMetadataWrite(pending.session, async () => {
 			try {
-				await this._publishNormalizedCompatibilityState(pending.session, database);
+				await this._olderBuildCopyParticipant.beforeOlderBuildCopyPublish(pending.session);
+			} catch (error) {
+				this._logService.error(error, `[AgentHostPeerChatStore] Failed to prepare the older-build copy of ${key}`);
+			}
+			await this._publishPendingCompatibilityState(pending.session, key, database);
+		});
+	}
+
+	private _publishPendingCompatibilityState(session: URI, key: string, database: AgentHostCatalogDatabaseReference | undefined): Promise<void> {
+		return this._enqueue(session, async () => {
+			try {
+				await this._publishNormalizedCompatibilityState(session, database);
 			} catch (error) {
 				this._logService.error(error, `[AgentHostPeerChatStore] Failed to publish peer-chat compatibility state for ${key}`);
 			}
-		}));
+		});
 	}
 
 	/**

@@ -75,6 +75,10 @@ The desktop Panel supports two profile-scoped alignments. The default justified 
 
 Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
 
+New-session views may opt into `preserveOnSessionCleared` to retain their composer when a draft is cleared to the empty slot. The host preserves that view's input, picker state, and focus rather than constructing a replacement that could restore an automatic workspace; other views keep the default replacement lifecycle.
+
+A child chat may also occupy a standalone leaf in the outer grid. The view service owns this placement through a chat-scoped `IActiveSession` with unchanged session identity and provider ownership; the parent view excludes that chat while its standalone leaf is present. These leaves remain usable without a visible parent pane: closing the parent pane preserves its standalone children, and opening or focusing a standalone child does not reopen the parent. Focus selects the represented chat, and closing or reattaching its pane does not close the owning session. Provider removal still removes all leaves belonging to that session. Outer-grid persistence binds these leaves by both session resource and chat resource and supports layouts containing only child leaves.
+
 Chat-tab presentation is a property of the session view, not of the action that opened a chat. The view observes its configuration directly and consistently applies either tabbed or session-view presentation to every chat, including restored chats and chats opened through navigation or external entry points.
 
 In the side-by-side single-chat presentation, pinning a chat header keeps that chat visible while new chats reuse an unpinned group. If every visible group is pinned, opening another chat creates a group; chat pins persist with the chat-grid layout.

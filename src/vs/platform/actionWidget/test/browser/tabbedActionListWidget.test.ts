@@ -258,6 +258,48 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('a disabled tab bar action explains why and does not run', () => {
+		const { widget } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
+		disposables.add({ dispose: () => { anchor.remove(); document.body.style.removeProperty('--vscode-toolbar-hoverBackground'); } });
+		let runs = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', checked: true, disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', checked: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const button = document.querySelector<HTMLElement>('[data-id="add"]')!;
+		button.click();
+		assert.deepStrictEqual({
+			label: button.getAttribute('aria-label'),
+			disabled: button.getAttribute('aria-disabled'),
+			description: button.getAttribute('aria-description'),
+			title: button.title,
+			disabledClass: button.classList.contains('disabled'),
+			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
+			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
+			runs,
+		}, {
+			label: 'Add Models...',
+			disabled: 'true',
+			description: 'Not supported here',
+			title: 'Not supported here',
+			disabledClass: true,
+			checkedBackground: 'rgba(0, 0, 0, 0)',
+			enabledCheckedBackground: 'rgb(1, 2, 3)',
+			runs: 0,
+		});
+	});
+
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
 		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
 		let radio: Radio | undefined;
@@ -990,6 +1032,84 @@ suite('TabbedActionListWidget', () => {
 			widget.hide();
 		});
 	}
+
+	test('a size-preserving refresh keeps the popup height and skips re-measuring the sizing tab', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 600px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		let itemCount = 3;
+		let sizingBuilds = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			sizingTab: 'Local',
+			width: 300,
+			createActionList: (_tab, forSizing) => {
+				if (forSizing) {
+					sizingBuilds++;
+				}
+				return { items: Array.from({ length: itemCount }, (_, index) => action(`item-${index}`)), listOptions: { anchorPosition: AnchorPosition.ABOVE } };
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const initialHeight = popup.offsetHeight;
+		const initialBuilds = sizingBuilds;
+		itemCount = 8;
+		widget.refreshActiveList({ preserveSize: true });
+		const preserved = { sameHeight: popup.offsetHeight === initialHeight, sizingBuilds: sizingBuilds - initialBuilds };
+		widget.refreshActiveList();
+		assert.deepStrictEqual({ preserved, remeasured: { grew: popup.offsetHeight > initialHeight, sizingBuilds: sizingBuilds - initialBuilds } }, {
+			preserved: { sameHeight: true, sizingBuilds: 0 },
+			remeasured: { grew: true, sizingBuilds: 1 },
+		});
+	});
+
+	test('a refresh deferred while details are open keeps its size-preserving request', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		anchor.style.cssText = 'position: fixed; top: 600px; width: 120px; height: 20px;';
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		let itemCount = 3;
+		let sizingBuilds = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			sizingTab: 'Local',
+			width: 300,
+			createActionList: (_tab, forSizing) => {
+				if (forSizing) {
+					sizingBuilds++;
+				}
+				return { items: Array.from({ length: itemCount }, (_, index) => action(`item-${index}`)), listOptions: { anchorPosition: AnchorPosition.ABOVE } };
+			},
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const initialHeight = popup.offsetHeight;
+		const refreshWhileDetailsOpen = (options?: { preserveSize: boolean; preserveScrollPosition: boolean }) => {
+			widget.showDetails({ label: 'Details', backLabel: 'Back', render: container => { container.textContent = 'Details'; return { dispose: () => { } }; } });
+			itemCount++;
+			widget.refreshActiveList(options);
+			const builds = sizingBuilds;
+			widget.hideDetails();
+			return { sameHeight: popup.offsetHeight === initialHeight, sizingBuilds: sizingBuilds - builds };
+		};
+		assert.deepStrictEqual({
+			preserved: refreshWhileDetailsOpen({ preserveSize: true, preserveScrollPosition: true }),
+			remeasured: refreshWhileDetailsOpen(),
+		}, {
+			preserved: { sameHeight: true, sizingBuilds: 0 },
+			remeasured: { sameHeight: false, sizingBuilds: 1 },
+		});
+	});
 
 	test('refresh keeps the popup open when rebuilding removes the focused card control', async () => {
 		const { widget, contextView } = createWidget(disposables);

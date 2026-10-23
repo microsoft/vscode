@@ -10,11 +10,17 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IExternalUriOpenerService } from '../../../../contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
@@ -37,7 +43,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/wo
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -46,6 +52,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
+import { TestStorageService } from '../../../common/workbenchTestServices.js';
 
 // ============================================================================
 // Mock helpers
@@ -70,6 +77,7 @@ interface ISessionSpec {
 	readonly turnChanges?: readonly ISessionTurnFileChange[];
 	readonly browsers?: readonly { readonly title?: string; readonly ownerSubagent?: number }[];
 	readonly subagents?: readonly string[];
+	readonly canvases?: readonly string[];
 	/** Artifacts and references the agent recorded on the session. */
 	readonly artifacts?: readonly ISessionArtifact[];
 	readonly removableArtifacts?: boolean;
@@ -84,6 +92,7 @@ interface IMockSessionAndChat {
 	readonly chat: IChat;
 	readonly browsers: readonly BrowserEditorInput[];
 	removeArtifact(id: string): void;
+	closeCanvas(canvas: ISessionCanvas): void;
 }
 
 export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
@@ -123,6 +132,14 @@ export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 			spec.turnChanges !== undefined ? constObservable(spec.turnChanges) : undefined;
 		override readonly customizations: IObservable<readonly ISessionChatCustomization[]> | undefined =
 			spec.customizations !== undefined ? constObservable(spec.customizations) : undefined;
+		override readonly canvases = spec.canvases !== undefined
+			? observableValue<readonly ISessionCanvas[] | undefined>('fixture.canvases', spec.canvases.map(title => ({
+				resource: URI.parse(`agent-host-canvas:/${title.toLowerCase().replaceAll(' ', '-')}`),
+				instanceId: title.toLowerCase().replaceAll(' ', '-'),
+				title,
+				source: URI.parse(`https://example.test/${title.toLowerCase().replaceAll(' ', '-')}`),
+			})))
+			: undefined;
 	}();
 	const subagents = (spec.subagents ?? []).map((title, index) => new class extends mock<IChat>() {
 		override readonly resource = URI.parse(`chat:subagent-${index}`);
@@ -140,7 +157,7 @@ export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly loading = constObservable(false);
 		override readonly isArchived = constObservable(false);
 		override readonly isRead = constObservable(true);
-		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: spec.removableArtifacts });
+		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: spec.removableArtifacts, supportsCanvases: spec.canvases !== undefined });
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 		override readonly artifacts = artifacts;
 	}();
@@ -156,7 +173,13 @@ export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 			override readonly onDidChangeLabel = Event.None;
 		}();
 	});
-	return { session, chat, browsers, removeArtifact: id => artifacts.set(artifacts.get().filter(artifact => artifact.id !== id), undefined) };
+	return {
+		session,
+		chat,
+		browsers,
+		removeArtifact: id => artifacts.set(artifacts.get().filter(artifact => artifact.id !== id), undefined),
+		closeCanvas: canvas => chat.canvases?.set(chat.canvases.get()?.filter(candidate => candidate !== canvas), undefined),
+	};
 }
 
 function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrowserViewWorkbenchService {
@@ -169,11 +192,18 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 }
 
 function registerSessionChatPillFixtureServices(registration: ServiceRegistration, sessionMock: IMockSessionAndChat): void {
+	registration.defineInstance(IExternalUriOpenerService, new class extends mock<IExternalUriOpenerService>() {
+		override async getOpener() { return undefined; }
+	}());
 	registration.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override getProvider() { return undefined; }
 	}());
 	registration.defineInstance(IBrowserViewWorkbenchService, createBrowserViewService(sessionMock.browsers));
 	registration.defineInstance(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		override readonly onDidChangePartVisibility = Event.None;
+		override isSidePaneVisible(): boolean { return false; }
+		override isEditorPaneVisible(): boolean { return false; }
+		override isVisible(): boolean { return false; }
 		override revealEditorPartExplicitly(): void { }
 	}());
 	registration.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -181,10 +211,13 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 	}());
 	registration.defineInstance(IGitHubService, createFixtureGitHubService([]));
 	registration.defineInstance(IWorkbenchGitHubService, createFixtureWorkbenchGitHubService({}));
-	if (sessionMock.session.capabilities.get().supportsRemoveArtifacts) {
+	if (sessionMock.session.capabilities.get().supportsRemoveArtifacts || sessionMock.session.capabilities.get().supportsCanvases) {
 		registration.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
 				sessionMock.removeArtifact(artifactId);
+			}
+			override async closeCanvas(_session: IActiveSession, _chat: IChat, canvas: ISessionCanvas): Promise<void> {
+				sessionMock.closeCanvas(canvas);
 			}
 		}());
 	}
@@ -213,7 +246,7 @@ async function createImageReferenceContent(resource: URI): Promise<IFileContent>
 	};
 }
 
-export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string; readonly popupPlacement?: 'above'; readonly additionalServices?: (reg: ServiceRegistration) => void; readonly prepareServices?: (services: TestInstantiationService) => void }): void {
+export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string; readonly popupPlacement?: 'above'; readonly additionalServices?: (reg: ServiceRegistration) => void; readonly prepareServices?: (services: TestInstantiationService) => void }): Promise<void> {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -226,6 +259,8 @@ export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSess
 			// (which register a partial ISessionsService).
 			registerChatFixtureServices(reg);
 			registerSessionChatPillFixtureServices(reg, sessionMock);
+			reg.defineInstance(IStorageService, disposableStore.add(new TestStorageService()));
+			reg.define(IContextMenuService, ContextMenuService);
 			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
 				override readonly mainContainer = container;
 				override readonly activeContainer = container;
@@ -256,6 +291,13 @@ export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSess
 	const actionWidgetService = disposableStore.add(instantiationService.createInstance(ActionWidgetService));
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	options?.prepareServices?.(instantiationService);
+	if (sessionMock.session.capabilities.get().supportsCanvases) {
+		const configurationService = instantiationService.get(IConfigurationService);
+		if (!(configurationService instanceof TestConfigurationService)) {
+			throw new Error('Expected TestConfigurationService');
+		}
+		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
+	}
 
 	const visibility = instantiationService.get(ISessionChatPillVisibilityService);
 	for (const kind of SESSION_CHAT_PILL_KINDS) {
@@ -458,6 +500,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ id: 'c6', kind: SessionCustomizationKind.Plugin, name: 'component-explorer' },
 			],
 		})),
+	}),
+
+	// --- Canvases -----------------------------------------------------------
+
+	SessionChatPills_CanvasPinning: defineComponentFixture({
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['A session status row with a 3 Canvases pill ready to open a picker and demonstrate pinning.'],
+		render: ctx => renderPills(ctx, createMockSession({
+			canvases: ['Plan', 'Preview', 'Architecture'],
+		}), { width: '620px', height: '360px' }),
 	}),
 
 	// --- Browser and background activity pills ------------------------------

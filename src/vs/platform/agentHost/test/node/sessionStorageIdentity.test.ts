@@ -5,8 +5,6 @@
 
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
-import { mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
 import { match, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
@@ -35,25 +33,25 @@ import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentHostCatalogSyncService, matchesAcknowledgedCatalogReceipt } from '../../node/agentHostCatalogSyncService.js';
-import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
+import { AgentHostDatabaseTestDirectory } from './agentHostDatabaseTestUtils.js';
 
 suite('Session storage identity compatibility', () => {
 	const store = new DisposableStore();
-	const opened: AgentHostDatabase[] = [];
+	let databases: AgentHostDatabaseTestDirectory;
 	let directory: string;
 
-	setup(async () => directory = await mkdtemp(join(tmpdir(), 'ah-storage-compat-')));
+	setup(async () => {
+		databases = await AgentHostDatabaseTestDirectory.create('ah-storage-compat-');
+		directory = databases.path;
+	});
 	teardown(async () => {
 		store.clear();
-		// Disposing only starts closing a database; Windows cannot delete a file that is still open (`EBUSY`).
-		// The raw database owns the file, and its close does not wait for chat records a test leaves pending.
-		await Promise.all(opened.splice(0).map(database => database.close()));
-		await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		await databases.remove();
 	});
 
 	function track<T extends AgentHostDatabase | CompatibleAgentHostDatabase>(database: T): T {
-		opened.push(database instanceof CompatibleAgentHostDatabase ? database.raw : database);
-		return store.add(database);
+		return store.add(databases.track(database));
 	}
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -269,7 +267,7 @@ suite('Session storage identity compatibility', () => {
 		await raw.close();
 		const db = await database();
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(db, modern));
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(db, modern), noOlderBuildCopyParticipant);
 		const peer = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: peer }]);
 		const normalized = await db.registerChatCatalogV2(session.toString(), {
@@ -287,6 +285,107 @@ suite('Session storage identity compatibility', () => {
 		}, {
 			// No compatibility gate answers for the catalog: the database itself refuses to register over a legacy catalog.
 			normalized: { status: 'conflict' }, identity: session.toString(), chats: [peer, oldAdded],
+		});
+	});
+
+	suite('chat moves gate on the stored catalog authority, not the address (Block 4)', () => {
+		async function historicalNormalized(raw: AgentHostDatabase, session: string, peers: readonly string[]): Promise<void> {
+			await raw.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const registered = await raw.registerChatCatalogV2(session, {
+				defaultChat: { chat: buildDefaultChatUri(session), order: 0, storageResource: session },
+				peers: peers.map((peer, index) => ({ chat: buildChatUri(session, peer), order: index + 1, storageResource: buildChatUri(session, peer), providerData: `${peer}-backing` })),
+				privateDescendants: [],
+			});
+			assert.strictEqual(registered.status, 'applied');
+			await raw.importSessionState(session, {
+				importVersion: 1, importedAt: 1, values: {}, legacyMirrorBase: '{"v":2,"entries":{}}', launchDirsBackfilled: true, folders: [],
+				chats: [{ chat: buildDefaultChatUri(session), isDefault: true, storageResource: session, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: undefined, changes: undefined }],
+			});
+		}
+
+		async function revisionOf(db: CompatibleAgentHostDatabase, session: string): Promise<number> {
+			return (await db.readCatalogSnapshot([session]))[0].header?.revision ?? 0;
+		}
+
+		function noState(chats: readonly string[]) {
+			return { expectedSourceRevision: 1, expectedTargetRevision: 1, chats: chats.map(chat => ({ chat, workingDirectories: ['file:///repo'] })), folders: [], values: { source: {}, target: {} } };
+		}
+
+		test('moves, reorders and promotes chats of historical sessions whose catalogs are normalized', async () => {
+			const a = 'copilotcli:/historical-a';
+			const b = 'copilotcli:/historical-b';
+			const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+			await historicalNormalized(raw, a, ['moved', 'promoted']);
+			await historicalNormalized(raw, b, []);
+			await raw.close();
+			const db = await database();
+			const moved = buildChatUri(a, 'moved');
+			const promotedChat = buildChatUri(a, 'promoted');
+
+			const move = await db.moveChatV2({
+				chat: moved, source: a, target: b, after: undefined, expectedSourceRevision: await revisionOf(db, a), expectedTargetRevision: await revisionOf(db, b),
+				workingDirectories: undefined, state: noState([moved]), coOwnedWorktrees: [],
+			});
+			const reorder = await db.reorderChatV2(b, moved, buildDefaultChatUri(b), await revisionOf(db, b));
+			const promote = await db.promoteChatV2({
+				chat: promotedChat, source: a, target: 'ahp-session:/promoted', provider: 'copilotcli', startTime: 2, expectedSourceRevision: await revisionOf(db, a), coOwnedWorktrees: [],
+				state: { expectedSourceRevision: 2, importVersion: 1, importedAt: 2, legacyMirrorBase: '{"v":2,"entries":{}}', values: {}, sourceValues: {}, chats: [{ chat: promotedChat, workingDirectories: ['file:///repo'] }], folders: [] },
+			});
+
+			assert.deepStrictEqual({
+				statuses: [move.status, reorder.status, promote.status],
+				// The promoted session is a new native session: no compatibility identity readdresses it on disk.
+				promotedOnDisk: (await db.raw.getSessionV2Registration('ahp-session:/promoted'))?.provider,
+				legacyRegistry: (await db.raw.getSession('ahp-session:/promoted'))?.provider,
+			}, {
+				statuses: ['applied', 'applied', 'applied'],
+				promotedOnDisk: 'copilotcli',
+				legacyRegistry: 'copilotcli',
+			});
+		});
+
+		test('refuses a legacy or missing catalog whatever the address; registering one is no longer gated (Block 4a)', async () => {
+			const normalized = 'copilotcli:/normalized';
+			const historicalLegacy = 'copilotcli:/historical-legacy';
+			const bare = 'copilotcli:/bare';
+			const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+			await historicalNormalized(raw, normalized, ['peer']);
+			for (const session of [historicalLegacy, bare]) {
+				await raw.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			}
+			assert.strictEqual((await raw.replaceSessionChatCatalog(historicalLegacy, [{ chat: buildChatUri(historicalLegacy, 'peer'), order: 0 }], undefined)).status, 'applied');
+			await raw.close();
+			const db = await database();
+			// A legacy catalog, as a session with a compatibility identity had before Block 4a converts it.
+			const compatBacked = 'ahp-session:/compat-backed';
+			await db.prepareSessionStorage(compatBacked, 'copilotcli');
+			await db.registerRuntimeSession(compatBacked, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			assert.strictEqual((await db.replaceSessionChatCatalog(compatBacked, [{ chat: buildChatUri(compatBacked, 'peer'), order: 0 }], undefined)).status, 'applied');
+			const peer = buildChatUri(normalized, 'peer');
+			const moveTo = (target: string) => db.moveChatV2({ chat: peer, source: normalized, target, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([peer]), coOwnedWorktrees: [] });
+			const moveFrom = (source: string) => db.moveChatV2({ chat: buildChatUri(source, 'peer'), source, target: normalized, after: undefined, expectedSourceRevision: 1, expectedTargetRevision: 1, workingDirectories: undefined, state: noState([buildChatUri(source, 'peer')]), coOwnedWorktrees: [] });
+
+			assert.deepStrictEqual({
+				historicalLegacySource: (await moveFrom(historicalLegacy)).status,
+				compatBackedSource: (await moveFrom(compatBacked)).status,
+				catalogLessTarget: (await moveTo(bare)).status,
+				promoteFromLegacy: (await db.promoteChatV2({
+					chat: buildChatUri(historicalLegacy, 'peer'), source: historicalLegacy, target: 'ahp-session:/never', provider: 'copilotcli', startTime: 2, expectedSourceRevision: 1, coOwnedWorktrees: [],
+					state: { expectedSourceRevision: 1, importVersion: 1, importedAt: 2, legacyMirrorBase: '{"v":2,"entries":{}}', values: {}, sourceValues: {}, chats: [], folders: [] },
+				})).status,
+				reorderLegacy: (await db.reorderChatV2(compatBacked, buildChatUri(compatBacked, 'peer'), undefined, 1)).status,
+				// Block 4a converts every session: a session that has no catalog registers a normalized one, whatever its address.
+				registerForBare: (await db.registerChatCatalogV2(bare, { defaultChat: { chat: buildDefaultChatUri(bare), order: 0 }, peers: [], privateDescendants: [] })).status,
+				peerStays: (await db.readCatalogSnapshot([normalized]))[0].chats.map(chat => chat.chat).includes(peer),
+			}, {
+				historicalLegacySource: 'notReady',
+				compatBackedSource: 'notReady',
+				catalogLessTarget: 'notReady',
+				promoteFromLegacy: 'notReady',
+				reorderLegacy: 'notReady',
+				registerForBare: 'applied',
+				peerStays: true,
+			});
 		});
 	});
 
@@ -561,7 +660,7 @@ suite('Session storage identity compatibility', () => {
 		await db.prepareSessionStorage(session.toString(), 'copilotcli');
 		await db.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
-		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(db, modern));
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(db, modern), noOlderBuildCopyParticipant);
 		const first = buildChatUri(session, 'first');
 		await peers.replace(session, [{ uri: first, providerData: 'sdk-first' }]);
 		const old = new SessionDataService(URI.file(directory), files(), new NullLogService());
@@ -1272,7 +1371,9 @@ suite('Session storage identity compatibility', () => {
 			const creating = createService(db);
 			registerTestAgentProvider(creating, store.add(new MockAgent('copilotcli')));
 			const created = await creating.createSession({ legacyChatUris: false, provider: 'copilotcli' });
-			await db.close();
+			// Each restart must stop the previous host first, as a real restart does: its coalesced session.db mirror
+			// writes would otherwise fire on its own connection during the next host's restore (`SQLITE_BUSY` on Windows).
+			await creating.shutdown();
 
 			const second = await database();
 			const restarted = createService(second);
@@ -1296,7 +1397,7 @@ suite('Session storage identity compatibility', () => {
 			const subagent = state?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
 			const resolvedChat = subagent && await getTestAgentStateManager(restarted).resolveChatState(subagent.resource);
 			const subagentResource = subagent?.resource;
-			await second.close();
+			await restarted.shutdown();
 
 			const third = await database();
 			const again = createService(third);
@@ -1307,6 +1408,7 @@ suite('Session storage identity compatibility', () => {
 			await again.restoreSession(created);
 			await timeout(50);
 			const secondRestore = getTestAgentStateManager(again).getSessionState(created.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource);
+			await again.shutdown();
 			assert.deepStrictEqual({ resolved: resolvedChat !== undefined, secondRestore }, { resolved: true, secondRestore: [subagentResource] });
 			assert.deepStrictEqual({
 				origin: subagent?.origin,

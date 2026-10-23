@@ -11,11 +11,15 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { toAction } from '../../../../../../../base/common/actions.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { ISessionContext } from '../../../../../../services/sessions/browser/sessionContext.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -23,12 +27,16 @@ import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../..
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Context } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -54,7 +62,7 @@ import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWor
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
 import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
@@ -152,6 +160,7 @@ function makeNoGitConfig(): ResolveSessionConfigResult {
  */
 class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'isSessionConfigResolving' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'getSessionConfigCompletions' | 'isDevContainerEnabled'> {
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+	readonly environment = { id: 'local', label: 'This Computer' };
 	readonly onDidChangeSessionConfig: Event<string>;
 	config: ResolveSessionConfigResult = makeRepoConfig('main');
 	readonly resolving = observableValue<boolean>('resolving', false);
@@ -295,7 +304,9 @@ function setupServices(
 			actionWidget.focusedItem = actionWidget.items.find(item => item.item?.id === id);
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
-	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
+	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
+	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
@@ -623,6 +634,62 @@ suite('Agent Host Session Config Picker', () => {
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 
 		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
+
+		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
+		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, true);
+		services.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: () => true,
+		}));
+		const localEntries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		assert.deepStrictEqual(localEntries, isWeb ? entries : ['Base Branch']);
+		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, false);
+		services.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: () => true,
+		}));
+		const restoredEntries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		assert.deepStrictEqual(restoredEntries, entries);
+	});
+
+	test('repository pickers keep their menu action so the composer can identify them', async () => {
+		const services = setupServices(store);
+		const providers = new Map<string, IActionViewItemFactory>();
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register(menu: MenuId, commandId: string | MenuId, provider: IActionViewItemFactory) {
+				if (menu !== Menus.NewSessionRepositoryConfig) {
+					return toDisposable(() => { });
+				}
+				providers.set(String(commandId), provider);
+				return toDisposable(() => providers.delete(String(commandId)));
+			}
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([services.activeSession]);
+		}());
+		services.instantiationService.stub(ISessionContext, new class extends mock<ISessionContext>() {
+			override readonly session = constObservable(services.activeSession);
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+
+		const actionIds = Array.from(providers, ([commandId, provider]) => {
+			const action = toAction({ id: commandId, label: commandId, run: () => { } });
+			const item = provider(action, {}, services.instantiationService, mainWindow.vscodeWindowId);
+			if (item) {
+				store.add(item);
+			}
+			return item?.action.id === commandId;
+		});
+
+		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -719,7 +786,7 @@ suite('Agent Host Session Config Picker', () => {
 		];
 
 		assert.deepStrictEqual({
-			newSessionPrimary: summarize(Menus.NewSessionConfig, newSessionIds),
+			newSessionPrimary: summarize(Menus.NewSessionChatInputToolbar, newSessionIds),
 			newSessionSecondary: summarize(Menus.NewSessionControl, newSessionIds),
 			runningSessionPrimary: summarize(MenuId.ChatInput, runningSessionIds),
 			runningSessionSecondary: summarize(MenuId.ChatInputSecondary, runningSessionIds),
@@ -960,10 +1027,10 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			choices: [
 				{ label: 'Manual permissions', badge: undefined },
-				{ label: 'Assisted permissions, Experimental', badge: 'Experimental' },
+				{ label: 'Assisted permissions, New', badge: 'New' },
 				{ label: 'Custom permissions', badge: undefined },
 			],
-			withDescription: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+			withDescription: 'Assisted permissions, New, Evaluates risk before running tools',
 			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});

@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { constObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IChannel, IChannelClient, IChannelServer, IServerChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -27,10 +29,10 @@ import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from 
 import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
-import { AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelPolicyState, IAgentHostOTelPolicyReadiness, IAgentHostOTelSettings } from '../../common/agentService.js';
+import { AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelPolicyState, IAgentCreateChatRequestOptions, IAgentHostManagementService, IAgentHostOTelPolicyReadiness, IAgentHostOTelSettings } from '../../common/agentService.js';
 import { ActionEnvelope, ActionType, INotification, NotificationType } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
 class CapturingNotificationService extends TestNotificationService {
@@ -73,6 +75,8 @@ suite('LocalAgentHostServiceClient events', () => {
 		const onDidNotification = disposables.add(new Emitter<INotification>());
 		const onMcpNotification = disposables.add(new Emitter<IMcpNotification>());
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const connectionAvailable = observableValue('test connection availability', false);
+		const createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
 		let connectCount = 0;
 		const fire = () => {
 			onDidAction.fire(action);
@@ -86,7 +90,15 @@ suite('LocalAgentHostServiceClient events', () => {
 			onMcpNotification: onMcpNotification.event,
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
 			onDidFatalClose: Event.None,
+			connectionAvailable,
+			artifactIntegrationTransport: {
+				onDidUpdate: Event.None, onDidReset: Event.None, available: connectionAvailable,
+				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
+			},
 			registerMcpAuthenticationHandler: () => Disposable.None,
+			createChat: async (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => {
+				createdChats.push({ session, chat, options });
+			},
 			dispose: () => { },
 		};
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -112,17 +124,118 @@ suite('LocalAgentHostServiceClient events', () => {
 			return listeners;
 		};
 		return {
-			service, received, listen, fire, onDidChangeConnectionState,
+			service, received, listen, fire, onDidChangeConnectionState, createdChats,
+			setConnectionState: (state: AgentHostClientState) => {
+				connectionAvailable.set(state === AgentHostClientState.Connected, undefined);
+				onDidChangeConnectionState.fire(state);
+			},
 			connectCount: () => connectCount,
 			listening: () => [onDidAction.hasListeners(), onDidNotification.hasListeners(), onMcpNotification.hasListeners()],
 		};
 	}
+
+	teardown(() => sinon.restore());
 
 	test('exposes the local connection kind before the host starts', () => {
 		const { service } = createService();
 		const beforeStart = service.clientConnectionKind;
 		service.startAgentHost();
 		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
+	});
+
+	test('reads the environment display name from local host management', async () => {
+		const { service } = createService();
+		const managementService = new class extends mock<IAgentHostManagementService>() {
+			override async getMissionControlEnvironmentName() { return 'Host-owned name (VS Code Insiders)'; }
+		}();
+		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
+		assert.strictEqual(await service.getMissionControlEnvironmentName(), 'Host-owned name (VS Code Insiders)');
+	});
+
+	test('routes title-only and prompt-bearing creation through AHP, while retaining legacy model management routing', async () => {
+		const { service, createdChats } = createService();
+		const managementChats: { session: URI; chat: URI; options: IAgentCreateChatRequestOptions }[] = [];
+		const managementService = new class extends mock<IAgentHostManagementService>() {
+			override async createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
+				managementChats.push({ session, chat, options });
+			}
+		}();
+		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
+		service.startAgentHost();
+		const session = URI.parse('agent-session://test/session');
+		const titleOnlyChat = URI.parse('agent-chat://test/session/title-only');
+		const modelChat = URI.parse('agent-chat://test/session/model');
+		const promptChat = URI.parse('agent-chat://test/session/prompt');
+
+		await service.createChat(session, titleOnlyChat, { title: 'Title only' });
+		await service.createChat(session, modelChat, { title: 'Model title', model: { id: 'model-1' } });
+		await service.createChat(session, promptChat, {
+			title: 'Prompt title',
+			model: { id: 'model-2' },
+			agent: { uri: 'agent://test/reviewer' },
+			initialMessage: {
+				text: 'Review this image',
+				origin: { kind: MessageKind.User },
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/image.png', label: 'image.png' }],
+			},
+		});
+
+		assert.deepStrictEqual({
+			protocol: createdChats,
+			management: managementChats,
+		}, {
+			protocol: [{
+				session,
+				chat: titleOnlyChat,
+				options: { title: 'Title only' },
+			}, {
+				session,
+				chat: promptChat,
+				options: {
+					title: 'Prompt title',
+					model: { id: 'model-2' },
+					agent: { uri: 'agent://test/reviewer' },
+					initialMessage: {
+						text: 'Review this image',
+						origin: { kind: MessageKind.User },
+						attachments: [{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/image.png', label: 'image.png' }],
+					},
+				},
+			}],
+			management: [{
+				session,
+				chat: modelChat,
+				options: { title: 'Model title', model: { id: 'model-1' } },
+			}],
+		});
+	});
+
+	test('installs, rotates and removes sandbox certificates through Management rather than the disabled AHP extension route', async () => {
+		const { service } = createService();
+		const channels: string[] = [];
+		const calls: [string, string, string][] = [];
+		const channel = ProxyChannel.fromService({
+			installSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['install', chat, scopeId]); },
+			rotateSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['rotate', chat, scopeId]); },
+			removeSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['remove', chat, scopeId]); },
+		}, disposables.add(new DisposableStore()));
+		const client: IChannelClient = {
+			getChannel: <T extends IChannel>(name: string): T => {
+				channels.push(name);
+				const ipcChannel: IChannel = { call: (command, args) => channel.call(undefined, command, args), listen: () => Event.None };
+				return ipcChannel as T;
+			},
+		};
+		const managementClient = sinon.stub(LocalAgentHostManagementConnection.prototype, 'client').resolves(client);
+		disposables.add({ dispose: () => managementClient.restore() });
+		const chat = 'conversation://host/a%2Fb?revision%3D2#entry';
+		await service.installSandboxCertificate(chat, 'runtime');
+		await service.rotateSandboxCertificate(chat, 'runtime');
+		await service.removeSandboxCertificate(chat, 'runtime');
+		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get()], channels, calls }, {
+			supported: [true, true, true], channels: ['agentHostManagement', 'agentHostManagement', 'agentHostManagement'],
+			calls: [['install', chat, 'runtime'], ['rotate', chat, 'runtime'], ['remove', chat, 'runtime']],
+		});
 	});
 
 	test('forwards readiness changes and keeps another window refresh from restarting the shared host', async () => {
@@ -187,6 +300,23 @@ suite('LocalAgentHostServiceClient events', () => {
 		listen();
 		service.startAgentHost();
 		assert.deepStrictEqual(received, expected);
+	});
+
+	test('artifact transport subscribed before startup follows connection and reconnect availability', () => {
+		const { service, setConnectionState } = createService();
+		const transport = service.artifactIntegrationTransport;
+		const availability: boolean[] = [];
+		disposables.add(autorun(reader => availability.push(transport.available.read(reader))));
+		service.startAgentHost();
+		setConnectionState(AgentHostClientState.Connected);
+		setConnectionState(AgentHostClientState.Reconnecting);
+		setConnectionState(AgentHostClientState.Connected);
+		service.startAgentHost();
+		setConnectionState(AgentHostClientState.Closed);
+		assert.deepStrictEqual({
+			stableTransport: service.artifactIntegrationTransport === transport,
+			availability,
+		}, { stableTransport: true, availability: [false, true, false, true, false] });
 	});
 
 	test('preserves subscriptions across reconnects and repeated start calls', () => {
@@ -311,6 +441,10 @@ suite('registerAgentHostClientChannels', () => {
 			onDidAction: Event.None,
 			onDidNotification: Event.None,
 			onMcpNotification: Event.None,
+			artifactIntegrationTransport: {
+				onDidUpdate: Event.None, onDidReset: Event.None, available: constObservable(false),
+				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
+			},
 			registerMcpAuthenticationHandler: () => Disposable.None,
 			initializeResult: constObservable(undefined),
 			rootState: {

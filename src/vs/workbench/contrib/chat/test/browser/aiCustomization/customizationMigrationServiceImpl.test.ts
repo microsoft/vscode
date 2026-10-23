@@ -603,6 +603,55 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
+	test('excludes ignored migration groups from hints', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{
+				uri: URI.file('/workspace/.github/prompts/workspace.prompt.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+				source: PromptFileSource.GitHubWorkspace,
+			},
+			{
+				uri: URI.file('/user-data/prompts/user.prompt.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.prompt,
+				source: PromptFileSource.UserData,
+			},
+		]));
+		const harnessService = new TestCustomizationHarnessService();
+		const service = store.add(new class extends BaseCustomizationMigrationService {
+			protected override generateMigrationFlowId(): string {
+				return 'test-migration-flow-id';
+			}
+		}(
+			promptsService,
+			harnessService,
+			store.add(createMigrationConfiguration()),
+			new TestMcpService(),
+		));
+		const sessionResource = harnessService.activeSessionResource.get();
+		const workspaceIgnored = await service.computeMigrationHint(sessionResource, undefined, [{
+			type: CustomizationMigrationType.PromptFiles,
+			storage: PromptsStorage.local,
+		}]);
+		const allIgnored = await service.computeMigrationHint(sessionResource, undefined, [
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local },
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.user },
+		]);
+
+		assert.deepStrictEqual({
+			workspaceIgnored,
+			allIgnored,
+		}, {
+			workspaceIgnored: {
+				migrationFlowId: 'test-migration-flow-id',
+				message: '1 user customization needs an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+			},
+			allIgnored: undefined,
+		});
+	});
+
 	test('computes file and MCP migration candidates for Agent Host sessions', async () => {
 		const root = URI.file('/workspace');
 		const promptsService = store.add(new TestPromptsService([
@@ -969,7 +1018,7 @@ suite('CustomizationMigrationService', () => {
 				hint: copilot ? '1 user customization needs an update to keep working.' : undefined,
 				staleFailures: copilot ? ['noLongerEligible'] : [],
 				result: { migratedCount: copilot ? 1 : 0, failures: [] },
-				target: copilot ? { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } } : undefined,
+				target: copilot ? { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } } : undefined,
 				source: copilot
 					? { servers: { 'null-env': { command: 'node', env: { REMOVE_ME: null } } } }
 					: { servers: { server: { command: 'node' }, 'null-env': { command: 'node', env: { REMOVE_ME: null } } } },
@@ -1031,7 +1080,7 @@ suite('CustomizationMigrationService', () => {
 			exclusions: [['header-name', 'environmentVariableInName', ['Variables (\'${env:...}\', \'${input:...}\' or \'${config:...}\') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.']]],
 			staleFailures: ['noLongerEligible'],
 			result: { migratedCount: 1, failures: [] },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], env: { TOKEN: '${TOKEN}' }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], env: { TOKEN: '${TOKEN}' }, tools: ['*'] } } },
 		});
 	});
 
@@ -1111,9 +1160,9 @@ suite('CustomizationMigrationService', () => {
 			source: ['token', 'secret', 'api-key', 'level'],
 			target: {
 				mcpServers: {
-					server: { type: 'local', command: 'node', args: [], env: { TOKEN: '' }, tools: ['*'] },
-					digit: { type: 'local', command: 'node', args: ['${MCP_1ST}'], env: { MCP_1ST: '' }, tools: ['*'] },
-					setting: { type: 'local', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
+					server: { type: 'stdio', command: 'node', args: [], env: { TOKEN: '' }, tools: ['*'] },
+					digit: { type: 'stdio', command: 'node', args: ['${MCP_1ST}'], env: { MCP_1ST: '' }, tools: ['*'] },
+					setting: { type: 'stdio', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
 				},
 			},
 		});
@@ -1206,10 +1255,10 @@ suite('CustomizationMigrationService', () => {
 			source: ['changed', 'collision'],
 			target: {
 				mcpServers: {
-					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--level=${LEVEL}'], env: { PORT: '8080', TOKEN: '${TOKEN}', LEVEL: 'info', MCP_COMMAND: 'npx' }, tools: ['*'] },
+					local: { type: 'stdio', command: '${MCP_COMMAND}', args: ['--level=${LEVEL}'], env: { PORT: '8080', TOKEN: '${TOKEN}', LEVEL: 'info', MCP_COMMAND: 'npx' }, tools: ['*'] },
 					remote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Host': '${MCP_HOST:-localhost}' }, tools: ['*'] },
-					unset: { type: 'local', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
-					structured: { type: 'local', command: 'node', args: ['${MCP_OPTIONS}'], env: { MCP_OPTIONS: '' }, tools: ['*'] },
+					unset: { type: 'stdio', command: '${MCP_MISSING}', args: [], env: { MCP_MISSING: '' }, tools: ['*'] },
+					structured: { type: 'stdio', command: 'node', args: ['${MCP_OPTIONS}'], env: { MCP_OPTIONS: '' }, tools: ['*'] },
 					// Written as is, even though the `}` ends the default early.
 					brace: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Brace': '${MCP_BRACE:-a}b}' }, tools: ['*'] },
 				},
@@ -1257,7 +1306,7 @@ suite('CustomizationMigrationService', () => {
 		}, {
 			candidates: [['server', PromptsStorage.local, [{ key: 'mcp.port', name: 'MCP_PORT', value: '8080' }, { key: 'user.token', name: 'USER_TOKEN', value: '' }]]],
 			result: { migratedCount: 1, failures: [] },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['--port=${MCP_PORT}', '--token=${USER_TOKEN}'], env: { MCP_PORT: '8080', USER_TOKEN: '' }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: ['--port=${MCP_PORT}', '--token=${USER_TOKEN}'], env: { MCP_PORT: '8080', USER_TOKEN: '' }, tools: ['*'] } } },
 		});
 	});
 
@@ -1425,7 +1474,7 @@ suite('CustomizationMigrationService', () => {
 			enabledExecutionResult: { migratedCount: 1, failures: [] },
 			enabledExecutionWrites: ['/workspace/.mcp.json', '/workspace/.vscode/mcp.json'],
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1498,7 +1547,7 @@ suite('CustomizationMigrationService', () => {
 			],
 			writes: ['/queued-before-plan/.mcp.json', '/queued-before-plan/.vscode/mcp.json'],
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1742,7 +1791,7 @@ suite('CustomizationMigrationService', () => {
 			changedDuringWriteResult: { migratedCount: 1, failures: [] },
 			sourceBeforeSupportSettled: '{"servers":{"server":{"command":"node"}}}',
 			source: '{\n\t"servers": {}\n}',
-			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "local",\n\t\t\t"command": "node",\n\t\t\t"args": [],\n\t\t\t"tools": [\n\t\t\t\t"*"\n\t\t\t]\n\t\t}\n\t}\n}',
+			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "stdio",\n\t\t\t"command": "node",\n\t\t\t"args": [],\n\t\t\t"tools": [\n\t\t\t\t"*"\n\t\t\t]\n\t\t}\n\t}\n}',
 		});
 	});
 
@@ -1920,7 +1969,7 @@ suite('CustomizationMigrationService', () => {
 			failures: [],
 			sourceBeforeSupportSettled: { servers: { server: { command: 'node' } } },
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -1981,8 +2030,8 @@ suite('CustomizationMigrationService', () => {
 			result: { migratedCount: 2, failures: [] },
 			sources: [{ servers: {} }, { servers: {} }],
 			targets: [
-				{ mcpServers: { server0: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
-				{ mcpServers: { server1: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				{ mcpServers: { server0: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
+				{ mcpServers: { server1: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 			],
 		});
 	});
@@ -2353,7 +2402,7 @@ suite('CustomizationMigrationService', () => {
 				localSource: sourceContent,
 				localTargetExists: false,
 				remoteSource: disconnected ? { servers: { server: { command: 'node' } } } : { servers: {} },
-				remoteTarget: disconnected ? undefined : { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				remoteTarget: disconnected ? undefined : { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 			});
 		});
 	}

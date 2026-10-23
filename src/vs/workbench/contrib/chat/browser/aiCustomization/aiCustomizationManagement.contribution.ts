@@ -69,6 +69,7 @@ import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } fro
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
+import { CustomizationMigrationResultToolContribution } from './customizationMigrationResultTool.js';
 
 //#region Telemetry
 
@@ -136,6 +137,7 @@ type AICustomizationContext = {
 	uri: URI | string;
 	name?: string;
 	promptType?: PromptsType;
+	source?: AICustomizationSource;
 	storage?: PromptsStorage;
 	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
@@ -164,7 +166,8 @@ function extractSource(context: AICustomizationContext): AICustomizationSource |
 	if (URI.isUri(context) || typeof context === 'string') {
 		return undefined;
 	}
-	return context.storage;
+	// The item list passes `source`; the discovery page passes `storage`.
+	return context.source ?? context.storage;
 }
 
 /**
@@ -601,7 +604,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 });
 
 // Show Plugin action - navigates to the parent plugin detail page
-const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.showPlugin';
+const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = AICustomizationManagementCommands.ShowPlugin;
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -881,9 +884,9 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
 					if (typeof target !== 'string' && target?.connectorName) {
-						const result = await pane.showCopilotConnectorDetail(target.connectorName);
+						const result = await pane.showCopilotConnectorDetail(target.connectorName, target.connectorDisplayName);
 						if (result === CopilotConnectorDetailOpenResult.NotFound) {
-							throw new Error(`Copilot connector '${target.connectorName}' is not available`);
+							throw new Error(`Copilot connector '${target.connectorDisplayName ?? target.connectorName}' is not available`);
 						}
 					} else {
 						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
@@ -931,6 +934,11 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 registerWorkbenchContribution2(
 	AICustomizationManagementActionsContribution.ID,
 	AICustomizationManagementActionsContribution,
+	WorkbenchPhase.AfterRestored
+);
+registerWorkbenchContribution2(
+	CustomizationMigrationResultToolContribution.ID,
+	CustomizationMigrationResultToolContribution,
 	WorkbenchPhase.AfterRestored
 );
 

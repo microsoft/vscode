@@ -207,6 +207,17 @@
 	line-height: 16px;
 }
 
+/* Signals that a section needs attention, such as suggestions to review. */
+.ai-customization-management-editor .section-list-item .section-badge {
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityBarBadge-background);
+}
+
 /* Content area */
 .ai-customization-management-editor .management-content {
 	background-color: var(--vscode-editor-background);
@@ -1335,6 +1346,91 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row .copilot-customization-tree-item:hover {
+	background: transparent;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	height: 100%;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.readonly {
+	cursor: default;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-text {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-label {
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-detail {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 14px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-source-link,
+.ai-customization-management-editor .copilot-customization-tree-detail-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-source-link {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-detail-separator {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-canvas-tree-item .copilot-customization-tree-label {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {
+	opacity: 0.6;
+}
+
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row:is(.selected, .focused) .copilot-customization-tree-detail {
+	color: inherit;
+}
+
+.ai-customization-management-editor .copilot-customizations-tree .monaco-list-row:is(.selected, .focused) .copilot-customization-tree-source-link.source-link {
+	color: var(--vscode-textLink-foreground);
+}
+
+.ai-customization-management-editor .copilot-customization-tree-actions {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-left: auto;
+}
+
 .ai-customization-management-editor .tools-inventory-section {
 	display: flex;
 	flex-direction: column;
@@ -1781,6 +1877,11 @@ per-word capitalization does not survive translation. */
 	position: relative;
 	height: 100%;
 	min-height: 0;
+}
+
+.ai-customization-management-editor .embedded-marketplace-detail {
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .ai-customization-management-editor .mcp-detail-editor-scrollable,
@@ -2821,6 +2922,7 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-source-path.source-link,
+.copilot-customization-tree-source-link.source-link,
 .tools-list-connected-row .source-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
@@ -2828,12 +2930,14 @@ per-word capitalization does not survive translation. */
 }
 
 .mcp-server-item .mcp-server-source-path.source-link:hover,
+.copilot-customization-tree-source-link.source-link:hover,
 .tools-list-connected-row .source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
 .mcp-server-item .mcp-server-source-path.source-link:focus-visible,
+.copilot-customization-tree-source-link.source-link:focus-visible,
 .tools-list-connected-row .source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
@@ -3559,11 +3663,13 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .plugin-card-icon-button.monaco-button:not(.disabled),
-.ai-customization-group-header .plugin-card-icon-button.monaco-button:not(.disabled) {
+.ai-customization-group-header .plugin-card-icon-button.monaco-button:not(.disabled),
+.copilot-customization-tree-actions .plugin-card-icon-button.monaco-button:not(.disabled) {
 	cursor: pointer;
 }
 
-.ai-customization-group-header .plugin-card-icon-button.monaco-button {
+.ai-customization-group-header .plugin-card-icon-button.monaco-button,
+.copilot-customization-tree-actions .plugin-card-icon-button.monaco-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -3577,7 +3683,8 @@ per-word capitalization does not survive translation. */
 	border-color: transparent;
 }
 
-.ai-customization-group-header .plugin-card-icon-button.monaco-button:hover {
+.ai-customization-group-header .plugin-card-icon-button.monaco-button:hover,
+.copilot-customization-tree-actions .plugin-card-icon-button.monaco-button:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 	border-color: transparent;

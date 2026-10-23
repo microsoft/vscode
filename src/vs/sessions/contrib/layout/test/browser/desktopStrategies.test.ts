@@ -814,6 +814,68 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
+	test('Existing Session closes the side pane when its last editor closes while multiple chats of the session are shown', async () => {
+		const ctx = setup({}, { multipleChatsVisible: true });
+		ctx.chatLayoutActive = () => true;
+		const session = makeSession(URI.parse('session:/existing'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(
+			DesktopExistingSessionStrategy,
+			ctx,
+			createVisibilityStore(),
+			createDetailPanel()
+		));
+		activate(session);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidEditorsChange.fire({ groupId: 1, event: { kind: GroupModelChangeKind.EDITOR_CLOSE } });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
+	});
+
+	test('Existing Session closes the side pane when its last editor closes while another mounted session is not shown', async () => {
+		const ctx = setup({}, { multipleChatsVisible: false });
+		ctx.chatLayoutActive = () => true;
+		const session = makeSession(URI.parse('session:/existing'));
+		const otherSession = makeSession(URI.parse('session:/other'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(
+			DesktopExistingSessionStrategy,
+			ctx,
+			createVisibilityStore(),
+			createDetailPanel()
+		));
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session, otherSession], undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidEditorsChange.fire({ groupId: 1, event: { kind: GroupModelChangeKind.EDITOR_CLOSE } });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
+	});
+
 	test('Existing Session restores its composition when another mounted session is hidden', () => {
 		const ctx = setup({}, { multipleChatsVisible: false });
 		ctx.chatLayoutActive = () => true;
@@ -839,6 +901,56 @@ suite('Desktop layout strategies', () => {
 		}, {
 			editor: false,
 			auxiliaryBar: true,
+		});
+	});
+
+	test('Quick Chat closes the side pane when its last editor closes while multiple chats are shown', () => {
+		const ctx = setup({}, { multipleChatsVisible: true });
+		ctx.chatLayoutActive = () => true;
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		const editor = store.add(new TestStubEditorInput(URI.parse('browser://quick')));
+		harness.activeGroupEditors.push(editor);
+		createDraftStrategy(ctx);
+		activate(quickChat);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
+	});
+
+	test('Quick Chat closes the side pane when its last editor closes while another mounted session is not shown', () => {
+		const ctx = setup({}, { multipleChatsVisible: false });
+		ctx.chatLayoutActive = () => true;
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		const otherSession = makeSession(URI.parse('session:/other'));
+		const editor = store.add(new TestStubEditorInput(URI.parse('browser://quick')));
+		harness.activeGroupEditors.push(editor);
+		createDraftStrategy(ctx);
+		harness.activeSessionObs.set(quickChat, undefined);
+		harness.visibleSessionsObs.set([quickChat, otherSession], undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 		});
 	});
 
@@ -1166,4 +1278,49 @@ suite('Desktop layout strategies', () => {
 			auxiliaryBarVisible: false,
 		});
 	});
+
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		for (const leftOpen of [true, false]) {
+			test(`Quick Chat side pane left ${leftOpen ? 'open' : 'closed'} is ${mode === 'chat' ? 'restored' : 'shared'} (${mode})`, () => {
+				harness = createTestHarness(store);
+				const { ctx: baseCtx, state } = createStrategyTestContext(store, harness);
+				const ctx: IDesktopLayoutContext = {
+					...baseCtx,
+					get isRestoringSessionLayout() { return baseCtx.isRestoringSessionLayout; },
+					get togglingSidePane() { return baseCtx.togglingSidePane; },
+					chatLayoutActive: () => mode !== 'session-shared',
+					sharedChatLayout: mode === 'chat-shared',
+				};
+				const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+				const otherSession = makeSession(URI.parse('session:/other'));
+				state.setHasSavedWorkingSet(quickChat.resource, true);
+				const visibilityStore = createVisibilityStore();
+				createDraftStrategy(ctx, visibilityStore);
+				const canvas = store.add(new TestStubEditorInput(URI.parse('canvas://quick')));
+
+				activate(quickChat);
+				harness.activeGroupEditors.push(canvas);
+				harness.editorGroupsHaveContent = true;
+				harness.activeEditorInput = canvas;
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+				harness.partVisibility.set(Parts.EDITOR_PART, leftOpen);
+				harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: leftOpen });
+
+				activate(otherSession);
+				harness.partVisibility.set(Parts.EDITOR_PART, !leftOpen);
+				visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: !leftOpen, auxiliaryBarVisible: false });
+
+				activate(quickChat);
+				state.endSessionLayoutRestore();
+
+				assert.deepStrictEqual({
+					editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+					auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+				}, {
+					editorVisible: mode === 'chat' ? leftOpen : !leftOpen,
+					auxiliaryBarVisible: false,
+				});
+			});
+		}
+	}
 });

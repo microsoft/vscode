@@ -5,24 +5,31 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, type IChangesetOperationContribution, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
-import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri } from '../../common/changesetUri.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
+import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHostAcceptChangesOperationProvider.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
+import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { IAgentChatConfigurationTarget, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
@@ -132,6 +139,7 @@ class TestConfigurationService implements IAgentConfigurationService {
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
 	getSessionSandboxEnabled(): undefined { return undefined; }
 	getChatSandboxEnabled(): undefined { return undefined; }
+	getChatAttachmentScopes(target: IAgentChatConfigurationTarget): readonly string[] { return [target.session]; }
 	setChatSandboxEnabled(): void { }
 	rejectChatSandboxChange(): void { }
 
@@ -250,13 +258,14 @@ const sampleOperations: readonly ChangesetOperation[] = [
 suite('AgentHostChangesetOperationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(stateManager: AgentHostStateManager, configurationService: IAgentConfigurationService = new TestConfigurationService(undefined), gitStateService: IAgentHostGitStateService = new TestGitStateService()): AgentHostChangesetOperationService {
+	function createService(stateManager: AgentHostStateManager, configurationService: IAgentConfigurationService = new TestConfigurationService(undefined), gitStateService: IAgentHostGitStateService = new TestGitStateService(), fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator())): AgentHostChangesetOperationService {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			gitStateService,
 			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
 			createTestChatOwnershipService(stateManager),
+			fileEditCoordinator,
 		));
 	}
 
@@ -439,6 +448,7 @@ suite('AgentHostChangesetOperationService', () => {
 			subscriptions,
 			new TestConfigurationService(['file:///a']),
 			createTestChatOwnershipService(stateManager),
+			disposables.add(new AgentHostFileEditCoordinator()),
 		));
 		const contribution = new RecordingOperationsContribution(sampleOperations);
 		disposables.add(service.registerContribution(contribution));
@@ -533,7 +543,7 @@ suite('AgentHostChangesetOperationService', () => {
 			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 			subscriptions.addSubscription(sessionKey, sessionKey);
 			subscriptions.addSubscription(sessionKey, changesetUri);
-			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager)));
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 			disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 			const channels: string[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
@@ -567,7 +577,7 @@ suite('AgentHostChangesetOperationService', () => {
 		stateManager.registerChangeset(changesetUri);
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(folderOwner, changesetUri);
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 
 		service.updateOperations(sessionKey, undefined, sampleGitState);
@@ -593,7 +603,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(folderOwner, changesetUri);
 		const gitStateService = new TestGitStateService(new Map([[defaultChat, sampleGitState]]));
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 		const registryCapture = new RegistryCaptureContribution();
 		disposables.add(service.registerContribution(registryCapture));
@@ -618,7 +628,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(sessionKey, changesetUri);
 		const gitStateService = new TestGitStateService(new Map([[sessionKey, sampleGitState]]));
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(['file:///workspace']), createTestChatOwnershipService(stateManager)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(['file:///workspace']), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		const operations: readonly ChangesetOperation[] = [
 			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
 			{ id: AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
@@ -659,7 +669,8 @@ suite('AgentHostChangesetOperationService', () => {
 	test('single-folder session with absent git state does not dispatch (no premature clear)', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
-		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		// Turn changesets don't wait for Git state, so use one whose operations do.
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
 		stateManager.registerChangeset(changesetUri);
 		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
@@ -781,6 +792,112 @@ suite('AgentHostChangesetOperationService', () => {
 		}]);
 	});
 
+	test('advertises Discard Changes on Session Changes and only on the last turn changeset as turns start and complete, with or without Git state', () => {
+		const run = (gitState: ISessionGitState | undefined) => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const sessionKey = 'agent:/session';
+			const chat = buildDefaultChatUri(sessionKey);
+			stateManager.createSession({
+				resource: sessionKey,
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				defaultChat: chat,
+			});
+			const startTurn = (turnId: string) => stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId,
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hi', origin: { kind: MessageKind.User } },
+			});
+			const completeTurn = (turnId: string) => stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+			const turnUris = ['turn-1', 'turn-2', 'turn-3'].map(turnId => buildTurnChangesetUri(chat, turnId));
+			for (const turnUri of turnUris) {
+				stateManager.registerChangeset(turnUri);
+				subscriptions.addSubscription(chat, turnUri);
+			}
+			const sessionUri = buildSessionChangesetUri(sessionKey);
+			stateManager.registerChangeset(sessionUri);
+			subscriptions.addSubscription(sessionKey, sessionUri);
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
+			// Only the advertising half of the contribution is under test; its handler needs file services.
+			const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
+			disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => discard.getOperations(context), dispose: () => { } }));
+			// Operations of other contributions wait for Git state, even ones that would be offered without it.
+			disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => context.gitState ? undefined : sampleOperations, dispose: () => { } }));
+			// The coordinator refreshes the operations of subscribed changesets whenever a turn starts or completes.
+			const refresh = () => {
+				service.updateOperations(sessionKey, undefined, gitState);
+				const describe = (changesetUri: string) => stateManager.getChangesetState(changesetUri)?.operations?.map(operation => `${operation.id}:${operation.status}`) ?? [];
+				return { ...Object.fromEntries(turnUris.map((turnUri, index) => [`turn-${index + 1}`, describe(turnUri)])), session: describe(sessionUri) };
+			};
+
+			startTurn('turn-1');
+			completeTurn('turn-1');
+			startTurn('turn-2');
+			completeTurn('turn-2');
+			const afterTurn2 = refresh();
+			startTurn('turn-3');
+			const whileTurn3Runs = refresh();
+			completeTurn('turn-3');
+			const afterTurn3 = refresh();
+			const branch = service.getOperations(sessionKey, buildBranchChangesetUri(chat), gitState).map(operation => operation.id);
+			return { afterTurn2, whileTurn3Runs, afterTurn3, branch };
+		};
+
+		const lastTurnOnly = {
+			afterTurn2: { 'turn-1': [], 'turn-2': ['discard-changes:idle'], 'turn-3': [], session: ['discard-changes:idle'] },
+			whileTurn3Runs: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:disabled'], session: ['discard-changes:disabled'] },
+			afterTurn3: { 'turn-1': [], 'turn-2': [], 'turn-3': ['discard-changes:idle'], session: ['discard-changes:idle'] },
+		};
+		assert.deepStrictEqual({ withGit: run(sampleGitState), withoutGit: run(undefined) }, {
+			withGit: { ...lastTurnOnly, branch: ['discard-changes'] },
+			// Other operations still wait for the session's Git state.
+			withoutGit: { ...lastTurnOnly, branch: [] },
+		});
+	});
+
+	test('offers only Accept Changes and Discard Changes on the Working Set, with or without Git state, and keeps them while a turn runs as far as the provider allows', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const chat = buildDefaultChatUri(sessionKey);
+		stateManager.createSession({ resource: sessionKey, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat });
+		const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+		const service = createService(stateManager, undefined, undefined, fileEditCoordinator);
+		// Only the advertising halves of the contributions are under test; their handlers need more services.
+		const accept = disposables.add(new AgentHostAcceptChangesOperationContribution(new (mock<IInstantiationService>())()));
+		const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
+		for (const contribution of [accept, discard]) {
+			disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => contribution.getOperations(context), dispose: () => { } }));
+		}
+		// Stands in for repository workflows, like pull requests, that don't look at the changeset kind.
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+		const workingSet = buildWorkingSetChangesetUri(sessionKey);
+		const describe = (changeset: string, gitState: ISessionGitState | undefined) => service.getOperations(sessionKey, changeset, gitState).map(operation => `${operation.id}:${operation.status}`);
+
+		const idle = { withGit: describe(workingSet, sampleGitState), withoutGit: describe(workingSet, undefined), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: 'hi', origin: { kind: MessageKind.User } } });
+		const whileTurnRuns = { workingSet: describe(workingSet, sampleGitState), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
+		// The provider's edit tool calls wait for discards of their files, so its files' changes can be undone too.
+		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+
+		assert.deepStrictEqual({ idle, whileTurnRuns, whileCoordinatedTurnRuns: describe(workingSet, sampleGitState) }, {
+			idle: {
+				withGit: ['accept-changes:idle', 'discard-changes:idle'],
+				withoutGit: ['accept-changes:idle', 'discard-changes:idle'],
+				session: ['discard-changes:idle', `${testOperationId}:idle`],
+			},
+			whileTurnRuns: {
+				workingSet: ['accept-changes:idle', 'discard-changes:disabled'],
+				session: ['discard-changes:disabled', `${testOperationId}:disabled`],
+			},
+			whileCoordinatedTurnRuns: ['accept-changes:idle', 'discard-changes:idle'],
+		});
+	});
+
 	test('offers pull request workflows on every folder scope Branch and Uncommitted changeset and keeps merge with the default chat', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const sessionKey = 'agent:/session';
@@ -858,6 +975,135 @@ suite('AgentHostChangesetOperationService', () => {
 			firstResult: { message: { markdown: 'Committed' } },
 			secondResult: { message: { markdown: 'Committed' } },
 		});
+	});
+
+	test('serializes identical operations from different credential sources without sharing results', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		const a: IAgentHostCredentialSource = { getCredential: () => undefined };
+		const b: IAgentHostCredentialSource = { getCredential: () => undefined };
+		const sources: (IAgentHostCredentialSource | undefined)[] = [];
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			invoke: (_params, _token, source) => {
+				sources.push(source);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		})));
+		const params = { channel: changeset, operationId: testOperationId };
+		const first = service.invokeChangesetOperation(params, a);
+		const duplicate = service.invokeChangesetOperation(params, a);
+		const second = service.invokeChangesetOperation(params, b);
+		pending[0].complete({ message: { markdown: 'a' } });
+		await first;
+		pending[1].complete({ message: { markdown: 'b' } });
+		assert.deepStrictEqual({ sources, results: await Promise.all([first, duplicate, second]) }, {
+			sources: [a, b],
+			results: [{ message: { markdown: 'a' } }, { message: { markdown: 'a' } }, { message: { markdown: 'b' } }],
+		});
+	});
+
+	test('captures a queued operation credential before another operation completes', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		let token = 'admitted-token';
+		const source: IAgentHostCredentialSource = { getCredential: request => ({ resource: request.resource, token, revision: 1, expiresAt: undefined }) };
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const tokens: (string | undefined)[] = [];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			captureCredentialSource: (_params, source) => source ? captureCredentialSource(source, [{ resource: 'repo', scopes_supported: ['repo'], required: false }]) : undefined,
+			invoke: (_params, _token, source) => {
+				tokens.push(source?.getCredential({ resource: 'repo', scopes: ['repo'] })?.token);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		})));
+		const first = service.invokeChangesetOperation({ channel: changeset, operationId: testOperationId, _meta: { request: 1 } }, source);
+		const second = service.invokeChangesetOperation({ channel: changeset, operationId: testOperationId, _meta: { request: 2 } }, source);
+		token = 'rotated-token';
+		pending[0].complete({});
+		await first;
+		pending[1].complete({});
+		await second;
+		assert.deepStrictEqual(tokens, ['admitted-token', 'admitted-token']);
+	});
+
+	test('credential rotation separates identical operations while retries still join their admitted revision', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		const resource = 'https://api.github.com/repos';
+		const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+		await scope.authenticate({ resource, token: 'broad', scopes: ['repo', 'extra'] }, [resource]);
+		const pending: DeferredPromise<InvokeChangesetOperationResult>[] = [];
+		const tokens: (string | undefined)[] = [];
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			captureCredentialSource: (_params, source) => source ? captureCredentialSource(source, [{ resource, scopes_supported: ['repo'] }]) : undefined,
+			invoke: (_params, _token, source) => {
+				tokens.push(source?.getCredential({ resource })?.token);
+				const result = new DeferredPromise<InvokeChangesetOperationResult>();
+				pending.push(result);
+				return result.p;
+			},
+		})));
+		const params = { channel: changeset, operationId: testOperationId };
+		const first = service.invokeChangesetOperation(params, scope);
+		const firstRetry = service.invokeChangesetOperation(params, scope);
+		await scope.authenticate({ resource, token: 'narrow', scopes: ['repo'] }, [resource]);
+		const second = service.invokeChangesetOperation(params, scope);
+		const secondRetry = service.invokeChangesetOperation(params, scope);
+		const beforeCompletion = [...tokens];
+		pending[0].complete({ message: { markdown: 'first revision' } });
+		await first;
+		if (pending[1]) {
+			pending[1].complete({ message: { markdown: 'second revision' } });
+		}
+		assert.deepStrictEqual({
+			beforeCompletion,
+			tokens,
+			results: await Promise.all([first, firstRetry, second, secondRetry]),
+		}, {
+			beforeCompletion: ['broad'], tokens: ['broad', 'narrow'],
+			results: [
+				{ message: { markdown: 'first revision' } }, { message: { markdown: 'first revision' } },
+				{ message: { markdown: 'second revision' } }, { message: { markdown: 'second revision' } },
+			],
+		});
+	});
+
+	test('a disconnected sponsor cannot join an identical already-admitted operation', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const changeset = buildUncommittedChangesetUri('agent:/session');
+		stateManager.registerChangeset(changeset);
+		stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...sampleOperations] });
+		const resource = 'https://api.github.com/repos';
+		const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+		await scope.authenticate({ resource, token: 'admitted' }, [resource]);
+		const pending = new DeferredPromise<InvokeChangesetOperationResult>();
+		let calls = 0;
+		const service = createService(stateManager);
+		disposables.add(service.registerContribution(new TestContribution({
+			captureCredentialSource: (_params, source) => source ? captureCredentialSource(source, [{ resource }]) : undefined,
+			invoke: () => { calls++; return pending.p; },
+		})));
+		const params = { channel: changeset, operationId: testOperationId };
+		const first = service.invokeChangesetOperation(params, scope);
+		scope.dispose();
+		pending.complete({});
+		await assert.rejects(service.invokeChangesetOperation(params, scope), { code: AhpErrorCodes.AuthRequired });
+		await first;
+		assert.strictEqual(calls, 1);
 	});
 
 	test('serializes in-flight invocations with different metadata', async () => {

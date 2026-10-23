@@ -5,6 +5,7 @@
 
 import { Limiter, RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { getComparisonKey } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -13,14 +14,16 @@ import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { ILogService } from '../../log/common/log.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
-import { baseBranchFolderKey, IAgentHostSessionStateStore, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
+import { baseBranchFolderKey, chatMoveFolderTransfers, IAgentHostSessionStateStore, type ISessionStateChange, ISessionStateChatMove, ISessionStateChatPromotion, type ISessionStateWorktreeCoOwner, type ISessionStateWorktreeListChanges, SessionStateChatMoveResult, SessionStateChatPromotionResult, ISessionStateChatEntry, ISessionStateKnownCatalog, ISessionStateExclusive, ISessionStateFolderEntry, ISessionStateFolderPatch, ISessionStateLegacyMetadata, ISessionStateMetadataReader, ISessionStateMetadataReference, ISessionStatePatch, ISessionStateSnapshot, readSessionBaseBranch, SessionStateDeletedError, SessionStateFolderKind, SessionStateNotASessionError, SessionStateMirrorFlush, sessionStatePatch, SessionStateValuesPrefetch, ISessionStateValuesPrefetchEntry } from '../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentHostChatRowStore } from './agentHostChatRowStore.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import type { IAgentHostSessionChatStateData, IAgentHostSessionChatStateFields, IAgentHostSessionStateImport, IAgentHostSessionStatePatch } from './agentHostSessionStateDatabase.js';
-import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorEntry, renderMirrorWrites, SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
+import { BASE_BRANCH_MIRROR_KEY, COPILOT_LAUNCH_DIRECTORY_KEYS, getSessionStateValueKey, IMirrorReadPlan, isProjectedMirrorEntry, isRetiredLegacyKey, legacyMapWritePatch, legacyWriteEntry, ILiveChat, baseBranchSources, CHAT_WORKING_DIRECTORIES_MIRROR_KEY, MirrorReads, mergePatches, mirroredChatFields, mirrorEntryId, observedMirrorEntries, observeLegacyArchived, observeMirrorEntry, parseMirrorEntryId, patchFromMirror, patchMirrorEntries, planMirrorReads, renderLegacyMetadata, renderMirrorWrites, renderOlderBuildEntry, CENTRAL_SESSION_STATE_VALUE_KEYS, sessionFolderKey, SessionStateMirrorEntry, SessionStateModel } from './agentHostSessionStateMirror.js';
 import { META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
+import { withSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from './shared/sessionWorktreeFolders.js';
 import { creationTimeChatStorageResource, mirrorsAtChatUri } from './agentHostStateManager.js';
 
 /** Coalescing window of the old-format mirror writes. */
@@ -149,6 +152,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	/** Loaded legacy-catalog sessions whose authority refresh failed, re-checked on their next locked load. */
 	private readonly _authorityRechecks = new Set<string>();
 	readonly chatRows: AgentHostChatRowStore;
+	private readonly _onDidChangeLoadedState = this._register(new Emitter<ISessionStateChange>());
+	readonly onDidChangeLoadedState: Event<ISessionStateChange> = this._onDidChangeLoadedState.event;
 
 	constructor(
 		private readonly _mirrorFlushDelay: number,
@@ -218,6 +223,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			record.model = new SessionStateModel(state, 2);
 			record.snapshot = undefined;
+			this._onDidChangeLoadedState.fire({ session: key, values: [], authority: true });
 			// A normalized catalog's chat keys are not the store's, so its chats have no mirror entries.
 			for (const id of [...record.dirty, ...record.base.keys()]) {
 				if (parseMirrorEntryId(id).kind === 'chat') {
@@ -251,12 +257,21 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		return this._sequencer.queue(sequencerKey, async () => {
 			const record = await this._loadLocked(session, sequencerKey, () => this._readCatalog(session));
 			let immediate = false;
+			/** Mirror entries of writes that must reach older builds' copy before the section ends. */
+			const acknowledged = new Set<string>();
 			const snapshot = () => this._snapshot(record);
 			const exclusive: ISessionStateExclusive = {
 				get snapshot() { return snapshot(); },
 				write: async (patch, flush) => {
 					const revision = await this._writeCentral(record, patch, true, true);
-					if (flush === SessionStateMirrorFlush.Immediate) {
+					if (flush === SessionStateMirrorFlush.Acknowledged) {
+						for (const entry of patchMirrorEntries(patch)) {
+							if (record.dirty.has(mirrorEntryId(entry))) {
+								acknowledged.add(mirrorEntryId(entry));
+							}
+						}
+					}
+					if (flush !== SessionStateMirrorFlush.Coalesced) {
 						immediate = true;
 					} else if (!record.scheduler.isScheduled()) {
 						record.scheduler.schedule();
@@ -268,14 +283,14 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					const { patches } = this._legacyWritePatches(record, URI.parse(record.key), values);
 					const patch = mergePatches(patches);
 					const revision = await this._writeCentral(record, patch, true, false);
-					if (flush === SessionStateMirrorFlush.Immediate) {
+					if (flush !== SessionStateMirrorFlush.Coalesced) {
 						immediate = true;
 					} else if (!record.scheduler.isScheduled()) {
 						record.scheduler.schedule();
 					}
 					// Only entries the caller's raw write leaves exactly as rendered may be noted as mirrored.
 					const entries = patchMirrorEntries(patch)
-						.filter(entry => entry.kind === 'folder' || (entry.kind === 'value' && renderMirrorEntry(record.model, entry) === values[entry.key]))
+						.filter(entry => entry.kind === 'folder' || (entry.kind === 'value' && renderOlderBuildEntry(record.model, entry) === values[entry.key]))
 						.map(mirrorEntryId);
 					return { revision, entries };
 				},
@@ -296,6 +311,11 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 				await this._flushLocked(record);
 			} else if (!record.scheduler.isScheduled()) {
 				await this._flushLocked(record);
+			}
+			// A failed mirror write stays dirty, and is retried.
+			const unmirrored = [...acknowledged].filter(id => record.dirty.has(id));
+			if (unmirrored.length > 0) {
+				throw new Error(`Older builds' copy of ${record.key} was not written (${unmirrored.join(', ')})`);
 			}
 			return result;
 		});
@@ -337,7 +357,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const { patches, unowned, unownedRemovals } = this._legacyWritePatches(record, resource, values);
 			if (patches.length > 0) {
 				await this._writeCentral(record, mergePatches(patches), true, true);
-				if (flush === SessionStateMirrorFlush.Immediate) {
+				if (flush !== SessionStateMirrorFlush.Coalesced) {
 					record.scheduler.cancel();
 					// Old-format readers still depend on the mirror, so an Immediate write reports its failure.
 					failure = await this._flushLocked(record);
@@ -459,7 +479,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			return new Map();
 		}
 		const sequence = this._centralWriteSequence;
-		const central = await this._database.readSessionStateValues(unloaded, SESSION_STATE_VALUE_KEYS.map(entry => entry.key));
+		const central = await this._database.readSessionStateValues(unloaded, CENTRAL_SESSION_STATE_VALUE_KEYS.map(entry => entry.key));
 		return new CurrentSessionStateValuesPrefetch(unloaded.map(session => {
 			const values = central.get(session);
 			return [session, values?.imported ? { values: values.values, mirrored: values.mirrored } : undefined];
@@ -505,7 +525,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			for (const key of keys) {
 				const entry: SessionStateMirrorEntry = { kind: 'value', key };
 				const observed = observeMirrorEntry(record.key, record.model, entry, reads, () => false)?.content;
-				if (observed !== renderMirrorEntry(record.model, entry)) {
+				if (observed !== renderOlderBuildEntry(record.model, entry)) {
 					changes[key] = observed ?? null;
 				}
 				this._setBase(record, mirrorEntryId(entry), observed);
@@ -587,6 +607,181 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			await this._writeCentral(record, sessionStatePatch({ folders: redirected }), true, false);
 			await this._flushLocked(record);
 		});
+	}
+
+	async readWorktreeCoOwners(worktreePath: string): Promise<readonly ISessionStateWorktreeCoOwner[]> {
+		return (await this._database.readWorktreeCoOwners(worktreePath)).map(row => ({ worktreePath: row.worktreePath, repositoryRoot: row.repositoryRoot, branch: row.branch, session: URI.parse(row.session) }));
+	}
+
+	isSessionLive(session: URI): Promise<boolean> {
+		return this._database.isSessionLive(session.toString());
+	}
+
+	async findAdditionalWorktreeOwners(handle: string): Promise<readonly URI[]> {
+		return (await this._database.findAdditionalWorktreeOwners(handle)).map(session => URI.parse(session));
+	}
+
+	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+		return this._moveChat(move, false);
+	}
+
+	moveSession(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult> {
+		return this._moveChat(move, true);
+	}
+
+	private async _moveChat(move: ISessionStateChatMove, endSource: boolean): Promise<SessionStateChatMoveResult> {
+		const sourceKey = this._enter(move.source);
+		const targetKey = this._enter(move.target);
+		if (sourceKey === targetKey) {
+			throw new Error(`A chat move needs two different sessions: ${move.source.toString()}`);
+		}
+		// Both sessions are held in one order, so two moves between the same sessions can't deadlock.
+		const [first, second] = sourceKey < targetKey ? [sourceKey, targetKey] : [targetKey, sourceKey];
+		return this._sequencer.queue(first, () => this._sequencer.queue(second, async () => {
+			const source = await this._loadLocked(move.source, sourceKey, () => this._readCatalog(move.source));
+			const target = await this._loadLocked(move.target, targetKey, () => this._readCatalog(move.target));
+			for (const record of [source, target]) {
+				if (this._deleting.has(record.key)) {
+					throw new SessionStateDeletedError(record.key);
+				}
+				// Pending mirror writes of either session settle before its central state changes underneath them.
+				record.scheduler.cancel();
+				await this._flushLocked(record);
+			}
+			const chat = move.chat.toString();
+			const transfers = chatMoveFolderTransfers(move.folders, false);
+			const worktreeValues = worktreeListValues(source.model, target.model, move.worktreeLists, endSource);
+			const apply = (databaseMove: Parameters<IAgentHostDatabase['moveChatV2']>[0]) => endSource ? this._database.moveSessionV2(databaseMove) : this._database.moveChatV2(databaseMove);
+			const result = await apply({
+				chat,
+				source: source.key,
+				target: target.key,
+				after: move.after?.toString(),
+				expectedSourceRevision: move.expectedSourceCatalogRevision,
+				expectedTargetRevision: move.expectedTargetCatalogRevision,
+				workingDirectories: move.folders.chat,
+				state: {
+					expectedSourceRevision: source.model.revision,
+					expectedTargetRevision: target.model.revision,
+					chats: [{ chat, workingDirectories: move.folders.chat }],
+					folders: transfers,
+					// Applied to the lists as they are now, under both sessions' sections.
+					values: { source: { ...worktreeValues.source, ...move.values?.source }, target: { ...worktreeValues.target, ...move.values?.target } },
+				},
+				coOwnedWorktrees: move.coOwnedWorktrees,
+			});
+			if (result.status !== 'applied') {
+				return { status: result.status };
+			}
+			// Committed: from here on the move is reported as applied, so the caller always moves the chats in memory too.
+			if (endSource) {
+				// The source ended: its central state is gone, and so is what was loaded of it.
+				this._forget(source.key);
+				await this._dropEndedSessionValueCopies(move.source, Object.keys(move.values?.target ?? {}));
+				await this._refreshAfterMove(target);
+				return { status: 'applied', moved: result.moved, targetOrder: result.targetOrder };
+			}
+			const moved = new Set(result.moved);
+			let sourceRefreshed = true;
+			for (const record of [source, target]) {
+				const refreshed = await this._refreshAfterMove(record);
+				sourceRefreshed &&= record !== source || refreshed;
+			}
+			if (sourceRefreshed) {
+				// The moved chats and the folder rows the source no longer has leave the source's mirror bookkeeping, as for a deleted chat.
+				const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
+					.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
+				for (const id of [...source.dirty, ...source.base.keys()]) {
+					const entry = parseMirrorEntryId(id);
+					if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
+						source.dirty.delete(id);
+						source.base.delete(id);
+					}
+				}
+			}
+			return { status: 'applied', moved: result.moved, targetOrder: result.targetOrder };
+		}));
+	}
+
+	async promoteChat(promotion: ISessionStateChatPromotion): Promise<SessionStateChatPromotionResult> {
+		const sourceKey = this._enter(promotion.source);
+		const targetKey = this._enter(promotion.target);
+		if (sourceKey === targetKey) {
+			throw new Error(`A promotion needs a new session: ${promotion.source.toString()}`);
+		}
+		// Both sessions are held in one order, so a promotion can't deadlock with a move.
+		const [first, second] = sourceKey < targetKey ? [sourceKey, targetKey] : [targetKey, sourceKey];
+		return this._sequencer.queue(first, () => this._sequencer.queue(second, async () => {
+			const source = await this._loadLocked(promotion.source, sourceKey, () => this._readCatalog(promotion.source));
+			const target = promotion.target.toString();
+			if (this._deleting.has(source.key) || this._deleting.has(target)) {
+				throw new SessionStateDeletedError(this._deleting.has(source.key) ? source.key : target);
+			}
+			if (this._records.has(target)) {
+				return { status: 'conflict' };
+			}
+			source.scheduler.cancel();
+			await this._flushLocked(source);
+			const chat = promotion.chat.toString();
+			const transfers = chatMoveFolderTransfers({ ...promotion.folders, target: promotion.folders.chat }, true);
+			const result = await this._database.promoteChatV2({
+				chat,
+				source: source.key,
+				target,
+				provider: promotion.provider,
+				startTime: promotion.startTime,
+				expectedSourceRevision: promotion.expectedSourceCatalogRevision,
+				state: {
+					expectedSourceRevision: source.model.revision,
+					importVersion: SESSION_STATE_IMPORT_VERSION,
+					importedAt: Date.now(),
+					legacyMirrorBase: serializeBase(new Map()),
+					values: { ...promotion.values, ...newSessionWorktreeListValues(promotion.worktreeLists) },
+					sourceValues: { ...worktreeListValues(source.model, undefined, promotion.worktreeLists, false).source, ...promotion.sourceValues },
+					chats: [{ chat, workingDirectories: promotion.folders.chat }],
+					folders: transfers,
+				},
+				coOwnedWorktrees: promotion.coOwnedWorktrees,
+			});
+			if (result.status !== 'applied') {
+				return { status: result.status };
+			}
+			// Committed: from here on the promotion is reported as applied.
+			this._noteCentralWrite(target);
+			const moved = new Set(result.moved);
+			if (await this._refreshAfterMove(source)) {
+				const removedFolderIds = new Set(transfers.filter(folder => !folder.keepInSource && !source.model.folder(folder.kind, folder.sourceKey))
+					.map(folder => mirrorEntryId({ kind: 'folder', folderKind: folder.kind, folderKey: folder.sourceKey })));
+				for (const id of [...source.dirty, ...source.base.keys()]) {
+					const entry = parseMirrorEntryId(id);
+					if ((entry.kind === 'chat' && moved.has(entry.chat)) || removedFolderIds.has(id)) {
+						source.dirty.delete(id);
+						source.base.delete(id);
+					}
+				}
+			}
+			return { status: 'applied', moved: result.moved };
+		}));
+	}
+
+	/**
+	 * Reloads a session's model after a committed chat move. When that fails the cached model is dropped instead,
+	 * so the next access loads the committed state; it never throws.
+	 */
+	private async _refreshAfterMove(record: ISessionRecord): Promise<boolean> {
+		try {
+			const state = await this._database.readSessionState(record.key);
+			if (state) {
+				record.model = new SessionStateModel(state, record.model.authority);
+				record.snapshot = undefined;
+				return true;
+			}
+			this._logService.warn(`[AgentHostSessionStateStore] Session state of ${record.key} is gone after a chat move; it reloads on next use`);
+		} catch (error) {
+			this._logService.error(error, `[AgentHostSessionStateStore] Failed to reload the session state of ${record.key} after a chat move; it reloads on next use`);
+		}
+		this._forget(record.key);
+		return false;
 	}
 
 	async whenIdle(session: URI | undefined): Promise<void> {
@@ -866,24 +1061,32 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 		}
 		const patches: Partial<ISessionStatePatch>[] = [];
+		const imported: string[] = [];
 		const base = new Map(record.base);
 		for (const [id, entry] of entries) {
 			const observed = observeMirrorEntry(record.key, model, entry, reads, isDefault);
 			if (observed?.compare !== record.base.get(id)) {
 				patches.push(patchFromMirror(model, entry, observed, isDefault));
+				imported.push(id);
 				if (observed) {
 					base.set(id, observed.compare);
 				} else {
 					base.delete(id);
 				}
-			} else if (renderMirrorEntry(model, entry) !== observed?.compare) {
+			} else if (renderOlderBuildEntry(model, entry) !== observed?.compare) {
 				record.dirty.add(id);
 			}
 		}
 		if (patches.length > 0) {
 			const revision = await this._writeCentral(record, mergePatches(patches), false, true);
 			record.base = base;
-			await this._database.recordSessionStateLegacyMirrorPayload(record.key, revision, serializeBase(base));
+			await this._database.recordSessionStateLegacyMirrorPayload(record.key, revision, serializeBase(record.base));
+			for (const id of imported) {
+				// An imported value older builds' copy doesn't show as written (a withheld worktree branch) is withheld again.
+				if (base.get(id) !== renderOlderBuildEntry(record.model, entries.get(id)!)) {
+					record.dirty.add(id);
+				}
+			}
 		}
 		await this._flushLocked(record);
 		return patches.length > 0;
@@ -948,7 +1151,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			return record.model.revision;
 		}
 		const entries = patchMirrorEntries(patch);
-		const databasePatch = toDatabasePatch(patch, markPayloadDirty && entries.some(isProjectedMirrorEntry));
+		// Central-only values have no mirror entry; a projected one still rebuilds the catalog payload.
+		const databasePatch = toDatabasePatch(patch, markPayloadDirty && (entries.some(isProjectedMirrorEntry) || Object.keys(patch.values).some(key => getSessionStateValueKey(key)?.projected)));
 		let result = await this._database.writeSessionState(record.key, record.model.revision, databasePatch);
 		if (result.status === 'conflict') {
 			// Only an external repair of the same database can move the revision.
@@ -969,6 +1173,10 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 		this._noteCentralWrite(record.key);
 		record.model.apply(patch, result.revision);
 		record.snapshot = undefined;
+		const values = Object.keys(patch.values);
+		if (values.length > 0) {
+			this._onDidChangeLoadedState.fire({ session: record.key, values, authority: false });
+		}
 		if (markDirty) {
 			for (const entry of entries) {
 				if (entry.kind !== 'chat' || record.model.authority === 1) {
@@ -984,7 +1192,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			const entry = parseMirrorEntryId(id);
 			if (record.model.entryRevision(entry) <= revision) {
 				record.dirty.delete(id);
-				this._setBase(record, id, renderMirrorEntry(record.model, entry));
+				this._setBase(record, id, renderOlderBuildEntry(record.model, entry));
 			}
 		}
 	}
@@ -1060,12 +1268,16 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			const isDefault = (chat: string) => record.model.chats.get(chat)?.isDefault ?? false;
 			const writes = renderMirrorWrites(record.key, record.model, entries, isDefault, live);
+			// Older builds read a session's values from the database its default chat stores in. A session whose default
+			// chat stores elsewhere (a promoted chat, Block 4) has none and gets none (Q8a).
+			const defaultChatStorage = [...record.model.chats.values()].find(chat => chat.isDefault)?.storageResource;
+			const sessionMirrored = defaultChatStorage === undefined || defaultChatStorage === record.key;
 			for (const [resource, write] of writes) {
 				const storage = record.model.chats.get(resource)?.storageResource;
 				// Older builds read a chat's mirror at its chat URI: a chat stored elsewhere gets none.
 				const mirrored = resource !== record.key && live.some(chat => chat.chat === resource) && (storage === undefined || mirrorsAtChatUri(resource, storage));
 				const reference = resource === record.key
-					? this._sessionDataService.openDatabase(record.session)
+					? sessionMirrored ? this._sessionDataService.openDatabase(record.session) : undefined
 					: mirrored ? await this._sessionDataService.tryOpenDatabase(URI.parse(resource)) : undefined;
 				if (!reference) {
 					// A chat that is gone, or whose database does not exist: there is nothing older builds could read there.
@@ -1111,6 +1323,27 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	/** Called once a central write commits, so a prefetch read before it no longer answers for the session. */
 	private _noteCentralWrite(key: string): void {
 		this._centralWrites.set(key, ++this._centralWriteSequence);
+	}
+
+	/**
+	 * Drops the old-format copies of `keys` from the database of a session that ended by moving under another session:
+	 * it stays as its chat's storage, and the values are the destination's now, so no build may read them from it again.
+	 * Never fails the move.
+	 */
+	private async _dropEndedSessionValueCopies(session: URI, keys: readonly string[]): Promise<void> {
+		if (keys.length === 0) {
+			return;
+		}
+		try {
+			const reference = await this._sessionDataService.tryOpenDatabase(session);
+			try {
+				await reference?.object.deleteMetadata(keys);
+			} finally {
+				reference?.dispose();
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostSessionStateStore] Failed to drop the values of ${session.toString()}, which ended by a move`, error);
+		}
 	}
 
 	private _forget(key: string): void {
@@ -1186,4 +1419,30 @@ class CurrentSessionStateValuesPrefetch extends Map<string, ISessionStateValuesP
 	override get(session: string): ISessionStateValuesPrefetchEntry | undefined {
 		return this.has(session) ? super.get(session) : undefined;
 	}
+}
+
+/** The session values a move's worktree list changes write, from each list's current value. A session that ended keeps none. */
+function worktreeListValues(source: SessionStateModel, target: SessionStateModel | undefined, changes: ISessionStateWorktreeListChanges, endSource: boolean): { readonly source: Record<string, string | null>; readonly target: Record<string, string | null> } {
+	const values: { readonly source: Record<string, string | null>; readonly target: Record<string, string | null> } = { source: {}, target: {} };
+	if (changes.fromSource.length > 0 && !endSource) {
+		const remaining = parseSessionAdditionalWorktrees(source.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)?.value).filter(worktree => !changes.fromSource.includes(worktree.handle));
+		values.source[ADDITIONAL_WORKTREES_METADATA_KEY] = remaining.length > 0 ? JSON.stringify(remaining) : null;
+	}
+	if (target && changes.toTarget.length > 0) {
+		const listed = parseSessionAdditionalWorktrees(target.values.get(ADDITIONAL_WORKTREES_METADATA_KEY)?.value).filter(worktree => !changes.toTarget.some(added => added.handle === worktree.handle));
+		values.target[ADDITIONAL_WORKTREES_METADATA_KEY] = JSON.stringify([...listed, ...changes.toTarget]);
+	}
+	if (target && changes.targetFolders.length > 0) {
+		values.target[WORKTREE_FOLDERS_KEY] = withSessionWorktreeFolders(target.values.get(WORKTREE_FOLDERS_KEY)?.value, changes.targetFolders);
+	}
+	return values;
+}
+
+/** A promoted chat's new session's worktree lists: only what the promotion brings. */
+function newSessionWorktreeListValues(changes: ISessionStateWorktreeListChanges): Record<string, string> {
+	const folders = withSessionWorktreeFolders(undefined, changes.targetFolders);
+	return {
+		...(changes.toTarget.length > 0 ? { [ADDITIONAL_WORKTREES_METADATA_KEY]: JSON.stringify(changes.toTarget) } : {}),
+		...(folders !== null ? { [WORKTREE_FOLDERS_KEY]: folders } : {}),
+	};
 }

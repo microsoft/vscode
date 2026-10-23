@@ -9,6 +9,7 @@ import { join } from '../../../../base/common/path.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -36,6 +37,9 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { AgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { AgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from '../../node/agentChatContext.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 
 suite('Agent Host provider seams', () => {
 
@@ -47,6 +51,7 @@ suite('Agent Host provider seams', () => {
 	const subagentChat = URI.parse(buildSubagentChatUri(sessionKey, 'tool-1'));
 
 	let manager: AgentHostStateManager;
+	let authenticationService: AgentHostAuthenticationService;
 
 	function summary(): SessionSummary & { readonly defaultChat: string } {
 		return {
@@ -74,6 +79,7 @@ suite('Agent Host provider seams', () => {
 
 	setup(() => {
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());
@@ -88,7 +94,7 @@ suite('Agent Host provider seams', () => {
 			const chatEntry = (isDefault: boolean, launchWorkingDirectories: readonly string[]) => ({
 				isDefault, storage: undefined, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories, changes: undefined,
 			});
-			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), {
+			const context = createAgentChatContext(manager, authenticationService, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), {
 				session: sessionKey,
 				authority: 2,
 				revision: 1,
@@ -106,9 +112,42 @@ suite('Agent Host provider seams', () => {
 			});
 		});
 
+		test('decides workspaceless per chat from recorded folders: scratch folder, session marker or own folder', () => {
+			manager.createSession(summary());
+			manager.addChat(sessionKey, peerChat.toString(), creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), {});
+			const chatEntry = (isDefault: boolean, launchWorkingDirectories: readonly string[] | undefined) => ({
+				isDefault, storage: undefined, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories, changes: undefined,
+			});
+			const snapshot = (marker: boolean, peerFolders: readonly string[] | undefined) => ({
+				session: sessionKey,
+				authority: 2 as const,
+				revision: 1,
+				values: new Map(marker ? [['agentHost.workspaceless', 'true']] : []),
+				folders: new Map(),
+				chats: new Map([[defaultChat.toString(), chatEntry(true, ['file:///chats/a'])], [peerChat.toString(), chatEntry(false, peerFolders)]]),
+			});
+			const read = (state: ReturnType<typeof snapshot>) => createAgentChatContext(manager, authenticationService, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString()), state).workspaceless;
+			manager.setScratchFolder('file:///chats/c1', true);
+			assert.deepStrictEqual({
+				ownScratchFolder: read(snapshot(true, ['file:///chats/c1'])),
+				ownScratchFolderInForeignSession: read(snapshot(false, ['file:///chats/c1'])),
+				sharesDefaultFolderOfMarkedSession: read(snapshot(true, ['file:///chats/a'])),
+				folderedChatInMarkedSession: read(snapshot(true, ['file:///work/repo'])),
+				markedSessionNoFolder: read(snapshot(true, undefined)),
+				unmarkedNoFolder: read(snapshot(false, undefined)),
+			}, {
+				ownScratchFolder: true,
+				ownScratchFolderInForeignSession: true,
+				sharesDefaultFolderOfMarkedSession: true,
+				folderedChatInMarkedSession: false,
+				markedSessionNoFolder: true,
+				unmarkedNoFolder: false,
+			});
+		});
+
 		test('stamps resource and origin for the session-backed default chat', () => {
 			manager.createSession(summary());
-			const context = createAgentChatContext(manager, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), undefined);
+			const context = createAgentChatContext(manager, authenticationService, session, defaultChat, manager.resolveChatStorageResource(session.toString(), defaultChat.toString()), undefined);
 			assert.deepStrictEqual({
 				resource: context.resource.toString(),
 				origin: context.origin,
@@ -130,7 +169,7 @@ suite('Agent Host provider seams', () => {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-1' },
 			});
 
-			const context = createAgentChatContext(manager, session, subagentChat, manager.resolveChatStorageResource(session.toString(), subagentChat.toString()), undefined);
+			const context = createAgentChatContext(manager, authenticationService, session, subagentChat, manager.resolveChatStorageResource(session.toString(), subagentChat.toString()), undefined);
 			assert.deepStrictEqual({
 				resource: context.resource.toString(),
 				origin: context.origin,
@@ -157,11 +196,36 @@ suite('Agent Host provider seams', () => {
 				// Restored chats have no ChatState until they are resolved…
 				state: manager.getChatState(peerChat.toString()),
 				// …but their origin is authoritative from the moment they are registered.
-				origin: createAgentChatContext(manager, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString()), undefined).origin,
+				origin: createAgentChatContext(manager, authenticationService, session, peerChat, manager.resolveChatStorageResource(session.toString(), peerChat.toString()), undefined).origin,
 			}, {
 				state: undefined,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 			});
+		});
+
+		for (const sessionSponsored of [false, true]) {
+			test(`attaches an unavailable source to a cold principal-bound chat with session sponsor=${sessionSponsored}`, () => {
+				manager.createSession(summary());
+				const principal = { apiOrigin: 'https://api.github.com', userId: '42' };
+				authenticationService.restoreSessionCredentialPrincipal(sessionKey, principal);
+				if (sessionSponsored) {
+					authenticationService.bindSessionCredentials(sessionKey, { principal, getCredential: () => undefined });
+				}
+				const context = createAgentChatContext(manager, authenticationService, session, peerChat, peerChat.toString(), undefined);
+				assert.throws(() => context.credentials?.getCredential({ resource: principal.apiOrigin }), error => error instanceof ProtocolError && error.code === AhpErrorCodes.AuthRequired);
+			});
+		}
+
+		test('supplies only the exact chat binding and leaves untouched legacy chats uncredentialed', () => {
+			manager.createSession(summary());
+			const legacy = createAgentChatContext(manager, authenticationService, session, defaultChat, sessionKey, undefined);
+			const source: IAgentHostCredentialSource = {
+				principal: { apiOrigin: 'https://api.github.com', userId: '42' },
+				getCredential: () => undefined,
+			};
+			authenticationService.bindSessionCredentials(sessionKey, source, peerChat.toString());
+			const context = createAgentChatContext(manager, authenticationService, sessionKey, peerChat.toString(), peerChat.toString(), undefined);
+			assert.deepStrictEqual({ legacyHasCredentials: hasKey(legacy, { credentials: true }), exactBinding: context.credentials === source }, { legacyHasCredentials: false, exactBinding: true });
 		});
 	});
 
@@ -169,7 +233,7 @@ suite('Agent Host provider seams', () => {
 
 		test('a context built before session registration reads the later opaque default chat', () => {
 			const chat = URI.parse('ahp-chat:/new-default');
-			const context = createAgentChatContext(manager, session, chat, sessionKey, undefined);
+			const context = createAgentChatContext(manager, authenticationService, session, chat, sessionKey, undefined);
 			const beforeRegistration = {
 				defaultChat: manager.getDefaultChat(sessionKey),
 				format: context.owner.getSubagentChatUriFormat(),
@@ -191,7 +255,7 @@ suite('Agent Host provider seams', () => {
 			const other = AgentSession.uri('copilot', 'seam-other');
 			manager.createSession(summary());
 			manager.createSession({ ...summary(), resource: other.toString(), defaultChat: 'ahp-chat:/seam-other-default' });
-			const context = createAgentChatContext(manager, session, peerChat, creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), undefined);
+			const context = createAgentChatContext(manager, authenticationService, session, peerChat, creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), undefined);
 			const changes: string[] = [];
 			disposables.add(context.owner.onDidChange(change => changes.push(`${change.previous.toString()} -> ${change.current.toString()}`)));
 
@@ -226,7 +290,7 @@ suite('Agent Host provider seams', () => {
 			const other = AgentSession.uri('copilot', 'seam-other');
 			manager.createSession(summary());
 			manager.createSession({ ...summary(), resource: other.toString(), defaultChat: buildDefaultChatUri(other.toString()) });
-			const context = createAgentChatContext(manager, session, peerChat, creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), undefined);
+			const context = createAgentChatContext(manager, authenticationService, session, peerChat, creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey)), undefined);
 			const changes: string[] = [];
 			disposables.add(context.owner.onDidChange(change => changes.push(`${change.previous.toString()} -> ${change.current.toString()}`)));
 
@@ -251,14 +315,14 @@ suite('Agent Host provider seams', () => {
 			const storage = creationTimeChatStorageResource(sessionKey, peerChat.toString(), buildDefaultChatUri(sessionKey));
 			const outcome = (build: () => unknown) => { try { build(); return 'built'; } catch { return 'rejected'; } };
 
-			const beforeRegistration = outcome(() => createAgentChatContext(manager, other, peerChat, sessionKey, undefined));
+			const beforeRegistration = outcome(() => createAgentChatContext(manager, authenticationService, other, peerChat, sessionKey, undefined));
 			manager.addChat(sessionKey, peerChat.toString(), storage);
-			const registered = outcome(() => createAgentChatContext(manager, session, peerChat, storage, undefined));
-			const otherOwner = outcome(() => createAgentChatContext(manager, other, peerChat, storage, undefined));
-			const otherStorage = outcome(() => createAgentChatContext(manager, session, peerChat, sessionKey, undefined));
+			const registered = outcome(() => createAgentChatContext(manager, authenticationService, session, peerChat, storage, undefined));
+			const otherOwner = outcome(() => createAgentChatContext(manager, authenticationService, other, peerChat, storage, undefined));
+			const otherStorage = outcome(() => createAgentChatContext(manager, authenticationService, session, peerChat, sessionKey, undefined));
 			manager.reassignChatOwner(peerChat.toString(), other.toString());
-			const reassigned = outcome(() => createAgentChatContext(manager, other, peerChat, storage, undefined));
-			const previousOwner = outcome(() => createAgentChatContext(manager, session, peerChat, storage, undefined));
+			const reassigned = outcome(() => createAgentChatContext(manager, authenticationService, other, peerChat, storage, undefined));
+			const previousOwner = outcome(() => createAgentChatContext(manager, authenticationService, session, peerChat, storage, undefined));
 
 			assert.deepStrictEqual({ beforeRegistration, registered, otherOwner, otherStorage, reassigned, previousOwner }, {
 				beforeRegistration: 'built',
@@ -276,7 +340,7 @@ suite('Agent Host provider seams', () => {
 
 		test('resolveSessionBackedStorage reports a session database only for a chat stored outside its own resource', () => {
 			manager.createSession(summary());
-			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) };
+			const base = { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session) };
 			assert.deepStrictEqual({
 				sessionBacked: resolveSessionBackedStorage({ ...base, resource: session }, defaultChat)?.toString(),
 				ownStorage: resolveSessionBackedStorage({ ...base, resource: peerChat }, peerChat),
@@ -310,14 +374,14 @@ suite('Agent Host provider seams', () => {
 		test('resolveSubagentChatParent only reports tool spawn edges', () => {
 			const fork: IAgentChatContext = {
 				sessionSettings: undefined,
-				launchWorkingDirectories: undefined,
+				launchWorkingDirectories: undefined, workspaceless: false,
 				resource: peerChat,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 			};
 			const tool: IAgentChatContext = {
 				sessionSettings: undefined,
-				launchWorkingDirectories: undefined,
+				launchWorkingDirectories: undefined, workspaceless: false,
 				resource: subagentChat,
 				owner: fixedChatOwnerRef(session),
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },

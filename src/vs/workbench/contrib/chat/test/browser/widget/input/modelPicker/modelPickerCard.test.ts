@@ -12,7 +12,6 @@ import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -188,6 +187,92 @@ suite('ModelCard', () => {
 		});
 	}
 
+	suite('Fusion tier promotions', () => {
+		const day = 24 * 60 * 60 * 1000;
+		/** As the agent host presents it: Fusion has no discount of its own, only the service's promotions. */
+		function createFusionModel(promotions: NonNullable<ILanguageModelChatMetadata['autoModelTierPromotions']>, detail?: string): ILanguageModelChatMetadataAndIdentifier {
+			return {
+				...createModel({
+					id: 'auto',
+					name: 'Copilot Fusion',
+					detail,
+					autoModelDiscountPercent: undefined,
+					autoModelFusion: true,
+					...(promotions.length && { autoModelTierPromotions: promotions }),
+					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
+					configurationSchema: {
+						properties: {
+							tier: {
+								type: 'string', title: 'Effort Level', group: 'navigation',
+								enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
+								enumItemLabels: ['Standard', 'High', 'Max'],
+								enumDescriptions: ['Prioritizes versatile models for efficient everyday coding.', 'Prioritizes capable models for challenging tasks and deeper reasoning.', 'Prioritizes the most capable models for the most demanding tasks and complex reasoning.'],
+								default: 'balance',
+							},
+						},
+					},
+				}),
+				identifier: 'copilot/auto',
+			};
+		}
+		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+		const promotion = (startsAt: string | undefined, endsAt: string | undefined, tierIds = ['balance', 'hydrafusion', 'hydrafusion-max']) => ({
+			id: 'ensemble-launch-2026', message: 'Get 30% off Fusion usage.', discountPercent: 30, tierIds,
+			...(startsAt && { startsAt }), ...(endsAt && { endsAt }),
+		});
+		const read = (card: ModelCard) => ({
+			chip: card.element.querySelector('.chat-model-card-badge')?.textContent,
+			discount: card.element.querySelector<HTMLElement>('.chat-model-card-discount-description:not([hidden])')?.textContent,
+			tier: card.element.querySelector<HTMLElement>('.chat-model-card-tier-description:not([hidden])')?.textContent,
+			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent),
+		});
+
+		test('the chip follows the tier shown as selected, naming a running promotion\'s discount only on the tiers it covers', () => {
+			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion'])]) });
+			const covered = read(card);
+			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
+				covered: { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] },
+			});
+		});
+
+		test('the chip shows a running promotion that covers every tier', () => {
+			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] });
+		});
+
+		test('a promotion without a message shows its discount in the chip without a banner', () => {
+			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
+			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: [] });
+		});
+
+		test('a running promotion is announced in the service\'s words, and promotions outside their window or with unparsable dates are not shown', () => {
+			const running = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') }).card;
+			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
+			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-2 * day), iso(-day))]) }).card;
+			const malformed = createCard({ tier: 'balance' }, { model: createFusionModel([promotion('not a date', iso(day))]) }).card;
+			assert.deepStrictEqual({
+				running: running.element.querySelector('.chat-model-card-tier-promotion')?.textContent,
+				upcoming: read(upcoming),
+				ended: read(ended),
+				malformed: read(malformed),
+			}, {
+				running: 'Get 30% off Fusion usage.',
+				upcoming: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
+				ended: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
+				malformed: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
+			});
+		});
+
+		test('without a running promotion, Fusion shows no discount', () => {
+			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([]) });
+			assert.deepStrictEqual(read(card), { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] });
+		});
+
+	});
+
 	test('Auto without tiers explains its discount below its description', () => {
 		const auto = createAutoModel();
 		const { card } = createCard({}, { model: { ...auto, metadata: { ...auto.metadata, configurationSchema: undefined } } });
@@ -251,7 +336,6 @@ suite('ModelCard', () => {
 			model,
 			description: `${model.metadata.name} is a research preview.`,
 			tooltip: 'It picks a workflow per task, using one or more models to draft, review, or escalate.',
-			learnMoreUrl: URI.parse('https://example.com/hydrafusion'),
 			selected: model === selected,
 		}));
 		const result = createCard({ tier: 'balance' }, { model: createAutoModel(), routingAlternatives: alternatives() });
@@ -288,16 +372,16 @@ suite('ModelCard', () => {
 				selected: ['Balance'],
 				descriptions: ['Models routed via Auto Balance receive a 10% discount.'],
 			},
-			onClick: ['HydraFusion is a research preview. Learn more'],
+			onClick: ['HydraFusion is a research preview.'],
 			chosen: {
 				selected: ['HydraFusion'],
-				descriptions: ['HydraFusion is a research preview. Learn more'],
+				descriptions: ['HydraFusion is a research preview.'],
 				ariaLabel: 'HydraFusion, HydraFusion is a research preview. It picks a workflow per task, using one or more models to draft, review, or escalate.',
 				focused: 'HydraFusion',
 				badge: 'Research preview',
 			},
-			onMax: ['HydraFusion Max is a research preview. Learn more'],
-			chosenMax: { selected: ['HydraFusion Max'], descriptions: ['HydraFusion Max is a research preview. Learn more'] },
+			onMax: ['HydraFusion Max is a research preview.'],
+			chosenMax: { selected: ['HydraFusion Max'], descriptions: ['HydraFusion Max is a research preview.'] },
 			onTier: ['Models routed via Auto Efficiency receive a 10% discount.'],
 			restoredBadge: '10% discount',
 			writes: [{ tier: 'efficiency' }],
@@ -1029,6 +1113,40 @@ suite('ModelCard', () => {
 			badge: result.card.element.querySelector('.chat-model-card-header .chat-model-card-badge')?.textContent,
 			context: result.card.element.querySelector('.chat-model-card-section-value')?.textContent,
 		}, { badge: 'Research preview', context: undefined });
+	});
+
+	test('an unavailable Auto tier shows its reason only on hover, and its group describes it for screen readers', () => {
+		const auto = createAutoModel();
+		const tier = auto.metadata.configurationSchema!.properties!.tier;
+		const model = {
+			...auto,
+			metadata: {
+				...auto.metadata,
+				configurationSchema: {
+					properties: {
+						tier: {
+							...tier,
+							enum: ['balance', 'hydrafusion', 'hydrafusion-max', 'premium'],
+							enumItemLabels: ['Balance', 'High', 'Max', 'Premium'],
+							enumDescriptions: ['', '', 'This tier requires models that the user does not have access to.', ''],
+							enumItemDisabled: [false, false, true, true],
+						},
+					},
+				},
+			},
+		};
+		const { card } = createCard({ tier: 'balance' }, { model });
+		const radios = Array.from(card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
+
+		assert.deepStrictEqual({
+			visibleReasons: card.element.querySelectorAll('.chat-model-card-unavailable-description').length,
+			groupDescription: radios[0].parentElement?.getAttribute('aria-description'),
+			disabled: radios.map(radio => radio.getAttribute('aria-disabled') === 'true'),
+		}, {
+			visibleReasons: 0,
+			groupDescription: 'Max: This tier requires models that the user does not have access to. Premium is not available.',
+			disabled: [false, false, true, true],
+		});
 	});
 
 	test('reset uses the provider defaults and returns focus to a setting when pinning is unavailable', async () => {

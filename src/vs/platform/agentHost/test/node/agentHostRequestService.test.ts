@@ -48,6 +48,10 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		this.lastInit = init;
 		return this.fetchImpl(input, init);
 	}
+
+	createWebSocket(): never {
+		throw new Error('not used');
+	}
 }
 
 class TestAgentHostProxyResolver extends AgentHostProxyResolver {

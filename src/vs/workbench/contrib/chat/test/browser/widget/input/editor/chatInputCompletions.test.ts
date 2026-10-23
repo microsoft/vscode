@@ -4,41 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../../../base/common/event.js';
 import { fuzzyScore, FuzzyScoreOptions } from '../../../../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../../base/common/network.js';
+import { upcastDeepPartial, upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { EditorOptions } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
+import { Selection } from '../../../../../../../../editor/common/core/selection.js';
+import { IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
 import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
 import { CompletionModel } from '../../../../../../../../editor/contrib/suggest/browser/completionModel.js';
 import { CompletionItem as SuggestCompletionItem } from '../../../../../../../../editor/contrib/suggest/browser/suggest.js';
 import { WordDistance } from '../../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
+import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
+import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../../../../../../platform/log/common/log.js';
+import { ChatSubmitAction } from '../../../../../browser/actions/chatExecuteActions.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
+import { ChatWidget } from '../../../../../browser/widget/chatWidget.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
-import { AgentCompletions } from '../../../../../browser/widget/input/editor/chatInputCompletions.js';
+import { AgentCompletions, SlashCommandCompletions } from '../../../../../browser/widget/input/editor/chatInputCompletions.js';
+import { InputEditorCommandArgumentHint } from '../../../../../browser/widget/input/editor/chatInputCommandArgumentHint.js';
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
-import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
+import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSession, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
+import { IChatService } from '../../../../../common/chatService/chatService.js';
+import { ICustomizationHarnessService } from '../../../../../common/customizationHarnessService.js';
+import { IChatSlashCommandService, IChatSlashData } from '../../../../../common/participants/chatSlashCommands.js';
+import { IMcpService } from '../../../../../../mcp/common/mcpTypes.js';
 import { ChatRequestAgentPart, ChatRequestTextPart, chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
 import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
-import { IChatWidget } from '../../../../../browser/chat.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../../../common/participants/chatAgents.js';
-import { ChatViewModel } from '../../../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatViewModel } from '../../../../../common/model/chatViewModel.js';
 import { IChatModel } from '../../../../../common/model/chatModel.js';
 import { ChatInputPart } from '../../../../../browser/widget/input/chatInputPart.js';
-import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IsSessionsWindowContext } from '../../../../../../../common/contextkeys.js';
@@ -481,6 +494,240 @@ suite('AgentHostInputCompletions plain text', () => {
 			command: undefined,
 		}];
 		assert.deepStrictEqual(results, [expected, expected]);
+	});
+});
+
+suite('SlashCommandCompletions fork variants', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class ForkCompletionChatSessionsService extends MockChatSessionsService {
+		lookupCount = 0;
+		lastToken: CancellationToken | undefined;
+
+		constructor(
+			private readonly supportsFork: boolean,
+			private readonly lookupError?: Error,
+		) {
+			super();
+		}
+
+		override async getOrCreateChatSession(_sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
+			this.lookupCount++;
+			this.lastToken = token;
+			if (token.isCancellationRequested) {
+				throw new Error('lookup cancelled');
+			}
+			if (this.lookupError) {
+				throw this.lookupError;
+			}
+			return upcastPartial<IChatSession>({
+				forkSession: this.supportsFork ? async () => { throw new Error('Not implemented'); } : undefined,
+			});
+		}
+	}
+
+	const forkCommand: IChatSlashData = {
+		command: 'fork',
+		detail: 'Fork this chat',
+		executeImmediately: true,
+		locations: [ChatAgentLocation.Chat],
+		completionVariants: [
+			{ label: '/fork', insertText: '/fork ', executeImmediately: true },
+			{ label: '/fork <title>', insertText: '/fork ', argumentHint: 'title' },
+			{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', argumentHint: 'prompt' },
+		],
+	};
+
+	function completionRanges(suggestion: CompletionItem): { readonly insert: Range; readonly replace: Range } {
+		if (Range.isIRange(suggestion.range)) {
+			return { insert: Range.lift(suggestion.range), replace: Range.lift(suggestion.range) };
+		}
+		return { insert: Range.lift(suggestion.range.insert), replace: Range.lift(suggestion.range.replace) };
+	}
+
+	async function provideSuggestions(agentHost: boolean, commands: readonly IChatSlashData[], chatSessionsService: ForkCompletionChatSessionsService, token = CancellationToken.None, inputWidget?: IChatWidget, inputModel?: ITextModel): Promise<{ readonly suggestions: readonly CompletionItem[]; readonly model: ITextModel }> {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const inputUri = inputModel?.uri ?? URI.from({ scheme: Schemas.vscodeChatInput, path: '/fork-completions' });
+		const sessionResource = URI.from({ scheme: agentHost ? 'agent-host-test' : 'test', path: '/session' });
+		const widget = inputWidget ?? upcastDeepPartial<IChatWidget>({
+			viewModel: upcastPartial<IChatViewModel>({ model: upcastPartial<IChatModel>({ sessionResource }) }),
+			parsedInput: { parts: [] },
+			location: ChatAgentLocation.Chat,
+			input: { currentModeKind: ChatModeKind.Ask },
+			attachmentCapabilities: { supportsPromptAttachments: true },
+			scopedContextKeyService: { contextMatchesRules: () => true },
+		});
+		store.add(new SlashCommandCompletions(
+			languageFeaturesService,
+			upcastPartial<IChatWidgetService>({ getWidgetByInputUri: () => widget }),
+			upcastPartial<IChatSlashCommandService>({ getCommands: () => [...commands] }),
+			upcastPartial<ICustomizationHarnessService>({}),
+			upcastPartial<IChatService>({}),
+			chatSessionsService,
+			upcastPartial<IMcpService>({}),
+			new NullLogService(),
+		));
+		const model = inputModel ?? store.add(createTextModel('/fo', null, undefined, inputUri));
+		const provider = languageFeaturesService.completionProvider.ordered(model).find(provider => provider._debugDisplayName === 'globalSlashCommands');
+		assert.ok(provider);
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 4), { triggerKind: CompletionTriggerKind.Invoke }, token);
+		assert.ok(result);
+		return { suggestions: result.suggestions, model };
+	}
+
+	test('offers all fork variants for agent host sessions that support forking', async () => {
+		const chatSessionsService = new ForkCompletionChatSessionsService(true);
+		const { suggestions, model } = await provideSuggestions(true, [forkCommand], chatSessionsService);
+
+		assert.deepStrictEqual(suggestions.map(suggestion => ({
+			label: suggestion.label,
+			insertText: suggestion.insertText,
+			submitsImmediately: suggestion.command?.id === ChatSubmitAction.ID,
+			range: completionRanges(suggestion),
+			filterText: suggestion.filterText,
+		})), [
+			{ label: { label: '/fork', description: 'Fork this chat' }, insertText: '/fork ', submitsImmediately: true, range: { insert: new Range(1, 1, 1, 4), replace: new Range(1, 1, 1, 4) }, filterText: '/fork' },
+			{ label: { label: '/fork <title>', description: 'Fork this chat' }, insertText: '/fork ', submitsImmediately: false, range: { insert: new Range(1, 1, 1, 4), replace: new Range(1, 1, 1, 4) }, filterText: '/fork' },
+			{ label: { label: '/fork prompt <prompt>', description: 'Fork this chat' }, insertText: '/fork prompt ', submitsImmediately: false, range: { insert: new Range(1, 1, 1, 4), replace: new Range(1, 1, 1, 4) }, filterText: '/fork' },
+		]);
+		for (const suggestion of suggestions) {
+			model.setValue('/fo');
+			const range = completionRanges(suggestion).replace;
+			model.applyEdits([{ range, text: suggestion.insertText }]);
+			assert.strictEqual(model.getValue(), suggestion.insertText);
+			assert.strictEqual(range.startColumn + suggestion.insertText.length, model.getLineMaxColumn(1));
+		}
+	});
+
+	test('accepts fork title and prompt completion commands through the input editor', async () => {
+		const cases = [
+			{ label: '/fork <title>', insertText: '/fork ', argumentHint: 'title', cursorColumn: 7 },
+			{ label: '/fork prompt <prompt>', insertText: '/fork prompt ', argumentHint: 'prompt', cursorColumn: 14 },
+		];
+
+		for (const testCase of cases) {
+			const parsedInputEmitter = store.add(new Emitter<void>());
+			const viewModelEmitter = store.add(new Emitter<void>());
+			const activeInputEditorEmitter = store.add(new Emitter<void>());
+			let inputEditor: IChatWidget['inputEditor'];
+			let hintContribution: InputEditorCommandArgumentHint | undefined;
+			const sessionResource = URI.from({ scheme: 'agent-host-test', path: `/session-${testCase.argumentHint}` });
+			const model = store.add(createTextModel('/fo', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: `/fork-completions-${testCase.argumentHint}` })));
+			const widget = upcastDeepPartial<IChatWidget>({
+				get inputEditor() {
+					return inputEditor;
+				},
+				viewModel: upcastPartial<IChatViewModel>({ model: upcastPartial<IChatModel>({ sessionResource }) }),
+				parsedInput: { parts: [] },
+				location: ChatAgentLocation.Chat,
+				input: { currentModeKind: ChatModeKind.Ask },
+				attachmentCapabilities: { supportsPromptAttachments: true },
+				scopedContextKeyService: { contextMatchesRules: () => true },
+				onDidChangeParsedInput: parsedInputEmitter.event,
+				onDidChangeViewModel: viewModelEmitter.event,
+				onDidChangeActiveInputEditor: activeInputEditorEmitter.event,
+				getContrib: (id: string) => id === InputEditorCommandArgumentHint.ID ? hintContribution : undefined,
+			});
+			const { suggestions } = await provideSuggestions(true, [forkCommand], new ForkCompletionChatSessionsService(true), CancellationToken.None, widget, model);
+			const suggestion = suggestions.find(candidate => typeof candidate.label !== 'string' && candidate.label.label === testCase.label);
+			assert.ok(suggestion, `Expected ${testCase.label} completion`);
+			const completion = suggestion;
+			const command = completion.command;
+			assert.ok(command, `Expected ${testCase.label} to register an accept command`);
+			const acceptCommand = CommandsRegistry.getCommand(command.id);
+			assert.ok(acceptCommand, `Expected ${command.id} accept command to be registered`);
+
+			withTestCodeEditor(model, {}, (editor, _viewModel, instantiationService) => {
+				const editorStore = new DisposableStore();
+				let decorations: readonly IDecorationOptions[] = [];
+				try {
+					inputEditor = editor;
+					assert.ok(ChatWidget.CONTRIBS.includes(InputEditorCommandArgumentHint), 'InputEditorCommandArgumentHint should be registered as a chat widget contribution');
+					hintContribution = editorStore.add(instantiationService.createInstance(InputEditorCommandArgumentHint, widget));
+					const setDecorationsByType = editor.setDecorationsByType.bind(editor);
+					editor.setDecorationsByType = (description, decorationTypeKey, options) => {
+						if (decorationTypeKey === 'chat-command-argument-hint') {
+							decorations = options;
+						}
+						return setDecorationsByType(description, decorationTypeKey, options);
+					};
+
+					editor.setPosition(new Position(1, 4));
+					editor.executeEdits('test', [{ range: completionRanges(completion).replace, text: completion.insertText }]);
+					instantiationService.invokeFunction(accessor => acceptCommand.handler(accessor, ...(command.arguments ?? [])));
+
+					assert.deepStrictEqual({
+						value: editor.getValue(),
+						selection: editor.getSelection(),
+						decorations: decorations.map(decoration => ({
+							range: decoration.range,
+							contentText: decoration.renderOptions?.after?.contentText,
+						})),
+					}, {
+						value: completion.insertText,
+						selection: new Selection(1, testCase.cursorColumn, 1, testCase.cursorColumn),
+						decorations: [{
+							range: { startLineNumber: 1, endLineNumber: 1, startColumn: testCase.cursorColumn, endColumn: 1000 },
+							contentText: testCase.argumentHint,
+						}],
+					});
+				} finally {
+					editorStore.dispose();
+				}
+			});
+		}
+	});
+
+	test('offers no fork variants when the agent host does not support forking', async () => {
+		const { suggestions } = await provideSuggestions(true, [forkCommand], new ForkCompletionChatSessionsService(false));
+
+		assert.deepStrictEqual(suggestions, []);
+	});
+
+	test('uses the original slash command completion outside agent host sessions', async () => {
+		const chatSessionsService = new ForkCompletionChatSessionsService(true);
+		const { suggestions } = await provideSuggestions(false, [forkCommand], chatSessionsService);
+
+		assert.deepStrictEqual(suggestions.map(suggestion => ({ label: suggestion.label, insertText: suggestion.insertText, command: suggestion.command?.id })), [
+			{ label: { label: '/fork', description: 'Fork this chat' }, insertText: '', command: ChatSubmitAction.ID },
+		]);
+		assert.strictEqual(chatSessionsService.lookupCount, 0);
+	});
+
+	test('does not query capabilities when no fork command is available', async () => {
+		const chatSessionsService = new ForkCompletionChatSessionsService(true);
+		const { suggestions } = await provideSuggestions(true, [{
+			command: 'review',
+			detail: 'Review the workspace',
+			locations: [ChatAgentLocation.Chat],
+		}], chatSessionsService);
+
+		assert.strictEqual(chatSessionsService.lookupCount, 0);
+		assert.deepStrictEqual(suggestions.map(suggestion => suggestion.label), [
+			{ label: '/review', description: 'Review the workspace' },
+		]);
+	});
+
+	test('offers no fork variants when the capability lookup is cancelled', async () => {
+		const chatSessionsService = new ForkCompletionChatSessionsService(false);
+		const cancellationTokenSource = new CancellationTokenSource();
+		cancellationTokenSource.cancel();
+		const { suggestions } = await provideSuggestions(true, [forkCommand], chatSessionsService, cancellationTokenSource.token);
+
+		assert.strictEqual(chatSessionsService.lastToken, cancellationTokenSource.token);
+		assert.deepStrictEqual(suggestions, []);
+		cancellationTokenSource.dispose();
+	});
+
+	test('offers no fork variants when the capability lookup fails', async () => {
+		const { suggestions } = await provideSuggestions(true, [forkCommand], new ForkCompletionChatSessionsService(false, new Error('lookup failed')));
+
+		assert.deepStrictEqual(suggestions, []);
 	});
 });
 

@@ -13,6 +13,7 @@ import { AH_META_WORKSPACELESS_DB_KEY, type URI as ProtocolURI } from '../common
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 import { COPILOT_CUSTOMIZATION_DIRECTORY_KEY } from './agentHostSessionStateMirror.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
 	return typeof resource === 'string' ? resource : resource.toString();
@@ -76,6 +77,35 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 }
 
 /**
+ * The folders a chat without folders of its own works in: the session's own scratch folder (its primary) in a
+ * workspace-less session, else the session's folders without the scratch folders other chats brought (recorded rows).
+ * Another chat's scratch folder is never an inheriting chat's.
+ */
+export function inheritedChatFolders(stateManager: AgentHostStateManager, sessionFolders: readonly string[], sessionWorkspaceless: boolean): readonly string[] {
+	return sessionWorkspaceless ? sessionFolders.slice(0, 1) : sessionFolders.filter(folder => !stateManager.isScratchFolder(folder));
+}
+
+/**
+ * Whether `chat` is workspace-less, decided per chat from recorded data: its own
+ * primary folder is a recorded scratch folder; a chat with no folder of its own,
+ * or one sharing the default chat's folder, follows the session's marker
+ * (`sessionWorkspaceless`). A chat with its own foldered path in a marked session
+ * is not workspace-less.
+ */
+export function isChatWorkspaceless(stateManager: AgentHostStateManager, chat: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, sessionWorkspaceless: boolean): boolean {
+	const chatEntry = sessionState?.chats.get(chat);
+	return isChatPrimaryFolderWorkspaceless(stateManager, chatEntry?.launchWorkingDirectories?.[0] ?? chatEntry?.workingDirectories?.[0], sessionState, sessionWorkspaceless);
+}
+
+/** {@link isChatWorkspaceless} for a chat whose primary folder is `primaryFolder` (`undefined`: no folder of its own). */
+function isChatPrimaryFolderWorkspaceless(stateManager: AgentHostStateManager, primaryFolder: string | undefined, sessionState: ISessionStateSnapshot | undefined, sessionWorkspaceless: boolean): boolean {
+	const defaultEntry = sessionState && [...sessionState.chats.values()].find(entry => entry.isDefault);
+	const defaultFolder = defaultEntry?.launchWorkingDirectories?.[0] ?? defaultEntry?.workingDirectories?.[0];
+	return primaryFolder !== undefined && stateManager.isScratchFolder(primaryFolder)
+		|| sessionWorkspaceless && (primaryFolder === undefined || primaryFolder === defaultFolder);
+}
+
+/**
  * Builds the host-owned {@link IAgentChatContext} for an addressed chat
  * operation — the single place Agent Host derives the transient context handed
  * to a provider, so every boundary (create, materialize, send, truncate,
@@ -88,11 +118,24 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
  *   Absent only in the narrow restore window before a chat is registered,
  *   where the restoring caller supplies the origin itself;
  * - `customizations` — the owning session's effective host customizations.
+ * - `credentials` — the exact chat's sponsor or its unavailable source.
  *
  * Accepts either resource form so callers already holding protocol URI strings
  * (the action pipeline) need not round-trip through {@link URI}.
  */
-export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
+export function createAgentChatContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
+	return buildAgentChatContext(stateManager, authenticationService, session, chat, storageResource, sessionState, undefined);
+}
+
+/**
+ * {@link createAgentChatContext} for creating the backing of `chat` in `workingDirectories`, its own folders: they
+ * decide, not what is recorded for the chat, which a new chat does not have yet and a re-created backing replaces.
+ */
+export function createAgentChatCreationContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI, chat: URI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, workingDirectories: readonly URI[]): IAgentChatContext {
+	return buildAgentChatContext(stateManager, authenticationService, session, chat, storageResource, sessionState, workingDirectories.map(directory => directory.toString()));
+}
+
+function buildAgentChatContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, creationWorkingDirectories: readonly string[] | undefined): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
 	// A registered chat is addressed under the session that owns it now and with its recorded storage; a chat
@@ -105,19 +148,33 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	if (recordedStorage !== undefined && recordedStorage !== storageResource) {
 		throw new Error(`Chat ${chatKey} stores in ${recordedStorage}, not ${storageResource}`);
 	}
+	const principal = authenticationService.getSessionCredentialPrincipal(sessionKey);
+	if (principal) {
+		authenticationService.restoreSessionCredentialPrincipal(sessionKey, principal, chatKey);
+	}
+	const credentials = authenticationService.getSessionCredentialSource(chatKey);
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
 	const sessionSettings = createAgentChatSessionSettings(sessionState);
-	const launch = sessionState?.chats.get(chatKey)?.launchWorkingDirectories;
+	const chatEntry = sessionState?.chats.get(chatKey);
+	// A chat without folders of its own never launches in another chat's scratch folder, also when an older build recorded it.
+	const launch = creationWorkingDirectories ?? (chatEntry?.workingDirectories === undefined
+		? chatEntry?.launchWorkingDirectories?.filter(entry => !stateManager.isScratchFolder(entry))
+		: chatEntry.launchWorkingDirectories);
+	const workspaceless = creationWorkingDirectories
+		? isChatPrimaryFolderWorkspaceless(stateManager, creationWorkingDirectories[0], sessionState, sessionSettings?.workspaceless === true)
+		: isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		owner: createChatOwnerRef(stateManager, chat, session),
 		sessionSettings,
-		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
+		workspaceless,
+		launchWorkingDirectories: isToolChat || workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
+		...(credentials ? { credentials } : {}),
 	};
 }
 

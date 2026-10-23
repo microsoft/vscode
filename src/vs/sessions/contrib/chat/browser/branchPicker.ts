@@ -5,11 +5,14 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { CheckboxChip } from './checkboxChip.js';
 import './media/branchPicker.css';
@@ -58,6 +61,7 @@ export interface IBranchPickerIsolationState {
 
 export interface IBranchPickerOptions {
 	readonly user: string;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly onSelectBranch: (branch: string) => void;
 	readonly onRetry?: () => void;
 	readonly slotClassName?: string;
@@ -83,6 +87,7 @@ interface IBranchPickerItem {
  */
 export class BranchPicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _hoverDelegate: IHoverDelegate;
 	private _state: IBranchPickerState = {
 		label: localize('branchPicker.select', "Branch"),
 		branches: [],
@@ -99,8 +104,10 @@ export class BranchPicker extends Disposable {
 	constructor(
 		private readonly _options: IBranchPickerOptions,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
+		this._hoverDelegate = _options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this._register(toDisposable(() => {
 			if (this._isOpen) {
 				this._actionWidgetService.hide(true);
@@ -121,7 +128,8 @@ export class BranchPicker extends Disposable {
 			// Kept alongside the shared chip class so existing styling and selectors still match.
 			slotClassName: 'sessions-chat-isolation-checkbox',
 			markTarget: isolation.markTarget,
-		}));
+			hoverDelegate: this._hoverDelegate,
+		}, this._hoverService));
 		this._isolationChip = chip;
 		chip.render(container);
 		this._updateIsolation();
@@ -164,6 +172,8 @@ export class BranchPicker extends Disposable {
 			trigger.setAttribute('aria-live', this._options.ariaLive);
 		}
 		this._triggerElement = trigger;
+		this._renderDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, trigger, () =>
+			!this._state.canOpen && this._state.disabledReason ? this._state.disabledReason : this._state.label));
 
 		const description = dom.append(slot, dom.$('span.branch-picker-description'));
 		if (this._options.descriptionClassName) {
@@ -332,7 +342,6 @@ export class BranchPicker extends Disposable {
 			this._triggerElement.setAttribute('aria-haspopup', 'listbox');
 			this._triggerElement.setAttribute('aria-expanded', String(this._isOpen));
 		}
-		this._triggerElement.title = disabled && reason ? reason : this._state.label;
 		this._descriptionElement.textContent = reason ?? '';
 		this._slotElement.classList.toggle('disabled', disabled);
 		this._triggerElement.classList.toggle('branch-picker-disabled', disabled);

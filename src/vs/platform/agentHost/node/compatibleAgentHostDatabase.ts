@@ -394,6 +394,10 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return result.map(value => this.identity.toRuntime(value));
 	}
 
+	async recordOlderBuildChatListProjected(...[session]: Parameters<IAgentHostDatabase['recordOlderBuildChatListProjected']>): ReturnType<IAgentHostDatabase['recordOlderBuildChatListProjected']> {
+		return this.raw.recordOlderBuildChatListProjected(this.identity.toStorage(session));
+	}
+
 	async findOlderBuildChatCatalogEdits(...[limit]: Parameters<IAgentHostDatabase['findOlderBuildChatCatalogEdits']>): ReturnType<IAgentHostDatabase['findOlderBuildChatCatalogEdits']> {
 		const result = await this.raw.findOlderBuildChatCatalogEdits(limit);
 		return result.map(value => this.identity.toRuntime(value));
@@ -462,6 +466,72 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 
 	async removePrivateChatV2(...[session, chat, expectedCatalogRevision]: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> {
 		const result = await this.raw.removePrivateChatV2(this.identity.toStorage(session), this.identity.toStorage(chat), this.identity.record(expectedCatalogRevision, 'storage'));
+		return this.identity.record(result, 'runtime');
+	}
+
+	// Moves, promotions and reorders change normalized catalogs only, whatever a session's address: the database
+	// refuses (`notReady`) a catalog whose stored authority is legacy, in the same transaction that applies them.
+	moveChatV2(...[move]: Parameters<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> {
+		return this._moveChatsV2(move, translated => this.raw.moveChatV2(translated));
+	}
+
+	moveSessionV2(...[move]: Parameters<IAgentHostDatabase['moveSessionV2']>): ReturnType<IAgentHostDatabase['moveSessionV2']> {
+		return this._moveChatsV2(move, translated => this.raw.moveSessionV2(translated));
+	}
+
+	private async _moveChatsV2(move: Parameters<IAgentHostDatabase['moveChatV2']>[0], apply: (move: Parameters<IAgentHostDatabase['moveChatV2']>[0]) => ReturnType<IAgentHostDatabase['moveChatV2']>): ReturnType<IAgentHostDatabase['moveChatV2']> {
+		const toStorage = (resource: string) => this.identity.toStorage(resource);
+		const result = await apply({
+			...move,
+			chat: toStorage(move.chat),
+			source: toStorage(move.source),
+			target: toStorage(move.target),
+			after: move.after === undefined ? undefined : toStorage(move.after),
+			state: { ...move.state, chats: move.state.chats.map(chat => ({ ...chat, chat: toStorage(chat.chat) })) },
+		});
+		return result.status === 'applied' ? {
+			...result,
+			moved: result.moved.map(chat => this.identity.toRuntime(chat)),
+			targetOrder: result.targetOrder.map(chat => this.identity.toRuntime(chat)),
+		} : result;
+	}
+
+	async promoteChatV2(...[promotion]: Parameters<IAgentHostDatabase['promoteChatV2']>): ReturnType<IAgentHostDatabase['promoteChatV2']> {
+		const toStorage = (resource: string) => this.identity.toStorage(resource);
+		const result = await this.raw.promoteChatV2({
+			...promotion,
+			chat: toStorage(promotion.chat),
+			source: toStorage(promotion.source),
+			target: toStorage(promotion.target),
+			state: { ...promotion.state, chats: promotion.state.chats.map(chat => ({ ...chat, chat: toStorage(chat.chat) })) },
+		});
+		return result.status === 'applied' ? { ...result, moved: result.moved.map(chat => this.identity.toRuntime(chat)) } : result;
+	}
+
+	async listAttachmentOriginsV2(): ReturnType<IAgentHostDatabase['listAttachmentOriginsV2']> {
+		return new Set([...await this.raw.listAttachmentOriginsV2()].map(origin => this.identity.toRuntime(origin)));
+	}
+
+	async readChatAttachmentCopies(): ReturnType<IAgentHostDatabase['readChatAttachmentCopies']> {
+		const copies = await this.raw.readChatAttachmentCopies();
+		return new Map([...copies].map(([chat, copy]) => [this.identity.toRuntime(chat), { ...copy, origin: this.identity.toRuntime(copy.origin), storage: this.identity.toRuntime(copy.storage) }]));
+	}
+
+	async writeChatAttachmentCopy(...[chat, copy]: Parameters<IAgentHostDatabase['writeChatAttachmentCopy']>): ReturnType<IAgentHostDatabase['writeChatAttachmentCopy']> {
+		return this.raw.writeChatAttachmentCopy(this.identity.toStorage(chat), { ...copy, origin: this.identity.toStorage(copy.origin), storage: this.identity.toStorage(copy.storage) });
+	}
+
+	hasMovedChatsV2(): ReturnType<IAgentHostDatabase['hasMovedChatsV2']> {
+		return this.raw.hasMovedChatsV2();
+	}
+
+	async listMovedChatsV2(): ReturnType<IAgentHostDatabase['listMovedChatsV2']> {
+		const moved = await this.raw.listMovedChatsV2();
+		return new Map([...moved].map(([chat, origin]) => [this.identity.toRuntime(chat), this.identity.toRuntime(origin)]));
+	}
+
+	async reorderChatV2(...[session, chat, after, expectedCatalogRevision]: Parameters<IAgentHostDatabase['reorderChatV2']>): ReturnType<IAgentHostDatabase['reorderChatV2']> {
+		const result = await this.raw.reorderChatV2(this.identity.toStorage(session), this.identity.toStorage(chat), after === undefined ? undefined : this.identity.toStorage(after), expectedCatalogRevision);
 		return this.identity.record(result, 'runtime');
 	}
 
@@ -630,6 +700,71 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	isWorktreeInUse(...[worktreePath, excludedSession]: Parameters<IAgentHostDatabase['isWorktreeInUse']>): ReturnType<IAgentHostDatabase['isWorktreeInUse']> {
 		// Central working directories are keyed by the session's storage spelling.
 		return this.raw.isWorktreeInUse(worktreePath, excludedSession === undefined ? undefined : this.identity.toStorage(excludedSession));
+	}
+
+	async listWorktreeCoOwnersOfSession(...[session]: Parameters<IAgentHostDatabase['listWorktreeCoOwnersOfSession']>): ReturnType<IAgentHostDatabase['listWorktreeCoOwnersOfSession']> {
+		return (await this.raw.listWorktreeCoOwnersOfSession(this.identity.toStorage(session))).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	async readWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['readWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['readWorktreeCoOwners']> {
+		return (await this.raw.readWorktreeCoOwners(worktreePath)).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	async pruneWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['pruneWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['pruneWorktreeCoOwners']> {
+		return (await this.raw.pruneWorktreeCoOwners(worktreePath)).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	pruneDeletedWorktreeCoOwners(): ReturnType<IAgentHostDatabase['pruneDeletedWorktreeCoOwners']> {
+		return this.raw.pruneDeletedWorktreeCoOwners();
+	}
+
+	clearStaleWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['clearStaleWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['clearStaleWorktreeCoOwners']> {
+		return this.raw.clearStaleWorktreeCoOwners(worktreePath);
+	}
+
+	insertScratchFolder(...[request]: Parameters<IAgentHostDatabase['insertScratchFolder']>): ReturnType<IAgentHostDatabase['insertScratchFolder']> {
+		return this.raw.insertScratchFolder({ ...request, chatUri: this.identity.toStorage(request.chatUri) });
+	}
+
+	markScratchFolderOwned(...args: Parameters<IAgentHostDatabase['markScratchFolderOwned']>): ReturnType<IAgentHostDatabase['markScratchFolderOwned']> {
+		return this.raw.markScratchFolderOwned(...args);
+	}
+
+	markScratchFolderRemoving(...args: Parameters<IAgentHostDatabase['markScratchFolderRemoving']>): ReturnType<IAgentHostDatabase['markScratchFolderRemoving']> {
+		return this.raw.markScratchFolderRemoving(...args);
+	}
+
+	async listScratchFolders(): ReturnType<IAgentHostDatabase['listScratchFolders']> {
+		return (await this.raw.listScratchFolders()).map(row => ({ ...row, chatUri: this.identity.toRuntime(row.chatUri) }));
+	}
+
+	hasScratchFolder(...args: Parameters<IAgentHostDatabase['hasScratchFolder']>): ReturnType<IAgentHostDatabase['hasScratchFolder']> {
+		return this.raw.hasScratchFolder(...args);
+	}
+
+	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostDatabase['recordScratchFolderRemovalFailure']>): ReturnType<IAgentHostDatabase['recordScratchFolderRemovalFailure']> {
+		return this.raw.recordScratchFolderRemovalFailure(...args);
+	}
+
+	deleteScratchFolder(...args: Parameters<IAgentHostDatabase['deleteScratchFolder']>): ReturnType<IAgentHostDatabase['deleteScratchFolder']> {
+		return this.raw.deleteScratchFolder(...args);
+	}
+
+	isScratchFolderInUse(...args: Parameters<IAgentHostDatabase['isScratchFolderInUse']>): ReturnType<IAgentHostDatabase['isScratchFolderInUse']> {
+		return this.raw.isScratchFolderInUse(...args);
+	}
+
+	markOrphanedScratchFolderRemoving(...[folder, chatUris]: Parameters<IAgentHostDatabase['markOrphanedScratchFolderRemoving']>): ReturnType<IAgentHostDatabase['markOrphanedScratchFolderRemoving']> {
+		// Every recorded spelling of the chat: a row written before its chat had a storage identity holds the runtime one.
+		return this.raw.markOrphanedScratchFolderRemoving(folder, chatUris.flatMap(chat => [chat, this.identity.toStorage(chat), this.identity.toRuntime(chat)]));
+	}
+
+	isSessionLive(...[session]: Parameters<IAgentHostDatabase['isSessionLive']>): ReturnType<IAgentHostDatabase['isSessionLive']> {
+		return this.raw.isSessionLive(this.identity.toStorage(session));
+	}
+
+	async findAdditionalWorktreeOwners(...[handle]: Parameters<IAgentHostDatabase['findAdditionalWorktreeOwners']>): ReturnType<IAgentHostDatabase['findAdditionalWorktreeOwners']> {
+		return (await this.raw.findAdditionalWorktreeOwners(handle)).map(session => this.identity.toRuntime(session));
 	}
 
 	readSessionArchived(...[session]: Parameters<IAgentHostDatabase['readSessionArchived']>): ReturnType<IAgentHostDatabase['readSessionArchived']> {

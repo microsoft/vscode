@@ -38,6 +38,15 @@ export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefine
 		.replace(/^origin\//, '');
 }
 
+/** Selects the session's default base, preferring the default branch's upstream over its local name. */
+export function resolveDefaultBaseBranchName(defaultBranch: Branch | undefined, fallbackBranch: string | undefined): string | undefined {
+	return defaultBranch?.kind === GitRefType.Head
+		? defaultBranch.upstream?.name ?? defaultBranch.name
+		: defaultBranch?.kind === GitRefType.RemoteHead
+			? defaultBranch.name
+			: fallbackBranch;
+}
+
 /**
  * The well-known SHA-1 of git's empty tree, used as a fallback when a
  * repository has no commits (no `HEAD` to read into the temp index).
@@ -229,6 +238,7 @@ export interface IGitRemote {
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
+	/** Returns an existing branch or detached commit; undefined for an unborn HEAD. */
 	getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined>;
 	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
@@ -408,9 +418,10 @@ export interface IAgentHostGitService {
 
 	/**
 	 * Creates a commit object from a tree (optionally chained to a parent)
-	 * and returns its OID. Does NOT update any ref.
+	 * and returns its OID. Does NOT update any ref. `useInternalIdentity`
+	 * avoids requiring user Git identity for VS Code-owned commits.
 	 */
-	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined>;
+	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined>;
 
 	/**
 	 * Updates a ref to point at `newOid`. Creates the ref if missing.

@@ -89,7 +89,6 @@
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config-summary {
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
 	white-space: nowrap;
 }
 
@@ -473,7 +472,7 @@
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button:hover:not(.active),
-.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover {
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:hover:not(.disabled) {
 	color: var(--vscode-modernTab-hoverForeground);
 	background: var(--vscode-modernTab-hoverBackground);
 }
@@ -490,6 +489,16 @@
 	background: var(--vscode-modernTab-activeBackground);
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder, transparent);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action[data-id='comparison'] {
+	border: var(--vscode-strokeThickness) solid transparent;
+}
+
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action[data-id='comparison'].checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background: var(--vscode-inputOption-activeBackground);
+	border-color: var(--vscode-inputOption-activeBorder);
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button:focus-visible,
@@ -603,6 +612,29 @@
 	min-width: 0;
 }
 
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.separator.has-label.has-detail {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
+	border-top: none;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.separator.has-detail > span {
+	display: block;
+	height: auto;
+	line-height: 1.4;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.separator.has-detail .detail {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
 .action-widget .chat-model-picker-tabbed .monaco-list-row .action-list-item-toolbar .actions-container {
 	gap: var(--vscode-spacing-size20);
 }
@@ -713,6 +745,7 @@
 /* A filled pill reads as a box, so it centres with the icon and chevron. Sharing a
  * baseline would leave it a pixel low, since its type is smaller than the model name's. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-promo > .action-item-badge,
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion-discount > .action-item-badge,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-warning > .action-item-badge,
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-active > .action-item-badge {
 	align-self: center;
@@ -768,6 +801,15 @@
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
+}
+
+/* Copilot Fusion's discount takes the GitHub Copilot brand gradient. High contrast drops
+ * the fill, so the pill takes the contrast border instead. */
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion-discount > .action-item-badge {
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
+	color: var(--vscode-chat-fusionBadgeForeground);
+	background: linear-gradient(to right, var(--vscode-chat-fusionBadgeGradientStart), var(--vscode-chat-fusionBadgeGradientEnd));
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row .chat-model-picker-org-default-badge,
@@ -1060,6 +1102,54 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.model-picker-comparison .chat-model-card-comparison-variant-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.model-picker-comparison .chat-model-card-comparison-variant-chip {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: var(--vscode-spacing-size160);
+	white-space: nowrap;
+}
+
+.model-picker-comparison .chat-model-card-comparison-variant-chip.added {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent);
+}
+
+.model-picker-comparison .chat-model-card-comparison-variant-remove {
+	display: flex;
+	padding: 0;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	font: inherit;
+}
+
+.model-picker-comparison .chat-model-card-comparison-variant-remove:hover {
+	color: var(--vscode-foreground);
+}
+
+.model-picker-comparison .chat-model-card-comparison-variant-chip.addable {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder));
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.model-picker-comparison .chat-model-card-comparison-variant-chip.addable:hover {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+}
+
 .chat-model-card-options {
 	display: flex;
 	flex-direction: column;
@@ -1243,27 +1333,103 @@
 	outline-offset: var(--vscode-strokeThickness);
 }
 
-.model-picker-workflow-footer {
-	padding: var(--vscode-spacing-size80);
+.model-picker-comparison .model-picker-comparison-footer {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 }
 
-.model-picker-workflow-count,
-.model-picker-workflow-actions {
+.model-picker-comparison .model-picker-comparison-count,
+.model-picker-comparison .model-picker-comparison-actions {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }
 
-.model-picker-workflow-count {
+.model-picker-comparison .model-picker-comparison-count {
 	margin-bottom: var(--vscode-spacing-size80);
 }
 
-.model-picker-workflow-count > span {
+.model-picker-comparison .model-picker-comparison-count > span {
 	flex-shrink: 0;
 }
 
-.model-picker-workflow .action-list-header-text {
-	white-space: pre-line;
+/* The status or Back sits on the leading edge; Done and Next keep their places on the trailing edge. */
+.model-picker-comparison .model-picker-comparison-leading {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	min-width: 0;
+}
+
+.model-picker-comparison .model-picker-comparison-status {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-comparison .model-picker-comparison-status.warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.model-picker-comparison .model-picker-comparison-trailing {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.model-picker-comparison .model-picker-comparison-actions .monaco-button {
+	width: auto;
+	min-width: 64px;
+	padding-left: var(--vscode-spacing-size120);
+	padding-right: var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+/* Back is a quiet text action, so the trailing buttons stay the only filled controls. */
+.model-picker-comparison .model-picker-comparison-actions .monaco-button.model-picker-comparison-back {
+	min-width: 0;
+	margin-left: calc(-1 * var(--vscode-spacing-size60));
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid transparent;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+}
+
+.model-picker-comparison .model-picker-comparison-actions .monaco-button.model-picker-comparison-back:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Choosing several models reads as checkboxes, with the chosen rows tinted. */
+.action-widget.chat-model-picker-widget.model-picker-comparison .monaco-list-row.action .icon.chat-model-picker-comparison-checkbox {
+	box-sizing: border-box;
+	flex: 0 0 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	/* Fills the 20px icon column so labels align with the other rows. */
+	margin: 0 var(--vscode-spacing-size40) 0 var(--vscode-spacing-size20);
+	border: 1px solid var(--vscode-checkbox-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-checkbox-background);
+	color: var(--vscode-checkbox-foreground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.action-widget.chat-model-picker-widget.model-picker-comparison .monaco-list-row.action .icon.chat-model-picker-comparison-checkbox.checked {
+	border-color: var(--vscode-button-background);
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.action-widget.chat-model-picker-widget.model-picker-comparison .monaco-list .monaco-list-row.action.chat-model-picker-comparison-checked:not(.option-disabled) {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 /* An on-device model's detail page: plain sections of text and buttons beneath the card's header. */

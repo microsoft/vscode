@@ -8,13 +8,13 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AGENT_HOST_SCHEME, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -39,6 +39,7 @@ import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COL
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
 import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from './agentHostCustomizationMarketplaceInstallProvider.js';
+import { isComputerUseSetupPlatform } from './computerUseSetup.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
@@ -48,6 +49,7 @@ import { IAgentHostActiveClientService } from './agentHostActiveClientService.js
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
+import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -131,6 +133,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _isLocalAgentHost: boolean;
+	private readonly _connectionAuthority: string;
 	private readonly _enableSmokeTestDriver: boolean;
 	private _initialized = false;
 	private readonly _enablementStore = this._register(new MutableDisposable<DisposableStore>());
@@ -159,6 +162,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
+		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(autorun(reader => {
@@ -218,7 +222,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (this._agentHostService.registerMcpAuthenticationHandler) {
 			// Chat session URIs have no authority; retain that identity for remembered MCP grants.
 			store.add(this._agentHostService.registerMcpAuthenticationHandler(request =>
-				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._agentHostService, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._agentHostService, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth, request.target)));
 		}
 		store.add(this._agentHostService.onDidNotification(notification => {
 			if (notification.type !== NotificationType.AuthRequired) {
@@ -348,6 +352,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
+		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
+			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
 		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
@@ -374,6 +380,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			id: sessionType,
 			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
+			customAgentTarget: agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
+			modelCatalogueStatus,
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
@@ -393,6 +401,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			mcpConfigurationProvider: marketplaceInstallProvider && this._agentHostService.addMcpServerConfiguration
 				? marketplaceInstallProvider
 				: undefined,
+			pluginInstallProvider: marketplaceInstallProvider && this._agentHostService.installPlugin
+				? marketplaceInstallProvider
+				: undefined,
 			marketplaceInstallProvider,
 			marketplaceSearchProvider: marketplaceInstallProvider,
 			marketplaceManagementProvider,
@@ -406,8 +417,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			fullName: agent.displayName,
 			description: agent.description,
 			connection: this._agentHostService,
-			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
+			connectionAuthority: this._connectionAuthority,
 			supportsCanvasPresentation: this._isLocalAgentHost && agent.provider === 'copilotcli',
+			supportsManagedPluginRetry: this._isLocalAgentHost && agent.provider === 'copilotcli' && !!this._agentHostService.retryManagedPlugins,
+			supportsComputerUseSetup: this._isLocalAgentHost && agent.provider === 'copilotcli' && isComputerUseSetupPlatform(),
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,
