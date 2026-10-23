@@ -34,8 +34,8 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_ICON_ONLY_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
-import type { IconOnlySessionPickers, ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import type { ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -348,7 +348,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
-	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers & Pick<IconOnlySessionPickers, 'hasChoice'>;
+	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers;
 	readonly _onDidChangeChatPetPlatform: Emitter<void>;
 	readonly telemetryService: ITelemetryService;
 }
@@ -430,7 +430,6 @@ interface IClearWorkspaceHarness {
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
 	iconOnlyPickerIds: constObservable(new Set<string>()),
-	hasChoice: () => false,
 	getPickerId: () => undefined,
 	showContextMenu: () => { },
 };
@@ -1673,63 +1672,6 @@ suite('NewChatWidget', () => {
 			focusAfterHiding: true,
 			environmentRenderCount: 1,
 			removed: true,
-		});
-	});
-
-	test('environment icon-only experiment triggers where the environment label would show until the user chooses its presentation', () => {
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
-		const telemetryService = new TestExperimentTriggerTelemetryService();
-		const hasChoice = observableValue('hasChoice', true);
-		const harness: IRenderWorkspacePickerHarness = {
-			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
-			_environmentPickerBeforeWorkspace: observableValue('beforeWorkspace', false),
-			_environmentPicker: {
-				isVisible: constObservable(true),
-				render: target => {
-					const element = append(target, $('div'));
-					return { element, dispose: () => element.remove() };
-				},
-			},
-			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
-			_workspacePicker: { selectedFolderUri: undefined, onDidChangeSelection: Event.None, renderCategoryTriggers: parent => append(parent, $('div')) },
-			_newChatInput: {
-				pickerVisibility: disposables.add(new SessionInputPickerVisibility()),
-				placeRepositoryControls: () => { },
-				sessionTypePicker: { render: () => { } },
-			},
-			_renderSessionTypePicker: () => { },
-			_workspacePickerRow: undefined,
-			_workspaceSessionOptionsHost: undefined,
-			_sessionOptionsExpanded: observableValue('expanded', false),
-			_setSessionOptionsExpandedFromUser: () => { },
-			_useExperimentalComposerLayout: observableValue('layout', true),
-			_workspaceOptOutTarget: constObservable(undefined),
-			_workspaceOptOutEnabled: observableValue('optOut', false),
-			_screenReaderOptimized: observableValue('screenReader', false),
-			_collapsedSessionOptionsShowIcons: observableValue('icons', false),
-			_iconOnlyPickers: { ...noIconOnlyPickers, hasChoice: (_pickerId, reader) => hasChoice.read(reader) },
-			_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
-			telemetryService,
-		};
-		disposables.add(renderWorkspacePicker.call(harness, container));
-		const triggered = () => telemetryService.triggers.includes(`config.${ENVIRONMENT_PICKER_ICON_ONLY_SETTING}`);
-		const states: Record<string, boolean> = {};
-		harness._environment.set({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
-		states.collapsedWithChoice = triggered();
-		harness._sessionOptionsExpanded.set(true, undefined);
-		states.expandedWithChoice = triggered();
-		harness._sessionOptionsExpanded.set(false, undefined);
-		hasChoice.set(false, undefined);
-		states.collapsedWithoutChoice = triggered();
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
-		states.beforeWorkspaceWithoutChoice = triggered();
-		assert.deepStrictEqual(states, {
-			collapsedWithChoice: false,
-			expandedWithChoice: false,
-			collapsedWithoutChoice: false,
-			beforeWorkspaceWithoutChoice: true,
 		});
 	});
 
