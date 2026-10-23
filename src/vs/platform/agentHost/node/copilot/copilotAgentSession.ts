@@ -1908,7 +1908,7 @@ export class CopilotAgentSession extends Disposable {
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
 	private _requestedModel: ModelSelection | undefined;
-	private _appliedModelSelection: Parameters<CopilotAgentSession['setModel']> | undefined;
+	private _appliedModelSelection: ModelSelection | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
@@ -6432,11 +6432,8 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	/**
-	 * The arguments of the last successful {@link setModel}. The runtime keeps a selection in memory
-	 * until a turn commits it, so a configuration restart re-applies it to the replacement session.
-	 */
-	get appliedModelSelection(): Parameters<CopilotAgentSession['setModel']> | undefined {
+	/** The requested selection last successfully applied, before resolving configuration overrides. */
+	get appliedModelSelection(): ModelSelection | undefined {
 		return this._appliedModelSelection;
 	}
 
@@ -6458,7 +6455,7 @@ export class CopilotAgentSession extends Disposable {
 				...(autoTier !== undefined ? { autoTier } : {}),
 			}));
 			this._requestedModel = requested ?? { id: model };
-			this._appliedModelSelection = [model, reasoningEffort, contextTier, autoTier, requested];
+			this._appliedModelSelection = this._requestedModel;
 		} finally {
 			this.refreshModelConfiguration();
 		}
