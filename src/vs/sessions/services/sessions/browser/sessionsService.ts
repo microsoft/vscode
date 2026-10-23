@@ -69,9 +69,6 @@ export interface ISessionNavigationRequest {
 	readonly token: CancellationToken;
 }
 
-/**
- * Options for {@link ISessionsService.openNewSession}.
- */
 /** Options of {@link ISessionsService.showSessionInWindow}. */
 export interface IShowSessionInWindowOptions {
 	/** The chat to show: by default, the chat the session shows in the grid, or its main chat. */
@@ -80,6 +77,9 @@ export interface IShowSessionInWindowOptions {
 	readonly activates?: boolean;
 }
 
+/**
+ * Options for {@link ISessionsService.openNewSession}.
+ */
 export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	/**
 	 * Folder to create a concrete draft session for. When set, a new draft is
@@ -435,8 +435,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 	readonly windowSessions: IObservable<readonly IActiveSession[]>;
 	readonly mainWindowActiveSession: IObservable<IActiveSession | undefined>;
-	/** Window sessions that do not become the active session; see {@link IShowSessionInWindowOptions.activates}. */
-	private readonly _passiveWindowSessions = new WeakSet<ISession>();
 	private readonly _initialRestoreComplete = observableValue<boolean>(this, false);
 	readonly initialRestoreComplete: IObservable<boolean> = this._initialRestoreComplete;
 	private readonly _navigationRequest = observableValue<ISessionNavigationRequest | undefined>(this, undefined);
@@ -1015,7 +1013,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * canonical active session is updated reactively by the mirror autorun.
 	 */
 	private _activate(session: ISession | undefined, preserveFocus?: boolean, intent: SessionNavigationIntent = 'automatic'): IActiveSession | undefined {
-		if (session && this._visibility.isWindowSession(session) && this._passiveWindowSessions.has(session)) {
+		if (this._visibility.isPassiveWindowSession(session)) {
 			return session as IActiveSession;
 		}
 		let active: IActiveSession | undefined;
@@ -1829,10 +1827,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	setActive(session: IActiveSession | undefined): void {
-		if (session && this._visibility.isWindowSession(session) && this._passiveWindowSessions.has(session)) {
+		if (this._visibility.isPassiveWindowSession(session)) {
 			return;
 		}
-		if (session?.sessionId !== this.activeSession.get()?.sessionId || session !== this.activeSession.get()) {
+		const active = this.activeSession.get();
+		// A window session is another wrapper of a session the grid may show too; only then does the wrapper matter.
+		const windowInvolved = this._visibility.isWindowSession(session) || this._visibility.isWindowSession(active);
+		if (session?.sessionId !== active?.sessionId || (windowInvolved && session !== active)) {
 			this._cancelRestore();
 			this._startOpenSession();
 			this._recordNavigation();
@@ -1899,11 +1900,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
-		const windowSession = this._visibility.showInWindow(session, chat);
-		if (options?.activates === false) {
-			this._passiveWindowSessions.add(windowSession);
-		}
-		return windowSession;
+		return this._visibility.showInWindow(session, chat, undefined, options?.activates === false);
 	}
 
 	closeSession(session: ISession | undefined): void {

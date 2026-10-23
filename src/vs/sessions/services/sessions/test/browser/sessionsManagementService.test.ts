@@ -1376,6 +1376,19 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('activating another object of the active session records no navigation when no window shows it', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const { view } = harness([first, second]);
+			await view.openSessionsInGrid([first, second]);
+			view.setActive(view.visibleSessions.get().find(session => session?.sessionId === second.sessionId));
+			const navigation = view.navigationRequest.get();
+			const active = view.activeSession.get();
+			view.setActive(second as IActiveSession);
+			assert.deepStrictEqual({ active: view.activeSession.get()?.sessionId, sameWrapper: view.activeSession.get() === active, preservedNavigation: view.navigationRequest.get() === navigation }, {
+				active: 'second', sameWrapper: true, preservedNavigation: true,
+			});
+		});
+
 		test('explicitly reopening a retained inactive session reaches only its mounted group', async () => {
 			const [first, second] = ['first', 'second'].map(created);
 			const { view, part, chatViews } = harness([first, second]);
