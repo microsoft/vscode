@@ -63,6 +63,14 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-ti
 		{ filename, code: `import { tick } from './clock.js';\nasync function f() { while (!done) { await tick(); } }` },
 		// racing a signal against a timer waits on the signal
 		{ filename, code: `async function f() { while (!done) { await raceTimeout(Event.toPromise(onDidChange), 100); } }` },
+		// an executor that does work or throws is not a promise that never settles
+		{ filename, code: `async function f() { while (!done) { await raceTimeout(new Promise(() => emitter.fire()), 10); } }` },
+		{ filename, code: `async function f() { while (!done) { await raceTimeout(new Promise(() => { throw new Error('x'); }), 10); } }` },
+		// a `try` without a `catch` does not retry, so its assertions test each sample
+		{ filename, code: `async function f() { for (let i = 0; i < 10; i++) { try { await timeout(10); assert.ok(isReady()); } finally { } } }` },
+		// rescheduling with arguments that do work
+		{ filename, code: `function pump() { setTimeout(() => pump(socket.write(chunk)), 10); }` },
+		{ filename, code: `function pump() { setTimeout(pump, 10, socket.write(chunk)); }` },
 		// per-frame sampling, scrolling and clicking do work on every iteration
 		{ filename, code: `async function f() { for (let i = 0; i < 10; i++) { await new Promise(r => requestAnimationFrame(r)); assert.strictEqual(element.style.opacity, '1'); } }` },
 		{ filename, code: `async function f() { for (let i = 0; i < 10; i++) { await new Promise(r => requestAnimationFrame(r)); samples.push(element.offsetHeight); } }` },
@@ -149,5 +157,7 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-ti
 		{ filename, code: `async function f() { await new Promise<void>(resolve => { const i = setInterval(() => { if (signalSeen) { clearInterval(i); resolve(); } }, 10); }); }`, errors },
 		{ filename, code: `async function f() { const deferred = new DeferredPromise<void>(); const handle = mainWindow.setInterval(() => { if (ready()) { mainWindow.clearInterval(handle); deferred.complete(); } }, 10); await deferred.p; }`, errors },
 		{ filename, code: `function f() { return new Promise<void>((resolve, reject) => { let waited = 0; const handle = setInterval(() => { waited += 10; if (waited > 1000) { clearInterval(handle); reject(new Error('timeout')); } else if (isReady()) { clearInterval(handle); resolve(); } }, 10); }); }`, errors },
+		{ filename, code: `async function f() { await new Promise<void>(resolve => { const h = setInterval(() => { if (done) { clearInterval(h); resolve(); return; } }, 10); }); }`, errors },
+		{ filename, code: `async function f() { await new Promise<void>(resolve => { const h = setInterval(() => { if (done) { clearInterval(h); return resolve(); } }, 10); }); }`, errors },
 	],
 });

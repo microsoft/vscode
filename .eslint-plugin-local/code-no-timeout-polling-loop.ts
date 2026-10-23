@@ -100,10 +100,10 @@ function isTimerOnlyExecutor(executor: TSESTree.Node): boolean {
 	return resolve?.type === 'Identifier' && resolvesOnTimer(onlyExpression(executor), resolve.name);
 }
 
-/** `new Promise(() => { })`, which never settles. */
+/** `new Promise(() => { })`, which never settles. An executor that does work or throws is not a sleep. */
 function isNeverSettlingPromise(node: TSESTree.Node | undefined): boolean {
 	const executor = node && isPromise(node) ? node.arguments[0] : undefined;
-	return isFunction(executor) && (executor.params.length === 0 || (executor.body.type === 'BlockStatement' && executor.body.body.length === 0));
+	return isFunction(executor) && executor.body.type === 'BlockStatement' && executor.body.body.length === 0;
 }
 
 function paramNames(fn: FunctionNode | undefined): ReadonlySet<string> {
@@ -300,13 +300,16 @@ class Poll {
 			case 'ExpressionStatement':
 				return this.waitsInExpression(statement, inTry, nested);
 			case 'ReturnStatement':
-				return this.isSelfCall(statement.argument) || (!this.isParamCall(statement.argument) && this.isRead(statement.argument, inTry));
+				return this.isSelfCall(statement.argument)
+					|| (!!statement.argument && this.recordSettle(statement.argument, nested))
+					|| (!this.isParamCall(statement.argument) && this.isRead(statement.argument, inTry));
 			case 'ThrowStatement':
 				return this.isRead(statement.argument, inTry);
 			case 'IfStatement':
 				return this.isBranch(statement.consequent, inTry) && (!statement.alternate || this.isBranch(statement.alternate, inTry));
 			case 'TryStatement':
-				return this.waits(statement.block.body, true, true)
+				// only a `catch` retries what fails in the `try` block
+				return this.waits(statement.block.body, inTry || !!statement.handler, true)
 					&& (!statement.handler || this.waits(statement.handler.body.body, inTry, true))
 					&& (!statement.finalizer || this.waits(statement.finalizer.body, inTry, nested));
 			default:
@@ -323,8 +326,7 @@ class Poll {
 		if (this.isSelfCall(expression)) {
 			return true;
 		}
-		if (this.isSettle(expression)) {
-			this.settles ||= nested;
+		if (this.recordSettle(expression, nested)) {
 			return true;
 		}
 		// bookkeeping: `attempts++`, `attempts += 1`, `state = await read()`
@@ -347,7 +349,8 @@ class Poll {
 	 * `throw` runs once on the way out, but work before a `continue` or a
 	 * recursive call runs on every iteration, and work in a `try` block is
 	 * retried when it throws, so such a loop drives an operation instead of only
-	 * waiting.
+	 * waiting. A `return` does not end a `setInterval` poll, only clearing the
+	 * interval does, so its branches are always classified.
 	 */
 	private isExitBranch(statement: TSESTree.Statement, inTry: boolean): boolean {
 		const statements = statement.type === 'BlockStatement' ? statement.body : [statement];
@@ -356,7 +359,12 @@ class Poll {
 			return false;
 		}
 		const repeats = last.type === 'ContinueStatement' || (last.type === 'ReturnStatement' && this.isSelfCall(last.argument));
-		return repeats || inTry ? this.waits(statements, inTry, true) : true;
+		return repeats || inTry || this.isInterval ? this.waits(statements, inTry, true) : true;
+	}
+
+	/** A `setInterval` callback, which has a settling promise but does not call itself. */
+	private get isInterval(): boolean {
+		return !!this.settler && !this.self;
 	}
 
 	/**
@@ -384,16 +392,25 @@ class Poll {
 
 	/** `setTimeout(check, n)` or `setTimeout(() => check(), n)` in `check` itself */
 	private isReschedule(node: TSESTree.Expression): boolean {
-		if (!this.self) {
+		const callback = this.self ? timerCallback(node) : undefined;
+		if (!callback || node.type !== 'CallExpression' || !node.arguments.every(argument => this.isRead(argument, false))) {
 			return false;
 		}
-		const callback = timerCallback(node);
-		const call = callback && (callback.type === 'Identifier' ? callback : onlyExpression(callback));
-		if (call && (call.type === 'Identifier' ? call.name === this.self : isCallTo(call, this.self))) {
-			this.repeats = true;
-			return true;
+		if (callback.type === 'Identifier') {
+			this.repeats ||= callback.name === this.self;
+			return callback.name === this.self;
 		}
-		return false;
+		const call = onlyExpression(callback);
+		return !!call && this.isSelfCall(call);
+	}
+
+	/** Records a settling call, which counts when it is conditional. */
+	private recordSettle(node: TSESTree.Expression, nested: boolean): boolean {
+		if (!this.isSettle(node)) {
+			return false;
+		}
+		this.settles ||= nested;
+		return true;
 	}
 
 	/** `resolve()`, `deferred.complete()` or `clearInterval(handle)` in a timer callback */
