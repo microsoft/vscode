@@ -991,33 +991,48 @@ mod tests {
 	}
 
 	#[test]
-	fn data_folders_select_the_tests_next_to_them_that_load_a_reader() {
-		let test = |p: &'static str| {
+	fn data_folders_select_the_tests_that_name_them() {
+		let snapshot_test = |p: &'static str, helper: &'static str| {
 			(
 				p,
-				"import { assertSnapshot } from './snapshot.js';\ntest('a', () => assertSnapshot(1));\n",
+				match helper {
+					"./" => {
+						"import { assertSnapshot } from './snapshot.js';\ntest('a', () => assertSnapshot(1));\n"
+					}
+					_ => {
+						"import { assertSnapshot } from '../snapshot.js';\ntest('a', () => assertSnapshot(1));\n"
+					}
+				},
 			)
 		};
 		let files = [
+			// A helper that computes paths into the __snapshots__ folder next to the running test.
 			(
 				"src/app/test/snapshot.ts",
-				"export function assertSnapshot(v) { return v; }\n",
+				"export function assertSnapshot(v) { return read(testDir() + '/__snapshots__/' + v); }\n",
 			),
-			test("src/app/test/a.test.ts"),
-			test("src/app/test/b.test.ts"),
+			snapshot_test("src/app/test/a.test.ts", "./"),
+			snapshot_test("src/app/test/b.test.ts", "./"),
 			("src/app/test/plain.test.ts", "test('a', () => 1);\n"),
+			snapshot_test("src/app/test/nested/c.test.ts", "../"),
+			// A test that names a folder in a template literal.
 			(
-				"src/app/test/nested/c.test.ts",
-				"import { assertSnapshot } from '../snapshot.js';\ntest('a', () => assertSnapshot(1));\n",
+				"src/app/test/cases.test.ts",
+				"test('a', () => read(`${dir}${sep}test-cases${sep}${name}`));\n",
 			),
 			("src/app/test/__snapshots__/a_title.0.snap", "1"),
+			("src/app/test/test-cases/case.jsonl", "1"),
+			// A folder with modules is not test data.
+			("src/app/test/helpers/h.ts", "export const h = 'helpers';\n"),
+			("src/app/test/helpers/data.json", "1"),
 			("src/app/other/__snapshots__/x.snap", "1"),
 		];
-		let with = |path: &str, content: &'static str| -> Vec<(&'static str, &'static str)> {
-			files
+		let changed = |path: &str| -> Vec<String> {
+			let head: Vec<(&str, &str)> = files
 				.iter()
-				.map(|&(p, c)| (p, if p == path { content } else { c }))
-				.collect()
+				.map(|&(p, c)| (p, if p == path { "2" } else { c }))
+				.collect();
+			selected(&files, &head)
 		};
 		let added: Vec<(&str, &str)> = files
 			.iter()
@@ -1026,12 +1041,11 @@ mod tests {
 			.collect();
 		assert_eq!(
 			(
-				selected(
-					&files,
-					&with("src/app/test/__snapshots__/a_title.0.snap", "2")
-				),
+				changed("src/app/test/__snapshots__/a_title.0.snap"),
 				selected(&files, &added),
-				selected(&files, &with("src/app/other/__snapshots__/x.snap", "2")),
+				changed("src/app/test/test-cases/case.jsonl"),
+				changed("src/app/test/helpers/data.json"),
+				changed("src/app/other/__snapshots__/x.snap"),
 			),
 			(
 				vec![
@@ -1039,6 +1053,8 @@ mod tests {
 					"src/app/test/b.test.ts".to_owned()
 				],
 				vec!["src/app/test/nested/c.test.ts".to_owned()],
+				vec!["src/app/test/cases.test.ts".to_owned()],
+				vec![],
 				vec![]
 			)
 		);

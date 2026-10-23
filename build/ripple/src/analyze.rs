@@ -108,6 +108,10 @@ pub struct FileFacts {
 	pub loads: Vec<u32>,
 	/// Number of `test(...)` calls, used as a cost estimate for test files.
 	pub tests: u32,
+	/// The path segments in the module's strings and template literal parts (as name ids, sorted):
+	/// the names of the folders it may compute paths to, such as the `'__snapshots__'` of a
+	/// snapshot helper or the `test-cases` of `${dir}${sep}test-cases${sep}${name}`.
+	pub path_segments: Vec<u64>,
 	/// Loading the module has effects outside of it, such as registering with a registry.
 	pub global_effects: bool,
 	/// The top-level statements whose relative order affects module evaluation, in source
@@ -656,6 +660,20 @@ fn may_name_repository_path(s: &str) -> bool {
 						| b'\\'
 				)
 		})
+}
+
+/// Adds the name ids of the path segments of a string, such as `__snapshots__`.
+fn add_path_segments(s: &str, out: &mut Vec<u64>) {
+	for segment in s.split(['/', '\\']) {
+		if !segment.is_empty()
+			&& segment.len() <= 100
+			&& segment
+				.bytes()
+				.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'@'))
+		{
+			out.push(name_id(segment));
+		}
+	}
 }
 
 fn is_identifier_like(s: &str) -> bool {
@@ -1437,6 +1455,25 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				}
 			}
 			AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) => {
+				match kind {
+					AstKind::StringLiteral(s) => {
+						add_path_segments(&js_str(&s.value), &mut facts.path_segments)
+					}
+					AstKind::TemplateLiteral(t) => {
+						for q in &t.quasis {
+							match &q.value.cooked {
+								Some(cooked) => {
+									add_path_segments(&js_str(cooked), &mut facts.path_segments)
+								}
+								None => add_path_segments(
+									q.value.raw.as_str(),
+									&mut facts.path_segments,
+								),
+							}
+						}
+					}
+					_ => {}
+				}
 				let (pos, value) = match kind {
 					AstKind::StringLiteral(s) => (s.span.start, js_str(&s.value)),
 					AstKind::TemplateLiteral(t) if t.expressions.is_empty() => (
@@ -1810,6 +1847,8 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			}
 		}
 	}
+	facts.path_segments.sort_unstable();
+	facts.path_segments.dedup();
 
 	// Content hashes over the tokens of each declaration, skipping TypeScript-only spans. Comments
 	// and whitespace are not tokens, so they never affect a hash.

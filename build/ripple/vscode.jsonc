@@ -28,15 +28,7 @@
 		],
 		"integration": [
 			"src/**/*.integrationTest.ts"
-		],
-		// Folders next to a test file that the test reads by a path it computes, with the modules that
-		// compute it: a change in such a folder selects the tests next to it that load one of those
-		// modules. Snapshot tests store their snapshots in __snapshots__.
-		"dataFolders": {
-			"__snapshots__": [
-				"src/vs/base/test/common/snapshot.ts"
-			]
-		}
+		]
 	},
 
 	// Files outside the module graph that every unit test depends on, by the reason the plan reports:

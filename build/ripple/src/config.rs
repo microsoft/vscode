@@ -66,8 +66,6 @@ struct Tests {
 	unit: Vec<String>,
 	#[serde(default)]
 	integration: Vec<String>,
-	#[serde(default)]
-	data_folders: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -141,9 +139,6 @@ pub struct Config {
 	pure_objects: HashSet<String>,
 	/// Methods called without their name at the call site.
 	pub implicit_methods: Vec<String>,
-	/// Folders next to a test file that the test reads by a path it computes, by folder name, with
-	/// the modules that read them.
-	pub test_data_folders: Vec<(String, Vec<String>)>,
 	module_loaders: HashSet<String>,
 }
 
@@ -175,7 +170,6 @@ impl Config {
 			pure_functions: file.pure.functions.into_iter().collect(),
 			pure_objects: file.pure.objects.into_iter().collect(),
 			implicit_methods: file.implicit_methods,
-			test_data_folders: file.tests.data_folders.into_iter().collect(),
 			module_loaders: file.module_loaders.into_iter().collect(),
 		})
 	}
@@ -298,7 +292,7 @@ pub fn for_tests() -> &'static Config {
 			r#"{
 				"modules": ["src/**/*.ts"],
 				"pathAliases": { "lib/": "src/lib/" },
-				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"], "dataFolders": { "__snapshots__": ["src/app/test/snapshot.ts"] } },
+				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"] },
 				"runEverything": { "test runner": ["test/**", "!test/**/*.md"] },
 				"packages": { "toolchain": ["mocha"], "testScripts": ["install", "test"], "ignoredFields": ["build"] },
 				"injectedGlobals": { "_PACKAGE": "package.json", "_PRODUCT": "product.json" },

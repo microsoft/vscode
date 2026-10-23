@@ -101,6 +101,43 @@ const BUILTINS: &[&str] = &[
 	"zlib",
 ];
 
+/// The test data folders of a snapshot, by folder name: the folders next to test files that
+/// contain no module, each with the test files next to it.
+fn test_data_folders(snap: &Snapshot) -> Vec<(&str, Vec<(&str, Vec<u32>)>)> {
+	fn dir_of(p: &str) -> &str {
+		p.rsplit_once('/').map_or("", |(d, _)| d)
+	}
+	let mut tests: HashMap<&str, Vec<u32>> = HashMap::new();
+	for (f, e) in snap.entries.iter().enumerate() {
+		if e.role.is_test() {
+			tests.entry(dir_of(&e.path)).or_default().push(f as u32);
+		}
+	}
+	// The folders next to test files, and whether they contain a module.
+	let mut folders: HashMap<&str, bool> = HashMap::new();
+	for e in &snap.entries {
+		for (i, _) in e.path.match_indices('/') {
+			let folder = &e.path[..i];
+			if tests.contains_key(dir_of(folder)) {
+				*folders.entry(folder).or_default() |= e.role.is_module();
+			}
+		}
+	}
+	let mut by_name: HashMap<&str, Vec<(&str, Vec<u32>)>> = HashMap::new();
+	for (folder, has_module) in folders {
+		if !has_module {
+			let (dir, name) = folder.rsplit_once('/').unwrap_or(("", folder));
+			by_name
+				.entry(name)
+				.or_default()
+				.push((folder, tests[dir].clone()));
+		}
+	}
+	let mut list: Vec<_> = by_name.into_iter().collect();
+	list.sort_unstable_by(|a, b| a.0.cmp(b.0));
+	list
+}
+
 fn join(dir: &str, rel: &str) -> Option<String> {
 	let mut parts: Vec<&str> = dir.split('/').filter(|s| !s.is_empty()).collect();
 	for seg in rel.split('/') {
@@ -571,24 +608,22 @@ impl Graph {
 		}
 		// Modules that load a module, transitively, by the module they load.
 		let loaders = Csr::reverse(n, &load_edges);
-		// Tests read the data folders next to them, such as snapshots, by a path they compute
-		// through a reader module: a test reads them if it loads a reader. Without readers in the
-		// snapshot, every test next to the folder reads it.
-		for (name, readers) in &config.test_data_folders {
-			let roots: Vec<u32> = readers.iter().filter_map(|r| snap.find(r)).collect();
-			let reads = if roots.is_empty() {
-				vec![true; n]
-			} else {
-				loaders.reach(roots)
-			};
-			for (f, e) in snap.entries.iter().enumerate() {
-				if !e.role.is_test() || !reads[f] {
-					continue;
-				}
-				let dir = e.path.rsplit_once('/').map_or("", |(d, _)| d);
-				let folder = format!("{dir}/{name}");
-				if !snap.under(&folder).is_empty() {
-					dir_refs.push((linker.dir(&folder), base[f], f as u32));
+		// Test data: the folders next to test files that contain no modules, such as snapshots
+		// and fixtures. Tests read them by a path they compute, so the folder's name appears in a
+		// string of the test or of a module it loads, such as a snapshot helper's
+		// '__snapshots__': those tests depend on the folder.
+		for (name, folders) in test_data_folders(snap) {
+			let id = name_id(name);
+			let roots = (0..n as u32).filter(|&f| {
+				snap.entries[f as usize]
+					.facts
+					.as_ref()
+					.is_some_and(|facts| facts.path_segments.binary_search(&id).is_ok())
+			});
+			let reads = loaders.reach(roots);
+			for (folder, tests) in folders {
+				for f in tests.into_iter().filter(|&f| reads[f as usize]) {
+					dir_refs.push((linker.dir(folder), base[f as usize], f));
 				}
 			}
 		}
