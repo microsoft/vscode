@@ -20,9 +20,8 @@ import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../.
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -191,8 +190,7 @@ suite('Changes Actions', () => {
 			override readonly activeSessionStateObs = constObservable(undefined);
 		}();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService, contextKeyService, new NullLogService()));
+		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService));
 
 		const commandId = 'workbench.contrib.sessions.changesetOperation.discard-changes';
 		const getAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
