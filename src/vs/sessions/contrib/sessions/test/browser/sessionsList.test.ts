@@ -10223,14 +10223,52 @@ suite('Sessions - SessionsList', () => {
 				}
 
 				return {
-					session: !!sessionItem && mainWindow.getComputedStyle(sessionItem, '::after').opacity === '1',
-					chats: ownChats.map(chatItem => mainWindow.getComputedStyle(chatItem, '::after').opacity === '1'),
+					session: !!sessionItem && isGuideShown(sessionItem),
+					chats: ownChats.map(isGuideShown),
 				};
+			}
+
+			/** Whether a row draws its hierarchy guide, as rendered; rows without a guide still report full opacity. */
+			function isGuideShown(item: Element): boolean {
+				const style = mainWindow.getComputedStyle(item, '::after');
+				return style.content !== 'none' && style.display !== 'none' && style.opacity === '1';
+			}
+
+			function getSessionRow(container: HTMLElement, title: string): HTMLElement {
+				const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+					.find(item => item.querySelector('.session-title')?.textContent === title)
+					?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(row, `Expected a row for session '${title}'`);
+				return row;
 			}
 
 			test('guides are hidden at rest', () => {
 				const { container } = twoSessionContainer();
 				assert.deepStrictEqual(guidesVisible(container, 'Session'), { session: false, chats: [false] });
+			});
+
+			test('hovering the pane keeps the twistie and row actions to the row under the pointer', () => {
+				const { container } = twoSessionContainer();
+				const rowChrome = (title: string) => {
+					const row = getSessionRow(container, title);
+					return {
+						twistie: mainWindow.getComputedStyle(row.querySelector('.session-chat-twistie.collapsible')!).opacity,
+						actions: mainWindow.getComputedStyle(row.querySelector('.session-title-toolbar')!).display,
+					};
+				};
+
+				container.classList.add('hovered');
+				getSessionRow(container, 'Session').classList.add('hovered');
+
+				assert.deepStrictEqual({
+					hovered: rowChrome('Session'),
+					other: rowChrome('Other session'),
+					guides: [guidesVisible(container, 'Session'), guidesVisible(container, 'Other session')],
+				}, {
+					hovered: { twistie: '1', actions: 'block' },
+					other: { twistie: '0', actions: 'none' },
+					guides: [{ session: true, chats: [true] }, { session: true, chats: [true] }],
+				});
 			});
 
 			for (const compact of [false, true]) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Rows reveal actions on hover or keyboard focus. Pair every row `:hover` with
+ * Rows reveal actions on hover or keyboard focus. Pair every `:hover` with
  * `.hovered` (e.g. `.monaco-list-row:is(:hover, .hovered)`) so tests and
  * component fixtures can render the hover state without a pointer.
  */
@@ -863,6 +863,12 @@
 	}
 }
 
+/*
+ * Hierarchy guides connect an expanded session to its nested chats. While the
+ * pointer is anywhere over the Sessions pane, every hierarchy shows them, like
+ * the Explorer's indent guides. Otherwise only the selected or keyboard-focused
+ * hierarchy shows them (`.session-hierarchy-guides-visible`).
+ */
 .monaco-list-row[aria-expanded="true"] .session-item::after {
 	content: '';
 	position: absolute;

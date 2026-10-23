@@ -30,6 +30,22 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 		{ id: 'task-b', title: 'Task B', minutesAgo: 43 },
 	],
 };
+/** Two sessions whose nested chats form separate hierarchies, followed by a session without chats. */
+const NESTED_CHAT_HIERARCHY_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	NESTED_CHAT_SESSION,
+	{
+		id: 'b',
+		title: 'Session Persistence Cleanup',
+		workspace: 'vscode-tools',
+		minutesAgo: 9,
+		mainChatMinutesAgo: 12,
+		chats: [
+			{ id: 'audit', title: 'Audit stored state', minutesAgo: 25 },
+			{ id: 'migrate', title: 'Migrate old entries', minutesAgo: 51 },
+		],
+	},
+	{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-tools', minutesAgo: 64 },
+];
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 	id: 'nested-archive',
 	title: 'Investigate session persistence',
@@ -732,7 +748,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'a', chat: 'task-b' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The pointer is over the Task B chat row, which shows its hover background. Hovering a chat reveals its parent session hierarchy guides while the parent keeps its status icon.'],
+		expectedVisualDescriptions: ['The pointer is over the Task B chat row, which shows its hover background. With the pointer over the pane, the hierarchy guides show while the parent keeps its status icon.'],
 	}),
 	SessionsList_KeyboardFocusedSession: defineSessionsListFixture({
 		sessions: GROUPED_SESSIONS,
@@ -915,27 +931,52 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		expectedVisualDescriptions: ['An expanded session with its view pinned remains in its workspace section rather than the Pinned sidebar section. With the pointer over its Task B chat, its sticky marker does not shift the parent icon or hierarchy connectors, and both nested chat rows remain visible.'],
 	}),
 	SessionsList_NestedChatHierarchyGuides: defineSessionsListFixture({
-		sessions: [
-			{ ...NESTED_CHAT_SESSION, pinned: true, sticky: true },
-			{ ...NESTED_CHAT_SESSION, id: 'b', title: 'Review retry behavior', workspace: 'vscode' },
-		],
-		view: { width: 340, height: 420, expanded: [{ section: 'pinned' }] },
+		sessions: [{ ...NESTED_CHAT_SESSION, pinned: true, sticky: true }],
+		view: { width: 340, expanded: [{ section: 'pinned' }] },
 		interaction: { hovered: { session: 'a', chat: 'task-a' } },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Two expanded session hierarchies show their connectors while only the first session\'s Task A chat is hovered. The pinned and sticky session\'s marker does not shift its icon away from the guide. Both hierarchies have continuous connectors with rounded branches that stop short of the child status icons.'],
+		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows, and the pointer is over the Task A chat. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent, through the hovered row, into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
 	}),
-	SessionsList_NestedChatHierarchyGuides_PaneHover: defineSessionsListFixture({
-		sessions: [
-			NESTED_CHAT_SESSION,
-			{ ...NESTED_CHAT_SESSION, id: 'b', title: 'Review retry behavior', workspace: 'vscode' },
-		],
+	SessionsList_NestedChatHierarchies: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the pointer outside the pane and nothing selected, two expanded sessions show their nested chats indented beneath them without hierarchy guides. The session without chats below them is unchanged.'],
+	}),
+	SessionsList_NestedChatHierarchies_PaneHovered: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: 'pane' },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over empty space in the Sessions pane, below the rows. Both expanded sessions show continuous hierarchy guides from the parent into rounded branches to each of their nested chats, and each guide ends at its own last chat. No row shows a hover background, twistie, or row actions, and the session without chats has no guide.'],
+	}),
+	SessionsList_NestedChatHierarchies_CompactPaneHovered: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
 		view: { width: 340, height: 420, compact: true },
 		interaction: { hovered: 'pane' },
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['Both compact session hierarchies show their connectors while the pointer is in the pane without hovering any row. No row actions or collapse twisties are revealed.'],
+	}),
+	SessionsList_NestedChatHierarchies_HoveredRow: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { hovered: { session: 'b' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the Session Persistence Cleanup session row, and both expanded sessions show their hierarchy guides. Only the hovered row shows its hover background, its collapse twistie in place of its status icon, and its row actions; HTTP Client Retry Plan keeps its status icon and shows no actions.'],
+	}),
+	SessionsList_NestedChatHierarchies_Selected: defineSessionsListFixture({
+		sessions: NESTED_CHAT_HIERARCHY_SESSIONS,
+		view: { width: 340, height: 480 },
+		interaction: { selected: [{ session: 'b', chat: 'audit' }], listFocused: false },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With the pointer outside the pane, the Audit stored state chat is selected without list focus. Only its own hierarchy, Session Persistence Cleanup, shows hierarchy guides; the HTTP Client Retry Plan chats are indented without guides.'],
 	}),
 
 	//#endregion

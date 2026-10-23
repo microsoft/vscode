@@ -1001,8 +1001,9 @@ function startRename(list: SessionsList, row: SessionsListFixtureRow, getSession
 
 /**
  * Renders pointer hover on a row: the `.hovered` class stands in for CSS
- * `:hover`, and a `mouseover` drives the list's own hover tracking. Reapplied
- * after list updates, which can recycle row elements.
+ * `:hover`, and a `mouseover` drives JavaScript that reacts to the pointer,
+ * such as the list revealing its scrollbar. Reapplied after list updates,
+ * which can recycle row elements.
  */
 function simulateHover(list: TestSessionsList, item: SessionsListItemReference, store: DisposableStore): void {
 	let hoveredRow: HTMLElement | undefined;

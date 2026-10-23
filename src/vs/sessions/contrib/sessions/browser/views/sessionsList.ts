@@ -757,10 +757,10 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly compact: () => boolean,
 		private readonly onDidChangeUpdatedAt: () => void,
 		/**
-		 * Session IDs whose hierarchy indent/connector guides should be shown —
-		 * i.e. the session (or one of its chats) is currently hovered or
-		 * selected. Read reactively so guides appear only while the pointer or
-		 * selection is within this exact session's hierarchy.
+		 * Session IDs whose hierarchy indent/connector guides show while the
+		 * pointer is outside the Sessions pane, i.e. the session (or one of its
+		 * chats) is selected or keyboard-focused. While the pointer is over the
+		 * pane, CSS shows every hierarchy's guides.
 		 */
 		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
 		/** How many groups deep the custom group whose rows include a chat row is nested; the row steps in by that many levels. */
@@ -1696,6 +1696,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
 		}));
 
+		// Hierarchy indent/connector guides — shown for this session while it (or
+		// one of its chat children) is selected or focused. While the pointer is
+		// over the Sessions pane, CSS shows every hierarchy's guides.
 		template.elementDisposables.add(autorun(reader => {
 			const showGuides = (this.options.activeGuideSessionIds?.read(reader) ?? EMPTY_GUIDE_SESSION_IDS).has(element.sessionId);
 			template.container.classList.toggle('session-hierarchy-guides-visible', showGuides);
@@ -4124,7 +4127,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly chatRowHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
-	/** Selection and keyboard focus retain their hierarchy guides independently of pane-wide CSS hover. */
+	/**
+	 * Session IDs whose hierarchy indent/connector guides show while the pointer
+	 * is outside the Sessions pane: every session that is the parent of, or
+	 * itself, a currently selected or keyboard-focused row. Focus is tracked
+	 * separately from selection because arrow-key navigation (via the workbench
+	 * `list.focusUp`/`list.focusDown` commands) moves the tree's focus without
+	 * changing its selection. While the pointer is over the pane, CSS shows
+	 * every hierarchy's guides.
+	 */
 	private readonly selectedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 	private readonly focusedGuideSessionIds = observableValue<ReadonlySet<string>>(this, EMPTY_GUIDE_SESSION_IDS);
 	private readonly activeGuideSessionIds = derived(this, reader => {
@@ -4717,6 +4728,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this._register(this.tree.onDidScroll(() => this.options.onDidScroll?.()));
 		}
 
+		// Hierarchy guides: resolve any row (a session or one of its chats) to
+		// the session whose guides it belongs to, so selecting/focusing a chat
+		// child reveals only its own parent's guides, never an unrelated
+		// session's.
 		const guideOwnerSessionId = (element: SessionListItem | null): string | undefined => {
 			if (element && isSessionItem(element)) {
 				return element.sessionId;
