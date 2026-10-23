@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, IFloatingEditorPart, IFloatingEditorPartOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { distinct } from '../../../../base/common/arrays.js';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
+import { FloatingEditorPart } from './floatingEditorPart.js';
 import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -122,6 +123,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	private readonly mapPartToInstantiationService = new Map<number /* window ID */, IInstantiationService>();
 	private modalPartInstantiationService: IInstantiationService | undefined;
+	private readonly mapFloatingPartToInstantiationService = new Map<IEditorPart, IInstantiationService>();
+
+	/** Parts that working sets leave alone, and that window restore does not capture. */
+	private readonly partsExcludedFromWorkingSets = new Set<IEditorPart>();
 
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
 
@@ -151,6 +156,12 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return this.modalPartInstantiationService;
 		}
 
+		// Floating Parts share the main window, so they are not found by window
+		const floatingPartInstantiationService = this.mapFloatingPartToInstantiationService.get(part);
+		if (floatingPartInstantiationService) {
+			return floatingPartInstantiationService;
+		}
+
 		return this.mapPartToInstantiationService.get(part.windowId) ?? this.instantiationService;
 	}
 
@@ -167,6 +178,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// Keep instantiation service
 		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part.windowId)));
+		if (options?.excludeFromWorkingSets) {
+			this.excludeFromWorkingSets(part, disposables);
+		}
 
 		// Events
 		this._onDidAddGroup.fire(part.activeGroup);
@@ -177,6 +191,29 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	}
 
 	//#endregion
+
+	//#region Floating Editor Parts
+
+	async createFloatingEditorPart(options: IFloatingEditorPartOptions): Promise<IFloatingEditorPart> {
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(FloatingEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
+
+		// Keep instantiation service
+		this.mapFloatingPartToInstantiationService.set(part, instantiationService);
+		disposables.add(toDisposable(() => this.mapFloatingPartToInstantiationService.delete(part)));
+		this.excludeFromWorkingSets(part, disposables);
+
+		// Events
+		this._onDidAddGroup.fire(part.activeGroup);
+
+		return part;
+	}
+
+	//#endregion
+
+	private excludeFromWorkingSets(part: IEditorPart, disposables: DisposableStore): void {
+		this.partsExcludedFromWorkingSets.add(part);
+		disposables.add(toDisposable(() => this.partsExcludedFromWorkingSets.delete(part)));
+	}
 
 	//#region Modal Editor Part
 
@@ -509,6 +546,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private createState(): IEditorPartsUIState {
 		return {
 			auxiliary: this.parts
+				.filter(part => !this.partsExcludedFromWorkingSets.has(part))
 				.map(part => ({ part, auxiliaryWindow: this.auxiliaryWindowService.getWindow(part.windowId) }))
 				.filter(({ auxiliaryWindow }) => auxiliaryWindow !== undefined)
 				.map(({ part, auxiliaryWindow }) => ({
@@ -568,6 +606,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		for (const part of this.parts) {
 			if (part === this.mainPart) {
 				continue; // main part takes care on its own
+			}
+
+			if (this.partsExcludedFromWorkingSets.has(part)) {
+				continue; // managed by its owner, outside of working sets
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -889,21 +931,31 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	//#region Editor Group Context Key Handling
 
 	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
-	private readonly scopedContextKeys = new Map<GroupIdentifier, Map<string, IContextKey<ContextKeyValue>>>();
+	/**
+	 * The context keys bound to each group's scoped context key service. Keyed by the group as well as its id: restoring
+	 * a state can create a group with the id of a group that is still being removed.
+	 */
+	private readonly scopedContextKeys = new Map<GroupIdentifier, { readonly group: IEditorGroupView; readonly keys: Map<string, IContextKey<ContextKeyValue>> }>();
 
 	private registerGroupsContextKeyListeners(): void {
 		this._register(this.onDidChangeActiveGroup(() => this.updateGlobalContextKeys()));
 		this.groups.forEach(group => this.registerGroupContextKeyProvidersListeners(group));
 		this._register(this.onDidAddGroup(group => this.registerGroupContextKeyProvidersListeners(group)));
 		this._register(this.onDidRemoveGroup(group => {
-			this.scopedContextKeys.delete(group.id);
-			this.registeredContextKeys.delete(group.id);
-			this.contextKeyProviderDisposables.deleteAndDispose(group.id);
+			// Unless a group with its id already took its place.
+			if (this.scopedContextKeys.get(group.id)?.group === group) {
+				this.scopedContextKeys.delete(group.id);
+				this.registeredContextKeys.delete(group.id);
+			}
+			if (this.contextKeyProviderGroups.get(group.id) === group) {
+				this.contextKeyProviderGroups.delete(group.id);
+				this.contextKeyProviderDisposables.deleteAndDispose(group.id);
+			}
 		}));
 	}
 
 	private updateGlobalContextKeys(): void {
-		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup.id);
+		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup.id)?.keys;
 		if (!activeGroupScopedContextKeys) {
 			return;
 		}
@@ -929,14 +981,14 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 		// Ensure we only bind to the same context key once per group
 		let groupScopedContextKeys = this.scopedContextKeys.get(group.id);
-		if (!groupScopedContextKeys) {
-			groupScopedContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
+		if (groupScopedContextKeys?.group !== group) {
+			groupScopedContextKeys = { group, keys: new Map<string, IContextKey<ContextKeyValue>>() };
 			this.scopedContextKeys.set(group.id, groupScopedContextKeys);
 		}
-		let scopedContextKey = groupScopedContextKeys.get(contextKey.key);
+		let scopedContextKey = groupScopedContextKeys.keys.get(contextKey.key);
 		if (!scopedContextKey) {
 			scopedContextKey = contextKey.bindTo(group.scopedContextKeyService);
-			groupScopedContextKeys.set(contextKey.key, scopedContextKey);
+			groupScopedContextKeys.keys.set(contextKey.key, scopedContextKey);
 		}
 
 		const that = this;
@@ -983,7 +1035,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			onDidChange?.dispose();
 
 			this.globalContextKeys.delete(provider.contextKey.key);
-			this.scopedContextKeys.forEach(scopedContextKeys => scopedContextKeys.delete(provider.contextKey.key));
+			this.scopedContextKeys.forEach(scopedContextKeys => scopedContextKeys.keys.delete(provider.contextKey.key));
 
 			this.contextKeyProviders.delete(provider.contextKey.key);
 			this.registeredContextKeys.forEach(registeredContextKeys => registeredContextKeys.delete(provider.contextKey.key));
@@ -991,6 +1043,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	}
 
 	private readonly contextKeyProviderDisposables = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
+	private readonly contextKeyProviderGroups = new Map<GroupIdentifier, IEditorGroupView>();
 	private registerGroupContextKeyProvidersListeners(group: IEditorGroupView): void {
 
 		// Update context keys from providers for the group when its active editor changes
@@ -1001,6 +1054,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		});
 
 		this.contextKeyProviderDisposables.set(group.id, disposable);
+		this.contextKeyProviderGroups.set(group.id, group);
 	}
 
 	private updateRegisteredContextKey<T extends ContextKeyValue>(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider<T>): void {
@@ -1009,7 +1063,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// If the providers context key has not yet been bound
 		// to the group, do so now.
 
-		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);
+		let groupRegisteredContextKeys = this.scopedContextKeys.get(group.id)?.group === group ? this.registeredContextKeys.get(group.id) : undefined;
 		if (!groupRegisteredContextKeys) {
 			groupRegisteredContextKeys = new Map<string, IContextKey>();
 			this.registeredContextKeys.set(group.id, groupRegisteredContextKeys);

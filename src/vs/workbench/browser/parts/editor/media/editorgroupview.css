@@ -239,7 +239,8 @@
 	height: 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.empty > .title {
+.monaco-workbench .part.editor > .content .editor-group-container.empty > .title,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.hidden-title {
 	display: none;
 }
 

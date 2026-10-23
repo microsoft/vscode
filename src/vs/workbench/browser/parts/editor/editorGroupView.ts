@@ -24,7 +24,7 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { EditorProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
 import { localize } from '../../../../nls.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DeferredPromise, Promises, RunOnceWorker } from '../../../../base/common/async.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
@@ -946,7 +946,34 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get titleHeight(): IEditorGroupTitleHeight {
-		return this.titleControl.getHeight();
+		return this.titleHidden ? { total: 0, offset: 0 } : this.titleControl.getHeight();
+	}
+
+	private titleHiddenCount = 0;
+	private get titleHidden(): boolean { return this.titleHiddenCount > 0; }
+
+	hideTitle(): IDisposable {
+		this.titleHiddenCount++;
+		if (this.titleHiddenCount === 1) {
+			this.updateTitleHidden();
+		}
+
+		let disposed = false;
+		return toDisposable(() => {
+			if (disposed || this.disposed) {
+				return;
+			}
+			disposed = true;
+			this.titleHiddenCount--;
+			if (this.titleHiddenCount === 0) {
+				this.updateTitleHidden();
+			}
+		});
+	}
+
+	private updateTitleHidden(): void {
+		this.titleContainer.classList.toggle('hidden-title', this.titleHidden);
+		this.relayout();
 	}
 
 	notifyIndexChanged(newIndex: number): void {
@@ -2238,7 +2265,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
-		const titleControlSize = this.titleControl.layout({
+		const titleControlSize = this.titleHidden ? Dimension.None : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		}, contentWidth);
