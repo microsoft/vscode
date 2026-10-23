@@ -80,8 +80,8 @@ function getModalTabbableElements(modalElement: HTMLElement): HTMLElement[] {
 	elements.sort((first, second) => {
 		const firstTabIndex = first.element.tabIndex;
 		const secondTabIndex = second.element.tabIndex;
-		if (firstTabIndex > 0 && secondTabIndex > 0 && firstTabIndex !== secondTabIndex) {
-			return firstTabIndex - secondTabIndex;
+		if (firstTabIndex > 0 && secondTabIndex > 0) {
+			return firstTabIndex - secondTabIndex || first.index - second.index;
 		}
 		if (firstTabIndex > 0) {
 			return -1;
@@ -338,6 +338,9 @@ export class ModalEditorPart {
 			const isForwardTab = event.equals(KeyCode.Tab);
 			const isBackwardTab = event.equals(KeyMod.Shift | KeyCode.Tab);
 			if (!isForwardTab && !isBackwardTab) {
+				return;
+			}
+			if (this.keybindingService.softDispatch(event, event.target).kind !== ResultKind.NoMatchingKb) {
 				return;
 			}
 
