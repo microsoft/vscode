@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -62,7 +61,7 @@ import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWor
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
-import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import { ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
 import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
@@ -636,7 +635,6 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
 
 		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
-		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, true);
 		services.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 			affectsConfiguration: () => true,
 		}));
@@ -644,16 +642,7 @@ suite('Agent Host Session Config Picker', () => {
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-		assert.deepStrictEqual(localEntries, isWeb ? entries : ['Base Branch']);
-		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, false);
-		services.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: () => true,
-		}));
-		const restoredEntries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
-			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-		assert.deepStrictEqual(restoredEntries, entries);
+		assert.deepStrictEqual(localEntries, entries);
 	});
 
 	test('repository pickers keep their menu action so the composer can identify them', async () => {
