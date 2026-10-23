@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -32,6 +33,9 @@ import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSa
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
+import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
 	return {
@@ -66,6 +70,7 @@ interface ITestSetup {
 	readonly requestedUrls: string[];
 	readonly provisioningOutcomes: ProvisioningOutcome[];
 	readonly requestOutcomes: RequestOutcome[];
+	readonly lifecycleEvents: ITelemetryData[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
 	changeAuthentication(kind?: 'sessions' | 'register' | 'unregister'): void;
@@ -126,6 +131,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
 	const requestOutcomes: RequestOutcome[] = [];
+	const lifecycleEvents: ITelemetryData[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
 	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
@@ -219,6 +225,13 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(new class extends mock<ITelemetryService>() {
+			override publicLog2(_eventName: string, data?: ITelemetryData): void {
+				if (data) {
+					lifecycleEvents.push(data);
+				}
+			}
+		}());
 		override reportRequest(...outcome: RequestOutcome): void {
 			requestOutcomes.push(outcome);
 		}
@@ -266,6 +279,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		requestedUrls,
 		provisioningOutcomes,
 		requestOutcomes,
+		lifecycleEvents,
 		concurrency,
 		changeAuthentication: (kind = 'sessions') => {
 			if (kind === 'register') {
@@ -1257,6 +1271,20 @@ suite('CloudSandboxApiService feed task refresh', () => {
 suite('CloudSandboxApiService connection credentials', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const request = { environmentId: 'env-1', sessionId: 'session-1' };
+
+	test('a mismatched reconnect response fails lifecycle telemetry on the requested connection', async () => {
+		const connectionId = generateUuid();
+		const otherConnectionId = generateUuid();
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ access_token: 'private', wps_endpoint: 'https://private.invalid', client_id: otherConnectionId, groups: {} }),
+		});
+		await assert.rejects(service.reconnect({ environmentId: generateUuid() }, connectionId, CancellationToken.None), /different client/);
+		assert.deepStrictEqual(lifecycleEvents.map(event => [event.phase, event.outcome, event.connectionId]), [
+			['credentials.refresh', 'started', connectionId],
+			['credentials.refresh', 'failed', connectionId],
+		]);
+	});
 
 	for (const failure of ['signed out', 'already cancelled', 'cancelled in flight', 'HTTP error', 'network error'] as const) {
 		test(`credential request accounting includes only issued requests when ${failure}`, async () => {
@@ -3838,6 +3866,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 		}
 	}());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(NullTelemetryService);
 		override reportRequest(): void { }
 		override reportProvisioningOutcome(): void { }
 	}());
@@ -4589,6 +4618,53 @@ suite('CloudSandboxApiService reservation submission', () => {
 suite('CloudSandboxApiService session creation', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('binds creation lifecycle identity after the response and keeps reservation fallback distinct', async () => {
+		const environmentId = generateUuid();
+		const sessionId = generateUuid();
+		const taskId = generateUuid();
+		const reservedTaskId = generateUuid();
+		const serverRequestId = 'ABCD:1234:5678:9ABC:DEF01234';
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ id: taskId, claimed: false, sessions: [{ id: sessionId, environment_id: environmentId }] }, 201, { 'x-github-request-id': serverRequestId }),
+		});
+		await service.createSession({
+			reservedTaskId, prompt: 'private prompt', repoNwo: 'private/repository',
+			expectedAccountKey: JSON.stringify(['github', 'a']),
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			events: lifecycleEvents.map(event => ({
+				outcome: event.outcome, environmentId: event.environmentId, sessionId: event.agentSessionId,
+				taskId: event.taskId, reservedTaskId: event.relatedTaskId, path: event.taskCreationPath, serverRequestId: event.serverRequestId,
+			})),
+			operations: new Set(lifecycleEvents.map(event => event.operationId)).size,
+			privateContent: JSON.stringify(lifecycleEvents).includes('private'),
+		}, {
+			events: [
+				{ outcome: 'started', environmentId: undefined, sessionId: undefined, taskId: undefined, reservedTaskId, path: 'reservationUnconfirmed', serverRequestId: undefined },
+				{ outcome: 'observed', environmentId: undefined, sessionId: undefined, taskId: undefined, reservedTaskId, path: 'reservationUnconfirmed', serverRequestId },
+				{ outcome: 'succeeded', environmentId, sessionId, taskId, reservedTaskId, path: 'reservationFallback', serverRequestId },
+			],
+			operations: 1, privateContent: false,
+		});
+	});
+
+	test('reports a pre-allocation failure without inventing environment or session IDs', async () => {
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ message: 'private refusal' }, 403, { 'x-github-request-id': 'ABCD:1234:5678:9ABC:DEF01234' }),
+		});
+		await assert.rejects(service.createSession({ prompt: 'private prompt' }, CancellationToken.None));
+		assert.deepStrictEqual({
+			events: lifecycleEvents.map(event => [event.outcome, event.environmentId, event.agentSessionId, event.statusCode]),
+			operations: new Set(lifecycleEvents.map(event => event.operationId)).size,
+			privateContent: JSON.stringify(lifecycleEvents).includes('private'),
+		}, {
+			events: [['started', undefined, undefined, undefined], ['failed', undefined, undefined, 403]],
+			operations: 1, privateContent: false,
+		});
+	});
 
 	for (const scenario of [
 		{ path: 'newEnvironment', request: {} },

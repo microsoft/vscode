@@ -5900,6 +5900,67 @@ suite('AgentHostProtocolClient', () => {
 			}
 		}
 
+		test('lifecycle diagnostics preserve opaque session and chat resources without extra protocol requests', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const transport = transports[0];
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase.startsWith('session.') || event.phase === 'chat.binding') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transport, client.connect());
+			const session = URI.parse('other-host:/opaque-session');
+			const chat = 'other-chat:/unrelated-chat';
+			const creation = client.createSession({ session, provider: 'other' });
+			const create = await waitForRequestAtWithin(transport, 'createSession', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: create.id, result: {} });
+			const created = await creation;
+			const subscription = disposables.add(client.getSubscription(StateComponents.Session, session, 'lifecycle-test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribe.id,
+				result: {
+					snapshot: {
+						resource: session.toString(), fromSeq: 0,
+						state: {
+							...createSessionState({ resource: session.toString(), provider: 'other', title: 'private title', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }),
+							lifecycle: SessionLifecycle.Ready,
+							defaultChat: chat,
+							chats: [{ resource: chat, title: 'private chat', origin: { kind: 'user' }, status: SessionStatus.Idle }],
+						},
+					},
+				},
+			});
+			await flushMicrotasks();
+			subscription.dispose();
+			const disposal = client.disposeSession(session);
+			const dispose = await waitForRequestAtWithin(transport, 'disposeSession', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: dispose.id, result: {} });
+			await disposal;
+			client.dispose();
+			assert.deepStrictEqual({
+				created: created.toString(),
+				diagnostics: diagnostics.map(event => [event.phase, event.outcome, event.sessionResource, event.chatResource, event.sessionState]),
+				logicalOperationsHaveNoAttempt: diagnostics.filter(event => ['session.create', 'session.subscribe', 'session.dispose'].includes(event.phase)).every(event => event.attemptId === undefined),
+				privateContent: JSON.stringify(diagnostics).includes('private'),
+				requests: transport.sentMessages.filter(message => hasKey(message, { method: true }) && ['createSession', 'subscribe', 'disposeSession'].includes(message.method)).length,
+			}, {
+				created: session.toString(),
+				diagnostics: [
+					['session.create', 'started', session.toString(), undefined, undefined],
+					['session.create', 'succeeded', session.toString(), undefined, undefined],
+					['session.subscribe', 'started', session.toString(), undefined, undefined],
+					['session.snapshot', 'info', session.toString(), undefined, 'ready'],
+					['chat.binding', 'info', session.toString(), chat, undefined],
+					['session.subscribe', 'succeeded', session.toString(), undefined, undefined],
+					['session.dispose', 'started', session.toString(), undefined, undefined],
+					['session.dispose', 'succeeded', session.toString(), undefined, undefined],
+				],
+				logicalOperationsHaveNoAttempt: true, privateContent: false, requests: 3,
+			});
+		}));
+
 		test('observes only the first post-readiness session request per recovery without issuing extra requests', () => runWithFakedTimers({}, async () => {
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
 			const diagnostics: IConnectionDiagnosticEvent[] = [];

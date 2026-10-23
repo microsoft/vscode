@@ -416,9 +416,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase, outcome: 'info', timestamp: Date.now(), detail });
 	}
 
-	private _traceConnection<T>(phase: string, operation: () => Promise<T>): Promise<T> {
-		const attemptId = this._diagnosticAttemptId;
-		return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId }), phase, operation);
+	private _traceConnection<T>(phase: string, operation: () => Promise<T>, session?: URI): Promise<T> {
+		const attemptId = phase.startsWith('session.') || phase.startsWith('repository.') ? undefined : this._diagnosticAttemptId;
+		return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, ...(session ? { sessionResource: session.toString() } : {}) }), phase, operation);
+	}
+
+	/** Adds content-free diagnostics for client-side repository preparation on this connection. */
+	traceRepositoryPreparation<T>(phase: 'repository.prepare' | 'repository.clone', operation: () => Promise<T>): Promise<T> {
+		return this._traceConnection(phase, operation);
 	}
 
 	/**
@@ -1820,14 +1825,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		const isSession = this._subscriptionManager.getSubscriptionKind(resource) === StateComponents.Session;
+		const subscribe = () => isSession ? this._traceConnection('session.subscribe', () => this._subscribe(resource), resource) : this._subscribe(resource);
 		if (this._firstSessionOpenPending && this._state.kind === AgentHostClientState.Connected
-			&& this._subscriptionManager.getActiveSubscriptions().some(subscription => subscription.kind === StateComponents.Session && subscription.resource.toString() === resource.toString())) {
+			&& isSession) {
 			this._firstSessionOpenPending = false;
 			const connectionOperation = this._connectionOperation;
 			const attemptId = this._diagnosticAttemptId;
-			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind: 'subscribeSession' }), 'protocol.sessionOpen', () => this._subscribe(resource));
+			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind: 'subscribeSession' }), 'protocol.sessionOpen', subscribe);
 		}
-		return this._subscribe(resource);
+		return subscribe();
 	}
 
 	private async _subscribe(resource: URI): Promise<IStateSnapshot> {
@@ -1866,6 +1873,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
+		if (action.type === ActionType.ChatTurnStarted) {
+			this._onDidConnectionDiagnostic.fire({
+				phase: 'turn.submit', operationId: generateUuid(), attemptId: this._diagnosticAttemptId,
+				chatResource: channel, turnId: action.turnId, timestamp: Date.now(), outcome: 'info',
+			});
+		}
 		this._sendNotification('dispatchAction', { channel, clientSeq, action });
 	}
 
@@ -1887,7 +1900,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		const sendCreateSession = (meta: Record<string, unknown> | undefined) => this._sendRequest('createSession', {
+		const sendCreateSession = (meta: Record<string, unknown> | undefined) => this._traceConnection('session.create', () => this._sendRequest('createSession', {
 			channel: session.toString(),
 			_meta: meta,
 			provider,
@@ -1895,7 +1908,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
-		}).then(() => session);
+		}), session).then(() => session);
 		if (config?.importConversation) {
 			const serialized = JSON.stringify(serializeCreateSessionImport(config.importConversation));
 			if (serialized.length > AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS) {
@@ -2466,7 +2479,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Dispose a session on the remote agent host.
 	 */
 	async disposeSession(session: URI): Promise<void> {
-		await this._sendRequest('disposeSession', { channel: session.toString() });
+		await this._traceConnection('session.dispose', () => this._sendRequest('disposeSession', { channel: session.toString() }), session);
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
@@ -2608,7 +2621,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/** {@link _withOlderHostDefaultChat} for the session state of a snapshot; other snapshots pass through. */
 	private _withOlderHostSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
 		const state = readSessionStateSnapshot(snapshot);
-		return state ? { ...snapshot, state: this._withOlderHostDefaultChat(snapshot.resource, state) } : snapshot;
+		const normalized = state ? this._withOlderHostDefaultChat(snapshot.resource, state) : undefined;
+		if (normalized) {
+			const operationId = generateUuid();
+			this._onDidConnectionDiagnostic.fire({
+				phase: 'session.snapshot', operationId, attemptId: this._diagnosticAttemptId,
+				sessionResource: snapshot.resource, sessionState: normalized.lifecycle, timestamp: Date.now(), outcome: 'info',
+			});
+			const chats = new Set(normalized.chats.map(chat => chat.resource));
+			if (normalized.defaultChat) {
+				chats.add(normalized.defaultChat);
+			}
+			for (const chatResource of chats) {
+				this._onDidConnectionDiagnostic.fire({
+					phase: 'chat.binding', operationId, attemptId: this._diagnosticAttemptId,
+					sessionResource: snapshot.resource, chatResource, timestamp: Date.now(), outcome: 'info',
+				});
+			}
+		}
+		return normalized ? { ...snapshot, state: normalized } : snapshot;
 	}
 
 	private _toClientUri(uri: URI): URI {

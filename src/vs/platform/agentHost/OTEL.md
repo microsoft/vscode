@@ -169,7 +169,38 @@ For connection latency, `preparationMs` and `connectionMs` are an exclusive part
 
 The existing `credentialsMs`, `relayMs`, `protocolMs`, `authenticationMs` and `restorationMs` remain cumulative diagnostic spans, not an additive breakdown: they may overlap, and `credentialsMs` excludes backoff outside its spans. Compare successful provisioning, preparation and connection p50/p95 separately, split connection outcomes by `operation` and `surface`, and keep failures and cancellations separate. `source: created | existing` is not a warm/cold signal. `wakingResponses > 0` confirms observed waking, but zero does not prove warm compute. Both provisioning and preparation include client/network/credential overhead; pure server startup duration or warm/cold classification still requires a server-reported signal. Neither metric includes subsequent repository preparation.
 
-Both versions need this instrumentation; missing historical measurements cannot be reconstructed, and a version comparison alone is not causal proof. Deltas reset before reporting, but hard crashes can lose the final partial interval or an unfinished outcome; delivery is not exactly once. Browser timer throttling can delay summaries. No connection identifiers, credentials, addresses or error text are emitted, and the existing request aggregation is unchanged.
+Both versions need this instrumentation; missing historical measurements cannot be reconstructed, and a version comparison alone is not causal proof. Deltas reset before reporting, but hard crashes can lose the final partial interval or an unfinished outcome; delivery is not exactly once. Browser timer throttling can delay summaries. These aggregate scorecard events emit no connection identifiers, credentials, addresses or error text, and the request aggregation is unchanged.
+
+## Sandbox lifecycle lookup
+
+`cloudSandboxLifecycle` is a separate, content-free client observation stream for looking up an environment or backend session. It uses the same product telemetry consent and policy controls as the scorecard. It does not change protocol requests, provision compute, or fetch additional state.
+
+| Field | Meaning |
+|---|---|
+| `environmentId`, `agentSessionId`, `taskId` | Service entity identities when known. `agentSessionId` is not the common VS Code telemetry `SessionId`. |
+| `operationId`, `parentOperationId` | Client operation and optional enclosing operation. A start emitted before allocation has no backend IDs; a later result on the same operation can supply them. |
+| `eventId`, `observerId`, `sequence` | Upload deduplication and ordering within one reporter lifetime. Not a global ordering across clients or hosts. |
+| `connectionId`, `attemptId` | Protocol client and connection-attempt identities. A connection can serve multiple sessions and is not attributed to its first session. |
+| `chatId`, `requestId`, `serverRequestId` | Chat/turn correlation and a validated service request ID when available. |
+| `phase`, `outcome`, `preparationStep`, `sessionState` | Allowlisted client operation/result, draft preparation step, or lifecycle read from a host snapshot. |
+| `observedAtUnixMs`, `durationMs` | Client observation timestamp and elapsed duration. Numbers are uploaded as measurements; upload time is separate. |
+| `taskCreationPath`, `relatedTaskId` | Client reservation/creation provenance and the requested reservation, which can differ from the task produced by fallback. |
+| `errorCategory`, `errorCode`, `statusCode` | Structured allowlisted failure metadata, not error text or a server-side root cause. |
+| `omittedCorrelationFields`, `omittedCorrelationFieldNames` | Count and allowlisted field names of identifiers that could not be safely represented, never their values. Missing IDs must not be replaced by nearby events' IDs. |
+
+Task reservation/creation records carry their returned task/environment/session binding. Discovery records observed bindings, not creation. Preparation records receipt, handoff, fallback and cleanup; `taskCreationPath` is client workflow provenance, never a warm/cold allocation claim. Credential operations describe client connection/authentication acquisition, not the host's independent credential renewal.
+
+Preparation can record fallback/cleanup observations after a failed reservation; select terminal outcomes, not the last observation, when finding an operation result. A successful `released` step means unused-reservation cleanup succeeded, whereas `submitted` means the prepared task was used. Do not combine those steps into a preparation-use success rate. Structured host errors without a recognized code or status remain `unknown`; arbitrary host error types, messages and stacks are not uploaded.
+
+Connection observations retain logical connect/recovery spans and individual diagnostic phase operation/attempt IDs. Logical session and repository operations can wait across reconnects, so they omit an attempt ID rather than attributing completion to the attempt active at entry. Session creation acknowledgement, subscribed snapshots, ready/failed actions, disposal, submitted turns and host acceptance/rejection/completion are distinct phases. Snapshots are observations of existing state, not newly performed transitions. Duplicate terminal operation reports are suppressed, and repeated session/turn action observations are deduplicated within a bounded connection-local cache; delivery remains best effort, not exactly once.
+
+`turn.submit` is an observation of local dispatch, not a pending operation or proof that the host accepted it. Join it to acceptance and completion by `requestId`. High-volume snapshot, chat-binding and local-submission observations remain available to lifecycle telemetry but do not evict connection evidence from the bounded diagnostic buffer.
+
+For the repository preparation compatibility path, `repository.clone` describes the clone **request and response**. Only `repository.prepare` reaching `succeeded` proves that the client observed a usable ready checkout. An already-ready checkout can complete preparation without a clone request. Cancelling a client's preparation wait does not establish that the host cancelled shared work.
+
+Identifiers are deliberately constrained: UUID-backed environment/task/session identities, UUID-based request IDs, and UUID/hex chat IDs. Session URI normalization is for telemetry lookup only and never changes routing or persisted identity. Other valid opaque host identities are omitted and counted in `omittedCorrelationFields`; their environment-level observations remain usable. Repository names, URLs, file paths, prompts, arbitrary diagnostic detail, response bodies, credentials and exception stacks are not included.
+
+A timeline should deduplicate by `eventId`, sort by `observedAtUnixMs` with reporter-local sequence as a tie breaker, and distinguish client observations from authoritative backend events. Resolve unbound starts through the same operation's later binding; never overwrite an explicit different environment/session on an earlier record. Preserve reservation fallback as two different resources. With a session lookup, label environment-only connection rows as shared context rather than assigning them to that conversation. Missing completions mean **not observed**, not success or cancellation; a cold/warm allocation verdict and internal compute/clone/credential steps require evidence from their owning backend. Historical data cannot be backfilled by deploying this client instrumentation.
 
 ## Sources of Truth
 

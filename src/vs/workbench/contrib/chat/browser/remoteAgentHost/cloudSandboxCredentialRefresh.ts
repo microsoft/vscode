@@ -9,6 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import {
 	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
 	CloudSandboxRequestError,
@@ -160,6 +161,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	private _stop(reason: CloudSandboxRefreshStopReason, detail: string, error?: unknown): void {
 		this._refreshState.stopped = true;
 		this._telemetry.reportCredentialRefreshStopped(reason, this._refreshState.unhealthyCycles, error);
+		this._telemetry.lifecycle.record({
+			phase: 'credentials.stopped', outcome: 'failed', operationId: generateUuid(),
+			environmentId: this._request.environmentId, agentSessionId: this._request.sessionId, connectionId: this._clientId, error,
+		});
 		this._logService.error(`${LOG_PREFIX} Stopped refreshing credentials for ${this._address}: ${detail}. Further credential acquisition requires a new connection attempt; an established Web PubSub socket is not closed by token expiry.`);
 	}
 

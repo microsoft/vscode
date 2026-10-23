@@ -21,6 +21,8 @@ import {
 	type IHostEncryptionKey,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 import {
 	CloudSandboxCredentialRefresher,
 	CloudSandboxCredentialRefreshState,
@@ -56,6 +58,7 @@ function tokenExpiringIn(minutes: number, from: number, overrides: Partial<IClou
 /** Records the stop reports the refresher emits; request counting is covered by its own suite. */
 class RecordingTelemetry extends mock<ICloudSandboxTelemetryService>() {
 	declare readonly _serviceBrand: undefined;
+	override readonly lifecycle = new CloudSandboxLifecycleTelemetry(NullTelemetryService);
 
 	readonly stops: { reason: CloudSandboxRefreshStopReason; consecutiveFailures: number; statusCode: number | undefined }[] = [];
 

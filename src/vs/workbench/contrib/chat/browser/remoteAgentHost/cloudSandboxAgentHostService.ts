@@ -149,7 +149,11 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		let telemetry = this._connectionTelemetry.get(address);
 		if (!telemetry) {
 			// A new tracker for retained credentials is a new attachment, not the original provisioning flow.
-			telemetry = this._telemetryService.trackConnection('connection', this._surface, 'existing', { environmentKind: staged?.options.environmentKind });
+			telemetry = this._telemetryService.trackConnection('connection', this._surface, 'existing', {
+				environmentKind: staged?.options.environmentKind,
+				environmentId: staged?.options.environmentId,
+				sessionId: staged?.options.sessionId,
+			});
 			this._connectionTelemetry.set(address, telemetry);
 		}
 		const connectionTelemetry = telemetry;
@@ -262,6 +266,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			store.add(toDisposable(() => lifetime.dispose(true)));
 			staged.authenticationLifetime = lifetime;
 			const telemetry = this._connectionTelemetry.get(address);
+			telemetry?.setConnectionId(staged.clientId);
 			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic(event);
 			const refresher = store.add(this._instantiationService.createInstance(
 				CloudSandboxCredentialRefresher,
@@ -359,6 +364,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				},
 			);
 			store.add(client.onDidConnectionDiagnostic(diagnosticObserver));
+			store.add(client.onDidAction(envelope => telemetry?.recordSessionAction(envelope)));
 			return { connection: client, transportDisposable: store, reconnectManagedByClient: true };
 		} catch (error) {
 			store.dispose();

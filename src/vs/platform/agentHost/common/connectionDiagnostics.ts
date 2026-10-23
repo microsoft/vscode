@@ -20,6 +20,10 @@ export interface IConnectionDiagnosticEvent {
 	readonly error?: IConnectionDiagnosticError;
 	readonly requestKind?: ConnectionDiagnosticRequestKind;
 	readonly connectionOperation?: 'connect' | 'recover';
+	readonly sessionResource?: string;
+	readonly chatResource?: string;
+	readonly turnId?: string;
+	readonly sessionState?: 'creating' | 'ready' | 'failed';
 }
 
 export type ConnectionDiagnosticRequestKind = 'listSessions' | 'createSession' | 'subscribeRoot' | 'subscribeSession' | 'subscribeChat' | 'subscribeOther';
@@ -181,6 +185,9 @@ export class ConnectionDiagnosticBuffer {
 	private readonly events: IRemoteConnectionDiagnosticEvent[] = [];
 
 	record(address: string, event: IConnectionDiagnosticEvent): void {
+		if (event.outcome === 'info' && (event.phase === 'session.snapshot' || event.phase === 'chat.binding' || event.phase === 'turn.submit')) {
+			return;
+		}
 		this.events.push({ ...event, address });
 		if (this.events.length > 200) {
 			this.events.shift();
