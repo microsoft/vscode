@@ -3809,6 +3809,16 @@ per-word capitalization does not survive translation. */
 	outline-offset: -1px;
 }
 
+/*
+ * Opening a detail page moves focus to one of its header controls. Show the ring only for keyboard
+ * navigation: the editor is marked with .pointer-focus while the latest input was a pointer, because
+ * focus moved from script after clicking a Monaco list row still matches :focus-visible.
+ */
+.ai-customization-management-editor.pointer-focus .editor-header :is(.monaco-button, .editor-back-button):focus,
+.ai-customization-management-editor.pointer-focus .embedded-detail-header :is(.monaco-button, .editor-back-button):focus {
+	outline: none;
+}
+
 .ai-customization-management-editor .editor-back-button:hover:not(:disabled) {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
