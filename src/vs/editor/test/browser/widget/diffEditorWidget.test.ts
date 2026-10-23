@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,8 +19,10 @@ import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditor
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { DiffEditorViewModel, UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
+import { Range } from '../../../common/core/range.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
-import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
+import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -164,6 +168,80 @@ suite('DiffEditorWidget2', () => {
 			}, {
 				narrow: false,
 				wideAfterLayoutChange: true,
+			});
+		});
+	});
+
+	suite('DiffEditorViewModel', () => {
+		/**
+		 * Creates a view model whose first diff computation returns `firstDiff`, so a test can change
+		 * the text before that result lands. Later computations run synchronously.
+		 */
+		function createViewModel(original: string, modified: string, firstDiff: Promise<IDocumentDiff>) {
+			const instantiationService = createCodeEditorServices(disposables);
+			const syncDiffProvider = new TestDiffProviderFactoryService().createDiffProvider();
+			let isFirstComputation = true;
+			const diffProvider: IDocumentDiffProvider = {
+				computeDiff: (originalTextModel, modifiedTextModel, options, cancellationToken) => {
+					if (isFirstComputation) {
+						isFirstComputation = false;
+						return firstDiff;
+					}
+					return syncDiffProvider.computeDiff(originalTextModel, modifiedTextModel, options, cancellationToken);
+				},
+				onDidChange: Event.None,
+			};
+			const diffProviderFactoryService: IDiffProviderFactoryService = {
+				_serviceBrand: undefined,
+				createDiffProvider: () => diffProvider,
+			};
+			const originalModel = disposables.add(instantiateTextModel(instantiationService, original));
+			const modifiedModel = disposables.add(instantiateTextModel(instantiationService, modified));
+			const options = new DiffEditorOptions({}, new TestAccessibilityService());
+			const viewModel = disposables.add(new DiffEditorViewModel({ original: originalModel, modified: modifiedModel }, options, diffProviderFactoryService));
+			return { originalModel, modifiedModel, viewModel };
+		}
+
+		test('ignores a diff computed for text that got shorter in the meantime', async () => {
+			const firstDiff = new DeferredPromise<IDocumentDiff>();
+			const { originalModel, modifiedModel, viewModel } = createViewModel('a\nb\nxxxx\nd', 'a\nb\nyyyy\nd', firstDiff.p);
+
+			originalModel.setValue('a');
+			modifiedModel.setValue('a');
+			// The diff of the previous text replaces line 3, which the new text does not have.
+			await firstDiff.complete({
+				changes: [new DetailedLineRangeMapping(new LineRange(3, 4), new LineRange(3, 4), [new RangeMapping(new Range(3, 1, 3, 5), new Range(3, 1, 3, 5))])],
+				identical: false,
+				quitEarly: false,
+				moves: [],
+			});
+			await timeout(0);
+			await viewModel.waitForDiff();
+
+			assert.strictEqual(viewModel.diff.get()?.mappings.length, 0);
+		});
+
+		test('does not apply a diff computed for text that changed in the meantime', async () => {
+			const firstDiff = new DeferredPromise<IDocumentDiff>();
+			const { modifiedModel, viewModel } = createViewModel('a\nb\nc', 'a\nB\nc', firstDiff.p);
+
+			modifiedModel.setValue('a\nb\nc');
+			await firstDiff.complete({
+				changes: [new DetailedLineRangeMapping(new LineRange(2, 3), new LineRange(2, 3), [new RangeMapping(new Range(2, 1, 2, 2), new Range(2, 1, 2, 2))])],
+				identical: false,
+				quitEarly: false,
+				moves: [],
+			});
+			await timeout(0);
+			const isUpToDateAfterStaleResult = viewModel.isDiffUpToDate.get();
+			await viewModel.waitForDiff();
+
+			assert.deepStrictEqual({
+				isUpToDateAfterStaleResult,
+				mappingCount: viewModel.diff.get()?.mappings.length,
+			}, {
+				isUpToDateAfterStaleResult: false,
+				mappingCount: 0,
 			});
 		});
 	});
