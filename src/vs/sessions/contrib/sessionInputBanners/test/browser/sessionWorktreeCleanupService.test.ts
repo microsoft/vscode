@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -741,6 +741,46 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await assert.rejects(measurement, error => isCancellationError(error));
 		diskUsage.complete(ByteSize.GB);
+	});
+
+	test('cancels the underlying scan and skips queued sessions when the last caller cancels', async () => {
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const scanned: string[] = [];
+		const tokens: CancellationToken[] = [];
+		const stalled = new DeferredPromise<number | undefined>();
+		const service = disposables.add(createService(
+			['first', 'second', 'queued'].map(id => createSession(id, oldDate())), true,
+			(session, token = CancellationToken.None) => {
+				scanned.push(session.sessionId);
+				tokens.push(token);
+				return raceCancellationError(stalled.p, token);
+			},
+		));
+		const measurement = service.getWorktrees(14, () => { }, cancellation.token);
+		cancellation.cancel();
+		await assert.rejects(measurement, error => isCancellationError(error));
+		assert.deepStrictEqual({ scanned, canceled: tokens.every(token => token.isCancellationRequested) }, {
+			scanned: ['first', 'second'], canceled: true,
+		});
+	});
+
+	test('keeps a shared scan until both progressive callers cancel', async () => {
+		const first = disposables.add(new CancellationTokenSource());
+		const second = disposables.add(new CancellationTokenSource());
+		let scanToken = CancellationToken.None;
+		const stalled = new DeferredPromise<number | undefined>();
+		const service = disposables.add(createService([createSession('shared', oldDate())], true, (_session, token = CancellationToken.None) => {
+			scanToken = token;
+			return raceCancellationError(stalled.p, token);
+		}));
+		const firstMeasurement = service.getWorktrees(14, () => { }, first.token);
+		const secondMeasurement = service.getWorktrees(14, () => { }, second.token);
+		first.cancel();
+		await assert.rejects(firstMeasurement, error => isCancellationError(error));
+		assert.strictEqual(scanToken.isCancellationRequested, false);
+		second.cancel();
+		await assert.rejects(secondMeasurement, error => isCancellationError(error));
+		assert.strictEqual(scanToken.isCancellationRequested, true);
 	});
 
 	test('canceling a foreground wait does not cancel a shared background measurement', async () => {

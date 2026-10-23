@@ -6,6 +6,7 @@
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, raceCancellationError, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -74,8 +75,8 @@ export interface ISessionWorktreeCleanupService {
 	refresh(): Promise<void>;
 	suppressForWindow(): void;
 	setAvailableDiskSpace(availableBytes: number | undefined): void;
-	/** Publishes the initial worktree list and individual measurement results without waiting for the entire scan. */
-	getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken): Promise<readonly ISessionWorktree[]>;
+	/** Publishes initial and measured worktrees progressively. forceRefresh bypasses cached results without starting a separate background scan. */
+	getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken, forceRefresh?: boolean): Promise<readonly ISessionWorktree[]>;
 	refreshPendingCleanup(sessionIds: readonly string[], minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token?: CancellationToken): Promise<readonly ISessionWorktree[]>;
 	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean>;
 }
@@ -90,6 +91,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private _lastMeasuredSessionSignature = '';
 	private _measurement: {
 		readonly sessionSignature: string;
+		readonly cancellation: CancellationTokenSource;
+		consumers: number;
 		readonly promise: Promise<readonly IMeasuredSessionWorktree[]>;
 		readonly progressListeners: Set<(progress: IWorktreeMeasurementProgress) => void>;
 		readonly getProgress: () => IWorktreeMeasurementProgress | undefined;
@@ -224,7 +227,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}
 	}
 
-	private async _measureWorktrees(onProgress: (progress: IWorktreeMeasurementProgress) => void): Promise<readonly IMeasuredSessionWorktree[]> {
+	private async _measureWorktrees(token: CancellationToken, onProgress: (progress: IWorktreeMeasurementProgress) => void): Promise<readonly IMeasuredSessionWorktree[]> {
 		const worktreeSessions = this.sessionsManagementService.getSessions().filter(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri) === true
 		);
@@ -245,7 +248,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
 		return Promise.all(worktreeSessions.map((session, index) => limiter.queue(async () => {
 			const worktreeCount = this._countWorktrees(session);
-			measured[index] = await this._measureSessionWorktree(session, this._measurementCancellation.token);
+			measured[index] = await this._measureSessionWorktree(session, token);
 			scannedWorktrees += worktreeCount;
 			onProgress({ scannedWorktrees, totalWorktrees, worktrees: [...measured] });
 			return measured[index];
@@ -253,6 +256,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private async _measureSessionWorktree(session: ISession, token: CancellationToken): Promise<IMeasuredSessionWorktree> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		let sizeBytes: number | undefined;
 		let measurementFailed = false;
 		try {
@@ -304,18 +310,24 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private async _getMeasuredWorktrees(minimumAgeDays: number, token = CancellationToken.None, onProgress?: (progress: IWorktreeMeasurementProgress) => void): Promise<readonly ISessionWorktree[]> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const measuredSessionSignature = this._getWorktreeSessionSignature();
 		if (this._lastMeasuredWorktrees && this._lastMeasuredSessionSignature === measuredSessionSignature && Date.now() - this._lastMeasurementAt < SCAN_CACHE_DURATION_MS) {
 			return this._withCleanupState(this._lastMeasuredWorktrees, minimumAgeDays);
 		}
 
 		let measurement = this._measurement;
-		if (!measurement || measurement.sessionSignature !== measuredSessionSignature) {
+		if (!measurement || measurement.cancellation.token.isCancellationRequested || measurement.sessionSignature !== measuredSessionSignature) {
 			let latestProgress: IWorktreeMeasurementProgress | undefined;
 			const progressListeners = new Set<(progress: IWorktreeMeasurementProgress) => void>();
+			const cancellation = new CancellationTokenSource(this._measurementCancellation.token);
 			measurement = {
 				sessionSignature: measuredSessionSignature,
-				promise: this._measureWorktrees(progress => {
+				cancellation,
+				consumers: 0,
+				promise: this._measureWorktrees(cancellation.token, progress => {
 					latestProgress = progress;
 					for (const listener of progressListeners) {
 						listener(progress);
@@ -327,11 +339,13 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			this._measurement = measurement;
 			measurement.promise.then(
 				() => {
+					cancellation.dispose();
 					if (this._measurement === measurement) {
 						this._measurement = undefined;
 					}
 				},
 				() => {
+					cancellation.dispose();
 					if (this._measurement === measurement) {
 						this._measurement = undefined;
 					}
@@ -339,6 +353,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			);
 		}
 
+		measurement.consumers++;
 		if (onProgress) {
 			measurement.progressListeners.add(onProgress);
 			const progress = measurement.getProgress();
@@ -352,6 +367,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		} finally {
 			if (onProgress) {
 				measurement.progressListeners.delete(onProgress);
+			}
+			if (--measurement.consumers === 0 && token.isCancellationRequested) {
+				measurement.cancellation.cancel();
 			}
 		}
 		if (this._getWorktreeSessionSignature() !== measuredSessionSignature) {
@@ -444,7 +462,10 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		this._suggestion.set(undefined, undefined);
 	}
 
-	async getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token = CancellationToken.None): Promise<readonly ISessionWorktree[]> {
+	async getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token = CancellationToken.None, forceRefresh = false): Promise<readonly ISessionWorktree[]> {
+		if (forceRefresh) {
+			this._lastMeasuredWorktrees = undefined;
+		}
 		if (onUpdate) {
 			const worktrees = await this._getMeasuredWorktrees(minimumAgeDays, token, progress => {
 				onUpdate(this._filterWorktrees(this._withCleanupState(progress.worktrees, minimumAgeDays)));

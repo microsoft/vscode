@@ -54,6 +54,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private summary: HTMLElement | undefined;
 	private summaryRow: HTMLElement | undefined;
 	private emptyState: HTMLElement | undefined;
+	private emptyStateMessage: HTMLElement | undefined;
 	private cleanupButton: Button | undefined;
 	private ageSelect: HTMLSelectElement | undefined;
 	private workspaceSelect: HTMLSelectElement | undefined;
@@ -67,6 +68,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private renderVersion = 0;
 	private loadToken = CancellationToken.None;
 	private updateMeasuredWorktrees: ((worktrees: readonly ISessionWorktree[]) => void) | undefined;
+	private pendingCleanupDelay = 2_000;
 	private readonly pendingCleanupScheduler = this._register(new RunOnceScheduler(() => void this.refreshPendingCleanup(), 2_000));
 	private automaticCleanupInput: Checkbox | undefined;
 
@@ -146,14 +148,13 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.emptyState = dom.append(content, dom.$('.session-worktree-cleanup-empty', { role: 'status' }));
 		const emptyStateIcon = dom.append(this.emptyState, renderIcon(Codicon.info));
 		emptyStateIcon.setAttribute('aria-hidden', 'true');
-		dom.append(this.emptyState, dom.$('span', undefined, localize('sessionWorktreeCleanup.noMatchingWorktrees', "No worktrees match the selected filters.")));
+		this.emptyStateMessage = dom.append(this.emptyState, dom.$('span'));
 		this.emptyState.classList.add('hidden');
 	}
 
 	override async setInput(input: SessionWorktreeCleanupEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		void this.cleanupService.refresh().catch(error => this.notificationService.error(error));
-		void this.load();
+		void this.load(true);
 	}
 
 	focusAutomaticCleanup(): void {
@@ -198,7 +199,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	private async load(): Promise<void> {
+	private async load(forceRefresh = false): Promise<void> {
 		const version = ++this.renderVersion;
 		this.pendingCleanupScheduler.cancel();
 		this.loadDisposables.clear();
@@ -231,7 +232,28 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			}
 			this.renderRows();
 		};
-		this.updateMeasuredWorktrees = update;
+		// Publish the first and final snapshots immediately; combine intermediate results into
+		// one render per interval rather than rebuilding the table for every measured session.
+		let pendingUpdate: readonly ISessionWorktree[] | undefined;
+		const renderScheduler = this.loadDisposables.add(new RunOnceScheduler(() => {
+			if (pendingUpdate) {
+				update(pendingUpdate);
+				pendingUpdate = undefined;
+			}
+		}, 100));
+		let publishedInitial = false;
+		const scheduleUpdate = (worktrees: readonly ISessionWorktree[]) => {
+			if (!publishedInitial) {
+				publishedInitial = true;
+				update(worktrees);
+			} else {
+				pendingUpdate = worktrees;
+				if (!renderScheduler.isScheduled()) {
+					renderScheduler.schedule();
+				}
+			}
+		};
+		this.updateMeasuredWorktrees = scheduleUpdate;
 		if (this.ageSelect) {
 			this.ageSelect.disabled = true;
 		}
@@ -254,7 +276,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, localize('sessionWorktreeCleanup.loading', "Measuring worktree storage...")));
 		}
 		try {
-			update(await this.cleanupService.getWorktrees(this.minimumAgeDays, update, cancellation.token));
+			const worktrees = await this.cleanupService.getWorktrees(this.minimumAgeDays, scheduleUpdate, cancellation.token, forceRefresh);
+			renderScheduler.cancel();
+			pendingUpdate = undefined;
+			update(worktrees);
 			if (version === this.renderVersion) {
 				this.schedulePendingCleanup();
 			}
@@ -286,7 +311,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private schedulePendingCleanup(): void {
 		if (this.worktrees.some(worktree => worktree.cleanupState === 'archived' && this.isCleaning(worktree.session.sessionId))) {
-			this.pendingCleanupScheduler.schedule();
+			const remaining = Math.min(...this.worktrees.filter(worktree => this.isCleaning(worktree.session.sessionId)).map(worktree => 30_000 - (Date.now() - this.cleaningSessionIds.get(worktree.session.sessionId)!)));
+			this.pendingCleanupScheduler.schedule(Math.min(this.pendingCleanupDelay, remaining));
 		}
 	}
 
@@ -302,6 +328,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			const worktrees = await this.cleanupService.refreshPendingCleanup(pendingIds, this.minimumAgeDays, update, token);
 			if (!token.isCancellationRequested) {
 				update?.(worktrees);
+				this.pendingCleanupDelay *= 2;
 				this.schedulePendingCleanup();
 			}
 		} catch (error) {
@@ -339,14 +366,17 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.workspaceSelect.value = this.selectedWorkspace;
 	}
 
-	private getVisibleWorktrees(): readonly ISessionWorktree[] {
+	private getMatchingWorktrees(): readonly ISessionWorktree[] {
 		const cutoff = Date.now() - this.minimumAgeDays * 24 * 60 * 60 * 1000;
 		return this.worktrees.filter(worktree => {
 			const workspace = worktree.session.workspace.get();
-			return (worktree.isMeasuring || worktree.sizeBytes !== undefined)
-				&& (!this.selectedWorkspace || (workspace && extUri.getComparisonKey(workspace.uri) === this.selectedWorkspace))
+			return (!this.selectedWorkspace || (workspace && extUri.getComparisonKey(workspace.uri) === this.selectedWorkspace))
 				&& (this.minimumAgeDays === 0 || worktree.session.updatedAt.get().getTime() <= cutoff);
 		});
+	}
+
+	private getVisibleWorktrees(): readonly ISessionWorktree[] {
+		return this.getMatchingWorktrees().filter(worktree => worktree.isMeasuring || worktree.sizeBytes !== undefined);
 	}
 
 	private renderRows(): void {
@@ -364,6 +394,13 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.summaryRow?.classList.toggle('hidden', isEmpty);
 		this.list.classList.toggle('hidden', isEmpty);
 		this.emptyState?.classList.toggle('hidden', !isEmpty);
+		if (this.emptyStateMessage) {
+			this.emptyStateMessage.textContent = this.getMatchingWorktrees().length > 0
+				? localize('sessionWorktreeCleanup.noMeasuredStorage', "No worktrees with available storage measurements.")
+				: this.minimumAgeDays === 0 && !this.selectedWorkspace
+					? localize('sessionWorktreeCleanup.noWorktrees', "No worktrees to clean up.")
+					: localize('sessionWorktreeCleanup.noMatchingWorktrees', "No worktrees match the selected filters.");
+		}
 		const summary = localize('sessionWorktreeCleanup.matchingWorktreeSummary', "{0} of {1} matching worktrees can be cleaned up, reclaiming about {2}.", eligibleWorktrees, totalWorktrees, ByteSize.formatSize(reclaimableBytes));
 		const eligibilityDescription = localize(
 			'sessionWorktreeCleanup.filteredEligibilityDescription',
@@ -496,6 +533,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		try {
 			const selected = this.getSelected();
 			if (await this.cleanupService.cleanupWorktrees(selected)) {
+				this.pendingCleanupDelay = 2_000;
 				for (const candidate of selected) {
 					this.cleaningSessionIds.set(candidate.session.sessionId, Date.now());
 				}
