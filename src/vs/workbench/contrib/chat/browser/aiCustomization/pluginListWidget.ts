@@ -1244,7 +1244,7 @@ export class PluginListWidget extends Disposable {
 		return this.marketplaceBrowsingAvailable;
 	}
 
-	private buildAddActions(): readonly ICustomizationItemAction[] {
+	getAddActions(): readonly ICustomizationItemAction[] {
 		return [
 			...this.pluginActions,
 			{
@@ -1548,7 +1548,7 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderPluginAddAction(container: HTMLElement, disposables: DisposableStore): void {
-		const actions = this.buildAddActions();
+		const actions = this.getAddActions();
 		const [primary, ...secondary] = actions;
 		if (!primary) {
 			return;
