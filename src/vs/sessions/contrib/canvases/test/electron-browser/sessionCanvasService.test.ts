@@ -1005,4 +1005,26 @@ suite('SessionCanvasService', () => {
 			frontendSession: owner.session.toString(),
 		});
 	});
+
+	test('lets a chat window that is opening take the canvases of its chat along', () => {
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/window') };
+		const mainGroup = upcastPartial<IEditorGroup>({ id: 1, windowId: 1, contains: () => false });
+		const windowGroup = upcastPartial<IEditorGroup>({ id: 2, windowId: 2 });
+		// Its session shows in it only after the editors it takes along moved to it.
+		const chatWindow = upcastPartial<IChatWindow>({ session: constObservable(undefined), editorGroup: windowGroup, content: constObservable({ session: owner.session, chat: owner.chat, editorArea: {} }) });
+		const contextService = store.add(new SessionCanvasContextService(
+			upcastPartial<ISessionsService>({ activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), windowSessions: constObservable([]) }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<IEditorGroupsService>({ activeGroup: mainGroup, mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: mainGroup, groups: [mainGroup], windowId: 1 }) }),
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<IChatWindowService>({ windows: constObservable([chatWindow]) }),
+		));
+
+		assert.deepStrictEqual([
+			contextService.canPresentInGroup(owner, windowGroup),
+			contextService.canPresentInGroup({ ...owner, chat: URI.parse('agent-host-chat:/session/other') }, windowGroup),
+		], [true, false]);
+	});
 });

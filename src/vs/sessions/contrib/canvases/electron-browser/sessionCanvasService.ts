@@ -152,7 +152,12 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	private getChatWindow(owner: ICanvasOwner, reader?: IReader): IChatWindow | undefined {
 		return this.getChatWindowsWithEditorArea(reader).find(window => {
 			const session = window.session.read(reader);
-			return !!session
+			if (!session) {
+				// Opening: the editors it takes along, such as canvases of its chat, move to it before its session shows in it.
+				const content = window.content.read(reader);
+				return isEqual(content.session, owner.session) && (!content.chat || isEqual(content.chat, owner.chat));
+			}
+			return session
 				&& session.capabilities.read(reader).supportsCanvases === true
 				&& ownsSession(owner, session)
 				&& isEqual(session.activeChat.read(reader).resource, owner.chat);
