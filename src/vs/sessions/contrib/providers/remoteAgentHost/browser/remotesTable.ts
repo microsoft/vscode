@@ -5,13 +5,15 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { HoverStyle, IHoverOptions, IHoverWidget } from '../../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -55,7 +57,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'gutter' | 'name' | 'address' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'configure' | 'connect' | 'rename' | 'remove';
+export type RemoteRowAction = 'toggleGroup' | 'configure' | 'connect' | 'rename';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -65,9 +67,9 @@ type RemoteCellTemplate = {
 } & (
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'address'; readonly label: HTMLElement; readonly links: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement }
+		| { readonly column: 'connection'; readonly label: HTMLElement; readonly info: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
-		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly remove: Action; readonly toolbar: WorkbenchToolBar; hasManagementActions: boolean }
+		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly toolbar: WorkbenchToolBar; hasManagementActions: boolean }
 	);
 
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
@@ -78,11 +80,13 @@ export function getConnectionLabel(remote: ICustomizationRemote, connecting?: bo
 export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, RemoteCellTemplate> {
 	readonly templateId: string;
 	private readonly templates = new Set<RemoteCellTemplate>();
+	private readonly hoverGroupId = generateUuid();
 	private focusedId: string | undefined;
 
 	constructor(
 		private readonly column: RemoteColumn,
 		private readonly onAction: (entry: RemoteTableEntry, action: RemoteRowAction) => void,
+		private readonly focusTable: () => void,
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
@@ -111,9 +115,13 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					links: dom.append(container, dom.$('.remotes-empty-actions')),
 				};
 				break;
-			case 'connection':
-				template = { ...base, column: this.column, label: dom.append(container, dom.$('.remotes-connection-state')) };
+			case 'connection': {
+				const label = dom.append(container, dom.$('.remotes-connection-state'));
+				const info = dom.append(container, dom.$('.remotes-connection-info', { role: 'img', tabindex: -1 }));
+				dom.append(info, renderIcon(Codicon.info)).setAttribute('aria-hidden', 'true');
+				template = { ...base, column: this.column, label, info };
 				break;
+			}
 			default: {
 				const action = disposables.add(new Action(`remotes.${this.column}`, '', undefined, true, async () => {
 					if (template.row && (template.column === 'gutter' || template.column === 'actions')) {
@@ -130,12 +138,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							this.onAction(template.row.entry, 'rename');
 						}
 					}));
-					const remove = disposables.add(new Action('remotes.remove', '', ThemeIcon.asClassName(Codicon.trash), true, async () => {
-						if (template.row?.entry.type === 'remote') {
-							this.onAction(template.row.entry, 'remove');
-						}
-					}));
-					template = { ...base, column: this.column, action, rename, remove, toolbar, hasManagementActions: false };
+					template = { ...base, column: this.column, action, rename, toolbar, hasManagementActions: false };
 				}
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
@@ -189,7 +192,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'address': {
-				template.label.textContent = entry.type === 'remote' ? entry.remote.unavailableReason ?? entry.remote.detail : entry.type === 'empty' ? entry.description ?? '' : '';
+				template.label.textContent = entry.type === 'remote' ? entry.remote.detail : entry.type === 'empty' ? entry.description ?? '' : '';
 				template.label.classList.toggle('remotes-empty-description', entry.type === 'empty');
 				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: template.label.textContent }));
 				if (entry.type === 'empty' && entry.documentation) {
@@ -203,14 +206,49 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				break;
 			}
-			case 'connection':
+			case 'connection': {
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
+				const explanation = entry.type === 'remote' && entry.connecting === undefined && RemoteAgentHostConnectionStatus.isDisconnected(entry.remote.connectionStatus)
+					? entry.remote.unavailableReason : undefined;
+				template.info.hidden = !explanation;
+				if (explanation) {
+					template.info.setAttribute('aria-label', explanation);
+					const hover = template.elementDisposables.add(new MutableDisposable<IHoverWidget>());
+					// Disposing the hover first restores its keyboard focus to the info icon.
+					template.elementDisposables.add(toDisposable(() => {
+						if (dom.isAncestorOfActiveElement(template.info)) {
+							this.focusTable();
+						}
+					}));
+					const options: IHoverOptions = {
+						id: generateUuid(), target: template.info,
+						content: explanation, style: HoverStyle.Pointer, trapFocus: true,
+					};
+					template.elementDisposables.add(dom.addDisposableListener(template.info, dom.EventType.MOUSE_OVER, () => {
+						const widget = this.hoverService.showDelayedHover(options, { groupId: this.hoverGroupId });
+						if (widget) {
+							hover.value = widget;
+						}
+					}));
+					template.elementDisposables.add(dom.addDisposableListener(template.info, dom.EventType.KEY_DOWN, event => {
+						const keyboardEvent = new StandardKeyboardEvent(event);
+						if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
+							keyboardEvent.preventDefault();
+							keyboardEvent.stopPropagation();
+							hover.clear();
+							hover.value = this.hoverService.showInstantHover(options, true);
+						}
+					}));
+				} else {
+					template.info.removeAttribute('aria-label');
+				}
 				if (entry.type === 'remote') {
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
 						content: entry.connecting === undefined ? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
-					}));
+					}, { groupId: this.hoverGroupId }));
 				}
 				break;
+			}
 			case 'gutter':
 			case 'actions': {
 				const showCollapse = template.column === 'gutter' && entry.type === 'group';
@@ -218,7 +256,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				if (template.column === 'actions' && template.hasManagementActions !== showConnection) {
 					template.hasManagementActions = showConnection;
-					template.toolbar.setActions(showConnection ? [template.action, template.rename, template.remove] : [template.action]);
+					template.toolbar.setActions(showConnection ? [template.action, template.rename] : [template.action]);
 				}
 				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showConfig && !showConnection);
 				template.action.enabled = true;
@@ -242,11 +280,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason) : template.action.label;
 					template.rename.label = localize('remotes.rename', "Rename {0}...", entry.remote.name);
 					template.rename.enabled = !entry.busy;
-					template.remove.label = localize('remotes.remove', "Remove {0}", entry.remote.name);
-					template.remove.enabled = !entry.busy && entry.remote.canRemove;
-					template.remove.tooltip = entry.remote.canRemove ? template.remove.label
-						: entry.remote.removeUnavailableReason ? localize('remotes.removeUnavailableReason', "Remove {0}: {1}", entry.remote.name, entry.remote.removeUnavailableReason)
-							: localize('remotes.removeUnavailable', "Remove {0}: only registered remotes that support removal can be removed.", entry.remote.name);
 				}
 				break;
 			}
@@ -267,6 +300,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			template.toolbar.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
 		} else if (template.column === 'address' && template.link && template.row?.entry.type === 'empty' && template.row.entry.documentation) {
 			template.link.link = { ...template.row.entry.documentation, title: template.row.entry.documentation.label, tabIndex: focused && !template.links.hidden ? 0 : -1 };
+		} else if (template.column === 'connection') {
+			template.info.tabIndex = focused && !template.info.hidden ? 0 : -1;
 		}
 	}
 
