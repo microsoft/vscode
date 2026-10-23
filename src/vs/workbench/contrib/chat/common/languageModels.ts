@@ -563,6 +563,11 @@ export async function getTextResponseFromStream(response: ILanguageModelChatResp
 	}
 }
 
+/** The account name must be identical when registering model consent and checking its grants. */
+export function getLanguageModelAccessAccountName(auth: NonNullable<ILanguageModelChatMetadata['auth']>): string {
+	return auth.accountLabel ?? localize('languageModelsAccountId', "Language Models");
+}
+
 export interface ILanguageModelChatProvider {
 	readonly onDidChange: Event<void>;
 	provideLanguageModelChatInfo(options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;

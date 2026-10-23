@@ -27,6 +27,7 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationAccessService } from '../../../../../services/authentication/browser/authenticationAccessService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
@@ -146,6 +147,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -437,7 +439,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, this._languageModelsService, this._authenticationAccessService));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

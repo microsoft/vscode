@@ -6,15 +6,30 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
-import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, LanguageModelsService } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../../../../services/authentication/common/authentication.js';
+import { AsyncIterableObject } from '../../../../../../base/common/async.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IExtensionService, nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { TestSecretStorageService } from '../../../../../../platform/secrets/test/common/testSecretStorageService.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IRequestService } from '../../../../../../platform/request/common/request.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 suite('AgentHostLanguageModelProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -762,6 +777,291 @@ suite('AgentHostLanguageModelProvider', () => {
 			grouped: { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0', manageModelsId: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' },
 			groupless: { byokModelIdentifier: 'anthropic/claude-sonnet-4', manageModelsId: 'anthropic/claude-sonnet-4' },
 			native: { byokModelIdentifier: undefined, manageModelsId: undefined },
+		});
+	});
+
+	suite('direct requests', () => {
+		/** A workbench stand-in that records which model each direct request runs on. */
+		function requestTarget(calls: string[]) {
+			const models = new Map<string, ILanguageModelChatMetadata>([
+				['copilot/claude-opus-5.5', upcastPartial<ILanguageModelChatMetadata>({ id: 'claude-opus-5.5', vendor: 'copilot', configurationSchema: { properties: { reasoningEffort: { type: 'string' } } } })],
+				['copilot/auto', upcastPartial<ILanguageModelChatMetadata>({ id: 'auto', vendor: 'copilot' })],
+				['anthropic/claude-sonnet-4', upcastPartial<ILanguageModelChatMetadata>({ id: 'claude-sonnet-4', vendor: 'anthropic' })],
+			]);
+			const onDidChange = store.add(new Emitter<string>());
+			return {
+				models,
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: (identifier: string) => models.get(identifier),
+				onDidChangeLanguageModels: onDidChange.event,
+				sendChatRequest: async (identifier: string, _from: unknown, _messages: unknown, options: ILanguageModelChatRequestOptions) => {
+					calls.push(`request:${identifier}:${JSON.stringify(options.configuration)}`);
+					return upcastPartial<ILanguageModelChatResponse>({});
+				},
+				computeTokenLength: async (identifier: string) => { calls.push(`count:${identifier}`); return 5; },
+			};
+		}
+
+		test('runs on the exact workbench model and never on a different one', async () => {
+			const calls: string[] = [];
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli', undefined, requestTarget(calls)));
+			provider.updateModels([
+				makeModel('claude-opus-5.5'),
+				makeModel('anthropic/claude-sonnet-4', { byokModelIdentifier: 'anthropic/claude-sonnet-4' }),
+				makeModel('auto'),
+				makeModel('unknown-model'),
+			]);
+
+			const outcome = async (id: string) => {
+				try {
+					await provider.sendChatRequest(`agent-host-copilotcli:${id}`, [], undefined, { configuration: { reasoningEffort: 'high', contextTier: 'long' } }, CancellationToken.None);
+					return 'sent';
+				} catch (error) {
+					return (error as Error).message;
+				}
+			};
+			const results = {
+				copilot: await outcome('claude-opus-5.5'),
+				byok: await outcome('anthropic/claude-sonnet-4'),
+				auto: await outcome('auto'),
+				unknown: await outcome('unknown-model'),
+				tokens: await provider.provideTokenCount('agent-host-copilotcli:claude-opus-5.5', 'hello', CancellationToken.None),
+				autoTokens: await provider.provideTokenCount('agent-host-copilotcli:auto', 'hello', CancellationToken.None),
+			};
+
+			assert.deepStrictEqual({ results, calls }, {
+				results: {
+					copilot: 'sent',
+					byok: 'sent',
+					auto: `Agent-host model 'agent-host-copilotcli:auto' does not support direct chat requests`,
+					unknown: `Agent-host model 'agent-host-copilotcli:unknown-model' does not support direct chat requests`,
+					tokens: 5,
+					autoTokens: 0,
+				},
+				calls: [
+					'request:copilot/claude-opus-5.5:{"reasoningEffort":"high"}',
+					'request:anthropic/claude-sonnet-4:{}',
+					'count:copilot/claude-opus-5.5',
+				],
+			});
+		});
+
+		test('rejects direct requests without a request target', async () => {
+			const provider = createProvider();
+			provider.updateModels([makeModel('claude-opus-5.5')]);
+			await assert.rejects(provider.sendChatRequest('copilotcli:claude-opus-5.5', [], undefined, {}, CancellationToken.None), /does not support direct chat requests/);
+		});
+
+		for (const [id, identifier] of [['claude-opus-5.5', 'copilot/claude-opus-5.5'], ['anthropic/claude-sonnet-4', 'anthropic/claude-sonnet-4']]) {
+			test(`preserves the target's consent requirement and checks current access for ${identifier}`, async () => {
+				const calls: string[] = [];
+				const target = requestTarget(calls);
+				const owner = new ExtensionIdentifier('provider.extension');
+				const requester = new ExtensionIdentifier('consumer.extension');
+				const metadata = { ...target.models.get(identifier)!, extension: owner, auth: { providerLabel: 'Model Provider', accountLabel: 'Models Account' } };
+				target.models.set(identifier, metadata);
+				let allowed: boolean | undefined;
+				const checks: unknown[] = [];
+				const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli', target, target, {
+					isAccessAllowed: (providerId, accountName, extensionId) => {
+						checks.push([providerId, accountName, extensionId]);
+						return allowed;
+					},
+				}));
+				provider.updateModels([makeModel(id, id.startsWith('anthropic/') ? { byokModelIdentifier: identifier } : undefined)]);
+				const [info] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+				assert.deepStrictEqual({ extension: info.metadata.extension, auth: info.metadata.auth }, { extension: owner, auth: metadata.auth });
+				const send = () => provider.sendChatRequest(info.identifier, [], requester, {}, CancellationToken.None);
+				for (const access of [undefined, false, true, false]) {
+					allowed = access;
+					if (access) {
+						await send();
+					} else {
+						await assert.rejects(send(), { name: 'LanguageModelError', code: 'NoPermissions' });
+					}
+				}
+				assert.deepStrictEqual({ checks, calls }, {
+					checks: Array.from({ length: 4 }, () => [INTERNAL_AUTH_PROVIDER_PREFIX + owner.value, 'Models Account', requester.value]),
+					calls: [`request:${identifier}:undefined`],
+				});
+
+				// The model owner and workbench callers do not need extension consent.
+				await provider.sendChatRequest(info.identifier, [], new ExtensionIdentifier('PROVIDER.EXTENSION'), {}, CancellationToken.None);
+				await provider.sendChatRequest(info.identifier, [], undefined, {}, CancellationToken.None);
+				assert.strictEqual(checks.length, 4);
+
+				// Metadata cached by a caller cannot authorize a newly registered target.
+				target.models.set(identifier, { ...metadata, extension: new ExtensionIdentifier('replacement.provider'), auth: { providerLabel: 'Replacement' } });
+				await assert.rejects(send(), { code: 'NoPermissions' });
+				assert.deepStrictEqual(checks[4], [INTERNAL_AUTH_PROVIDER_PREFIX + 'replacement.provider', 'Language Models', requester.value]);
+				assert.strictEqual(calls.length, 3);
+			});
+		}
+
+		test('fails closed for protected targets when no access service was supplied', async () => {
+			const calls: string[] = [];
+			const target = requestTarget(calls);
+			target.models.set('copilot/claude-opus-5.5', { ...target.models.get('copilot/claude-opus-5.5')!, extension: new ExtensionIdentifier('provider.extension'), auth: { providerLabel: 'Provider' } });
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli', target, target));
+			provider.updateModels([makeModel('claude-opus-5.5')]);
+			await assert.rejects(provider.sendChatRequest('agent-host-copilotcli:claude-opus-5.5', [], new ExtensionIdentifier('consumer.extension'), {}, CancellationToken.None), { code: 'NoPermissions' });
+			assert.deepStrictEqual(calls, []);
+		});
+
+		test('normalizes native thinkingLevel with native precedence and rejects incompatible values', async () => {
+			const calls: string[] = [];
+			const target = requestTarget(calls);
+			target.models.set('copilot/claude-opus-5.5', {
+				...target.models.get('copilot/claude-opus-5.5')!,
+				configurationSchema: { properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'], default: 'low' }, contextSize: { type: 'number' } } },
+			});
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli', target, target));
+			provider.updateModels([makeModel('claude-opus-5.5')]);
+			const configuration = { thinkingLevel: 'high', reasoningEffort: 'low', contextSize: 200000, unrelated: 'ignored' };
+			await provider.sendChatRequest('agent-host-copilotcli:claude-opus-5.5', [], undefined, { configuration }, CancellationToken.None);
+			assert.deepStrictEqual({ calls, configuration }, {
+				calls: ['request:copilot/claude-opus-5.5:{"reasoningEffort":"high","contextSize":200000}'],
+				configuration: { thinkingLevel: 'high', reasoningEffort: 'low', contextSize: 200000, unrelated: 'ignored' },
+			});
+			await assert.rejects(provider.sendChatRequest('agent-host-copilotcli:claude-opus-5.5', [], undefined, { configuration: { thinkingLevel: 'max' } }, CancellationToken.None), /reasoning effort is not supported/);
+			assert.strictEqual(calls.length, 1);
+		});
+
+		test('preserves saved thinkingLevel across both services configuration merges', async () => {
+			const vendor = 'agent-host-copilotcli';
+			const service = store.add(new LanguageModelsService(
+				new class extends mock<IExtensionService>() { override async activateByEvent() { } },
+				new NullLogService(),
+				store.add(new TestStorageService()),
+				store.add(new MockContextKeyService()),
+				new class extends mock<ILanguageModelsConfigurationService>() {
+					override onDidChangeLanguageModelGroups = Event.None;
+					override getLanguageModelsProviderGroups() {
+						return [{ vendor, name: 'Copilot CLI', settings: { 'test-model': { thinkingLevel: 'high', contextSize: 200000 } } }];
+					}
+				},
+				new class extends mock<IQuickInputService>() { },
+				store.add(new TestSecretStorageService()),
+				new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+				new class extends mock<IRequestService>() { },
+				new TestNotificationService(),
+				NullOpenerService,
+				NullTelemetryService,
+			));
+			service.deltaLanguageModelChatProviderDescriptors([vendor, 'copilot'].map(vendor => ({
+				vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined,
+			})), []);
+			let receivedOptions: unknown;
+			store.add(service.registerLanguageModelProvider('copilot', {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => [{
+					identifier: 'copilot/test-model',
+					metadata: {
+						id: 'test-model', vendor: 'copilot', extension: nullExtensionDescription.identifier,
+						name: 'Test Model', family: 'test-model', version: '1',
+						maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {},
+						configurationSchema: {
+							properties: {
+								reasoningEffort: { type: 'string', enum: ['low', 'high'], default: 'low' },
+								contextSize: { type: 'number', default: 100000 },
+							}
+						},
+					},
+				}],
+				sendChatRequest: async (_id, _messages, _from, options) => {
+					receivedOptions = options;
+					return { stream: AsyncIterableObject.fromArray([]), result: Promise.resolve() };
+				},
+				provideTokenCount: async () => 0,
+			}));
+			await service.selectLanguageModels({ vendor: 'copilot' });
+			const bridge = store.add(new AgentHostLanguageModelProvider(vendor, vendor, service, service));
+			bridge.updateModels([{
+				id: 'test-model', provider: 'copilotcli', name: 'Test Model',
+				configSchema: {
+					type: 'object', properties: {
+						thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'low' },
+						contextSize: { type: 'number', title: 'Context', default: 100000 },
+					}
+				},
+			}]);
+			store.add(service.registerLanguageModelProvider(vendor, bridge));
+			await service.selectLanguageModels({ vendor });
+			await service.sendChatRequest(`${vendor}:test-model`, nullExtensionDescription.identifier, [], {}, CancellationToken.None);
+			assert.deepStrictEqual(receivedOptions, { configuration: { reasoningEffort: 'high', contextSize: 200000 } });
+		});
+
+		test('republishes BYOK alias authorization after target-only metadata changes without looping', async () => {
+			const vendor = 'agent-host-copilotcli';
+			const service = store.add(new LanguageModelsService(
+				new class extends mock<IExtensionService>() { override async activateByEvent() { } },
+				new NullLogService(), store.add(new TestStorageService()), store.add(new MockContextKeyService()),
+				new class extends mock<ILanguageModelsConfigurationService>() {
+					override onDidChangeLanguageModelGroups = Event.None;
+					override getLanguageModelsProviderGroups() { return []; }
+				},
+				new class extends mock<IQuickInputService>() { }, store.add(new TestSecretStorageService()),
+				new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+				new class extends mock<IRequestService>() { }, new TestNotificationService(), NullOpenerService, NullTelemetryService,
+			));
+			service.deltaLanguageModelChatProviderDescriptors([vendor, 'byok'].map(vendor => ({
+				vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined,
+			})), []);
+			let auth: ILanguageModelChatMetadata['auth'] = undefined;
+			let requests = 0;
+			let allowed = false;
+			const owner = new ExtensionIdentifier('byok.extension');
+			store.add(service.registerLanguageModelProvider('byok', {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => [{
+					identifier: 'byok/model',
+					metadata: {
+						id: 'model', vendor: 'byok', extension: owner, name: 'Model', family: 'model', version: '1',
+						maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {}, auth,
+					},
+				}],
+				sendChatRequest: async () => {
+					requests++;
+					return { stream: AsyncIterableObject.fromArray([]), result: Promise.resolve() };
+				},
+				provideTokenCount: async () => 0,
+			}));
+			await service.selectLanguageModels({ vendor: 'byok' });
+			const bridge = store.add(new AgentHostLanguageModelProvider(vendor, vendor, service, service, { isAccessAllowed: () => allowed }));
+			bridge.updateModels([makeModel('alias', { byokModelIdentifier: 'byok/model' })]);
+			store.add(service.registerLanguageModelProvider(vendor, bridge));
+			await service.selectLanguageModels({ vendor });
+			assert.strictEqual(service.lookupLanguageModel(`${vendor}:alias`)?.auth, undefined);
+			auth = { providerLabel: 'BYOK', accountLabel: 'New Account' };
+			const aliasChanged = Event.toPromise(Event.filter(service.onDidChangeLanguageModels, changed => changed === vendor));
+			await service.selectLanguageModels({ vendor: 'byok' });
+			await aliasChanged;
+			assert.deepStrictEqual(service.lookupLanguageModel(`${vendor}:alias`)?.auth, auth);
+			const send = () => service.sendChatRequest(`${vendor}:alias`, new ExtensionIdentifier('consumer.extension'), [], {}, CancellationToken.None);
+			await assert.rejects(send(), { code: 'NoPermissions' });
+			assert.strictEqual(requests, 0);
+			allowed = true;
+			await send();
+			assert.strictEqual(requests, 1);
+			let changes = 0;
+			store.add(bridge.onDidChange(() => changes++));
+			await service.selectLanguageModels({ vendor });
+			assert.strictEqual(changes, 0);
+		});
+
+		test('does not reinterpret arbitrary BYOK configuration or forward to another agent-host alias', async () => {
+			const calls: string[] = [];
+			const target = requestTarget(calls);
+			target.models.set('anthropic/claude-sonnet-4', {
+				...target.models.get('anthropic/claude-sonnet-4')!,
+				configurationSchema: { properties: { thinkingLevel: { type: 'string' }, reasoningEffort: { type: 'string' } } },
+			});
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli', target, target));
+			provider.updateModels([makeModel('anthropic/claude-sonnet-4', { byokModelIdentifier: 'anthropic/claude-sonnet-4' })]);
+			await provider.sendChatRequest('agent-host-copilotcli:anthropic/claude-sonnet-4', [], undefined, { configuration: { thinkingLevel: 'high', reasoningEffort: 'low' } }, CancellationToken.None);
+			target.models.set('anthropic/claude-sonnet-4', { ...target.models.get('anthropic/claude-sonnet-4')!, targetChatSessionType: 'other-agent-host' });
+			await assert.rejects(provider.sendChatRequest('agent-host-copilotcli:anthropic/claude-sonnet-4', [], undefined, {}, CancellationToken.None), /does not support direct chat requests/);
+			assert.deepStrictEqual(calls, ['request:anthropic/claude-sonnet-4:{"thinkingLevel":"high","reasoningEffort":"low"}']);
 		});
 	});
 });
