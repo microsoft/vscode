@@ -27,7 +27,7 @@ import type { AbstractChatView } from '../../../browser/parts/chatView.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ChatWindowLayout, ChatWindowSplitLayout } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
@@ -259,6 +259,8 @@ export class ChatWindowChatEditor extends EditorPane {
 		let maximizedBeside: IEditorGroup | undefined;
 		/** The terminal row as last arranged, across the bottom of the window. */
 		let arrangedTerminal: IEditorGroup | undefined;
+		/** Where the terminal row was last arranged. */
+		let arrangedTerminalPosition: ChatWindowTerminalPosition | undefined;
 
 		store.add(autorun(reader => {
 			const current = conversationOnly.read(reader);
@@ -291,6 +293,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		store.add(autorun(reader => {
 			partChanged.read(reader);
 			const terminal = state.terminalGroup.read(reader);
+			const terminalPosition = state.terminalPosition.read(reader);
 			const layout = state.layout.read(reader);
 			const splitLayout = state.splitLayout.read(reader);
 			const inputOnly = view.inputOnly.read(reader);
@@ -318,10 +321,12 @@ export class ChatWindowChatEditor extends EditorPane {
 			this._sizing = true;
 			try {
 				// Side by side, the chat leads and the editor follows it; otherwise the editor sits above the chat. The terminal
-				// row spans the bottom of the window below both: below the chat first, then the editor beside or above the chat.
+				// row spans the bottom of the window below both by default: below the chat first, then the editor beside or
+				// above the chat. Below only one of them, it is placed after the editor, below the chat or the editor.
 				const editor = part.groups.find(group => group !== this.group && group !== terminal);
-				const terminalAdded = !!terminal && terminal !== arrangedTerminal;
+				const terminalAdded = !!terminal && (terminal !== arrangedTerminal || terminalPosition !== arrangedTerminalPosition);
 				arrangedTerminal = terminal;
+				arrangedTerminalPosition = terminalPosition;
 				if (editor) {
 					const arrangedSplitLayout = this._arrangedSplitLayout;
 					if (terminalAdded || (arrangedSplitLayout === undefined ? sideBySide : arrangedSplitLayout !== splitLayout)) {
@@ -329,10 +334,18 @@ export class ChatWindowChatEditor extends EditorPane {
 							part.toggleMaximizeGroup();
 							maximized = undefined;
 						}
-						if (terminal) {
+						// Stacked, the chat is the bottom of the window: below it is across the bottom, as full width.
+						const underEditor = terminalPosition === ChatWindowTerminalPosition.UnderEditor;
+						const underChatOnly = sideBySide && terminalPosition === ChatWindowTerminalPosition.UnderChat;
+						if (terminal && !underEditor && !underChatOnly) {
 							part.moveGroup(terminal, this.group, GroupDirection.DOWN);
 						}
 						part.moveGroup(editor, this.group, sideBySide ? GroupDirection.RIGHT : GroupDirection.UP);
+						if (terminal && underEditor) {
+							part.moveGroup(terminal, editor, GroupDirection.DOWN);
+						} else if (terminal && underChatOnly) {
+							part.moveGroup(terminal, this.group, GroupDirection.DOWN);
+						}
 						if (terminal) {
 							this._sizeTerminalRow(part, terminal);
 						}

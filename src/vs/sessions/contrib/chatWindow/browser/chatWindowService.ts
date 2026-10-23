@@ -21,7 +21,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { InFlightOperations, IChatWindowOpening, openCleaningUpOnFailure } from './chatWindowOpening.js';
@@ -106,6 +106,12 @@ class ChatWindow implements IChatWindow {
 	get terminalGroup(): IObservable<IEditorGroup | undefined> { return this.state.terminalGroup; }
 
 	readonly terminalShown: IObservable<boolean> = derived(this, reader => !!this.state.terminalGroup.read(reader));
+
+	get terminalPosition(): IObservable<ChatWindowTerminalPosition> { return this.state.terminalPosition; }
+
+	setTerminalPosition(position: ChatWindowTerminalPosition): void {
+		this.state.setTerminalPosition(position);
+	}
 
 	setTerminalShown(shown: boolean, options?: { readonly focus?: boolean }): Promise<void> {
 		return this._service.setTerminalShown(this, shown, options?.focus ?? false);
@@ -299,6 +305,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		windowDisposables.add(autorun(reader => layoutContext.set(state.layout.read(reader))));
 		const splitLayoutContext = ChatWindowSplitLayoutContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => splitLayoutContext.set(state.splitLayout.read(reader))));
+		const terminalPositionContext = ChatWindowTerminalPositionContext.bindTo(windowContextKeyService);
+		windowDisposables.add(autorun(reader => terminalPositionContext.set(state.terminalPosition.read(reader))));
 		// An editor area shows its editors in tabs, and stays when its last editor closes. Tabs show for the whole part.
 		windowDisposables.add(part.enforcePartOptions(content.editorArea
 			? { showTabs: 'multiple', closeEmptyGroups: false }

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ChatWindowLayout, IChatWindowKind } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowLayout, ChatWindowTerminalPosition, IChatWindowKind } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../browser/chatWindowState.js';
 
 suite('ChatWindowState', () => {
@@ -87,6 +87,26 @@ suite('ChatWindowState', () => {
 			initiallyInputOnly: true,
 			reopenedInputOnly: false,
 			docked: { inputOnly: true, layoutFromSideBySide: ChatWindowLayout.EditorAboveChat },
+		});
+	});
+
+	test('puts the terminal row across the full width until a position is chosen, and remembers it', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+
+		const window = createState(storageService, false, true);
+		const initial = window.terminalPosition.get();
+		window.setTerminalPosition(ChatWindowTerminalPosition.UnderChat);
+
+		assert.deepStrictEqual({
+			initial,
+			chosen: window.terminalPosition.get(),
+			reopened: createState(storageService, false, true).terminalPosition.get(),
+			otherKind: new ChatWindowState({ id: 'other', title: 'Other' }, false, true, new ChatWindowDefaults({ id: 'other', title: 'Other' }, storageService)).terminalPosition.get(),
+		}, {
+			initial: ChatWindowTerminalPosition.FullWidth,
+			chosen: ChatWindowTerminalPosition.UnderChat,
+			reopened: ChatWindowTerminalPosition.UnderChat,
+			otherKind: ChatWindowTerminalPosition.FullWidth,
 		});
 	});
 });
