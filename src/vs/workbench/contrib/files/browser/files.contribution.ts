@@ -306,7 +306,13 @@ configurationRegistry.registerConfiguration({
 				'*/.git/subtree-cache/**': true,
 				'*/.hg/store/**': true
 			},
-			'markdownDescription': nls.localize('watcherExclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude from file watching. Paths can either be relative to the watched folder or absolute. Glob patterns are matched relative from the watched folder. When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
+			'markdownDescription': nls.localize('watcherExclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude from file watching. Paths can either be relative to the watched folder or absolute. Glob patterns are matched relative from the watched folder. When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders). To also exclude the paths that Git ignores, enable {0}.", '`#files.watcherExcludeGitIgnore#`'),
+			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.watcherExcludeGitIgnore': {
+			'type': 'boolean',
+			'default': false,
+			'markdownDescription': nls.localize('watcherExcludeGitIgnore', "Controls whether paths matched by the `.gitignore` file at the root of each workspace folder are excluded from file watching, in addition to {0}. This can reduce the resources used to watch large folders such as build output. The File Explorer and extensions may not see changes to those files. Nested `.gitignore` files are not read.", '`#files.watcherExclude#`'),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.watcherInclude': {
