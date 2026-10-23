@@ -125,17 +125,19 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string, options?: IGitNetworkOptions): Promise<void> {
-		const args = ['clone'];
+		const args = ['clone', '--depth', '1'];
 		const normalizedRef = ref?.trim().toLowerCase();
 		const pinnedCommit = normalizedRef && FULL_COMMIT_SHA_PATTERN.test(normalizedRef) ? normalizedRef : undefined;
-		if (ref && !pinnedCommit) {
+		if (pinnedCommit) {
+			args.push('--no-checkout');
+		} else if (ref) {
 			args.push('--branch', ref);
 		}
 		args.push('--', cloneUrl, targetPath);
 		await this._exec(operationId, args, undefined, options);
 		if (pinnedCommit) {
 			try {
-				await this._exec(operationId, ['fetch', 'origin', pinnedCommit], targetPath, options);
+				await this._exec(operationId, ['fetch', '--depth', '1', 'origin', pinnedCommit], targetPath, options);
 				await this.checkoutCommit(operationId, targetPath, pinnedCommit);
 			} catch (error) {
 				try {

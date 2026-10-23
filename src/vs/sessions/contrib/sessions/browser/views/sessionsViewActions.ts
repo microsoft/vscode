@@ -32,7 +32,7 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { getNewSessionSources, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemIsArchivedContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
+import { getNewSessionSources, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -1619,17 +1619,24 @@ registerAction2(class DeleteSessionAction extends Action2 {
 CommandsRegistry.registerCommandAlias('sessionsViewPane.markRead', MARK_SESSION_READ_COMMAND_ID);
 CommandsRegistry.registerCommandAlias('sessionsViewPane.markUnread', MARK_SESSION_UNREAD_COMMAND_ID);
 
-async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | undefined, isRead: boolean): Promise<void> {
+function setSessionListChatReadState(sessionsManagementService: ISessionsManagementService, { session, chat }: ISessionChatItem, isRead: boolean): Promise<boolean | void> {
+	if (isEqual(chat.resource, session.mainChat.get().resource)) {
+		return isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session);
+	}
+	return isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat);
+}
+
+async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | ISessionChatItem | undefined, isRead: boolean): Promise<void> {
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	if (context && !Array.isArray(context) && hasKey(context, { session: true, chat: true })) {
+		await setSessionListChatReadState(sessionsManagementService, context, isRead);
+		return;
+	}
 	if (!context) {
 		const chats = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.getFocusedChatItems() ?? [];
 		if (chats.length > 0) {
-			for (const { session, chat } of chats) {
-				if (isEqual(chat.resource, session.mainChat.get().resource)) {
-					await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
-				} else {
-					await (isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat));
-				}
+			for (const chat of chats) {
+				await setSessionListChatReadState(sessionsManagementService, chat, isRead);
 			}
 			return;
 		}
@@ -1658,6 +1665,15 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 					SessionIsReadContext.negate(),
 					SessionIsArchivedContext.negate(),
 				),
+			}, {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 2.5,
+				when: ContextKeyExpr.and(
+					SessionChatItemCanSetReadStateContext,
+					SessionChatItemIsReadContext.negate(),
+					SessionChatItemIsArchivedContext.negate(),
+				),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/5_read',
@@ -1670,7 +1686,7 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			}))]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
 		return markSessionListTargetsRead(accessor, context, true);
 	}
 });
@@ -1693,6 +1709,15 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 					SessionIsReadContext,
 					SessionIsArchivedContext.negate(),
 				),
+			}, {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 2.5,
+				when: ContextKeyExpr.and(
+					SessionChatItemCanSetReadStateContext,
+					SessionChatItemIsReadContext,
+					SessionChatItemIsArchivedContext.negate(),
+				),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/5_read',
@@ -1705,7 +1730,7 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			}))]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
 		return markSessionListTargetsRead(accessor, context, false);
 	}
 });

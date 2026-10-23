@@ -11,7 +11,8 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -32,6 +33,15 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
 import { CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
 import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+
+function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
+	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
+		override readonly showBadge = showBadge;
+	};
+}
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -117,6 +127,7 @@ suite('Customizations toolbar', () => {
 		};
 		const activeProjectRoot = constObservable(URI.file('/worktrees/one'));
 		const storageService = disposables.add(new InMemoryStorageService());
+		const showExtensionSuggestionsBadge = observableValue(disposables, true);
 		const state = disposables.add(new CustomizationsNavigationState(
 			enabled,
 			new class extends mock<ISessionsService>() {
@@ -136,13 +147,18 @@ suite('Customizations toolbar', () => {
 			},
 			storageService,
 			new class extends mock<ILogService>() { },
+			createExtensionSuggestionsService(showExtensionSuggestionsBadge),
 		));
 		await Promise.resolve();
 
 		const enabledState = {
 			totalCount: state.totalCount.get(),
 			migrationAvailable: state.migrationAvailable.get(),
+			extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
 		};
+		showExtensionSuggestionsBadge.set(false, undefined);
+		const seenSuggestionsState = state.extensionSuggestionsAvailable.get();
+		showExtensionSuggestionsBadge.set(true, undefined);
 		customizationsChanged.fire();
 		const refreshingState = state.migrationAvailable.get();
 		void refreshedHint.complete(migrationHint);
@@ -172,6 +188,7 @@ suite('Customizations toolbar', () => {
 
 		assert.deepStrictEqual({
 			enabledState,
+			seenSuggestionsState,
 			refreshingState,
 			refreshedState,
 			removingState,
@@ -182,12 +199,15 @@ suite('Customizations toolbar', () => {
 			disabledState: {
 				totalCount: state.totalCount.get(),
 				migrationAvailable: state.migrationAvailable.get(),
+				extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
 			},
 		}, {
 			enabledState: {
 				totalCount: 9,
 				migrationAvailable: true,
+				extensionSuggestionsAvailable: true,
 			},
+			seenSuggestionsState: false,
 			refreshingState: true,
 			refreshedState: true,
 			removingState: true,
@@ -204,6 +224,7 @@ suite('Customizations toolbar', () => {
 			disabledState: {
 				totalCount: 0,
 				migrationAvailable: false,
+				extensionSuggestionsAvailable: false,
 			},
 		});
 	});
@@ -221,6 +242,8 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(constObservable(false)),
+			NullHoverService,
 		));
 		const container = mainWindow.document.createElement('div');
 		item.render(container);
@@ -239,6 +262,50 @@ suite('Customizations toolbar', () => {
 		});
 	});
 
+	test('badges links that show extension suggestions while suggestions are unseen', () => {
+		const showBadge = observableValue(disposables, true);
+		const hovers = new Set<{ readonly content: unknown }>();
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover(_target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1]) {
+				const hover = { content: (typeof options === 'function' ? options() : options).content };
+				hovers.add(hover);
+				return toDisposable(() => hovers.delete(hover));
+			}
+		};
+		const item = disposables.add(new CustomizationLinkViewItem(
+			disposables.add(new Action('test.extensions', 'Extensions')),
+			{},
+			{ id: 'test.extensions', label: 'Extensions', icon: Codicon.extensions, showsExtensionSuggestions: true },
+			new class extends mock<IAICustomizationItemsModel>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(showBadge),
+			hoverService,
+		));
+		const container = mainWindow.document.createElement('div');
+		item.render(container);
+		const badge = container.querySelector<HTMLElement>('.customization-link-button .ai-customization-suggestion-badge');
+		const readState = () => ({
+			visible: badge?.classList.contains('hidden') === false,
+			hovers: [...hovers].map(hover => hover.content),
+		});
+		const unseenState = readState();
+		showBadge.set(false, undefined);
+
+		assert.deepStrictEqual({
+			role: badge?.getAttribute('role'),
+			ariaLabel: badge?.getAttribute('aria-label'),
+			unseenState,
+			seenState: readState(),
+		}, {
+			role: 'img',
+			ariaLabel: 'Some installed extensions can be enabled in the Agents window.',
+			unseenState: { visible: true, hovers: ['Some installed extensions can be enabled in the Agents window.'] },
+			seenState: { visible: false, hovers: [] },
+		});
+	});
+
 	test('forwards ActionBar roving focus to the nested button', () => {
 		const container = mainWindow.document.createElement('div');
 		const createViewItem = (action: IAction) => new CustomizationLinkViewItem(
@@ -249,6 +316,8 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
 			new class extends mock<ILanguageModelToolsService>() { },
 			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(constObservable(false)),
+			NullHoverService,
 		);
 		const actionBar = disposables.add(new ActionBar(container, {
 			actionViewItemProvider: action => createViewItem(action),

@@ -141,8 +141,8 @@ suite('CopilotComputerUsePermissionSetup', () => {
 			};
 		};
 		assert.deepStrictEqual({ working: await run(true), waiting: await run(false) }, {
-			working: { result: { action: 'accept', content: { choice: 'try_again' } }, setup: [{ state: 'ended', error: 'unsupportedPrompt' }], permissions: ['notGranted', 'notGranted'], cardCompletions: [ChatInputResponseKind.Cancel] },
-			waiting: { result: { action: 'cancel' }, setup: [{ state: 'ended', error: 'unsupportedPrompt' }], permissions: ['notGranted', 'notGranted'], cardCompletions: [ChatInputResponseKind.Cancel] },
+			working: { result: { action: 'accept', content: { choice: 'try_again' } }, setup: [{ state: 'ended', error: undefined }], permissions: ['notGranted', 'notGranted'], cardCompletions: [ChatInputResponseKind.Cancel] },
+			waiting: { result: { action: 'cancel' }, setup: [{ state: 'ended', error: undefined }], permissions: ['notGranted', 'notGranted'], cardCompletions: [ChatInputResponseKind.Cancel] },
 		});
 	});
 
@@ -154,7 +154,7 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		const first = prompt(setup, chat, ['accessibility', 'screenRecording']);
 		const needsBoth = configuration.status;
 		const setupId = needsBoth?.setups[0]?.id ?? '';
-		configuration.send({ setupId, round: 1, action: 'request', permission: 'accessibility' });
+		configuration.send({ setupId, round: 1, action: 'allow', permission: 'accessibility' });
 		const working = configuration.status;
 		await first.done;
 
@@ -175,10 +175,10 @@ suite('CopilotComputerUsePermissionSetup', () => {
 				permissions: [{ permission: 'accessibility', state: 'notGranted' }, { permission: 'screenRecording', state: 'notGranted' }],
 				setups: [{
 					chat: 'chat:a', state: 'needsPermissions', round: 1,
-					actions: [{ action: 'request', permission: 'accessibility' }, { action: 'request', permission: 'screenRecording' }, { action: 'recheck' }],
+					actions: [{ action: 'allow', permission: 'accessibility' }, { action: 'allow', permission: 'screenRecording' }, { action: 'recheck' }],
 				}],
 			},
-			working: { operation: { setupId, action: 'request', permission: 'accessibility' }, state: 'working', actions: [] },
+			working: { operation: { setupId, action: 'allow', permission: 'accessibility' }, state: 'working', actions: [] },
 			firstAnswer: [{ action: 'accept', content: { choice: 'request_accessibility' } }],
 			card: { purpose: ChatInputRequestPurpose.Elicitation, setup: { setupId }, message: 'Copilot Computer Use needs macOS permissions', questions: ['choice'] },
 			sameCard: true,
@@ -186,10 +186,71 @@ suite('CopilotComputerUsePermissionSetup', () => {
 				permissions: [{ permission: 'accessibility', state: 'granted' }, { permission: 'screenRecording', state: 'notGranted' }],
 				setups: [{
 					chat: 'chat:a', state: 'needsPermissions', round: 2,
-					actions: [{ action: 'request', permission: 'screenRecording' }, { action: 'openSettings', permission: 'screenRecording' }, { action: 'recheck' }],
+					actions: [{ action: 'allow', permission: 'screenRecording' }, { action: 'recheck' }],
 				}],
 				pending: [],
 			},
+		});
+	});
+
+	test('asks macOS natively the first time Allow is chosen, and opens System Settings on a later Allow in the same loop', async () => {
+		const { configuration, setup } = createSetup();
+		const chat = new TestSetupChat('chat:a');
+		const first = prompt(setup, chat, ['accessibility', 'screenRecording']);
+		const setupId = configuration.status?.setups[0]?.id ?? '';
+		configuration.send({ setupId, round: 1, action: 'allow', permission: 'accessibility' });
+		await first.done;
+		const second = prompt(setup, chat, ['accessibility', 'screenRecording'], ['accessibility']);
+		configuration.send({ setupId, round: 2, action: 'allow', permission: 'accessibility' });
+		const openingSettings = configuration.status?.operation;
+		await second.done;
+		const third = prompt(setup, chat, ['accessibility', 'screenRecording'], ['accessibility']);
+		configuration.send({ setupId, round: 3, action: 'allow', permission: 'screenRecording' });
+		await third.done;
+
+		assert.deepStrictEqual({ answers: [...first.results, ...second.results, ...third.results], openingSettings }, {
+			answers: [
+				{ action: 'accept', content: { choice: 'request_accessibility' } },
+				{ action: 'accept', content: { choice: 'settings_accessibility' } },
+				{ action: 'accept', content: { choice: 'request_screen_recording' } },
+			],
+			openingSettings: { setupId, action: 'allow', permission: 'accessibility' },
+		});
+	});
+
+	test('in a new loop, asks macOS again for a permission it already asked for, then opens System Settings on its own', async () => {
+		const { configuration, setup } = createSetup();
+		const chat = new TestSetupChat('chat:a');
+		const firstLoop = prompt(setup, chat, ['accessibility']);
+		configuration.send({ setupId: configuration.status?.setups[0]?.id ?? '', round: 1, action: 'allow', permission: 'accessibility' });
+		await firstLoop.done;
+		// The waiting tool call timed out, and the next one starts a new loop, which offers no System Settings pane yet.
+		setup.onToolCallCompleted(chat, false);
+		const newLoop = prompt(setup, chat, ['accessibility']);
+		const setupId = configuration.status?.setups[1]?.id ?? '';
+		const publishedBefore = configuration.published.length;
+		configuration.send({ setupId, round: 1, action: 'allow', permission: 'accessibility' });
+		await newLoop.done;
+		const next = prompt(setup, chat, ['accessibility'], ['accessibility']);
+		await next.done;
+
+		assert.deepStrictEqual({
+			answers: [...firstLoop.results, ...newLoop.results, ...next.results],
+			published: configuration.published.slice(publishedBefore).map(status => {
+				const candidate = status?.setups.find(entry => entry.id === setupId);
+				return { state: candidate?.state, round: candidate?.round, operation: status?.operation };
+			}),
+		}, {
+			answers: [
+				{ action: 'accept', content: { choice: 'request_accessibility' } },
+				{ action: 'accept', content: { choice: 'request_accessibility' } },
+				{ action: 'accept', content: { choice: 'settings_accessibility' } },
+			],
+			// The setup goes from one step of the user's Allow to the next without waiting in between.
+			published: [
+				{ state: 'working', round: 1, operation: { setupId, action: 'allow', permission: 'accessibility' } },
+				{ state: 'working', round: 2, operation: { setupId, action: 'allow', permission: 'accessibility' } },
+			],
 		});
 	});
 
@@ -200,13 +261,14 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		const setupId = configuration.status?.setups[0]?.id ?? '';
 		const nonce = configuration.send({ setupId, round: 1, action: 'recheck' });
 		await first.done;
-		const second = prompt(setup, chat, ['accessibility', 'screenRecording']);
+		const second = prompt(setup, chat, ['accessibility']);
 
 		configuration.send({ setupId, round: 2, action: 'recheck', nonce });
-		configuration.send({ setupId, round: 1, action: 'request', permission: 'accessibility' });
-		configuration.send({ setupId, round: 2, action: 'openSettings', permission: 'accessibility' });
+		configuration.send({ setupId, round: 1, action: 'allow', permission: 'accessibility' });
+		configuration.send({ setupId, round: 2, action: 'allow', permission: 'screenRecording' });
 		configuration.send({ setupId: 'unknown', round: 2, action: 'recheck' });
-		configuration.updateRootConfig({ [COMPUTER_USE_REQUEST_KEY]: { nonce: 'n', setupId, round: 2, action: 'request' } });
+		configuration.updateRootConfig({ [COMPUTER_USE_REQUEST_KEY]: { nonce: 'n', setupId, round: 2, action: 'allow' } });
+		configuration.updateRootConfig({ [COMPUTER_USE_REQUEST_KEY]: { nonce: 'm', setupId, round: 2, action: 'request', permission: 'accessibility' } });
 		await timeout(0);
 
 		assert.deepStrictEqual({
@@ -244,7 +306,82 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		};
 		assert.deepStrictEqual({ succeeded: await run(true), failed: await run(false) }, {
 			succeeded: { stillOff: 'stillNotGranted', state: 'ready', error: undefined, permissions: ['granted', 'granted'], cardCompletions: [ChatInputResponseKind.Accept] },
-			failed: { stillOff: 'stillNotGranted', state: 'ended', error: 'unconfirmed', permissions: ['notGranted', 'notGranted'], cardCompletions: [ChatInputResponseKind.Cancel] },
+			failed: { stillOff: 'stillNotGranted', state: 'ended', error: undefined, permissions: ['notGranted', 'notGranted'], cardCompletions: [ChatInputResponseKind.Cancel] },
+		});
+	});
+
+	test('publishes no error for a setup that ended, however it ended', async () => {
+		const end = async (stop: (setup: CopilotComputerUsePermissionSetup, chat: TestSetupChat) => void, whileWorking = false) => {
+			const { configuration, setup } = createSetup();
+			const chat = new TestSetupChat('chat:a');
+			const pending = prompt(setup, chat, ['accessibility']);
+			if (whileWorking) {
+				configuration.send({ setupId: configuration.status?.setups[0]?.id ?? '', round: 1, action: 'recheck' });
+			}
+			stop(setup, chat);
+			await pending.done;
+			return configuration.status?.setups.map(({ id, ...rest }) => rest);
+		};
+		const ended = [{ chat: 'chat:a', state: 'ended', round: 1, actions: [] }];
+		assert.deepStrictEqual({
+			timedOutWhileWaiting: await end((setup, chat) => setup.onToolCallCompleted(chat, false)),
+			timedOutWhileWorking: await end((setup, chat) => setup.onToolCallCompleted(chat, false), true),
+			chatStopped: await end((setup, chat) => setup.cancelChat(chat)),
+			declined: await end((setup, chat) => setup.respondToInput(chat, chat.requests[0].id, ChatInputResponseKind.Decline, undefined)),
+			unrecognizedPrompt: await end((setup, chat) => setup.onUnrecognizedPrompt(chat)),
+		}, {
+			timedOutWhileWaiting: ended,
+			timedOutWhileWorking: ended,
+			chatStopped: ended,
+			declined: ended,
+			unrecognizedPrompt: ended,
+		});
+	});
+
+	test('lets the other waiting setups check again on their own once one is ready, even right after macOS asked for Accessibility', () => runWithFakedTimers({}, async () => {
+		const { configuration, setup } = createSetup();
+		const [chatA, chatB] = [new TestSetupChat('chat:a'), new TestSetupChat('chat:b')];
+		const a = prompt(setup, chatA, ['accessibility']);
+		const b = prompt(setup, chatB, ['accessibility']);
+		const setupA = configuration.status?.setups[0]?.id ?? '';
+		configuration.send({ setupId: setupA, round: 1, action: 'allow', permission: 'accessibility' });
+		await a.done;
+		// macOS asked for Accessibility, and the user turned it on before checking again.
+		const again = prompt(setup, chatA, ['accessibility'], ['accessibility']);
+		configuration.send({ setupId: setupA, round: 2, action: 'recheck' });
+		await again.done;
+		setup.onToolCallCompleted(chatA, true);
+		await timeout(0);
+		const checkedOnItsOwn = [...b.results];
+		setup.onToolCallCompleted(chatB, true);
+
+		assert.deepStrictEqual({ checkedOnItsOwn, setups: configuration.status?.setups.map(candidate => candidate.state) }, {
+			checkedOnItsOwn: [{ action: 'accept', content: { choice: 'try_again' } }],
+			setups: ['ready', 'ready'],
+		});
+	}));
+
+	test('sends exactly the choice a client without the setup UI picked, and remembers its native requests', async () => {
+		const { configuration, setup } = createSetup();
+		const chat = new TestSetupChat('chat:a');
+		const answer = async (choice: string) => {
+			const pending = prompt(setup, chat, ['accessibility'], ['accessibility']);
+			setup.respondToInput(chat, chat.requests.at(-1)?.id ?? '', ChatInputResponseKind.Accept, { choice: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: choice } } });
+			return pending.done;
+		};
+		// Nothing asked macOS natively yet, so Allow would ask first.
+		const openSettings = await answer('settings_accessibility');
+		const request = await answer('request_accessibility');
+		// macOS asked already, so Allow would open System Settings.
+		const requestAgain = await answer('request_accessibility');
+		const allow = prompt(setup, chat, ['accessibility'], ['accessibility']);
+		configuration.send({ setupId: configuration.status?.setups[0]?.id ?? '', round: 4, action: 'allow', permission: 'accessibility' });
+
+		assert.deepStrictEqual({ openSettings, request, requestAgain, allow: await allow.done }, {
+			openSettings: { action: 'accept', content: { choice: 'settings_accessibility' } },
+			request: { action: 'accept', content: { choice: 'request_accessibility' } },
+			requestAgain: { action: 'accept', content: { choice: 'request_accessibility' } },
+			allow: { action: 'accept', content: { choice: 'settings_accessibility' } },
 		});
 	});
 
@@ -301,7 +438,7 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		const unchanged = { state: configuration.status?.setups[0]?.state, error: configuration.status?.setups[0]?.error };
 
 		// Asking for Accessibility adds the app to macOS's list while macOS shows its prompt, which the helper holds.
-		configuration.send({ setupId, round: 2, action: 'request', permission: 'accessibility' });
+		configuration.send({ setupId, round: 2, action: 'allow', permission: 'accessibility' });
 		accessibilityTrust.reportChange();
 		await timeout(1000);
 		const third = prompt(setup, chat, ['accessibility', 'screenRecording'], ['accessibility']);
@@ -330,9 +467,9 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		const c = prompt(setup, chatC, ['accessibility']);
 		const [setupA, setupB] = configuration.status?.setups.map(candidate => candidate.id) ?? [];
 
-		// A's request runs while B's waits; a check queued now would run as macOS shows B's prompt.
-		configuration.send({ setupId: setupA, round: 1, action: 'request', permission: 'screenRecording' });
-		configuration.send({ setupId: setupB, round: 1, action: 'request', permission: 'accessibility' });
+		// A's request runs while B's Allow waits; a check queued now would run as macOS shows B's prompt.
+		configuration.send({ setupId: setupA, round: 1, action: 'allow', permission: 'screenRecording' });
+		configuration.send({ setupId: setupB, round: 1, action: 'allow', permission: 'accessibility' });
 		accessibilityTrust.reportChange();
 		await timeout(1000);
 		prompt(setup, chatA, ['screenRecording'], ['screenRecording']);
@@ -346,17 +483,17 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		const { configuration, setup, accessibilityTrust } = createSetup();
 		const [chatA, chatB] = [new TestSetupChat('chat:a'), new TestSetupChat('chat:b')];
 		prompt(setup, chatA, ['accessibility']);
-		const b = prompt(setup, chatB, ['accessibility'], ['accessibility']);
+		const b = prompt(setup, chatB, ['accessibility']);
 		const setupB = configuration.status?.setups[1]?.id ?? '';
 
-		// A's automatic check runs while B's waits, and B's user asks for System Settings meanwhile.
+		// A's automatic check runs while B's waits, and B's user chooses Allow meanwhile.
 		accessibilityTrust.reportChange();
 		await timeout(1000);
-		configuration.send({ setupId: setupB, round: 1, action: 'openSettings', permission: 'accessibility' });
+		configuration.send({ setupId: setupB, round: 1, action: 'allow', permission: 'accessibility' });
 		prompt(setup, chatA, ['accessibility']);
 		await timeout(0);
 
-		assert.deepStrictEqual(b.results, [{ action: 'accept', content: { choice: 'settings_accessibility' } }]);
+		assert.deepStrictEqual(b.results, [{ action: 'accept', content: { choice: 'request_accessibility' } }]);
 	}));
 
 	test('runs one action at a time across chats so native prompts never overlap', async () => {
@@ -366,8 +503,8 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		const a = prompt(setup, chatA, ['accessibility']);
 		const b = prompt(setup, chatB, ['accessibility']);
 		const [setupA, setupB] = configuration.status?.setups.map(candidate => candidate.id) ?? [];
-		configuration.send({ setupId: setupA, round: 1, action: 'request', permission: 'accessibility' });
-		configuration.send({ setupId: setupB, round: 1, action: 'request', permission: 'accessibility' });
+		configuration.send({ setupId: setupA, round: 1, action: 'allow', permission: 'accessibility' });
+		configuration.send({ setupId: setupB, round: 1, action: 'allow', permission: 'accessibility' });
 		await timeout(0);
 		const whileAWorks = { a: a.results.length, b: b.results.length, operation: configuration.status?.operation?.setupId === setupA };
 		prompt(setup, chatA, ['accessibility'], ['accessibility']);
@@ -445,7 +582,7 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		}, {
 			cancelled: [{ action: 'cancel' }],
 			stopped: [{ action: 'cancel' }],
-			setups: [{ own: true, state: 'ended', error: 'notWaiting' }, { own: true, state: 'ended', error: 'notWaiting' }],
+			setups: [{ own: true, state: 'ended', error: undefined }, { own: true, state: 'ended', error: undefined }],
 			cardCompletions: { cancelled: [], stopped: [ChatInputResponseKind.Cancel] },
 		});
 	});

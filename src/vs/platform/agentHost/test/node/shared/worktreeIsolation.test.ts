@@ -819,6 +819,42 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('snapshots the working tree when the selected branch is unborn', async () => {
+		headCommit = undefined;
+		const gitService = createGitService();
+		const commitTreeCalls: Parameters<IAgentHostGitService['commitTree']>[] = [];
+		gitService.getCurrentBranch = async () => 'main';
+		gitService.getBranch = async () => undefined;
+		gitService.getDefaultBranch2 = async () => undefined;
+		gitService.captureWorkingTreeAsTree = async () => 'snapshot-tree';
+		gitService.commitTree = async (...args) => {
+			commitTreeCalls.push(args);
+			return 'snapshot-commit';
+		};
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.resolveWorkingDirectory({
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree',
+				[SessionConfigKey.Branch]: 'main',
+			},
+			prompt: 'do a thing',
+		});
+
+		assert.deepStrictEqual({
+			commitTreeCalls,
+			startPoint: addWorktreeCalls[0]?.commitish,
+			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+		}, {
+			commitTreeCalls: [[repoRoot, 'snapshot-tree', undefined, 'Initialize isolated worktree', { useInternalIdentity: true }]],
+			startPoint: 'snapshot-commit',
+			diffBaseBranch: 'main',
+		});
+	});
+
 	test('uses an explicitly selected remote branch as the worktree start point', async () => {
 		const gitService = createGitService();
 		const operations: string[] = [];

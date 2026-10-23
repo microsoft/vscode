@@ -180,6 +180,11 @@ export class CopilotFusionProgress {
 		return toolCall ? readToolCallMeta(toolCall).fusionPhase?.model : undefined;
 	}
 
+	/** The workflow pattern the runtime resolved for a Fusion run in this turn. */
+	getPattern(fusionId: string): FusionPhase['pattern'] | undefined {
+		return this._patterns.get(fusionId);
+	}
+
 	reset(): void {
 		this._milestones.clear();
 		this._finishedFusions.clear();

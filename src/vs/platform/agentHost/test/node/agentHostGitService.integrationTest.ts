@@ -1102,6 +1102,58 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.deepStrictEqual({ tree: await svc!.captureWorkingTreeAsTree(URI.file(dir)), isSha256: expected.length === 64 }, { tree: expected, isSha256: true });
 	});
 
+	for (const autoCrlf of [false, true]) {
+		(hasGit ? test : test.skip)(`creates a populated clean worktree from an unborn repository snapshot (core.autocrlf=${autoCrlf})`, async () => {
+			const fs = await import('fs/promises');
+			const { dir, run } = initRepo();
+			run('config', 'core.autocrlf', String(autoCrlf));
+			const worktreePath = join(dir, '..', `unborn-worktree-${Date.now()}`);
+			await fs.writeFile(join(dir, '.gitignore'), 'ignored.txt\n');
+			await fs.writeFile(join(dir, 'project.txt'), 'initial\n');
+			await fs.writeFile(join(dir, 'ignored.txt'), 'ignored\n');
+			const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+			assert.ok(tree, 'expected snapshot tree');
+			const commit = await svc!.commitTree(URI.file(dir), tree, undefined, 'Initialize isolated worktree', { useInternalIdentity: true });
+			assert.ok(commit, 'expected snapshot commit');
+
+			try {
+				await svc!.addWorktree(URI.file(dir), {
+					path: URI.file(worktreePath),
+					commitish: commit,
+					newBranchName: 'agents/unborn-test',
+					track: false,
+				});
+
+				let sourceHeadExists = true;
+				try {
+					run('rev-parse', '--verify', 'HEAD');
+				} catch {
+					sourceHeadExists = false;
+				}
+				assert.deepStrictEqual({
+					sourceHeadExists,
+					sourceBranch: run('branch', '--show-current').toString().trim(),
+					worktreeBranch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: worktreePath, encoding: 'utf8' }).trim(),
+					worktreeStatus: cp.execFileSync('git', ['status', '--porcelain'], { cwd: worktreePath, encoding: 'utf8' }),
+					project: await fs.readFile(join(worktreePath, 'project.txt'), 'utf8'),
+					ignoredExists: existsSync(join(worktreePath, 'ignored.txt')),
+					author: cp.execFileSync('git', ['show', '-s', '--format=%an <%ae>', 'HEAD'], { cwd: worktreePath, encoding: 'utf8' }).trim(),
+				}, {
+					sourceHeadExists: false,
+					sourceBranch: 'main',
+					worktreeBranch: 'agents/unborn-test',
+					worktreeStatus: '',
+					project: autoCrlf ? 'initial\r\n' : 'initial\n',
+					ignoredExists: false,
+					author: 'VS Code <vscode@localhost>',
+				});
+			} finally {
+				try { await svc!.removeWorktree(URI.file(dir), URI.file(worktreePath), { force: true }); } catch { /* best-effort cleanup */ }
+				await rmDirWithRetry(worktreePath);
+			}
+		});
+	}
+
 	(hasGit ? test : test.skip)('captureWorkingTreeAsTree captures working tree content when the index differs from HEAD, including in linked worktrees', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
