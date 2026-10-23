@@ -185,8 +185,8 @@ function resolveRedirectTarget(currentUrl: string, location: string): { url: str
 	return undefined;
 }
 
-function stripOriginCredentialHeaders(headers: IHeaders | undefined): IHeaders | undefined {
-	if (!headers) {
+function stripRedirectHeaders(headers: IHeaders | undefined, crossOrigin: boolean, removeBody: boolean): IHeaders | undefined {
+	if (!headers || (!crossOrigin && !removeBody)) {
 		return headers;
 	}
 	const result: IHeaders = {};
@@ -195,10 +195,22 @@ function stripOriginCredentialHeaders(headers: IHeaders | undefined): IHeaders |
 			case 'authorization':
 			case 'cookie':
 			case 'cookie2':
+				if (crossOrigin) {
+					continue;
+				}
 				break;
-			default:
-				result[name] = headers[name];
+			case 'content-type':
+			case 'content-encoding':
+			case 'content-language':
+			case 'content-location':
+			case 'content-length':
+			case 'origin':
+				if (removeBody) {
+					continue;
+				}
+				break;
 		}
+		result[name] = headers[name];
 	}
 	return result;
 }
@@ -235,7 +247,7 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached'; redirect?: 'manual' } = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached'; redirect?: 'manual'; url?: string } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -256,6 +268,8 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		if (options.isChromiumNetwork) {
 			opts.redirect = 'manual';
+			// Electron reparses Node-style paths as URLs, which changes leading double slashes.
+			opts.url = options.url;
 		}
 
 		const followRedirect = (statusCode: number | undefined, location: string | undefined, method = options.type): boolean => {
@@ -264,13 +278,14 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 				? resolveRedirectTarget(options.url!, location)
 				: undefined;
 			if (target) {
+				const removeBody = method !== (options.type || 'GET') && (method === 'GET' || method === 'HEAD');
 				nodeRequest({
 					...options,
 					url: target.url,
 					type: method,
-					data: method !== (options.type || 'GET') && (method === 'GET' || method === 'HEAD') ? undefined : options.data,
+					data: removeBody ? undefined : options.data,
 					followRedirects: followRedirects - 1,
-					headers: target.crossOrigin ? stripOriginCredentialHeaders(options.headers) : options.headers,
+					headers: stripRedirectHeaders(options.headers, target.crossOrigin, removeBody),
 					user: target.crossOrigin ? undefined : options.user,
 					password: target.crossOrigin ? undefined : options.password
 				}, token).then(resolve, reject);
