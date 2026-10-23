@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export type CustomizationDiscoveryType = 'skill' | 'mcp' | 'plugin';
+export type CustomizationDiscoveryType = 'skill' | 'mcp' | 'plugin' | 'canvas';
 
 const typeOrder = [
 	'skill',
 	'mcp',
 	'plugin',
+	'canvas',
 ] as const;
 
 const typeAliases = new Map<string, CustomizationDiscoveryType>([
@@ -18,6 +19,8 @@ const typeAliases = new Map<string, CustomizationDiscoveryType>([
 	['mcps', 'mcp'],
 	['plugin', 'plugin'],
 	['plugins', 'plugin'],
+	['canvas', 'canvas'],
+	['canvases', 'canvas'],
 ]);
 
 function normalizeText(value: string): string {
@@ -32,7 +35,7 @@ export class CustomizationDiscoveryQuery {
 		private readonly selectedTypes: ReadonlySet<CustomizationDiscoveryType>,
 	) { }
 
-	static parse(value: string): CustomizationDiscoveryQuery {
+	static parse(value: string, canvasEnabled = false): CustomizationDiscoveryQuery {
 		let installed = false;
 		const types = new Set<CustomizationDiscoveryType>();
 		const textParts: string[] = [];
@@ -50,7 +53,7 @@ export class CustomizationDiscoveryQuery {
 
 			if (normalizedPart.startsWith('@type:')) {
 				const type = typeAliases.get(normalizedPart.slice('@type:'.length));
-				if (type) {
+				if (type && (type !== 'canvas' || canvasEnabled)) {
 					types.add(type);
 					continue;
 				}
@@ -113,14 +116,14 @@ export class CustomizationDiscoveryQuery {
 	}
 }
 
-export function getCustomizationDiscoveryQuerySuggestions(value: string): readonly string[] {
-	const query = CustomizationDiscoveryQuery.parse(value);
+export function getCustomizationDiscoveryQuerySuggestions(value: string, canvasEnabled = false): readonly string[] {
+	const query = CustomizationDiscoveryQuery.parse(value, canvasEnabled);
 	const result: string[] = [];
 	if (!query.installed) {
 		result.push('@installed ');
 	}
 	for (const type of typeOrder) {
-		if (!query.types.has(type)) {
+		if ((type !== 'canvas' || canvasEnabled) && !query.types.has(type)) {
 			result.push(`@type:${type} `);
 		}
 	}

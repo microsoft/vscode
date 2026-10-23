@@ -17,6 +17,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CanvasesEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -288,6 +289,16 @@ suite('AICustomizationDiscoveryPage', () => {
 			setInstalledSkills: (items: readonly IAICustomizationListItem[]) => installedSkills.set(items, undefined),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
+			getFilterActions: () => {
+				const button = container.querySelector<HTMLElement>('.customization-discovery-search-actions .codicon-filter');
+				assert.ok(button);
+				button.dispatchEvent(new mainWindow.KeyboardEvent(DOM.EventType.KEY_DOWN, { keyCode: 13, bubbles: true }));
+				assert.ok(sourceMenu?.getActions);
+				const actions = sourceMenu.getActions();
+				sourceMenu.onHide?.(false);
+				sourceMenu = undefined;
+				return actions;
+			},
 			selectAddCustomization: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
@@ -963,6 +974,161 @@ suite('AICustomizationDiscoveryPage', () => {
 			cursors: fixture.requests.map(request => request.options.cursor),
 			visible: fixture.page.getAccessibilityContent().match(/^mail-(?:plugin|skill-\d+)$/gm),
 		}, { cursors: [undefined, cursor], visible: ['mail-plugin'] });
+	});
+
+	test('Canvas filter uses exact plugin catalog tags, not names, icons, or capabilities', async () => {
+		const fixture = createPage();
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, true);
+		fixture.page.setSearchQuery('@type:canvas');
+		fixture.page.setVisible(true);
+		const candidate = resource('declared-plugin', {
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			tags: ['canvas', 'canvas-only'],
+		});
+		await fixture.requests[0].result.complete({
+			items: [
+				candidate,
+				resource('Canvas Apps', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas-apps'], capabilities: ['canvas'], icon: testIcon }),
+				resource('canvas-skill', { mediaType: CustomizationMarketplaceMediaType.Skill, tags: ['canvas'] }),
+				resource('canvas-mcp', { tags: ['canvas'] }),
+				resource('untagged-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, capabilities: ['canvas'], description: 'canvas' }),
+			],
+		});
+		await timeout(0);
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		assert.deepStrictEqual({
+			names: fixture.page.getAccessibilityContent().match(/^(?:declared-plugin|Canvas Apps|canvas-skill|canvas-mcp|untagged-plugin)$/gm),
+			type: fixture.page.getAccessibilityContent().includes('Plugin ·'),
+			notice: fixture.page.getAccessibilityContent().includes('not runtime availability or installed canvas types'),
+			visibleNotice: fixture.container.querySelector<HTMLElement>('.customization-discovery-header p:last-of-type')?.hidden,
+			details: fixture.openedDetails.map(resource => resource.identifier),
+		}, {
+			names: ['declared-plugin'],
+			type: true,
+			notice: true,
+			visibleNotice: false,
+			details: ['declared-plugin'],
+		});
+	});
+
+	test('Canvas-tagged plugins use the existing installer and surface installation failures', async () => {
+		const fixture = createPage();
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, true);
+		fixture.page.setSearchQuery('@type:canvas');
+		fixture.page.setVisible(true);
+		const canvas = resource('canvas-provider', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] });
+		await fixture.requests[0].result.complete({ items: [canvas] });
+		await timeout(0);
+		const install = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
+		assert.ok(install);
+		install.click();
+		assert.strictEqual(fixture.installs.length, 1);
+		fixture.page.setVisible(false);
+		await fixture.installs[0].result.error(new Error('Plugin assets are unavailable.'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			identifiers: fixture.installs.map(request => request.identifier),
+			notifications: fixture.notifications,
+			details: fixture.openedDetails,
+		}, {
+			identifiers: ['canvas-provider'],
+			notifications: ['Could not install canvas-provider. Plugin assets are unavailable.'],
+			details: [],
+		});
+	});
+
+	test('Canvas filter backfills with the same opaque catalog continuation', async () => {
+		const fixture = createPage();
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, true);
+		fixture.page.setSearchQuery('@type:canvas');
+		fixture.page.setVisible(true);
+		const cursor = { token: 'canvas-after-24-plugins' };
+		await fixture.requests[0].result.complete({
+			items: Array.from({ length: 24 }, (_, index) => resource(`plain-plugin-${index}`, { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })),
+			nextCursor: cursor,
+		});
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [resource('tagged-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] })],
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options),
+			names: fixture.page.getAccessibilityContent().match(/^(?:plain-plugin-\d+|tagged-plugin)$/gm),
+		}, {
+			requests: [
+				{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
+				{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor },
+			],
+			names: ['tagged-plugin'],
+		});
+	});
+
+	test('Canvas and other type filters form an OR set without duplicating plugin rows', async () => {
+		const fixture = createPage();
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, true);
+		fixture.page.setSearchQuery('@type:canvas @type:plugin @type:mcp');
+		fixture.page.setVisible(true);
+		const tagged = resource('tagged-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] });
+		await fixture.requests[0].result.complete({
+			items: [
+				tagged, tagged,
+				resource('plain-plugin', { mediaType: CustomizationMarketplaceMediaType.ClaudePlugin }),
+				resource('server'),
+				resource('skill', { mediaType: CustomizationMarketplaceMediaType.Skill }),
+			],
+		});
+		await timeout(0);
+		assert.deepStrictEqual(
+			fixture.page.getAccessibilityContent().match(/^(?:tagged-plugin|plain-plugin|server|skill)$/gm),
+			['tagged-plugin', 'plain-plugin', 'server'],
+		);
+	});
+
+	test('Canvas filter is hidden by the Canvas and AI gates and cancels stale tag searches', async () => {
+		const fixture = createPage();
+		const canvasMenuVisible = () => fixture.getFilterActions().some(action => action.id === 'customizationDiscovery.filter.canvas');
+		const initial = canvasMenuVisible();
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, true);
+		const enabled = canvasMenuVisible();
+		fixture.page.setSearchQuery('@type:canvas');
+		fixture.page.setVisible(true);
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, false);
+		const disabled = canvasMenuVisible();
+		await fixture.requests[0].result.complete({
+			items: [resource('stale-canvas', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] })],
+		});
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, true);
+		fixture.entitlement.sentiment.hidden = true;
+		fixture.sentimentChanged.fire();
+		await timeout(0);
+		assert.deepStrictEqual({
+			menu: [initial, enabled, disabled, canvasMenuVisible()],
+			cancelled: fixture.requests[0].token.isCancellationRequested,
+			stale: fixture.page.getAccessibilityContent().includes('stale-canvas'),
+			noticeHidden: fixture.container.querySelector<HTMLElement>('.customization-discovery-header p:last-of-type')?.hidden,
+		}, {
+			menu: [false, true, false, false],
+			cancelled: true,
+			stale: false,
+			noticeHidden: true,
+		});
+	});
+
+	test('Canvas filter explains the absent runtime inventory instead of inventing installed canvases', async () => {
+		const fixture = createPage();
+		await setEnabled(fixture.configuration, CanvasesEnabledSettingId, true);
+		fixture.page.setSearchQuery('@installed @type:canvas');
+		fixture.page.setVisible(true);
+		assert.deepStrictEqual({
+			requests: fixture.requests.length,
+			notice: fixture.page.getAccessibilityContent().includes('not runtime availability or installed canvas types'),
+			localSkill: fixture.page.getAccessibilityContent().includes('Local mail skill'),
+			openCanvas: fixture.container.querySelector('[aria-label="Open Canvas"]'),
+		}, { requests: 0, notice: true, localSkill: false, openCanvas: null });
 	});
 
 	test('filtered backfill automatically continues after a bounded batch', async () => {
