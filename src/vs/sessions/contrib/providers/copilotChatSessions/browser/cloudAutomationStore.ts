@@ -102,7 +102,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			sessionTypes: [sessionTypeId],
 			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered by events or on a schedule."),
 			timeZone: 'UTC',
-			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
+			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "Certain settings cannot be changed for an existing cloud automation. Duplicate this automation to change those settings."),
 			tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),
 			loadTools: () => this.store.get()?.loadTools(),
 			triggers: derived(this, reader => this.store.read(reader)?.triggerCatalog.read(reader) ?? { kind: 'loading' as const }),
@@ -190,7 +190,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 					checkAccount();
 					results.push(...await Promise.all(repositories.slice(offset, offset + 5).map(async repository => {
 						const [owner, repo] = repository.fullName.split('/');
-						return await store.isRepositoryManageable({ owner, repo }, requestToken) ? repository.fullName : undefined;
+						return await store.isRepositorySelectable({ owner, repo }, requestToken) ? repository.fullName : undefined;
 					})));
 				}
 				return results.filter(repository => repository !== undefined);
