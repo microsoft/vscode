@@ -415,7 +415,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		this.tableDisposables.clear();
 		const visible = this.getVisibleWorktrees();
-		const eligible = visible.filter(worktree => worktree.cleanupState === 'eligible');
 		const selectable = visible.filter(worktree => this.isManuallySelectable(worktree));
 		const reclaimableBytes = selectable.reduce((total, worktree) => total + (worktree.sizeBytes ?? 0), 0);
 		const selectableWorktrees = selectable.reduce((total, worktree) => total + worktree.worktreeCount, 0);
@@ -451,16 +450,16 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.tableHeader?.remove();
 		const header = this.tableHeader = dom.append(this.list, dom.$('.session-worktree-cleanup-row.header', { role: 'row' }));
 		const selectAll = this.tableDisposables.add(new Checkbox(
-			localize('sessionWorktreeCleanup.selectAll', "Select all eligible sessions"),
-			eligible.length > 0 && eligible.every(worktree => this.selectedSessionIds.has(worktree.session.sessionId)),
+			localize('sessionWorktreeCleanup.selectAll', "Select all sessions that can be cleaned up"),
+			selectable.length > 0 && selectable.every(worktree => this.selectedSessionIds.has(worktree.session.sessionId)),
 			defaultCheckboxStyles,
 		));
 		header.appendChild(selectAll.domNode);
-		if (eligible.length === 0) {
+		if (selectable.length === 0) {
 			selectAll.disable();
 		}
 		this.tableDisposables.add(selectAll.onChange(() => {
-			this.selectedSessionIds = selectAll.checked ? new Set(eligible.map(worktree => worktree.session.sessionId)) : new Set();
+			this.selectedSessionIds = selectAll.checked ? new Set(selectable.map(worktree => worktree.session.sessionId)) : new Set();
 			this.renderRows();
 		}));
 		dom.append(header, dom.$('span.title', { role: 'columnheader' }, localize('sessionWorktreeCleanup.sessionColumn', "Session")));

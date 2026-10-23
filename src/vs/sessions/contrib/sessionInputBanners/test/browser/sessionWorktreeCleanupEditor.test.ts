@@ -440,18 +440,23 @@ suite('SessionWorktreeCleanupEditor', () => {
 			createWorktree('running', '/repos/app', 'running'),
 		]);
 		const rows = [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')];
-		rows[0].querySelector<HTMLElement>('[role="checkbox"]')!.click();
-		rows[1].querySelector<HTMLElement>('[role="checkbox"]')!.click();
+		const initialChecked = rows.map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked'));
+		const selectAll = container.querySelector<HTMLElement>('.header [role="checkbox"]')!;
+		selectAll.click();
 		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			summary: container.querySelector('.session-worktree-cleanup-summary')?.textContent,
+			selectAllDisabled: selectAll.getAttribute('aria-disabled'),
+			initialChecked,
 			disabled: rows.map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-disabled')),
 			checked: rows.map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')),
 			cleaned,
 		}, {
 			summary: '2 of 3 matching worktrees can be cleaned up, reclaiming about 200B.',
+			selectAllDisabled: null,
+			initialChecked: ['false', 'false', 'false'],
 			disabled: [null, null, 'true'],
 			checked: ['true', 'true', 'false'],
 			cleaned: [['active', 'needsInput']],
