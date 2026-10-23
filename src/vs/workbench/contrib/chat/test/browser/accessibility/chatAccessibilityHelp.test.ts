@@ -15,6 +15,16 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the shared picker and startup lock for Cloud drafts', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			cloud: help.includes('or a new Cloud session'),
+			keyboard: help.includes('Tab reaches separate Mode and Permissions buttons'),
+			locked: help.includes('Cloud draft choices are locked while the first request starts the session'),
+			focus: help.includes('Escape closes the picker and returns focus to the button that opened it'),
+		}, { cloud: true, keyboard: true, locked: true, focus: true });
+	});
+
 	test('documents side questions and concurrent responses in both windows but not inline or quick chat', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
