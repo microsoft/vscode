@@ -21,6 +21,11 @@ export function isMultiRootSession(workingDirectories: readonly string[] | undef
 	return (workingDirectories?.length ?? 0) > 1;
 }
 
+/** Returns a stable identity for a single working directory, used to key per-folder state. */
+export function getWorkingDirectoryKey(workingDirectory: string): string {
+	return extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(workingDirectory));
+}
+
 /** Returns a stable identity for an effective folder/worktree set. */
 export function getWorkingDirectoryScopeId(workingDirectories: readonly string[]): string {
 	const keys = [...new Set(workingDirectories.map(directory => extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(directory))))].sort();

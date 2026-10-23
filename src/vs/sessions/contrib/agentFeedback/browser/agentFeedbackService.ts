@@ -114,6 +114,12 @@ export interface ISubmitFeedbackOptions {
 	readonly query?: string;
 	/** Selected feedback for Agent Host requests. Other providers submit their complete reactive attachment. */
 	readonly feedbackIds?: readonly string[];
+	/**
+	 * The chat to send the request to, when it differs from the feedback's
+	 * session resource: feedback is read and marked under the session, and the
+	 * request goes to this chat's widget.
+	 */
+	readonly targetChat?: URI;
 	readonly onRequestAccepted?: () => void;
 }
 
@@ -992,9 +998,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return this._sessionsService.submitNewSessionInput();
 		}
 
-		const widget = await whenChatWidgetForSession(this._chatWidgetService, sessionResource);
+		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);
 		if (!widget) {
-			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
+			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', (options?.targetChat ?? sessionResource).toString());
 			return false;
 		}
 

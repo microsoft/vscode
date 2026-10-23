@@ -59,6 +59,7 @@ export class NodeOTelService implements IOTelService {
 	// OTel API reference for context propagation (stored after dynamic import)
 	private _otelApi: typeof import('@opentelemetry/api') | undefined;
 	private _initialized = false;
+	private readonly _initializePromise: Promise<void>;
 	private _initFailed = false;
 	private _identityDenied = false;
 	private static readonly _MAX_BUFFER_SIZE = 1000;
@@ -92,7 +93,7 @@ export class NodeOTelService implements IOTelService {
 		this._log = logFn ?? ((_level, _msg) => { /* silent when no logger wired */ });
 		this._sqliteStore = sqliteStore;
 		// Start async initialization immediately
-		void this._initialize();
+		this._initializePromise = this._initialize();
 	}
 
 	private readonly _identityAllowed = (): boolean => {
@@ -571,6 +572,7 @@ export class NodeOTelService implements IOTelService {
 	// ── Lifecycle ──
 
 	async flush(): Promise<void> {
+		await this._initializePromise;
 		await Promise.all([
 			...this._spanProcessors.map(p => p.forceFlush()),
 			this._logProcessor?.forceFlush(),

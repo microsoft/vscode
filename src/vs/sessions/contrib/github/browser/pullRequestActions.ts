@@ -10,12 +10,15 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { OPEN_PULL_REQUEST_ACTION_ID } from '../common/types.js';
+import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../common/types.js';
+import { createPullRequestChangesEditorInput } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 class PullRequestActionContext {
 	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
@@ -48,20 +51,25 @@ class OpenPullRequestAction extends Action2 {
 				group: '2_pullRequest',
 				order: 0,
 				when: SessionHasPullRequestContext
+			}, {
+				id: Menus.SessionActivityBar,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 100,
+				when: sessionActivityBarChatActionContext(OpenPullRequestAction.ID)
 			}],
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
-		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
-		if (!pullRequest) {
-			return;
-		}
-
 		const openerService = accessor.get(IOpenerService);
-		await openerService.open(pullRequest.uri, { openExternal: true, allowContributedOpeners: true });
+		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? sessionsService.activeSession.get()];
+		for (const target of targets) {
+			const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
+			if (pullRequest) {
+				await openerService.open(pullRequest.uri, { openExternal: true, allowContributedOpeners: true });
+			}
+		}
 	}
 }
 registerAction2(OpenPullRequestAction);
@@ -70,6 +78,35 @@ function getSessionPullRequest(session: ISession | undefined): IGitHubPullReques
 	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 	return getGitHubPullRequestRefs(gitHubInfo)[0];
 }
+
+class OpenPullRequestChangesAction extends Action2 {
+	static readonly ID = OPEN_PULL_REQUEST_CHANGES_ACTION_ID;
+
+	constructor() {
+		super({
+			id: OpenPullRequestChangesAction.ID,
+			title: localize2('agentSessions.openPullRequestChanges', "Open Pull Request Changes"),
+			icon: Codicon.diffMultiple,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | PullRequestActionContext): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const editorService = accessor.get(IEditorService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+
+		const target = sessionOrContext ?? sessionsService.activeSession.get();
+		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
+		if (!pullRequest) {
+			return;
+		}
+
+		layoutService.revealEditorPartExplicitly();
+		await editorService.openEditor(createPullRequestChangesEditorInput(pullRequest));
+	}
+}
+registerAction2(OpenPullRequestChangesAction);
 
 class CopyPullRequestUrlAction extends Action2 {
 	static readonly ID = 'workbench.agentSessions.action.copyPullRequestUrl';
@@ -91,13 +128,16 @@ class CopyPullRequestUrlAction extends Action2 {
 	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const sessionsService = accessor.get(ISessionsService);
-		const target = (Array.isArray(sessionOrContext) ? sessionOrContext[0] : sessionOrContext) ?? sessionsService.activeSession.get();
-		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
-		if (!pullRequest) {
+		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? sessionsService.activeSession.get()];
+		const pullRequestUrls = targets.flatMap(target => {
+			const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
+			return pullRequest ? [pullRequest.uri.toString(true)] : [];
+		});
+		if (pullRequestUrls.length === 0) {
 			return;
 		}
 
-		await clipboardService.writeText(pullRequest.uri.toString(true));
+		await clipboardService.writeText(pullRequestUrls.join('\n'));
 	}
 }
 registerAction2(CopyPullRequestUrlAction);

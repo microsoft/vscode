@@ -28,6 +28,8 @@ export interface ChatRequestFailed {
 export interface ChatRequestCanceled {
 	type: FetchResponseKind.Canceled;
 	reason: string;
+	/** Raw `X-GitHub-Copilot-Request-Te` value, when the response had already been received. */
+	gitHubCopilotRequestTe?: string;
 }
 
 export enum ChatFailKind {

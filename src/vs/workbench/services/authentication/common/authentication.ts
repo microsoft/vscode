@@ -5,6 +5,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAuthenticationChallenge, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { filter } from '../../../../base/common/objects.js';
 import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -36,6 +37,8 @@ export interface AuthenticationSession {
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 	expiresAfter?: number;
+	/** The issuing OAuth server, not a REST API endpoint or resource audience. */
+	readonly authorizationServer?: URI;
 }
 
 export interface AuthenticationSessionsChangeEvent {
@@ -119,7 +122,7 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<string>;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string, providerId?: string): Promise<string>;
 	/**
 	 * Creates an XAA (enterprise-managed, ID-JAG) authentication provider for the given SSO issuer.
 	 * The returned string is the provider id.
@@ -254,10 +257,9 @@ export interface IAuthenticationService {
 	registerAuthenticationProviderHostDelegate(delegate: IAuthenticationProviderHostDelegate): IDisposable;
 
 	/**
-	 * Creates a dynamic authentication provider for the given server metadata
-	 * @param serverMetadata The metadata for the server that is being authenticated against
+	 * Creates a dynamic authentication provider. An explicit provider ID scopes its stored registration and tokens.
 	 */
-	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string, providerId?: string): Promise<IAuthenticationProvider | undefined>;
 
 	/**
 	 * Gets or creates a built-in XAA (enterprise-managed, ID-JAG) authentication provider for the given
@@ -398,6 +400,20 @@ export interface IAuthenticationProviderSessionOptions {
 	 * and not part of the standard authentication flow.
 	 */
 	[key: string]: any;
+}
+
+/**
+ * Prefix for {@link IAuthenticationProviderSessionOptions} keys that only the workbench may set.
+ * Keys with this prefix are removed from every extension's request before it reaches a provider,
+ * so a provider that receives one knows the workbench itself made the request.
+ */
+export const WORKBENCH_ONLY_SESSION_OPTION_PREFIX = '_workbench';
+
+/** Returns a copy of `options` without the keys reserved for the workbench. */
+export function withoutWorkbenchOnlySessionOptions<T extends object>(options: T): T {
+	// Reserved keys are never declared on `T` (they only exist through its index signature), so
+	// every property `T` does declare survives and the result is still a `T`.
+	return filter(options, key => !key.startsWith(WORKBENCH_ONLY_SESSION_OPTION_PREFIX)) as T;
 }
 
 /** Builds a value-sensitive request key without splitting opaque provider scope strings. */

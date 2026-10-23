@@ -9,6 +9,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { restoreConfigurationRegistryAfterSuite } from '../../../../../platform/configuration/test/common/configurationRegistryTestUtils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { DefaultConfiguration } from '../../browser/configuration.js';
@@ -29,6 +30,7 @@ suite('DefaultConfiguration', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	const emptyConfigurationRegistry = restoreConfigurationRegistryAfterSuite();
 	const cacheKey: ConfigurationKey = { type: 'defaults', key: 'default-configurationDefaultsOverrides' };
 	let configurationCache: ConfigurationCache;
 
@@ -46,10 +48,7 @@ suite('DefaultConfiguration', () => {
 		});
 	});
 
-	teardown(() => {
-		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
-	});
+	teardown(() => emptyConfigurationRegistry());
 
 	test('configuration default overrides are read from environment', async () => {
 		const environmentService = new BrowserWorkbenchEnvironmentService('', joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'logs'), { configurationDefaults: { 'test.configurationDefaultsOverride': 'envOverrideValue' } }, TestProductService);

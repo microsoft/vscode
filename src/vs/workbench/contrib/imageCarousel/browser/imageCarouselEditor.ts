@@ -5,22 +5,33 @@
 
 import { addDisposableListener, clearNode, Dimension, EventType, h } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { clamp } from '../../../../base/common/numbers.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { getExtensionForMimeType } from '../../../../base/common/mime.js';
+import { extname } from '../../../../base/common/path.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { downloadFile } from '../../../browser/download.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
+import { IImageViewerEditorPane, ImageViewer } from '../../mediaPreview/browser/imageViewer.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
 import { ICarouselImage, ICarouselSection, isVideoMimeType } from './imageCarouselTypes.js';
 
@@ -34,32 +45,31 @@ interface IFlatImageEntry {
 	readonly image: ICarouselImage;
 }
 
-type ZoomScale = number | 'fit';
+/**
+ * The blob an image is shown from, and its object URL.
+ */
+interface ICachedImageBlob {
+	readonly url: string;
+	readonly blob: Blob;
+}
 
-const SCALE_PINCH_FACTOR = 0.075;
-const MAX_SCALE = 20;
-const MIN_SCALE = 0.1;
-const PIXELATION_THRESHOLD = 3;
-const ZOOM_LEVELS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.5, 2, 3, 5, 7, 10, 15, 20];
-
-export class ImageCarouselEditor extends EditorPane {
+export class ImageCarouselEditor extends EditorPane implements IImageViewerEditorPane {
 	static readonly ID = 'workbench.editor.imageCarousel';
 
 	private _container: HTMLElement | undefined;
 	private _currentIndex: number = 0;
-	private _zoomScale: ZoomScale = 'fit';
+	private _viewer: ImageViewer | undefined;
 	private _sections: ReadonlyArray<ICarouselSection> = [];
 	private _flatImages: IFlatImageEntry[] = [];
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
-	private readonly _blobUrlCache = new Map<string, string>();
+	private readonly _blobUrlCache = new Map<string, ICachedImageBlob>();
+	private _blobUrlCacheGeneration = 0;
 
 	private _videoWebview: IWebviewElement | undefined;
 	private _elements: {
 		root: HTMLElement;
 		imageArea: HTMLElement;
-		mainImageContainer: HTMLElement;
-		mainImage: HTMLImageElement;
 		videoContainer: HTMLElement;
 		captionText: HTMLElement;
 		captionSeparator: HTMLElement;
@@ -77,9 +87,17 @@ export class ImageCarouselEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly _fileService: IFileService,
-		@IWebviewService private readonly _webviewService: IWebviewService
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
+	}
+
+	get imageViewer(): ImageViewer | undefined {
+		return this._isCurrentVideo() ? undefined : this._viewer;
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -107,7 +125,7 @@ export class ImageCarouselEditor extends EditorPane {
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
 		this._revokeCachedBlobUrls();
-		this._zoomScale = 'fit';
+		this._viewer = undefined;
 		if (this._container) {
 			clearNode(this._container);
 		}
@@ -132,6 +150,7 @@ export class ImageCarouselEditor extends EditorPane {
 		this._contentDisposables.clear();
 		this._imageDisposables.clear();
 		this._revokeCachedBlobUrls();
+		this._viewer = undefined;
 		clearNode(this._container);
 
 		if (this._flatImages.length === 0) {
@@ -143,10 +162,7 @@ export class ImageCarouselEditor extends EditorPane {
 
 		const elements = h('div.slideshow-container', [
 			h('div.image-area@imageArea', [
-				h('div.main-image-container@mainImageContainer', [
-					h('img.main-image@mainImage'),
-					h('div.video-container@videoContainer'),
-				]),
+				h('div.video-container@videoContainer'),
 				h('button.nav-arrow.prev-arrow@prevBtn', { ariaLabel: localize('imageCarousel.previousImage', "Previous image") }, [
 					h('span.codicon.codicon-chevron-left', { ariaHidden: 'true' }),
 				]),
@@ -156,9 +172,12 @@ export class ImageCarouselEditor extends EditorPane {
 			]),
 			h('div.bottom-bar@bottomBar', [
 				h('div.image-info-bar', [
-					h('span.caption-text@captionText'),
-					h('span.caption-separator@captionSeparator'),
-					h('span.image-counter@counter'),
+					h('span.image-info-text', [
+						h('span.caption-text@captionText'),
+						h('span.caption-separator@captionSeparator'),
+						h('span.image-counter@counter'),
+					]),
+					h('div.image-actions@imageActions'),
 				]),
 				h('div.sections-container@sectionsContainer'),
 				h('span.sr-only@ariaStatus'),
@@ -174,11 +193,19 @@ export class ImageCarouselEditor extends EditorPane {
 		elements.sectionsContainer.setAttribute('role', 'group');
 		elements.sectionsContainer.setAttribute('aria-label', localize('imageCarousel.thumbnails', "Image thumbnails"));
 
+		const toolbar = this._contentDisposables.add(this._instantiationService.createInstance(WorkbenchToolBar, elements.imageActions, {
+			ariaLabel: localize('imageCarousel.actions', "Images Preview actions"),
+		}));
+		toolbar.setActions([toAction({
+			id: 'imageCarousel.download',
+			label: localize('imageCarousel.download', "Download"),
+			class: ThemeIcon.asClassName(Codicon.cloudDownload),
+			run: () => this.downloadCurrentImage(),
+		})]);
+
 		this._elements = {
 			root: elements.root,
 			imageArea: elements.imageArea,
-			mainImageContainer: elements.mainImageContainer,
-			mainImage: elements.mainImage as HTMLImageElement,
 			videoContainer: elements.videoContainer,
 			captionText: elements.captionText,
 			captionSeparator: elements.captionSeparator,
@@ -189,9 +216,10 @@ export class ImageCarouselEditor extends EditorPane {
 			sectionsContainer: elements.sectionsContainer,
 		};
 
-		// Initialize image in fit mode
-		this._elements.mainImage.classList.add('scale-to-fit');
-		this._elements.mainImage.alt = '';
+		// The viewer handles zooming and the image context menu. Keyboard focus stays on the
+		// slideshow so that arrow key navigation keeps working.
+		this._viewer = this._contentDisposables.add(this._instantiationService.createInstance(ImageViewer, { focusTarget: elements.root }));
+		this._elements.imageArea.prepend(this._viewer.element);
 
 		// Hide video container initially
 		this._elements.videoContainer.style.display = 'none';
@@ -224,60 +252,6 @@ export class ImageCarouselEditor extends EditorPane {
 			}
 		}));
 		elements.root.tabIndex = 0;
-
-		// Zoom: scroll wheel + modifier key (Ctrl on Win/Linux, Alt on Mac) or pinch
-		this._contentDisposables.add(addDisposableListener(this._elements.imageArea, EventType.MOUSE_WHEEL, (e: WheelEvent) => {
-			if (this._isCurrentVideo()) {
-				return;
-			}
-			const isZoomModifier = isMacintosh ? e.altKey : e.ctrlKey;
-			if (!isZoomModifier && !e.ctrlKey) {
-				return;
-			}
-			e.preventDefault();
-
-			if (e.deltaY === 0) {
-				return;
-			}
-
-			if (this._zoomScale === 'fit') {
-				this._initZoomFromFit();
-			}
-
-			const delta = e.deltaY > 0 ? 1 : -1;
-			this._applyZoom((this._zoomScale as number) * (1 - delta * SCALE_PINCH_FACTOR));
-		}, { passive: false }));
-
-		// Zoom: single click to zoom in/out (like image preview)
-		// Track modifier keys at mousedown time
-		let clickCtrlPressed = false;
-		let clickAltPressed = false;
-		this._contentDisposables.add(addDisposableListener(this._elements.mainImageContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			if (e.button !== 0) {
-				return;
-			}
-			clickCtrlPressed = e.ctrlKey;
-			clickAltPressed = e.altKey;
-		}));
-		this._contentDisposables.add(addDisposableListener(this._elements.mainImageContainer, EventType.CLICK, (e: MouseEvent) => {
-			if (e.button !== 0 || this._isCurrentVideo()) {
-				return;
-			}
-			const isZoomOut = isMacintosh ? clickAltPressed : clickCtrlPressed;
-			if (isZoomOut) {
-				this._zoomOut();
-			} else {
-				this._zoomIn();
-			}
-		}));
-
-		// Update zoom-out cursor class when modifier key is held
-		const updateZoomCursor = (e: KeyboardEvent) => {
-			const isZoomOut = isMacintosh ? e.altKey : e.ctrlKey;
-			this._elements!.mainImageContainer.classList.toggle('zoom-out', isZoomOut);
-		};
-		this._contentDisposables.add(addDisposableListener(elements.root, EventType.KEY_DOWN, updateZoomCursor));
-		this._contentDisposables.add(addDisposableListener(elements.root, EventType.KEY_UP, updateZoomCursor));
 
 		// Build section thumbnails
 		this._thumbnailElements = [];
@@ -389,6 +363,7 @@ export class ImageCarouselEditor extends EditorPane {
 		// Capture the navigation index before starting async work so that
 		// we can discard stale results if the user navigates while loading/decoding.
 		const navigationIndex = this._currentIndex;
+		const blobUrlCacheGeneration = this._blobUrlCacheGeneration;
 
 		// Swap main image using cached/lazy-loaded blob URL.
 		// Pre-decode via decode() before assigning to <img> so the browser
@@ -399,14 +374,15 @@ export class ImageCarouselEditor extends EditorPane {
 
 		if (isVideo) {
 			// Show video container, hide image
-			this._elements.mainImage.style.display = 'none';
+			this._viewer?.clear();
+			if (this._viewer) {
+				this._viewer.element.style.display = 'none';
+			}
 			this._elements.videoContainer.style.display = '';
-			this._elements.mainImageContainer.classList.remove('zoomed');
-			this._elements.mainImageContainer.style.cursor = 'default';
 
 			// Load raw data to send via postMessage
 			const rawData = await this._loadRawData(currentImage);
-			if (this._currentIndex !== navigationIndex) {
+			if (this._currentIndex !== navigationIndex || this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
 				return;
 			}
 
@@ -447,35 +423,27 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		} else {
 			// Show image, hide video container
 			this._elements.videoContainer.style.display = 'none';
-			this._elements.mainImage.style.display = '';
-			this._elements.mainImageContainer.style.cursor = '';
+			if (this._viewer) {
+				this._viewer.element.style.display = '';
+				// An image that is still decoding from an earlier navigation must not replace this one
+				this._viewer.cancelPendingSource();
+			}
 
-			const url = await this._loadBlobUrl(currentImage);
+			const cached = await this._loadBlob(currentImage);
 
 			// If the user navigated while loading the blob URL, discard this result.
-			if (this._currentIndex !== navigationIndex) {
+			if (this._currentIndex !== navigationIndex || this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
 				return;
 			}
 
-			const tmp = new Image();
-			tmp.src = url;
-			tmp.decode().then(() => {
-				// Only apply if user hasn't navigated away during decode
-				if (this._currentIndex === navigationIndex && this._elements) {
-					this._elements.mainImage.src = url;
-					this._elements.mainImage.alt = currentImage.name;
-				}
-			}, () => {
-				// Decode failed (invalid image) — still show src for browser fallback
-				if (this._currentIndex === navigationIndex && this._elements) {
-					this._elements.mainImage.src = url;
-					this._elements.mainImage.alt = currentImage.name;
-				}
+			// The viewer decodes the image before showing it and resets the zoom. Invalid images
+			// are still shown so that the browser renders its broken image fallback. Copying reads
+			// the displayed blob, which stays the same even if the file changes afterwards.
+			void this._viewer?.setSource(cached?.url ?? '', {
+				alt: currentImage.name,
+				data: cached && { mimeType: currentImage.mimeType, read: async () => new Uint8Array(await cached.blob.arrayBuffer()) },
 			});
 		}
-
-		// Reset zoom when switching images
-		this._applyZoom('fit');
 
 		// Update info bar: caption + separator + counter
 		if (currentImage.caption) {
@@ -535,10 +503,15 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 	}
 
 	private async _loadBlobUrl(image: ICarouselImage): Promise<string> {
+		return (await this._loadBlob(image))?.url ?? '';
+	}
+
+	private async _loadBlob(image: ICarouselImage): Promise<ICachedImageBlob | undefined> {
 		const cached = this._blobUrlCache.get(image.id);
 		if (cached) {
 			return cached;
 		}
+		const blobUrlCacheGeneration = this._blobUrlCacheGeneration;
 
 		let buffer: Uint8Array;
 		if (image.data) {
@@ -548,17 +521,27 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			const content = await this._fileService.readFile(image.uri);
 			buffer = content.value.buffer;
 		} else {
-			return '';
+			return undefined;
+		}
+		if (this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
+			return undefined;
+		}
+
+		// Reuse the blob of a concurrent load that finished first
+		const concurrentlyLoaded = this._blobUrlCache.get(image.id);
+		if (concurrentlyLoaded) {
+			return concurrentlyLoaded;
 		}
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
-		const url = URL.createObjectURL(blob);
-		this._blobUrlCache.set(image.id, url);
-		return url;
+		const loaded = { url: URL.createObjectURL(blob), blob };
+		this._blobUrlCache.set(image.id, loaded);
+		return loaded;
 	}
 
 	private _revokeCachedBlobUrls(): void {
-		for (const url of this._blobUrlCache.values()) {
+		this._blobUrlCacheGeneration++;
+		for (const { url } of this._blobUrlCache.values()) {
 			URL.revokeObjectURL(url);
 		}
 		this._blobUrlCache.clear();
@@ -572,6 +555,20 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			return content.value.buffer;
 		}
 		return new Uint8Array(0);
+	}
+
+	private async downloadCurrentImage(): Promise<void> {
+		const image = this._flatImages[this._currentIndex].image;
+		try {
+			const source = image.uri ?? image.data;
+			if (!source) {
+				throw new Error(localize('imageCarousel.missingImageData', "The image has no data to download."));
+			}
+			const name = extname(image.name) ? image.name : image.name + (getExtensionForMimeType(image.mimeType) ?? '');
+			await downloadFile(source, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
+		} catch (error) {
+			this._notificationService.error(localize('imageCarousel.downloadError', "Failed to download {0}: {1}", image.name, toErrorMessage(error)));
+		}
 	}
 
 	private _preloadAdjacentImages(): void {
@@ -605,104 +602,6 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		if (this._currentIndex < this._flatImages.length - 1) {
 			this._currentIndex++;
 			this.updateCurrentImage();
-		}
-	}
-
-	/**
-	 * Compute the current display scale when transitioning from 'fit' to numeric zoom.
-	 */
-	private _initZoomFromFit(): void {
-		if (!this._elements) {
-			return;
-		}
-		const img = this._elements.mainImage;
-		if (img.naturalWidth > 0) {
-			this._zoomScale = img.clientWidth / img.naturalWidth;
-		} else {
-			this._zoomScale = 1;
-		}
-	}
-
-	/**
-	 * Zoom in to the next predefined zoom level.
-	 */
-	private _zoomIn(): void {
-		if (this._zoomScale === 'fit') {
-			this._initZoomFromFit();
-		}
-		const scale = this._zoomScale as number;
-		let i = 0;
-		for (; i < ZOOM_LEVELS.length; ++i) {
-			if (ZOOM_LEVELS[i] > scale) {
-				break;
-			}
-		}
-		this._applyZoom(ZOOM_LEVELS[i] ?? MAX_SCALE);
-	}
-
-	/**
-	 * Zoom out to the previous predefined zoom level.
-	 */
-	private _zoomOut(): void {
-		if (this._zoomScale === 'fit') {
-			this._initZoomFromFit();
-		}
-		const scale = this._zoomScale as number;
-		let i = ZOOM_LEVELS.length - 1;
-		for (; i >= 0; --i) {
-			if (ZOOM_LEVELS[i] < scale) {
-				break;
-			}
-		}
-		this._applyZoom(ZOOM_LEVELS[i] ?? MIN_SCALE);
-	}
-
-	/**
-	 * Apply fit-to-container or numeric zoom with scroll-center preservation.
-	 */
-	private _applyZoom(newScale: ZoomScale): void {
-		if (!this._elements) {
-			return;
-		}
-
-		const container = this._elements.mainImageContainer;
-		const img = this._elements.mainImage;
-
-		if (newScale === 'fit') {
-			this._zoomScale = 'fit';
-			img.classList.add('scale-to-fit');
-			img.classList.remove('pixelated');
-			img.style.zoom = '';
-			// Remove zoomed/overflow before scrollTo to avoid an expensive
-			// synchronous ScrollLayer that blocks the main thread.
-			const wasZoomed = container.classList.contains('zoomed');
-			container.classList.remove('zoomed');
-			container.classList.remove('zoom-out');
-			if (wasZoomed) {
-				container.scrollTo(0, 0);
-			}
-		} else {
-			const scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
-			this._zoomScale = scale;
-
-			// Capture scroll center ratio before changing zoom.
-			const dx = container.scrollWidth > 0
-				? (container.scrollLeft + container.clientWidth / 2) / container.scrollWidth
-				: 0.5;
-			const dy = container.scrollHeight > 0
-				? (container.scrollTop + container.clientHeight / 2) / container.scrollHeight
-				: 0.5;
-
-			img.classList.remove('scale-to-fit');
-			img.classList.toggle('pixelated', scale >= PIXELATION_THRESHOLD);
-			img.style.zoom = String(scale);
-			container.classList.add('zoomed');
-
-			// Restore scroll center — works because setting img.style.zoom triggers
-			// synchronous layout, so scrollWidth/scrollHeight reflect the new size.
-			const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
-			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
-			container.scrollTo(newScrollX, newScrollY);
 		}
 	}
 

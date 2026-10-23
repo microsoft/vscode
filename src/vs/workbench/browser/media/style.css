@@ -66,6 +66,11 @@ body {
 	--vscode-shadow-depth-y: 0 5px 10px -4px rgba(0, 0, 0, 0.04);
 }
 
+.monaco-workbench.sash-grippers-hidden {
+	--sash-grip-opacity: 0;
+	--sash-grip-transition-duration: 0.3s;
+}
+
 /* Disable panel/part shadows when the setting is off (preserves floating modals, notifications, etc.) */
 .monaco-workbench.no-shadows .part.titlebar,
 .monaco-workbench.no-shadows .part.activitybar,
@@ -93,16 +98,22 @@ body {
 }
 
 .monaco-workbench.border:not(.fullscreen) {
+	--window-border-width: 1px;
 	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
 }
 
-.monaco-workbench.border.mac {
-	border-radius: 10px;
+/* Native frame geometry stays fixed in screen coordinates when the workbench is zoomed. */
+.monaco-workbench.mac {
+	--window-corner-radius: calc(10px / var(--window-zoom-factor, 1));
 }
 
-.monaco-workbench.border.mac.macos-tahoe {
-	border-radius: 16px; /* macOS Tahoe increased rounded corners size */
+.monaco-workbench.mac.macos-tahoe {
+	--window-corner-radius: calc(16px / var(--window-zoom-factor, 1));
+}
+
+.monaco-workbench.border.mac {
+	border-radius: var(--window-corner-radius);
 }
 
 .monaco-workbench img {
@@ -254,6 +265,7 @@ body {
 
 /* Keyboard Focus Indication Styles */
 
+.monaco-workbench a:focus-visible,
 .monaco-workbench [tabindex="0"]:focus,
 .monaco-workbench [tabindex="-1"]:focus,
 .monaco-workbench .synthetic-focus,

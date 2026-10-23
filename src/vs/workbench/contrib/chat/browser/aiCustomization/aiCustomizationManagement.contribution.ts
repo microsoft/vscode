@@ -36,8 +36,9 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -61,11 +62,14 @@ import {
 	AICustomizationManagementSyntheticItemMenuId,
 	AICustomizationManagementSection,
 	AICustomizationSource,
+	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
-import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
+import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
+import { CustomizationMigrationResultToolContribution } from './customizationMigrationResultTool.js';
 
 //#region Telemetry
 
@@ -133,7 +137,9 @@ type AICustomizationContext = {
 	uri: URI | string;
 	name?: string;
 	promptType?: PromptsType;
+	source?: AICustomizationSource;
 	storage?: PromptsStorage;
+	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
 } | URI | string;
 
@@ -160,7 +166,8 @@ function extractSource(context: AICustomizationContext): AICustomizationSource |
 	if (URI.isUri(context) || typeof context === 'string') {
 		return undefined;
 	}
-	return context.storage;
+	// The item list passes `source`; the discovery page passes `storage`.
+	return context.source ?? context.storage;
 }
 
 /**
@@ -196,6 +203,10 @@ function extractItemId(context: AICustomizationContext): string | undefined {
 		return undefined;
 	}
 	return typeof context.itemId === 'string' ? context.itemId : undefined;
+}
+
+function shouldSkipMarketplaceUninstall(context: AICustomizationContext): boolean {
+	return !URI.isUri(context) && typeof context !== 'string' && context.skipMarketplaceUninstall === true;
 }
 
 /**
@@ -289,7 +300,6 @@ registerAction2(class extends Action2 {
 });
 
 // Delete action
-const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -314,6 +324,14 @@ registerAction2(class extends Action2 {
 		const itemId = extractItemId(context);
 		const isSkill = promptType === PromptsType.skill;
 		const isHook = promptType === PromptsType.hook;
+		if (isSkill && !shouldSkipMarketplaceUninstall(context)) {
+			const marketplaceInstallService = accessor.get(ICustomizationMarketplaceInstallService);
+			const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'skill', uri });
+			if (marketplace) {
+				await marketplaceInstallService.uninstall(marketplace.resource);
+				return;
+			}
+		}
 		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
@@ -586,7 +604,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 });
 
 // Show Plugin action - navigates to the parent plugin detail page
-const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.showPlugin';
+const SHOW_PLUGIN_AI_CUSTOMIZATION_ID = AICustomizationManagementCommands.ShowPlugin;
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -731,6 +749,62 @@ for (const menuId of [AICustomizationManagementItemMenuId, AICustomizationManage
 
 //#endregion
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AICustomizationManagementCommands.OpenEditor,
+			title: localize2('openAICustomizations', "Open Customizations"),
+			shortTitle: localize2('aiCustomizations', "Customizations"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		const { section, revealUri, sessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+			target,
+			widget?.input.pendingDelegationTarget,
+			widget?.viewModel?.sessionResource,
+			sessionType => harnessService.getSessionResourceForHarness(sessionType),
+		);
+		if (migrationHint) {
+			accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
+		}
+		if (sessionResource) {
+			harnessService.setActiveSession(sessionResource);
+		}
+
+		const input = AICustomizationManagementEditorInput.getOrCreate();
+		input.setTargetLabels(
+			harnessService.getActiveDescriptor().label,
+			accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+		);
+		const pane = await editorService.openEditor(input, { pinned: true });
+		if (migration && pane instanceof AICustomizationManagementEditor) {
+			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
+		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
+			pane.showWelcomePage();
+			if (searchQuery !== undefined) {
+				pane.setSearchQuery(searchQuery);
+			}
+		} else if (section && pane instanceof AICustomizationManagementEditor) {
+			if (pane.selectSectionById(section)) {
+				if (searchQuery !== undefined) {
+					pane.setSearchQuery(searchQuery);
+				}
+				if (revealUri) {
+					await pane.revealCustomizationByUri(revealUri);
+				}
+			}
+		}
+	}
+});
+
 //#region Actions
 
 class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -792,54 +866,6 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 		}));
 
-		// Open AI Customizations Editor
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open Customizations"),
-					shortTitle: localize2('aiCustomizations', "Customizations"),
-					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
-					f1: true,
-				});
-			}
-
-			async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const chatWidgetService = accessor.get(IChatWidgetService);
-				const harnessService = accessor.get(ICustomizationHarnessService);
-				const widget = chatWidgetService.lastFocusedWidget;
-				const { section, revealUri, sessionResource, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
-					target,
-					widget?.input.pendingDelegationTarget,
-					widget?.viewModel?.sessionResource,
-					sessionType => harnessService.getSessionResourceForHarness(sessionType),
-				);
-				if (migrationHint) {
-					accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
-				}
-				if (sessionResource) {
-					harnessService.setActiveSession(sessionResource);
-				}
-
-				const input = AICustomizationManagementEditorInput.getOrCreate();
-				input.setTargetLabels(
-					harnessService.getActiveDescriptor().label,
-					accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
-				);
-				const pane = await editorService.openEditor(input, { pinned: true });
-				if (migration && pane instanceof AICustomizationManagementEditor) {
-					await pane.showCustomizationMigrationPage(migrationCategory);
-				} else if (section && pane instanceof AICustomizationManagementEditor) {
-					pane.selectSectionById(section);
-					if (revealUri) {
-						await pane.revealCustomizationByUri(revealUri);
-					}
-				}
-			}
-		}));
-
 		// Open Marketplace (hidden command for deep-linking into browse mode)
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -851,13 +877,24 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | IAICustomizationMarketplaceOpenTarget): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (pane instanceof AICustomizationManagementEditor) {
-					const targetSection = section ?? AICustomizationManagementSection.McpServers;
-					pane.selectSectionById(targetSection, { showMarketplace: true });
+					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
+					if (typeof target !== 'string' && target?.connectorName) {
+						const result = await pane.showCopilotConnectorDetail(target.connectorName, target.connectorDisplayName);
+						if (result === CopilotConnectorDetailOpenResult.NotFound) {
+							throw new Error(`Copilot connector '${target.connectorDisplayName ?? target.connectorName}' is not available`);
+						}
+					} else {
+						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
+						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+						if (typeof target !== 'string' && target?.searchQuery !== undefined) {
+							pane.setSearchQuery(target.searchQuery);
+						}
+					}
 				}
 			}
 		}));
@@ -897,6 +934,11 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 registerWorkbenchContribution2(
 	AICustomizationManagementActionsContribution.ID,
 	AICustomizationManagementActionsContribution,
+	WorkbenchPhase.AfterRestored
+);
+registerWorkbenchContribution2(
+	CustomizationMigrationResultToolContribution.ID,
+	CustomizationMigrationResultToolContribution,
 	WorkbenchPhase.AfterRestored
 );
 

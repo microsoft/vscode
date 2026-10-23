@@ -16,6 +16,7 @@ import { IGitCommitMessageService } from '../../../platform/git/common/gitCommit
 import { ILogService } from '../../../platform/log/common/logService';
 import { ISettingsEditorSearchService } from '../../../platform/settingsEditor/common/settingsEditorSearchService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { buildGitCommitCommand } from '../../../platform/terminal/common/shellQuoting';
 import { ChatExtGlobalPerfMark, markChatExtGlobal } from '../../../util/common/performance';
 import { isUri } from '../../../util/common/types';
 import { DeferredPromise } from '../../../util/vs/base/common/async';
@@ -294,11 +295,12 @@ export class ConversationFeature implements IExtensionContribution {
 				}
 
 				const commitMessage = await this.gitCommitMessageService.generateCommitMessage(repository, CancellationToken.None);
-				if (commitMessage) {
-					// Sanitize the message by escaping double quotes, backslashes, and $ characters
-					const sanitizedMessage = commitMessage.replace(/"/g, '\\"').replace(/\\/g, '\\\\').replace(/\$/g, '\\$'); // CodeQL [SM02383] Backslashes are escaped as part of the second replace.
-					const message = `git commit -m "${sanitizedMessage}"`;
-					vscode.window.activeTerminal?.sendText(message, false);
+				const terminal = vscode.window.activeTerminal;
+				if (commitMessage && terminal) {
+					const command = buildGitCommitCommand(commitMessage, terminal.state.shell);
+					if (command) {
+						terminal.sendText(command, false);
+					}
 				}
 			}),
 			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: unknown, cancellationToken: vscode.CancellationToken | undefined) => {

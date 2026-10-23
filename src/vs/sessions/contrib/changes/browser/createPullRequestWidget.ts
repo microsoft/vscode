@@ -8,6 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonBar, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -22,6 +23,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -40,6 +42,8 @@ export interface ICreatePullRequestFormContent {
 
 export interface ICreatePullRequestWidgetOptions {
 	readonly creation: ISessionPullRequestCreation;
+	/** The chat the form was opened from, whose conversation the generated details describe. */
+	readonly chat?: URI;
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
 	readonly initialDraft?: boolean;
@@ -185,7 +189,7 @@ export class CreatePullRequestWidget extends Disposable {
 		const draftHint = localize('createPR.draftHint', "Keep the pull request in draft until it is ready for review.");
 		dom.append(draftText, dom.$('span', { id: `${id}-draft-hint`, hidden: true }, draftHint));
 		this.draftCheckbox.domNode.setAttribute('aria-describedby', `${id}-draft-hint`);
-		this._register(hoverService.setupDelayedHoverAtMouse(draftText, { content: draftHint }));
+		this._register(hoverService.setupDelayedHover(draftText, { content: draftHint, style: HoverStyle.Pointer }));
 		this._register(dom.addDisposableListener(draftText, dom.EventType.CLICK, () => {
 			if (this.draftCheckbox.enabled) {
 				this.draftCheckbox.checked = !this.draftCheckbox.checked;
@@ -236,7 +240,7 @@ export class CreatePullRequestWidget extends Disposable {
 			const descriptionId = generateUuid();
 			dom.append(row, dom.$('span', { id: descriptionId, hidden: true }, description));
 			checkbox.domNode.setAttribute('aria-describedby', descriptionId);
-			this._register(hoverService.setupDelayedHoverAtMouse(info, { content: description }));
+			this._register(hoverService.setupDelayedHover(info, { content: description, style: HoverStyle.Pointer }, { groupId: id }));
 			this._register(dom.addDisposableListener(text, dom.EventType.CLICK, () => {
 				if (checkbox.enabled) {
 					checkbox.checked = !checkbox.checked;
@@ -414,7 +418,7 @@ export class CreatePullRequestWidget extends Disposable {
 		}
 
 		try {
-			const details = await this.options.creation.prepare(cancellation.token);
+			const details = await this.options.creation.prepare(cancellation.token, this.options.chat);
 			if (this._store.isDisposed || cancellation.token.isCancellationRequested) {
 				return;
 			}
@@ -682,7 +686,7 @@ export class CreatePullRequestWidget extends Disposable {
 				await sendToChat(chatOptions);
 			} else {
 				this.options.onWillCreate?.();
-				message = await this.options.creation.create(options);
+				message = await this.options.creation.create(options, this.options.chat);
 			}
 		} catch (error) {
 			failed = true;

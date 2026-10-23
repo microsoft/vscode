@@ -101,11 +101,28 @@ The UI should read like a person talking. Prefer a word to a mystery glyph; writ
 
 *Carried out by:* [words & casing](#words-casing).
 
+##### Make unavailable features understandable
+
+Users look for features they have seen in release notes, documentation, or promotion. Silently removing an otherwise relevant option when policy, account entitlement, setup, or version requirements prevent its use makes the product feel broken. Prefer keeping it discoverable but disabled, with a concise, truthful reason and a useful next step.
+
+- Distinguish **blocked by organization policy**, **requires sign-in/upgrade/update**, **not supported here**, and **still loading** using authoritative state; absence from a list alone is not evidence of policy.
+- Reuse existing disabled-row styling and the briefcase indicator for managed policy. Provide a visible reason or independently actionable **Learn why** link; do not make hover the only way to discover the explanation.
+- Presentation must not grant access: block pointer, keyboard, and stale-menu activation while keeping explanatory links operable. Follow the [accessibility guidance](../accessibility/SKILL.md#explaining-unavailable-options).
+- This is not a blanket rule to expose everything. Preserve explicit feature-hiding choices (including disabled AI), unsupported provider capabilities, and unreleased feature gates. Explain unavailable features where they are relevant without inventing support or exposing sensitive policy values.
+
+Reuse these patterns rather than copying entire implementations:
+
+| Surface | Example |
+|---|---|
+| Settings | [Managed-setting indicator and accessible policy text](../../../src/vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators.ts) |
+| Model picker | [Unavailable models with distinct admin, upgrade, and update explanations](../../../src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerItemPrimitives.ts) |
+| Harness picker | [Availability descriptions and policy help links](../../../src/vs/workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.ts) |
+| Permissions picker | [Shared permission-level policy presentation](../../../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.ts) and [picker integration](../../../src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.ts), with [runtime policy boundaries](../policy-and-managed-settings/sdk-runtime-policy.md) |
+
 > **Worked example - a boxed-in toolbar**
 > - **See:** a toolbar sits on a solid filled bar, separator lines between every button, the buttons pushed up against each other.
 > - **Feeling:** not *Calm* - busy and boxed-in.
-> - **Principle:** breaks *Quiet at rest* (the fill and separators are permanent
->   chrome that hasn't earned its place) and *Room to breathe* (buttons jammed together).
+> - **Principle:** breaks *Quiet at rest* (the fill and separators are permanent chrome that hasn't earned its place) and *Room to breathe* (buttons jammed together).
 > - **Move:** let the bar read transparent at rest, drop the separators (one stroke - and here the answer is *no*), and space the buttons out on the ramp.
 
 ### Focused
@@ -143,13 +160,10 @@ Equivalent elements must look equivalent, because they pull from the same named 
 *Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
-> - **See:** two dialogs open side by side; one has 8px corners, the other 6px -
->   both are floating overlays.
+> - **See:** two dialogs open side by side; one has 8px corners, the other 6px - both are floating overlays.
 > - **Feeling:** not *Consistent* - the UI feels like it's drifting.
-> - **Principle:** breaks *Sameness signals sameness* (two equivalent surfaces look
->   different for no reason) and *Elevation is encoded* (an overlay belongs on the Outer tier).
-> - **Move:** point both at the Outer radius token; the 6px was a literal someone
->   typed instead of naming the tier.
+> - **Principle:** breaks *Sameness signals sameness* (two equivalent surfaces look different for no reason) and *Elevation is encoded* (an overlay belongs on the Outer tier).
+> - **Move:** point both at the Outer radius token; the 6px was a literal someone typed instead of naming the tier.
 
 ### Delightful
 
@@ -166,10 +180,8 @@ A delight bug sounds like *"this transition is doing nothing for me"* (cut it) o
 > **Worked example - a bouncing panel**
 > - **See:** a side panel slides in with a 600ms bounce every time you toggle it.
 > - **Feeling:** not *Delightful* (gimmicky) and not *Calm* (slow and shouty).
-> - **Principle:** breaks *Delight earns its keep* - the bounce isn't doing a job,
->   and the toggle is already obvious.
-> - **Move:** if nothing needs orienting, cut the animation; if the panel's arrival
->   genuinely needs explaining, replace it with a short, subtle, interruptible fade that honors `prefers-reduced-motion`.
+> - **Principle:** breaks *Delight earns its keep* - the bounce isn't doing a job, and the toggle is already obvious.
+> - **Move:** if nothing needs orienting, cut the animation; if the panel's arrival genuinely needs explaining, replace it with a short, subtle, interruptible fade that honors `prefers-reduced-motion`.
 
 ---
 

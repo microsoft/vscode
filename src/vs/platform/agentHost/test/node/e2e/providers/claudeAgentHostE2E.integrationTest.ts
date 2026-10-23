@@ -63,8 +63,8 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
 	streamingFileCreateToolName: 'Write',
-	modelSwitchTarget: 'claude-sonnet-4.6',
-	modelSwitchReturnTarget: 'claude-opus-5',
+	modelSwitchTarget: 'claude-opus-5',
+	modelSwitchReturnTarget: 'claude-opus-5.5',
 	interactiveInputPrompt: 'Use AskUserQuestion exactly once to ask "Which fruit?" with options "Apple" and "Banana". After the answer, reply with only the selected fruit.',
 	cancelledInputPrompt: 'Use AskUserQuestion exactly once to ask "Continue?" with options "Yes" and "No". If the request is cancelled, reply exactly "cancelled".',
 	multiSelectInputPrompt: 'Use AskUserQuestion exactly once to ask "Which colors?" with options "Red" and "Blue" and multiSelect true. After the answer, name the selected colors.',
@@ -88,6 +88,7 @@ const CLAUDE_CONFIG: IAgentHostE2EProviderConfig = {
 	// shared test's Copilot-flavoured prompt doesn't reliably drive Claude
 	// to invoke it. TODO: rework the prompt for Claude conventions.
 	supportsMultipleChats: true,
+	supportsInitialTitle: true,
 	supportsChatFork: true,
 	// Claude cannot resolve a client-assigned AHP turn id to an SDK message UUID,
 	// so a provider fork silently starts with fresh context.

@@ -10,7 +10,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { IParsedHookCommand } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { interpolateHookCommandPluginRoot, IParsedHookCommand, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
 import { Target } from './promptTypes.js';
 import { IValue, IMapValue } from './promptFileParser.js';
@@ -88,17 +88,24 @@ export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatR
  * Descriptions for hook command fields, used by both the JSON schema and the hover provider.
  */
 export const HOOK_COMMAND_FIELD_DESCRIPTIONS: Record<string, string> = {
-	type: nls.localize('hook.type', 'Must be "command".'),
+	type: nls.localize('hook.type', 'Hook action type. Supported values depend on the active harness.'),
 	command: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.'),
 	windows: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.'),
 	linux: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.'),
 	osx: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.'),
 	bash: nls.localize('hook.bash', 'Bash command for Linux and macOS.'),
 	powershell: nls.localize('hook.powershell', 'PowerShell command for Windows.'),
+	exec: nls.localize('hook.exec', 'Native executable path. Cannot be combined with a shell command.'),
+	args: nls.localize('hook.args', 'Arguments passed to the native executable.'),
 	cwd: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).'),
 	env: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.'),
 	timeout: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).'),
 	timeoutSec: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).'),
+	matcher: nls.localize('hook.matcher', 'Regular expression selecting matching tools or events.'),
+	url: nls.localize('hook.url', 'HTTP or HTTPS URL invoked by the hook.'),
+	headers: nls.localize('hook.headers', 'HTTP headers sent with the request.'),
+	allowedEnvVars: nls.localize('hook.allowedEnvVars', 'Environment variable names whose values may be exposed to the HTTP hook.'),
+	prompt: nls.localize('hook.prompt', 'Prompt text added when the session starts.'),
 };
 
 /**
@@ -512,7 +519,8 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 export function extractHookCommandsFromItem(
 	item: unknown,
 	workspaceRootUri: URI | undefined,
-	userHome: string
+	userHome: string,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): IHookCommand[] {
 	if (!item || typeof item !== 'object') {
 		return [];
@@ -528,7 +536,8 @@ export function extractHookCommandsFromItem(
 			if (!nestedHook || typeof nestedHook !== 'object') {
 				continue;
 			}
-			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
+			const raw = nestedHook as Record<string, unknown>;
+			const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(raw, plugin.uri, plugin.format) : raw);
 			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 			if (resolved) {
 				commands.push(resolved);
@@ -536,7 +545,7 @@ export function extractHookCommandsFromItem(
 		}
 	} else {
 		// Direct command object
-		const normalized = normalizeForResolve(itemObj);
+		const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(itemObj, plugin.uri, plugin.format) : itemObj);
 		const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 		if (resolved) {
 			commands.push(resolved);
@@ -606,6 +615,7 @@ function yamlValueToPlain(value: IValue): unknown {
  * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
  * @param userHome User home directory path for tilde expansion.
  * @param target The agent's target, used to resolve hook type names correctly.
+ * @param plugin The contributing plugin, used to resolve format-specific plugin-root variables.
  * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
  */
 export function parseSubagentHooksFromYaml(
@@ -613,6 +623,7 @@ export function parseSubagentHooksFromYaml(
 	workspaceRootUri: URI | undefined,
 	userHome: string,
 	target: Target = Target.Undefined,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): ChatRequestHooks {
 	const result: Record<string, IHookCommand[]> = {};
 	const targetHookMap = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
@@ -638,7 +649,7 @@ export function parseSubagentHooksFromYaml(
 			// extractHookCommandsFromItem helper can handle both direct
 			// commands and nested matcher structures.
 			const plainItem = yamlValueToPlain(item);
-			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome);
+			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome, plugin);
 			commands.push(...extracted);
 		}
 

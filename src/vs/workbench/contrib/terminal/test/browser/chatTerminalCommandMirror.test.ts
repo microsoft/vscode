@@ -709,7 +709,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		});
 
 		function createSnapshotMirror(output: { text: string; truncated?: boolean; lineCount?: number } | undefined): DetachedTerminalSnapshotMirror {
-			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined, undefined));
 		}
 
 		test('resizes the detached terminal to cols computed from the width', async () => {
@@ -764,6 +764,37 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			deepStrictEqual(fakes[0].counters, { resizeCalls, writeCalls });
 		});
 
+		test('keeps the default snapshot columns when reflow is disabled', async () => {
+			const mirror = createSnapshotMirror({ text: 'x'.repeat(100) });
+			await mirror.layout(220, false);
+			const result = await mirror.render();
+			await mirror.layout(1224, false);
+			deepStrictEqual({
+				cols: fakes[0].raw.cols,
+				lineCount: result?.lineCount,
+				counters: fakes[0].counters,
+			}, {
+				cols: 80,
+				lineCount: 2,
+				counters: { resizeCalls: 0, writeCalls: 1 },
+			});
+		});
+
+		test('toggles snapshot reflow without rewriting output', async () => {
+			const mirror = createSnapshotMirror({ text: 'x'.repeat(100) });
+			await mirror.render();
+			const results = [];
+			for (const reflow of [true, false, true]) {
+				const result = await mirror.layout(1224, reflow);
+				results.push({ cols: fakes[0].raw.cols, lineCount: result?.lineCount, writeCalls: fakes[0].counters.writeCalls });
+			}
+			deepStrictEqual(results, [
+				{ cols: 120, lineCount: 1, writeCalls: 1 },
+				{ cols: 80, lineCount: 2, writeCalls: 1 },
+				{ cols: 120, lineCount: 1, writeCalls: 1 },
+			]);
+		});
+
 		test('ignores non-positive widths', async () => {
 			const mirror = createSnapshotMirror({ text: 'hello' });
 			await mirror.layout(0);
@@ -816,6 +847,37 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			} finally {
 				container.remove();
 			}
+		});
+	});
+
+	suite('DetachedTerminalSnapshotMirror.render', () => {
+		let instantiationService: TestInstantiationService;
+		let XTermBaseCtor: typeof Terminal;
+		let fakes: ReturnType<typeof createFakeDetachedTerminal>[];
+
+		setup(async () => {
+			instantiationService = workbenchInstantiationService(undefined, store);
+			XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			fakes = [];
+			instantiationService.stub(ITerminalService, {
+				createDetachedTerminal: async (options: IDetachedXTermOptions) => {
+					const fake = createFakeDetachedTerminal(XTermBaseCtor, options);
+					fakes.push(fake);
+					return fake.instance;
+				}
+			} as Partial<ITerminalService>);
+		});
+
+		test('writes only appended output while a stream drops its oldest output', async () => {
+			const mirror = store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, undefined, () => undefined, undefined));
+			mirror.setOutput({ text: 'one\r\ntwo\r\n' }, { generation: 1, start: 0 });
+			await mirror.render();
+			// The stream dropped "one\r\n" and appended "three\r\n".
+			mirror.setOutput({ text: 'two\r\nthree\r\n' }, { generation: 1, start: 5 });
+			await mirror.render();
+			mirror.setOutput({ text: 'fresh\r\n' }, { generation: 2, start: 0 });
+			await mirror.render();
+			deepStrictEqual(fakes[0].writes, ['one\r\ntwo\r\n', 'three\r\n', '\x1b[2J\x1b[3J\x1b[Hfresh\r\n']);
 		});
 	});
 
@@ -941,6 +1003,46 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			await mirror.layout(1224);
 			deepStrictEqual(fakes[0].counters, { resizeCalls, writeCalls });
 		});
+
+		test('keeps the source terminal columns when reflow is disabled', async () => {
+			const source = await createXterm(60);
+			const command = await createWrappedCommand(source);
+			const mirror = createCommandMirror(source, command);
+			await mirror.layout(220, false);
+			const result = await mirror.renderCommand();
+			await mirror.layout(1224, false);
+			deepStrictEqual({
+				cols: fakes[0].raw.cols,
+				lineCount: result?.lineCount,
+				counters: fakes[0].counters,
+			}, {
+				cols: 60,
+				lineCount: 2,
+				counters: { resizeCalls: 0, writeCalls: 1 },
+			});
+		});
+
+		test('toggles command reflow without rewriting output or resizing the source', async () => {
+			const source = await createXterm(60);
+			const command = await createWrappedCommand(source);
+			const mirror = createCommandMirror(source, command);
+			await mirror.renderCommand();
+			const results = [];
+			for (const reflow of [true, false, true]) {
+				const result = await mirror.layout(1224, reflow);
+				results.push({
+					cols: fakes[0].raw.cols,
+					sourceCols: source.raw.cols,
+					lineCount: result?.lineCount,
+					writeCalls: fakes[0].counters.writeCalls,
+				});
+			}
+			deepStrictEqual(results, [
+				{ cols: 120, sourceCols: 60, lineCount: 1, writeCalls: 1 },
+				{ cols: 60, sourceCols: 60, lineCount: 2, writeCalls: 1 },
+				{ cols: 120, sourceCols: 60, lineCount: 1, writeCalls: 1 },
+			]);
+		});
 	});
 
 	suite('row height metrics', () => {
@@ -976,7 +1078,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		});
 
 		function createSnapshotMirror(output: { text: string } | undefined): DetachedTerminalSnapshotMirror {
-			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined, undefined));
 		}
 
 		async function createLaidOutCommandMirror(): Promise<DetachedTerminalCommandMirror> {

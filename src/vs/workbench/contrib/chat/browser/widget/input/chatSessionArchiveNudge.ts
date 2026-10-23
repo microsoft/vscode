@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
+import { captureAnimationTarget, triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../../../base/common/actions.js';
@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -26,6 +27,8 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { getIconRegistry } from '../../../../../../platform/theme/common/iconRegistry.js';
+import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import './media/chatSessionArchiveNudge.css';
 
@@ -69,9 +72,15 @@ export class ChatSessionArchiveNudge extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IHoverService hoverService: IHoverService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		// Every arm of the copy experiments renders the suggestion; they only change its title and icon.
+		logExperimentTrigger(this.telemetryService, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT);
+		logExperimentTrigger(this.telemetryService, CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT);
 
 		const id = generateUuid();
 		this.domNode = dom.$('.chat-session-archive-nudge', { role: 'group', 'aria-labelledby': `${id}-title` });
@@ -242,11 +251,16 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
+		const animationTarget = captureAnimationTarget(this.archiveButton.element);
+		if (!this.accessibilityService.isMotionReduced()) {
+			logSettingExperimentTrigger(this.telemetryService, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING);
+		}
 		this.setArchiving(true);
 		try {
 			await this.options.onArchive();
 			if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
-				triggerConfettiAnimation(this.archiveButton.element);
+				triggerConfettiAnimation(animationTarget);
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
 			}
 		} catch (error) {
 			this.notificationService.error(this.markAsDone

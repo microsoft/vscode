@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createHash } from 'crypto';
 import assert from 'assert';
 import type { Tool, ToolInvocation, ToolResultObject } from '@github/copilot-sdk';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as platform from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -21,15 +22,16 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ISandboxHelperService } from '../../../sandbox/common/sandboxHelperService.js';
-import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../sandbox/common/terminalSandboxMxcRuntime.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type TerminalClaim, type TerminalInfo } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { formatTerminalText, IAgentHostTerminalManager, type ICommandFinishedEvent, type ISendTextOptions } from '../../node/agentHostTerminalManager.js';
 import { createShellTools, type IUnsandboxedCommandConfirmationRequest, isMultilineCommand, ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
+import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 
 /** Chat that owns the terminals created by the shells under test. */
 const TEST_CHAT_URI = URI.parse(buildDefaultChatUri('copilot:/session-1'));
@@ -99,6 +101,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	createOutputTerminal(): void { }
 	appendOutputTerminalData(): void { }
 	resetOutputTerminal(): void { }
+	replaceOutputTerminalData(): void { }
 	finalizeOutputTerminal(): void { }
 	fireCommandFinished(event: ICommandFinishedEvent): void { this._onCommandFinished.fire(event); }
 	fireData(data: string): void { this._onData.fire(data); }
@@ -135,10 +138,23 @@ suite('CopilotShellTools', () => {
 			_serviceBrand: undefined,
 			onDidRootConfigChange: emitter.event,
 			onDidSessionConfigChange: sessionEmitter.event,
+			onDidChatConfigChange: Event.None,
 			getEffectiveValue: () => undefined,
+			getChatEffectiveValue: () => undefined,
+			getChatConfigValues: target => sessionValues.get(target.session),
+			getChatConfigState: () => undefined,
+			getChatOwnConfigValues: () => ({}),
+			updateChatConfig: (target, config) => service.updateSessionConfig(target.session, config),
+			seedChatConfig: () => ({ values: {}, dispose: () => { } }),
 			getEffectiveWorkingDirectories: () => undefined,
 			getSessionConfigValues: session => sessionValues.get(session),
+			resolveConfigurationOwner: session => session,
 			getSessionSandboxPolicy: session => policies.get(session),
+			getSessionSandboxEnabled: () => undefined,
+			getChatSandboxEnabled: () => undefined,
+			getChatAttachmentScopes: target => [target.session],
+			setChatSandboxEnabled: () => { },
+			rejectChatSandboxChange: () => { },
 			setSessionSandboxPolicy: (session, policy) => {
 				policies.set(session, policy);
 				sessionEmitter.fire({ session, config: {}, origin: undefined });
@@ -162,29 +178,9 @@ suite('CopilotShellTools', () => {
 	}
 
 	function createStubSandboxHelperService(): ISandboxHelperService {
-		// Stub used by every test that constructs a `ShellManager`. Avoids loading
-		// the real node-only `SandboxHelperService`, which dynamically imports
-		// `@microsoft/mxc-sdk` and fails to resolve in the electron renderer test
-		// runner used by `scripts/test.bat`.
 		return {
 			_serviceBrand: undefined,
 			checkSandboxDependencies: async () => undefined,
-			getWindowsMxcFilesystemPolicy: async () => ({ readonlyPaths: [], readwritePaths: [] }),
-			getWindowsMxcEnvironment: async () => [],
-			buildWindowsMxcSandboxPayload: async (commandLine, policy, workingDirectory, containerName = 'vscode-terminal-sandbox', containment = 'process') => ({
-				version: policy.version,
-				containerId: containerName,
-				containment,
-				lifecycle: { destroyOnExit: true, preservePolicy: false },
-				process: { commandLine, cwd: workingDirectory, timeout: policy.timeoutMs ?? 0 },
-				filesystem: {
-					readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
-					readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
-					deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
-				},
-				network: { defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block' },
-				ui: { disable: !(policy.ui?.allowWindows ?? false), clipboard: policy.ui?.clipboard ?? 'none', injection: policy.ui?.allowInputInjection ?? false },
-			}),
 		} satisfies ISandboxHelperService;
 	}
 
@@ -193,17 +189,13 @@ suite('CopilotShellTools', () => {
 		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
 			initialSandboxValues[AgentHostSandboxKey.Enabled] = AgentSandboxEnabledValue.On;
-			// Windows uses a separate enable key; the engine treats
-			// `Enabled=On` on non-Windows and `WindowsEnabled=On`
-			// on Windows as "sandbox active". Set both so tests exercise
-			// the sandbox path on every OS.
-			initialSandboxValues[AgentHostSandboxKey.WindowsEnabled] = AgentSandboxEnabledValue.On;
 		}
 		const agentConfigurationService = createFakeAgentConfigurationService(initialSandboxValues);
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
 		services.set(IAgentConfigurationService, agentConfigurationService.service);
+		services.set(ISessionDataService, createNullSessionDataService());
 		services.set(IFileService, {
 			createFile: async (uri: URI, content: VSBuffer) => {
 				if (options?.createdFiles) {
@@ -219,13 +211,9 @@ suite('CopilotShellTools', () => {
 			userHome: URI.file('/home/test-user'),
 		} as Partial<IEnvironmentService> & { userHome: URI } as IEnvironmentService);
 		services.set(IProductService, { dataFolderName: '.test-data' } as Partial<IProductService> as IProductService);
-		// Stub the sandbox helper so the engine never imports `@microsoft/mxc-sdk`
-		// (a node-only dynamic import that fails to resolve in the electron
-		// renderer test runner used by `scripts/test.bat` on Windows CI).
 		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
-		services.set(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 		return { instantiationService, terminalManager, agentConfigurationService };
 	}
 
@@ -260,7 +248,7 @@ suite('CopilotShellTools', () => {
 		const { instantiationService, terminalManager } = createServices();
 		const worktreePath = URI.file('/workspace/worktree').fsPath;
 		const explicitCwd = URI.file('/explicit/cwd').fsPath;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), URI.file(worktreePath)));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), URI.file(worktreePath)));
 
 		(await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1')).dispose();
 		(await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-2', 'tool-2', explicitCwd)).dispose();
@@ -275,7 +263,7 @@ suite('CopilotShellTools', () => {
 		const { instantiationService, terminalManager } = createServices();
 		const initialWorkingDirectory = URI.file('/workspace/initial');
 		const newWorkingDirectory = URI.file('/workspace/reanchored');
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), initialWorkingDirectory));
 		const initialShell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 		terminalManager.existingTerminalUris.add(initialShell.object.terminalUri);
 		initialShell.dispose();
@@ -303,7 +291,7 @@ suite('CopilotShellTools', () => {
 	test('setWorkingDirectory rejects while a shell is busy without changing state', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		const initialWorkingDirectory = URI.file('/workspace/initial');
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), initialWorkingDirectory));
 		const shell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 		terminalManager.existingTerminalUris.add(shell.object.terminalUri);
 
@@ -325,7 +313,7 @@ suite('CopilotShellTools', () => {
 	test('assertCanSetWorkingDirectory rejects without changing shell state', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		const initialWorkingDirectory = URI.file('/workspace/initial');
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), initialWorkingDirectory));
 		const shell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 		terminalManager.existingTerminalUris.add(shell.object.terminalUri);
 
@@ -347,7 +335,7 @@ suite('CopilotShellTools', () => {
 	test('setWorkingDirectory rejects a held shell even after its reference is released', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		const initialWorkingDirectory = URI.file('/workspace/initial');
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), initialWorkingDirectory));
 		const shell = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 		terminalManager.existingTerminalUris.add(shell.object.terminalUri);
 		shellManager.holdShellUntilCommandFinishes(shell.object);
@@ -368,7 +356,7 @@ suite('CopilotShellTools', () => {
 
 	test('opts every managed shell into shell-history suppression and non-interactive mode', async () => {
 		const { instantiationService, terminalManager } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 
 		await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 
@@ -380,7 +368,7 @@ suite('CopilotShellTools', () => {
 	test('uses the executable resolved by the terminal manager', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.defaultShell = '/custom/path/to/pwsh';
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 
 		await shellManager.getOrCreateShell('powershell', TEST_CHAT_URI, 'turn-1', 'tool-1');
 
@@ -409,7 +397,7 @@ suite('CopilotShellTools', () => {
 	test('zsh executable keeps bash tool name but uses zsh-specific guidance', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.defaultShell = '/bin/zsh';
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 
@@ -435,7 +423,7 @@ suite('CopilotShellTools', () => {
 		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 
 		const first = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 		first.dispose();
@@ -455,7 +443,7 @@ suite('CopilotShellTools', () => {
 		services.set(ISandboxHelperService, createStubSandboxHelperService());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 
 		const first = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 		const second = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-2', 'tool-2');
@@ -473,7 +461,7 @@ suite('CopilotShellTools', () => {
 		// `write_bash` / `read_bash` / `bash_shutdown` / `list_bash` call,
 		// which breaks interactive shell flows.
 		const { instantiationService, terminalManager } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 
 		const skipPermissionByName = Object.fromEntries(tools.map(t => [t.name, t.skipPermission ?? false]));
@@ -489,7 +477,7 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool normalizes multiline command input', async () => {
 		const { instantiationService, terminalManager } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -512,7 +500,7 @@ suite('CopilotShellTools', () => {
 	test('primary shell tool ignores echoed sentinel command text', async () => {
 		const { instantiationService, terminalManager } = createServices();
 
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -547,7 +535,7 @@ suite('CopilotShellTools', () => {
 	test('primary shell tool forces bracketed paste with shell integration', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -572,7 +560,7 @@ suite('CopilotShellTools', () => {
 	test('primary shell tool returns alternateBuffer when shell integration enters alt buffer', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -595,7 +583,7 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool returns alternateBuffer when sentinel fallback enters alt buffer', async () => {
 		const { instantiationService, terminalManager } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -619,7 +607,7 @@ suite('CopilotShellTools', () => {
 	test('alt-buffer shell is released when command finishes', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -649,7 +637,7 @@ suite('CopilotShellTools', () => {
 	test('alt-buffer shell is not immediately reused', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -678,7 +666,7 @@ suite('CopilotShellTools', () => {
 	test('backgrounded shell is not immediately reused', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -708,7 +696,7 @@ suite('CopilotShellTools', () => {
 	test('backgrounded shell is released when command finishes', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -738,7 +726,7 @@ suite('CopilotShellTools', () => {
 	test('backgrounded shell is released when terminal exits', async () => {
 		const { instantiationService, terminalManager } = createServices();
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -767,7 +755,7 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool only forces bracketed paste for single-line commands on macOS', async () => {
 		const { instantiationService, terminalManager } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -793,7 +781,7 @@ suite('CopilotShellTools', () => {
 
 	test('write shell tool normalizes input without appending enter', async () => {
 		const { instantiationService, terminalManager } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const shellRef = await shellManager.getOrCreateShell('bash', TEST_CHAT_URI, 'turn-1', 'tool-1');
 		terminalManager.existingTerminalUris.add(shellRef.object.terminalUri);
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
@@ -815,9 +803,40 @@ suite('CopilotShellTools', () => {
 		shellRef.dispose();
 	});
 
+	test('each chat of a session keys its sandbox temp dir by its storage, so disposing a peer keeps the default chat\'s', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
+		const deletedFolders: string[] = [];
+		const createdFiles = new Map<string, string>();
+		const { instantiationService } = createServices({ sandboxEnabled: true, deletedFolders, createdFiles });
+		const session = URI.parse('copilot:/session-1');
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const defaultManager = disposables.add(instantiationService.createInstance(ShellManager, session, session, session, undefined));
+		const peerManager = instantiationService.createInstance(ShellManager, session, peer, peer, undefined);
+		const defaultEngine = defaultManager.getOrCreateSandboxEngine();
+		const peerEngine = peerManager.getOrCreateSandboxEngine();
+		await defaultEngine.getSandboxConfigPath();
+		await peerEngine.getSandboxConfigPath();
+		const leaf = (scope: URI) => `agenthost_${createHash('sha256').update(scope.toString()).digest('hex').substring(0, 16)}`;
+
+		peerManager.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			tempDirs: [defaultEngine.getTempDir()?.path.split('/').pop(), peerEngine.getTempDir()?.path.split('/').pop()],
+			deleted: deletedFolders,
+			defaultSettingsWritten: [...createdFiles.keys()].some(path => path.startsWith(`${defaultEngine.getTempDir()?.path}/vscode-sandbox-settings-`)),
+		}, {
+			tempDirs: [leaf(session), leaf(peer)],
+			deleted: [peerEngine.getTempDir()?.path],
+			defaultSettingsWritten: true,
+		});
+	});
+
 	test('getOrCreateSandboxEngine returns the same engine across calls', async () => {
 		const { instantiationService } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 
 		const engineA = shellManager.getOrCreateSandboxEngine();
 		const engineB = shellManager.getOrCreateSandboxEngine();
@@ -825,19 +844,20 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(engineA, engineB, 'Sandbox engine should be cached across calls');
 	});
 
-	test('custom terminal sandbox follows its owner selection and live managed floor', async () => {
+	test('custom terminal sandbox follows its owner selection and live managed floor', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const { instantiationService, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		const owner = 'copilot:/session-1';
-		const peer = URI.parse(buildDefaultChatUri(owner));
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, peer, undefined));
-		const otherManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/other'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse(owner), URI.parse(owner), URI.parse(owner), undefined));
+		const otherManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/other'), URI.parse('copilot:/other'), URI.parse('copilot:/other'), undefined));
 		const engine = shellManager.getOrCreateSandboxEngine();
 		const other = otherManager.getOrCreateSandboxEngine();
 		const before = await engine.isEnabled();
 		agentConfigurationService.service.updateSessionConfig(owner, { sandboxEnabled: 'off' });
 		const disabled = await engine.isEnabled();
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.Enabled, AgentSandboxEnabledValue.On);
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.WindowsEnabled, AgentSandboxEnabledValue.On);
 		const afterGlobalChange = await engine.isEnabled();
 		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
 		assert.deepStrictEqual({
@@ -845,12 +865,40 @@ suite('CopilotShellTools', () => {
 		}, { before: true, disabled: false, afterGlobalChange: false, governed: true, other: true });
 	});
 
-	test('setWorkingDirectory invalidates the captured sandbox engine roots', async () => {
+	test('custom terminal reads effective network and bypass settings across managed policy changes', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
+		const { instantiationService, agentConfigurationService } = createServices({ sandboxEnabled: true });
+		const owner = 'copilot:/session-1';
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowNetwork, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, false);
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse(owner), URI.parse(owner), URI.parse(owner), undefined));
+		const engine = shellManager.getOrCreateSandboxEngine();
+		const read = async () => ({ network: await engine.isSandboxAllowNetworkEnabled(), bypass: engine.areUnsandboxedCommandsAllowed() });
+		const initial = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true, allowOutbound: false });
+		const denied = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true, allowOutbound: true });
+		const allowed = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: false });
+		assert.deepStrictEqual({ initial, denied, allowed, removed: await read() }, {
+			initial: { network: true, bypass: false },
+			denied: { network: false, bypass: false },
+			allowed: { network: true, bypass: false },
+			removed: { network: true, bypass: false },
+		});
+	});
+
+	test('setWorkingDirectory invalidates the captured sandbox engine roots', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const createdFiles = new Map<string, string>();
 		const initialWorkingDirectory = URI.file('/workspace/initial');
 		const newWorkingDirectory = URI.file('/workspace/reanchored');
 		const { instantiationService } = createServices({ sandboxEnabled: true, createdFiles });
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), initialWorkingDirectory));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), initialWorkingDirectory));
 		const engine = shellManager.getOrCreateSandboxEngine();
 		await engine.wrapCommand('echo initial');
 		const sandboxConfigPath = [...createdFiles.keys()].find(path => /vscode-sandbox-settings-.*\.json$/.test(path));
@@ -860,10 +908,10 @@ suite('CopilotShellTools', () => {
 		shellManager.setWorkingDirectory(newWorkingDirectory);
 		await engine.wrapCommand('echo reanchored');
 		const reanchoredConfig = JSON.parse(createdFiles.get(sandboxConfigPath)!);
-		const initialWritablePaths: string[] = platform.isWindows ? initialConfig.filesystem.readwritePaths : initialConfig.filesystem.allowWrite;
-		const reanchoredWritablePaths: string[] = platform.isWindows ? reanchoredConfig.filesystem.readwritePaths : reanchoredConfig.filesystem.allowWrite;
-		const initialPath = platform.isWindows ? '\\workspace\\initial' : '/workspace/initial';
-		const reanchoredPath = platform.isWindows ? '\\workspace\\reanchored' : '/workspace/reanchored';
+		const initialWritablePaths: string[] = initialConfig.filesystem.allowWrite;
+		const reanchoredWritablePaths: string[] = reanchoredConfig.filesystem.allowWrite;
+		const initialPath = '/workspace/initial';
+		const reanchoredPath = '/workspace/reanchored';
 
 		assert.deepStrictEqual({
 			enginePreserved: shellManager.getOrCreateSandboxEngine() === engine,
@@ -880,17 +928,19 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool schema only exposes requestUnsandboxedExecution params when the sandbox is enabled', async () => {
 		const enabled = createServices({ sandboxEnabled: true });
-		const enabledShell = disposables.add(enabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-enabled'), undefined));
+		const enabledShell = disposables.add(enabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-enabled'), URI.parse('copilot:/session-enabled'), URI.parse('copilot:/session-enabled'), undefined));
 		const enabledTools = await createShellTools(enabledShell, TEST_CHAT_URI, enabled.terminalManager, new NullLogService());
 		const enabledPrimary = enabledTools[0] as Tool<unknown>;
 		const enabledSchema = enabledPrimary.parameters as { properties: Record<string, unknown> };
 		const enabledPropertyNames = Object.keys(enabledSchema.properties);
 
-		assert.ok(enabledPropertyNames.includes('requestUnsandboxedExecution'), 'Sandbox-enabled schema should expose requestUnsandboxedExecution');
-		assert.ok(enabledPropertyNames.includes('requestUnsandboxedExecutionReason'), 'Sandbox-enabled schema should expose requestUnsandboxedExecutionReason');
+		assert.deepStrictEqual({
+			request: enabledPropertyNames.includes('requestUnsandboxedExecution'),
+			reason: enabledPropertyNames.includes('requestUnsandboxedExecutionReason'),
+		}, { request: !platform.isWindows, reason: !platform.isWindows });
 
 		const disabled = createServices();
-		const disabledShell = disposables.add(disabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-disabled'), undefined));
+		const disabledShell = disposables.add(disabled.instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-disabled'), URI.parse('copilot:/session-disabled'), URI.parse('copilot:/session-disabled'), undefined));
 		const disabledTools = await createShellTools(disabledShell, TEST_CHAT_URI, disabled.terminalManager, new NullLogService());
 		const disabledPrimary = disabledTools[0] as Tool<unknown>;
 		const disabledSchema = disabledPrimary.parameters as { properties: Record<string, unknown> };
@@ -902,7 +952,7 @@ suite('CopilotShellTools', () => {
 
 	test('primary shell tool sends commands unwrapped when the sandbox is disabled', async () => {
 		const { instantiationService, terminalManager } = createServices();
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -921,8 +971,11 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool wraps commands through the sandbox engine when the sandbox is enabled', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true });
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -936,26 +989,18 @@ suite('CopilotShellTools', () => {
 		await bashTool.handler!({ command: 'echo hello', timeout: 1 }, invocation);
 
 		const sentCommand = terminalManager.sentTexts[0]?.data ?? '';
-		// POSIX wraps via `sandbox-runtime` and embeds the user command;
-		// Windows wraps via the MXC executable and carries the user command
-		// in the JSON config file referenced by the wrapper.
-		if (platform.isWindows) {
-			assert.ok(sentCommand.includes('wxc-exec'), `Expected the command to be wrapped by the MXC runtime. Sent: ${sentCommand}`);
-		} else {
-			assert.ok(sentCommand.includes('sandbox-runtime'), `Expected the command to be wrapped by the sandbox runtime. Sent: ${sentCommand}`);
-			assert.ok(sentCommand.includes('echo hello'), `Wrapped command should still contain the user command. Sent: ${sentCommand}`);
-		}
+		assert.ok(sentCommand.includes('sandbox-runtime'), `Expected the command to be wrapped by the sandbox runtime. Sent: ${sentCommand}`);
+		assert.ok(sentCommand.includes('echo hello'), `Wrapped command should still contain the user command. Sent: ${sentCommand}`);
 	});
 
-	test('primary shell tool writes a sandbox config exposing the working directory as writable', async () => {
-		// Cross-platform smoke test: enabling the sandbox should result in a sandbox config file
-		// being written, and the session's working directory should be a writable path in that
-		// config. The JSON shape differs between POSIX (`filesystem.allowWrite`) and the Windows
-		// MXC runtime (`filesystem.readwritePaths`).
+	test('primary shell tool writes a sandbox config exposing the working directory as writable', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const createdFiles = new Map<string, string>();
 		const workingDirectory = URI.file('/workspace/test-workspace');
 		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true, createdFiles });
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), workingDirectory));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), workingDirectory));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -971,24 +1016,22 @@ suite('CopilotShellTools', () => {
 		const sandboxConfigEntry = [...createdFiles.entries()].find(([path]) => /vscode-sandbox-settings-.*\.json$/.test(path));
 		assert.ok(sandboxConfigEntry, `Expected a sandbox config file to be written. Files: ${[...createdFiles.keys()].join(', ')}`);
 		const config = JSON.parse(sandboxConfigEntry[1]);
-		const writablePaths: string[] = platform.isWindows ? config.filesystem.readwritePaths : config.filesystem.allowWrite;
+		const writablePaths: string[] = config.filesystem.allowWrite;
 		assert.ok(Array.isArray(writablePaths), `Expected writable paths array. Got: ${JSON.stringify(config.filesystem)}`);
-		const expectedPath = platform.isWindows ? '\\workspace\\test-workspace' : '/workspace/test-workspace';
+		const expectedPath = '/workspace/test-workspace';
 		assert.ok(writablePaths.includes(expectedPath), `Expected working directory in writable paths. Got: ${JSON.stringify(writablePaths)}`);
 	});
 
-	test('primary shell tool merges configured filesystem allowRead paths into the sandbox config', async () => {
-		// Cross-platform: pick the OS-specific filesystem setting key and verify the configured
-		// allowRead path lands in the rendered sandbox config (POSIX `filesystem.allowRead` /
-		// Windows MXC `filesystem.readonlyPaths`).
+	test('primary shell tool merges configured filesystem allowRead paths into the sandbox config', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const createdFiles = new Map<string, string>();
-		const configuredReadPath = platform.isWindows ? 'C:\\tools\\custom' : '/tools/custom';
-		const fileSystemKey = platform.isWindows
-			? AgentHostSandboxKey.WindowsFileSystem
-			: platform.isMacintosh ? AgentHostSandboxKey.MacFileSystem : AgentHostSandboxKey.LinuxFileSystem;
+		const configuredReadPath = '/tools/custom';
+		const fileSystemKey = platform.isMacintosh ? AgentHostSandboxKey.MacFileSystem : AgentHostSandboxKey.LinuxFileSystem;
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true, createdFiles });
 		agentConfigurationService.setSandboxValue(fileSystemKey, { allowRead: [configuredReadPath] });
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), URI.file('/workspace/test-workspace')));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), URI.file('/workspace/test-workspace')));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService());
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -1004,14 +1047,14 @@ suite('CopilotShellTools', () => {
 		const sandboxConfigEntry = [...createdFiles.entries()].find(([path]) => /vscode-sandbox-settings-.*\.json$/.test(path));
 		assert.ok(sandboxConfigEntry, `Expected a sandbox config file to be written. Files: ${[...createdFiles.keys()].join(', ')}`);
 		const config = JSON.parse(sandboxConfigEntry[1]);
-		const readablePaths: string[] = platform.isWindows ? config.filesystem.readonlyPaths : config.filesystem.allowRead;
+		const readablePaths: string[] = config.filesystem.allowRead;
 		assert.ok(Array.isArray(readablePaths), `Expected readable paths array. Got: ${JSON.stringify(config.filesystem)}`);
 		assert.ok(readablePaths.includes(configuredReadPath), `Expected configured read path in readable paths. Got: ${JSON.stringify(readablePaths)}`);
+		const expectedAttachmentPath = URI.from({ scheme: 'inmemory', path: '/session-data/session-1/attachments' }).fsPath;
+		assert.ok(readablePaths.includes(expectedAttachmentPath), `Expected session attachments in readable paths. Got: ${JSON.stringify(readablePaths)}`);
 	});
 
 	test('primary shell tool requests confirmation before rerunning outside the sandbox', async function () {
-		// The Windows sandbox only exposes Off/AllowNetwork — there is no "enabled but network-blocked"
-		// state, so `requiresUnsandboxConfirmation` is unreachable on Windows.
 		if (platform.isWindows) {
 			this.skip();
 		}
@@ -1020,7 +1063,7 @@ suite('CopilotShellTools', () => {
 		// blocked domain is detected — otherwise the engine keeps the command sandboxed.
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
 		terminalManager.commandDetectionSupported = true;
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(), async request => {
 			confirmationRequests.push(request);
@@ -1053,14 +1096,12 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool returns sandbox_blocked when user declines unsandboxed rerun', async function () {
-		// See above: the Windows sandbox never reports blocked domains, so this confirmation flow
-		// is unreachable on Windows.
 		if (platform.isWindows) {
 			this.skip();
 		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(), async () => false);
 		const bashTool = tools.find(tool => tool.name === 'bash');
 		assert.ok(bashTool);
@@ -1080,9 +1121,12 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool asks for confirmation when requestUnsandboxedExecution is explicitly set', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const { instantiationService, terminalManager, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, true);
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(), async request => {
 			confirmationRequests.push(request);
@@ -1116,11 +1160,14 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('primary shell tool returns unsandboxed_disabled when allowUnsandboxedCommands is off', async function () {
+		if (platform.isWindows) {
+			this.skip();
+		}
 		const { instantiationService, terminalManager } = createServices({ sandboxEnabled: true });
 		// `chat.agent.sandbox.allowUnsandboxedCommands` is intentionally not set,
 		// so the engine would silently re-sandbox the command. The shell tool
 		// must surface a dedicated failure instead.
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), TEST_CHAT_URI, URI.parse('copilot:/session-1'), undefined));
 		const confirmationRequests: IUnsandboxedCommandConfirmationRequest[] = [];
 		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(), async request => {
 			confirmationRequests.push(request);

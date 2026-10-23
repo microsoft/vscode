@@ -5,7 +5,9 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
 	CLOUD_SANDBOX_ADDRESS_PREFIX,
 	CLOUD_SANDBOX_AGENT_PROVIDER,
@@ -17,6 +19,8 @@ import {
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
+
+export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot");
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
@@ -37,8 +41,9 @@ function isGitHubResource(resource: string): boolean {
  * The {@link IRemoteAgentHostConnectionCustomization} for a cloud sandbox address, supplying the
  * ways the sandbox host deviates from the generic path:
  *
- *  - **Auth**: the host only accepts a sealed envelope, so the connection's `encrypted_github_token`
- *    is presented instead of the resolved bearer. Fails closed if no sealed token is available.
+ *  - **Auth**: managed sandboxes receive the connection's sealed GitHub token. User-local hosts
+ *    receive an identity-only token sealed at protocol dispatch against a trusted recipient and
+ *    the current connection challenge.
  *  - **Scheme**: the host advertises provider `copilot` but addresses sessions as `ahp-session`.
  *  - **Directory**: prepare an advertised repository checkout before creating a session.
  *
@@ -47,31 +52,44 @@ function isGitHubResource(resource: string): boolean {
 export function createCloudSandboxConnectionCustomization(
 	address: string,
 	sandboxService: ICloudSandboxAgentHostService,
+	userLocal = false,
 ): IRemoteAgentHostConnectionCustomization | undefined {
 	const environmentId = cloudSandboxEnvironmentId(address);
 	if (environmentId === undefined) {
 		return undefined;
 	}
+	const resolveAuthentication = async (resource: string, scopes: readonly string[] | undefined, renew: boolean): Promise<IAgentHostAuthenticateRequest> => {
+		if (!isGitHubResource(resource)) {
+			throw new Error(`Cloud sandbox cannot authenticate the non-GitHub resource '${resource}'.`);
+		}
+		if (userLocal) {
+			return { ...await sandboxService.resolveUserLocalAuthentication(environmentId, resource, renew), scopes };
+		}
+		const sealed = renew
+			? await sandboxService.refreshSealedGitHubToken(environmentId)
+			: sandboxService.getSealedGitHubToken(environmentId);
+		if (!sealed || !isCloudSandboxSealedToken(sealed)) {
+			throw new Error(`No sealed GitHub token is available for cloud sandbox ${address}; refusing to forward a plaintext bearer.`);
+		}
+		return { resource, scopes, token: sealed };
+	};
 	return {
-		authenticate: async (request: IAgentHostAuthenticateRequest): Promise<IAgentHostAuthenticateRequest> => {
-			// Already sealed (e.g. re-sending a cached envelope) — forward as-is.
-			if (isCloudSandboxSealedToken(request.token)) {
+		requiresWorkspaceTrust: false,
+		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
+			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
 			}
-			// The sandbox host only accepts the sealed GitHub token for GitHub resources; there is no
-			// per-resource sealing for other hosts over the sandbox relay today.
-			if (!isGitHubResource(request.resource)) {
-				throw new Error(`Cloud sandbox cannot authenticate the non-GitHub resource '${request.resource}'.`);
+			if (userLocal && (request.target || !isGitHubResource(request.resource))) {
+				return request;
 			}
-			const sealed = sandboxService.getSealedGitHubToken(environmentId);
-			if (!sealed || !isCloudSandboxSealedToken(sealed)) {
-				throw new Error(`No sealed GitHub token is available for cloud sandbox ${address}; refusing to forward a plaintext bearer.`);
-			}
-			return { resource: request.resource, scopes: request.scopes, token: sealed };
+			const authentication = await resolveAuthentication(request.resource, request.scopes, reason === AuthRequiredReason.Expired);
+			return request.target ? { ...authentication, target: request.target } : authentication;
 		},
+		renewAuthentication: userLocal ? undefined : resource => resolveAuthentication(resource.resource, resource.scopes_supported, true),
 		backendSessionScheme: (provider: string): string | undefined =>
-			provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
-		createSessionPreparation: (connection, owner) => {
+			provider === CLOUD_SANDBOX_AGENT_PROVIDER || (userLocal && provider === 'copilotcli') ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
+		retainConsumedSteeringMessages: provider => !userLocal && provider === CLOUD_SANDBOX_AGENT_PROVIDER,
+		createSessionPreparation: userLocal ? undefined : (connection, owner) => {
 			if (!(connection instanceof AgentHostProtocolClient)) {
 				throw new Error('Cloud sandbox session preparation requires a protocol client.');
 			}
@@ -79,8 +97,9 @@ export function createCloudSandboxConnectionCustomization(
 			store.add(Event.once(connection.onDidClose)(() => store.dispose()));
 			return createCloudSandboxSessionPreparation(
 				connection.rootState,
-				(method, params) => connection.sendHostExtensionRequest(method, params),
+				(method, params) => connection.traceRepositoryPreparation('repository.clone', () => connection.sendHostExtensionRequest(method, params)),
 				store,
+				operation => connection.traceRepositoryPreparation('repository.prepare', operation),
 			);
 		},
 	};

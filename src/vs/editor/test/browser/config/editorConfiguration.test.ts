@@ -16,6 +16,11 @@ suite('Common Editor Config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// The editor zoom level is global, so restore it for the tests that run later
+	let zoomLevel: number;
+	setup(() => zoomLevel = EditorZoom.getZoomLevel());
+	teardown(() => EditorZoom.setZoomLevel(zoomLevel));
+
 	test('Zoom Level', () => {
 
 		//Zoom levels are defined to go between -5, 20 inclusive

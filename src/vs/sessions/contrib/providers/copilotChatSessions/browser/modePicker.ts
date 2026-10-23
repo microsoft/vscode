@@ -17,7 +17,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { reportChatModeChange } from '../../../../../workbench/contrib/chat/common/chatModeTelemetry.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -215,8 +215,8 @@ export class ScopedModePickerModelCache extends Disposable {
 
 /**
  * A self-contained widget for selecting a chat mode (Agent, custom agents)
- * for local/Background sessions. Shows only modes whose target matches
- * the Background session type's customAgentTarget.
+ * for a session. Shows only modes whose target matches the session type's
+ * customAgentTarget.
  */
 export class ModePicker extends Disposable {
 
@@ -234,6 +234,7 @@ export class ModePicker extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -265,6 +266,8 @@ export class ModePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.setAttribute('aria-haspopup', 'listbox');
+		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
@@ -273,22 +276,23 @@ export class ModePicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this._showPicker();
+				this.showPicker();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this._showPicker();
+				this.showPicker();
 			}
 		}));
 
 		return slot;
 	}
 
-	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+	showPicker(anchor?: HTMLElement): void {
+		const triggerElement = anchor ?? this._triggerElement;
+		if (!triggerElement || this.actionWidgetService.isVisible) {
 			return;
 		}
 
@@ -296,7 +300,6 @@ export class ModePicker extends Disposable {
 
 		const items = this._buildItems(modes);
 
-		const triggerElement = this._triggerElement;
 		const delegate: IActionListDelegate<ModePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
@@ -313,23 +316,26 @@ export class ModePicker extends Disposable {
 						isPII: true,
 					});
 					const requestCount = activeChat ? this.chatService.getSession(activeChat.resource)?.getRequests().length ?? 0 : 0;
-					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount);
+					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount, getAgentHostProviderForTelemetry(this.session.get()?.sessionType, this.chatSessionsService));
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
 				}
 			},
 			onHide: () => {
+				triggerElement.setAttribute('aria-expanded', 'false');
 				triggerElement.focus();
 			},
 		};
 
+		// Shows the trigger as expanded, and with it the toolbar's open picker background.
+		triggerElement.setAttribute('aria-expanded', 'true');
 		this.actionWidgetService.show<ModePickerItem>(
 			'localModePicker',
 			false,
 			items,
 			delegate,
-			this._triggerElement,
+			triggerElement,
 			undefined,
 			[],
 			{

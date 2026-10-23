@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { $ } from '../../../../../../../base/browser/dom.js';
+import { retry } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -16,6 +18,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -23,20 +26,27 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatProgressContentPart } from '../../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { ChatAutomationConfiguredResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatAutomationConfiguredResultSubPart.js';
-import { ChatSessionCreatedResultSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionCreatedResultSubPart.js';
+import { ChatSessionTargetResultPillSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatSessionTargetResultPillSubPart.js';
 import { ChatToolInvocationPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { BaseChatToolInvocationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationSubPart.js';
 import { ChatToolProgressSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolStreamingSubPart.js';
-import { isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
+import { hasToolInvocationError, isAskQuestionsToolInvocation, isMcpToolInvocation } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
-import { IChatAutomationConfiguredData, IChatSessionCreatedData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatAutomationConfiguredData, IChatSessionTargetData, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { MockChatWidgetService } from '../mockChatWidget.js';
+import '../../../../browser/widget/media/chat.css';
+
+class TestChatProgressContentPart extends ChatProgressContentPart {
+	setActive(active: boolean): void {
+		this.setShimmerActive(active);
+	}
+}
 
 class TestToolInvocationSubPart extends BaseChatToolInvocationSubPart {
 	readonly domNode = mainWindow.document.createElement('div');
@@ -170,6 +180,7 @@ suite('ChatToolProgressSubPart', () => {
 		mockMarkdownRenderer = {
 			render: (markdown: IMarkdownString, _options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown => {
 				const element = outElement ?? mainWindow.document.createElement('div');
+				element.classList.add('rendered-markdown');
 				const content = typeof markdown === 'string' ? markdown : renderAsPlaintext(markdown);
 				element.textContent = content;
 				return {
@@ -351,14 +362,14 @@ suite('ChatToolProgressSubPart', () => {
 			status: { kind: 'pending', label: 'Working' },
 		}, undefined);
 		const part = disposables.add(instantiationService.createInstance(
-			ChatSessionCreatedResultSubPart,
+			ChatSessionTargetResultPillSubPart,
 			createSerializedToolInvocation({ isComplete: true }),
 			{
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://copilot/task-a',
 				label: 'Implement Task A for the current session…',
 				fullTitle: 'Implement Task A for the current session and validate all of its behavior',
-			} satisfies IChatSessionCreatedData,
+			} satisfies IChatSessionTargetData,
 			createRenderContext(),
 			mockMarkdownRenderer,
 		));
@@ -390,6 +401,43 @@ suite('ChatToolProgressSubPart', () => {
 			title: 'Finished weather session',
 			hoverTitle: 'Finished weather session',
 		});
+	});
+
+	test('owns normal and side activation for a session target result pill', () => {
+		const opened: Parameters<IOpenerService['open']>[] = [];
+		instantiationService.stub(IOpenerService, {
+			_serviceBrand: undefined,
+			open: async (...args: Parameters<IOpenerService['open']>) => {
+				opened.push(args);
+				return true;
+			},
+		});
+		const part = disposables.add(instantiationService.createInstance(
+			ChatSessionTargetResultPillSubPart,
+			createSerializedToolInvocation({ isComplete: true }),
+			{
+				kind: 'sessionCreated',
+				openLink: 'agent-host-session://copilot/task-a',
+				label: 'Implement Task A',
+			} satisfies IChatSessionTargetData,
+			createRenderContext(),
+			mockMarkdownRenderer,
+		));
+		const pill = part.domNode.querySelector<HTMLAnchorElement>('a.monaco-link')!;
+
+		pill.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.MouseEvent('click', { altKey: true, bubbles: true, cancelable: true }));
+		pill.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, altKey: true, bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual(opened.map(([resource, options]) => [resource.toString(), options]), [
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: false }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
+			['agent-host-session://copilot/task-a', { fromUserGesture: true, allowContributedOpeners: true, openToSide: true }],
+		]);
 	});
 
 	test('renders codicon syntax in an automation name as literal text', () => {
@@ -470,7 +518,7 @@ suite('ChatToolProgressSubPart', () => {
 			mockConfigurationService,
 			new MockChatWidgetService(),
 		));
-		const sessionIdBeforeUpdate = part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id');
+		const sessionIdBeforeUpdate = part.domNode.querySelector('[data-terminal-tool-session-id]')?.getAttribute('data-terminal-tool-session-id');
 
 		terminalData = { ...terminalData, terminalToolSessionId: 'terminal-session' };
 		state.set({ ...state.get() }, undefined);
@@ -478,7 +526,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.deepStrictEqual({
 			renderCount: createInstanceStub.callCount,
 			sessionIdBeforeUpdate,
-			sessionIdAfterUpdate: part.domNode.firstElementChild?.getAttribute('data-terminal-tool-session-id'),
+			sessionIdAfterUpdate: part.domNode.querySelector('[data-terminal-tool-session-id]')?.getAttribute('data-terminal-tool-session-id'),
 		}, {
 			renderCount: 2,
 			sessionIdBeforeUpdate: '',
@@ -487,6 +535,37 @@ suite('ChatToolProgressSubPart', () => {
 	});
 
 	for (const persistentProgress of [false, true]) {
+		for (const error of ['page.reload: net::ERR_CONNECTION_REFUSED\nCall log:\n  - waiting for navigation', true] as const) {
+			test(`failure changes only the progress icon (persistent: ${persistentProgress}, error: ${error})`, () => {
+				const context = { ...createRenderContext(true), suppressProgressShimmer: persistentProgress };
+				const hover = sinon.spy(mockHoverService, 'setupDelayedHover');
+				try {
+					const tool = createSerializedToolInvocation({ invocationMessage: 'Navigate to the local preview', originMessage: 'Browser' });
+					const render = (tool: IChatToolInvocationSerialized) => disposables.add(instantiationService.createInstance(ChatToolProgressSubPart, tool, context, mockMarkdownRenderer, new Set<string>()));
+					const original = render(tool);
+					const failed = render({ ...tool, resultError: error });
+					const label = failed.domNode.querySelector<HTMLElement>('.progress-step');
+					assert.deepStrictEqual({
+						card: failed.domNode.classList.contains('chat-notification-widget'),
+						icon: !!failed.domNode.querySelector('.codicon-error-compact'),
+						unchangedContent: label?.outerHTML === original.domNode.querySelector('.progress-step')?.outerHTML,
+						label: label?.textContent,
+						focusable: label?.tabIndex,
+						newHover: hover.called,
+					}, {
+						card: false,
+						icon: true,
+						unchangedContent: true,
+						label: 'Navigate to the local previewBrowser',
+						focusable: -1,
+						newHover: false,
+					});
+				} finally {
+					hover.restore();
+				}
+			});
+		}
+
 		test(`renders MCP attribution in running and streaming rows with persistent progress ${persistentProgress ? 'on' : 'off'}`, () => {
 			const originMessage = 'GitHub (MCP Server)';
 			const context = { ...createRenderContext(false), suppressProgressShimmer: persistentProgress };
@@ -518,6 +597,23 @@ suite('ChatToolProgressSubPart', () => {
 			})));
 		});
 	}
+
+	test('recognizes tool failures from result flags and terminal exit codes', () => {
+		const tool = createSerializedToolInvocation();
+		assert.deepStrictEqual({
+			success: hasToolInvocationError(tool),
+			flag: hasToolInvocationError({ ...tool, resultError: true }),
+			details: hasToolInvocationError({ ...tool, resultDetails: { input: '', output: [], isError: true } }),
+			terminal: hasToolInvocationError({
+				...tool, toolSpecificData: { kind: 'terminal', commandLine: { original: 'exit 2' }, language: 'sh', terminalCommandState: { exitCode: 2 } },
+			}),
+		}, {
+			success: false,
+			flag: true,
+			details: true,
+			terminal: true,
+		});
+	});
 
 	test('preserves and escapes the MCP origin when progress messages are updated', () => {
 		const originMessage = 'GitHub **tools** (MCP Server)';
@@ -573,7 +669,7 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.domNode.querySelector('.shimmer-progress'), null);
 	});
 
-	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', () => {
+	test('shimmers only the leading verb of standalone streaming progress, but not inside a thinking part', async () => {
 		const patchPart = disposables.add(instantiationService.createInstance(
 			ChatToolStreamingSubPart,
 			createStreamingToolInvocation('Generating patch (282 lines)'),
@@ -592,6 +688,15 @@ suite('ChatToolProgressSubPart', () => {
 			createRenderContext(false),
 			mockMarkdownRenderer
 		));
+		const host = mainWindow.document.body.appendChild($('.interactive-item-container'));
+		disposables.add(toDisposable(() => host.remove()));
+		host.append(patchPart.domNode, editPart.domNode, thinkingPart.domNode);
+		const shimmerTime = (part: ChatToolStreamingSubPart) => part.domNode.querySelector('.chat-progress-shimmer-text')?.getAnimations()[0]?.currentTime;
+		await retry(async () => {
+			const time = shimmerTime(patchPart);
+			assert.ok(typeof time === 'number' && time > 0 && time === shimmerTime(editPart));
+		}, 10, 100);
+		const sharedTime = shimmerTime(patchPart);
 
 		const inspect = (part: ChatToolStreamingSubPart) => {
 			const shimmerText = part.domNode.querySelector<HTMLElement>('.chat-progress-shimmer-text');
@@ -599,8 +704,7 @@ suite('ChatToolProgressSubPart', () => {
 				shimmer: !!part.domNode.querySelector('.shimmer-progress'),
 				spinner: !!part.domNode.querySelector('.codicon-loading, .codicon-loading-compact'),
 				shimmerText: shimmerText?.textContent,
-				// A negative animation-delay keeps the sweep continuous across streaming rerenders.
-				shimmerPhaseSynced: (shimmerText?.style.animationDelay ?? '').endsWith('ms'),
+				shimmerPhaseSynced: !!shimmerText?.getAnimations().some(animation => animation.currentTime === sharedTime),
 				text: part.domNode.textContent,
 			};
 		};
@@ -614,6 +718,92 @@ suite('ChatToolProgressSubPart', () => {
 			edit: { shimmer: true, spinner: false, shimmerText: 'Editing', shimmerPhaseSynced: true, text: 'Editing 5 lines' },
 			thinking: { shimmer: false, spinner: false, shimmerText: undefined, shimmerPhaseSynced: false, text: 'Generating patch (282 lines)' },
 		});
+	});
+
+	test('pauses clipped progress shimmer and synchronizes replaced, resumed, and remounted messages', async () => {
+		const host = mainWindow.document.body.appendChild($('.interactive-item-container'));
+		host.style.cssText = 'position: fixed; top: 0; left: 0; width: 400px; height: 100px; overflow: hidden;';
+		disposables.add(toDisposable(() => host.remove()));
+		const part = disposables.add(instantiationService.createInstance(
+			TestChatProgressContentPart,
+			{ content: new MarkdownString('Working') },
+			{
+				render: (markdown, options) => {
+					const rendered = renderMarkdown(markdown, options);
+					rendered.element.classList.add('rendered-markdown');
+					return rendered;
+				}
+			},
+			createRenderContext(false),
+			true, true, undefined, undefined, true, undefined,
+		));
+		part.domNode.style.marginTop = '200px';
+		host.appendChild(part.domNode);
+		const animationState = () => part.domNode.getAnimations({ subtree: true }).map(animation => animation.playState);
+		const waitForState = async (state: string[]) => retry(async () => assert.deepStrictEqual(animationState(), state), 10, 100);
+		const animationTime = () => part.domNode.getAnimations({ subtree: true })[0]?.currentTime;
+		const waitForMotion = async () => {
+			const before = animationTime();
+			await retry(async () => {
+				const time = animationTime();
+				assert.ok(typeof time === 'number' && time > 0 && time !== before);
+			}, 10, 100);
+			assert.deepStrictEqual(animationState(), ['paused']);
+		};
+		const states: { step: string; paused: boolean; moving?: boolean }[] = [];
+		const record = (step: string, moving?: boolean) => states.push({
+			step, paused: part.domNode.classList.contains('chat-progress-shimmer-paused'), moving,
+		});
+
+		await waitForState(['paused']);
+		assert.ok(part.domNode.getBoundingClientRect().top > host.getBoundingClientRect().bottom);
+		record('clipped');
+		part.updateMessage(new MarkdownString('Still working'));
+		await waitForState(['paused']);
+		record('replaced while clipped');
+
+		part.domNode.style.marginTop = '0';
+		await waitForMotion();
+		record('revealed', true);
+		const visibleTime = animationTime();
+		await retry(async () => {
+			const time = animationTime();
+			assert.ok(typeof visibleTime === 'number' && typeof time === 'number' && time > visibleTime + 200);
+		}, 10, 100);
+		record('continuously visible', true);
+		part.updateMessage(new MarkdownString('Working again'));
+		await waitForMotion();
+		record('replaced while visible', true);
+
+		host.remove();
+		await retry(async () => assert.ok(part.domNode.classList.contains('chat-progress-shimmer-paused')), 10, 100);
+		await waitForState([]);
+		record('detached');
+		mainWindow.document.body.appendChild(host);
+		await waitForMotion();
+		record('remounted', true);
+
+		part.setActive(false);
+		await waitForState([]);
+		record('inactive');
+		part.setActive(true);
+		await waitForMotion();
+		record('reactivated', true);
+		part.dispose();
+		record('disposed');
+
+		assert.deepStrictEqual(states, [
+			{ step: 'clipped', paused: true, moving: undefined },
+			{ step: 'replaced while clipped', paused: true, moving: undefined },
+			{ step: 'revealed', paused: false, moving: true },
+			{ step: 'continuously visible', paused: false, moving: true },
+			{ step: 'replaced while visible', paused: false, moving: true },
+			{ step: 'detached', paused: true, moving: undefined },
+			{ step: 'remounted', paused: false, moving: true },
+			{ step: 'inactive', paused: false, moving: undefined },
+			{ step: 'reactivated', paused: false, moving: true },
+			{ step: 'disposed', paused: false, moving: undefined },
+		]);
 	});
 
 	test('adds shimmer styling only for active ask questions invocation progress', () => {

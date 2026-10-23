@@ -602,7 +602,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 			for (const session of this.#chatEditingService.editingSessionsObs.read(r)) {
-				if (session.isGlobalEditingSession) {
+				if (session.isGlobalEditingSession.read(r)) {
 					continue;
 				}
 

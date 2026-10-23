@@ -38,6 +38,7 @@ import { TestExtensionService } from '../../../test/common/workbenchTestServices
 import { IMcpServerAuthContext, MainThreadMcp, McpServerAuthTracker } from '../../browser/mainThreadMcp.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails } from '../../common/extHost.protocol.js';
 import { CommonRequestInit, CommonResponse, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { createEnvVarResolver } from '../../../../platform/mcp/common/envVarResolution.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 function createMainThreadMcp(disposables: Pick<DisposableStore, 'add'>, proxy: Partial<ExtHostMcpShape>, registry: IMcpRegistry, configure?: (services: TestInstantiationService) => void): MainThreadMcp {
@@ -58,6 +59,7 @@ function createMainThreadMcp(disposables: Pick<DisposableStore, 'add'>, proxy: P
 	services.stub(IAllowedMcpServersService, {
 		onDidChangeAllowedMcpServers: Event.None,
 		isServerAllowed: () => true,
+		getServerPolicyVariableValues: () => [],
 	});
 	configure?.(services);
 	return disposables.add(services.createInstance(MainThreadMcp, SingleProxyRPCProtocol(proxy)));
@@ -191,6 +193,44 @@ suite('MainThreadMcp - launch', () => {
 		capturedDelegate.start(collection, serverDefinition, launch, {});
 		assert.ok(startOptions?.defaultCwd);
 		assert.strictEqual(URI.revive(startOptions.defaultCwd).toString(), defaultCwd.toString());
+	});
+
+	test('expands environment variables in the extension host only for flagged definitions', async () => {
+		const requests: Parameters<ExtHostMcpShape['$expandEnvironmentVariables']>[] = [];
+		const proxy: Partial<ExtHostMcpShape> = {
+			async $expandEnvironmentVariables(launch, expansion) {
+				requests.push([launch, expansion]);
+				return { ...launch, uri: URI.parse('https://expanded.example/mcp').toJSON(), headers: [['Authorization', 'Bearer expanded']] } as McpServerLaunch.Serialized;
+			},
+			$onDidChangeMcpServerDefinitions() { },
+		};
+
+		let capturedDelegate: IMcpHostDelegate | undefined;
+		const mcpRegistry = new class extends mock<IMcpRegistry>() {
+			override readonly collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
+			override registerDelegate(delegate: IMcpHostDelegate) {
+				capturedDelegate = delegate;
+				return { dispose() { } };
+			}
+		};
+		createMainThreadMcp(disposables, proxy, mcpRegistry);
+		assert.ok(capturedDelegate);
+
+		const url = 'https://${HOST}/mcp';
+		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse(url), headers: [['Authorization', 'Bearer ${TOKEN}']] };
+		const definition: McpServerDefinition = { id: 'server', label: 'Server', launch, cacheNonce: 'nonce' };
+		const unflagged = await capturedDelegate.expandEnvironmentVariables(definition, launch);
+		const expanded = await capturedDelegate.expandEnvironmentVariables({ ...definition, environmentVariableExpansion: { url } }, launch);
+
+		assert.deepStrictEqual({
+			unflaggedIsSame: unflagged === launch,
+			requests: requests.map(([, expansion]) => expansion),
+			expanded: expanded.type === McpServerTransportType.HTTP ? { isUri: URI.isUri(expanded.uri), url: expanded.uri.toString(true), headers: expanded.headers } : undefined,
+		}, {
+			unflaggedIsSame: true,
+			requests: [{ url }],
+			expanded: { isUri: true, url: 'https://expanded.example/mcp', headers: [['Authorization', 'Bearer expanded']] },
+		});
 	});
 });
 
@@ -361,6 +401,7 @@ suite('MainThreadMcp - request policy', () => {
 		denied?: readonly IMcpServerMatcher[];
 		access?: McpAccessValue;
 		destination?: string;
+		env?: Record<string, string>;
 	} = {}) {
 		const configuration = new TestConfigurationService({
 			[mcpAllowedServersConfig]: options.allowed,
@@ -387,6 +428,10 @@ suite('MainThreadMcp - request policy', () => {
 			},
 			$sendMessage() { },
 			$onDidChangeMcpServerDefinitions() { },
+			async $resolveMcpPolicyVariables(values) {
+				const resolve = createEnvVarResolver(options.env, false);
+				return Object.fromEntries(values.map(value => [value, resolve(value)]));
+			},
 		}, registry, services => {
 			services.stub(IConfigurationService, configuration);
 			services.stub(IAllowedMcpServersService, policy);
@@ -448,6 +493,31 @@ suite('MainThreadMcp - request policy', () => {
 	test('requires a URL-allowlisted redirect destination to be separately allowed', async () => {
 		const { fetch, requests } = createConnection({ allowed: [{ serverUrl: initialUrl }] });
 		await assert.rejects(fetch(), /not in the list of servers allowed/);
+		assert.deepStrictEqual(requests, [initialUrl]);
+	});
+
+	test('a name entry cannot bypass a URL entry at the request boundary', async () => {
+		const { fetch, requests } = createConnection({ allowed: [{ serverName: name }, { serverUrl: initialUrl }] });
+		await assert.rejects(fetch(), /not in the list of servers allowed/);
+		assert.deepStrictEqual(requests, [initialUrl]);
+	});
+
+	test('expands URL policies on the connecting host for initial and redirected requests', async () => {
+		const { fetch, requests } = createConnection({
+			allowed: [{ serverUrl: 'https://${INITIAL}/mcp' }, { serverUrl: 'https://${REDIRECTED}/mcp' }],
+			env: { INITIAL: 'allowed.example', REDIRECTED: 'redirected.example' },
+		});
+		await fetch();
+		assert.deepStrictEqual(requests, [initialUrl, redirectedUrl]);
+	});
+
+	test('an expanded URL denial wins over an expanded allow entry', async () => {
+		const { fetch, requests } = createConnection({
+			allowed: [{ serverUrl: 'https://${INITIAL}/mcp' }, { serverUrl: 'https://${REDIRECTED}/mcp' }],
+			denied: [{ serverUrl: 'https://${REDIRECTED}/mcp' }],
+			env: { INITIAL: 'allowed.example', REDIRECTED: 'redirected.example' },
+		});
+		await assert.rejects(fetch(), /blocked by your organization's policy/);
 		assert.deepStrictEqual(requests, [initialUrl]);
 	});
 
