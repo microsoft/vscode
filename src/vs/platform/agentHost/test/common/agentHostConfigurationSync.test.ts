@@ -15,6 +15,8 @@ import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfi
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 import { ArtifactIntegrationsSettingId } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
+import { ChatMoveConfigKey, ChatMoveSettingId } from '../../common/agentHostChatMove.js';
+import product from '../../../product/common/product.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../common/githubPullRequestArtifact.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
@@ -49,6 +51,7 @@ suite('AgentHostConfigurationSync', () => {
 		properties: {
 			...artifactToolsConfigurationProperties,
 			[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
+			[ChatMoveSettingId.Enabled]: { type: 'boolean' as const, default: product.quality !== 'stable', agentHost: { key: ChatMoveConfigKey.Enabled } },
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
 				default: true,
@@ -241,6 +244,21 @@ suite('AgentHostConfigurationSync', () => {
 			explicitlyDisabled: disabledPatch[AgentHostByokModelsEnabledConfigKey],
 		}, {
 			defaultValue: true,
+			explicitlyDisabled: false,
+		});
+	});
+
+	test('mirrors the quality-based Move Chats default to every host while preserving explicit opt-out', () => {
+		const defaults = createConfigurationService({});
+		const disabled = createConfigurationService({ [ChatMoveSettingId.Enabled]: { userValue: false } });
+
+		assert.deepStrictEqual({
+			local: resolveAgentHostConfigurationSyncPatch(defaults, AgentHostConfigurationSyncTarget.Local)[ChatMoveConfigKey.Enabled],
+			remote: resolveAgentHostConfigurationSyncPatch(defaults, AgentHostConfigurationSyncTarget.Remote)[ChatMoveConfigKey.Enabled],
+			explicitlyDisabled: resolveAgentHostConfigurationSyncPatch(disabled, AgentHostConfigurationSyncTarget.Local)[ChatMoveConfigKey.Enabled],
+		}, {
+			local: product.quality !== 'stable',
+			remote: product.quality !== 'stable',
 			explicitlyDisabled: false,
 		});
 	});

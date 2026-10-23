@@ -220,7 +220,7 @@ configurationRegistry.registerConfiguration({
 		[ChatMoveSettingId.Enabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.moveChats.enabled', "Enables moving chats between Agent Host sessions and into new sessions."),
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			agentHost: { key: ChatMoveConfigKey.Enabled },
