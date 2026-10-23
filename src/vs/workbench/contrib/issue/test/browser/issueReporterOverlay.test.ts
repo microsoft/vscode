@@ -925,10 +925,11 @@ suite('IssueReporterOverlay', () => {
 			const message = 'Could not upload test.zip. Try again, or remove this file and attach it on GitHub.';
 			overlay.setAttachmentUploadError(message, raw);
 			const details = container.querySelector<HTMLDetailsElement>('.wizard-attachment-error-details')!;
+			const detailsStyle = mainWindow.getComputedStyle(details.querySelector('pre')!);
 			assert.deepStrictEqual({
 				primary: feedback.textContent, rawInStatus: feedback.textContent?.includes('422'), collapsed: !details.open, hidden: details.hidden,
 				label: details.querySelector('summary')?.textContent, details: details.querySelector('pre')?.textContent,
-				selectable: mainWindow.getComputedStyle(details.querySelector('pre')!).userSelect,
+				selectable: detailsStyle.getPropertyValue('user-select') || detailsStyle.getPropertyValue('-webkit-user-select'),
 			}, { primary: message, rawInStatus: false, collapsed: true, hidden: false, label: 'Technical details', details: raw, selectable: 'text' });
 			overlay.setAttachmentUploadError(undefined);
 			assert.deepStrictEqual({ hidden: details.hidden, details: details.querySelector('pre')?.textContent, primary: feedback.textContent }, { hidden: true, details: '', primary: '' });
