@@ -79,25 +79,38 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 		}
 	});
 
-	test('allows only the admitted workspace-less root without trust', async () => {
+	test('exempts from trust only a scratch folder that is a direct child of the chats folder by canonical path', async () => {
 		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-workspaceless-`);
-		const scratch = join(root, 'scratch');
+		const chats = join(root, 'chats');
+		const scratch = join(chats, 'scratch');
 		const other = join(root, 'other');
-		const scratchModule = join(scratch, '.github', 'extensions', 'preview', 'extension.mjs');
-		const otherModule = join(other, '.github', 'extensions', 'preview', 'extension.mjs');
-		await fs.mkdir(join(scratch, '.github', 'extensions', 'preview'), { recursive: true });
-		await fs.mkdir(join(other, '.github', 'extensions', 'preview'), { recursive: true });
-		await Promise.all([fs.writeFile(scratchModule, ''), fs.writeFile(otherModule, '')]);
+		const linkedScratch = join(chats, 'linked');
+		const outside = join(root, 'outside');
+		const module = (folder: string) => join(folder, '.github', 'extensions', 'preview', 'extension.mjs');
+		for (const folder of [scratch, other, outside]) {
+			await fs.mkdir(join(module(folder), '..'), { recursive: true });
+			await fs.writeFile(module(folder), '');
+		}
+		// A link in the chats folder to a checkout elsewhere, as another client could leave behind.
+		await fs.symlink(outside, linkedScratch, process.platform === 'win32' ? 'junction' : 'dir');
 		const { policy } = createPolicy();
+		const launches = async (folder: string) => !!(await policy.resolveLaunch(module(folder), 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		const scratchFolder = (folder: string) => ({ folder: URI.file(folder), root: URI.file(chats) });
 		try {
-			disposables.add(await policy.acquireAdmission([URI.file(scratch), URI.file(other)], URI.file(scratch)));
+			disposables.add(await policy.acquireAdmission([URI.file(scratch), URI.file(other)], scratchFolder(scratch)));
+			disposables.add(await policy.acquireAdmission([URI.file(linkedScratch)], scratchFolder(linkedScratch)));
+			disposables.add(await policy.acquireAdmission([URI.file(other)], scratchFolder(other)));
 
 			assert.deepStrictEqual({
-				scratch: !!(await policy.resolveLaunch(scratchModule, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch,
-				other: !!(await policy.resolveLaunch(otherModule, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch,
+				scratch: await launches(scratch),
+				otherDirectoryOfTheSameSession: await launches(other),
+				linkEscapingTheChatsFolder: await launches(linkedScratch),
+				notInTheChatsFolder: await launches(other),
 			}, {
 				scratch: true,
-				other: false,
+				otherDirectoryOfTheSameSession: false,
+				linkEscapingTheChatsFolder: false,
+				notInTheChatsFolder: false,
 			});
 		} finally {
 			await fs.rm(root, { recursive: true, force: true });
