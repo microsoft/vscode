@@ -29,6 +29,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHost/browser/agentHostOlderHostCompatibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { IChatSideChatOrigin, IChatSideChatSelection } from '../../../common/chatSideChatService.js';
@@ -83,7 +84,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { saveSandboxPathGrant } from './agentHostSandboxPathGrant.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
@@ -1346,6 +1347,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _clientToolRetainCounts = new Map<string, number>();
 	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
+	private readonly _mcpAuthNotifications = this._register(new DisposableResourceMap<DisposableMap<string, IDisposable>>());
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
@@ -1453,6 +1455,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITextFileService textFileService: ITextFileService,
 		@IComputerUseSetupService private readonly _computerUseSetupService: IComputerUseSetupService,
 		@IChatSessionReviewPreferencesService reviewPreferences: IChatSessionReviewPreferencesService,
@@ -1981,6 +1984,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
+					this._mcpAuthNotifications.deleteAndDispose(sessionResource);
 					this._retainedOutputTerminals.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
@@ -4423,15 +4427,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (routingServers.includes(server.name)) {
 					surfaced.delete(server.id);
 					ownedIds.delete(server.id);
+					this._mcpAuthNotifications.get(opts.sessionResource)?.deleteAndDispose(server.id);
 				}
 			}
 			const currentRunId = ++runId;
 			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth.filter(server => !routingServers.includes(server.name))).then(servers => {
-				if (currentRunId !== runId) {
+				if (currentRunId !== runId || store.isDisposed) {
 					return;
 				}
 				const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
 				const newServers = servers.filter(server => !surfaced.has(server.id));
+				if (this._accessibilityService.isScreenReaderOptimized()) {
+					for (const server of newServers) {
+						surfaced.add(server.id);
+						this._showMcpAuthNotification(opts.sessionResource, server);
+					}
+					return;
+				}
 				if (!newServers.length && (!part || part.isUsed)) {
 					return;
 				}
@@ -4458,6 +4470,40 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
+	private _showMcpAuthNotification(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): void {
+		let notifications = this._mcpAuthNotifications.get(sessionResource);
+		if (!notifications) {
+			notifications = new DisposableMap<string, IDisposable>();
+			this._mcpAuthNotifications.set(sessionResource, notifications);
+		}
+		const liveServer = this._customizationService.getMcpServers(sessionResource).find(candidate => candidate.id === server.id);
+		const label = liveServer ? getMcpServerDisplayLabel(liveServer) : server.name;
+		let authenticating = false;
+		const notification = this._notificationService.prompt(
+			Severity.Info,
+			localize('agentHost.mcpAuthenticationRequired', "The MCP server {0} requires authentication.", label),
+			[{
+				label: localize('agentHost.mcpAuthenticate', "Authenticate"),
+				keepOpen: true,
+				run: async () => {
+					if (authenticating) {
+						return;
+					}
+					authenticating = true;
+					try {
+						if (await this._customizationService.authenticateMcpServer(sessionResource, server.id)) {
+							notification.close();
+						}
+					} finally {
+						authenticating = false;
+					}
+				},
+			}],
+			{ sticky: true },
+		);
+		notifications.set(server.id, toDisposable(() => notification.close()));
+	}
+
 	private _getSurfacedMcpAuthServers(sessionResource: URI): Set<string> {
 		let surfaced = this._surfacedMcpAuthServers.get(sessionResource);
 		if (!surfaced) {
@@ -4468,6 +4514,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _reconcileSurfacedMcpAuthServers(): void {
+		for (const [sessionResource, notifications] of this._mcpAuthNotifications) {
+			const pending = new Set(this._customizationService.getMcpServers(sessionResource)
+				.filter(server => server.enabled && (server.status === McpServerStatus.AuthRequired || server.status === McpServerStatus.Starting))
+				.map(server => server.id));
+			for (const id of notifications.keys()) {
+				if (!pending.has(id)) {
+					notifications.deleteAndDispose(id);
+				}
+			}
+		}
 		for (const [sessionResource, surfaced] of this._surfacedMcpAuthServers) {
 			if (surfaced.size === 0) {
 				continue;
