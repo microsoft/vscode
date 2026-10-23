@@ -73,7 +73,7 @@ Repository sections otherwise behave like workspace sections: they share the use
 
 ### Date grouping
 
-User-created groups remain a contiguous user-managed block. Ungrouped sessions follow in fixed date sections.
+User-created groups and the date sections share a user-managed order below the fixed sections. The date sections keep their fixed relative order and cannot be dragged, while groups default above them and can move between and below them. Ungrouped sessions follow in the date sections.
 
 ### Environment grouping
 

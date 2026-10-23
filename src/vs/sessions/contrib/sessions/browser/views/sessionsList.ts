@@ -3408,6 +3408,8 @@ interface ISessionsListDndDelegate {
 	setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void;
 	/** Where a dragged header lands when dropped on the target in the given quarter of its row, or `undefined` when it can't land there. */
 	getHeaderDrop(header: IDraggedHeader, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined;
+	/** How many rows the element renders: its own row and those of its visible descendants. */
+	getRenderedRowCount(element: SessionListItem): number;
 	/** Move a dragged header to where it lands. */
 	moveHeader(header: IDraggedHeader, drop: SessionHeaderDrop): void;
 	/** Steps the insertion line of a header drop in to the depth where the header lands, or resets it. */
@@ -3583,7 +3585,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		const elements = this.draggedElements(data);
 		const header = this.draggedHeader(elements);
 		if (header) {
-			return this.resolveHeaderDrop(header, target, sector);
+			return this.resolveHeaderDrop(header, target, targetIndex, sector);
 		}
 		if (elements.length > 0 && elements.every(isSessionChatItem)) {
 			// Only the provider orders nested chats: a chat it can't move, or several chats, can't be dropped.
@@ -3613,21 +3615,26 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	/**
 	 * A header lands next to another header, shown by an insertion line, or inside
 	 * a group, shown by highlighting the group's header (and its row, when it is
-	 * the hovered row).
+	 * the hovered row). A header landing after an expanded header lands below
+	 * that header's rows, so the line is drawn below them.
 	 */
-	private resolveHeaderDrop(header: IDraggedHeader, target: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+	private resolveHeaderDrop(header: IDraggedHeader, target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
 		const drop = target && this.delegate.getHeaderDrop(header, target, sector);
-		if (!drop) {
+		if (!target || !drop) {
 			return undefined;
 		}
 		const run = () => this.delegate.moveHeader(header, drop);
+		const insertionFeedback = (position: 'before' | 'after'): ISessionDropFeedback => ({
+			position: toEffectPosition(position),
+			index: position === 'after' && targetIndex !== undefined ? targetIndex + this.delegate.getRenderedRowCount(target) - 1 : undefined,
+		});
 		if (drop.kind === 'topLevel') {
-			return { reaction: toDropReaction({ position: toEffectPosition(drop.position) }), insertionDepth: 0, run };
+			return { reaction: toDropReaction(insertionFeedback(drop.position)), insertionDepth: 0, run };
 		}
 		if (drop.kind === 'subgroup') {
-			return { reaction: toDropReaction({ position: toEffectPosition(drop.placement.position) }), insertionDepth: drop.depth, run };
+			return { reaction: toDropReaction(insertionFeedback(drop.placement.position)), insertionDepth: drop.depth, run };
 		}
-		const isHeaderRow = !!target && isSessionGroupItem(target) && target.group.id === drop.groupId;
+		const isHeaderRow = isSessionGroupItem(target) && target.group.id === drop.groupId;
 		return {
 			reaction: toDropReaction(isHeaderRow ? { position: ListDragOverEffectPosition.Over } : undefined),
 			header: { kind: 'group', id: drop.groupId },
@@ -3822,6 +3829,17 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 function isDateSectionPlacement(placement: SessionListPlacement): boolean {
 	return placement.kind === 'section' && DATE_SECTION_IDS.includes(placement.sectionId);
+}
+
+/**
+ * Puts the date sections of a top-level order back in their fixed relative
+ * order, within the positions they hold. A reorder in another grouping mode
+ * carries them along with the headers they follow, which can swap them.
+ */
+function keepDateSectionOrder(order: readonly string[]): string[] {
+	const dateSectionIds = DATE_SECTION_IDS.filter(id => order.includes(id));
+	let next = 0;
+	return order.map(id => DATE_SECTION_IDS.includes(id) ? dateSectionIds[next++] : id);
 }
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
@@ -4555,6 +4573,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					isHeaderReorderable: element => this.isHeaderReorderable(element),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					getHeaderDrop: (header, target, sector) => this.getHeaderDrop(header, target, sector),
+					getRenderedRowCount: element => this.tree.hasElement(element) ? this.tree.getListRenderCount(element) : 1,
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
@@ -5522,19 +5541,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.hiddenGroupingSections = [];
 		if (grouping === SessionsGrouping.Date) {
-			// Groups form a contiguous, fully user-ordered block right below the
-			// Pinned section. They no longer interleave with the date sections by
-			// recency and never mix into Today/Yesterday/etc. Pinned stays at the
-			// top, Done (archived) stays at the bottom.
-			this._topLevelOrder = topLevelGroupIds;
-			for (const group of topLevelGroups) {
-				renderGroupById(group.id);
-			}
-			for (const section of sections) {
-				if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID || section.id === EXTERNAL_SESSIONS_SECTION_ID) {
-					continue;
+			// Groups and the date sections share one user-managed order right
+			// below Pinned and Chats. The date sections keep their fixed relative
+			// order and never drag; groups default above them and can move between
+			// and below them. Pinned stays at the top, Done (archived) at the bottom.
+			// Date sections stay in the order even while empty so that a group
+			// keeps its place relative to them when they come and go.
+			const resolvedIds = keepDateSectionOrder(this._sessionSectionOrderService.resolveOrder([...topLevelGroupIds, ...DATE_SECTION_IDS]));
+			this._topLevelOrder = resolvedIds;
+			for (const id of resolvedIds) {
+				const groupId = getSessionGroupIdOfSection(id);
+				if (groupId !== undefined) {
+					renderGroupById(groupId);
+				} else {
+					const section = sections.find(s => s.id === id);
+					if (section) {
+						children.push(renderSection(section));
+					}
 				}
-				children.push(renderSection(section));
 			}
 		} else {
 			// Groups and primary grouping sections share one freely-reorderable, user-managed order
@@ -6779,7 +6803,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				: undefined;
 		}
 		if (isSessionSection(target)) {
-			if (!isSessionGroupingSection(target.id) || target.id === header.id) {
+			// Date sections keep their fixed order, but headers can move between and around them.
+			if (!(isSessionGroupingSection(target.id) || DATE_SECTION_IDS.includes(target.id)) || target.id === header.id) {
 				return undefined;
 			}
 			const parentId = this.getSectionParentId(target.id);
@@ -7171,7 +7196,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * list is not visible.
 	 */
 	private liveSectionOrderIds(): Set<string> {
-		const ids = new Set<string>();
+		// The date sections stay ordered while empty or in another grouping mode.
+		const ids = new Set<string>(DATE_SECTION_IDS);
 		for (const group of this._sessionGroupsService.getTree().getSubgroups(undefined)) {
 			ids.add(getSessionGroupSectionId(group.id));
 		}
