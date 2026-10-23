@@ -2146,7 +2146,7 @@ suite('NewChatWidget', () => {
 			id: LOCAL_AGENT_HOST_PROVIDER_ID, label: 'This Computer', supportsQuickChats: true,
 		});
 		const option = getNoWorkspaceOption.call({
-			_environment: constObservable({
+			_environment: constObservable<ISessionCreationEnvironment>({
 				id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [provider.id],
 			}),
 			_useConsolidatedRemoteWorkspaces: constObservable(true),
