@@ -31,8 +31,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IExternalUriOpenerService } from '../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { externalUriOpenersSettingId } from '../../../../workbench/contrib/externalUriOpener/common/configuration.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatInputPills, StandardChatInputPillSources, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
@@ -607,7 +605,6 @@ export class SessionChatInputToolbar extends Disposable {
 			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
 		const pullRequestData = createSessionPullRequestPillData(plainPullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const activityBarPullRequests = createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
-		const gitHubActionsEnabled = observableConfigValue(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false, configurationService);
 		const openerChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			extensionService.onDidChangeExtensions,
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(externalUriOpenersSettingId)),
@@ -617,7 +614,7 @@ export class SessionChatInputToolbar extends Disposable {
 		let supportedOpenerUris = new Set<string>();
 		const activityBarOpeners = derived(this, reader => {
 			openerChanges.read(reader);
-			if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
+			if (!pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
 				supportedOpenerUris.clear();
 				return constObservable<ReadonlySet<string>>(new Set());
 			}
@@ -653,7 +650,7 @@ export class SessionChatInputToolbar extends Disposable {
 		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
 		const editorPaneVisible = observableFromEvent(this, layoutService.onDidChangePartVisibility, () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		this.activityBarActions = derived(this, reader => {
-			if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
+			if (!pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
 				return [];
 			}
 			const chat = this._chat.read(reader);
@@ -672,7 +669,7 @@ export class SessionChatInputToolbar extends Disposable {
 					|| !!editor.resource && refs.some(ref => availableEntries.some(entry => entry.id === (ref.recordedReferenceId ?? ref.uri.toString())) && isEqual(ref.uri, editor.resource)));
 				const checked = editorPaneVisible.read(reader) && matchesEditor(activeEditor.read(reader));
 				const currentEntries = () => {
-					if (this._store.isDisposed || !gitHubActionsEnabled.read(undefined) || !pillsVisible.read(undefined) || this._debugData.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
+					if (this._store.isDisposed || !pillsVisible.read(undefined) || this._debugData.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
 						return [];
 					}
 					const supported = activityBarOpeners.read(undefined).read(undefined);

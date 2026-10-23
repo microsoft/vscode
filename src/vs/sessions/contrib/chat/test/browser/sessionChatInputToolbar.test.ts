@@ -49,7 +49,6 @@ import { IWorkbenchGitHubService } from '../../../../../workbench/services/githu
 import { IExternalUriOpener, IExternalUriOpenerService } from '../../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/externalUriOpener/common/configuration.js';
-import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -72,9 +71,9 @@ import { buildSessionArtifactSections, type ISessionArtifactActions } from '../.
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices(artifactIntegrationsEnabled = false, gitHubActionsEnabled = true) {
+	function createServices(artifactIntegrationsEnabled = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled, [SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING]: gitHubActionsEnabled });
+		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
@@ -110,8 +109,8 @@ suite('SessionChatInputToolbar', () => {
 		return { instantiationService, visibility, configuration };
 	}
 
-	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener'], gitHubActionsEnabled = true) {
-		const services = createServices(false, gitHubActionsEnabled);
+	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener']) {
+		const services = createServices();
 		const { instantiationService } = services;
 		const extensionsChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', extensionsChanged.event);
@@ -307,33 +306,18 @@ suite('SessionChatInputToolbar', () => {
 	}
 
 	for (const kind of [SessionArtifactKind.PullRequest] as const) {
-		test(`activity bar opts ${kind} actions in without changing composer pills`, async () => {
+		test(`activity bar shows supported ${kind} actions by default without changing composer pills`, async () => {
 			let lookups = 0;
-			const { toolbar, configuration, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
+			const { toolbar } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
 				async () => {
 					lookups++;
 					return upcastPartial<IExternalUriOpener>({ id: 'supported' });
-				}, false);
-			const setEnabled = async (enabled: boolean | undefined) => {
-				await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, enabled);
-				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-					affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
-				}));
-				await timeout(0);
-			};
-			await setEnabled(undefined);
-			const before = { actions: toolbar.activityBarActions.get().length, lookups, pill: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label') };
-			await setEnabled(true);
-			const enabled = toolbar.activityBarActions.get().length;
-			const stale = toolbar.activityBarActions.get()[0];
-			await setEnabled(false);
-			await stale.run();
+				});
 			assert.deepStrictEqual({
-				before, enabled, disabled: toolbar.activityBarActions.get().length,
-				composerUnchanged: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label') === before.pill, opened,
+				actions: toolbar.activityBarActions.get().length, lookups,
+				pill: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
 			}, {
-				before: { actions: 0, lookups: 0, pill: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} #1: Item 1` },
-				enabled: 1, disabled: 0, composerUnchanged: true, opened: [],
+				actions: 1, lookups: 1, pill: 'Open Pull Request #1: Item 1',
 			});
 		});
 	}
@@ -411,14 +395,11 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('disabling GitHub activity actions cancels pending checks and ignores late results', async () => {
+	test('hiding AI features cancels pending checks and ignores late results', async () => {
 		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
-		const { toolbar, configuration } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
+		const { toolbar, sentiment } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
-		await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
-		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
-		}));
+		sentiment.set({ hidden: true }, undefined);
 		pending[0].resolve(upcastPartial<IExternalUriOpener>({ id: 'late' }));
 		await timeout(0);
 		assert.deepStrictEqual({
@@ -495,10 +476,10 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	for (const transition of ['switch', 'dispose', 'remove', 'remove-one', 'hide', 'opener', 'disable'] as const) {
+	for (const transition of ['switch', 'dispose', 'remove', 'remove-one', 'hide', 'opener'] as const) {
 		test(`activity bar resolves current references after ${transition}`, async () => {
 			let openerAvailable = true;
-			const { toolbar, session, peer, artifacts, artifact, main, opened, configuration, sentiment, extensionsChanged } = await createGitHubActivityBar(
+			const { toolbar, session, peer, artifacts, artifact, main, opened, sentiment, extensionsChanged } = await createGitHubActivityBar(
 				SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 				async () => openerAvailable ? upcastPartial<IExternalUriOpener>({ id: 'test-opener' }) : undefined,
 			);
@@ -520,11 +501,6 @@ suite('SessionChatInputToolbar', () => {
 				openerAvailable = false;
 				extensionsChanged.fire({ added: [], removed: [] });
 				await timeout(0);
-			} else if (transition === 'disable') {
-				await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
-				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-					affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
-				}));
 			}
 			await selected.run();
 			assert.deepStrictEqual(opened.map(entry => entry.number), transition === 'remove-one' ? [4] : []);

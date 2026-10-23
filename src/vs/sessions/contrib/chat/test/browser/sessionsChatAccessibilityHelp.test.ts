@@ -94,12 +94,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
-				optIn: content.includes('The pull request action is off by default. Enable Show Pull Request Action in the activity bar\'s context menu to show it in the side-pane group.'),
+				automatic: content.includes('The pull request action appears automatically in the side-pane group.'),
 				chatScope: content.includes('Open Pull Request is available for the active chat\'s pull requests when a contributed opener is available for their links.'),
 				reuse: content.includes('The action reveals an already-open matching editor or opens the first supported pull request if none is open.'),
 				checked: content.includes('A checked button means the pull request editor is visible; activating it collapses the side pane. Activate it again to reveal the editor.'),
 				direct: content.includes('The action opens directly, without a dropdown or picker, even with multiple pull requests. Issue actions are not shown in the activity bar; issue pills remain available above the chat input.'),
-			}, { optIn: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
+			}, { automatic: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
 		});
 	}
 
