@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { IRuntimePluginEnablement } from './vscode/runtimePluginEnablement.js';
-export { readRuntimePluginEnablement, withRuntimePluginEnablement } from './vscode/runtimePluginEnablement.js';
+export { getRuntimePluginIdentity, readRuntimePluginEnablement, withRuntimePluginEnablement } from './vscode/runtimePluginEnablement.js';

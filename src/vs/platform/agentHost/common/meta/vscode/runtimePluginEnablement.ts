@@ -19,6 +19,14 @@ export interface IRuntimePluginEnablement {
 	readonly enabled: boolean;
 }
 
+/**
+ * Identifies a plugin the way the runtime's plugin listings do. An empty or
+ * absent `directSourceId` both mean a marketplace plugin, so they share a key.
+ */
+export function getRuntimePluginIdentity(plugin: { readonly name: string; readonly marketplace: string; readonly directSourceId?: string }): string {
+	return JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId || null]);
+}
+
 function isRuntimePluginEnablement(value: unknown): value is IRuntimePluginEnablement {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return false;

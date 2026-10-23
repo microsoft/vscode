@@ -26,8 +26,8 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { readRuntimePluginEnablement } from '../../../../../platform/agentHost/common/meta/runtimePluginEnablement.js';
-import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { getRuntimePluginIdentity, readRuntimePluginEnablement } from '../../../../../platform/agentHost/common/meta/runtimePluginEnablement.js';
+import { ActionType, NotificationType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { localize } from '../../../../../nls.js';
@@ -1163,15 +1163,15 @@ function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPl
 export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 	private readonly _installedPlugins: CopilotCliInstalledPluginsStore;
 	private _refreshScheduler: RunOnceScheduler | undefined;
-	/** Latest session-reported enablement, keyed by {@link getCopilotCliPluginIdentity}. */
-	private readonly _runtimeEnablement = new Map<string, boolean>();
+	/** Current runtime value per {@link getRuntimePluginIdentity} and the session channel that reported it. */
+	private readonly _runtimeEnablement = new Map<string, { readonly enabled: boolean; readonly channel: string }>();
 	/**
 	 * Each session channel's last report. Hosts republish a session's whole `_meta` on unrelated
 	 * updates, so only entries that changed on that channel are fresh runtime values.
 	 */
 	private readonly _reportsByChannel = new Map<string, ReadonlyMap<string, boolean>>();
-	/** Discovered plugin enablement keys, keyed by {@link getCopilotCliPluginIdentity}. */
-	private _discoveredPluginKeys = new Map<string, string>();
+	/** Discovered plugins per {@link getRuntimePluginIdentity}: enablement key and persisted new-session default. */
+	private _discoveredPlugins = new Map<string, { readonly key: string; readonly persistedEnabled: boolean }>();
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -1188,6 +1188,11 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			() => this._refreshScheduler?.schedule(),
 		));
 		this._register(this._agentHostService.onDidAction(envelope => this._onDidAgentHostAction(envelope)));
+		this._register(this._agentHostService.onDidNotification(notification => {
+			if (notification.type === NotificationType.SessionRemoved) {
+				this._applyChannelReport(notification.session, undefined);
+			}
+		}));
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -1202,38 +1207,66 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			return;
 		}
 		const plugins = readRuntimePluginEnablement(envelope.action);
-		if (!plugins) {
+		if (plugins) {
+			this._applyChannelReport(envelope.channel, new Map(plugins.map(plugin => [getRuntimePluginIdentity(plugin), plugin.enabled])));
+		}
+	}
+
+	/** Applies a channel's latest report, or forgets the channel when `report` is `undefined`. */
+	private _applyChannelReport(channel: string, report: ReadonlyMap<string, boolean> | undefined): void {
+		const previous = this._reportsByChannel.get(channel);
+		if (report) {
+			this._reportsByChannel.set(channel, report);
+		} else if (!this._reportsByChannel.delete(channel)) {
 			return;
 		}
-		const previous = this._reportsByChannel.get(envelope.channel);
-		const report = new Map(plugins.map(plugin => [getCopilotCliPluginIdentity(plugin), plugin.enabled]));
-		this._reportsByChannel.set(envelope.channel, report);
 		transaction(tx => {
-			for (const [identity, enabled] of report) {
-				if (previous?.get(identity) === enabled || this._runtimeEnablement.get(identity) === enabled) {
+			for (const [identity, enabled] of report ?? []) {
+				if (previous?.get(identity) === enabled) {
 					continue;
 				}
-				this._runtimeEnablement.set(identity, enabled);
-				const key = this._discoveredPluginKeys.get(identity);
-				if (key !== undefined) {
-					this._enablementModel?.setDefaultEnabled?.(key, enabled, tx);
+				this._runtimeEnablement.set(identity, { enabled, channel });
+				this._applyDefault(identity, tx);
+			}
+			// A plugin dropping out of its reporting session (assignment revoked, uninstalled, or the
+			// session removed) falls back to another session's report or to the persisted default.
+			for (const identity of previous?.keys() ?? []) {
+				if (report?.has(identity) || this._runtimeEnablement.get(identity)?.channel !== channel) {
+					continue;
 				}
+				const fallback = [...this._reportsByChannel].findLast(([, other]) => other.has(identity));
+				if (fallback) {
+					this._runtimeEnablement.set(identity, { enabled: fallback[1].get(identity)!, channel: fallback[0] });
+				} else {
+					this._runtimeEnablement.delete(identity);
+				}
+				this._applyDefault(identity, tx);
 			}
 		});
 	}
 
+	private _applyDefault(identity: string, tx: ITransaction | undefined): void {
+		const discovered = this._discoveredPlugins.get(identity);
+		if (discovered) {
+			this._enablementModel?.setDefaultEnabled?.(discovered.key, this._runtimeEnablement.get(identity)?.enabled ?? discovered.persistedEnabled, tx);
+		}
+	}
+
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
-		const discoveredPluginKeys = new Map<string, string>();
+		const discoveredPlugins = new Map<string, { readonly key: string; readonly persistedEnabled: boolean }>();
+		const appliedDefaults = new Map<string, boolean>();
 		for (const installedPlugin of await this._installedPlugins.getInstalledPlugins()) {
 			try {
 				const stat = await this._fileService.resolve(installedPlugin.uri);
 				if (!stat.isDirectory) {
 					continue;
 				}
-				const identity = getCopilotCliPluginIdentity(installedPlugin);
-				discoveredPluginKeys.set(identity, stat.resource.toString());
-				this._enablementModel.setDefaultEnabled?.(stat.resource.toString(), this._runtimeEnablement.get(identity) ?? installedPlugin.enabled);
+				const identity = getRuntimePluginIdentity(installedPlugin);
+				const enabled = this._runtimeEnablement.get(identity)?.enabled ?? installedPlugin.enabled;
+				discoveredPlugins.set(identity, { key: stat.resource.toString(), persistedEnabled: installedPlugin.enabled });
+				appliedDefaults.set(identity, enabled);
+				this._enablementModel.setDefaultEnabled?.(stat.resource.toString(), enabled);
 				const canUninstall = !!installedPlugin.marketplace || !!installedPlugin.directSourceId;
 				sources.push({
 					uri: stat.resource,
@@ -1260,23 +1293,17 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				continue;
 			}
 		}
-		this._discoveredPluginKeys = discoveredPluginKeys;
-		// A report may have arrived while discovery awaited later plugins, after their default was applied.
+		this._discoveredPlugins = discoveredPlugins;
+		// A report may have arrived or dropped out while discovery awaited later plugins, after their default was applied.
 		transaction(tx => {
-			for (const [identity, key] of discoveredPluginKeys) {
-				const enabled = this._runtimeEnablement.get(identity);
-				if (enabled !== undefined) {
-					this._enablementModel.setDefaultEnabled?.(key, enabled, tx);
+			for (const [identity, { persistedEnabled }] of discoveredPlugins) {
+				if ((this._runtimeEnablement.get(identity)?.enabled ?? persistedEnabled) !== appliedDefaults.get(identity)) {
+					this._applyDefault(identity, tx);
 				}
 			}
 		});
 		return sources;
 	}
-}
-
-/** Identifies a Copilot CLI plugin the way the runtime's plugin listings do. */
-function getCopilotCliPluginIdentity(plugin: { readonly name: string; readonly marketplace: string; readonly directSourceId?: string }): string {
-	return JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId ?? null]);
 }
 
 // ---------------------------------------------------------------------------

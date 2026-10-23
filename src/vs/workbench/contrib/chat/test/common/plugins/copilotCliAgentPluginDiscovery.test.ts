@@ -21,7 +21,7 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostService, type IAgentPluginUninstallRequest } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withRuntimePluginEnablement, type IRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/runtimePluginEnablement.js';
-import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService, TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -82,6 +82,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 
 	let fileService: FileService;
 	let onDidAction: Emitter<ActionEnvelope>;
+	let onDidNotification: Emitter<INotification>;
 
 	setup(() => {
 		removedEnablement.length = 0;
@@ -91,6 +92,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 		onDidAction = store.add(new Emitter<ActionEnvelope>());
+		onDidNotification = store.add(new Emitter<INotification>());
 	});
 
 	teardown(() => {
@@ -115,15 +117,21 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			new TestContextService(testWorkspace(workspaceRoot)),
 			uninstallSupported ? new class extends mock<IAgentHostService>() {
 				override readonly onDidAction = onDidAction.event;
+				override readonly onDidNotification = onDidNotification.event;
 				override async uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
 					uninstallCalls.push({ provider, request });
 				}
 			}() : new class extends mock<IAgentHostService>() {
 				override readonly onDidAction = onDidAction.event;
+				override readonly onDidNotification = onDidNotification.event;
 			}(),
 		));
 		discovery.setEnablementModel(model);
 		return discovery;
+	}
+
+	function removeSession(session: string): void {
+		onDidNotification.fire({ type: NotificationType.SessionRemoved, channel: 'ahp-root://', session });
 	}
 
 	function reportRuntimePlugins(plugins: readonly IRuntimePluginEnablement[], rejectionReason?: string, channel = 'copilotcli:/session'): void {
@@ -366,6 +374,70 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			}, {
 				duringDiscovery: ContributionEnablementState.DisabledProfile,
 				afterDiscovery: ContributionEnablementState.EnabledProfile,
+			});
+		});
+
+		test('reverts to the persisted default when a plugin drops out of its report, unless another session still reports it', async () => {
+			const { discovery, model } = await setupTeamDefault();
+			await discovery.discoverPluginSources();
+			const states: Record<string, ContributionEnablementState> = {};
+			const evalPlugin = { name: 'eval', marketplace: 'github-copilot-evals', enabled: true };
+
+			reportRuntimePlugins([evalPlugin], undefined, 'copilotcli:/session-a');
+			reportRuntimePlugins([evalPlugin], undefined, 'copilotcli:/session-b');
+			// Session B's runtime drops the plugin, for example after its team assignment is revoked.
+			reportRuntimePlugins([], undefined, 'copilotcli:/session-b');
+			states.stillReportedByA = model.readEnabled(teamPlugin.toString());
+			reportRuntimePlugins([], undefined, 'copilotcli:/session-a');
+			states.droppedEverywhere = model.readEnabled(teamPlugin.toString());
+			await discovery.discoverPluginSources();
+			states.afterRediscovery = model.readEnabled(teamPlugin.toString());
+
+			assert.deepStrictEqual(states, {
+				stillReportedByA: ContributionEnablementState.EnabledProfile,
+				droppedEverywhere: ContributionEnablementState.DisabledProfile,
+				afterRediscovery: ContributionEnablementState.DisabledProfile,
+			});
+		});
+
+		test('forgets a removed session\'s report', async () => {
+			const { discovery, model } = await setupTeamDefault();
+			await discovery.discoverPluginSources();
+
+			reportRuntimePlugins([{ name: 'eval', marketplace: 'github-copilot-evals', enabled: true }], undefined, 'copilotcli:/session-a');
+			const reported = model.readEnabled(teamPlugin.toString());
+			removeSession('copilotcli:/session-a');
+			const afterRemoval = model.readEnabled(teamPlugin.toString());
+			// A later report from a new session is not mistaken for a replay of the removed one.
+			reportRuntimePlugins([{ name: 'eval', marketplace: 'github-copilot-evals', enabled: true }], undefined, 'copilotcli:/session-a');
+
+			assert.deepStrictEqual({ reported, afterRemoval, reportedAgain: model.readEnabled(teamPlugin.toString()) }, {
+				reported: ContributionEnablementState.EnabledProfile,
+				afterRemoval: ContributionEnablementState.DisabledProfile,
+				reportedAgain: ContributionEnablementState.EnabledProfile,
+			});
+		});
+
+		test('matches direct-source plugins by source identity', async () => {
+			const mainPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-main');
+			const nextPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-next');
+			await writePlugin(mainPlugin, 'spark');
+			await writePlugin(nextPlugin, 'spark');
+			await writeInstalledPlugins([
+				{ name: 'spark', marketplace: '', uri: mainPlugin, enabled: false, source: { source: 'github', repo: 'owner/repo', ref: 'main' } },
+				{ name: 'spark', marketplace: '', uri: nextPlugin, enabled: false, source: { source: 'github', repo: 'owner/repo', ref: 'next' } },
+			]);
+			const model = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+			await createDiscovery(true, model).discoverPluginSources();
+
+			reportRuntimePlugins([{ name: 'spark', marketplace: '', directSourceId: 'b28f37595143df611741ca53f1d7e05eb85b133a1307f8a3a44cb383649d6ab2', enabled: true }]);
+
+			assert.deepStrictEqual({
+				main: model.readEnabled(mainPlugin.toString()),
+				next: model.readEnabled(nextPlugin.toString()),
+			}, {
+				main: ContributionEnablementState.EnabledProfile,
+				next: ContributionEnablementState.DisabledProfile,
 			});
 		});
 	});
