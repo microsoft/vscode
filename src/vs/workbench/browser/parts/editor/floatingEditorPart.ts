@@ -105,8 +105,7 @@ export class FloatingEditorPart {
 
 		if (options.titleMenu) {
 			disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, append(actionsContainer, $('.floating-editor-title-menu')), options.titleMenu, {
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				highlightToggledItems: true,
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			}));
 		}
 		const closeActionBar = disposables.add(new ActionBar(append(actionsContainer, $('.floating-editor-close'))));

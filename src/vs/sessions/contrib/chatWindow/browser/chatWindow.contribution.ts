@@ -90,6 +90,7 @@ for (const choice of chatWindowLayoutChoices) {
 
 // One Layout button, in the title bar of a chat window of its own and in the header of a docked one, opens a menu of
 // what the chat window shows (the chat, the editor), how the two are arranged together, and where the window shows.
+// Each of its actions also has a button there, hidden until the user shows it from the context menu of the buttons.
 const ChatWindowLayoutMenuGroup = {
 	panes: '1_panes',
 	arrangement: '2_arrangement',
@@ -98,13 +99,21 @@ const ChatWindowLayoutMenuGroup = {
 
 const chatWindowLayoutMenu = { submenu: Menus.ChatWindowLayout, title: localize2('chatWindowLayout', "Layout"), icon: Codicon.layout, group: 'navigation' };
 const ChatWindowHasLayoutMenuContext = ContextKeyExpr.or(ChatWindowHasEditorContext, ChatWindowDockableContext);
-MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.titleBar.layout, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate(), ChatWindowHasLayoutMenuContext) });
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.header.layout, when: ContextKeyExpr.and(ChatWindowDockedContext, ChatWindowHasLayoutMenuContext) });
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.layout, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate(), ChatWindowHasLayoutMenuContext) });
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.layout, when: ContextKeyExpr.and(ChatWindowDockedContext, ChatWindowHasLayoutMenuContext) });
+
+/** Where the button of a layout action shows: in the title bar of a chat window of its own, or the header of a docked one. */
+const chatWindowLayoutButtonMenus = [
+	{ menu: Menus.ChatWindowTitleBar, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate())! },
+	{ menu: Menus.ChatWindowTitle, when: ChatWindowDockedContext },
+] as const;
 
 /** A pane of a chat window that can be shown or hidden: the chat, or the editor. One of them always shows. */
 interface IChatWindowPaneToggle {
 	readonly id: string;
 	readonly title: ILocalizedString;
+	/** Its button, which swaps its icon rather than showing a check, as the main window's side bar toggle does. */
+	readonly button: { readonly title: ILocalizedString; readonly hideTooltip: string; readonly icon: ThemeIcon; readonly shownIcon: ThemeIcon };
 	/** The layout that shows only this pane: it cannot be hidden there, as the other pane is hidden. */
 	readonly aloneLayout: ChatWindowLayout;
 	/** The layout that hides this pane. */
@@ -115,18 +124,23 @@ interface IChatWindowPaneToggle {
 const chatWindowPaneToggles: readonly IChatWindowPaneToggle[] = [{
 	id: 'sessions.chatWindow.toggleChat',
 	title: localize2('chatWindowShowChat', "Show Chat"),
+	button: { title: localize2('chatWindowToggleChat', "Toggle Chat"), hideTooltip: localize('chatWindowHideChat', "Hide Chat"), icon: Codicon.layoutSidebarLeftOff, shownIcon: Codicon.layoutSidebarLeft },
 	aloneLayout: ChatWindowLayout.ChatOnly,
 	hiddenLayout: ChatWindowLayout.EditorOnly,
 	order: 1,
 }, {
 	id: 'sessions.chatWindow.toggleEditor',
 	title: localize2('chatWindowShowEditor', "Show Editor"),
+	button: { title: localize2('chatWindowToggleEditor', "Toggle Editor"), hideTooltip: localize('chatWindowHideEditor', "Hide Editor"), icon: Codicon.layoutSidebarRightOff, shownIcon: Codicon.layoutSidebarRight },
 	aloneLayout: ChatWindowLayout.EditorOnly,
 	hiddenLayout: ChatWindowLayout.ChatOnly,
 	order: 2,
 }];
 
 for (const toggle of chatWindowPaneToggles) {
+	const shown = ChatWindowLayoutContext.notEqualsTo(toggle.hiddenLayout);
+	// Shown alone, it cannot be hidden: show the other pane instead.
+	const precondition = ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowLayoutContext.notEqualsTo(toggle.aloneLayout));
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -134,9 +148,8 @@ for (const toggle of chatWindowPaneToggles) {
 				title: toggle.title,
 				category: SessionsCategories.Sessions,
 				f1: true,
-				toggled: ChatWindowLayoutContext.notEqualsTo(toggle.hiddenLayout),
-				// Shown alone, it cannot be hidden: show the other pane instead.
-				precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowLayoutContext.notEqualsTo(toggle.aloneLayout)),
+				toggled: shown,
+				precondition,
 				menu: [{
 					id: Menus.ChatWindowLayout,
 					group: ChatWindowLayoutMenuGroup.panes,
@@ -155,6 +168,22 @@ for (const toggle of chatWindowPaneToggles) {
 			window.setLayout(window.layout.get() === toggle.hiddenLayout ? window.splitLayout.get() : toggle.hiddenLayout);
 		}
 	});
+	for (const { menu, when } of chatWindowLayoutButtonMenus) {
+		MenuRegistry.appendMenuItem(menu, {
+			command: {
+				id: toggle.id,
+				title: toggle.button.title,
+				tooltip: toggle.title.value,
+				icon: toggle.button.icon,
+				toggled: { condition: shown, icon: toggle.button.shownIcon, tooltip: toggle.button.hideTooltip },
+				precondition,
+			},
+			group: 'navigation',
+			order: ChatWindowMenuOrder.layoutActions + toggle.order,
+			when: ContextKeyExpr.and(when, ChatWindowHasEditorContext),
+			isHiddenByDefault: true,
+		});
+	}
 }
 
 // How the chat and the editor show together, in a chat window of its own: docked, the editor always shows above the
@@ -164,6 +193,7 @@ const chatWindowArrangements = [
 	{ layout: ChatWindowLayout.EditorAboveChat, title: localize2('chatWindowEditorAboveChat', "Editor Above Chat") },
 	{ layout: ChatWindowLayout.SideBySide, title: localize2('chatWindowSideBySide', "Chat and Editor Side by Side") },
 ] as const;
+const chatWindowArrangementButtonsOrder = ChatWindowMenuOrder.layoutActions + chatWindowPaneToggles.length + 1;
 for (const [index, arrangement] of chatWindowArrangements.entries()) {
 	const choice = chatWindowLayoutChoices.find(candidate => candidate.layout === arrangement.layout)!;
 	MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
@@ -171,6 +201,14 @@ for (const [index, arrangement] of chatWindowArrangements.entries()) {
 		group: ChatWindowLayoutMenuGroup.arrangement,
 		order: index,
 		when: ContextKeyExpr.and(ChatWindowHasEditorContext, ChatWindowDockedContext.negate()),
+	});
+	// Its button is disabled while the chat and the editor show as it arranges them.
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, {
+		command: { id: choice.id, title: arrangement.title, icon: choice.icon, precondition: ContextKeyExpr.and(ChatWindowBothShownContext, ChatWindowLayoutContext.notEqualsTo(arrangement.layout)) },
+		group: 'navigation',
+		order: chatWindowArrangementButtonsOrder + index,
+		when: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowDockedContext.negate()),
+		isHiddenByDefault: true,
 	});
 }
 
@@ -204,6 +242,21 @@ MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to a Separate Window") },
 	group: ChatWindowLayoutMenuGroup.window,
 	when: ChatWindowDockedContext,
+});
+const chatWindowDockButtonOrder = chatWindowArrangementButtonsOrder + chatWindowArrangements.length;
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, {
+	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock in Main Window"), icon: Codicon.layoutSidebarRightDock },
+	group: 'navigation',
+	order: chatWindowDockButtonOrder,
+	when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext.negate()),
+	isHiddenByDefault: true,
+});
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, {
+	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to a Separate Window"), icon: Codicon.openInWindow },
+	group: 'navigation',
+	order: chatWindowDockButtonOrder,
+	when: ChatWindowDockedContext,
+	isHiddenByDefault: true,
 });
 
 // The keyboard's way to do what dragging the chat all the way down below the editor, or back up, does.

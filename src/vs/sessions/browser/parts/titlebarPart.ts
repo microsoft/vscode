@@ -287,6 +287,15 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// Chat window actions toolbar (before right toolbar), whose buttons the user can show or hide
+		const chatWindowActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
+		const chatWindowActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowActionsContainer, Menus.ChatWindowTitleBar, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			telemetrySource: 'titlePart.chatWindow',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
 		// Session title actions toolbar (before right toolbar)
 		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
 		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
@@ -313,6 +322,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
+		this.registerOverflowManagedToolBar(chatWindowActionsContainer, chatWindowActionsToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
 
 		// Context menu on the titlebar

@@ -162,6 +162,11 @@
 	margin-left: 4px;
 }
 
+/* The chat window actions continue the right layout actions, spaced as within a toolbar. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-chat-window-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
+	margin-left: 1px;
+}
+
 /* Toggled action buttons in session actions toolbar */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
 	background: var(--vscode-toolbar-activeBackground);

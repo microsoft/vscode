@@ -55,11 +55,11 @@ function notifyUnavailable(notificationService: INotificationService): void {
 	notificationService.info(localize('chatpad.unavailable', "The Chatpad is not available. It requires an agent host that provides one."));
 }
 
-/** Where the Clear action shows: before the chat window's Layout and Dock. */
-const CHATPAD_CLEAR_ORDER = { titleBar: ChatWindowMenuOrder.titleBar.layout - 1, header: ChatWindowMenuOrder.header.layout - 1 };
+/** Where the Clear action shows: first among the chat window's actions. */
+const CHATPAD_CLEAR_ORDER = ChatWindowMenuOrder.kind;
 
-/** Where the action that switches the editor of the note shows: after Clear, before Layout. */
-const CHATPAD_NOTE_EDITOR_ORDER = { titleBar: ChatWindowMenuOrder.titleBar.layout - 0.5, header: ChatWindowMenuOrder.header.layout - 0.5 };
+/** Where the action that switches the editor of the note shows: after Clear, before the chat window's layout actions. */
+const CHATPAD_NOTE_EDITOR_ORDER = ChatWindowMenuOrder.kind + 1;
 
 registerAction2(class OpenChatpadAction extends Action2 {
 	constructor() {
@@ -99,14 +99,14 @@ registerAction2(class ClearChatpadAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext),
 			menu: [{
-				id: Menus.TitleBarRightLayout,
+				id: Menus.ChatWindowTitleBar,
 				group: 'navigation',
-				order: CHATPAD_CLEAR_ORDER.titleBar,
+				order: CHATPAD_CLEAR_ORDER,
 				when: ChatpadWindowContext,
 			}, {
 				id: Menus.ChatWindowTitle,
 				group: 'navigation',
-				order: CHATPAD_CLEAR_ORDER.header,
+				order: CHATPAD_CLEAR_ORDER,
 				when: ChatpadWindowContext,
 			}],
 		});
@@ -192,16 +192,16 @@ for (const [asText, title, icon] of [
 	[true, localize2('openChatpadNoteInMarkdownEditor', "Open Note in Markdown Editor"), Codicon.markdown],
 ] as const) {
 	const when = asText ? ChatpadNoteAsTextContext : ChatpadNoteAsTextContext.negate();
-	MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, {
 		command: { id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID, title, icon },
 		group: 'navigation',
-		order: CHATPAD_NOTE_EDITOR_ORDER.titleBar,
+		order: CHATPAD_NOTE_EDITOR_ORDER,
 		when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext, when),
 	});
 	MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, {
 		command: { id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID, title, icon },
 		group: 'navigation',
-		order: CHATPAD_NOTE_EDITOR_ORDER.header,
+		order: CHATPAD_NOTE_EDITOR_ORDER,
 		when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext, when),
 	});
 }

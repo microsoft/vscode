@@ -31,6 +31,12 @@ export const Menus = {
 	BlockedSessionsHeader: new MenuId('SessionsBlockedSessionsHeader'),
 	BlockedSessionsItem: new MenuId('SessionsBlockedSessionsItem'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
+	/**
+	 * The actions of a chat window of its own, in its title bar before Toggle Always on Top. Their buttons can be shown
+	 * or hidden from the context menu of the title bar's actions.
+	 */
+	ChatWindowTitleBar: new MenuId('SessionsChatWindowTitleBar'),
+	/** The actions in the header of a docked chat window, before its Close button. They can be shown or hidden too. */
 	ChatWindowTitle: new MenuId('SessionsChatWindowTitle'),
 	ChatWindowLayout: new MenuId('SessionsChatWindowLayout'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
