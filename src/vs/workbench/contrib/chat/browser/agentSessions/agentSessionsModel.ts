@@ -18,6 +18,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -30,7 +31,7 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { dedupeMigratedCopilotCliSessions } from '../copilotCliEventsUri.js';
+import { dedupeMigratedCopilotCliSessions, legacyCopilotCliResource } from '../copilotCliEventsUri.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -883,11 +884,27 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * session's current resource. Adopts the legacy entry forward (copies it onto
 	 * the current resource key and removes the legacy entry). Returns undefined if
 	 * neither a current nor a legacy entry exists.
+	 *
+	 * A migrated Copilot CLI session (`copilotcli:` → `agent-host-copilotcli:`)
+	 * changes scheme, so it inherits the pin and the stored read date: the local
+	 * store owns the pin, and the read date feeds the one-time hand-off of read
+	 * state to the agent host. Archived state is owned by the agent host. The
+	 * legacy entry is kept so the legacy row keeps its state if migration is
+	 * turned off again.
 	 */
 	private resolveStateEntry(session: IInternalAgentSessionData): IAgentSessionState | undefined {
 		const own = this.sessionStates.get(session.resource);
 		if (own !== undefined) {
 			return own;
+		}
+		const migratedFrom = legacyCopilotCliResource(session.resource);
+		const migratedState = migratedFrom ? this.sessionStates.get(migratedFrom) : undefined;
+		if (migratedState && (migratedState.pinned || migratedState.read !== undefined)) {
+			this.sessionStates.set(session.resource, {
+				...(migratedState.pinned ? { pinned: true } : {}),
+				...(migratedState.read !== undefined ? { read: migratedState.read } : {}),
+			});
+			return this.sessionStates.get(session.resource);
 		}
 		const legacy = session.legacyResource;
 		if (!legacy) {
@@ -1059,7 +1076,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * One-time hand-off of locally-tracked read state to providers that own it,
 	 * so sessions read before the provider took ownership don't all resurface as
 	 * unread. Only ever promotes to read, and runs at most once per session so a
-	 * later "Mark as Unread" is not undone on the next refresh.
+	 * later "Mark as Unread" is not undone on the next refresh. The one exception
+	 * is an un-opened migrated Copilot CLI session the user explicitly marked
+	 * unread in the legacy list (see {@link isUnopenedMigratedCopilotCliMarkedUnread}).
 	 *
 	 * The ledger is application-scoped even though the local state it hands off
 	 * is per-workspace: the provider-owned state it writes to is global, so a
@@ -1084,6 +1103,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			changed = true;
 
 			if (session.providerIsRead) {
+				if (this.isUnopenedMigratedCopilotCliMarkedUnread(session)) {
+					this.setRead(session, false);
+				}
 				continue; // already read on the backend — nothing to hand off
 			}
 
@@ -1104,6 +1126,21 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				StorageScope.APPLICATION,
 				StorageTarget.MACHINE);
 		}
+	}
+
+	/**
+	 * Whether a migrated Copilot CLI session the user explicitly marked unread
+	 * in the legacy list is still un-opened in the agent host. Until it is
+	 * opened, the host's read state is only the default it announces legacy
+	 * rows with, so the explicit unread mark is newer and must win; once it is
+	 * opened, the host's state is newer and is respected.
+	 */
+	private isUnopenedMigratedCopilotCliMarkedUnread(session: IInternalAgentSessionData): boolean {
+		if (session.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] !== true) {
+			return false;
+		}
+		const migratedFrom = legacyCopilotCliResource(session.resource);
+		return !!migratedFrom && this.sessionStates.get(migratedFrom)?.read === AgentSessionsModel.UNREAD_MARKER;
 	}
 
 	private loadMigratedReadResources(): void {

@@ -855,6 +855,7 @@ class TestCopilotClient implements ITestCopilotClient {
 						startTime: session.startTime.toISOString(),
 						modifiedTime: session.modifiedTime.toISOString(),
 						summary: session.summary,
+						...(session.name !== undefined ? { name: session.name } : {}),
 						clientName: session.clientName,
 						isRemote: false,
 						...(session.context ? {
@@ -18211,6 +18212,51 @@ suite('CopilotAgent', () => {
 					{ id: 'ehcli-archived', external: false, adoptable: true, archived: true },
 				]);
 			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('titles a legacy chat by its CLI name, then its staged custom title, then the SDK summary', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/legacy-title-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/legacy-title-discovery-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([
+				{ ...sdkSession('ehcli-named', workingDirectory), name: 'Renamed In VS Code' },
+				sdkSession('ehcli-staged', workingDirectory),
+				sdkSession('ehcli-plain', workingDirectory),
+			]);
+			await writeExtensionHostMarker(userHome, 'ehcli-named', { origin: 'vscode', customTitle: 'Staged Title' });
+			await writeExtensionHostMarker(userHome, 'ehcli-staged', { origin: 'vscode', customTitle: 'Staged Title' });
+			await writeExtensionHostMarker(userHome, 'ehcli-plain');
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				userHome,
+				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
+			});
+			const discovered: IAgentDiscoveredChat[] = [];
+			const listener = agent.onDidDiscoverChats(chats => discovered.push(...chats));
+			try {
+				await agent.startChatDiscovery();
+				const staged = AgentSession.uri('copilotcli', 'ehcli-staged');
+				const stagedChat = defaultChatUri(staged);
+				const stagedMetadata = await agent.getChatMetadata(stagedChat, exactChatContext(staged, stagedChat, staged));
+
+				assert.deepStrictEqual({
+					discovered: discovered.map(chat => ({ id: sessionIdOfChat(chat.chat), summary: chat.summary })).sort((a, b) => a.id.localeCompare(b.id)),
+					metadata: stagedMetadata?.summary,
+				}, {
+					discovered: [
+						{ id: 'ehcli-named', summary: 'Renamed In VS Code' },
+						{ id: 'ehcli-plain', summary: 'SDK ehcli-plain' },
+						{ id: 'ehcli-staged', summary: 'Staged Title' },
+					],
+					metadata: 'Staged Title',
+				});
+			} finally {
+				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await fs.rm(workingDirectory, { recursive: true, force: true });
 				await disposeAgent(agent);
