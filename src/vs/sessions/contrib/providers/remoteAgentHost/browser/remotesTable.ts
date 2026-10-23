@@ -5,13 +5,13 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IHoverOptions, IHoverWidget } from '../../../../../base/browser/ui/hover/hover.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
@@ -86,6 +86,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 	constructor(
 		private readonly column: RemoteColumn,
 		private readonly onAction: (entry: RemoteTableEntry, action: RemoteRowAction) => void,
+		private readonly focusTable: () => void,
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
@@ -212,9 +213,32 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template.info.hidden = !explanation;
 				if (explanation) {
 					template.info.setAttribute('aria-label', explanation);
-					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.info, {
+					const hover = template.elementDisposables.add(new MutableDisposable<IHoverWidget>());
+					// Disposing the hover first restores its keyboard focus to the info icon.
+					template.elementDisposables.add(toDisposable(() => {
+						if (dom.isAncestorOfActiveElement(template.info)) {
+							this.focusTable();
+						}
+					}));
+					const options: IHoverOptions = {
+						id: generateUuid(), target: template.info,
 						content: explanation, style: HoverStyle.Pointer, trapFocus: true,
-					}, { groupId: this.hoverGroupId, setupKeyboardEvents: true }));
+					};
+					template.elementDisposables.add(dom.addDisposableListener(template.info, dom.EventType.MOUSE_OVER, () => {
+						const widget = this.hoverService.showDelayedHover(options, { groupId: this.hoverGroupId });
+						if (widget) {
+							hover.value = widget;
+						}
+					}));
+					template.elementDisposables.add(dom.addDisposableListener(template.info, dom.EventType.KEY_DOWN, event => {
+						const keyboardEvent = new StandardKeyboardEvent(event);
+						if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
+							keyboardEvent.preventDefault();
+							keyboardEvent.stopPropagation();
+							hover.clear();
+							hover.value = this.hoverService.showInstantHover(options, true);
+						}
+					}));
 				} else {
 					template.info.removeAttribute('aria-label');
 				}

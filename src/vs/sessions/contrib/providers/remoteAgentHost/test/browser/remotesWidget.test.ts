@@ -13,7 +13,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -71,7 +73,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWidget(operatingSystem = OperatingSystem.Macintosh) {
+	function createWidget(operatingSystem = OperatingSystem.Macintosh, realHovers = false) {
 		const parent = dom.append(document.body, dom.$('div'));
 		parent.style.width = '700px';
 		parent.style.height = '640px';
@@ -79,7 +81,7 @@ suite('RemotesWidget', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
-		const hoverOptions = new Map<HTMLElement, { keyboard: boolean; trapFocus: boolean }>();
+		const hoverOptions = new Map<HTMLElement, { focus: boolean; trapFocus: boolean }>();
 		const opened: { input: IResourceEditorInput; group: PreferredGroup | undefined }[] = [];
 		const documentation: string[] = [];
 		const settings: Parameters<IPreferencesService['openSettings']>[0][] = [];
@@ -98,7 +100,10 @@ suite('RemotesWidget', () => {
 		instantiationService.stub(IOpenerService, { open: async resource => { documentation.push(resource.toString()); return true; } });
 		instantiationService.stub(IPreferencesService, { openSettings: async options => { settings.push(options); return undefined; } });
 		instantiationService.stub(INotificationService, 'error', (error: Parameters<INotificationService['error']>[0]) => { errors.push(error); });
-		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
+		const hoverService = realHovers ? (() => {
+			instantiationService.stub(ILayoutService, { getContainer: () => parent });
+			return store.add(instantiationService.createInstance(HoverService));
+		})() : new class extends mock<IHoverService>() {
 			override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>) {
 				return NullHoverService.setupManagedHover(...args);
 			}
@@ -107,17 +112,35 @@ suite('RemotesWidget', () => {
 				if (typeof options.content === 'string') {
 					hoverContents.set(args[0], options.content);
 				}
-				hoverOptions.set(args[0], { keyboard: args[2]?.setupKeyboardEvents === true, trapFocus: options.trapFocus === true });
 				return toDisposable(() => {
 					hoverContents.delete(args[0]);
-					hoverOptions.delete(args[0]);
 				});
 			}
-		}());
+			override showDelayedHover(options: Parameters<IHoverService['showDelayedHover']>[0]) {
+				return this.showInstantHover(options);
+			}
+			override showInstantHover(options: Parameters<IHoverService['showInstantHover']>[0], focus = false) {
+				const target = options.target;
+				assert.ok(dom.isHTMLElement(target));
+				assert.ok(typeof options.content === 'string');
+				hoverContents.set(target, options.content);
+				hoverOptions.set(target, { focus, trapFocus: options.trapFocus === true });
+				let isDisposed = false;
+				return {
+					get isDisposed() { return isDisposed; },
+					dispose: () => {
+						isDisposed = true;
+						hoverContents.delete(target);
+						hoverOptions.delete(target);
+					},
+				};
+			}
+		}();
+		instantiationService.stub(IHoverService, hoverService);
 		const model = store.add(new TestRemotesModel());
 		const widget = store.add(instantiationService.createInstance(RemotesWidget, parent, model, operatingSystem));
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, hoverOptions, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, errors, hoverContents, hoverOptions, hoverService, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function getManagementAction(parent: HTMLElement, id: string, action: 'rename'): HTMLElement {
@@ -601,6 +624,7 @@ suite('RemotesWidget', () => {
 		const info = row.querySelector<HTMLElement>('.remotes-connection-info')!;
 		const beforeFocus = info.tabIndex;
 		row.click();
+		info.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({
 			address: row.querySelector('.remotes-detail')?.textContent,
 			connection: info.previousElementSibling?.textContent,
@@ -614,7 +638,7 @@ suite('RemotesWidget', () => {
 			address: 'env-desktop', connection: 'Disconnected', icon: 'true',
 			hidden: false, role: 'img', label: 'Start the owning application.',
 			tooltip: 'Start the owning application.', beforeFocus: -1, focusedTabIndex: 0,
-			hoverOptions: { keyboard: true, trapFocus: true },
+			hoverOptions: { focus: true, trapFocus: true },
 			accessible: 'Desktop. Address: env-desktop. Connection: Disconnected. Start the owning application.',
 			accessibleView: true,
 		});
@@ -639,6 +663,7 @@ suite('RemotesWidget', () => {
 		const observed = states.map(remote => {
 			model.remotes.set([offline], undefined);
 			const previousInfo = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
+			previousInfo.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			model.remotes.set([remote], undefined);
 			const info = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
 			return {
@@ -650,6 +675,101 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual(observed, states.map(() => ({
 			address: 'env-desktop', hidden: true, label: null, tabIndex: -1, tooltip: undefined, previousTooltip: undefined,
 		})));
+	});
+
+	for (const keyboardHover of [false, true]) {
+		for (const removeEnvironment of [false, true]) {
+			test(`restores table focus when an environment ${removeEnvironment ? 'disappears' : 'becomes available'} with its ${keyboardHover ? 'tooltip' : 'info icon'} focused`, () => {
+				const { parent, model } = createWidget(OperatingSystem.Macintosh, true);
+				model.environmentsEnabled.set(true, undefined);
+				model.remotes.set([{
+					id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
+					connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
+				}], undefined);
+				const row = parent.querySelector<HTMLElement>('[data-remote-id="environment:desktop"]')!;
+				row.click();
+				const info = row.querySelector<HTMLElement>('.remotes-connection-info')!;
+				info.focus();
+				if (keyboardHover) {
+					info.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+					assert.ok(parent.querySelector('.monaco-hover')?.contains(dom.getActiveElement()));
+				}
+
+				model.remotes.set(removeEnvironment ? [] : model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
+				const table = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+				const tableFocused = dom.getActiveElement() === table;
+				assert.deepStrictEqual({
+					tableFocused,
+					hoverCount: parent.querySelectorAll('.monaco-hover').length,
+					visibleInfoCount: parent.querySelectorAll('.remotes-connection-info:not([hidden])').length,
+					focusedRowCount: parent.querySelectorAll('.monaco-list-row.focused').length,
+				}, { tableFocused: true, hoverCount: 0, visibleInfoCount: 0, focusedRowCount: 1 });
+			});
+		}
+	}
+
+	for (const unrelatedHover of [false, true]) {
+		test(`availability updates do not steal focus from ${unrelatedHover ? 'an unrelated tooltip' : 'Search'} or dismiss unrelated hovers`, () => {
+			const { parent, model, hoverService } = createWidget(OperatingSystem.Macintosh, true);
+			model.environmentsEnabled.set(true, undefined);
+			model.remotes.set([{
+				id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
+				connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
+			}], undefined);
+			const info = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
+			info.focus();
+			info.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			assert.ok(parent.querySelector('.monaco-hover')?.contains(dom.getActiveElement()));
+
+			const search = parent.querySelector<HTMLInputElement>('.remotes-search-container input')!;
+			search.focus();
+			const otherHover = unrelatedHover ? store.add(hoverService.showInstantHover({ target: search, content: 'Search help', trapFocus: true }, true)!) : undefined;
+			const focused = dom.getActiveElement();
+			model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
+			assert.deepStrictEqual({
+				sameFocus: dom.getActiveElement() === focused,
+				hoverCount: parent.querySelectorAll('.monaco-hover').length,
+				otherHoverDisposed: otherHover?.isDisposed,
+			}, { sameFocus: true, hoverCount: unrelatedHover ? 1 : 0, otherHoverDisposed: unrelatedHover ? false : undefined });
+		});
+	}
+
+	test('availability updates cancel a pending info tooltip without moving focus', async () => {
+		const { parent, model } = createWidget(OperatingSystem.Macintosh, true);
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
+		}], undefined);
+		const search = parent.querySelector<HTMLInputElement>('.remotes-search-container input')!;
+		search.focus();
+		parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ searchFocused: dom.getActiveElement() === search, hoverCount: parent.querySelectorAll('.monaco-hover').length }, {
+			searchFocused: true, hoverCount: 0,
+		});
+	});
+
+	test('keyboard activation focuses an existing pointer tooltip before an availability update', async () => {
+		const { parent, model } = createWidget(OperatingSystem.Macintosh, true);
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
+		}], undefined);
+		const info = parent.querySelector<HTMLElement>('[data-remote-id] .remotes-connection-info')!;
+		info.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(0);
+		assert.ok(parent.querySelector('.monaco-hover'));
+		info.focus();
+		info.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		const tooltipFocused = parent.querySelector('.monaco-hover')?.contains(dom.getActiveElement());
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
+		assert.deepStrictEqual({
+			tooltipFocused, tableFocused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+			hoverCount: parent.querySelectorAll('.monaco-hover').length,
+		}, { tooltipFocused: true, tableFocused: true, hoverCount: 0 });
 	});
 
 	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {

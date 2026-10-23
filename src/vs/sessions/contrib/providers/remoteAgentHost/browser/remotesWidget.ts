@@ -145,6 +145,7 @@ export class RemotesWidget extends Disposable {
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action),
+			() => this.table.domFocus(),
 			instantiationService, hoverService, openerService,
 		));
 		const columns = columnDefinitions.map((column, index) => ({
