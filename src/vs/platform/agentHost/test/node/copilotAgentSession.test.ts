@@ -96,6 +96,7 @@ import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttri
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ICopilotConnectorServers } from '../../node/copilot/copilotConnectors.js';
 import type { ILocalModelProvider } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { createSentinelContribution, FakeLocalModelProvider, MAI_ROW } from './localModelBridge/fakeLocalModelProvider.js';
 import { type IShellInitScript } from '../../common/shellInitScript.js';
@@ -29322,6 +29323,142 @@ Use the attached image as context.
 				});
 			});
 
+			test('opens without waiting for launch-time reconciliation, then publishes it before sends and MCP controls run', async () => {
+				const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					rootValues,
+					duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [{ name: 'connector-mail', status: 'connected', source: 'managed' }] };
+					},
+				});
+				const notifications: string[] = [];
+				disposables.add(session.onMcpNotification(notification => notifications.push(notification.method)));
+				await timeout(0);
+				const [mail] = session.topLevelMcpCustomizations();
+				const sending = session.send('hello');
+				const stopping = session.stopMcpServer(mail.id);
+				await timeout(0);
+				const whileReconciling = {
+					displayName: readMcpServerDisplayName(session.topLevelMcpCustomizations()[0]),
+					sendRequests: mockSession.sendRequests.length,
+					stopCalls: [...mockSession.mcpStopServerCalls],
+					notifications: [...notifications],
+				};
+
+				launchReconcile.complete({ servers: new Map([['connector-mail', { connectorName: 'mail', displayName: 'Work Mail' }]]), authorizationRequired: false });
+				await Promise.all([sending, stopping]);
+
+				assert.deepStrictEqual({
+					whileReconciling,
+					connectorName: readMcpServerConnectorName(session.topLevelMcpCustomizations()[0]),
+					sendRequests: mockSession.sendRequests.length,
+					stopCalls: mockSession.mcpStopServerCalls,
+					notifications,
+				}, {
+					whileReconciling: { displayName: undefined, sendRequests: 0, stopCalls: [], notifications: [] },
+					connectorName: 'mail',
+					sendRequests: 1,
+					stopCalls: [{ serverName: 'connector-mail' }],
+					notifications: ['notifications/tools/list_changed'],
+				});
+			});
+
+			for (const abortedIdle of [false, true]) {
+				test(`cancels a send waiting for launch reconciliation before it settles (aborted idle: ${abortedIdle})`, async () => {
+					const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+					const { session, mockSession } = await createAgentSession(disposables, {
+						rootValues,
+						duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+					});
+					let sendSettled = false;
+					const sending = session.send('hello', undefined, 'turn-1').then(() => { sendSettled = true; });
+					await session.abort();
+					if (abortedIdle) {
+						mockSession.fire('session.idle', { aborted: true });
+					}
+					await timeout(0);
+					const whileReconciling = { sendSettled, hasActiveTurn: session.hasActiveTurn };
+
+					launchReconcile.complete(undefined);
+					await sending;
+
+					assert.deepStrictEqual({
+						whileReconciling,
+						sendRequests: mockSession.sendRequests.length,
+						hasActiveTurn: session.hasActiveTurn,
+					}, {
+						whileReconciling: { sendSettled: true, hasActiveTurn: false },
+						sendRequests: 0,
+						hasActiveTurn: false,
+					});
+				});
+			}
+
+			for (const scenario of ['noRequest', 'differentResource', 'insufficientScopes', 'differentTarget'] as const) {
+				test(`does not delay unrelated authentication on launch reconciliation: ${scenario}`, async () => {
+					const resource = 'https://mail.test';
+					const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+					const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+						rootValues,
+						duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+						configureMockSession: mock => {
+							mock.mcpListResult = { servers: [{ name: 'mail', status: 'connected' }, { name: 'calendar', status: 'connected' }] };
+						},
+					});
+					const authentication = scenario === 'noRequest' ? undefined : runtime.handleMcpAuthRequest({
+						requestId: 'mail-auth', serverName: 'mail', serverUrl: resource, reason: 'upscope',
+						wwwAuthenticateParams: { scope: 'read' },
+					}, { sessionId: 'test-session-1' });
+					if (authentication) {
+						await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+					}
+					await timeout(0);
+					const calendar = session.topLevelMcpCustomizations().find(server => server.name === 'calendar')!;
+					let settledBeforeReconcile = false;
+					const resolving = session.resolveMcpAuthentication({
+						resource: scenario === 'differentResource' ? 'https://other.test' : resource,
+						scopes: scenario === 'insufficientScopes' ? [] : ['read'],
+						token: 'mcp-token',
+						...(scenario === 'differentTarget' ? {
+							target: { kind: AuthenticateTargetKind.McpServer, session: session.ownerSessionUri.toString(), customizationId: calendar.id },
+						} : {}),
+					}).then(result => { settledBeforeReconcile = true; return result; });
+					await timeout(0);
+					const whileReconciling = settledBeforeReconcile;
+
+					launchReconcile.complete(undefined);
+					const resolved = await resolving;
+					const mail = session.topLevelMcpCustomizations().find(server => server.name === 'mail')!;
+					session.cancelMcpServerAuthentication(mail.id);
+					const authenticationResult = await authentication;
+
+					assert.deepStrictEqual({ whileReconciling, resolved, authenticationResult }, {
+						whileReconciling: true,
+						resolved: false,
+						authenticationResult: scenario === 'noRequest' ? undefined : { kind: 'cancelled' },
+					});
+				});
+			}
+
+			test('ignores launch-time reconciliation that settles after the session is disposed', async () => {
+				const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					rootValues,
+					duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+				});
+				const notifications: string[] = [];
+				disposables.add(session.onMcpNotification(notification => notifications.push(notification.method)));
+				await timeout(0);
+				const listCallsBeforeDispose = mockSession.mcpListCalls;
+				session.dispose();
+
+				launchReconcile.complete({ servers: new Map([['connector-mail', { connectorName: 'mail', displayName: 'Work Mail' }]]), authorizationRequired: false });
+				await timeout(0);
+
+				assert.deepStrictEqual({ notifications, listCalls: mockSession.mcpListCalls }, { notifications: [], listCalls: listCallsBeforeDispose });
+			});
+
 			test('targets one Connector without cancelling another server authentication or changing enablement', async () => {
 				const { session, mockSession, runtime, waitForSignal } = await createAgentSession(disposables, {
 					rootValues,
@@ -29778,7 +29915,13 @@ Use the attached image as context.
 		test('republishes pending connector authentication when Connector ownership becomes available, without accepting an MCP token', async () => {
 			const runtimeServerId = 'github-copilot-connector-94d26095770df60673dd';
 			const resource = 'https://api.github.com';
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: runtimeServerId, status: 'needs-auth', source: 'managed', url: resource }] };
+				},
+			});
 
 			let settled = false;
 			const authPromise = runtime.handleMcpAuthRequest({
@@ -29790,9 +29933,11 @@ Use the attached image as context.
 			void authPromise.then(() => { settled = true; });
 			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
 			const beforeDisplayName = readMcpServerDisplayName(session.topLevelMcpCustomizations()[0]);
-			runtime.setCopilotConnectorServers({ servers: new Map([[runtimeServerId, { connectorName: 'github', displayName: 'GitHub' }]]), authorizationRequired: false });
+			// Offered before launch reconciliation reveals that the server is Connector-owned.
+			const resolving = session.resolveMcpAuthentication({ resource, scopes: [], token: 'connector-token' });
+			launchReconcile.complete({ servers: new Map([[runtimeServerId, { connectorName: 'github', displayName: 'GitHub' }]]), authorizationRequired: false });
+			const resolved = await resolving;
 			const [server] = session.topLevelMcpCustomizations();
-			const resolved = await session.resolveMcpAuthentication({ resource, scopes: [], token: 'connector-token' });
 			session.cancelMcpServerAuthentication(server.id);
 
 			assert.deepStrictEqual({
