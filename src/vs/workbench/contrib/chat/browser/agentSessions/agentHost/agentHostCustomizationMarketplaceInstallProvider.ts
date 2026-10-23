@@ -426,8 +426,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		this.throwIfCancelled(token);
 		if (installation.state.target.kind === 'plugin') {
 			const plugins = await this.listPluginInstallations(sessionResource, token);
-			const identity = plugins.find(candidate => getPluginInstallationId(candidate) === installation.installationId);
-			if (!identity || !this.agentHostService.uninstallPlugin) {
+			const matches = plugins.filter(candidate => getPluginInstallationId(candidate) === installation.installationId);
+			const identity = matches.length === 1 ? matches[0] : undefined;
+			if (!identity || !identity.marketplace && !identity.directSourceId || !this.agentHostService.uninstallPlugin) {
 				throw new Error(localize('agentHost.customizationInstall.pluginRemovalUnavailable', "The SDK plugin installation identity is unavailable."));
 			}
 			await this.agentHostService.uninstallPlugin(this.providerId, {
@@ -586,15 +587,23 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	private async getPluginInstallations(sessionResource: URI, token: CancellationToken): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
 		const installations = await this.listPluginInstallations(sessionResource, token);
+		const matchCounts = new Map<string, number>();
+		for (const installation of installations) {
+			const key = getAppliedPluginInstallationKey(installation);
+			if (key) {
+				matchCounts.set(key, (matchCounts.get(key) ?? 0) + 1);
+			}
+		}
 		const result: IRecordedCustomizationMarketplaceResource[] = [];
 		for (const installation of installations) {
 			const installationId = getPluginInstallationId(installation);
 			let resource = this.catalogAssociations.get(installationId);
 			if (!resource) {
+				const key = getAppliedPluginInstallationKey(installation);
 				const pendingIndex = this.pendingCatalogAssociations.findIndex(candidate =>
-					isAppliedPluginInstallation(installation, candidate.identity)
+					key === getVerifiedPluginKey(candidate.identity.name, candidate.identity.repository, candidate.identity.ref)
 					// SDK list metadata has no plugin root, so never guess between same-revision sources.
-					&& installations.filter(plugin => isAppliedPluginInstallation(plugin, candidate.identity)).length === 1);
+					&& matchCounts.get(key) === 1);
 				if (pendingIndex !== -1) {
 					resource = this.pendingCatalogAssociations.splice(pendingIndex, 1)[0].resource;
 					this.rememberCatalogAssociation(installationId, resource);
@@ -602,7 +611,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			}
 			result.push({
 				installationId,
-				resource: resource ?? toPluginMarketplaceResource(installation),
+				resource: resource ?? toPluginMarketplaceResource(installation, this.logService),
 				state: { kind: 'installed', target: { kind: 'plugin', name: installation.name } },
 			});
 		}
@@ -645,19 +654,18 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 }
 
-function isAppliedPluginInstallation(
-	installation: IAgentPluginInstallation,
-	expected: AppliedPluginIdentity,
-): boolean {
+function getAppliedPluginInstallationKey(installation: IAgentPluginInstallation): string | undefined {
 	const source = installation.verifiedSource;
-	return !installation.marketplace && !!installation.directSourceId
-		&& installation.name === expected.name
-		&& !!source
-		&& source.repository.toLowerCase() === expected.repository.toLowerCase()
-		&& source.revision === expected.ref;
+	return !installation.marketplace && installation.directSourceId && source
+		? getVerifiedPluginKey(installation.name, source.repository, source.revision)
+		: undefined;
 }
 
-function toPluginMarketplaceResource(installation: IAgentPluginInstallation): ICustomizationMarketplaceResource {
+function getVerifiedPluginKey(name: string, repository: string, revision: string): string {
+	return JSON.stringify([name, repository.toLowerCase(), revision]);
+}
+
+function toPluginMarketplaceResource(installation: IAgentPluginInstallation, logService: ILogService): ICustomizationMarketplaceResource {
 	const source = installation.verifiedSource;
 	const configured = installation.marketplace
 		? { kind: 'configuredPlugin' as const, name: installation.name, marketplace: installation.marketplace }
@@ -672,12 +680,26 @@ function toPluginMarketplaceResource(installation: IAgentPluginInstallation): IC
 		capabilities: [],
 		representativeQueries: [],
 		version: installation.version,
-		icon: installation.iconUrl ? URI.parse(installation.iconUrl) : undefined,
+		icon: getPluginIcon(installation.iconUrl, logService),
 		repository: source
 			? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${source.repository}` })
 			: undefined,
 		installation: configured,
 	};
+}
+
+function getPluginIcon(value: string | undefined, logService: ILogService): URI | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (URL.canParse(value)) {
+		const url = new URL(value);
+		if (url.protocol === `${Schemas.https}:` && url.hostname && !url.username && !url.password) {
+			return URI.parse(url.href);
+		}
+	}
+	logService.warn('[AgentHostCustomizationMarketplace] Ignoring an invalid SDK plugin icon URL');
+	return undefined;
 }
 
 function getPluginInstallationId(installation: IAgentPluginInstallation): string {

@@ -1154,9 +1154,69 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			remaining: ['first-source'],
 		});
 		await assert.rejects(provider.uninstall(frontend, installations[1], CancellationToken.None), /installation identity is unavailable/);
+		for (const invalidInventory of [
+			[{ name: 'same-name', marketplace: '' }],
+			[{ name: 'same-name', marketplace: '', directSourceId: '' }],
+			[first, first],
+			[{ name: 'same-name', marketplace: 'duplicate' }, { name: 'same-name', marketplace: 'duplicate' }],
+			[
+				{ name: 'same-name', marketplace: '', verifiedSource: { repository: 'owner/first', revision: 'abc' } },
+				{ name: 'same-name', marketplace: '', verifiedSource: { repository: 'owner/second', revision: 'def' } },
+			],
+		]) {
+			plugins = invalidInventory;
+			const invalidInstallations = await provider.getInstallations(frontend, CancellationToken.None);
+			await assert.rejects(provider.uninstall(frontend, invalidInstallations[0], CancellationToken.None), /installation identity is unavailable/);
+		}
+		assert.strictEqual(calls.filter(call => Array.isArray(call) && call[0] === 'uninstall').length, 1);
 		failInventory = true;
 		await assert.rejects(provider.getInstallations(frontend, CancellationToken.None), /SDK inventory unavailable/);
 		await assert.rejects(provider.uninstall(frontend, installations[0], CancellationToken.None), /SDK inventory unavailable/);
+	});
+
+	test('accepts only valid HTTPS SDK plugin icons without credentials', async () => {
+		const iconUrls = [
+			'https://raw.githubusercontent.com/owner/repo/main/icon.png',
+			'http://example.test/icon.png',
+			'file:///tmp/icon.png',
+			'command:example',
+			'data:image/png;base64,AAAA',
+			'not a URL',
+			'https://',
+			'https://user:password@example.test/icon.png',
+			'',
+			undefined,
+		];
+		const warnings: string[] = [];
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async listPluginInstallations() {
+					return iconUrls.map((iconUrl, index) => ({ name: `plugin-${index}`, marketplace: 'marketplace', iconUrl }));
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() { return undefined; }
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new class extends NullLogService {
+				override warn(message: string) { warnings.push(message); }
+			}(),
+		));
+		const inventory = await provider.getInstallations(URI.parse('vendor-session:/opaque'), CancellationToken.None);
+		assert.deepStrictEqual({
+			icons: inventory.map(item => URI.isUri(item.resource.icon) ? item.resource.icon.toString() : undefined),
+			warnings,
+		}, {
+			icons: [iconUrls[0], ...Array(9).fill(undefined)],
+			warnings: Array(8).fill('[AgentHostCustomizationMarketplace] Ignoring an invalid SDK plugin icon URL'),
+		});
 	});
 
 	test('does not read local SDK inventory for a remote host session', async () => {
