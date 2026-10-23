@@ -29,6 +29,7 @@ import { IChangesViewService } from '../../../changes/common/changesViewService.
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { resolveSessionActionTarget } from '../../../../services/sessions/browser/sessionActionTarget.js';
 import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
@@ -184,12 +185,12 @@ interface IAgentMergeActionPick extends IQuickPickItem {
 
 abstract class AgentMergeActionBase extends Action2 {
 
-	/** The active session and its active chat, whose folder's Agent Merge the actions change. */
-	protected getActiveSession(accessor: ServicesAccessor) {
+	/** The target session (the argument, else the active session) and its active chat, whose folder's Agent Merge the actions change. */
+	protected getTargetSession(accessor: ServicesAccessor, sessionArg?: unknown) {
 		if (accessor.get(IConfigurationService).getValue<boolean>(ArtifactIntegrationsSettingId) === true) {
 			throw new Error(localize('agentMerge.artifactIntegrationsEnabled', "Agent Merge is unavailable while artifact integrations are enabled."));
 		}
-		const session = accessor.get(ISessionsService).activeSession.get();
+		const session = resolveSessionActionTarget(accessor, sessionArg);
 		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
 		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: session.activeChat.get().resource } : undefined;
 	}
@@ -199,8 +200,8 @@ abstract class AgentMergeActionBase extends Action2 {
 	 * not just the changed one, so the session keeps what was on screen rather
 	 * than silently picking up a later change to the global defaults.
 	 */
-	protected async updateOverrides(accessor: ServicesAccessor, patch: Partial<AgentMergeSessionOverrides>): Promise<void> {
-		const active = this.getActiveSession(accessor);
+	protected async updateOverrides(accessor: ServicesAccessor, patch: Partial<AgentMergeSessionOverrides>, sessionArg?: unknown): Promise<void> {
+		const active = this.getTargetSession(accessor, sessionArg);
 		if (!active) {
 			return;
 		}
@@ -258,8 +259,8 @@ registerAction2(class EnableAgentMergeInSessionAction extends AgentMergeActionBa
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const active = this.getActiveSession(accessor);
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		const active = this.getTargetSession(accessor, sessionArg);
 		const logService = accessor.get(ILogService);
 		if (!active) {
 			return;
@@ -284,8 +285,8 @@ registerAction2(class DisableAgentMergeInSessionAction extends AgentMergeActionB
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const active = this.getActiveSession(accessor);
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		const active = this.getTargetSession(accessor, sessionArg);
 		const logService = accessor.get(ILogService);
 		if (!active) {
 			return;
@@ -322,14 +323,14 @@ for (const [index, action] of agentMergeRepairActions.entries()) {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const active = this.getActiveSession(accessor);
+		async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+			const active = this.getTargetSession(accessor, sessionArg);
 			if (!active) {
 				return;
 			}
 			const state = active.provider.getAgentMergeSessionState(active.session.sessionId, active.chat);
 			const effective = resolveAgentMergeConfiguration(getGlobalAgentMergeConfiguration(accessor.get(IConfigurationService)), state?.overrides);
-			await this.updateOverrides(accessor, { [action]: !effective[action] });
+			await this.updateOverrides(accessor, { [action]: !effective[action] }, sessionArg);
 		}
 	});
 }
@@ -368,8 +369,8 @@ for (const [index, value] of agentMergeMergePullRequestValues.entries()) {
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
-			await this.updateOverrides(accessor, { mergePullRequest: value });
+		async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+			await this.updateOverrides(accessor, { mergePullRequest: value }, sessionArg);
 		}
 	});
 }
@@ -407,8 +408,8 @@ registerAction2(class EnableAgentMergeAction extends AgentMergeActionBase {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const active = this.getActiveSession(accessor);
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		const active = this.getTargetSession(accessor, sessionArg);
 		if (!active) {
 			return;
 		}
@@ -430,8 +431,8 @@ registerAction2(class DisableAgentMergeAction extends AgentMergeActionBase {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const active = this.getActiveSession(accessor);
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		const active = this.getTargetSession(accessor, sessionArg);
 		if (!active) {
 			return;
 		}
@@ -453,8 +454,8 @@ registerAction2(class ConfigureAgentMergeAction extends AgentMergeActionBase {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const active = this.getActiveSession(accessor);
+	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		const active = this.getTargetSession(accessor, sessionArg);
 		if (!active) {
 			return;
 		}
