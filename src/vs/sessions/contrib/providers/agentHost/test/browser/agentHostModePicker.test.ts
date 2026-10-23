@@ -50,6 +50,7 @@ import { ISessionConfigProvider, ISessionsProvider } from '../../../../../servic
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
+import '../../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
 import '../../../../chat/browser/media/chatWidget.css';
 import '../../../../chat/browser/media/chatInput.css';
 
