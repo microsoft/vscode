@@ -441,6 +441,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	private accountGeneration = 0;
 	private serviceIndexUrl: string | undefined;
 	private accountRequest: { readonly generation: number; readonly promise: Promise<IExtensionGalleryAccount | undefined> } | undefined;
+	private retryRenewal = false;
 	private readonly refreshScheduler = this._register(new RunOnceScheduler(() => this.handleAccountChange(), 0));
 
 	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
@@ -455,6 +456,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 
 	setAccountProvider(provider: IExtensionGalleryAccountProvider): void {
 		this.provider = provider;
+		this.retryRenewal = false;
 		const listeners = new DisposableStore();
 		listeners.add(provider.onDidChangeAccount(() => this.handleAccountChange()));
 		listeners.add(provider.onDidChangeAccountStatus(status => this._onDidChangeAccountStatus.fire(status)));
@@ -472,6 +474,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			this.serviceIndexUrl = serviceIndexUrl;
 			this.accountGeneration++;
 			this.accountRequest = undefined;
+			this.retryRenewal = false;
 			this.refreshScheduler.cancel();
 		}
 		const generation = this.accountGeneration;
@@ -495,12 +498,15 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			return undefined;
 		}
 		this.refreshScheduler.cancel();
-		if (provider.accountStatus === ExtensionGalleryAccountStatus.Unknown) {
-			this.refreshScheduler.schedule(30 * 1000);
-		} else if (provider.accountStatus === ExtensionGalleryAccountStatus.Eligible
+		if (provider.accountStatus === ExtensionGalleryAccountStatus.Eligible
 			&& account?.accessToken && account.refreshAfter !== undefined
 			&& Number.isFinite(account.refreshAfter) && account.refreshAfter > 0) {
+			this.retryRenewal = true;
 			this.refreshScheduler.schedule(Math.max(1000, Math.min(6 * 60 * 60 * 1000, account.refreshAfter)));
+		} else if (provider.accountStatus === ExtensionGalleryAccountStatus.Unknown && this.retryRenewal) {
+			this.refreshScheduler.schedule(30 * 1000);
+		} else {
+			this.retryRenewal = false;
 		}
 		return account;
 	}
