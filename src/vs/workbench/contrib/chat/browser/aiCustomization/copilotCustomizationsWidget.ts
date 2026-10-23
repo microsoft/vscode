@@ -22,6 +22,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import type { AgentExtensionMode, IAgentExtensionInfo, IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -32,6 +33,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
@@ -435,6 +437,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		@IHoverService hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
@@ -458,7 +461,16 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		}));
 		this.refreshButton.label = refreshLabel;
 		this._register(this.refreshButton.onDidClick(() => this.refreshCanvases()));
-		DOM.append(header, $('p.section-title-description')).textContent = localize('copilotCanvases.description', "Interactive panels that Copilot can open beside a chat.");
+		const description = DOM.append(header, $('p.section-title-description'));
+		DOM.append(description, $('span.section-title-description-text')).textContent = localize('copilotCanvases.description', "Interactive panels that Copilot can open beside a chat.");
+		description.appendChild(document.createTextNode(' '));
+		const learnMore = DOM.append(description, $('a.section-title-link'));
+		learnMore.textContent = localize('copilotCanvases.learnMore', "Learn more about canvases");
+		learnMore.href = 'https://code.visualstudio.com/docs/agents/run/agent-harnesses#_use-canvases-with-the-copilot-harness';
+		this._register(DOM.addDisposableListener(learnMore, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			void openerService.open(URI.parse(learnMore.href));
+		}));
 
 		const searchRow = DOM.append(this.element, $('.tools-list-search-and-button-container'));
 		const searchContainer = DOM.append(searchRow, $('.tools-list-search-container'));
@@ -527,10 +539,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				},
 			},
 		));
+		this._register(this.tree.onDidChangeSelection(() => this.tree.setSelection([])));
 		this._register(this.tree.onDidOpen(event => {
-			if (event.element?.type === 'group-header' || event.element?.type === 'extension') {
-				this.tree.toggleCollapsed(event.element);
-			} else if (event.element?.type === 'canvas') {
+			if (event.element?.type === 'canvas') {
 				this.activateCanvas(event.element.item);
 			}
 		}));

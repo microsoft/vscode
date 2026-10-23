@@ -18,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -139,12 +140,19 @@ suite('CopilotCanvasesWidget', () => {
 			}
 		}();
 		const commands: { id: string; args: readonly unknown[] }[] = [];
+		const openedLinks: string[] = [];
 		const menuActions: IAction[] = [];
 		let hideMenu = () => { };
 		const instantiationService = workbenchInstantiationService({}, store);
 		instantiationService.stub(ICanvasContextService, canvasContextService);
 		instantiationService.stub(ICanvasService, canvasService);
 		instantiationService.stub(ICopilotExtensionsService, extensionsService);
+		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(resource: URI | string): Promise<boolean> {
+				openedLinks.push(resource.toString());
+				return true;
+			}
+		}());
 		if (options?.storageService) {
 			instantiationService.stub(IStorageService, options.storageService);
 		}
@@ -178,6 +186,7 @@ suite('CopilotCanvasesWidget', () => {
 		return {
 			container,
 			commands,
+			openedLinks,
 			menuActions,
 			hideMenu: () => hideMenu(),
 			context,
@@ -250,6 +259,63 @@ suite('CopilotCanvasesWidget', () => {
 			refreshInSearch: false,
 			listTarget: [harness.frontendSessionResource.toString()],
 			itemCounts: [3],
+		});
+	});
+
+	test('expands groups and extensions without retaining a previous selection', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition(),
+				definition({ extensionId: 'plugin:diagram', extensionSource: 'plugin', extensionName: 'Diagram Plugin' }),
+			],
+		});
+		await timeout(0);
+		const row = (name: string) => {
+			const element = harness.container.querySelector<HTMLElement>(`.monaco-list-row[aria-label^="${name}"]`);
+			assert.ok(element);
+			return element;
+		};
+		const click = (name: string, selector: string) => {
+			const target = row(name).querySelector<HTMLElement>(selector);
+			assert.ok(target);
+			target.click();
+			return row(name).getAttribute('aria-expanded');
+		};
+
+		const userCollapsed = click('User,', '.group-label');
+		const pluginsCollapsed = click('Plugins,', '.monaco-tl-twistie');
+		const pluginsExpanded = click('Plugins,', '.monaco-tl-twistie');
+		const userStillSelected = row('User,').getAttribute('aria-selected');
+		const pluginsFocused = row('Plugins,').classList.contains('focused');
+		const extensionCollapsed = click('Diagram Plugin.', '.copilot-customization-tree-label');
+		const extensionExpanded = click('Diagram Plugin.', '.monaco-tl-twistie');
+
+		assert.deepStrictEqual({
+			userCollapsed, pluginsCollapsed, pluginsExpanded, userStillSelected, pluginsFocused,
+			extensionCollapsed, extensionExpanded,
+			selectedRows: harness.container.querySelectorAll('.monaco-list-row.selected').length,
+		}, {
+			userCollapsed: 'false', pluginsCollapsed: 'false', pluginsExpanded: 'true',
+			userStillSelected: 'false', pluginsFocused: true,
+			extensionCollapsed: 'false', extensionExpanded: 'true',
+			selectedRows: 0,
+		});
+	});
+
+	test('opens Canvas documentation from the subtitle', () => {
+		const harness = createHarness({ contextAvailable: false });
+		const link = harness.container.querySelector<HTMLAnchorElement>('.section-title-description a');
+		assert.ok(link);
+		link.click();
+
+		assert.deepStrictEqual({
+			label: link.textContent,
+			href: link.href,
+			openedLinks: harness.openedLinks,
+		}, {
+			label: 'Learn more about canvases',
+			href: 'https://code.visualstudio.com/docs/agents/run/agent-harnesses#_use-canvases-with-the-copilot-harness',
+			openedLinks: ['https://code.visualstudio.com/docs/agents/run/agent-harnesses#_use-canvases-with-the-copilot-harness'],
 		});
 	});
 
