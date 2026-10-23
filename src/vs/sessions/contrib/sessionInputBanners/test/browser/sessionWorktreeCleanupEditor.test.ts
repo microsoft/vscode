@@ -78,6 +78,38 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { emptyStateVisible: true, pickerDisabled: false });
 	});
 
+	test('updates individual sizes without waiting for all scans or resetting selections', async () => {
+		const finished = new DeferredPromise<readonly ISessionWorktree[]>();
+		let publish: ((worktrees: readonly ISessionWorktree[]) => void) | undefined;
+		const first = createWorktree('first', '/repos/app');
+		const second = createWorktree('second', '/repos/app');
+		const pending = { ...second, sizeBytes: undefined, cleanupState: 'unavailable' as const, isMeasuring: true };
+		const { editor, container } = createEditor({
+			getWorktrees: async (_age, onUpdate) => {
+				publish = onUpdate;
+				onUpdate?.([first, pending]);
+				return finished.p;
+			},
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const rows = () => [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')];
+		try {
+			assert.deepStrictEqual(rows().map(row => ({
+				storage: row.lastElementChild?.textContent,
+				disabled: row.querySelector('[role="checkbox"]')?.getAttribute('aria-disabled'),
+			})), [
+				{ storage: '100B', disabled: null },
+				{ storage: 'Calculating…', disabled: 'true' },
+			]);
+			rows()[0].querySelector<HTMLElement>('[role="checkbox"]')!.click();
+			publish?.([first, second]);
+			assert.deepStrictEqual(rows().map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')), ['false', 'true']);
+		} finally {
+			await finished.complete([first, second]);
+		}
+	});
+
 	test('shows a text-only settings heading and no configure actions', () => {
 		const { container } = createEditor();
 
@@ -153,7 +185,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 				{ title: 'recent', workspace: 'app', disabled: null, reason: '', storage: '100B' },
 				{ title: 'active', workspace: 'app', disabled: 'true', reason: 'Active session', storage: '100B' },
 				{ title: 'running', workspace: 'other', disabled: 'true', reason: 'Running', storage: '100B' },
-				{ title: 'unmeasured', workspace: 'other', disabled: 'true', reason: 'Storage unavailable', storage: 'Unknown' },
+				{ title: 'unmeasured', workspace: 'other', disabled: 'true', reason: 'Couldn\'t measure storage — refresh to retry', storage: 'Unknown' },
 			],
 		});
 	});

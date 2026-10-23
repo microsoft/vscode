@@ -10,7 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -46,6 +46,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	static readonly ID = 'sessions.editor.sessionWorktreeCleanup';
 
 	private readonly editorDisposables = this._register(new DisposableStore());
+	private readonly loadDisposables = this._register(new DisposableStore());
 	private readonly rowDisposables = this._register(new DisposableStore());
 	private container: HTMLElement | undefined;
 	private list: HTMLElement | undefined;
@@ -190,8 +191,38 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		});
 	}
 
+	override clearInput(): void {
+		this.renderVersion++;
+		this.loadDisposables.clear();
+		super.clearInput();
+	}
+
 	private async load(): Promise<void> {
 		const version = ++this.renderVersion;
+		this.loadDisposables.clear();
+		const cancellation = new CancellationTokenSource();
+		this.loadDisposables.add(toDisposable(() => cancellation.dispose(true)));
+		const seenEligible = new Set<string>();
+		const update = (worktrees: readonly ISessionWorktree[]) => {
+			if (version !== this.renderVersion || !this.list || !this.summary) {
+				return;
+			}
+			this.worktrees = worktrees;
+			this.renderWorkspaceOptions();
+			for (const worktree of this.getVisibleWorktrees()) {
+				if (worktree.cleanupState === 'eligible' && !seenEligible.has(worktree.session.sessionId)) {
+					seenEligible.add(worktree.session.sessionId);
+					this.selectedSessionIds.add(worktree.session.sessionId);
+				}
+			}
+			if (this.ageSelect) {
+				this.ageSelect.disabled = false;
+			}
+			if (this.workspaceSelect) {
+				this.workspaceSelect.disabled = false;
+			}
+			this.renderRows();
+		};
 		if (this.ageSelect) {
 			this.ageSelect.disabled = true;
 		}
@@ -214,14 +245,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, localize('sessionWorktreeCleanup.loading', "Measuring worktree storage...")));
 		}
 		try {
-			const worktrees = await this.cleanupService.getWorktrees(this.minimumAgeDays);
-			if (version !== this.renderVersion || !this.list || !this.summary) {
-				return;
-			}
-			this.worktrees = worktrees;
-			this.renderWorkspaceOptions();
-			this.selectedSessionIds = new Set(this.getVisibleWorktrees().filter(worktree => worktree.cleanupState === 'eligible').map(worktree => worktree.session.sessionId));
-			this.renderRows();
+			update(await this.cleanupService.getWorktrees(this.minimumAgeDays, update, cancellation.token));
 		} catch (error) {
 			if (version === this.renderVersion && this.summary) {
 				dom.clearNode(this.summary);
@@ -366,7 +390,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				}
 			}));
 			if (worktree.cleanupState !== 'eligible') {
-				const reason = dom.append(titleCell, dom.$('span.session-worktree-cleanup-reason', undefined, this.getCleanupStateLabel(worktree.cleanupState)));
+				const reason = dom.append(titleCell, dom.$('span.session-worktree-cleanup-reason', undefined, worktree.isMeasuring ? localize('sessionWorktreeCleanup.calculating', "Calculating storage…") : this.getCleanupStateLabel(worktree.cleanupState)));
 				this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), reason, reason.textContent ?? ''));
 			}
 			const workspace = worktree.session.workspace.get();
@@ -375,7 +399,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), workspaceCell, workspace.description ? `${workspace.label}\n${workspace.description}\n${workspace.uri.toString(true)}` : workspace.uri.toString(true)));
 			}
 			dom.append(row, dom.$('span', { role: 'cell', title: worktree.session.updatedAt.get().toLocaleString() }, fromNow(worktree.session.updatedAt.get(), true, true)));
-			dom.append(row, dom.$('span', { role: 'cell' }, worktree.sizeBytes === undefined ? localize('sessionWorktreeCleanup.unknownStorage', "Unknown") : ByteSize.formatSize(worktree.sizeBytes)));
+			dom.append(row, dom.$('span', { role: 'cell' }, worktree.isMeasuring ? localize('sessionWorktreeCleanup.calculatingStorage', "Calculating…") : worktree.sizeBytes === undefined ? localize('sessionWorktreeCleanup.unknownStorage', "Unknown") : ByteSize.formatSize(worktree.sizeBytes)));
 		}
 		this.updateCleanupButton();
 		this.updateScrollDimensions();
@@ -391,7 +415,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			case 'archived': return localize('sessionWorktreeCleanup.archived', "Cleanup pending or blocked");
 			case 'untitled': return localize('sessionWorktreeCleanup.untitledState', "Untitled");
 			case 'error': return localize('sessionWorktreeCleanup.error', "Session error");
-			case 'unavailable': return localize('sessionWorktreeCleanup.unavailable', "Storage unavailable");
+			case 'unavailable': return localize('sessionWorktreeCleanup.unavailable', "Couldn't measure storage — refresh to retry");
 		}
 	}
 

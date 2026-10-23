@@ -713,6 +713,35 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => worktree.session.sessionId), ['eligible']);
 	});
 
+	test('publishes initial worktrees and completed sizes while another scan is pending', async () => {
+		const slow = new DeferredPromise<number | undefined>();
+		const fastPublished = new DeferredPromise<void>();
+		const snapshots: { id: string; calculating: boolean; size: number | undefined }[][] = [];
+		const service = disposables.add(createService(
+			[createSession('slow', oldDate()), createSession('fast', oldDate())],
+			true,
+			session => session.title.get() === 'slow' ? slow.p : ByteSize.GB,
+		));
+		const measurement = service.getWorktrees(14, worktrees => {
+			snapshots.push(worktrees.map(worktree => ({ id: worktree.session.sessionId, calculating: !!worktree.isMeasuring, size: worktree.sizeBytes })));
+			if (worktrees.some(worktree => worktree.session.sessionId === 'fast' && worktree.sizeBytes !== undefined)) {
+				if (!fastPublished.isSettled) {
+					fastPublished.complete();
+				}
+			}
+		});
+		try {
+			await fastPublished.p;
+			assert.deepStrictEqual(snapshots, [
+				[{ id: 'slow', calculating: true, size: undefined }, { id: 'fast', calculating: true, size: undefined }],
+				[{ id: 'slow', calculating: true, size: undefined }, { id: 'fast', calculating: false, size: ByteSize.GB }],
+			]);
+		} finally {
+			await slow.complete(ByteSize.GB);
+			await measurement;
+		}
+	});
+
 	test('allows disk measurements to complete after more than ten seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const service = disposables.add(createService(
 			[createSession('slow', oldDate()), createSession('fast', oldDate())],
