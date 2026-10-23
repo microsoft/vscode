@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -28,7 +29,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
@@ -42,6 +43,41 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const remotesEnabled of [false, true]) {
+		for (const manageEnabled of [undefined, false, true]) {
+			test(`documents Manage only when available (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, () => {
+				const instantiation = store.add(new TestInstantiationService());
+				const configuration = new TestConfigurationService({
+					[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+					[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+					[ENVIRONMENT_PICKER_SETTING]: true,
+					[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
+					...(manageEnabled === undefined ? {} : { [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: manageEnabled }),
+				});
+				store.add(configuration.onDidChangeConfigurationEmitter);
+				instantiation.stub(IConfigurationService, configuration);
+				stubContextKeyService(instantiation, configuration);
+				instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+				instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+				instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+				const container = mainWindow.document.createElement('div');
+				instantiation.stub(IWorkbenchLayoutService, { mainContainer: container });
+				instantiation.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				instantiation.stub(ITelemetryService, telemetry);
+				instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
+				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+				assert.deepStrictEqual({
+					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
+				}, {
+					describesManage: !isWeb && remotesEnabled && manageEnabled === true,
+					triggers: !isWeb && remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
+				});
+			});
+		}
+	}
 
 	for (const enabled of [true, false]) {
 		test(`documents chat-scoped activity bar selection only when enabled: ${enabled}`, () => {
@@ -58,12 +94,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
-				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them in the side-pane group.'),
-				chatScope: content.includes('Open Pull Request and Open Issue are available for the active chat\'s references when a contributed opener is available for their links.'),
-				reuse: content.includes('Each action reveals an already-open matching editor, preferring the active editor, or opens the first supported reference if none is open.'),
-				checked: content.includes('A checked button means the editor is visible; activating it keeps the editor open and focuses it.'),
-				direct: content.includes('These actions open directly, without a dropdown or picker, even with multiple references.'),
-			}, { optIn: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
+				automatic: content.includes('The pull request action appears automatically in the side-pane group.'),
+				chatScope: content.includes('Open Pull Request is available for the active chat\'s pull requests when a contributed opener is available for their links.'),
+				reuse: content.includes('The action reveals an already-open matching editor or opens the first supported pull request if none is open.'),
+				checked: content.includes('A checked button means the pull request editor is visible; activating it collapses the side pane. Activate it again to reveal the editor.'),
+				direct: content.includes('The action opens directly, without a dropdown or picker, even with multiple pull requests. Issue actions are not shown in the activity bar; issue pills remain available above the chat input.'),
+			}, { automatic: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
 		});
 	}
 
@@ -346,6 +382,31 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual(snapshots, [
 			{ nameEditing: false, announcementSetting: false },
 			{ nameEditing: true, announcementSetting: true },
+		]);
+	});
+
+	test('describes pull request feedback banners only when artifact integrations are disabled', () => {
+		const snapshots = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return {
+				pullRequestBanner: content.includes('When pull requests have failing checks or unreviewed comments, one banner appears above the input.'),
+				failingChecksBanner: content.includes('use Reveal in its banner item to open that pull request'),
+				artifactIntegrations: content.includes(`While the ${ArtifactIntegrationsSettingId} setting is enabled, pull request failing-check and review-comment banners do not appear above the input.`),
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ pullRequestBanner: true, failingChecksBanner: true, artifactIntegrations: false },
+			{ pullRequestBanner: false, failingChecksBanner: false, artifactIntegrations: true },
 		]);
 	});
 

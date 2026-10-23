@@ -7,7 +7,7 @@ import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { createSandbox, spy } from 'sinon';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { AutoOpenBarrier, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -540,6 +540,54 @@ suite('Workbench - TerminalInstance', () => {
 
 			deepStrictEqual(disposalOrder, ['onWillDispose', 'xterm', 'onDisposed']);
 		});
+
+		for (const waitForXterm of [false, true]) {
+			test(`disposal releases startup barriers ${waitForXterm ? 'after' : 'before'} xterm is ready`, async () => {
+				const terminalInstanceService = store.add(new TestTerminalInstanceService());
+				const instantiationService = createTerminalInstantiationService(terminalInstanceService);
+				const sandbox = createSandbox();
+				const clock = sandbox.useFakeTimers();
+				const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+				try {
+					if (waitForXterm) {
+						await instance.xtermReadyPromise;
+					}
+					const focusSpy = sandbox.spy(instance, 'focus');
+					const resolveProfileSpy = sandbox.spy(instantiationService.get(ITerminalProfileResolverService), 'getDefaultProfile');
+					let focusSettled = false;
+					const focusPromise = instance.focusWhenReady().then(() => focusSettled = true);
+					instance.dispose();
+					await instance.xtermReadyPromise;
+					await clock.tickAsync(0);
+					const pendingTimers = clock.countTimers();
+					const openBarrierSpy = sandbox.spy(AutoOpenBarrier.prototype, 'open');
+					clock.restore();
+					sandbox.useFakeTimers();
+					// Advance the old queue while a subsequent test's clock is installed.
+					await clock.tickAsync(1000);
+
+					deepStrictEqual({
+						pendingTimers,
+						lateBarrierOpens: openBarrierSpy.callCount,
+						focusSettled,
+						focusCalls: focusSpy.callCount,
+						resolveProfileCalls: resolveProfileSpy.callCount,
+						createProcessCount: terminalInstanceService.createProcessCount,
+					}, {
+						pendingTimers: 0,
+						lateBarrierOpens: 0,
+						focusSettled: true,
+						focusCalls: 0,
+						resolveProfileCalls: 0,
+						createProcessCount: 0,
+					});
+					await focusPromise;
+				} finally {
+					instance.dispose();
+					sandbox.restore();
+				}
+			});
+		}
 
 		test('should dispose contribution-owned xterm addons before xterm disposal', async () => {
 			const instance = await createTerminalInstance();
