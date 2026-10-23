@@ -6,6 +6,7 @@
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getDomNodePagePosition, getWindow, isAncestor, reset } from '../../../../base/browser/dom.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event as EventUtils } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -38,11 +39,9 @@ import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
-import { getUntitledSessionTitle } from '../../../services/sessions/common/session.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -77,7 +76,7 @@ export function registerBlockedSessionsHeaderActions(): IDisposable {
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
 			command: {
 				id: IGNORE_ALL_INPUT_NEEDED_COMMAND_ID,
-				title: localize('ignoreAllInputNeeded', "Ignore All Input Needed"),
+				title: localize('ignoreAllInputNeeded', "Ignore All Needs Attention Alerts"),
 				icon: Codicon.bellSlash,
 			},
 			group: 'navigation',
@@ -127,11 +126,11 @@ const BLOCKED_DROPDOWN_MIN_WIDTH = 550;
 const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
 
 /**
- * Sessions Title Bar Widget - renders the active chat session
+ * Sessions Title Bar Widget - renders the active chat's workspace context
  * in the command center of the agent sessions workbench.
  *
- * Shows the current chat session as a clickable pill with its workspace icon
- * and folder name when available.
+ * Shows a clickable pill with the workspace icon and folder name when available,
+ * without the session or chat title.
  *
  * When at least one session is blocked (needs input or has failing CI checks),
  * the widget instead adopts an orange "N sessions require input" state and reveals those sessions as a
@@ -167,8 +166,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _isRendering = false;
 	private _workspaceInfo: ISessionWorkspaceDisplayInfo | undefined;
 	private _isQuickChat = false;
-	private _activeSessionTitle: string | undefined;
-	private _activeChatTitle: string | undefined;
 	private readonly _sessionTitle: string | undefined;
 
 	/** The currently open blocked-sessions dropdown, if any. */
@@ -197,7 +194,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(undefined, action, options);
 
@@ -212,20 +208,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		const chatTabsMode = observableConfigValue(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, configurationService);
-
-		// Re-render when the active session's title, presentation, workspace, or quick-chat kind changes
+		// Re-render when the active session's workspace or quick-chat kind changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsService.activeSession.read(reader);
 			this._workspaceInfo = getSessionWorkspaceDisplayInfo(sessionData, reader);
 			this._isQuickChat = sessionData?.isQuickChat?.read(reader) ?? false;
-			const showSessionTitle = !!sessionData && chatTabsMode.read(reader) === SessionsChatTabsMode.Single;
-			this._activeSessionTitle = showSessionTitle
-				? sessionData?.title.read(reader) || getUntitledSessionTitle(this._isQuickChat)
-				: undefined;
-			this._activeChatTitle = showSessionTitle
-				? sessionData?.activeChat.read(reader).title.read(reader) || getUntitledSessionTitle(true)
-				: undefined;
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -243,8 +230,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		// Re-render when sessions data changes (e.g., changes info updated)
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+		this._register(EventUtils.any(
+			this.sessionsManagementService.onDidChangeSessions,
+			this.sessionsManagementService.onDidChangeSessionTypes,
+		)(() => {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -370,14 +359,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _renderActiveSession(): void {
 		const container = this._container!;
-		const { sessionTitle, contextTitle } = this._getCommandCenterTitles();
+		const contextTitle = this._getCommandCenterTitle();
 		const workspaceInfo = this._workspaceInfo;
-		const accessibleTitle = sessionTitle && contextTitle
-			? localize('agentSessionsSessionWithContextAccessible', "{0}, {1}", sessionTitle, contextTitle)
-			: sessionTitle ?? contextTitle;
-		const accessibleTitleWithBranch = accessibleTitle && workspaceInfo?.branch
-			? localize('agentSessionsSessionWithBranchAccessible', "{0}, branch {1}", accessibleTitle, workspaceInfo.branch)
-			: accessibleTitle;
+		const accessibleTitleWithBranch = contextTitle && workspaceInfo?.branch
+			? localize('agentSessionsSessionWithBranchAccessible', "{0}, branch {1}", contextTitle, workspaceInfo.branch)
+			: contextTitle;
 		container.setAttribute('aria-label', accessibleTitleWithBranch
 			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", accessibleTitleWithBranch)
 			: localize('agentSessionsShowSessions', "Show Sessions"));
@@ -387,19 +373,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		// Center group: workspace icon and name
 		const centerGroup = $('div.agent-sessions-titlebar-center');
-
-		if (sessionTitle) {
-			const sessionTitleEl = $('div.agent-sessions-titlebar-session');
-			sessionTitleEl.textContent = sessionTitle;
-			centerGroup.appendChild(sessionTitleEl);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(sessionTitleEl, { content: sessionTitle }));
-		}
-
-		if (sessionTitle && contextTitle) {
-			const separatorEl = $('span.agent-sessions-titlebar-separator', { 'aria-hidden': 'true' });
-			separatorEl.textContent = '·';
-			centerGroup.appendChild(separatorEl);
-		}
 
 		if (contextTitle) {
 			const workspaceGroup = $('div.agent-sessions-titlebar-workspace-group');
@@ -415,7 +388,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			workspaceEl.textContent = contextTitle;
 			workspaceGroup.appendChild(workspaceEl);
 			centerGroup.appendChild(workspaceGroup);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(workspaceEl, { content: contextTitle }));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), workspaceEl, contextTitle));
 		}
 
 		if (workspaceInfo?.branch) {
@@ -431,7 +404,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			branchEl.textContent = workspaceInfo.branch;
 			branchGroup.appendChild(branchEl);
 			centerGroup.appendChild(branchGroup);
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(branchEl, { content: workspaceInfo.branch }));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), branchEl, workspaceInfo.branch));
 		}
 
 		sessionPill.appendChild(centerGroup);
@@ -460,20 +433,16 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _getCommandCenterTitle(): string | undefined {
-		const { sessionTitle, contextTitle } = this._getCommandCenterTitles();
-		if (sessionTitle && contextTitle) {
-			return localize('agentSessionsSessionWithContext', "{0} · {1}", sessionTitle, contextTitle);
+		const title = this._sessionTitle ?? this._workspaceInfo?.label;
+		if (title || !this._isQuickChat) {
+			return title;
 		}
-		return sessionTitle ?? contextTitle;
-	}
 
-	private _getCommandCenterTitles(): { sessionTitle: string | undefined; contextTitle: string | undefined } {
-		const contextTitle = this._sessionTitle ?? this._workspaceInfo?.label ?? (this._isQuickChat ? localize('noWorkspace', "No workspace") : undefined);
-		const sessionTitle = this._activeSessionTitle === this._activeChatTitle ? undefined : this._activeSessionTitle;
-		if (!sessionTitle || sessionTitle === contextTitle) {
-			return { sessionTitle: undefined, contextTitle: sessionTitle ?? contextTitle };
-		}
-		return { sessionTitle, contextTitle };
+		const session = this.sessionsService.activeSession.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		return provider && isAgentHostProvider(provider) && provider.remoteAddress
+			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
+			: localize('noWorkspace', "No workspace");
 	}
 
 	/**
@@ -727,7 +696,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		if (sideBySide) {
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
+				this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', forceMainChat: true }).catch(onUnexpectedError);
 				return;
 			}
 		}
@@ -764,24 +733,7 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		const sessionActionFeedback = this._register(new SessionActionFeedback());
 		const blockedIndicator = this._register(instantiationService.createInstance(BlockedSessionsIndicatorModel, undefined /* approvalModel */, undefined /* blockedSessions */, undefined /* ciFixModel */));
 
-		// Register the submenu item in the Agent Sessions command center
-		this._register(MenuRegistry.appendMenuItem(Menus.CommandCenter, {
-			submenu: Menus.TitleBarSessionTitle,
-			title: localize('agentSessionsControl', "Agent Sessions"),
-			order: 101,
-			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
-		}));
-
-		// Register a placeholder action so the submenu appears
-		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
-			command: {
-				id: SHOW_SESSIONS_PICKER_COMMAND_ID,
-				title: localize('showSessions', "Show Sessions"),
-			},
-			group: 'a_sessions',
-			order: 1,
-			when: IsAuxiliaryWindowContext.negate()
-		}));
+		this._register(registerSessionsTitleBarMenus());
 
 		// The blocked-sessions dropdown header's "Show All Sessions" action dismisses
 		// the dropdown (a transient context view) before opening the full sessions
@@ -800,6 +752,26 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
 		}, undefined));
 	}
+}
+
+export function registerSessionsTitleBarMenus(): IDisposable {
+	return combinedDisposable(
+		MenuRegistry.appendMenuItem(Menus.CommandCenter, {
+			submenu: Menus.TitleBarSessionTitle,
+			title: localize('agentSessionsControl', "Agent Sessions"),
+			order: 101,
+			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
+		}),
+		MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
+			command: {
+				id: SHOW_SESSIONS_PICKER_COMMAND_ID,
+				title: localize('showSessions', "Show Sessions"),
+			},
+			group: 'a_sessions',
+			order: 1,
+			when: IsAuxiliaryWindowContext.negate()
+		})
+	);
 }
 
 // Escape closes the blocked-sessions dropdown while it is open. Registered as a

@@ -6,12 +6,12 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IArcTextReplacement } from '../../../../base/common/editArcTracker.js';
-import { computeDetailedDiff, computeDiffCounts } from '../../node/diffWorkerMain.js';
+import { computeDetailedDiff, computeDiffCounts, computeDiffHunks } from '../../node/diffWorkerMain.js';
 
 suite('Agent Host Diff Worker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns line counts and character edits from one diff', () => {
+	test('returns line counts and character edits', () => {
 		const result = computeDiffCounts('alpha\nbeta\ngamma', 'alpha\nBETA\ngamma\nomega', 5_000);
 
 		assert.deepStrictEqual({
@@ -77,7 +77,103 @@ suite('Agent Host Diff Worker', () => {
 		assert.deepStrictEqual(computeDiffCounts('first  \n', 'first \n', 5000), {
 			added: 0,
 			removed: 0,
-			changes: [],
+			changes: [{ startOffset: 6, endOffsetExclusive: 7, newText: '' }],
+			hitTimeout: false,
+		});
+	});
+
+	for (const eol of ['\n', '\r\n']) {
+		test(`character edits preserve separated indentation changes with ${JSON.stringify(eol)}`, () => {
+			const original = ['const first = 1;', '// unchanged \u{1f600}', 'const last = 2;'].join(eol);
+			const modified = ['\tconst first = 1;', '// unchanged \u{1f600}', '\tconst last = 2;'].join(eol);
+			const result = computeDiffCounts(original, modified, 5000);
+			assert.deepStrictEqual({
+				added: result.added,
+				removed: result.removed,
+				changes: result.changes,
+				applied: applyChanges(original, result.changes),
+			}, {
+				added: 0,
+				removed: 0,
+				changes: [
+					{ startOffset: 0, endOffsetExclusive: 0, newText: '\t' },
+					{ startOffset: original.indexOf('const last'), endOffsetExclusive: original.indexOf('const last'), newText: '\t' },
+				],
+				applied: modified,
+			});
+		});
+
+		test(`character edits include whitespace-only hunks alongside content changes with ${JSON.stringify(eol)}`, () => {
+			const original = ['const first = 1;', '// unchanged', 'const last = 2;'].join(eol);
+			const modified = ['\tconst first = 1;', '// unchanged', 'const last = 3;'].join(eol);
+			const result = computeDiffCounts(original, modified, 5000);
+			assert.deepStrictEqual({
+				added: result.added,
+				removed: result.removed,
+				changes: result.changes,
+				applied: applyChanges(original, result.changes),
+			}, {
+				added: 1,
+				removed: 1,
+				changes: [
+					{ startOffset: 0, endOffsetExclusive: 0, newText: '\t' },
+					{ startOffset: original.indexOf('2'), endOffsetExclusive: original.indexOf('2') + 1, newText: '3' },
+				],
+				applied: modified,
+			});
+		});
+	}
+
+	test('hunks are the changed line ranges, each of which can be applied or undone on its own', () => {
+		const original = 'one\ntwo\nthree\nfour\nfive\nsix\n';
+		const modified = 'one\nTWO\nthree\nfour\nsix\nseven\n';
+		const { hunks, hitTimeout } = computeDiffHunks(original, modified, 5000);
+
+		assert.deepStrictEqual({
+			lines: hunks.map(hunk => [hunk.originalStartLineNumber, hunk.originalEndLineNumberExclusive, hunk.modifiedStartLineNumber, hunk.modifiedEndLineNumberExclusive]),
+			eachApplied: hunks.map(hunk => applyReplacements(original, hunk.replacements)),
+			eachUndone: hunks.map(hunk => applyReplacements(modified, hunk.reverseReplacements)),
+			allApplied: applyReplacements(original, hunks.flatMap(hunk => hunk.replacements)),
+			hitTimeout,
+		}, {
+			lines: [[2, 3, 2, 3], [5, 6, 5, 5], [7, 7, 6, 7]],
+			eachApplied: [
+				'one\nTWO\nthree\nfour\nfive\nsix\n',
+				'one\ntwo\nthree\nfour\nsix\n',
+				'one\ntwo\nthree\nfour\nfive\nsix\nseven\n',
+			],
+			eachUndone: [
+				'one\ntwo\nthree\nfour\nsix\nseven\n',
+				'one\nTWO\nthree\nfour\nfive\nsix\nseven\n',
+				'one\nTWO\nthree\nfour\nsix\n',
+			],
+			allApplied: modified,
+			hitTimeout: false,
+		});
+	});
+
+	test('changes to line endings belong to no hunk, so separated content changes stay separate hunks', () => {
+		const original = 'one\r\ntwo\r\nthree\r\nfour\r\nfive\r\n';
+		const modified = 'one\nTWO\nthree\nfour\nFIVE\n';
+		const { hunks } = computeDiffHunks(original, modified, 5000);
+
+		assert.deepStrictEqual({
+			lineEndingsOnly: computeDiffHunks('first\r\nsecond\r\n', 'first\nsecond\n', 5000).hunks,
+			lines: hunks.map(hunk => [hunk.originalStartLineNumber, hunk.originalEndLineNumberExclusive, hunk.modifiedStartLineNumber, hunk.modifiedEndLineNumberExclusive]),
+			// Each side keeps its own line endings outside of the hunk.
+			eachApplied: hunks.map(hunk => applyReplacements(original, hunk.replacements)),
+			eachUndone: hunks.map(hunk => applyReplacements(modified, hunk.reverseReplacements)),
+		}, {
+			lineEndingsOnly: [],
+			lines: [[2, 3, 2, 3], [5, 6, 5, 6]],
+			eachApplied: [
+				'one\r\nTWO\r\nthree\r\nfour\r\nfive\r\n',
+				'one\r\ntwo\r\nthree\r\nfour\r\nFIVE\r\n',
+			],
+			eachUndone: [
+				'one\ntwo\nthree\nfour\nFIVE\n',
+				'one\nTWO\nthree\nfour\nfive\n',
+			],
 		});
 	});
 });

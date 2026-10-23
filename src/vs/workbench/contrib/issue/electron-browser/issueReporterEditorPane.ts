@@ -6,9 +6,12 @@
 import '../browser/media/issueReporterOverlay.css';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -18,15 +21,17 @@ import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
-import { IRecordingService, IRecordingData, RecordingState } from '../browser/recordingService.js';
+import { getIssueReporterMediaFormat, IIssueReporterVideoMetadata, ImportedIssueMedia, readIssueReporterImage, readIssueReporterMediaFile, readIssueReporterVideo } from '../browser/issueReporterMedia.js';
+import { IRecordingService, IRecordingData, RecordingState, ScreenCapturePermissionStatus, shouldShowScreenCapturePermissionSettings } from '../browser/recordingService.js';
 import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService } from '../common/issue.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
@@ -35,13 +40,15 @@ import product from '../../../../platform/product/common/product.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ChatMessageRole, ILanguageModelsService, getTextResponseFromStream } from '../../chat/common/languageModels.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { IChatUtilityModelService } from '../../chat/common/chatUtilityModelService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 /** Context key that's `true` whenever any IssueReporter editor is open in any group, even when not focused. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -73,6 +80,11 @@ export class IssueReporterEditorPane extends EditorPane {
 	/** Survives the framework calling clearInput() when the user switches away. */
 	private wizardInput: IssueReporterEditorInput | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
+	private hasRequestedScreenCapturePermission = false;
+	private pendingRecordingStart: Promise<void> | undefined;
+	private pendingRecordingStop: Promise<void> | undefined;
+	private recordingGeneration = 0;
+	private recordingOwner: IssueReporterOverlay | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -92,6 +104,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly chatUtilityModelService: IChatUtilityModelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IUpdateService private readonly updateService: IUpdateService,
@@ -99,6 +112,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
 		IssueReporterEditorPane.liveInstances.add(this);
@@ -145,11 +159,8 @@ export class IssueReporterEditorPane extends EditorPane {
 			return;
 		}
 
-		// Keep our own input reference for revealAndActivate() after clearInput().
-		this.wizardInput = input;
-
 		// If the wizard is already built and its DOM is still attached, re-parent floating bar if needed
-		if (this.wizard && this.container.contains(this.wizard.getPanel())) {
+		if (this.wizard && this.wizardInput === input && this.container.contains(this.wizard.getPanel())) {
 			this.wizard.reparentFloatingBar();
 			this.wizard.showFloatingBar();
 			this.wizard.setUpdateAvailable(this.shouldShowUpdateBanner());
@@ -160,8 +171,9 @@ export class IssueReporterEditorPane extends EditorPane {
 			return;
 		}
 
-		this.inputDisposables.clear();
-		clearNode(this.container);
+		this.destroyWizard();
+		// Keep our own input reference for revealAndActivate() after clearInput().
+		this.wizardInput = input;
 
 		const data = input.data;
 		if (!data) {
@@ -176,6 +188,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.recordingService.isSupported,
 			this.container,
 			this.contextViewService,
+			(repo, title, signal) => this.issueFormService.searchGitHubIssues(repo, title, signal),
 			this.contextMenuService,
 			this.markdownRendererService,
 			true,
@@ -186,6 +199,12 @@ export class IssueReporterEditorPane extends EditorPane {
 			commandId => this.keybindingService.lookupKeybinding(commandId),
 		);
 		this.inputDisposables.add(this.wizard);
+		const wizard = this.wizard;
+		const mediaCancellation = new CancellationTokenSource();
+		this.inputDisposables.add(toDisposable(() => mediaCancellation.dispose(true)));
+		this.inputDisposables.add(wizard.onDidRequestAddAttachments(files => {
+			void this.importAttachments(files, wizard, input, mediaCancellation.token);
+		}));
 		this.inputDisposables.add(this.updateService.onStateChange(() => this.wizard?.setUpdateAvailable(this.shouldShowUpdateBanner())));
 
 		// Let the input check wizard state for close confirmation
@@ -209,116 +228,76 @@ export class IssueReporterEditorPane extends EditorPane {
 		// rebuilt when the editor moves between the main editor area and a modal
 		// editor part in the Agents Window.
 		this.restoreAttachmentsFromInput(input);
-		this.inputDisposables.add(this.wizard.onDidChangeAttachments(() => {
-			input.savedScreenshots = this.wizard?.getScreenshots().slice();
-			input.savedRecordings = this.wizard?.getRecordings().slice();
+		this.inputDisposables.add(wizard.onDidChangeAttachments(() => {
+			input.savedScreenshots = wizard.getScreenshots().slice();
+			input.savedRecordings = wizard.getRecordings().slice();
 		}));
 
 		// Populate system info in background (non-blocking)
 		void this.populateSystemInfo();
 
 		// Wire screenshot capture
-		this.inputDisposables.add(this.wizard.onDidRequestScreenshot(async () => {
+		this.inputDisposables.add(wizard.onDidRequestScreenshot(async () => {
+			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested;
 			try {
 				// Conditionally hide the floating bar based on user setting
-				const shouldHide = this.wizard?.shouldHideToolbarForCapture ?? true;
+				const shouldHide = wizard.shouldHideToolbarForCapture;
 				if (shouldHide) {
-					this.wizard?.hideFloatingBar();
+					wizard.hideFloatingBar();
 
 					// Small delay to let the bar disappear before capture
-					await new Promise(r => setTimeout(r, 100));
+					await timeout(100, mediaCancellation.token);
 				}
 
 				const dataUrl = await this.screenshotService.captureScreenshot();
 
 				// Show bar again after capture
-				if (shouldHide) {
-					setTimeout(() => this.wizard?.showFloatingBar(), 1000);
+				if (shouldHide && isCurrent()) {
+					disposableTimeout(() => wizard.showFloatingBar(), 1000, this.inputDisposables);
 				}
 
-				if (!dataUrl || !this.wizard) {
+				if (!dataUrl || !isCurrent()) {
 					return;
 				}
 
-				const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-					const image = mainWindow.document.createElement('img');
-					image.onload = () => resolve(image);
-					image.onerror = reject;
-					image.src = dataUrl;
-				});
-
-				this.wizard.addScreenshot({ dataUrl, width: img.naturalWidth, height: img.naturalHeight });
+				const dimensions = await this.readAttachmentImage(dataUrl, mediaCancellation.token);
+				if (!isCurrent()) {
+					return;
+				}
+				wizard.addScreenshot({ dataUrl, ...dimensions });
 
 				// Bring the wizard back into focus after the capture in case
 				// the user switched editors/groups while setting up the shot.
 				await this.revealAndActivate();
 			} catch (err) {
-				setTimeout(() => this.wizard?.showFloatingBar(), 1000);
-				this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
+				if (isCurrent()) {
+					disposableTimeout(() => wizard.showFloatingBar(), 1000, this.inputDisposables);
+					this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
+				}
+			} finally {
+				wizard.completeScreenshotCapture();
 			}
 		}));
 
 		// Wire recording start
-		this.inputDisposables.add(this.wizard.onDidRequestStartRecording(async () => {
-			// macOS-only: skip getDisplayMedia when permission is denied and
-			// surface the grant-permission notification instead.
-			const permissionState = await this.recordingService.getScreenCapturePermissionStatus();
-			if (permissionState === 'denied' || permissionState === 'restricted') {
-				this.showScreenRecordingPermissionNotification();
-				this.wizard?.setRecordingState(RecordingState.Idle);
-				return;
-			}
-			try {
-				await this.recordingService.startRecording('video/mp4');
-				this.wizard?.setRecordingState(RecordingState.Recording);
-			} catch (err) {
-				this.logService.error('[IssueReporterEditorPane] Recording failed:', err);
-				this.wizard?.setRecordingState(RecordingState.Idle);
-				// Only nudge the user to System Settings on an explicit deny/restrict. On macOS,
-				// `not-determined` can also mean the user just cancelled the getDisplayMedia
-				// picker (no TCC decision recorded) — surfacing a permission prompt then would
-				// be misleading, so we treat that as a silent cancel.
-				const postState = await this.recordingService.getScreenCapturePermissionStatus();
-				if (postState === 'denied' || postState === 'restricted') {
-					this.showScreenRecordingPermissionNotification();
-				}
-			}
-		}));
+		this.inputDisposables.add(this.wizard.onDidRequestStartRecording(() => this.startRecording()));
 
 		// Wire recording stop (user-initiated)
-		this.inputDisposables.add(this.wizard.onDidRequestStopRecording(async () => {
-			try {
-				const recordingData = await this.recordingService.stopRecording();
-				if (recordingData) {
-					await this.saveRecordingAndAdd(recordingData);
-				}
-				this.wizard?.setRecordingState(RecordingState.Idle);
-			} catch (err) {
-				this.logService.error('[IssueReporterEditorPane] Stop recording failed:', err);
-				this.wizard?.setRecordingState(RecordingState.Idle);
-			}
-		}));
+		this.inputDisposables.add(this.wizard.onDidRequestStopRecording(() => this.stopRecording()));
 
 		// Handle auto-stop triggered by the recording service (e.g. size limit reached)
-		this.inputDisposables.add(this.recordingService.onDidChangeState(async (state) => {
+		this.inputDisposables.add(this.recordingService.onDidChangeState(state => {
 			// Only handle auto-stop: if the service stopped on its own while the wizard
 			// still thinks we're recording (user didn't press Stop manually)
 			if (state === RecordingState.Stopped && this.wizard?.recordingState === RecordingState.Recording) {
-				try {
-					const recordingData = await this.recordingService.stopRecording();
-					if (recordingData) {
-						await this.saveRecordingAndAdd(recordingData);
-						if (recordingData.stoppedBySize) {
-							this.notificationService.notify({
-								severity: Severity.Warning,
-								message: localize('recordingTooLarge', "Recording stopped automatically: the 100 MB upload limit was reached."),
-							});
-						}
-					}
-				} catch (err) {
-					this.logService.error('[IssueReporterEditorPane] Auto-stop recording failed:', err);
-				}
-				this.wizard?.setRecordingState(RecordingState.Idle);
+				void this.stopRecording();
+			}
+		}));
+		this.inputDisposables.add(this.recordingService.onDidFailRecording(error => {
+			if (this.wizard && this.recordingOwner === this.wizard) {
+				this.recordingOwner = undefined;
+				this.wizard.setRecordingState(RecordingState.Idle);
+				this.showRecordingError(error);
 			}
 		}));
 
@@ -330,12 +309,13 @@ export class IssueReporterEditorPane extends EditorPane {
 				if (commaIndex === -1) {
 					return;
 				}
-				// Screenshots are either annotated (always PNG via canvas.toDataURL)
-				// or raw native captures (always JPEG); fall back to PNG.
-				const extension = dataUrl.startsWith('data:image/jpeg') ? 'jpg' : 'png';
+				const format = getIssueReporterMediaFormat('', dataUrl.slice(5, commaIndex).split(';', 1)[0]);
+				if (!format || format.kind !== 'image') {
+					return;
+				}
 				// Write to the OS temp folder so artifacts are cleaned up automatically.
 				const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-screenshots');
-				const target = URI.joinPath(folder, `screenshot-${Date.now()}.${extension}`);
+				const target = URI.joinPath(folder, `screenshot-${Date.now()}.${format.extension}`);
 				await this.fileService.createFolder(folder);
 				await this.fileService.writeFile(target, decodeBase64(dataUrl.substring(commaIndex + 1)));
 				await this.editorService.openEditor({ resource: target });
@@ -347,7 +327,8 @@ export class IssueReporterEditorPane extends EditorPane {
 		// Wire open recording — open file in editor
 		this.inputDisposables.add(this.wizard.onDidRequestOpenRecording(async (filePath) => {
 			try {
-				await this.editorService.openEditor({ resource: URI.file(filePath) });
+				const isQuickTime = getIssueReporterMediaFormat(filePath)?.mimeType === 'video/quicktime';
+				await this.editorService.openEditor({ resource: URI.file(filePath), ...(isQuickTime ? { options: { override: 'vscode.videoPreview' } } : {}) });
 			} catch (err) {
 				this.logService.error('[IssueReporterEditorPane] Open recording failed:', err);
 			}
@@ -388,20 +369,18 @@ export class IssueReporterEditorPane extends EditorPane {
 					return;
 				}
 				const modelId = modelIds[0];
-				const response = await this.languageModelsService.sendChatRequest(
-					modelId,
-					undefined,
-					[{
+				const response = await this.chatUtilityModelService.sendRequest({
+					purpose: 'issueTitle',
+					model: modelId,
+					messages: [{
 						role: ChatMessageRole.User,
 						content: [{
 							type: 'text',
 							value: `Generate a concise issue title (max 10 words, no quotes, no prefix like "Bug:" or "Feature:") for this bug report description:\n\n${description}`,
 						}],
 					}],
-					{},
-					CancellationToken.None,
-				);
-				const title = (await getTextResponseFromStream(response)).trim().replace(/^["']|["']$/g, '');
+				}, CancellationToken.None);
+				const title = (response ?? '').trim().replace(/^["']|["']$/g, '');
 				if (title && this.wizard) {
 					this.wizard.setGeneratedTitle(title);
 				} else {
@@ -412,6 +391,70 @@ export class IssueReporterEditorPane extends EditorPane {
 				this.wizard?.resetGenerateButton();
 			}
 		}));
+	}
+
+	protected readAttachmentImage(dataUrl: string, token: CancellationToken): Promise<{ width: number; height: number }> {
+		return readIssueReporterImage(dataUrl, token);
+	}
+
+	/** Use the default-profile file root already trusted by the native resource protocol. */
+	private get mediaStorageHome(): URI {
+		return this.userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file });
+	}
+
+	protected readAttachmentVideo(file: URI, token: CancellationToken): Promise<IIssueReporterVideoMetadata> {
+		return readIssueReporterVideo(FileAccess.uriToBrowserUri(file).toString(true), token);
+	}
+
+	protected async importAttachments(files: readonly File[], wizard: IssueReporterOverlay, input: IssueReporterEditorInput, token: CancellationToken): Promise<void> {
+		const isCurrent = () => this.wizard === wizard && this.wizardInput === input && !input.isDisposed() && !token.isCancellationRequested;
+		for (const file of files) {
+			let target: URI | undefined;
+			try {
+				if (!isCurrent()) {
+					throw new CancellationError();
+				}
+				const { format, bytes, durationMs } = await readIssueReporterMediaFile(file, token);
+				if (!isCurrent()) {
+					throw new CancellationError();
+				}
+				let attachment: ImportedIssueMedia;
+				if (format.kind === 'image') {
+					const dataUrl = `data:${format.mimeType};base64,${encodeBase64(bytes)}`;
+					attachment = { kind: 'image', image: { dataUrl, ...await this.readAttachmentImage(dataUrl, token) } };
+				} else {
+					const folder = URI.joinPath(this.mediaStorageHome, 'issue-attachments');
+					await this.fileService.createFolder(folder);
+					if (!isCurrent()) {
+						throw new CancellationError();
+					}
+					target = URI.joinPath(folder, `import-${generateUuid()}.${format.extension}`);
+					await this.fileService.writeFile(target, bytes);
+					if (!isCurrent()) {
+						throw new CancellationError();
+					}
+					const metadata = await this.readAttachmentVideo(target, token);
+					attachment = { kind: 'video', video: { filePath: target.fsPath, ...metadata, durationMs: format.mimeType === 'video/webm' ? durationMs : metadata.durationMs } };
+				}
+				if (!isCurrent()) {
+					throw new CancellationError();
+				}
+				const added = wizard.completeAttachmentImport(attachment);
+				if (added && target) {
+					const ownedFile = target;
+					input.registerImportedFile(ownedFile.fsPath, importedFileCleanup(ownedFile, this.fileService, this.logService));
+					target = undefined;
+				}
+			} catch (error) {
+				wizard.completeAttachmentImport(undefined, isCurrent() && !isCancellationError(error)
+					? localize('attachmentImportFailed', "Could not attach {0}: {1}", file.name || localize('unnamedAttachment', "Clipboard attachment"), toErrorMessage(error))
+					: undefined);
+			} finally {
+				if (target) {
+					await deleteImportedFile(target, this.fileService, this.logService);
+				}
+			}
+		}
 	}
 
 	private async fetchPerformanceInfo(options?: { skipCache?: boolean; unbounded?: boolean }): Promise<void> {
@@ -504,16 +547,19 @@ export class IssueReporterEditorPane extends EditorPane {
 		if (!this.wizard) {
 			return;
 		}
-		if (input.savedScreenshots?.length || input.savedRecordings?.length) {
+		if (input.savedScreenshots !== undefined || input.savedRecordings !== undefined) {
 			this.wizard.restoreAttachments(input.savedScreenshots ?? [], input.savedRecordings ?? []);
 		}
 	}
 
 	private destroyWizard(): void {
-		// Stop any active recording to avoid memory leaks
-		if (this.recordingService.state === RecordingState.Recording) {
+		this.recordingGeneration++;
+		this.pendingRecordingStart = undefined;
+		this.pendingRecordingStop = undefined;
+		if (this.wizard && this.recordingOwner === this.wizard) {
 			this.recordingService.discardRecording();
 		}
+		this.recordingOwner = undefined;
 		this.inputDisposables.clear();
 		this.wizard = undefined;
 		this.wizardInput = undefined;
@@ -522,20 +568,173 @@ export class IssueReporterEditorPane extends EditorPane {
 		}
 	}
 
+	private startRecording(): Promise<void> {
+		if (this.pendingRecordingStart) {
+			return this.pendingRecordingStart;
+		}
+		if (!this.wizard || this._store.isDisposed || this.pendingRecordingStop || this.recordingOwner === this.wizard) {
+			return Promise.resolve();
+		}
+		if (!this.wizard.reserveRecordingSlot()) {
+			return Promise.resolve();
+		}
+		const promise = this.doStartRecording(this.wizard, ++this.recordingGeneration);
+		this.pendingRecordingStart = promise;
+		const clear = () => {
+			if (this.pendingRecordingStart === promise) {
+				this.pendingRecordingStart = undefined;
+			}
+		};
+		void promise.then(clear, clear);
+		return promise;
+	}
+
+	private async doStartRecording(wizard: IssueReporterOverlay, generation: number): Promise<void> {
+		const isCurrent = () => this.wizard === wizard && this.recordingGeneration === generation;
+		const previouslyRequested = this.hasRequestedScreenCapturePermission;
+		let requestedPermission = false;
+		let attemptedRecording = false;
+		try {
+			let status = await this.recordingService.getScreenCapturePermissionStatus();
+			if (!isCurrent()) {
+				return;
+			}
+			if (status !== 'granted') {
+				if (status !== 'restricted') {
+					this.hasRequestedScreenCapturePermission = true;
+					requestedPermission = true;
+					const granted = await this.recordingService.requestScreenCapturePermission();
+					if (!isCurrent()) {
+						return;
+					}
+					status = granted ? 'granted' : await this.recordingService.getScreenCapturePermissionStatus();
+				}
+				if (!isCurrent()) {
+					return;
+				}
+				if (status !== 'granted') {
+					if (shouldShowScreenCapturePermissionSettings(status, previouslyRequested)) {
+						this.showScreenRecordingPermissionNotification(status);
+					}
+					wizard.setRecordingState(RecordingState.Idle);
+					return;
+				}
+			}
+
+			attemptedRecording = true;
+			this.recordingOwner = wizard;
+			await this.recordingService.startRecording('video/mp4');
+			if (!isCurrent()) {
+				return;
+			}
+			wizard.setRecordingState(this.recordingService.state);
+			if (this.recordingService.state === RecordingState.Stopped) {
+				await this.stopRecording();
+			}
+		} catch (error) {
+			if (!isCurrent()) {
+				return;
+			}
+			this.recordingOwner = undefined;
+			wizard.setRecordingState(RecordingState.Idle);
+			if (isCancellationError(error)) {
+				return;
+			}
+			this.logService.error('[IssueReporterEditorPane] Recording failed:', error);
+			let status: ScreenCapturePermissionStatus | undefined;
+			try {
+				status = await this.recordingService.getScreenCapturePermissionStatus();
+			} catch (statusError) {
+				this.logService.error('[IssueReporterEditorPane] Permission status failed:', statusError);
+			}
+			if (!isCurrent()) {
+				return;
+			}
+			if (status && status !== 'granted') {
+				if (!requestedPermission || attemptedRecording || shouldShowScreenCapturePermissionSettings(status, previouslyRequested)) {
+					this.showScreenRecordingPermissionNotification(status);
+				}
+			} else {
+				this.showRecordingError(error);
+			}
+		}
+	}
+
+	private stopRecording(): Promise<void> {
+		if (this.pendingRecordingStop) {
+			return this.pendingRecordingStop;
+		}
+		const wizard = this.wizard;
+		if (!wizard) {
+			return Promise.resolve();
+		}
+		this.recordingGeneration++;
+		if (this.recordingOwner !== wizard) {
+			wizard.setRecordingState(RecordingState.Idle);
+			return Promise.resolve();
+		}
+		const promise = this.doStopRecording(wizard);
+		this.pendingRecordingStop = promise;
+		const clear = () => {
+			if (this.pendingRecordingStop === promise) {
+				this.pendingRecordingStop = undefined;
+			}
+		};
+		void promise.then(clear, clear);
+		return promise;
+	}
+
+	private async doStopRecording(wizard: IssueReporterOverlay): Promise<void> {
+		try {
+			const recordingData = await this.recordingService.stopRecording();
+			if (this.wizard !== wizard) {
+				return;
+			}
+			if (recordingData) {
+				await this.saveRecordingAndAdd(recordingData, wizard);
+				if (this.wizard === wizard && recordingData.stoppedBySize) {
+					this.notificationService.warn(localize('recordingTooLarge', "Recording stopped automatically: the 100 MB upload limit was reached."));
+				}
+			}
+		} catch (error) {
+			this.logService.error('[IssueReporterEditorPane] Stop recording failed:', error);
+			if (this.wizard === wizard) {
+				this.showRecordingError(error);
+			}
+		} finally {
+			if (this.wizard === wizard) {
+				this.recordingOwner = undefined;
+				wizard.setRecordingState(RecordingState.Idle);
+			}
+		}
+	}
+
+	private showRecordingError(error: unknown): void {
+		this.notificationService.error(isMacintosh
+			? localize('screenRecordingFailedMac', "Screen recording failed: {0} If you recently changed Screen Recording permission, quit and reopen {1}. If recording still fails, remove {1} from the Screen Recording list in System Settings, reopen it, and grant access again.", toErrorMessage(error), product.nameShort)
+			: localize('screenRecordingFailed', "Screen recording failed: {0} Try recording again.", toErrorMessage(error)));
+	}
+
 	/**
 	 * Surface a notification telling the user how to grant Screen Recording
 	 * permission. On macOS, includes a deep-link to System Settings.
 	 */
-	private showScreenRecordingPermissionNotification(): void {
+	private showScreenRecordingPermissionNotification(status: ScreenCapturePermissionStatus): void {
 		if (isMacintosh) {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('screenRecordingPermissionDenied', "{0} needs Screen Recording permission to record videos. Grant access in System Settings, then click Record again.", product.nameShort),
+				status === 'restricted'
+					? localize('screenRecordingPermissionRestricted', "Screen recording is restricted by macOS. Check Screen Recording permissions in System Settings or contact your administrator.")
+					: localize('screenRecordingPermissionDenied', "{0} needs Screen Recording permission to record videos. Grant access in System Settings and restart {0} if requested. If {0} is missing after you removed it from the list, quit and reopen {0}, then click Record again.", product.nameShort),
 				[
 					{
 						label: localize('openSystemSettings', "Open System Settings"),
-						run: () => {
-							this.recordingService.openScreenCapturePermissionSettings();
+						run: async () => {
+							try {
+								await this.recordingService.openScreenCapturePermissionSettings();
+							} catch (error) {
+								this.notificationService.error(localize('screenRecordingSettingsFailed', "Unable to open Screen Recording settings: {0}", toErrorMessage(error)));
+							}
 						},
 					},
 				],
@@ -552,30 +751,59 @@ export class IssueReporterEditorPane extends EditorPane {
 		this.wizard?.focus();
 	}
 
-	private async saveRecordingAndAdd(data: IRecordingData): Promise<void> {
+	override dispose(): void {
+		this.destroyWizard();
+		super.dispose();
+	}
+
+	private async saveRecordingAndAdd(data: IRecordingData, wizard: IssueReporterOverlay): Promise<void> {
+		const input = this.wizardInput;
+		if (!input || this.wizard !== wizard) {
+			return;
+		}
+		let target: URI | undefined;
 		try {
 			const extension = data.mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
-			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`;
-			// Write to the OS temp folder so artifacts are cleaned up automatically.
-			const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-recordings');
-			const target = URI.joinPath(folder, fileName);
-
+			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}-${generateUuid()}.${extension}`;
+			const folder = URI.joinPath(this.mediaStorageHome, 'issue-recordings');
 			const arrayBuffer = await data.blob.arrayBuffer();
 			await this.fileService.createFolder(folder);
+			if (this.wizard !== wizard) {
+				return;
+			}
+			target = URI.joinPath(folder, fileName);
 			await this.fileService.writeFile(target, VSBuffer.wrap(new Uint8Array(arrayBuffer)));
+			if (this.wizard !== wizard) {
+				return;
+			}
 			this.logService.info(`[IssueReporterEditorPane] Recording saved to ${target.toString()}`);
 
 			// Generate thumbnail from the saved file — blob URLs are blocked by
 			// Electron's CSP for media elements, so we use the saved file via
 			// the vscode-file:// protocol which the renderer can load.
 			const thumbnailDataUrl = await this.generateVideoThumbnail(target);
-			this.wizard?.addRecording(target.fsPath, data.durationMs, thumbnailDataUrl);
+			if (this.wizard === wizard) {
+				if (wizard.addRecording(target.fsPath, data.durationMs, thumbnailDataUrl)) {
+					const ownedFile = target;
+					input.registerImportedFile(ownedFile.fsPath, importedFileCleanup(ownedFile, this.fileService, this.logService));
+					target = undefined;
+				} else {
+					this.notificationService.warn(localize('recordingAttachmentRejected', "The recording could not be attached because the attachment limit was reached. Remove an attachment and record again."));
+				}
+			}
 		} catch (err) {
 			this.logService.error('[IssueReporterEditorPane] Failed to save recording:', err);
+			if (this.wizard === wizard) {
+				this.showRecordingError(err);
+			}
+		} finally {
+			if (target) {
+				await deleteImportedFile(target, this.fileService, this.logService);
+			}
 		}
 	}
 
-	private generateVideoThumbnail(fileUri: URI): Promise<string | undefined> {
+	protected generateVideoThumbnail(fileUri: URI): Promise<string | undefined> {
 		// The fileUri may use the vscode-userdata: scheme. Convert to a real
 		// file:// URI via fsPath, then to vscode-file://vscode-app/ so the
 		// renderer's CSP allows loading it as a media source.
@@ -646,6 +874,20 @@ export class IssueReporterEditorPane extends EditorPane {
 		if (this.container) {
 			this.container.style.width = `${dimension.width}px`;
 			this.container.style.height = `${dimension.height}px`;
+		}
+	}
+}
+
+function importedFileCleanup(file: URI, fileService: IFileService, logService: ILogService): IDisposable {
+	return toDisposable(() => { void deleteImportedFile(file, fileService, logService); });
+}
+
+async function deleteImportedFile(file: URI, fileService: IFileService, logService: ILogService): Promise<void> {
+	try {
+		await fileService.del(file);
+	} catch (error) {
+		if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+			logService.warn('[IssueReporterEditorPane] Failed to delete imported attachment:', error);
 		}
 	}
 }

@@ -20,6 +20,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -41,7 +42,7 @@ import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEdit
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKind } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { Menus } from '../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesActionsBar } from './changesView.js';
@@ -60,6 +61,7 @@ import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ChangesEmptyState } from './changesEmptyState.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -181,12 +183,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private viewModel: MultiDiffEditorViewModel | undefined;
 	get hasViewModel(): boolean { return this.viewModel !== undefined; }
 	private bodyContainer: HTMLElement | undefined;
+	private emptyState: ChangesEmptyState | undefined;
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this.widget?.getContextKeyService();
 	}
 
-	private _singlePane = false;
+	private _desktop = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
 	/** Session whose changes this editor is currently showing (from its input). */
@@ -208,7 +211,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
 	private readonly _pendingFocus = this._register(new MutableDisposable());
 	private readonly _pendingReveal = this._register(new MutableDisposable());
-	/** Defers resolving the multi-diff while the editor part is hidden (single-pane detail-only). */
+	/** Defers resolving the multi-diff while the editor part is hidden (desktop detail-only). */
 	private readonly _pendingResolve = this._register(new MutableDisposable());
 
 	private readonly _logger: MultiDiffEditorLogger;
@@ -229,6 +232,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 		@ILogService logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -256,11 +260,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
 
-		// In single-pane, the header (Branch Changes dropdown, diff stats and primary
+		// In desktop, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
 		// this editor, so it spans the editor content and the docked detail panel.
-		this._singlePane = this.layoutService.isSinglePaneLayoutEnabled;
-		if (!this._singlePane) {
+		this._desktop = this.layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop;
+		if (!this._desktop) {
 			const header = append(root, $('.session-changes-editor-header'));
 			const left = append(header, $('.session-changes-editor-header-left'));
 			const right = append(header, $('.session-changes-editor-header-right'));
@@ -288,6 +292,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
+		const emptyState = append(this.bodyContainer, $('.session-changes-editor-empty-state'));
+		this.emptyState = this._register(scopedInstantiationService.createInstance(ChangesEmptyState, emptyState));
+		this._register(autorun(reader => {
+			const model = this.widget?.viewModel.read(reader);
+			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0;
+			emptyState.hidden = !empty;
+			this.bodyContainer?.classList.toggle('has-empty-state', empty);
+			if (empty) {
+				this.emptyState?.layout();
+			}
+		}));
 		this._register(autorun(reader => {
 			this.widget?.setDiffLayoutOptions(
 				this.diffEditorOptionsService.viewMode.read(reader),
@@ -313,11 +328,17 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return this.widget?.getActiveControl();
 	}
 
+	override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+		const provider = this.actionViewItemService.lookUp(Menus.SessionsEditorTitle, action.id);
+		return provider?.(action, options, this.scopedInstantiationService ?? this.instantiationService, this.window.vscodeWindowId)
+			?? super.getActionViewItem(action, options);
+	}
+
 	resetDiffEditorWidthBasedLayout(): void {
 		this.widget?.resetWidthBasedLayout();
 	}
 
-	/** Creates the classic (non-single-pane) internal header toolbars. */
+	/** Creates the mobile-layout internal header toolbars. */
 	private _buildHeaderToolbars(left: HTMLElement, right: HTMLElement, instantiationService: IInstantiationService): IDisposable {
 		const store = new DisposableStore();
 
@@ -328,13 +349,13 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}));
 
 		// Create Pull Request (and related) actions render on the right of the header row.
-		store.add(instantiationService.createInstance(ChangesActionsBar, right));
+		store.add(instantiationService.createInstance(ChangesActionsBar, right, new Set<string>()));
 
 		return store;
 	}
 
 	get scopedInstantiationService(): IInstantiationService | undefined {
-		return this._singlePane ? this._scopedInstantiationService : undefined;
+		return this._desktop ? this._scopedInstantiationService : undefined;
 	}
 
 	override async setInput(input: SessionChangesEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -523,10 +544,11 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override layout(dimension: Dimension): void {
-		// In single-pane the header is external (the editor part reserves a top inset),
+		// In desktop the header is external (the editor part reserves a top inset),
 		// so the diff fills the full dimension; otherwise reserve the internal header.
-		const bodyHeight = this._singlePane ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
+		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
 		this.widget?.layout(new Dimension(dimension.width, bodyHeight));
+		this.emptyState?.layout();
 	}
 }
 

@@ -16,7 +16,7 @@ import { revive } from '../../../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
@@ -28,6 +28,8 @@ import { TextEdit } from '../../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
 import { parseAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
+import { ArtifactRequestPresentation } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { isArtifactRequestPresentation } from '../../../../../platform/artifactIntegrations/common/artifactPresentationValidation.js';
 import { canLog, ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
@@ -48,6 +50,9 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService,
 import { ChatRequestTextPart, IChatPromptText, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
+import type { ICanvasContext } from '../../../canvases/common/canvas.js';
+import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import type { IAgentModelConfigurationReport } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
 
 
 /**
@@ -124,7 +129,7 @@ export namespace IChatRequestVariableData {
 }
 
 /** A feature that submits a chat request on the user's behalf. */
-export type ChatRequestSource = 'agentMerge';
+export type ChatRequestSource = 'agentMerge' | 'artifactIntegration';
 
 /** Backfills the source of legacy Agent Merge requests when restoring history. */
 export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'requestSource' | 'isSystemInitiated' | 'systemInitiatedLabel'>, messageText: string): ChatRequestSource | undefined {
@@ -139,6 +144,7 @@ export function getRestoredChatRequestSource(request: Pick<IChatRequestModel, 'r
 }
 
 export interface IChatRequestModel {
+	readonly agentHostMetadata?: Record<string, unknown>;
 	readonly id: string;
 	readonly timestamp: number;
 	readonly requestTimestamp: number | undefined;
@@ -165,6 +171,7 @@ export interface IChatRequestModel {
 	readonly isSystemInitiated?: boolean;
 	/** The request source, independent of the request text or responding participant. */
 	readonly requestSource?: ChatRequestSource;
+	readonly artifactRequest?: ArtifactRequestPresentation;
 	readonly isHiddenFromTranscript: boolean;
 	/** Whether only the request row is hidden. Full-turn hiding also implies this. */
 	readonly isRequestHiddenFromTranscript: boolean;
@@ -182,9 +189,15 @@ export interface IChatTextEditGroupState {
 	applied: number;
 }
 
+export interface IChatEditMetadata {
+	readonly autoTier?: IChatTextEdit['autoTier'];
+}
+
 export interface IChatTextEditGroup {
 	uri: URI;
 	edits: TextEdit[][];
+	/** Attribution snapshots aligned with the edit batches. */
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 	done: boolean | undefined;
@@ -208,6 +221,7 @@ export interface ICellTextEditOperation {
 export interface IChatNotebookEditGroup {
 	uri: URI;
 	edits: (ICellTextEditOperation[] | ICellEditOperation[])[];
+	editMetadata?: IChatEditMetadata[];
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
 	done: boolean | undefined;
@@ -366,7 +380,7 @@ export interface IChatResponseModel {
 	setResult(result: IChatAgentResult): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean;
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void;
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean): void;
 	/**
 	 * Adopts any partially-undo {@link response} as the {@link entireResponse}.
 	 * Only valid when {@link isComplete}. This is needed because otherwise an
@@ -404,6 +418,7 @@ export interface IChatRequestModeInstructions {
 }
 
 export interface IChatRequestModelParameters {
+	agentHostMetadata?: Record<string, unknown>;
 	session: ChatModel;
 	message: IParsedChatRequest;
 	variableData: IChatRequestVariableData;
@@ -422,6 +437,7 @@ export interface IChatRequestModelParameters {
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
 	requestSource?: ChatRequestSource;
+	artifactRequest?: ArtifactRequestPresentation;
 	isHiddenFromTranscript?: boolean;
 	isRequestHiddenFromTranscript?: boolean;
 	systemInitiatedLabel?: string;
@@ -432,6 +448,7 @@ export interface IChatRequestModelParameters {
 }
 
 export class ChatRequestModel implements IChatRequestModel {
+	private _agentHostMetadata?: Record<string, unknown>;
 	public readonly id: string;
 	public response: ChatResponseModel | undefined;
 	public shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
@@ -439,12 +456,13 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly requestTimestamp: number | undefined;
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
-	public readonly modelId?: string;
+	private _modelId?: string;
 	public readonly modelConfiguration?: IStringDictionary<unknown>;
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
 	public readonly requestSource?: ChatRequestSource;
+	public readonly artifactRequest?: ArtifactRequestPresentation;
 	public readonly isHiddenFromTranscript: boolean;
 	public readonly isRequestHiddenFromTranscript: boolean;
 	public readonly systemInitiatedLabel?: string;
@@ -486,6 +504,24 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._variableData = v;
 	}
 
+	public get modelId(): string | undefined {
+		return this._modelId;
+	}
+
+	public set modelId(modelId: string | undefined) {
+		this._version++;
+		this._modelId = modelId;
+	}
+
+	public get agentHostMetadata(): Record<string, unknown> | undefined {
+		return this._agentHostMetadata;
+	}
+
+	public set agentHostMetadata(metadata: Record<string, unknown> | undefined) {
+		this._version++;
+		this._agentHostMetadata = metadata;
+	}
+
 	public get confirmation(): string | undefined {
 		return this._confirmation;
 	}
@@ -508,6 +544,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 
 	constructor(params: IChatRequestModelParameters) {
+		this._agentHostMetadata = params.agentHostMetadata;
 		this._session = params.session;
 		this.message = params.message;
 		this._variableData = params.variableData;
@@ -519,13 +556,14 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._locationData = params.locationData;
 		this._attachedContext = params.attachedContext;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
-		this.modelId = params.modelId;
+		this._modelId = params.modelId;
 		this.modelConfiguration = params.modelConfiguration;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
 		this.requestSource = params.requestSource;
+		this.artifactRequest = params.isSystemInitiated && params.requestSource === 'artifactIntegration' && isArtifactRequestPresentation(params.artifactRequest) ? params.artifactRequest : undefined;
 		this.isHiddenFromTranscript = params.isHiddenFromTranscript ?? false;
 		this.isRequestHiddenFromTranscript = this.isHiddenFromTranscript || params.isRequestHiddenFromTranscript === true;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
@@ -768,6 +806,9 @@ class AbstractResponse implements IResponse {
 	}
 
 	private getToolInvocationText(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { text: string; isBlock?: boolean } {
+		if (IChatToolInvocation.isStreaming(toolInvocation) && IChatToolInvocation.isImageGeneration(toolInvocation)) {
+			return { text: '' };
+		}
 		const getTerminalDisplayInput = (terminalData: ReturnType<typeof migrateLegacyTerminalToolSpecificData>) => terminalData.presentationOverrides?.commandLine
 			?? terminalData.commandLine.forDisplay
 			?? terminalData.commandLine.userEdited
@@ -966,7 +1007,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._contentChanged(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean): void {
 		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
 		// reasoning section nor its reasoning timer.
 		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
@@ -1021,7 +1062,8 @@ export class Response extends AbstractResponse implements IDisposable {
 			const isEmpty = (s: string) => s.length === 0;
 			if (isEmpty(currText)) {
 				this.finalizeReasoningDuration();
-			} else if (!this._activeReasoning) {
+			} else if (!this._activeReasoning && !restored) {
+				// Replayed history keeps its recorded timing; this clock only measures live reasoning.
 				this._activeReasoning = { part: progress, startedAt: Date.now() };
 			}
 
@@ -1049,17 +1091,18 @@ export class Response extends AbstractResponse implements IDisposable {
 			const notebookUri = CellUri.parse(progress.uri)?.notebook;
 			const uri = notebookUri ?? progress.uri;
 			const isExternalEdit = progress.isExternalEdit;
+			const editMetadata = progress.autoTier !== undefined ? { autoTier: progress.autoTier } : undefined;
 
 			if (progress.kind === 'textEdit' && !notebookUri) {
 				// Text edits to a regular (non-notebook) file
-				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushTextEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			} else if (progress.kind === 'textEdit') {
 				// Text edits to a notebook cell - convert to ICellTextEditOperation
 				const cellEdits = progress.edits.map(edit => ({ uri: progress.uri, edit }));
-				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, cellEdits, progress.done, isExternalEdit, editMetadata);
 			} else {
 				// Notebook cell edits (ICellEditOperation)
-				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit);
+				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit, editMetadata);
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressTask') {
@@ -1083,6 +1126,10 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 
 		} else if (progress.kind === 'toolInvocation') {
+			// An invocation rebuilt from replayed history was not seen starting.
+			if (restored && progress instanceof ChatToolInvocation) {
+				progress.forgetTiming();
+			}
 			this._toolInvocationDisposables.add(autorun(reader => {
 				if (!IChatToolInvocation.isComplete(progress)) {
 					progress.state.read(reader);
@@ -1106,16 +1153,23 @@ export class Response extends AbstractResponse implements IDisposable {
 				}
 			});
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
-			this._handleExternalToolInvocationUpdate(progress);
+			this._handleExternalToolInvocationUpdate(progress, restored);
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressMessage' && progress.id !== undefined) {
 			const idx = this._responseParts.findIndex(p => p.kind === 'progressMessage' && p.id === progress.id);
-			if (idx === -1) {
-				this._responseParts.push(progress);
+			if (progress.remove) {
+				if (idx !== -1) {
+					this._responseParts.splice(idx, 1);
+					this._contentChanged(quiet);
+				}
 			} else {
-				this._responseParts[idx] = progress;
+				if (idx === -1) {
+					this._responseParts.push(progress);
+				} else {
+					this._responseParts[idx] = progress;
+				}
+				this._contentChanged(quiet);
 			}
-			this._contentChanged(quiet);
 		} else if (progress.kind === 'autoModeResolution') {
 			// Auto can route more than once per turn: a resolved part replaces the
 			// row that is still routing, and any later route starts a new row.
@@ -1135,15 +1189,25 @@ export class Response extends AbstractResponse implements IDisposable {
 		}
 	}
 
+	replaceAutoModeResolutions(parts: readonly IChatAutoModeResolutionPart[]): void {
+		if (equals(this._responseParts.filter(part => part.kind === 'autoModeResolution'), parts)) {
+			return;
+		}
+		this._responseParts = [...parts, ...this._responseParts.filter(part => part.kind !== 'autoModeResolution')];
+		this._contentChanged();
+	}
+
 	/**
-	 * Persists the duration of the active reasoning interval.
+	 * Persists the start and duration of the active reasoning interval.
 	 */
 	finalizeReasoningDuration(): void {
 		if (!this._activeReasoning) {
 			return;
 		}
 
-		this._activeReasoning.part.reasoningDurationMs = Math.max(0, Date.now() - this._activeReasoning.startedAt);
+		const { part, startedAt } = this._activeReasoning;
+		part.reasoningStartedAt = startedAt;
+		part.reasoningDurationMs = Math.max(0, Date.now() - startedAt);
 		this._activeReasoning = undefined;
 	}
 
@@ -1171,29 +1235,37 @@ export class Response extends AbstractResponse implements IDisposable {
 		return false;
 	}
 
-	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'textEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'textEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
-	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
+	private _mergeOrPushNotebookEditGroup(uri: URI, edits: ICellTextEditOperation[] | ICellEditOperation[], done: boolean | undefined, isExternalEdit: boolean | undefined, editMetadata: IChatEditMetadata | undefined): void {
 		for (const candidate of this._responseParts) {
 			if (candidate.kind === 'notebookEditGroup' && !candidate.done && isEqual(candidate.uri, uri)) {
+				if (editMetadata) {
+					candidate.editMetadata ??= candidate.edits.map(() => ({}));
+				}
+				candidate.editMetadata?.push(editMetadata ?? {});
 				candidate.edits.push(edits);
 				candidate.done = done;
 				return;
 			}
 		}
-		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit });
+		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
-	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate): void {
+	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate, restored?: boolean): void {
 		// Look for existing invocation in the response parts
 		const existingInvocation = this._responseParts.findLast(
 			(part): part is ChatToolInvocation => part.kind === 'toolInvocation' && part.toolCallId === progress.toolCallId
@@ -1235,6 +1307,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			{},
 			undefined // chatRequestId
 		);
+		if (restored) {
+			invocation.forgetTiming();
+		}
 
 		if (progress.isComplete) {
 			// Already completed on first push
@@ -1313,6 +1388,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	public readonly id: string;
 	public readonly requestId: string;
 	private _session: ChatModel;
+	/** Last known position of the owning request, so {@link request} avoids a scan per call. Parity with `find()` assumes request ids are unique. */
+	private _requestIndexHint = 0;
 	private _agent: IChatAgentData | undefined;
 	private _slashCommand: IChatAgentCommand | undefined;
 	private _modelState = observableValue<ResponseModelStateT>(this, { value: ResponseModelState.Pending });
@@ -1338,7 +1415,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get request(): IChatRequestModel | undefined {
-		return this.session.getRequests().find(r => r.id === this.requestId);
+		const requests = this.session.getRequests();
+		const hinted = requests[this._requestIndexHint];
+		if (hinted?.id === this.requestId) {
+			return hinted;
+		}
+		const index = requests.findIndex(r => r.id === this.requestId);
+		if (index === -1) {
+			return undefined;
+		}
+		this._requestIndexHint = index;
+		return requests[index];
 	}
 
 	public get session() {
@@ -1652,9 +1739,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	/**
 	 * Apply a progress update to the actual response content.
+	 * @param restored The update replays recorded history rather than live progress.
 	 */
-	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean) {
-		this._response.updateContent(responsePart, quiet);
+	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean) {
+		this._response.updateContent(responsePart, quiet, restored);
 	}
 
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean {
@@ -1708,6 +1796,22 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setUsage(usage: IChatUsage): void {
 		this._parentUsage = usage;
 		this._setUsage(this._withSubagentCopilotCredits(usage), true);
+	}
+
+	/** Replaces settled history metadata without recreating the response or accumulating replayed usage. */
+	updateHistoryMetadata(details: string | undefined, parts: readonly (IChatUsage | IChatAutoModeResolutionPart)[]): void {
+		transaction(tx => {
+			this._parentUsage = undefined;
+			this._usageObs.set(undefined, tx);
+			this._completionTokenCountObs.set(undefined, tx);
+			for (const part of parts) {
+				if (part.kind === 'usage') {
+					this.setUsage(part);
+				}
+			}
+			this._response.replaceAutoModeResolutions(parts.filter(part => part.kind === 'autoModeResolution'));
+			this.setResult({ ...this._result, details });
+		});
 	}
 
 	setSubagentCopilotCredits(subagentCallId: string, copilotCredits: number): void {
@@ -1776,7 +1880,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			&& currentUsage.outputBuffer === usage.outputBuffer
 			&& currentUsage.copilotCredits === usage.copilotCredits
 			&& currentUsage.sessionCopilotCredits === usage.sessionCopilotCredits
+			&& currentUsage.sessionCopilotCreditsStatus === usage.sessionCopilotCreditsStatus
 			&& equals(currentUsage.promptTokenDetails, usage.promptTokenDetails)
+			&& equals(currentUsage.contextUsage, usage.contextUsage)
+			&& equals(currentUsage.latestModelCall, usage.latestModelCall)
 			&& equals(currentUsage.modelTotals, usage.modelTotals);
 	}
 
@@ -1835,7 +1942,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		// spinner/"Editing files" label. See https://github.com/microsoft/vscode/issues/288701.
 		for (const part of this._response.value) {
 			if (part.kind === 'toolInvocation' && part instanceof ChatToolInvocation) {
-				part.cancelFromStreaming(ToolConfirmKind.Skipped);
+				part.cancelFromStreaming({ type: ToolConfirmKind.Skipped });
 			} else if (part instanceof ChatPlanReviewData) {
 				part.dismiss();
 			} else if (part instanceof ChatQuestionCarouselData) {
@@ -1911,13 +2018,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
 			promptTokens: this.usage?.promptTokens,
 			completionTokens: this.completionTokenCount,
+			lastCallCompletionTokens: this.usage?.modelTotals?.length ? this.usage.completionTokens : undefined,
 			outputBuffer: this.usage?.outputBuffer,
 			promptTokenDetails: this.usage?.promptTokenDetails,
+			...(this.usage?.latestModelCall ? { latestModelCall: this.usage.latestModelCall } : {}),
+			...(this.usage?.contextUsage ? { contextUsage: this.usage.contextUsage } : {}),
 			copilotCredits: this.usage?.copilotCredits,
 			modelTotals: this.usage?.modelTotals,
 			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
+			sessionCopilotCreditsStatus: this.usage?.sessionCopilotCreditsStatus,
 			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
-		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp'>>;
+		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp' | 'latestModelCall' | 'contextUsage'>> & Pick<ISerializableChatResponseData, 'latestModelCall' | 'contextUsage'>;
 	}
 }
 
@@ -1935,6 +2046,11 @@ export interface IChatRequestNeedsInputInfo {
 	readonly title: string;
 	/** Optional detail message, e.g., "<toolname> needs approval to run." */
 	readonly detail?: string;
+}
+
+export interface IChatSessionCost {
+	readonly credits: number;
+	readonly status?: IChatUsage['sessionCopilotCreditsStatus'];
 }
 
 export interface IChatModel extends IDisposable {
@@ -1961,6 +2077,12 @@ export interface IChatModel extends IDisposable {
 	/** Provides session information when a request needs user interaction to continue */
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly isReadOnly: IObservable<boolean>;
+	readonly isInputBlocked: IObservable<boolean>;
+	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
+	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
+	readonly backgroundShellCount?: IObservable<number | undefined>;
+	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	readonly checkpoint: IChatRequestModel | undefined;
@@ -1972,8 +2094,12 @@ export interface IChatModel extends IDisposable {
 	/** Whether this model will be kept alive while it is running or has edits */
 	readonly willKeepAlive: boolean;
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
-	/** Total copilot credits consumed across all turns in this session. */
+	/** Total Copilot credits consumed by this conversation, including out-of-turn work. */
 	readonly sessionCost: number;
+	readonly sessionCostStatus?: IChatUsage['sessionCopilotCreditsStatus'];
+	/** Aggregate-only billing, including charges received after a turn ended. */
+	readonly sessionCostInfo?: IChatSessionCost;
+	setSessionCost(cost: IChatSessionCost): void;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1992,6 +2118,9 @@ export interface IChatModel extends IDisposable {
 
 	readonly onDidChangePendingRequests: Event<void>;
 	getPendingRequests(): readonly IChatPendingRequest[];
+	/** Display-only requests whose host pending entry was consumed before its transcript turn arrived. */
+	readonly pendingRequestHandoffs: IObservable<readonly IChatRequestModel[]>;
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void;
 }
 
 export interface ISerializableChatsData {
@@ -2017,17 +2146,23 @@ interface ISerializableChatResponseData {
 	timeSpentWaiting?: number;
 	promptTokens?: number;
 	completionTokens?: number;
+	/** Last chat call's output, kept separate from whole-turn consumption on restore. */
+	lastCallCompletionTokens?: number;
 	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	latestModelCall?: IChatUsage['latestModelCall'];
+	contextUsage?: IChatUsage['contextUsage'];
 	copilotCredits?: number;
 	modelTotals?: readonly IChatUsageModelTotal[];
 	sessionCopilotCredits?: number;
+	sessionCopilotCreditsStatus?: IChatUsage['sessionCopilotCreditsStatus'];
 	elapsedMs?: number;
 }
 
 export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart;
 
 export interface ISerializableChatRequestData extends ISerializableChatResponseData {
+	agentHostMetadata?: Record<string, unknown>;
 	requestId: string;
 	message: string | IParsedChatRequest; // string => old format
 	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
@@ -2051,6 +2186,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	modeInfo?: IChatRequestModeInfo;
 	isSystemInitiated?: boolean;
 	requestSource?: ChatRequestSource;
+	artifactRequest?: ArtifactRequestPresentation;
 	systemInitiatedLabel?: string;
 	terminalExecutionId?: string;
 	origin?: ISerializableChatRequestOrigin;
@@ -2188,6 +2324,7 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
 	pendingRequests?: ISerializablePendingRequestData[];
 	/** The working directory URI associated with this session (sessions/agents window). */
 	workingDirectory?: string;
+	sessionCostInfo?: IChatSessionCost;
 }
 
 /**
@@ -2489,11 +2626,16 @@ export type IChatChangeEvent =
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
 	| IChatSetCustomTitleEvent
+	| { readonly kind: 'setSessionCost' }
 	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
+	/** Request index for restored history; omitted for ordinary appends. */
+	readonly index?: number;
+	/** Previous request replaced at the insertion index. */
+	readonly replacedRequest?: IChatRequestModel;
 }
 
 export interface IChatChangedRequestEvent {
@@ -2645,6 +2787,10 @@ class InputModel implements IInputModel {
 	}
 }
 
+function creditsExceed(actual: number, reported: number): boolean {
+	return actual - reported > 2 * Number.EPSILON * Math.max(Math.abs(actual), Math.abs(reported));
+}
+
 export class ChatModel extends Disposable implements IChatModel {
 	static getDefaultTitle(requests: (ISerializableChatRequestData | IChatRequestModel)[]): string {
 		const firstRequestMessage = requests.at(0)?.message ?? '';
@@ -2663,6 +2809,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	private readonly _pendingRequests: IChatPendingRequest[] = [];
 	private readonly _onDidChangePendingRequests = this._register(new Emitter<void>());
 	readonly onDidChangePendingRequests = this._onDidChangePendingRequests.event;
+	readonly pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>(this, []);
+
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void {
+		if (arraysEqual(this.pendingRequestHandoffs.get(), requests)) {
+			return;
+		}
+		this.pendingRequestHandoffs.set(requests, undefined);
+	}
 
 	private _requests: ChatRequestModel[];
 
@@ -2810,6 +2964,11 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly hasActiveRequest: IObservable<boolean>;
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly isReadOnly: IObservable<boolean>;
+	readonly isInputBlocked: IObservable<boolean>;
+	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly modelConfigurationState: IObservable<IAgentModelConfigurationReport | undefined> | undefined;
+	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
+	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
 
 	/** Input model for managing input state */
 	readonly inputModel: InputModel;
@@ -2822,13 +2981,45 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests.at(-1);
 	}
 
+	private _sessionCostInfo: IChatSessionCost | undefined;
+	private _sessionCostResponseStatus: IChatUsage['sessionCopilotCreditsStatus'];
+
+	get sessionCostInfo(): IChatSessionCost | undefined {
+		return this._sessionCostInfo ? { credits: this.sessionCost, status: this.sessionCostStatus } : undefined;
+	}
+
+	setSessionCost(cost: IChatSessionCost): void {
+		if (typeof cost.credits !== 'number' || !Number.isFinite(cost.credits) || cost.credits < 0) {
+			return;
+		}
+		const previous = this.sessionCostInfo;
+		const status = cost.status === 'complete' || cost.status === 'partial' || cost.status === 'unavailable' ? cost.status : undefined;
+		const credits = Math.max(cost.credits, this._sessionCostInfo?.credits ?? 0);
+		this._sessionCostInfo = { credits, status: status === 'complete' && creditsExceed(credits, cost.credits) ? 'partial' : status };
+		this._sessionCostResponseStatus = this._lastReportedSessionUsage()?.sessionCopilotCreditsStatus;
+		if (previous?.credits !== this.sessionCost || previous?.status !== this.sessionCostStatus) {
+			this._onDidChange.fire({ kind: 'setSessionCost' });
+		}
+	}
+
+	private _resetSessionCost(): void {
+		// History removal can truncate the provider's ledger, invalidating the aggregate high-water mark.
+		this._sessionCostInfo = undefined;
+		this._sessionCostResponseStatus = undefined;
+	}
+
 	get sessionCost(): number {
 		let summedCredits = 0;
+		let roundingCorrection = 0;
 		let reportedSessionCredits = 0;
 		for (const request of this._requests) {
 			const usage = request.response?.usage;
 			if (typeof usage?.copilotCredits === 'number') {
-				summedCredits += usage.copilotCredits;
+				// Compensated summation prevents accumulated roundoff from implying missing billing.
+				const adjusted = usage.copilotCredits - roundingCorrection;
+				const next = summedCredits + adjusted;
+				roundingCorrection = (next - summedCredits) - adjusted;
+				summedCredits = next;
 			}
 			if (typeof usage?.sessionCopilotCredits === 'number') {
 				reportedSessionCredits = Math.max(reportedSessionCredits, usage.sessionCopilotCredits);
@@ -2839,7 +3030,46 @@ export class ChatModel extends Disposable implements IChatModel {
 		// backend reports no session total, and any billed after the most recent
 		// reported total. Neither is a superset, so take whichever is larger —
 		// which is also independent of the order the two kinds are interleaved in.
-		return Math.max(summedCredits, reportedSessionCredits);
+		return Math.max(summedCredits, reportedSessionCredits, this._sessionCostInfo?.credits ?? 0);
+	}
+
+	private _lastReportedSessionUsage(): IChatUsage | undefined {
+		for (let i = this._requests.length - 1; i >= 0; i--) {
+			const usage = this._requests[i].response?.usage;
+			if (usage?.sessionCopilotCreditsStatus !== undefined) {
+				return usage;
+			}
+		}
+		return undefined;
+	}
+
+	get sessionCostStatus(): IChatUsage['sessionCopilotCreditsStatus'] {
+		const usage = this._lastReportedSessionUsage();
+		const aggregate = this._sessionCostInfo;
+		const cost = this.sessionCost;
+		if (!aggregate) {
+			const status = usage?.sessionCopilotCreditsStatus;
+			if (status === 'unavailable' && cost > 0 || status === 'complete' && creditsExceed(cost, usage?.sessionCopilotCredits ?? -1)) {
+				return 'partial';
+			}
+			return status;
+		}
+		// A response can report newer billing while the aggregate RPC is still in flight.
+		if (usage?.sessionCopilotCreditsStatus !== this._sessionCostResponseStatus) {
+			if (usage?.sessionCopilotCreditsStatus === 'partial' || usage?.sessionCopilotCreditsStatus === 'unavailable') {
+				return cost > 0 ? 'partial' : usage.sessionCopilotCreditsStatus;
+			}
+			if (usage?.sessionCopilotCreditsStatus === 'complete' && !creditsExceed(cost, usage.sessionCopilotCredits ?? -1)) {
+				return 'complete';
+			}
+		}
+		if (creditsExceed(cost, aggregate.credits)) {
+			if (!creditsExceed(cost, usage?.sessionCopilotCredits ?? -1)) {
+				return usage?.sessionCopilotCreditsStatus;
+			}
+			return aggregate.status !== undefined || usage?.sessionCopilotCreditsStatus !== undefined ? 'partial' : undefined;
+		}
+		return aggregate.status === 'unavailable' && cost > 0 ? 'partial' : aggregate.status;
 	}
 
 	private _timestamp: number;
@@ -2925,7 +3155,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean> },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean>; historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>; modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>; backgroundShellCount?: IObservable<number | undefined>; canvasContext?: IObservable<ICanvasContext | undefined> },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -2963,6 +3193,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._timestamp = (isValidFullData && initialData.creationDate) || Date.now();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._customTitle = isValidFullData ? initialData.customTitle : undefined;
+		if (isValidFullData && initialData.sessionCostInfo) {
+			this.setSessionCost(initialData.sessionCostInfo);
+		}
 
 		// Initialize input model from serialized data (undefined for new chats)
 		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
@@ -2985,6 +3218,11 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this._canUseTools = initialModelProps.canUseTools;
 		this.isReadOnly = initialModelProps.isReadOnly ?? constObservable(false);
+		this.isInputBlocked = initialModelProps.isInputBlocked ?? constObservable(false);
+		this.historyStatus = initialModelProps.historyStatus ?? constObservable(undefined);
+		this.modelConfigurationState = initialModelProps.modelConfigurationState;
+		this.backgroundShellCount = initialModelProps.backgroundShellCount;
+		this.canvasContext = initialModelProps.canvasContext;
 
 		this.lastRequestObs = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
 
@@ -3112,6 +3350,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			timestamp: requestTimestamp,
 			fallbackTimestamp: this._timestamp,
 			restoredId: raw.requestId,
+			agentHostMetadata: raw.agentHostMetadata,
 			confirmation: raw.confirmation,
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
@@ -3119,6 +3358,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
 			requestSource: getRestoredChatRequestSource(raw, parsedRequest.text),
+			artifactRequest: raw.artifactRequest,
 			isHiddenFromTranscript: raw.hiddenFromTranscript,
 			isRequestHiddenFromTranscript: raw.requestHiddenFromTranscript,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
@@ -3176,12 +3416,15 @@ export class ChatModel extends Disposable implements IChatModel {
 				request.response.setUsage({
 					kind: 'usage',
 					promptTokens: raw.promptTokens ?? 0,
-					completionTokens: raw.completionTokens ?? 0,
+					completionTokens: raw.lastCallCompletionTokens ?? (raw.modelTotals === undefined ? raw.completionTokens ?? 0 : 0),
 					outputBuffer: raw.outputBuffer,
 					promptTokenDetails: raw.promptTokenDetails,
+					latestModelCall: raw.latestModelCall,
+					contextUsage: raw.contextUsage,
 					copilotCredits: raw.copilotCredits,
 					modelTotals: raw.modelTotals,
 					sessionCopilotCredits: raw.sessionCopilotCredits,
+					sessionCopilotCreditsStatus: raw.sessionCopilotCreditsStatus,
 				});
 			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
@@ -3332,7 +3575,15 @@ export class ChatModel extends Disposable implements IChatModel {
 		isRequestHiddenFromTranscript?: boolean,
 		requestSource?: ChatRequestSource,
 		modelConfiguration?: IStringDictionary<unknown>,
+		agentHostMetadata?: Record<string, unknown>,
+		insertion?: { readonly index: number; readonly replace?: boolean },
+		artifactRequest?: ArtifactRequestPresentation,
 	): ChatRequestModel {
+		const index = insertion?.index ?? this._requests.length;
+		if (!Number.isInteger(index) || index < 0 || index > this._requests.length || (insertion?.replace && index === this._requests.length)) {
+			throw new BugIndicatingError('Invalid chat request insertion index');
+		}
+		const replacedRequest = insertion?.replace ? this._requests[index] : undefined;
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const requestTimestamp = timestamp === undefined
@@ -3355,10 +3606,12 @@ export class ChatModel extends Disposable implements IChatModel {
 			isCompleteAddedRequest,
 			modelId,
 			modelConfiguration,
+			agentHostMetadata,
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
 			isSystemInitiated,
 			requestSource,
+			artifactRequest,
 			isHiddenFromTranscript: hideFromTranscript,
 			isRequestHiddenFromTranscript,
 			systemInitiatedLabel,
@@ -3375,9 +3628,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
 		});
-		this._requests.push(request);
+		this._requests.splice(index, replacedRequest ? 1 : 0, request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
-		this._onDidChange.fire({ kind: 'addRequest', request });
+		this._onDidChange.fire({ kind: 'addRequest', request, ...(insertion ? { index, replacedRequest } : {}) });
+		replacedRequest?.response?.dispose();
 		return request;
 	}
 
@@ -3386,9 +3640,19 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setCustomTitle', title });
 	}
 
-	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
+	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData, agentHostMetadata?: Record<string, unknown>) {
 		request.variableData = variableData;
+		if (agentHostMetadata !== undefined) {
+			request.agentHostMetadata = agentHostMetadata;
+		}
 		this._onDidChange.fire({ kind: 'changedRequest', request });
+	}
+
+	updateRequestModelId(request: ChatRequestModel, modelId: string | undefined): void {
+		if (request.modelId !== modelId) {
+			request.modelId = modelId;
+			this._onDidChange.fire({ kind: 'changedRequest', request });
+		}
 	}
 
 	adoptRequest(request: ChatRequestModel): void {
@@ -3401,6 +3665,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		oldOwner._requests.splice(index, 1);
+		oldOwner._resetSessionCost();
 
 		request.adoptTo(this);
 		request.response?.adoptTo(this);
@@ -3410,7 +3675,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'addRequest', request });
 	}
 
-	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
+	/**
+	 * @param restored The progress replays recorded history, so it is not timed by the local clock.
+	 */
+	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean, restored?: boolean): void {
 		if (!request.response) {
 			request.response = new ChatResponseModel({
 				responseContent: [],
@@ -3434,12 +3702,12 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._onDidChange.fire({ kind: 'move', target: progress.uri, range: progress.range });
 		} else if (progress.kind === 'codeblockUri' && progress.isEdit) {
 			request.response.addUndoStop({ id: progress.undoStopId ?? generateUuid(), kind: 'undoStop' });
-			request.response.updateContent(progress, quiet);
+			request.response.updateContent(progress, quiet, restored);
 		} else if (progress.kind === 'progressTaskResult') {
 			// Should have been handled upstream, not sent to model
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		} else {
-			request.response.updateContent(progress, quiet);
+			request.response.updateContent(progress, quiet, restored);
 		}
 	}
 
@@ -3448,8 +3716,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		const request = this._requests[index];
 
 		if (index !== -1) {
-			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			this._requests.splice(index, 1);
+			this._resetSessionCost();
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			request.response?.dispose();
 		}
 	}
@@ -3523,9 +3792,11 @@ export class ChatModel extends Disposable implements IChatModel {
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
 					modelConfiguration: r.modelConfiguration,
+					...(r.agentHostMetadata ? { agentHostMetadata: r.agentHostMetadata } : {}),
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					...(r.requestSource !== undefined ? { requestSource: r.requestSource } : {}),
+					...(r.artifactRequest ? { artifactRequest: r.artifactRequest } : {}),
 					hiddenFromTranscript: r.isHiddenFromTranscript || undefined,
 					...(r.isRequestHiddenFromTranscript && !r.isHiddenFromTranscript ? { requestHiddenFromTranscript: true } : {}),
 					systemInitiatedLabel: r.systemInitiatedLabel,
@@ -3546,12 +3817,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
 			workingDirectory: this._workingDirectory?.toString(),
+			sessionCostInfo: this.sessionCostInfo,
 		};
 	}
 
 	override dispose() {
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
+		this.setPendingRequestHandoffs([]);
 
 		super.dispose();
 

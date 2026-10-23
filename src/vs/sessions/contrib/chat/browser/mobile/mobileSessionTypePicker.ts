@@ -25,6 +25,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
@@ -56,11 +58,12 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService);
+		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService, instantiationService);
 	}
 
-	override render(container: HTMLElement, options?: { className?: string }): void {
+	override render(container: HTMLElement, options?: { className?: string; hoverDelegate?: IHoverDelegate }): void {
 		// Always render so the session-type chip is visible in the chip
 		// row on phone. The base class renders a trigger that the mobile
 		// `_showPicker` override routes to a bottom sheet, while desktop
@@ -79,7 +82,8 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			super._showPicker(anchor);
 			return;
 		}
-		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked)) {
+		const additionalAction = this._getVisibleAdditionalAction();
+		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction) {
 			return;
 		}
 
@@ -117,6 +121,16 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 				isFirstInGroup = false;
 			}
 		}
+		if (additionalAction) {
+			sheetItems.push({
+				id: additionalAction.id,
+				label: additionalAction.label,
+				description: additionalAction.description,
+				icon: additionalAction.icon,
+				navigates: true,
+				sectionTitle: '',
+			});
+		}
 
 		const trigger = this._triggerElement;
 		if (!trigger) {
@@ -136,6 +150,11 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
 			if (id !== undefined) {
+				const additionalAction = this._getVisibleAdditionalAction();
+				if (additionalAction?.id === id) {
+					additionalAction.run();
+					return;
+				}
 				const [providerId, sessionTypeId] = id.split('\u0000');
 				if (providerId && sessionTypeId) {
 					await this._selectSessionType({ providerId, sessionTypeId });

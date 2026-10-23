@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import { ResourceQueue, timeout } from '../common/async.js';
 import { isEqualOrParent, isRootOrDriveLetter, randomPath } from '../common/extpath.js';
 import { normalizeNFC } from '../common/normalization.js';
-import { basename, dirname, join, normalize, sep } from '../common/path.js';
+import { basename, dirname, join, normalize, resolve, sep } from '../common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../common/resources.js';
 import { URI } from '../common/uri.js';
@@ -840,6 +840,23 @@ export const Promises = new class {
 	//#endregion
 
 	//#region Implemented by us
+
+	/** Returns available filesystem bytes, using the nearest existing ancestor for a missing path. */
+	async getFreeDiskSpace(path: string): Promise<number> {
+		path = resolve(path);
+		while (true) {
+			try {
+				const { bavail, bsize } = await fs.promises.statfs(path);
+				return bavail * bsize;
+			} catch (error) {
+				const parent = dirname(path);
+				if (error.code !== 'ENOENT' || parent === path) {
+					throw error;
+				}
+				path = parent;
+			}
+		}
+	}
 
 	async exists(path: string): Promise<boolean> {
 		try {

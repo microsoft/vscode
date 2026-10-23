@@ -7,7 +7,7 @@ import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { type IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
-import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
+import { getAgentHostSupportedProtocolVersions } from '../../../../../platform/agentHost/common/agentHostProtocolCompatibility.js';
 import { type IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { type IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type ILogService } from '../../../../../platform/log/common/log.js';
@@ -215,7 +215,7 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 				// Surface protocol-version mismatches on the provider so the
 				// workspace picker can show the host's message. Other errors
 				// stay as the existing disconnected state.
-				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, getAgentHostSupportedProtocolVersions());
 				if (incompatible) {
 					provider?.setConnectionStatus(incompatible);
 					// Don't keep retrying on incompatible — user needs to

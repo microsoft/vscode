@@ -5,22 +5,24 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
-import { buildDefaultChatUri, getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
+import { getInlineToolInput, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, type ChatState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import type { StringOrMarkdown } from '../../../../common/state/protocol/state.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
+import { getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORDING = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
 
@@ -54,8 +56,9 @@ function fileOperationPrompt(
 	return `Run exactly this shell command, with no modifications: \`${shellCommand}\`. ${shellFollowup}`;
 }
 
-function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, providerEnabled = true): void {
-	const enabled = providerEnabled && (context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled);
+function fileOperationTest(context: IAgentHostE2ETestContext, title: string, run: Mocha.AsyncFunc, providerEnabled = true, profile: AgentHostTestProfile = 'pr'): void {
+	const enabled = providerEnabled && (context.config.fileOperationStrategy === 'fileTools' || context.portableShellToolReplayEnabled)
+		&& (profile === 'pr' || getAgentHostTestProfile() === 'full');
 	(enabled ? test : test.skip)(title, run);
 }
 
@@ -72,10 +75,10 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	if (config.streamingFileCreateToolName && config.provider !== 'codex') {
 		test('declining a file creation tool prevents the mutation and completes the turn', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-decline-create-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-decline-create-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `decline-create-${config.provider}`, createdSessions, URI.file(workspace));
-			const chatUri = buildDefaultChatUri(sessionUri);
+			const chatUri = defaultChatChannel(sessionUri);
 			const turnId = 'turn-decline-create';
 			dispatchTurn(
 				context.client,
@@ -166,10 +169,10 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 
 		(config.supportsPausedTurnCancellationE2E ? test : test.skip)('cancelling a turn paused for file-tool approval allows a replacement turn', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-cancel-file-approval-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-cancel-file-approval-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `cancel-file-approval-${config.provider}`, createdSessions, URI.file(workspace));
-			const chatUri = buildDefaultChatUri(sessionUri);
+			const chatUri = defaultChatChannel(sessionUri);
 			const turnId = 'turn-cancel-file-approval';
 			dispatchTurn(
 				context.client,
@@ -225,7 +228,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	if (config.provider === 'copilotcli') {
 		test('auto-approve mode executes a file creation without prompting', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-auto-approve-create-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-auto-approve-create-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, 'auto-approve-create', createdSessions, URI.file(workspace));
 			context.client.dispatch({
@@ -262,7 +265,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 
 		(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('shell init script runs before the shell command', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-shell-init-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-shell-init-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, 'shell-init-script', createdSessions, URI.file(workspace));
 			// The host applies a published script only while the client's setting
@@ -305,7 +308,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell-init', `Run exactly this shell command, with no modifications: \`${markerCommand}\`. Then reply with its exact output only.`, 2);
 			assert.match(result.responseText, /marker=init_marker_91/);
 			assertToolCallCompleteText(context.client, {
-				channel: buildDefaultChatUri(sessionUri),
+				channel: defaultChatChannel(sessionUri),
 				turnId: 'turn-shell-init',
 				toolNames: [config.shellToolName],
 				workspace,
@@ -318,7 +321,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 
 	fileOperationTest(context, 'reads an existing text file', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-read-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-read-'));
 		tempDirs.push(workspace);
 		writeFileSync(join(workspace, 'note.txt'), 'ALPHA BETA GAMMA');
 		const sessionUri = await createRealSession(context.client, config, `coverage-read-${config.provider}`, createdSessions, URI.file(workspace));
@@ -333,7 +336,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-read', prompt, 1);
 		assert.match(result.responseText, /ALPHA BETA GAMMA/);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-read',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
@@ -345,7 +348,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 
 	fileOperationTest(context, 'reads a file from a nested directory', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-read-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-nested-read-'));
 		tempDirs.push(workspace);
 		mkdirSync(join(workspace, 'nested'));
 		writeFileSync(join(workspace, 'nested', 'value.txt'), 'NESTED_VALUE_42');
@@ -361,7 +364,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-nested-read', prompt, 1);
 		assert.match(result.responseText, /NESTED_VALUE_42/);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-nested-read',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
@@ -369,11 +372,11 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	}, shellResultTextAvailable, 'full');
 
-	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('lists workspace entries', async function () {
+	fileOperationTest(context, 'lists workspace entries', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-list-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-list-'));
 		tempDirs.push(workspace);
 		writeFileSync(join(workspace, 'first.txt'), 'first');
 		writeFileSync(join(workspace, 'second.md'), 'second');
@@ -388,7 +391,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 		assert.match(result.responseText, /first\.txt/);
 		assert.match(result.responseText, /second\.md/);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-list',
 			toolNames: [config.shellToolName],
 			workspace,
@@ -396,11 +399,11 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, portableShellToolReplayEnabled && shellOutputOracleAvailable, 'full');
 
 	(config.streamingFileCreateToolName ? test : test.skip)('streams rich file creation progress without exposing partial input', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-streaming-create-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-streaming-create-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `streaming-create-${config.provider}`, createdSessions, URI.file(workspace));
 		const turnId = 'turn-streaming-create';
@@ -414,8 +417,8 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 
 		const start = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
-			.find(({ envelope, action }) => envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === turnId && action.toolName === config.streamingFileCreateToolName)?.action;
-		const chatUri = buildDefaultChatUri(sessionUri);
+			.find(({ envelope, action }) => envelope.channel === defaultChatChannel(sessionUri) && action.turnId === turnId && action.toolName === config.streamingFileCreateToolName)?.action;
+		const chatUri = defaultChatChannel(sessionUri);
 		const deltas = start ? context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallDelta'))
 			.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallDeltaAction }))
 			.filter(({ envelope, action }) => envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === start.toolCallId)
@@ -449,7 +452,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 
 	fileOperationTest(context, 'reads a value from JSON', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-json-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-json-'));
 		tempDirs.push(workspace);
 		writeFileSync(join(workspace, 'config.json'), JSON.stringify({ answer: 42 }));
 		const sessionUri = await createRealSession(context.client, config, `coverage-json-${config.provider}`, createdSessions, URI.file(workspace));
@@ -464,7 +467,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-json', prompt, 1);
 		assert.match(result.responseText, /\b42\b/);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-json',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
@@ -472,11 +475,11 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	}, shellResultTextAvailable, 'full');
 
 	fileOperationTest(context, 'counts lines in a file', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-lines-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-lines-'));
 		tempDirs.push(workspace);
 		// No trailing newline: with one, "how many lines" is genuinely ambiguous
 		// (four content lines, or five fields when splitting on the separator).
@@ -495,7 +498,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-lines', prompt, 1);
 		assert.match(result.responseText, /\b4\b/);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-lines',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
@@ -503,11 +506,11 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	}, shellResultTextAvailable);
+	}, shellResultTextAvailable, 'full');
 
 	fileOperationTest(context, 'handles a missing file without a session error', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-missing-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-missing-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-missing-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -521,7 +524,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-missing', prompt, 1);
 		assert.match(result.responseText, /missing/i);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-missing',
 			toolNames: fileReadToolNames(config.provider),
 			workspace,
@@ -537,7 +540,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 	const createFileReplayEnabled = RECORDING || !isWindows || !config.fileCreateReplayUnstableOnWindows;
 	fileOperationTest(context, 'creates a new text file', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-create-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-create-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-create-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -552,12 +555,18 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		);
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-create', prompt, 1);
 		assert.strictEqual(readFileSync(join(workspace, 'result.txt'), 'utf8'), 'CREATED_VALUE');
+		assert.deepStrictEqual(
+			context.client.receivedNotifications().flatMap(notification =>
+				notification.method === 'root/sessionAdded' ? [notification.params.summary.resource] : []),
+			[sessionUri],
+			'The file-creation turn should announce only its own session',
+		);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	}, createFileReplayEnabled);
 
 	fileOperationTest(context, 'edits an existing text file', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-edit-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-edit-'));
 		tempDirs.push(workspace);
 		writeFileSync(join(workspace, 'edit.txt'), 'BEFORE_VALUE');
 		const sessionUri = await createRealSession(context.client, config, `coverage-edit-${config.provider}`, createdSessions, URI.file(workspace));
@@ -579,7 +588,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 	if (config.provider === 'claude' || config.provider === 'copilotcli') {
 		test('file edit before and after content can be read from session storage', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-session-db-file-edit-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-session-db-file-edit-'));
 			tempDirs.push(workspace);
 			writeFileSync(join(workspace, 'stored-edit.txt'), 'BEFORE_STORED_VALUE');
 			const sessionUri = await createRealSession(context.client, config, 'session-db-file-edit', createdSessions, URI.file(workspace));
@@ -594,7 +603,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 					: 'Replace the complete contents of stored-edit.txt with AFTER_STORED_VALUE using your file edit tool; do not run a shell command. Then reply exactly "done".',
 				1,
 			);
-			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 			const state = subscribed.snapshot!.state as ChatState;
 			const turn = state.turns.find(turn => turn.id === turnId);
 			assert.ok(turn, 'The completed turn should be retained in chat state');
@@ -635,7 +644,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 
 	(portableShellToolReplayEnabled ? test : test.skip)('creates a file in a new nested directory', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-nested-create-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-nested-create-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-nested-create-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -652,7 +661,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 
 	(portableShellToolReplayEnabled ? test : test.skip)('renames a workspace file', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-rename-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-rename-'));
 		tempDirs.push(workspace);
 		writeFileSync(join(workspace, 'before.txt'), 'RENAME_VALUE');
 		const sessionUri = await createRealSession(context.client, config, `coverage-rename-${config.provider}`, createdSessions, URI.file(workspace));
@@ -673,7 +682,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		&& (RECORDING || !isWindows || !config.fileDeleteReplayUnstableOnWindows);
 	(deleteFileReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-delete-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-delete-'));
 		tempDirs.push(workspace);
 		writeFileSync(join(workspace, 'delete-me.txt'), 'DELETE_VALUE');
 		const sessionUri = await createRealSession(context.client, config, `coverage-delete-${config.provider}`, createdSessions, URI.file(workspace));
@@ -689,7 +698,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 
 	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('runs a deterministic shell command', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-shell-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-shell-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-shell-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -702,7 +711,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-shell', 'Run exactly this shell command, with no modifications: `echo SHELL_VALUE_73`. Then reply with that exact value only.', 1);
 		assert.match(result.responseText, /SHELL_VALUE_73/);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-shell',
 			toolNames: [config.shellToolName],
 			workspace,
@@ -712,9 +721,9 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
 	});
 
-	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('inspects git status', async function () {
+	fileOperationTest(context, 'inspects git status', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-git-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-git-'));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'tracked.txt'), 'initial');
@@ -728,7 +737,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		assert.match(result.responseText, /tracked\.txt/);
 		assert.match(result.responseText, /untracked\.txt/);
 		assertToolCallCompleteText(context.client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-git',
 			toolNames: [config.shellToolName],
 			workspace,
@@ -736,11 +745,11 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			success: true,
 		});
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, portableShellToolReplayEnabled && shellOutputOracleAvailable, 'full');
 
 	fileOperationTest(context, 'reads a filename containing spaces', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-spaces-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-spaces-'));
 		tempDirs.push(workspace);
 		writeFileSync(join(workspace, 'file with spaces.txt'), 'SPACED_VALUE');
 		const sessionUri = await createRealSession(context.client, config, `coverage-spaces-${config.provider}`, createdSessions, URI.file(workspace));
@@ -756,7 +765,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-spaces', prompt, 1);
 		assert.match(result.responseText, /SPACED_VALUE/);
 		if (config.fileOperationStrategy === 'shell') {
-			const chatUri = buildDefaultChatUri(sessionUri);
+			const chatUri = defaultChatChannel(sessionUri);
 			const start = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
 				.map(n => ({ envelope: getActionEnvelope(n), action: getActionEnvelope(n).action as ChatToolCallStartAction }))
 				.find(({ envelope, action }) => envelope.channel === chatUri && action.turnId === 'turn-spaces' && action.toolName === config.shellToolName)?.action;
@@ -776,7 +785,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 			});
 		} else {
 			assertToolCallCompleteText(context.client, {
-				channel: buildDefaultChatUri(sessionUri),
+				channel: defaultChatChannel(sessionUri),
 				turnId: 'turn-spaces',
 				toolNames: fileReadToolNames(config.provider),
 				workspace,

@@ -3,29 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
-import { AgentsVoiceSettingId, AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { VoiceModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceModeActionViewItem.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
@@ -36,21 +28,6 @@ import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
  */
 export const NEW_CHAT_VOICE_SENTINEL = URI.from({ scheme: 'sessions-voice', authority: 'new-chat', path: '/composer' });
 
-/** Whether the shared voice transport belongs to the new-session composer. */
-export function isNewChatVoiceSessionActive(connected: boolean, connecting: boolean, targetSession: URI | undefined, hasDraftTarget: boolean): boolean {
-	return (connected || connecting) && targetSession === undefined && hasDraftTarget;
-}
-
-/** Whether the new-session composer should replace its standalone voice action with the segmented control. */
-export function isNewChatVoiceInputModePillActive(dictationAvailable: boolean, voiceAvailable: boolean, voiceSessionActive: boolean): boolean {
-	return voiceAvailable && (dictationAvailable || voiceSessionActive);
-}
-
-/** Whether the standalone dictation action should be shown instead of the segmented control. */
-export function isNewChatStandaloneDictationVisible(dictationActionAvailable: boolean, voiceInputModePillActive: boolean): boolean {
-	return dictationActionAvailable && !voiceInputModePillActive;
-}
-
 /** New-session composer APIs used by voice mode. */
 export interface INewChatVoiceComposer {
 	/** Fires when the composer input gains focus. */
@@ -60,8 +37,8 @@ export interface INewChatVoiceComposer {
 	 * Otherwise, it targets only before any session exists.
 	 */
 	readonly routesWhileSessionActive?: boolean;
-	/** Append `text` to the current draft and submit, creating the session. */
-	sendQuery(text: string): void;
+	/** Append `text` and submit; resolves false if submission is refused or fails. */
+	sendQuery(text: string): Promise<boolean>;
 	/** Set `text` without submitting. */
 	prefillInput(text: string): void;
 	/** Focus the composer input. */
@@ -171,90 +148,16 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 	}
 }
 
-registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);
-
-// --- Voice toolbar menu for the new-session composer ---
-// The composer has a custom toolbar, so `MenuId.ChatExecute` voice actions do
-// not appear here. Re-surface them with composer-scoped visibility.
-
-export const SessionsNewChatVoiceMenu = new MenuId('SessionsNewChatVoiceMenu');
-
-const WHEN_VOICE_ENABLED = AGENTS_VOICE_ENABLED;
-const WHEN_VOICE_BUTTON_SHOWN = ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false);
-const WHEN_CONNECTING = ContextKeyExpr.equals('agentsVoiceConnecting', true);
-const WHEN_LISTENING = ContextKeyExpr.equals('agentsVoiceListening', true);
-const WHEN_CONNECTED = ContextKeyExpr.equals('agentsVoiceConnected', true);
-const WHEN_INITIATED_HERE = ContextKeyExpr.equals('agentsVoiceInitiatedHere', true);
-const WHEN_VOICE_SURFACE = ContextKeyExpr.equals('newChatVoiceSurface', true);
-const WHEN_NO_SEGMENTED_PILL = ContextKeyExpr.equals('newChatVoiceInputModePillActive', false);
-// Hide Voice Mode while dictation is active (recording or the model is loading)
-// so the two mic affordances never compete, mirroring `MenuId.ChatExecute`.
-const WHEN_NOT_DICTATING = ContextKeyExpr.and(
-	ContextKeyExpr.has('chatSpeechToTextRecording').negate(),
-	ContextKeyExpr.has('chatSpeechToTextPreparing').negate(),
-);
-
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loadingCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
-	group: 'navigation',
-	order: -10,
-});
-
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.startVoiceInChat', title: localize('agentsVoice.startVoiceInChat', "Voice Mode"), icon: Codicon.voiceModeCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate(), WHEN_NOT_DICTATING, WHEN_NO_SEGMENTED_PILL),
-	group: 'navigation',
-	order: -10,
-});
-
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.pttStopInChat', title: localize('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"), icon: Codicon.voiceModeCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_LISTENING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
-	group: 'navigation',
-	order: -10,
-});
-
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.openSettings', title: localize('agentsVoice.openSettings', "Voice Mode Settings"), icon: Codicon.settingsGear },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
-	group: 'navigation',
-	order: -9.5,
-});
-
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
-	command: { id: 'agentsVoice.disconnect', title: localize('agentsVoice.disconnect', "Disconnect Voice Mode"), icon: Codicon.debugDisconnectCompact },
-	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
-	group: 'navigation',
-	order: -9,
-});
-
-export interface INewChatVoiceControllerOptions {
-	/** Container for the voice toolbar. */
-	readonly toolbarContainer: HTMLElement;
-	/** Input container for glow and transcript overlay. */
-	readonly inputContainer: HTMLElement;
-	/** Composer driven by voice. */
-	readonly composer: INewChatVoiceComposer;
-	/** Whether this composer currently presents the segmented voice input control. */
-	readonly voiceInputModePillActive: IObservable<boolean>;
-	/** Called with the number of rendered voice actions when they change. */
-	readonly onDidChangeActions?: (actionCount: number) => void;
-}
-
 /**
- * Wires voice mode into a new-session composer: toolbar, scoped keys,
- * glow/transcript, and {@link INewChatVoiceTargetService} routing.
+ * Shows the Voice Mode transcript and glow on a composer's input while it owns
+ * a Voice Mode session that targets its draft.
  */
-export class NewChatVoiceController extends Disposable {
-
+export class NewChatVoiceInputDecorations extends Disposable {
 	constructor(
-		options: INewChatVoiceControllerOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@INewChatVoiceTargetService targetService: INewChatVoiceTargetService,
+		inputContainer: HTMLElement,
+		isVisible: IObservable<boolean>,
+		ownsDraftVoiceSession: IObservable<boolean>,
 		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
-		@ISessionsService sessionsService: ISessionsService,
 		@ITtsPlaybackService ttsPlaybackService: ITtsPlaybackService,
 		@IMicCaptureService micCaptureService: IMicCaptureService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -263,66 +166,6 @@ export class NewChatVoiceController extends Disposable {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
-
-		this._register(targetService.registerComposer(options.composer));
-		this._register(options.composer.onDidFocus(() => targetService.setActive(options.composer)));
-
-		// Keep voice toolbar gating scoped to this composer.
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(options.toolbarContainer));
-		// True when this composer can show the mic button.
-		const voiceSurfaceKey = scopedContextKeyService.createKey<boolean>('newChatVoiceSurface', false);
-		// True when voice is active on this composer.
-		const initiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
-		const voiceInputModePillActiveKey = scopedContextKeyService.createKey<boolean>('newChatVoiceInputModePillActive', false);
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-
-		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			actionViewItemProvider: (action, itemOptions) => {
-				// While listening the menu swaps the start action for the
-				// push-to-talk stop action; cover both so the context menu
-				// (Select Microphone / Disable Voice Mode) stays available.
-				if ((action.id === 'agentsVoice.startVoiceInChat' || action.id === 'agentsVoice.pttStopInChat') && action instanceof MenuItemAction) {
-					return scopedInstantiationService.createInstance(VoiceModeActionViewItem, action, itemOptions);
-				}
-				return undefined;
-			},
-		}));
-		if (options.onDidChangeActions) {
-			const onDidChangeActions = () => {
-				let actionCount = 0;
-				while (toolbar.getItemAction(actionCount)) {
-					actionCount++;
-				}
-				options.onDidChangeActions?.(actionCount);
-			};
-			this._register(toolbar.onDidChangeMenuItems(onDidChangeActions));
-			onDidChangeActions();
-		}
-
-		// Target the active composer before a session exists, or when it opts in
-		// while a session is active. Gate on `isCreated` to exclude drafts.
-		const isVoiceSurface = derived(reader => {
-			const active = sessionsService.activeSession.read(reader);
-			const hasCreatedSession = !!active && active.isCreated.read(reader);
-			const isActiveComposer = targetService.activeComposer.read(reader) === options.composer;
-			return (options.composer.routesWhileSessionActive || !hasCreatedSession) && isActiveComposer;
-		});
-		const isVoiceTarget = derived(reader => {
-			const voiceActive = isNewChatVoiceSessionActive(
-				voiceSessionController.isConnected.read(reader),
-				voiceSessionController.isConnecting.read(reader),
-				voiceSessionController.targetSession.read(reader),
-				voiceSessionController.hasDraftTarget.read(reader),
-			);
-			return voiceActive && isVoiceSurface.read(reader);
-		});
-		this._register(autorun(reader => {
-			voiceSurfaceKey.set(isVoiceSurface.read(reader));
-			initiatedHereKey.set(isVoiceTarget.read(reader));
-			voiceInputModePillActiveKey.set(options.voiceInputModePillActive.read(reader));
-		}));
-
 		this._register(setupVoiceInputDecorations({
 			voiceSessionController,
 			ttsPlaybackService,
@@ -332,10 +175,11 @@ export class NewChatVoiceController extends Disposable {
 			themeService,
 			accessibilityService,
 		}, {
-			inputContainer: options.inputContainer,
-			isActive: isVoiceTarget,
-			getCurrentResource: () => NEW_CHAT_VOICE_SENTINEL,
-			currentVoiceInputResource: targetService.currentVoiceInputResource,
+			inputContainer,
+			isActive: isVisible,
+			isOwner: derived(this, reader => voiceSessionController.hasDraftTarget.read(reader) && ownsDraftVoiceSession.read(reader)),
 		}));
 	}
 }
+
+registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);

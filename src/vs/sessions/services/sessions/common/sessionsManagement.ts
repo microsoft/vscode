@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -36,6 +38,11 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	 */
 	readonly background?: boolean;
 }
+
+/** Where {@link ISessionsManagementService.moveChat} moves a chat: after `after` (first when `undefined`) in `session`, or into a new session. */
+export type ISessionChatMoveTarget =
+	| { readonly kind: 'session'; readonly session: ISession; readonly after: IChat | undefined }
+	| { readonly kind: 'newSession' };
 
 export interface IDeferredNewSessionRequestOptions {
 	readonly kind: 'deferred';
@@ -75,6 +82,8 @@ export interface ICreateNewSessionOptions {
 	readonly sessionTypeId?: string;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Session that created this session, when it should be presented as a child. */
+	readonly createdBySession?: ISessionCreationReference;
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the
@@ -86,6 +95,8 @@ export interface ICreateNewSessionOptions {
 	 * Requires {@link modelId} and provider support.
 	 */
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/** Provider-owned permission option applied before the first request. */
+	readonly permissionId?: string;
 	/**
 	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
 	 * to apply via {@link ISessionsProvider.setMode}. Skipped if the
@@ -115,15 +126,12 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly branch?: string;
 	/**
-	 * Optional branch tracking preference to apply via
-	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
-	 * programmatic session creation and is not surfaced in the new-session UI.
+	 * Optional URL of a pull request in the workspace's repository. The session
+	 * is created from it, so it is associated with the pull request from the
+	 * start; the agent host checks the pull request out into an isolated
+	 * worktree, so it supersedes {@link isolationMode} and {@link branch}.
 	 */
-	readonly worktreeBranchTrack?: boolean;
-	/**
-	 * Whether to create a generated worktree branch from {@link branch}.
-	 */
-	readonly worktreeCreateNewBranch?: boolean;
+	readonly pullRequestUrl?: string;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
 	 * configuration and first request are applied. Asynchronous preparation is awaited.
@@ -141,11 +149,6 @@ export interface ICreateNewChatInSessionOptions {
 	 * just-sent chat may still transiently report `Untitled`.
 	 */
 	readonly forceNew?: boolean;
-}
-
-export interface IMarkSessionReadOptions {
-	/** Keep an explicit unread mark during automatic updates within the current visit. */
-	readonly preserveExplicitUnread?: boolean;
 }
 
 /**
@@ -183,10 +186,19 @@ export interface IToggleSessionStickinessEvent {
 	readonly sticky: boolean;
 }
 
+export interface IChatDeletedEvent {
+	readonly session: ISession;
+	readonly sessionResource: URI;
+	readonly chatResource: URI;
+}
+
 /**
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
+	/** A standalone chat pane; identity and provider ownership remain with the session. */
+	readonly scopedChatResource?: URI;
+
 	/** The currently active chat within this session. */
 	readonly activeChat: IObservable<IChat>;
 
@@ -234,11 +246,12 @@ export interface IRecentlyOpenedSessions {
 	readonly other: ISession[];
 }
 
-/**
- * An active session item extends IChatSessionItem with repository information.
- * - For agent session items: repository is the workingDirectory from metadata
- * - For new sessions: repository comes from the session option with id 'repository'
- */
+/** Controls automatic read transitions for an active main chat. */
+export interface IMarkSessionReadOptions {
+	/** Preserve a user-requested unread state until the active chat advances. */
+	readonly preserveExplicitUnread?: boolean;
+}
+
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
@@ -275,6 +288,12 @@ export interface ISessionsManagementService {
 	 * Get the session and chat that own the given chat resource URI.
 	 */
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
+
+	/**
+	 * Returns an opaque provider-owned target for reading a chat through the
+	 * provider's session-context tool.
+	 */
+	getSessionContextReference(resource: URI): string | undefined;
 
 	/**
 	 * Get all session types from all registered providers, deduplicated by
@@ -359,13 +378,17 @@ export interface ISessionsManagementService {
 	/** Fires after a session was successfully deleted via {@link deleteSession}. */
 	readonly onDidDeleteSession: Event<ISession>;
 	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
-	readonly onDidDeleteChat: Event<ISession>;
+	readonly onDidDeleteChat: Event<IChatDeletedEvent>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
 	/** Fires after a session was successfully renamed via {@link renameSession}. */
 	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
+	/** Fires when a provider moved a chat to another of its sessions (see `ISessionsProvider.onDidMoveChat`). */
+	readonly onDidMoveChat: Event<IChatMovedEvent>;
+	/** Fires when the user invokes a changeset operation of a session from any provider. */
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent>;
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
@@ -375,8 +398,8 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
 	/**
-	 * Fires when {@link createNewSession} replaces the current in-progress
-	 * draft with another new-session draft (New Session → New Session).
+	 * Fires when an in-progress draft is replaced before sending,
+	 * either by {@link createNewSession} or new-session preparation.
 	 * Draft graduation uses {@link onDidReplaceSession} instead.
 	 */
 	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;
@@ -463,15 +486,23 @@ export interface ISessionsManagementService {
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
 
 	/**
+	 * Gives `chat`, an untitled chat of `session` that has not sent a request, the chosen workspace via the session's
+	 * provider (see {@link ISessionsProvider.applyNestedChatWorkspace}); `prompt` names a new worktree. Rejects with a
+	 * {@link NestedChatWorkspaceError} when the workspace cannot be applied, including when the provider is unknown.
+	 */
+	applyNestedChatWorkspace(session: ISession, chat: IChat, workspace: INestedChatWorkspace, prompt: string): Promise<void>;
+
+	/**
 	 * Fork an existing chat into a new chat within the same session, seeded
 	 * with the source chat's history up to and including the given turn. Used
-	 * for the fork gesture on sessions that support multiple chats.
+	 * for the fork gesture on sessions that support forking.
 	 *
 	 * @param session The session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source
@@ -549,6 +580,9 @@ export interface ISessionsManagementService {
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
+	/** Returns the current on-disk size of the session's isolated worktree. */
+	getSessionWorktreeDiskUsage?(session: ISession, token?: CancellationToken): Promise<number | undefined>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
 
@@ -564,10 +598,19 @@ export interface ISessionsManagementService {
 	 */
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
-	/** Mark a session as read through its provider. */
-	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;
+	/** Mark a chat as read through its provider when it supports independent chat read state. */
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<boolean | void>;
 
-	/** Mark a session as unread through its provider. */
+	/** Mark a chat as unread through its provider when it supports independent chat read state. */
+	markChatUnread(session: ISession, chat: IChat): Promise<boolean | void>;
+
+	/** Mark multiple chats as read through one provider operation when supported. */
+	markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void>;
+
+	/** Mark the session's main chat as read through its provider. */
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void>;
+
+	/** Mark the session's main chat as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;
 
 	/** Mark all of the given sessions as read through their providers. */
@@ -594,8 +637,36 @@ export interface ISessionsManagementService {
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
 
+	/** Whether the chat of `session` can be moved (see {@link moveChat}); the destination is validated when moving. */
+	canMoveChat(session: ISession, chat: IChat): boolean;
+
+	/**
+	 * Move the chat of `session` after `after` in `destination` (its own session to reorder it, or another session of
+	 * the same provider), or into a new session. Rejects with a user-facing message when the move is refused.
+	 */
+	moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void>;
+
+	/** Whether `session` can move under another session of its provider (see {@link moveSessionUnder}). */
+	canMoveSessionUnder(session: ISession): boolean;
+
+	/**
+	 * Move `session` under `destination`, its chat placed after `after` (first when `undefined`); `session` ends.
+	 * Rejects with a user-facing message when the move is refused.
+	 */
+	moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void>;
+
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
+	acquireArtifactIntegration(session: ISession, artifactId: string): Promise<IReference<IArtifactModel> | undefined>;
+
+	/** List canvas types registered in one live chat. `undefined` is unsettled and must be followed by a canvas change when authoritative. */
+	listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot>;
+
+	/** Open or focus one stable instance of a registered canvas type. */
+	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+
+	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
+	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

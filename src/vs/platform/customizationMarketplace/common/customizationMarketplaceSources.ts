@@ -11,11 +11,12 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
-import { ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
+import { CustomizationMarketplaceQueryProgressCallback, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceSourceInfo } from './customizationMarketplaceService.js';
 
 export const enum CustomizationMarketplaceConfiguration {
 	MarketplaceEnabled = 'chat.customizations.marketplace.enabled',
 	AgentFinderPublicFeedEnabled = 'chat.customizations.marketplace.sources.publicFeed.enabled',
+	CopilotConnectorsEnabled = 'chat.customizations.copilotConnectors.enabled',
 }
 
 export const CustomizationMarketplaceSources = {
@@ -28,13 +29,18 @@ export const CustomizationMarketplaceSources = {
 		id: 'mcpGallery',
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
 		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
-		configurationDependencies: [mcpGalleryServiceUrlConfig, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
+		configurationDependencies: [mcpGalleryServiceUrlConfig],
 	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',
 		displayName: localize('customizationMarketplace.githubFeed', "GitHub Feed"),
 		enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 		requiresMarketplaceVisibility: true,
+	},
+	CopilotConnectors: {
+		id: 'copilotConnectors',
+		displayName: localize('customizationMarketplace.copilotConnectors', "Copilot Connectors"),
+		enablementSetting: CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled,
 	},
 } as const satisfies Record<string, ICustomizationMarketplaceSourceInfo>;
 
@@ -59,7 +65,8 @@ export async function queryEnabledCustomizationMarketplaceSources(
 	sources: readonly ICustomizationMarketplaceSourceInfo[],
 	options: ICustomizationMarketplaceQuery,
 	token: CancellationToken,
-	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken) => Promise<ICustomizationMarketplacePage>,
+	query: (request: ICustomizationMarketplaceRequest, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) => Promise<ICustomizationMarketplacePage>,
+	onProgress?: CustomizationMarketplaceQueryProgressCallback,
 ): Promise<ICustomizationMarketplacePage> {
 	const getSourceIds = () => getEnabledCustomizationMarketplaceSources(configurationService, sources)
 		.filter(source => !options.sourceIds || options.sourceIds.includes(source.id))
@@ -80,7 +87,7 @@ export async function queryEnabledCustomizationMarketplaceSources(
 		}
 	}));
 	try {
-		return await raceCancellationError(query({ ...options, sourceIds }, cancellation.token), cancellation.token);
+		return await raceCancellationError(query({ ...options, sourceIds }, cancellation.token, onProgress), cancellation.token);
 	} finally {
 		cancellation.cancel();
 		store.dispose();

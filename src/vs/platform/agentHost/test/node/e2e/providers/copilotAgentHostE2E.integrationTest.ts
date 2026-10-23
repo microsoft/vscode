@@ -25,43 +25,31 @@
  */
 
 import assert from 'assert';
-import { mkdtemp, writeFile } from 'fs/promises';
+import { writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { ChatInputQuestionKind, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatErrorAction, type ChatInputRequestedAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
 	driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, removeTempDirs, resolveGitHubToken, runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
-import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
+import { assertRecordedAhpSnapshot, waitForChatTurnComplete } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../../../common/agentModelConfiguration.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const isWindows = process.platform === 'win32';
 type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
-
-async function waitForTurnCompletion(client: TestProtocolClient, chatUri: string, turnId: string, afterServerSeq = 0): Promise<void> {
-	const notification = await client.waitForNotification(candidate =>
-		(isActionNotification(candidate, ActionType.ChatTurnComplete) || isActionNotification(candidate, ActionType.ChatError))
-		&& getActionEnvelope(candidate).channel === chatUri
-		&& getActionEnvelope(candidate).serverSeq > afterServerSeq
-		&& (getActionEnvelope(candidate).action as { readonly turnId: string }).turnId === turnId,
-		90_000,
-	);
-	const action = getActionEnvelope(notification).action;
-	if (action.type === ActionType.ChatError) {
-		throw new Error(`Resumed turn failed: ${action.part.error.errorType}: ${action.part.error.message}`);
-	}
-}
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -116,7 +104,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('materialized Copilot debug collection includes session event log', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'ahp-copilot-debug-logs-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'ahp-copilot-debug-logs-'));
 		tempDirs.push(workingDirectory);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-debug-logs', createdSessions, URI.file(workingDirectory));
 		await driveTurnToCompletion(client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
@@ -125,20 +113,70 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			kind: 'archive',
 			session: sessionUri,
 		});
+		await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.SessionConfigChanged)) {
+				return false;
+			}
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri && envelope.action.type === ActionType.SessionConfigChanged
+				&& readAgentModelConfigurationReport(envelope.action.config, defaultChatChannel(sessionUri))?.current?.id === COPILOT_CONFIG.createSessionModelTarget;
+		});
+		const state = await fetchSessionWithChat(client, sessionUri);
+		const report = readAgentModelConfigurationReport(state.config?.values, defaultChatChannel(sessionUri));
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: debugLogs.providerLogsIncluded,
 			hasEventsLog: debugLogs.entries.some(entry => entry.path === 'events.jsonl'),
+			modelReportReadOnly: state.config?.schema.properties[agentModelConfigurationReportKey]?.readOnly,
+			reportedModel: report?.current?.id,
+			reportedModelReadOnly: report?.models[COPILOT_CONFIG.createSessionModelTarget!]?.readOnly,
 		}, {
 			providerLogsIncluded: true,
 			hasEventsLog: true,
+			modelReportReadOnly: true,
+			reportedModel: COPILOT_CONFIG.createSessionModelTarget,
+			reportedModelReadOnly: [],
+		});
+	});
+
+	test('structured ask_user collects multiple answers in one request', async function () {
+		this.timeout(180_000);
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'ahp-copilot-bulk-input-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, COPILOT_CONFIG, 'copilot-bulk-input', createdSessions, URI.file(workingDirectory));
+		const turnId = 'turn-bulk-input';
+		const result = await driveTurnToCompletion(client, session, turnId,
+			'Call ask_user exactly once with message "Choose preferences" and two string fields in requestedSchema.properties: fruit with enum ["Apple", "Banana"], then color with enum ["Blue", "Green"]. After both answers, reply exactly "preferences collected". Do not call any other tool.',
+			1);
+		const requests = client.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatInputRequested))
+			.map(notification => (getActionEnvelope(notification).action as ChatInputRequestedAction).request);
+
+		assertToolCallCompleteText(client, {
+			channel: defaultChatChannel(session),
+			turnId,
+			toolNames: ['ask_user'],
+			expected: [/\bfruit:\s*Apple\b/, /\bcolor:\s*Blue\b/],
+			success: true,
+		});
+		assert.deepStrictEqual({
+			requestCount: requests.length,
+			questions: requests[0]?.questions?.map(question => ({ id: question.id, kind: question.kind })),
+			response: result.responseText.trim(),
+		}, {
+			requestCount: 1,
+			questions: [
+				{ id: 'fruit', kind: ChatInputQuestionKind.SingleSelect },
+				{ id: 'color', kind: ChatInputQuestionKind.SingleSelect },
+			],
+			response: 'preferences collected',
 		});
 	});
 
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, {
-			ignoredActionTypes: [ActionType.ChatUsage],
+			// Sandbox metadata can arrive on either side of tool registration.
+			ignoredActionTypes: [ActionType.ChatUsage, ActionType.SessionMetaChanged],
 		});
 
 		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
@@ -166,12 +204,12 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	// Windows restores the failed turn as cancelled and drops its persisted request error.
 	(isWindows ? test.skip : test)('request error survives a host restart', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-error-restart-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-error-restart-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-error-restart';
 		const prompt = 'Reply exactly "unreachable".';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 
 		await driveTurnToCompletion(client, sessionUri, 'turn-error-seed', 'Reply exactly "READY".', 1);
 		if (!lease) {
@@ -221,7 +259,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('resumes a failed turn in place', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-failed-turn-resume-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
 		const prompt = '$error';
 		if (!lease) {
@@ -232,7 +270,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
 		({ client } = await lease.acquire(this.test!.title));
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-failed-turn-resume', createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-failed-resume';
 		client.dispatch({
 			channel: sessionUri,
@@ -291,7 +329,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			await Promise.all([
 				primaryResumeObserved,
 				peerResumeObserved,
-				...[client, peer].map(resumeClient => waitForTurnCompletion(resumeClient, chatUri, turnId, errorEnvelope.serverSeq)),
+				...[client, peer].map(resumeClient => waitForChatTurnComplete(resumeClient, chatUri, turnId, errorEnvelope.serverSeq)),
 			]);
 			await assertRecordedAhpSnapshot(this.test!, client, { profile: 'behavior' });
 
@@ -356,7 +394,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('resumes the same turn after repeated failures', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-repeated-failed-turn-resume-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-repeated-failed-turn-resume-'));
 		tempDirs.push(workingDirectory);
 		const prompt = '$error';
 		if (!lease) {
@@ -367,7 +405,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
 		({ client } = await lease.acquire(this.test!.title));
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-repeated-failed-turn-resume', createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-repeated-failed-resume';
 
 		dispatchTurn(client, sessionUri, turnId, prompt, 1);
@@ -407,7 +445,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			clientSeq: 3,
 			action: { type: ActionType.ChatTurnResume, turnId },
 		});
-		await waitForTurnCompletion(client, chatUri, turnId, secondErrorEnvelope.serverSeq);
+		await waitForChatTurnComplete(client, chatUri, turnId, secondErrorEnvelope.serverSeq);
 
 		const finalState = await fetchSessionWithChat(client, sessionUri);
 		assert.deepStrictEqual({
@@ -434,7 +472,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	// Replay serves the full recorded response immediately, so it has no active streaming window to terminate.
 	(RECORD_ONLY ? test : test.skip)('restores and resumes a turn interrupted by host shutdown', async function () {
 		this.timeout(240_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-host-shutdown-resume-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-host-shutdown-resume-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-host-shutdown-resume';
 		const prompt = 'Reply with exactly the numbers 1 through 40, separated by spaces.';
@@ -442,7 +480,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			throw new Error('Agent Host E2E server lease was not initialized.');
 		}
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-host-shutdown-resume';
 
 		dispatchTurn(client, sessionUri, turnId, prompt, 1);
@@ -495,7 +533,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			clientSeq: 2,
 			action: { type: ActionType.ChatTurnResume, turnId: restoredTurn.id },
 		});
-		await waitForTurnCompletion(client, chatUri, restoredTurn.id);
+		await waitForChatTurnComplete(client, chatUri, restoredTurn.id);
 		const finalState = await fetchSessionWithChat(client, sessionUri);
 
 		assert.deepStrictEqual({
@@ -521,7 +559,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('client tool disconnect before permission still completes the turn', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-disconnect-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-client-tool-disconnect-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-client-tool-disconnect';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
@@ -543,51 +581,60 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			},
 		});
 		const turnId = 'turn-client-tool-disconnect';
-		const chatUri = buildDefaultChatUri(sessionUri);
-		dispatchTurn(client, sessionUri, turnId, 'Call the get_magic_word tool and then report whether it succeeded.', 2);
+		const chatUri = defaultChatChannel(sessionUri);
+		assert.ok(lease);
+		const observer = await lease.connectClient();
+		try {
+			await observer.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'copilot-client-tool-disconnect-observer' });
+			await observer.call('subscribe', { channel: chatUri });
+			dispatchTurn(client, sessionUri, turnId, 'Call the get_magic_word tool and then report whether it succeeded.', 2);
 
-		const toolStart = await client.waitForNotification(n => {
-			if (!isActionNotification(n, 'chat/toolCallStart')) {
-				return false;
-			}
-			const envelope = getActionEnvelope(n);
-			const action = envelope.action as ChatToolCallStartAction;
-			return envelope.channel === chatUri && action.turnId === turnId && action.toolName === 'get_magic_word';
-		}, 90_000);
-		const toolCallId = (getActionEnvelope(toolStart).action as ChatToolCallStartAction).toolCallId;
+			const toolStart = await client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallStart')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as ChatToolCallStartAction;
+				return envelope.channel === chatUri && action.turnId === turnId && action.toolName === 'get_magic_word';
+			}, 90_000);
+			const toolCallId = (getActionEnvelope(toolStart).action as ChatToolCallStartAction).toolCallId;
 
-		client.notify('unsubscribe', { channel: sessionUri });
+			client.notify('unsubscribe', { channel: chatUri });
+			client.notify('unsubscribe', { channel: sessionUri });
 
-		const failedCompletion = await client.waitForNotification(n => {
-			if (!isActionNotification(n, 'chat/toolCallComplete')) {
-				return false;
-			}
-			const envelope = getActionEnvelope(n);
-			const action = envelope.action as ChatToolCallCompleteAction;
-			return envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === toolCallId && !action.result.success;
-		}, 30_000);
-		const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
+			const failedCompletion = await observer.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallComplete')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as ChatToolCallCompleteAction;
+				return envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === toolCallId && !action.result.success;
+			}, 30_000);
+			const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
 
-		await client.waitForNotification(n =>
-			isActionNotification(n, 'chat/turnComplete')
-			&& getActionEnvelope(n).channel === chatUri
-			&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId,
-			90_000);
+			await observer.waitForNotification(n =>
+				isActionNotification(n, 'chat/turnComplete')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId,
+				90_000);
 
-		const staleReady = client.receivedNotifications(n => {
-			if (!isActionNotification(n, 'chat/toolCallReady')) {
-				return false;
-			}
-			const envelope = getActionEnvelope(n);
-			const action = envelope.action as ChatToolCallReadyAction;
-			return envelope.channel === chatUri && envelope.serverSeq > failedCompletionSeq && action.turnId === turnId && action.toolCallId === toolCallId;
-		});
-		assert.deepStrictEqual(staleReady, []);
+			const staleReady = observer.receivedNotifications(n => {
+				if (!isActionNotification(n, 'chat/toolCallReady')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as ChatToolCallReadyAction;
+				return envelope.channel === chatUri && envelope.serverSeq > failedCompletionSeq && action.turnId === turnId && action.toolCallId === toolCallId;
+			});
+			assert.deepStrictEqual(staleReady, []);
+		} finally {
+			observer.close();
+		}
 	});
 
 	test('client tool result confirmation is required before the provider continues', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-result-confirmation-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-client-tool-result-confirmation-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-client-tool-result-confirmation';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
@@ -607,7 +654,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 				},
 			},
 		});
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-client-tool-result-confirmation';
 		dispatchTurn(client, sessionUri, turnId, 'Call get_magic_word exactly once, then reply with only its result.', 2);
 		const started = await client.waitForNotification(n =>
@@ -699,11 +746,11 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	(RECORD_ONLY ? test : test.skip)('accepted steering followed by abort does not block the replacement turn', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-steering-abort-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-steering-abort-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-steering-abort';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 
 		client.dispatch({
 			channel: sessionUri,
@@ -786,7 +833,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('usage reports include Copilot cost metadata', async function () {
 		this.timeout(120_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-cost-report-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-cost-report-'));
 		tempDirs.push(workingDirectory);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(workingDirectory));
@@ -798,11 +845,11 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			}
 			const envelope = getActionEnvelope(n);
 			const action = envelope.action as ChatUsageAction;
-			return envelope.channel === buildDefaultChatUri(sessionUri) && action.turnId === 'turn-usage';
+			return envelope.channel === defaultChatChannel(sessionUri) && action.turnId === 'turn-usage';
 		}, 90_000);
 		const usageEnvelope = getActionEnvelope(usageNotif);
 		const usageAction = usageEnvelope.action as ChatUsageAction;
-		assert.strictEqual(usageEnvelope.channel, buildDefaultChatUri(sessionUri));
+		assert.strictEqual(usageEnvelope.channel, defaultChatChannel(sessionUri));
 		assert.strictEqual(usageAction.turnId, 'turn-usage');
 		assert.strictEqual(typeof usageAction.usage.model, 'string');
 		assert.ok(usageAction.usage.model);
@@ -817,7 +864,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 		await client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
-			&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
+			&& getActionEnvelope(n).channel === defaultChatChannel(sessionUri)
 			&& (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-usage',
 			90_000);
 		const state = await fetchSessionWithChat(client, sessionUri);
@@ -828,7 +875,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('attaches a Python file and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const workingDirectory = await mkdtemp(`${tmpdir()}/ahp-attachment-test-`);
+		const workingDirectory = createTestDirectory(`${tmpdir()}/ahp-attachment-test-`);
 		tempDirs.push(workingDirectory);
 		const filePath = join(workingDirectory, 'calculator.py');
 		await writeFile(filePath, [
@@ -849,7 +896,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 		assert.match(result.responseText, /\badd\b/i, `expected the model to identify the attached file function; got: ${JSON.stringify(result.responseText)}`);
 		assertToolCallCompleteText(client, {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			turnId: 'turn-attachment',
 			toolNames: ['view'],
 			workspace: workingDirectory,
@@ -861,7 +908,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('attaches a text blob and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-text-blob-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-text-blob-'));
 		tempDirs.push(workingDirectory);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(workingDirectory));
@@ -884,10 +931,10 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	(isWindows ? test.skip : test)('shell read helper remains a non-terminal tool', async function () {
 		this.timeout(180_000);
 
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-read-shell-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-read-shell-'));
 		tempDirs.push(workingDirectory);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-read-shell', createdSessions, URI.file(workingDirectory));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-read-shell';
 		const command = `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`;
 		const prompt = [
@@ -940,6 +987,10 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			ignoredActionTypes: [
 				ActionType.ChatUsage,
 				ActionType.ChatToolCallDelta,
+				// The async shell is published as background work from a separate task-list read,
+				// so its timing against the tool calls isn't part of this scenario.
+				ActionType.ChatBackgroundWorkSet,
+				ActionType.ChatBackgroundWorkRemoved,
 				ActionType.SessionChatUpdated,
 				ActionType.SessionTitleChanged,
 				ActionType.SessionServerToolsChanged,
@@ -955,14 +1006,14 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	(isWindows ? test.skip : test)('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
+		const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-cd-strip-test-`);
 		tempDirs.push(workspaceDir);
 		const expectedWorkingDirPath = workspaceDir;
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(workspaceDir));
 
 		client.clearReceived();
 		const turnId = 'turn-cd-strip';
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		dispatchTurn(client, sessionUri, turnId,
 			`Run this exact shell command, do not modify it: cd ${expectedWorkingDirPath} && echo strip-me-please`,
 			1);

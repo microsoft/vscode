@@ -32,6 +32,15 @@ const policySettingKeys = [
 	'serviceName', 'resourceAttributes', 'headers', 'outfile',
 ] as const;
 
+function normalizePolicyDefaultValue(key: OTelSettingKey, value: unknown): unknown {
+	// The shared CopilotOtelEndpoint policy is owned by the core Agent Host setting,
+	// whose unconfigured policy slot defaults to ''. The extension API exposes that
+	// slot through this extension setting's policyReference, even when no telemetry
+	// policy exists. Treat it as this setting's schema default so unrelated managed
+	// settings do not look like an enterprise OTel block.
+	return key === 'otlpEndpoint' && value === '' ? OTEL_SETTING_DEFAULTS.otlpEndpoint : value;
+}
+
 export interface IOTelSettingsReader {
 	get<T>(key: string): T | undefined;
 	inspect<T>(key: string): { defaultValue?: T } | undefined;
@@ -74,7 +83,7 @@ export function resolveOTelConfigFromSettings(
 ): IResolvedOTelConfig {
 	const defaultValues: OTelDefaultValues = { ...OTEL_SETTING_DEFAULTS };
 	for (const key of settingKeys) {
-		defaultValues[key] = deepClone(settings.inspect(key)?.defaultValue);
+		defaultValues[key] = deepClone(normalizePolicyDefaultValue(key, settings.inspect(key)?.defaultValue));
 	}
 	// For these application-scoped settings, inspect().defaultValue contains policy
 	// when present, otherwise the schema default. Once policy is recognizable, use

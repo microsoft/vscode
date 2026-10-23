@@ -191,8 +191,8 @@ export class NewWorkspaceCreationResult extends PromptElement<NewWorkspaceElemen
 	Skip this step for "Hello World" projects.
 	-->
 
-- [ ] Install Required Extensions
-	<!-- ONLY install extensions mentioned in the project setup information. Skip this step otherwise and mark as completed. -->
+- [ ] Recommend Required Extensions
+	<!-- ONLY recommend extensions mentioned in the project setup information by adding their IDs to the "recommendations" array in .vscode/extensions.json. Do not install extensions yourself. Skip this step otherwise and mark as completed. -->
 
 - [ ] Compile the Project
 	<!--
@@ -249,8 +249,8 @@ FOLDER CREATION RULES:
 - Do not create a new folder unless the user explicitly requests it besides a .vscode folder for a tasks.json file.
 - If any of the scaffolding commands mention that the folder name is not correct, let the user know to create a new folder with the correct name and then reopen it again in vscode.
 
-EXTENSION INSTALLATION RULES:
-- Only install extensions specified by the project setup information. DO NOT INSTALL any other extensions.
+EXTENSION RECOMMENDATION RULES:
+- Never install extensions. Only recommend extensions specified by the project setup information in .vscode/extensions.json. DO NOT recommend any other extensions.
 
 PROJECT CONTENT RULES:
 - If the user has not specified project details, assume they want a "Hello World" project as a starting point.

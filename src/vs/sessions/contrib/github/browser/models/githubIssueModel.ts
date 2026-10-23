@@ -4,10 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Disposable, DisposableSet, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableSet, DisposableStore, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { compareRequestPriority, RequestPriority } from '../../../../../platform/github/common/types.js';
 import { IGitHubIssue } from '../../common/types.js';
 import { GitHubIssueFetcher } from '../fetchers/githubIssueFetcher.js';
 import { GitHubApiClient } from '../githubApiClient.js';
@@ -28,19 +33,14 @@ const DEFAULT_POLL_INTERVAL_MS = 900_000;
 /** How many disposed issues keep their revalidation state. */
 const MAX_CACHED_SNAPSHOTS = 100;
 
-/**
- * The revalidation state of a disposed issue model: the last payload and the ETag that
- * produced it. Restoring it into a freshly created model lets that model render the
- * last-known state right away and revalidate with `If-None-Match`, which GitHub answers
- * with a `304 Not Modified` that does not count against the API rate limit.
- */
+/** The last display value and freshness of a disposed issue model. */
 interface IGitHubIssueSnapshot {
-	readonly etag: string | undefined;
 	readonly issue: IGitHubIssue | undefined;
 	readonly refreshedAt: number;
 }
 
-export class GitHubIssueModelReferenceCollection extends ReferenceCollection<GitHubIssueModel> {
+export class GitHubIssueModelReferenceCollection extends ReferenceCollection<GitHubIssueModel> implements IDisposable {
+	private readonly _store = new DisposableStore();
 	private readonly _fetcher: GitHubIssueFetcher;
 
 	/**
@@ -57,6 +57,12 @@ export class GitHubIssueModelReferenceCollection extends ReferenceCollection<Git
 	) {
 		super();
 		this._fetcher = new GitHubIssueFetcher(apiClient);
+		this._store.add(apiClient.onDidChange(() => this._snapshots.clear()));
+	}
+
+	dispose(): void {
+		this._store.dispose();
+		this._snapshots.clear();
 	}
 
 	protected override createReferencedObject(key: string, owner: string, repo: string, issueNumber: number): GitHubIssueModel {
@@ -77,24 +83,18 @@ export class GitHubIssueModelReferenceCollection extends ReferenceCollection<Git
 	}
 }
 
-/**
- * Reactive model for a GitHub issue. Wraps fetcher data in an observable, supports
- * on-demand refresh, and can poll periodically.
- *
- * Every request after the first is conditional on the last ETag, so an unchanged issue
- * costs a `304` that GitHub does not charge against the rate limit. On-demand refreshes
- * are additionally debounced by {@link MIN_REFRESH_INTERVAL_MS} so redundant callers do
- * not each produce a request.
- */
+/** Issue metadata with polling and on-demand refresh throttled by {@link MIN_REFRESH_INTERVAL_MS}. */
 export class GitHubIssueModel extends Disposable {
 
-	private _etag: string | undefined = undefined;
+	private readonly _token = cancelOnDispose(this._store);
 	private readonly _issue = observableValue<IGitHubIssue | undefined>(this, undefined);
 	readonly issue: IObservable<IGitHubIssue | undefined> = this._issue;
 
-	private _refreshPromise: Promise<void> | undefined = undefined;
-	/** When the last request completed (whether it returned `200` or `304`). */
-	private _refreshedAt: number | undefined = undefined;
+	private _refreshPromise: Promise<void> | undefined;
+	private _refreshPriority: RequestPriority = 'interactive';
+	private _refreshVersion = 0;
+	/** When the last successful refresh completed. */
+	private _refreshedAt: number | undefined;
 
 	private readonly _pollScheduler: RunOnceScheduler;
 	private readonly _pollingDisposables = this._register(new DisposableSet());
@@ -109,11 +109,19 @@ export class GitHubIssueModel extends Disposable {
 		super();
 
 		this._pollScheduler = this._register(new RunOnceScheduler(() => this._poll(), DEFAULT_POLL_INTERVAL_MS));
+		this._register(_fetcher.client.onDidChange(() => {
+			const shouldRefresh = this._refreshPromise !== undefined || this._issue.get() !== undefined;
+			this._refreshPromise = undefined;
+			this._refreshedAt = undefined;
+			this._issue.set(undefined, undefined);
+			if (shouldRefresh) {
+				void this.refresh({ priority: 'background' });
+			}
+		}));
 	}
 
 	/** Adopts the revalidation state of an earlier model for the same issue. */
 	restore(snapshot: IGitHubIssueSnapshot): void {
-		this._etag = snapshot.etag;
 		this._refreshedAt = snapshot.refreshedAt;
 		if (snapshot.issue) {
 			this._issue.set(snapshot.issue, undefined);
@@ -123,7 +131,7 @@ export class GitHubIssueModel extends Disposable {
 	/** The revalidation state to hand to the next model for this issue, if any. */
 	snapshot(): IGitHubIssueSnapshot | undefined {
 		return this._refreshedAt !== undefined
-			? { etag: this._etag, issue: this._issue.get(), refreshedAt: this._refreshedAt }
+			? { issue: this._issue.get(), refreshedAt: this._refreshedAt }
 			: undefined;
 	}
 
@@ -131,12 +139,12 @@ export class GitHubIssueModel extends Disposable {
 	 * Revalidates the issue, unless the last request completed less than
 	 * {@link MIN_REFRESH_INTERVAL_MS} ago.
 	 */
-	refresh(): Promise<void> {
+	refresh(options?: ApiRequestOptions): Promise<void> {
 		if (this._refreshedAt !== undefined && Date.now() - this._refreshedAt < MIN_REFRESH_INTERVAL_MS) {
 			return Promise.resolve();
 		}
 
-		return this._refreshNow();
+		return this._refreshNow(options);
 	}
 
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
@@ -156,39 +164,48 @@ export class GitHubIssueModel extends Disposable {
 		return disposable;
 	}
 
-	private _refreshNow(): Promise<void> {
-		if (!this._refreshPromise) {
-			this._refreshPromise = this._refresh()
-				.finally(() => {
+	private _refreshNow(options?: ApiRequestOptions): Promise<void> {
+		const priority = options?.priority ?? 'interactive';
+		if (!this._refreshPromise || compareRequestPriority(priority, this._refreshPriority) < 0) {
+			this._refreshPriority = priority;
+			const pending = this._refresh(options).finally(() => {
+				if (this._refreshPromise === pending) {
 					this._refreshPromise = undefined;
-				});
+				}
+			});
+			this._refreshPromise = pending;
 		}
-
 		return this._refreshPromise;
 	}
 
 	private async _poll(): Promise<void> {
 		// Poll ticks always revalidate; the on-demand debounce would otherwise
 		// swallow a tick that lands inside the debounce window.
-		await this._refreshNow();
+		await this._refreshNow({ priority: 'background' });
 		// Re-schedule for the next poll cycle (RunOnceScheduler is one-shot).
 		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
-	private async _refresh(): Promise<void> {
+	private async _refresh(options?: ApiRequestOptions): Promise<void> {
+		const generation = this._fetcher.client.generation;
+		const version = ++this._refreshVersion;
 		try {
-			const response = await this._fetcher.getIssue(this.owner, this.repo, this.issueNumber, this._etag);
+			const issue = await this._fetcher.getIssue(this.owner, this.repo, this.issueNumber, this._token, options);
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation || version !== this._refreshVersion) {
+				return;
+			}
 			this._refreshedAt = Date.now();
-			if (response.statusCode === 200 && response.data) {
-				this._etag = response.etag;
-				this._issue.set(response.data, undefined);
+			if (!structuralEquals(issue, this._issue.get())) {
+				this._issue.set(issue, undefined);
 			}
 		} catch (err) {
 			// Leave `_refreshedAt` untouched so the next caller retries instead of being
 			// debounced against a request that never produced data.
-			this._logService.error(`${LOG_PREFIX} Failed to refresh issue ${this.owner}/${this.repo}#${this.issueNumber}:`, err);
+			if (!isCancellationError(err)) {
+				this._logService.error(`${LOG_PREFIX} Failed to refresh issue ${this.owner}/${this.repo}#${this.issueNumber}:`, err);
+			}
 		}
 	}
 }

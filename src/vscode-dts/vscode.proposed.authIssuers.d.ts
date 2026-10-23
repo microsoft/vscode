@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+
+	// https://github.com/microsoft/vscode/issues/248775
+
 	export interface AuthenticationSession {
 		/**
 		 * The authorization server that issued this session, when provided by the authentication provider.

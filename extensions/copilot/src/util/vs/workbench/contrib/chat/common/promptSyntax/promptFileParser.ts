@@ -70,6 +70,8 @@ export namespace PromptHeaderAttributes {
 	export const agent = 'agent';
 	export const mode = 'mode';
 	export const model = 'model';
+	export const modelPolicy = 'model-policy';
+	export const reasoningEffort = 'reasoning-effort';
 	export const applyTo = 'applyTo';
 	export const paths = 'paths';
 	export const tools = 'tools';
@@ -87,6 +89,12 @@ export namespace PromptHeaderAttributes {
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
 	export const context = 'context';
+	export const skills = 'skills';
+	export const deferredToolLoading = 'deferred-tool-loading';
+	export const strictToolsList = 'strict-tools-list';
+	export const includeCustomInstructions = 'include-custom-instructions';
+	export const mcpServers = 'mcp-servers';
+	export const github = 'github';
 }
 
 export class PromptHeader {

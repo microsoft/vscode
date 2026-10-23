@@ -12,14 +12,23 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSession, type AuthenticateParams } from './agent.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
+import { SessionModelInfo } from './state/protocol/state.js';
+import { isRetryableMissionControlError, MissionControlErrorMetadata } from '../../github/common/missionControl/missionControlError.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
+
+export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
+
+export const CloudSandboxEarlyPreparationSettingId = 'chat.agentHost.cloudSandbox.earlyPreparation';
+export const CloudSandboxSessionFeedEnabledSettingId = 'chat.agentHost.cloudSandbox.sessionFeed.enabled';
 
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
@@ -44,6 +53,16 @@ export const CLOUD_SANDBOX_SESSION_SCHEME = 'ahp-session';
 /** The agent provider advertised by the Copilot host inside the sandbox. */
 export const CLOUD_SANDBOX_AGENT_PROVIDER = 'copilot';
 
+/**
+ * Whether a title the sandbox host reports is its stand-in for an untitled session. AHP gives
+ * `title` no "untitled" meaning, and this host fills it with the session id until the agent names
+ * the session; the local agent host publishes an empty title instead. Remove once the sandbox host
+ * does the same or the protocol defines the untitled case.
+ */
+export function isCloudSandboxPlaceholderTitle(title: string | undefined, session: URI | string): title is string {
+	return title !== undefined && title === AgentSession.id(session);
+}
+
 /** Prefix of a sealed token envelope (`copilot-sealed.v1.<key_id>.<b64url>`). */
 export const CLOUD_SANDBOX_SEALED_TOKEN_PREFIX = 'copilot-sealed.v1.';
 
@@ -59,17 +78,8 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
 }
 
 /**
- * The Copilot cloud agent slug whose tasks run inside a Mission Control sandbox.
- *
- * Sandbox tasks carry this slug today, which is why {@link CloudSandboxEnabledSettingId} exists and
- * defaults to off: the Copilot extension's cloud provider lists tasks by an allowlist of cloud
- * slugs (`copilot-developer`, `copilot-swe-agent`) that excludes this one, so the two providers do
- * not overlap. Sandbox tasks are expected to move under one of those slugs eventually, at which
- * point both providers would list the same task and the sessions list would show it twice — the
- * setting keeps that from reaching everyone before the overlap is resolved.
- *
- * That migration also breaks discovery, which requires this slug *and* the `sandboxes` compute
- * provider to recognize a task. Both must be resolved before the setting is enabled by default.
+ * Historical sandbox agent slug, retained for discovery diagnostics rather than filtering.
+ * Keep sandbox discovery opt-in until overlap with the Copilot extension's cloud provider is resolved.
  */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
 
@@ -84,11 +94,17 @@ export const CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID = 'github-sandbox';
 export interface ICloudSandboxCreateSessionRequest {
 	/** Repository to bind the sandbox to, as `owner/name`. Omitted for a repo-less sandbox. */
 	readonly repoNwo?: string;
+	/** Existing online environment to reuse. Omit to provision a new environment. */
+	readonly environmentId?: string;
+	/** Reservation to consume on submission; requires expectedAccountKey and excludes environmentId. */
+	readonly reservedTaskId?: string;
+	/** Expected account identity, checked locally before sending the request. */
+	readonly expectedAccountKey?: string;
 	/** First user turn. Mission Control starts no run, so the client sends it over the relay. */
 	readonly prompt: string;
 }
 
-/** A freshly provisioned sandbox task/session pair, bound to a concrete environment. */
+/** A sandbox task/session pair, bound to a concrete environment. */
 export interface ICloudSandboxCreatedSession {
 	/** Mission Control task id owning the session; the key its persisted AHP history is under. */
 	readonly taskId: string;
@@ -96,10 +112,77 @@ export interface ICloudSandboxCreatedSession {
 	readonly sessionId: string;
 	/** The sandbox VM Mission Control bound, never {@link CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID}. */
 	readonly environmentId: string;
+	/** Present for reservation submissions: true when reused, false when the server created a fresh task. */
+	readonly claimed?: boolean;
+}
+
+/** Client task-creation provenance, not a claim about environment readiness. */
+export type CloudSandboxTaskCreationPath = 'newEnvironment' | 'existingEnvironment' | 'reservationClaimed' | 'reservationFallback' | 'reservationUnconfirmed' | 'unknown';
+
+/** The draft configuration to reserve without submitting a user turn. */
+export interface ICloudSandboxReserveSessionRequest {
+	readonly repoNwo?: string;
+	/** Renew this reservation when compatible, or accept its replacement. */
+	readonly reservedTaskId?: string;
+	readonly expectedAccountKey: string;
+}
+
+/** A hidden task reservation; its environment is not necessarily ready. */
+export interface ICloudSandboxReservedSession extends ICloudSandboxCreatedSession {
+	/** Server lease expiry in milliseconds since the Unix epoch. */
+	readonly reservationExpiresAt: number;
+}
+
+export interface ICloudSandboxPreparedReservation extends ICloudSandboxReservedSession {
+	readonly expectedAccountKey: string;
+}
+
+/** A confirmed reservation submission retained until its logical draft is disposed. */
+export interface ICloudSandboxSubmittedDraft {
+	readonly reservation: ICloudSandboxPreparedReservation;
+	readonly created: ICloudSandboxCreatedSession;
+	readonly repoNwo: string | undefined;
+}
+
+export const ICloudSandboxDraftPreparationService = createDecorator<ICloudSandboxDraftPreparationService>('cloudSandboxDraftPreparationService');
+
+/** Owns draft reservations and confirmed submission identities independently of either chat UI. */
+export interface ICloudSandboxDraftPreparationService {
+	readonly _serviceBrand: undefined;
+
+	/** Start at most one reservation for an eligible draft, without submitting its prompt or publishing a session. */
+	prepare(draftResource: URI, repoNwo?: string): void;
+
+	/** Release unused preparation when the resolved repository changes, without starting or replacing it. */
+	updateRepository(draftResource: URI, repoNwo: string | undefined): void;
+
+	/** Take preparation once for Send and wait for its receipt, not environment readiness. Missing or failed optional preparation returns undefined. */
+	take(draftResource: URI, token: CancellationToken): Promise<ICloudSandboxPreparedReservation | undefined>;
+
+	/** Get a confirmed submission for retry without claiming or creating another task. */
+	getSubmittedDraft(draftResource: URI): ICloudSandboxSubmittedDraft | undefined;
+
+	/** Retain the confirmed response for a handed-off reservation; this never restores deletion ownership. */
+	markSubmitted(reservation: ICloudSandboxPreparedReservation, created: ICloudSandboxCreatedSession, repoNwo: string | undefined): void;
+
+	/** Return the receipt from take for cleanup only when task creation was not dispatched. */
+	release(prepared: ICloudSandboxPreparedReservation): Promise<void>;
+
+	/** Release unused preparation without allowing subsequent typing to replace it. */
+	discard(draftResource: URI): Promise<void>;
+
+	/** Release all unused preparations, retaining one-shot draft records and leaving Send's claims alone. */
+	clear(): Promise<void>;
+
+	/** Forget the logical draft, including confirmed submission identities, while releasing only unused preparation. */
+	forget(draftResource: URI): Promise<void>;
 }
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
 export interface ICloudSandboxDiscoveredSession {
+	readonly eventType?: string;
+	/** The creating application's slug from the owning task, not a participating session client. */
+	readonly application?: string;
 	/** Mission Control environment id the session's sandbox is bound to. */
 	readonly environmentId: string;
 	/**
@@ -117,10 +200,14 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly name: string;
 	/** Owning repository as `owner/name`, when known. */
 	readonly repoName?: string;
+	/** Whether discovery identified a repository association, independent of name resolution. */
+	readonly hasRepository?: boolean;
 	/** Last-updated timestamp (ISO 8601), when known, for ordering. */
 	readonly updatedAt?: string;
 	/** Last reported activity; this does not establish environment availability or session flags. */
 	readonly status?: SessionStatus;
+	/** Mission Control's archive state, independent of the sandbox's AHP session flags. */
+	readonly isArchived?: boolean;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */
@@ -155,10 +242,23 @@ export interface IHostEncryptionKey {
 	readonly key_id: string;
 	/** Trust domain the key serves (e.g. `auth-token`). */
 	readonly use: string;
-	/** Sealing scheme (only `x25519-sealedbox` is defined today). */
+	/** Sealing scheme, such as `x25519-sealedbox` or `hpke-x25519-hkdf-sha256-aes256gcm`. */
 	readonly algorithm: string;
 	/** Recipient public key in standard (padded) base64. */
 	readonly public_key: string;
+}
+
+/** A credential to seal for an environment; resource binding is optional and connection binding is not supported. */
+export interface ICloudSandboxSealTokenRequest {
+	readonly environmentId: string;
+	readonly token: string;
+	readonly resource?: string;
+}
+
+/** The server-sealed credential and the recipient key returned over authenticated HTTPS. */
+export interface ICloudSandboxSealedToken {
+	readonly encrypted_github_token: string;
+	readonly host_encryption_key: IHostEncryptionKey;
 }
 
 /**
@@ -215,6 +315,17 @@ export interface ICloudSandboxEnvironment {
 		/** The copilotd **host** version (e.g. `0.6.3`), not the AHP wire protocol version. */
 		readonly ahp_version?: string;
 	};
+	/** Public recipient keys obtained through authenticated MC HTTPS, not through the relay. */
+	readonly encryption_keys?: readonly IHostEncryptionKey[];
+}
+
+/** Credential-free discovery metadata for a Mission Control environment. */
+export interface IMissionControlEnvironment {
+	readonly id: string;
+	/** Open vocabulary; only online permits attachment without a warning. */
+	readonly status: string;
+	readonly kind: string;
+	readonly name: string;
 }
 
 /** Identifies which sandbox environment/session credentials are being minted for. */
@@ -226,9 +337,44 @@ export interface ICloudSandboxConnectionRequest {
 	 * uses it to resolve the repository when minting the token.
 	 */
 	readonly sessionId?: string;
+	/** Reports credential HTTP dispatch or a pending response locally; never sent to the server. */
+	readonly onRequest?: (event: 'issued' | 'waking') => void;
 }
 
 export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
+
+export interface ICloudSandboxModelCatalog {
+	readonly models: readonly SessionModelInfo[];
+	readonly defaultModel?: string;
+}
+
+/** An identity-only credential for sandbox host authentication; never persist it or send it unsealed over the relay. */
+export interface ICloudSandboxIdentityToken {
+	readonly token: string;
+	/** Expiry in Unix milliseconds, absent when the issuer supplies no lifetime. */
+	readonly expiresAt?: number;
+}
+
+/** A sandbox whose recipient key is ready for the server-side sealing operation. */
+export interface ICloudSandboxAuthenticationTarget {
+	readonly environmentId: string;
+	readonly resource: string;
+}
+
+/** A sealed identity credential; its original expiry must still be checked before authentication. */
+export interface ICloudSandboxPreparedAuthentication extends ICloudSandboxSealedToken, ICloudSandboxAuthenticationTarget {
+	readonly expiresAt?: number;
+}
+
+/** Receive-only discovery credentials. The URL contains a bearer token and must not be logged. */
+export interface ICloudSandboxSessionFeedConnection {
+	readonly url: string;
+	readonly subprotocol: 'json.webpubsub.azure.v1';
+	readonly group: string;
+	readonly expires_at: string;
+	readonly reconnect_after: string;
+	readonly frame_schema_version: 1;
+}
 
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
@@ -239,6 +385,21 @@ export interface ICloudSandboxApiService {
 
 	/** Resolves an opaque, credential-free account key using the same identity as task requests. */
 	getAccountKey(): Promise<string | undefined>;
+
+	/** Acquire an identity credential for the expected account, sharing requests and optionally replacing the cached token. */
+	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxIdentityToken>;
+
+	/** Seal a supplied credential without caching or local encryption fallback; disposing the service cancels pending sealing. */
+	sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken>;
+
+	/** Start minting immediately and seal when the target is ready; errors remain observable even when awaited later. */
+	prepareSandboxAuthentication(accountKey: string, target: Promise<ICloudSandboxAuthenticationTarget>, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxPreparedAuthentication>;
+
+	/** Negotiate the account's task feed; undefined means the server has not enabled it. */
+	connectSessionFeed(token: CancellationToken): Promise<ICloudSandboxSessionFeedConnection | undefined>;
+
+	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
+	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;
 
 	/**
 	 * Mint a fresh client Web PubSub connection token for a new logical connection. May resolve to a
@@ -258,21 +419,43 @@ export interface ICloudSandboxApiService {
 	 * Control only discovers by attempting the resume behind `/connect`.
 	 */
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
+	/** Lists the authenticated account's environments without attaching or provisioning compute. */
+	listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]>;
+	/** Returns fresh credential-free inventory for the current account without issuing a request. */
+	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
-	/** Enumerate sandbox sessions, optionally returning changes since the last successful scan. */
-	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult>;
+	/** Enumerate sandbox sessions, or refresh only the tasks named by feed notifications. */
+	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult>;
+
+	/** Reserve or renew an unsubmitted task for the draft's repository or default compute scope. */
+	reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession>;
 
 	/**
-	 * Provision a new sandbox task and its bound session. Mission Control starts no run, so the
-	 * caller sends {@link ICloudSandboxCreateSessionRequest.prompt} over the relay itself.
+	 * Create a sandbox task and bound session, optionally consuming a reservation or reusing an online environment.
+	 * The optional callback reports the HTTP dispatch attempt, after local validation and authentication.
 	 */
-	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession>;
+	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession>;
+
+	/** Soft-delete the task without waking the sandbox, optionally requiring the account that created it. */
+	deleteTask(taskId: string, token: CancellationToken, expectedAccountKey?: string): Promise<void>;
+
+	/** Rename the Mission Control task without waking the sandbox. */
+	renameTask(taskId: string, title: string, token: CancellationToken): Promise<void>;
+
+	/** Archive or unarchive the Mission Control task without waking the sandbox. */
+	setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void>;
 
 	/**
-	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
-	 * Mission Control's mirror, so it works without the sandbox. `undefined` when there is none.
+	 * Reads fresh recorded history without a live sandbox (`undefined` when absent); `diagnosticId` remains local.
+	 * Optional callbacks preview authenticated cached history and validate snapshots before cache replacement.
 	 */
-	getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined>;
+	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean): Promise<IReplayedTaskHistory | undefined>;
+
+	/** Prevent in-flight reads from refilling the cache; preserve stored data only when live history matches. */
+	invalidateSessionHistory(taskId: string, preserveCached?: boolean): void;
+
+	/** Drop recorded data and cancel reads for an account/feature lifetime or a removed task. */
+	clearSessionHistory(taskId?: string): void;
 }
 
 /** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
@@ -282,7 +465,7 @@ export type ICloudSandboxDiscoveryResult =
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 
@@ -294,47 +477,64 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
 	}
 }
 
-/**
- * A Mission Control request that came back with a non-success status. Carries the {@link statusCode}
- * so callers can tell a failure that may clear on its own from one that never will.
- */
-export class CloudSandboxRequestError extends Error {
-	constructor(readonly statusCode: number | undefined, message: string) {
-		super(message);
-		this.name = 'CloudSandboxRequestError';
+/** A connection request failed without receiving an HTTP response. */
+export class CloudSandboxNetworkError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'CloudSandboxNetworkError';
 	}
 }
 
 /**
- * Whether re-issuing a failed request could plausibly succeed later. Callers that retry on a timer
- * MUST consult this, or one dead session becomes an unbounded stream of failed requests.
- *
- * Transport failures (no status), 5xx, 408 and 429 are transient; every other 4xx describes a
- * request Mission Control will reject identically however often it is repeated.
- *
- * This gates credential refresh for *live* connections, where a transient fault must not tear down
- * a working session — hence 5xx staying retryable. Opening a new connection deliberately does not
- * use it: there, any answer is final. {@link CloudSandboxAuthenticationRequiredError} is retryable
- * because it is raised before any request goes out, so callers need their own ceiling.
+ * A Mission Control request failure or local request validation failure.
+ * Carries the {@link statusCode} when a response was received and available error metadata.
  */
+export class CloudSandboxRequestError extends Error {
+	readonly code: string | undefined;
+	readonly limitedResource: string | undefined;
+	readonly requestId: string | undefined;
+
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number, metadata?: MissionControlErrorMetadata) {
+		super(message);
+		this.name = 'CloudSandboxRequestError';
+		this.code = metadata?.code;
+		this.limitedResource = metadata?.limitedResource;
+		this.requestId = metadata?.requestId;
+	}
+}
+
+/** Whether credential recovery can succeed without changing its inputs. Semantic codes override HTTP status. */
 export function isRetryableCloudSandboxError(error: unknown): boolean {
 	if (!(error instanceof CloudSandboxRequestError) || error.statusCode === undefined) {
 		return true;
 	}
-	const status = error.statusCode;
-	return status === 408 || status === 429 || status < 400 || status >= 500;
+	return isRetryableMissionControlError(error.statusCode, error.code);
 }
 
 export const ICloudSandboxAgentHostService = createDecorator<ICloudSandboxAgentHostService>('cloudSandboxAgentHostService');
 
 /** Options for establishing a live AHP relay to a cloud sandbox environment. */
 export interface ICloudSandboxConnectOptions {
+	/** Selects the generic native-host path rather than sandbox checkout preparation. */
+	readonly environmentKind?: 'user-local';
 	/** Stable Mission Control environment identifier (`env_<uuid>`). */
 	readonly environmentId: string;
 	/** The cloud session/task id this connection is for, used for token minting. */
 	readonly sessionId?: string;
 	/** Human-readable display name for the connection. */
 	readonly name: string;
+	/** Local identity that owns this staged user-local connection; never sent to MC. */
+	readonly accountKey?: string;
+	/** Recipient keys from this account's environment descriptor, fetched over authenticated HTTPS. */
+	readonly trustedEncryptionKeys?: readonly IHostEncryptionKey[];
+	/** Caller provenance, not a claim about warm or cold compute. */
+	readonly connectionSource?: 'created' | 'existing';
+	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
+	readonly provisioningStartedAt?: number;
+	/** Local startup provenance for timing telemetry; never persisted or sent to MC. */
+	readonly taskCreationPath?: CloudSandboxTaskCreationPath;
+	/** Time spent awaiting the draft reservation during submission; a subset of provisioning time, not an additional stage. */
+	readonly reservationWaitMs?: number;
 }
 
 /**
@@ -357,10 +557,18 @@ export interface ICloudSandboxAgentHostService {
 	 * server-provided Retry-After delay.
 	 */
 	connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string>;
+	/** Disconnect a sandbox address and discard its staged credentials. */
+	disconnect(addressOrEnvironmentId: string): Promise<void>;
 
 	/**
 	 * The sealed GitHub token for a live connection to the given environment, as minted by
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
+
+	/** Resolves identity-only authentication for a user-local host; the protocol client seals it for each handshake. */
+	resolveUserLocalAuthentication(environmentId: string, resource: string, forceRefresh?: boolean): Promise<AuthenticateParams>;
+
+	/** Renew a live connection's sealed credential, rejecting missing or reused envelopes while sharing its refresh and retry budget. */
+	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;
 }

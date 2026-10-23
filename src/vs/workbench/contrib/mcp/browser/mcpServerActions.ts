@@ -602,7 +602,7 @@ export class DisableMcpServerGloballyAction extends McpServerAction {
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super(DisableMcpServerGloballyAction.ID, localize('disableGlobally', "Disable"), McpServerAction.LABEL_ACTION_CLASS);
+		super(DisableMcpServerGloballyAction.ID, localize('disableGlobally', "Disable (Globally)"), McpServerAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('disableGloballyTooltip', "Disable this MCP server");
 		this.update();
 	}

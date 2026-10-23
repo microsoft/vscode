@@ -107,7 +107,8 @@ export interface AgentCapabilities {
 	 * clients MUST NOT call `createChat` to open chats beyond the default one the
 	 * session starts with. An empty object `{}` advertises multi-chat without
 	 * source-based creation; set {@link MultipleChatsCapability.fork} or
-	 * {@link MultipleChatsCapability.sideChat} to allow the corresponding mode.
+	 * {@link MultipleChatsCapability.sideChat} to allow the corresponding
+	 * creation mode.
 	 */
 	multipleChats?: MultipleChatsCapability;
 	/**
@@ -196,7 +197,7 @@ export interface MultipleWorkingDirectoriesCapability {
 export interface SessionModelInfo {
 	/** Model identifier */
 	id: string;
-	/** Provider this model belongs to */
+	/** Agent provider that owns this model. Matches {@link AgentInfo.provider}. */
 	provider: string;
 	/** Human-readable model name */
 	name: string;
@@ -223,6 +224,16 @@ export interface SessionModelInfo {
 	 * For example, a `pricing` key may carry model pricing metadata.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Vendor of this model as the provider reports it, for example `Anthropic`
+	 * or `Azure OpenAI`. This is sometimes the company that serves the model
+	 * rather than the one that built it. Not the same as {@link provider},
+	 * which names the agent provider that owns this model. Absent when the
+	 * provider does not report a vendor. Providers MAY send any value; clients
+	 * SHOULD fall back to a generic presentation for values they do not
+	 * recognize.
+	 */
+	vendor?: string;
 }
 
 /**

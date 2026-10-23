@@ -27,7 +27,61 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 suite('Sessions - EditorPart', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('connected detail tabs join a single card frame without transparent corner gaps', () => {
+	test('Connected panel rows match panel header height across hosts', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs');
+		workbench.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-strokeThickness: 1px;';
+		const editor = appendElement(workbench, 'part editor');
+		const group = appendElement(appendElement(editor, 'content'), 'editor-group-container');
+		const title = appendElement(group, 'title tabs');
+		const row = appendElement(title, 'tabs-and-actions-container');
+		const tabs = appendElement(appendElement(row, 'monaco-scrollable-element'), 'tabs-container');
+		const tab = appendElement(tabs, 'tab active');
+		appendElement(tab, 'tab-fill');
+		appendElement(tab, 'tab-connected-edge');
+		tab.style.width = '120px';
+		const inactive = appendElement(tabs, 'tab');
+		inactive.classList.add('hovered');
+		const inactiveFill = appendElement(inactive, 'tab-fill');
+		inactive.style.width = '120px';
+		const results = [];
+		try {
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				workbench.classList.add(theme);
+				for (const direction of ['ltr', 'rtl']) {
+					workbench.dir = direction;
+					for (const compact of [false, true]) {
+						title.classList.toggle('compact-height', compact);
+						for (const host of ['main', 'agents', 'modal']) {
+							workbench.classList.toggle('agent-sessions-workbench', host !== 'main');
+							editor.classList.toggle('modal-editor-part', host === 'modal');
+							const style = mainWindow.getComputedStyle(tab);
+							results.push({
+								theme, direction, compact, host,
+								rowHeight: row.getBoundingClientRect().height,
+								topInset: mainWindow.getComputedStyle(tab.firstElementChild!).top,
+								tabHeight: style.height,
+								capRadius: mainWindow.getComputedStyle(tab.firstElementChild!).borderTopRightRadius,
+								hoverInsets: [mainWindow.getComputedStyle(inactiveFill).top, mainWindow.getComputedStyle(inactiveFill).bottom],
+							});
+						}
+					}
+				}
+				workbench.classList.remove(theme);
+			}
+			assert.deepStrictEqual(results, results.map(result => ({
+				...result,
+				rowHeight: result.compact ? 28 : 32,
+				topInset: '0px',
+				tabHeight: `${result.compact ? 27 : 31}px`,
+				capRadius: '7px',
+				hoverInsets: ['0px', '-1px'],
+			})));
+		} finally {
+			workbench.remove();
+		}
+	});
+
+	test('connected detail tabs keep rounded corners while sharing the single card frame', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
 		for (const [name, value] of Object.entries({
 			'--vscode-spacing-size20': '2px',
@@ -42,6 +96,7 @@ suite('Sessions - EditorPart', () => {
 			'--vscode-agentsPanel-border': '#abcdef',
 			'--vscode-focusBorder': '#00ff00',
 			'--vscode-contrastBorder': '#ffffff',
+			'--vscode-tab-border': '#ffffff',
 		})) {
 			workbench.style.setProperty(name, value);
 		}
@@ -54,10 +109,12 @@ suite('Sessions - EditorPart', () => {
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const scrollable = appendElement(row, 'monaco-scrollable-element');
 		const tabs = appendElement(scrollable, 'tabs-container');
-		const first = appendElement(tabs, 'tab active connected-tab-top-row');
+		const first = appendElement(tabs, 'tab active connected-tab-top-row first-in-row');
 		const firstFill = appendElement(first, 'tab-fill');
-		const second = appendElement(tabs, 'tab connected-tab-top-row');
+		const firstEdge = appendElement(first, 'tab-connected-edge');
+		const second = appendElement(tabs, 'tab connected-tab-top-row connected-tab-last');
 		const secondFill = appendElement(second, 'tab-fill');
+		const secondEdge = appendElement(second, 'tab-connected-edge');
 		first.style.width = second.style.width = '180px';
 		tabs.style.width = '358px';
 		appendElement(group, 'editor-container').style.height = '96px';
@@ -67,7 +124,7 @@ suite('Sessions - EditorPart', () => {
 				workbench.classList.add(theme);
 				for (const active of [true, false]) {
 					group.classList.toggle('active', active);
-					const border = theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : 'rgb(68, 85, 102)';
+					const frameBorder = theme.startsWith('hc-') ? 'rgb(171, 205, 239)' : 'rgb(68, 85, 102)';
 					for (const compact of [false, true]) {
 						title.classList.toggle('compact-height', compact);
 						for (const zoom of [0.8, 1, 1.25]) {
@@ -76,7 +133,7 @@ suite('Sessions - EditorPart', () => {
 								first.classList.toggle('active', firstActive);
 								second.classList.toggle('active', !firstActive);
 								const fill = firstActive ? firstFill : secondFill;
-								const cap = mainWindow.getComputedStyle(fill);
+								const cap = mainWindow.getComputedStyle(firstActive ? firstEdge : secondEdge);
 								const frame = mainWindow.getComputedStyle(group, '::after');
 								assert.deepStrictEqual({
 									outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
@@ -85,19 +142,21 @@ suite('Sessions - EditorPart', () => {
 									frameRadius: frame.borderRadius,
 									frameDeviceStroke: Math.round(parseFloat(frame.borderTopWidth) * zoom * mainWindow.devicePixelRatio),
 									framePointerEvents: frame.pointerEvents,
-									capTop: fill.getBoundingClientRect().top - group.getBoundingClientRect().top,
+									capAlignedWithFrame: Math.abs(fill.getBoundingClientRect().top - group.getBoundingClientRect().top) < 1 / 32,
 									capBorder: cap.borderTopColor,
+									fillTopBorder: mainWindow.getComputedStyle(fill).borderTopColor,
 									firstBackgroundClip: mainWindow.getComputedStyle(firstFill).backgroundClip,
 									firstLeftBorder: mainWindow.getComputedStyle(firstFill).borderLeftColor,
 								}, {
 									outerBorder: 'rgba(0, 0, 0, 0)',
-									frame: [border, border, border, border],
+									frame: [frameBorder, frameBorder, frameBorder, frameBorder],
 									frameInsets: ['0px', '0px', '0px', '0px'],
 									frameRadius: '7px',
 									frameDeviceStroke: Math.max(1, Math.floor(zoom * mainWindow.devicePixelRatio)),
 									framePointerEvents: 'none',
-									capTop: 0,
-									capBorder: border,
+									capAlignedWithFrame: true,
+									capBorder: theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : frameBorder,
+									fillTopBorder: 'rgba(0, 0, 0, 0)',
 									firstBackgroundClip: 'border-box',
 									firstLeftBorder: 'rgba(0, 0, 0, 0)',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, first: ${firstActive}`);
@@ -107,6 +166,7 @@ suite('Sessions - EditorPart', () => {
 								row.classList.toggle('wrapping', wrapped);
 								first.classList.toggle('last-in-row', wrapped);
 								first.classList.toggle('connected-tab-upper-row', wrapped);
+								second.classList.toggle('first-in-row', wrapped);
 								second.classList.toggle('connected-tab-top-row', !wrapped);
 								const cap = mainWindow.getComputedStyle(secondFill);
 								assert.deepStrictEqual({
@@ -120,8 +180,8 @@ suite('Sessions - EditorPart', () => {
 									active: true,
 									laterRow: wrapped,
 									leadingEdge: wrapped,
-									backgroundClip: wrapped ? 'border-box' : 'padding-box',
-									leftBorder: wrapped ? 'rgba(0, 0, 0, 0)' : border,
+									backgroundClip: 'border-box',
+									leftBorder: 'rgba(0, 0, 0, 0)',
 									leftCorner: wrapped ? '0px' : '5px',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, wrapped: ${wrapped}`);
 							}

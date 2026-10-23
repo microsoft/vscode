@@ -63,6 +63,7 @@ export interface IssueReporterExtensionData {
 	extensionTemplate?: string;
 	data?: string;
 	uri?: UriComponents;
+	/** An optional internal destination, not the default destination. */
 	privateUri?: UriComponents;
 }
 
@@ -93,7 +94,12 @@ export interface IssueReporterData extends WindowData {
 	issueBody?: string;
 	data?: string;
 	uri?: UriComponents;
+	/** An optional internal destination, not the default destination. */
 	privateUri?: UriComponents;
+	/** Additional product-report destinations for the wizard, in owner/repo form. */
+	additionalRepositories?: readonly string[];
+	/** The user's wizard repository choice, independent of the issue source. */
+	issueRepository?: string;
 }
 
 export interface ISettingSearchResult {
@@ -128,6 +134,13 @@ export interface IIssueFormService {
 	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
 	closeReporter(): Promise<void>;
 	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string): Promise<boolean>;
+	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
+}
+
+export interface ISimilarIssue {
+	readonly html_url: string;
+	readonly title: string;
+	readonly state?: string;
 }
 
 export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');

@@ -279,7 +279,7 @@ suite('InboxNotificationsService', () => {
 			description: item.description,
 		})), [{
 			kind: InboxNotificationKind.NeedsInput,
-			description: 'Input needed',
+			description: 'Attention needed',
 		}]);
 	});
 
