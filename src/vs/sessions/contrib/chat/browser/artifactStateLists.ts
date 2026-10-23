@@ -6,7 +6,7 @@
 import { $, addDisposableListener, append, EventHelper, EventType, getActiveElement, isAncestorOfActiveElement, reset } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button, ButtonWithIcon } from '../../../../base/browser/ui/button/button.js';
-import { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IHoverLifecycleOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -139,7 +139,7 @@ class ArtifactListTab extends Disposable {
 	private label = '';
 	private description = '';
 
-	constructor(select: (focus: 'tab' | 'list') => void, hoverService: IHoverService) {
+	constructor(select: (focus: 'tab' | 'list') => void, hoverService: IHoverService, hoverLifecycleOptions: IHoverLifecycleOptions) {
 		super();
 		this.button = this._register(new ButtonWithIcon(this.element, {
 			...defaultButtonStyles, secondary: true, small: true,
@@ -151,16 +151,16 @@ class ArtifactListTab extends Disposable {
 		this.button.element.setAttribute('role', 'tab');
 		this.button.iconElement.setAttribute('aria-hidden', 'true');
 		this._register(this.button.onDidClick(event => select(event.type === EventType.KEY_DOWN ? 'tab' : 'list')));
-		this._register(hoverService.setupDelayedHover(this.button.element, () => ({ content: this.label })));
+		this._register(hoverService.setupDelayedHover(this.button.element, () => ({ content: this.label, style: HoverStyle.Pointer }), hoverLifecycleOptions));
 		this.info = this._register(new Button(this.element, {
 			...defaultButtonStyles, secondary: true,
 			buttonSecondaryBackground: 'transparent', buttonSecondaryBorder: 'transparent', buttonSecondaryForeground: 'var(--vscode-descriptionForeground)',
 		}));
 		this.info.element.classList.add('artifact-list-tab-info');
 		this.info.icon = Codicon.info;
-		this._register(hoverService.setupDelayedHover(this.info.element, () => ({ content: this.description })));
+		this._register(hoverService.setupDelayedHover(this.info.element, () => ({ content: this.description, style: HoverStyle.Pointer }), hoverLifecycleOptions));
 		this._register(this.info.onDidClick(() => {
-			this.infoHover.value = hoverService.showInstantHover({ target: this.info.element, content: this.description }, true);
+			this.infoHover.value = hoverService.showInstantHover({ target: this.info.element, content: this.description, style: HoverStyle.Pointer }, true);
 		}));
 		append(this.element, $('span.artifact-list-tab-focus', { 'aria-hidden': 'true' }));
 		this._register(addDisposableListener(this.element, EventType.CLICK, event => {
@@ -209,6 +209,7 @@ export class ArtifactStateLists extends Disposable {
 	private readonly actions: ArtifactButtons;
 	private readonly itemHoverDelegate = this._register(createInstantHoverDelegate());
 	private readonly tabs = this._register(new DisposableMap<string, ArtifactListTab>());
+	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly lists = this._register(new DisposableMap<string, ArtifactStateList>());
 	private data: readonly IArtifactListViewData[] = [];
 	private selectList: (id: string) => void = () => { };
@@ -217,7 +218,7 @@ export class ArtifactStateLists extends Disposable {
 		super();
 		this.scrollable.getDomNode().classList.add('artifact-list-tabs-scrollable');
 		append(this.header, this.scrollable.getDomNode());
-		this.actions = this._register(new ArtifactButtons(append(this.content, $('.artifact-controls.artifact-state-actions', { 'aria-label': localize('artifactStateActions', "Artifact Actions") })), hoverService));
+		this.actions = this._register(new ArtifactButtons(append(this.content, $('.artifact-controls.artifact-state-actions', { 'aria-label': localize('artifactStateActions', "Artifact Actions") })), hoverService, 'action', this.hoverLifecycleOptions));
 		this._register(addDisposableListener(this.tabList, EventType.KEY_DOWN, event => {
 			const keyboard = new StandardKeyboardEvent(event);
 			const current = this.data.findIndex(list => this.tabs.get(list.id)?.button.element === getActiveElement());
@@ -251,7 +252,7 @@ export class ArtifactStateLists extends Disposable {
 			if (!list) {
 				list = new ArtifactStateList(item, this.instantiationService, this.hoverService, this.itemHoverDelegate);
 				this.lists.set(item.id, list);
-				this.tabs.set(item.id, new ArtifactListTab(focus => this.select(item.id, focus), this.hoverService));
+				this.tabs.set(item.id, new ArtifactListTab(focus => this.select(item.id, focus), this.hoverService, this.hoverLifecycleOptions));
 			} else {
 				list.update(item);
 			}

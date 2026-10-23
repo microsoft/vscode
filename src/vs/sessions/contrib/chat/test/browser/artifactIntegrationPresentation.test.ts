@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, append, getActiveElement } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IDelayedHoverOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -20,6 +20,7 @@ import { constObservable, derived, observableValue, transaction } from '../../..
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ArtifactDetails, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -30,6 +31,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -38,7 +40,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
-import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { chartsGreen, chartsPurple } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -107,11 +109,19 @@ suite('Artifact Integration Presentation', () => {
 			override readonly sentimentObs = sentiment;
 		}());
 		const hovers = new Map<HTMLElement, IDelayedHoverOptions | (() => IDelayedHoverOptions)>();
+		const hoverGroups = new Map<HTMLElement, string | undefined>();
 		const shownHovers: IHoverOptions[] = [];
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover(target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) {
+			override setupDelayedHover(target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions), lifecycleOptions?: IHoverLifecycleOptions) {
 				hovers.set(target, options);
-				return toDisposable(() => hovers.delete(target));
+				hoverGroups.set(target, lifecycleOptions?.groupId);
+				return toDisposable(() => {
+					hovers.delete(target);
+					hoverGroups.delete(target);
+				});
+			}
+			override setupDelayedHoverAtMouse(target: HTMLElement, options: Parameters<IHoverService['setupDelayedHoverAtMouse']>[1], lifecycleOptions?: IHoverLifecycleOptions) {
+				return this.setupDelayedHover(target, options, lifecycleOptions);
 			}
 			override hideHover(): void { }
 			override showInstantHover(options: IHoverOptions) {
@@ -365,7 +375,7 @@ suite('Artifact Integration Presentation', () => {
 			};
 		}
 		return {
-			host, row, input, controller, contextView, hovers, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService,
+			host, row, input, controller, contextView, hovers, hoverGroups, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService,
 			openedChats, revealedActivities, focusedActivities, registerActivityChat, activeSession,
 			setOpenChatResult: (result: Promise<void>) => { openChatResult = result; },
 			contextShows: () => contextShows,
@@ -864,6 +874,50 @@ suite('Artifact Integration Presentation', () => {
 			popup: a.main.getAttribute('aria-haspopup'), expanded: a.main.getAttribute('aria-expanded'),
 		}, { hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'], popup: 'dialog', expanded: 'false' });
 	});
+
+	test('an integration pill shares pointer hovers across its adjacent section buttons', () => {
+		const f = fixture();
+		const first = f.artifact();
+		const second = f.artifact('other');
+		const presentation = (container: HTMLElement) => Array.from(f.hovers)
+			.filter(([target]) => container.contains(target))
+			.map(([target, options]) => ({
+				style: (typeof options === 'function' ? options() : options).style,
+				groupId: f.hoverGroups.get(target),
+			}));
+		const firstHovers = presentation(first.container);
+		const secondHovers = presentation(second.container);
+
+		assert.deepStrictEqual({
+			styles: firstHovers.map(hover => hover.style),
+			grouped: !!firstHovers[0].groupId && firstHovers.every(hover => hover.groupId === firstHovers[0].groupId),
+			independent: firstHovers[0].groupId !== secondHovers[0].groupId,
+		}, { styles: [HoverStyle.Pointer, HoverStyle.Pointer, HoverStyle.Pointer], grouped: true, independent: true });
+	});
+
+	test('an integration pill waits for the first hover and shows adjacent section hovers without another delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = fixture();
+		f.configuration.setUserConfiguration('workbench.hover.delay', 500);
+		const hoverService = store.add(f.instantiation.createInstance(HoverService));
+		store.add(toDisposable(() => hoverService.hideHover(true)));
+		f.instantiation.stub(IHoverService, hoverService);
+		const artifact = f.artifact();
+		const section = artifact.container.querySelector<HTMLElement>('.chat-pill-sections .chat-pill-button')!;
+		const hoverText = () => f.host.querySelector('.monaco-hover')?.textContent;
+		artifact.main.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(499);
+		const beforeDelay = hoverText();
+		await timeout(1);
+		const initialHover = hoverText();
+		section.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeDelay,
+			firstShown: initialHover?.includes('Open: compact status'),
+			sectionShownImmediately: !!hoverText() && hoverText() !== initialHover,
+		}, { beforeDelay: undefined, firstShown: true, sectionShownImmediately: true });
+	}));
 
 	test('main click opens full details; the title navigates and shell actions remain available', async () => {
 		const f = fixture();
@@ -1925,10 +1979,6 @@ suite('Artifact Integration Presentation', () => {
 
 		test('tabbed automation master works while collapsed and preserves provider consent and revocation', async () => {
 			const f = fixture();
-			const confirmations: IConfirmation[] = [];
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) { confirmations.push(confirmation); return { confirmed: true }; }
-			}());
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLButtonElement>('.artifact-card-heading [role="switch"]')!;
@@ -1943,9 +1993,9 @@ suite('Artifact Integration Presentation', () => {
 			await settle(f);
 			assert.deepStrictEqual({
 				enabled, disabled: master.getAttribute('aria-checked'), collapsed: panel.querySelector<HTMLElement>('.artifact-card-content')?.hidden,
-				confirmations: confirmations.length, configured: a.configured, actions: a.invoked,
+				configured: a.configured, actions: a.invoked,
 			}, {
-				enabled: 'true', disabled: 'false', collapsed: true, confirmations: 1,
+				enabled: 'true', disabled: 'false', collapsed: true,
 				configured: [
 					{ integrationId: 'test', revision: 4, values: { fix: true, reviews: true, merge: true } },
 					{ integrationId: 'test', revision: 5, values: { fix: false, reviews: false, merge: false } },
@@ -2027,12 +2077,8 @@ suite('Artifact Integration Presentation', () => {
 		test('tabbed bulk enablement uses the displayed enum choices without a policy picker', async () => {
 			const f = fixture();
 			let picks = 0;
-			const confirmations: IConfirmation[] = [];
 			f.instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override readonly pick: IQuickInputService['pick'] = async () => { picks++; return undefined; };
-			}());
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) { confirmations.push(confirmation); return { confirmed: true }; }
 			}());
 			const configured = [];
 			for (const [id, value, label] of [['default', 'always', 'Always'], ['prepared', 'ifUnchanged', 'When No Changes Were Made']]) {
@@ -2047,13 +2093,12 @@ suite('Artifact Integration Presentation', () => {
 				await settle(f);
 				configured.push({ value: picker.textContent, writes: a.configured, checked: panel.querySelector('.artifact-card-heading [role="switch"]')?.getAttribute('aria-checked') });
 			}
-			assert.deepStrictEqual({ picks, configured, confirmations: confirmations.map(confirmation => typeof confirmation.detail === 'string' && confirmation.detail.includes('Merge Automatically When Ready:')) }, {
+			assert.deepStrictEqual({ picks, configured }, {
 				picks: 0,
 				configured: [
 					{ value: 'Always', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }], checked: 'true' },
 					{ value: 'When No Changes Were Made', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }], checked: 'true' },
 				],
-				confirmations: [true, true],
 			});
 		});
 
@@ -2337,12 +2382,12 @@ suite('Artifact Integration Presentation', () => {
 			}, { initial: [true, false], updated: 'Updated comment information.', hidden: [true, true], retained: true, focusReturned: true });
 		});
 
-		test('Autopilot confirms exactly the available rules and uses one provider configuration revision', async () => {
+		test('Autopilot enables exactly the available rules without confirmation and uses one provider configuration revision', async () => {
 			const f = fixture();
-			const confirmations: IConfirmation[] = [];
+			let confirmations = 0;
 			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) {
-					confirmations.push(confirmation);
+				override async confirm(): Promise<IConfirmationResult> {
+					confirmations++;
 					return { confirmed: true };
 				}
 			}());
@@ -2362,11 +2407,11 @@ suite('Artifact Integration Presentation', () => {
 			master.click();
 			await settle(f);
 			assert.deepStrictEqual({
-				confirmations: confirmations.map(confirmation => ({ message: confirmation.message, details: String(confirmation.detail).includes('Auto Fix CI') && !String(confirmation.detail).includes('Address Comments Automatically') })),
+				confirmations,
 				enabled, disabled: master.getAttribute('aria-checked'),
 				configured: a.configured, invoked: a.invoked,
 			}, {
-				confirmations: [{ message: 'Enable these Autopilot rules?', details: true }],
+				confirmations: 0,
 				enabled: 'true', disabled: 'false',
 				configured: [
 					{ integrationId: 'test', revision: 4, values: { fix: true, merge: true } },
@@ -2375,26 +2420,30 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('Autopilot partial enablement is explicit; cancellation and failed writes never fabricate saved consent', async () => {
+		test('Autopilot enablement is saved even when an outside click dismisses details right away', async () => {
 			const f = fixture();
-			let confirmed = false;
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed }; }
-			}());
+			const a = f.artifact();
+			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!.click();
+			f.input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			await settle(f);
+			assert.deepStrictEqual({ selected: f.controller.selected.get(), configured: a.configured, errors: f.errors, badge: automationBadge(a)?.textContent }, {
+				selected: undefined, configured: [{ integrationId: 'test', revision: 4, values: { fix: true, reviews: true, merge: true } }], errors: [], badge: '3',
+			});
+		});
+
+		test('Autopilot partial enablement is explicit and failed writes never fabricate saved consent', async () => {
+			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
 			const before = master.getAttribute('aria-checked');
-			master.click();
-			await settle(f);
-			const cancelled = { state: master.getAttribute('aria-checked'), writes: a.configured.length };
-			confirmed = true;
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
 			master.click();
 			await settle(f);
-			assert.deepStrictEqual({ before, cancelled, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
-				before: 'false', cancelled: { state: 'false', writes: 0 }, after: 'false', summary: '1 of 3 on',
+			assert.deepStrictEqual({ before, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
+				before: 'false', after: 'false', summary: '1 of 3 on',
 				errors: ['The artifact operation failed: Consent revision changed'], invoked: [],
 			});
 		});
@@ -2422,9 +2471,6 @@ suite('Artifact Integration Presentation', () => {
 
 		test('Autopilot scopes bulk consent to one provider even when providers reuse action and rule IDs', async () => {
 			const f = fixture();
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed: true }; }
-			}());
 			const a = f.artifact();
 			const original = a.snapshot.get().contributions[0];
 			a.snapshot.set({ ...a.snapshot.get(), contributions: [original, { ...original, integrationId: 'second', label: 'Other Provider' }] }, undefined);
