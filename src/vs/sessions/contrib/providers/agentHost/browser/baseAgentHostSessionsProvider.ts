@@ -8894,20 +8894,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			};
 		}
 		if (existing && resolvedConfigsEqual(existing, seeded)) {
-			const rawId = this._sessionKeyFromChatId(sessionId);
-			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-			if (cached) {
-				this._syncSensitiveEditLocations(cached);
-			}
 			return;
 		}
 		this._runningSessionConfigs.set(sessionId, seeded);
 		this._applyWorktreeIsolation(sessionId, seeded.values);
 		this._onDidChangeSessionConfig.fire(sessionId);
-		const rawId = this._sessionKeyFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached) {
-			this._syncSensitiveEditLocations(cached);
+		// Assert this client's locations only on the first seed. Re-asserting on
+		// every host update makes clients with different settings overwrite each
+		// other forever; local setting changes and each turn re-assert them.
+		if (!existing) {
+			const rawId = this._sessionKeyFromChatId(sessionId);
+			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+			if (cached) {
+				this._syncSensitiveEditLocations(cached);
+			}
 		}
 	}
 

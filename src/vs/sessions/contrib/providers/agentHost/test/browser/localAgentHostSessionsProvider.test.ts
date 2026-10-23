@@ -8254,6 +8254,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('does not re-assert sensitive edit locations when another client changes them', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration(ChatHookFilesLocationsSettingId, { 'my-hooks': true });
+		agentHost.addSession(createSession('shared', { summary: 'Shared Session', workingDirectory: URI.file('/home/user/project') }));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Shared Session')!;
+		const chat = session.mainChat.get().resource;
+		provider.getSessionConfig(session.sessionId, chat);
+		const hostState = (sensitiveEditLocations: readonly { path: string; isDirectory: boolean }[]): SessionState => ({
+			provider: 'copilotcli', title: 'Shared Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			config: {
+				schema: { type: 'object', properties: { [SessionConfigKey.SensitiveEditLocations]: { type: 'array', title: 'Sensitive edit locations', readOnly: true, sessionMutable: true } } },
+				values: { [SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocations },
+			},
+		});
+		const sensitiveEditLocationWrites = () => agentHost.dispatchedActions.flatMap(({ action }) =>
+			action.type === ActionType.SessionConfigChanged ? [action.config[SessionConfigKey.SensitiveEditLocations]] : []);
+		const otherClientLocations = [{ path: 'other-hooks', isDirectory: true }];
+
+		agentHost.setSessionState('shared', 'copilotcli', hostState(otherClientLocations));
+		await waitForSessionConfig(provider, session, config => config?.values[SessionConfigKey.SensitiveEditLocations] !== undefined);
+		const onFirstSeed = sensitiveEditLocationWrites();
+		agentHost.dispatchedActions.length = 0;
+
+		// The host echoes this client's write, then another client's different write.
+		agentHost.setSessionState('shared', 'copilotcli', hostState([{ path: 'my-hooks', isDirectory: true }]));
+		agentHost.setSessionState('shared', 'copilotcli', hostState(otherClientLocations));
+
+		assert.deepStrictEqual({
+			onFirstSeed,
+			afterOtherClient: sensitiveEditLocationWrites(),
+			shown: provider.getSessionConfig(session.sessionId, chat)?.values[SessionConfigKey.SensitiveEditLocations],
+		}, {
+			onFirstSeed: [[{ path: 'my-hooks', isDirectory: true }]],
+			afterOtherClient: [],
+			shown: otherClientLocations,
+		});
+	}));
+
 	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
 		const folder = URI.file('/home/user/project');
 		const configService = new TestConfigurationService();
