@@ -11,6 +11,7 @@ import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
 export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
+export const AgentHostDefaultCloneDirectorySettingId = 'chat.agentHost.defaultCloneDirectory';
 export const GitHubEnvironmentsEnabledSettingId = 'chat.agentHost.githubEnvironments.enabled';
 export const GitHubEnvironmentsAvailabilityTreatment = 'githubEnvironmentsAvailable';
 export const GitHubEnvironmentsAvailableContext = new RawContextKey<boolean>('githubEnvironmentsAvailable', false);

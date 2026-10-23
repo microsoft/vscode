@@ -1036,6 +1036,7 @@ suite('Editor cloud sandbox discovery', () => {
 				type,
 				hiddenFromPicker: contribution.hideFromSessionTypePicker,
 				canDelegate: contribution.canDelegate,
+				inputPlaceholder: contribution.inputPlaceholder,
 				// The chat widget locks a draft to the participant named after its type.
 				participant: h.agents.get(type)?.fullName,
 			})),
@@ -1044,8 +1045,8 @@ suite('Editor cloud sandbox discovery', () => {
 			created: h.calls.created,
 		}, {
 			providers: [
-				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, participant: 'Cloud' },
-				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, participant: undefined },
+				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, inputPlaceholder: 'Chat with Copilot', participant: 'Cloud' },
+				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, inputPlaceholder: 'Chat with Copilot', participant: undefined },
 			],
 			repositoryOptions: [],
 			created: 0,

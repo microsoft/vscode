@@ -372,7 +372,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return { banner: connectionBanner, recovery: undefined };
 			}
 			if (historyStatus && (historyStatus.kind === 'history' || !this._connection.isQuiet.read(reader))) {
-				return { banner: { icon: Codicon.warning, message: historyStatus.message, action: historyStatus.action }, recovery: undefined };
+				return { banner: { icon: historyStatus.isLoading ? Codicon.sync : Codicon.warning, message: historyStatus.message, action: historyStatus.action }, recovery: undefined };
 			}
 			if (!quietDraft && activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly && context.session.remoteConnectionStatus?.read(reader)?.kind === 'connected') {
 				return { banner: { icon: Codicon.sync, message: localize('sessionReadOnlyBanner.preparing', "Preparing the session...") }, recovery: undefined };
@@ -418,7 +418,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			if (chat) {
-				view.setChat(chat, session.sessionId, session, chat.interactivity.read(reader) === ChatInteractivity.DraftOnly ? () => this._connection.connectOnInput() : undefined);
+				const needsConnectionFeedback = chat.interactivity.read(reader) === ChatInteractivity.DraftOnly || view.isInputBlocked.read(reader);
+				view.setChat(chat, session.sessionId, session, needsConnectionFeedback ? () => this._connection.connectOnInput() : undefined);
 			}
 
 			const surfaceContent = surface.read(reader);

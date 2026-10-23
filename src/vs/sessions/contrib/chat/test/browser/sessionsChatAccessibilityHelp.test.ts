@@ -171,9 +171,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			feedbackOnInput: content.includes('Connection progress and failures appear in a banner only after you type, paste, or add an attachment.'),
 			readyBeforeInput: content.includes('If the session is ready before you start composing, no connection banner appears.'),
 			neverSends: content.includes('Connecting never sends your draft automatically.'),
+			reopenAction: content.includes('Use Tab to reach Retry and press Enter or Space to reopen the conversation on the existing connection.'),
+			reopenProgress: content.includes('The banner reports reopening progress and offers Retry again if it fails.'),
+			preservedDraft: content.includes('Your draft is preserved and is not sent automatically. Send stays unavailable until the conversation is ready.'),
 			silentRefresh: content.includes('Previously loaded conversations refresh silently.'),
 			refreshAction: content.includes('Use Tab to reach Refresh and press Enter or Space to retry loading recorded messages without restarting the session or waking its environment.'),
-		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, silentRefresh: true, refreshAction: true });
+		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, reopenAction: true, reopenProgress: true, preservedDraft: true, silentRefresh: true, refreshAction: true });
 	});
 
 	test('documents layout density and the empty editor Add Tab list only on desktop', () => {

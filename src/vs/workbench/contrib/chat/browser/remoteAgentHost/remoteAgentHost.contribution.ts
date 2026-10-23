@@ -19,7 +19,7 @@ import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './c
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
 import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.js';
 import './missionControlEnvironmentActions.js';
-import { AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlSharingService, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlSharingService, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
 import { MissionControlSharingService } from './missionControlSharingService.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
@@ -92,6 +92,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					},
 				},
 			},
+		},
+		[AgentHostDefaultCloneDirectorySettingId]: {
+			type: 'string',
+			markdownDescription: localize('agentHost.defaultCloneDirectory', "Root folder for repositories cloned by remote clients when this machine is shared as a GitHub environment. Repositories are cloned into `<root>/<owner>/<repository>`. Use an absolute path or a path starting with `~` for the local user's home folder. The folder is created if needed. When empty, falls back to `#git.defaultCloneDirectory#`, then the home folder. Changes apply to future clones and do not move existing repositories."),
+			default: '',
+			scope: ConfigurationScope.APPLICATION_MACHINE,
+			restricted: true,
+			ignoreSync: true,
 		},
 		[MissionControlUseLocalCredentialsSettingId]: {
 			type: 'boolean',
