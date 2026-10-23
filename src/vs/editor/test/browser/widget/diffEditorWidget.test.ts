@@ -173,10 +173,6 @@ suite('DiffEditorWidget2', () => {
 	});
 
 	suite('DiffEditorViewModel', () => {
-		/**
-		 * Creates a view model whose first diff computation returns `firstDiff`, so a test can change
-		 * the text before that result lands. Later computations run synchronously.
-		 */
 		function createViewModel(original: string, modified: string, firstDiff: Promise<IDocumentDiff>) {
 			const instantiationService = createCodeEditorServices(disposables);
 			const syncDiffProvider = new TestDiffProviderFactoryService().createDiffProvider();
@@ -208,7 +204,6 @@ suite('DiffEditorWidget2', () => {
 
 			originalModel.setValue('a');
 			modifiedModel.setValue('a');
-			// The diff of the previous text replaces line 3, which the new text does not have.
 			await firstDiff.complete({
 				changes: [new DetailedLineRangeMapping(new LineRange(3, 4), new LineRange(3, 4), [new RangeMapping(new Range(3, 1, 3, 5), new Range(3, 1, 3, 5))])],
 				identical: false,

@@ -305,9 +305,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				return;
 			}
 			if (originalTextEditInfos.length > 0 || modifiedTextEditInfos.length > 0) {
-				// The text changed while the diff was computed, so the result describes the old text
-				// and can reference lines past the end of the new text. applyOriginalEdits/applyModifiedEdits
-				// cannot map it yet, and the content change already scheduled a recompute.
+				// The result is for older text. The edit already scheduled a recompute.
 				return;
 			}
 			result = normalizeDocumentDiff(result, model.original, model.modified);
