@@ -3982,19 +3982,29 @@ suite('AgentService (node dispatcher)', () => {
 		test('installs and uninstalls plugins through the owning provider', async () => {
 			const calls: unknown[] = [];
 			const session = URI.parse('agent-host-copilotcli:/session');
+			const chat = URI.parse('vendor-chat://opaque/peer');
 			const provider: IAgent = copilotAgent;
 			provider.installPlugin = async (request, operationSession) => { calls.push(['install', request, operationSession?.toString()]); };
 			provider.uninstallPlugin = async (request, operationSession) => { calls.push(['uninstall', request, operationSession?.toString()]); };
+			provider.listPluginInstallations = async (operationSession, operationChat) => {
+				calls.push(['inventory', operationSession?.toString(), operationChat?.toString()]);
+				return [{ name: 'spark', marketplace: 'copilot-plugins' }];
+			};
 			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
+			const inventory = await managementService.listPluginInstallations(provider.id, session, chat);
 
-			assert.deepStrictEqual(calls, [
-				['install', { source: 'spark@copilot-plugins' }, session.toString()],
-				['uninstall', { name: 'spark', marketplace: 'copilot-plugins' }, session.toString()],
-			]);
+			assert.deepStrictEqual({ inventory, calls }, {
+				inventory: [{ name: 'spark', marketplace: 'copilot-plugins' }],
+				calls: [
+					['install', { source: 'spark@copilot-plugins' }, session.toString()],
+					['uninstall', { name: 'spark', marketplace: 'copilot-plugins' }, session.toString()],
+					['inventory', session.toString(), chat.toString()],
+				],
+			});
 		});
 
 		test('manages plugin marketplaces through the owning provider', async () => {
