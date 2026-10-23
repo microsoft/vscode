@@ -632,7 +632,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._renderConfigPickers()));
+			// Re-rendering replaces the chips, so a change in any other session
+			// would detach a chip mid-click and the click would be lost.
+			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === this._session.get()?.sessionId) {
+					this._renderConfigPickers();
+				}
+			}));
 		}
 	}
 
@@ -1936,7 +1942,12 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._refreshRepositoryMenuItems(actionViewItemService)));
+			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
+			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
+				if (this._sessionsService.visibleSessions.get().some(session => session?.sessionId === sessionId)) {
+					this._refreshRepositoryMenuItems(actionViewItemService);
+				}
+			}));
 		}
 	}
 
