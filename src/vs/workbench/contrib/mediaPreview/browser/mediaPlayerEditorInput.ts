@@ -250,7 +250,7 @@ export class MediaPlayerEditorInput extends WebviewInput {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src ${webviewGenericCspSource}; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src ${webviewGenericCspSource} blob:; connect-src ${webviewGenericCspSource}; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
 	<style nonce="${nonce}">
 		html, body {
 			width: 100%;
@@ -293,8 +293,53 @@ export class MediaPlayerEditorInput extends WebviewInput {
 	<script nonce="${nonce}">
 		(function () {
 			const vscode = acquireVsCodeApi();
-			document.querySelector('audio, video')?.addEventListener('error', () => {
-				document.body.classList.add('error');
+			const media = document.querySelector('audio, video');
+			const showError = () => document.body.classList.add('error');
+
+			// Some Electron builds ship an FFmpeg without the WebM container, so a WebM file
+			// cannot be opened directly. Media Source Extensions parse WebM in Chromium itself.
+			const webmCodecs = { V_VP8: 'vp8', V_VP9: 'vp9', V_AV1: 'av01.0.08M.08', A_OPUS: 'opus', A_VORBIS: 'vorbis' };
+			const getWebmType = bytes => {
+				if (bytes.length < 4 || bytes[0] !== 0x1a || bytes[1] !== 0x45 || bytes[2] !== 0xdf || bytes[3] !== 0xa3) {
+					return undefined;
+				}
+				const header = Array.from(bytes.subarray(0, 65536), byte => String.fromCharCode(byte)).join('');
+				const codecs = Object.keys(webmCodecs).filter(id => header.includes(id)).map(id => webmCodecs[id]);
+				return codecs.length ? 'video/webm; codecs="' + codecs.join(',') + '"' : undefined;
+			};
+			const playWithMediaSource = async video => {
+				const response = await fetch(video.currentSrc || video.src);
+				if (!response.ok) {
+					throw new Error('Failed to load media: ' + response.status);
+				}
+				const bytes = new Uint8Array(await response.arrayBuffer());
+				const type = getWebmType(bytes);
+				if (!type || typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(type)) {
+					throw new Error('Unsupported media');
+				}
+				const source = new MediaSource();
+				const url = URL.createObjectURL(source);
+				const opened = new Promise(resolve => source.addEventListener('sourceopen', resolve, { once: true }));
+				video.src = url;
+				await opened;
+				URL.revokeObjectURL(url);
+				const buffer = source.addSourceBuffer(type);
+				await new Promise((resolve, reject) => {
+					buffer.addEventListener('updateend', resolve, { once: true });
+					buffer.addEventListener('error', reject, { once: true });
+					buffer.appendBuffer(bytes);
+				});
+				source.endOfStream();
+			};
+
+			let triedMediaSource = false;
+			media?.addEventListener('error', () => {
+				if (media instanceof HTMLVideoElement && !triedMediaSource && media.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+					triedMediaSource = true;
+					playWithMediaSource(media).catch(showError);
+					return;
+				}
+				showError();
 			});
 			document.querySelector('.open-in-text-editor').addEventListener('click', e => {
 				e.preventDefault();
