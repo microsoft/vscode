@@ -87,6 +87,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftContent!: HTMLElement;
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
+	private windowTitleLabel!: HTMLElement;
+	private fixedTitle: string | undefined;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
@@ -141,6 +143,26 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	updateProperties(_properties: ITitleProperties): void {
 		// No window title to update in simplified titlebar
+	}
+
+	/**
+	 * Shows a fixed title in the center of the title bar and uses it as the window title. Meant for windows
+	 * that do not show the command center, such as auxiliary windows; `undefined` removes it.
+	 */
+	setTitle(title: string | undefined): void {
+		this.fixedTitle = title;
+		this.renderFixedTitle();
+		if (title) {
+			getWindow(this.element).document.title = title;
+		}
+	}
+
+	private renderFixedTitle(): void {
+		if (!this.windowTitleLabel) {
+			return;
+		}
+		this.windowTitleLabel.textContent = this.fixedTitle ?? '';
+		this.windowTitleLabel.parentElement?.classList.toggle('has-fixed-title', !!this.fixedTitle);
 	}
 
 	registerVariables(_variables: ITitleVariable[]): void {
@@ -236,6 +258,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Center toolbar - command center (renders session picker via IActionViewItemService)
 		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
 		const windowTitle = append(this.centerContent, $('div.window-title'));
+		this.windowTitleLabel = append(windowTitle, $('span.window-title-text'));
+		this.renderFixedTitle();
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
 		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			hoverDelegate,
@@ -270,6 +294,23 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// Chat window layout actions toolbar (before right toolbar), whose buttons the user can show or hide
+		const chatWindowLayoutContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
+		const chatWindowLayoutToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowLayoutContainer, Menus.ChatWindowTitleBarLayout, {
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			alwaysShownItems: [Menus.ChatWindowLayout.id],
+			telemetrySource: 'titlePart.chatWindowLayout',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		// Chat window actions toolbar (before its layout actions)
+		const chatWindowActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
+		const chatWindowActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowActionsContainer, Menus.ChatWindowTitleBar, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.chatWindow',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
 		// Session title actions toolbar (before right toolbar)
 		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
 		const sessionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
@@ -297,6 +338,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
+		this.registerOverflowManagedToolBar(chatWindowActionsContainer, chatWindowActionsToolBar);
+		this.registerOverflowManagedToolBar(chatWindowLayoutContainer, chatWindowLayoutToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
 
 		// Context menu on the titlebar

@@ -28,6 +28,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { ISessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowHasEditorAreaContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -457,6 +458,8 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 
 	/** The command that hides what the entry shows when checked, resolved from the entry's group in the menu, which its action does not carry. */
 	private readonly hideCommand: string | undefined;
+	/** In a chat window with an editor area: its editor area for the side panel, and its terminal row for the panel. */
+	private readonly chatWindowHideCommand: string | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -476,6 +479,8 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		const hideCommand = group === SessionActivityBarGroup.SidePanel ? TOGGLE_SIDE_PANEL_COMMAND_ID : group === SessionActivityBarGroup.Panel ? TogglePanelAction.ID : undefined;
 		// The side panel and panel toggles are entries of these groups themselves.
 		this.hideCommand = hideCommand !== action.id ? hideCommand : undefined;
+		const chatWindowHideCommand = group === SessionActivityBarGroup.SidePanel ? CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID : group === SessionActivityBarGroup.Panel ? CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID : undefined;
+		this.chatWindowHideCommand = chatWindowHideCommand !== action.id ? chatWindowHideCommand : undefined;
 
 		this._register(activityService.onDidChangeActivity(commandId => {
 			if (commandId === this._menuItemAction.id) {
@@ -502,7 +507,10 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 	 * entries that open its tabs, and the panel for the terminal. `undefined` for unchecked entries and the toggles.
 	 */
 	private getHideCommand(): string | undefined {
-		return this._menuItemAction.enabled && this._menuItemAction.checked ? this.hideCommand : undefined;
+		if (!this._menuItemAction.enabled || !this._menuItemAction.checked) {
+			return undefined;
+		}
+		return this._contextKeyService.contextMatchesRules(ChatWindowHasEditorAreaContext) ? this.chatWindowHideCommand : this.hideCommand;
 	}
 
 	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {

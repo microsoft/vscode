@@ -67,6 +67,8 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
+import { IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -99,6 +101,7 @@ suite('SessionChatInputToolbar', () => {
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
 		}));
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ windows: constObservable([]) }));
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
 			onDidChangePartVisibility: Event.None,
 			onDidToggleSidePane: Event.None,
@@ -1018,6 +1021,55 @@ suite('SessionChatInputToolbar', () => {
 			},
 			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
 		});
+	});
+
+	test('opens changes from the pill of a chat in a chat window in its editor area, and in the main window otherwise', () => {
+		const { instantiationService } = createServices();
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ root: URI.file('/repo'), name: 'repo', description: undefined, workingDirectory: URI.file('/repo') }] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			workspace,
+			changesets: constObservable([]),
+			changes: constObservable([{ modifiedUri: URI.file('/a.ts'), insertions: 1, deletions: 0 }]),
+		});
+		const createSession = (resource: string) => upcastPartial<IActiveSession>({
+			loading: constObservable(false),
+			sessionId: resource,
+			capabilities: constObservable({ supportsMultipleChats: false }),
+			resource: URI.parse(resource),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+			workspace,
+		});
+		const inWindow = createSession('session:window');
+		const inMain = createSession('session:main');
+		const editorGroup = upcastPartial<IEditorGroup>({ id: 7 });
+		const events: string[] = [];
+		instantiationService.stub(ISessionsService, 'setActive', () => { });
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			windows: constObservable([upcastPartial<IChatWindow>({ session: constObservable(inWindow), editorGroup, showEditor: () => events.push('show chat window editor') })]),
+		}));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			revealEditorPartExplicitly: () => events.push('reveal main editor part'),
+		}));
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (resource, _options, group) => {
+				events.push(`open ${resource.toString()} in ${typeof group === 'object' ? `group ${group.id}` : 'the active group'}`);
+				return undefined;
+			},
+		}));
+		for (const session of [inWindow, inMain]) {
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			toolbar.setSession(session, chat);
+			toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button')?.click();
+		}
+
+		assert.deepStrictEqual(events, [
+			'show chat window editor',
+			'open session:window in group 7',
+			'reveal main editor part',
+			'open session:main in the active group',
+		]);
 	});
 
 	test('uses one GitHub row presentation in dedicated, artifact, and reference collections', () => {

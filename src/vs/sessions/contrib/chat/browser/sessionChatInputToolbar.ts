@@ -68,6 +68,7 @@ import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../g
 import { ArtifactDetailsContextView } from './artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
+import { IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 
@@ -476,6 +477,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@ISessionChangesService sessionChangesService: ISessionChangesService,
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@IChatWindowService chatWindowService: IChatWindowService,
 		@IOpenerService openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -748,13 +750,19 @@ export class SessionChatInputToolbar extends Disposable {
 					}
 					const chat = this._chat.get();
 					const workspace = chat?.workspace?.get() ?? session.workspace.get();
-					layoutService.revealEditorPartExplicitly();
+					// A chat in a chat window shows its changes in the chat window's editor area.
+					const chatWindow = chatWindowService.windows.get().find(window => window.session.get() === session);
+					if (chatWindow?.editorGroup) {
+						chatWindow.showEditor();
+					} else {
+						layoutService.revealEditorPartExplicitly();
+					}
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
 							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
 						}
-					});
+					}, chatWindow?.editorGroup);
 				},
 			},
 			pullRequests: pullRequestData,

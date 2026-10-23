@@ -36,6 +36,7 @@ import { IChat, ISessionCanvas } from '../../../../services/sessions/common/sess
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
+import { IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { SessionCanvasSerializer } from '../../electron-browser/sessionCanvasSerializer.js';
 
@@ -78,6 +79,7 @@ suite('Session canvas working sets', () => {
 		harness.instaService.stub(INotificationService, new TestNotificationService());
 		harness.instaService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }));
 		harness.instaService.stub(IChatService, upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }));
+		harness.instaService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ windows: constObservable([]) }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
 		const canvasService = store.add(harness.instaService.createInstance(CanvasService));
