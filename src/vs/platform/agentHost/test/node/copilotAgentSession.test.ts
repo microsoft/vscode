@@ -19844,6 +19844,9 @@ Use the attached image as context.
 			// A late record of the cancelled workflow still reports after the next turn starts.
 			session.resetTurnState('next-turn');
 			mockSession.fire('assistant.fusion_phase_failed', { ...cancelled, phaseId: 'phase-late' });
+			// Once the workflow has completed, a record of a phase it never reported is not a new phase.
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('assistant.fusion_phase_failed', { ...cancelled, phaseId: 'phase-after-completion' });
 
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.fusionPhaseCompleted').map(event => {
 				const data = event.data as Record<string, unknown>;

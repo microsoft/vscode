@@ -11166,6 +11166,10 @@ export class CopilotAgentSession extends Disposable {
 		if (event.agentId) {
 			return;
 		}
+		// A finished workflow reports no new phases, even when it finishes after its turn was cancelled.
+		if (event.type === 'session.fusion_completed') {
+			this._completedFusionWorkflows.set(event.data.fusionId, true);
+		}
 		if (!turn || this._fusionTurnCancelled) {
 			this._reportCancelledFusionPhase(event);
 			return;
@@ -11207,9 +11211,6 @@ export class CopilotAgentSession extends Disposable {
 		const update = this._fusionProgress.accept(event);
 		if (update) {
 			this._emitFusionProgress(update);
-		}
-		if (event.type === 'session.fusion_completed') {
-			this._completedFusionWorkflows.set(event.data.fusionId, true);
 		}
 		// `accept` drops repeated phase records and records for a finished workflow, so report only phases it accepted.
 		if (update?.phase && (event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed')) {
