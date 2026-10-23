@@ -22,7 +22,7 @@ import { captureProviderTurnTelemetryContext, getModelTelemetryContext } from '.
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import { isSubagentSession, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
-import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type IAgentHostFusionTurnTelemetry, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -88,6 +88,8 @@ interface ITurnTiming {
 	readonly rootTiming: IRootTurnTiming | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	/** The Auto tier the turn was sent with and the HydraFusion model that routed it, when known. */
+	fusion: IAgentHostFusionTurnTelemetry;
 	readonly selectedModel: string | undefined;
 	readonly selectedModelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: AgentHostModelSelectionKind;
@@ -197,6 +199,8 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind, toolCallId: string | undefined): void;
 	turnUnblocked(session: string, requestId: string): void;
 	updateModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void;
+	/** Records the turn's Auto tier or the HydraFusion model that routed it; unset fields are kept. */
+	updateFusionTelemetry(session: string, turnId: string, fusion: IAgentHostFusionTurnTelemetry): void;
 	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void;
 	updateDirectUsage(session: string, turnId: string, tokenTotals: readonly ITurnTokenTotal[] | undefined, billedNanoAiu: number | undefined): void;
 	modelCallCompleted(session: string, turnId: string, modelCallId: string): void;
@@ -293,6 +297,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			rootTiming,
 			model,
 			modelTelemetryKind,
+			fusion: {},
 			selectedModel: model,
 			selectedModelTelemetryKind: modelTelemetryKind,
 			modelSelectionKind,
@@ -657,6 +662,16 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
+	updateFusionTelemetry(session: string, turnId: string, fusion: IAgentHostFusionTurnTelemetry): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.fusion = {
+				autoTier: fusion.autoTier ?? timing.fusion.autoTier,
+				fusionModel: fusion.fusionModel ?? timing.fusion.fusionModel,
+			};
+		}
+	}
+
 	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void {
 		const usage = this._turnUsages.get(this._key(session, turnId));
 		if (usage && typeof billedNanoAiu === 'number' && Number.isFinite(billedNanoAiu) && billedNanoAiu >= 0) {
@@ -829,6 +844,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
 			modelSelectionKind: timing.modelSelectionKind,
+			...timing.fusion,
 			permissionLevel: timing.permissionLevel,
 			interactionMode: timing.interactionMode,
 			messageOriginKind: timing.messageOriginKind,
@@ -862,6 +878,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				hangReportCount: timing.hangReportCount,
 				totalTimeMs: totalTime,
 				timeAfterHangMs,
+				...timing.fusion,
 			});
 		}
 		for (const summary of summaries ?? []) {
@@ -987,6 +1004,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				model: timing.model,
 				modelTelemetryKind: timing.modelTelemetryKind,
 				modelSelectionKind: timing.modelSelectionKind,
+				...timing.fusion,
 				permissionLevel: timing.permissionLevel,
 			});
 		}
