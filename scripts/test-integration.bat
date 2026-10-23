@@ -13,6 +13,8 @@ set "RUN_FILE="
 set "RUN_GLOB="
 set "GREP_PATTERN="
 set "SUITE_FILTER="
+set "NODE_ONLY="
+set "EXTENSION_HOST_ONLY="
 set "SHOW_HELP="
 
 :parse_args
@@ -28,6 +30,8 @@ if /i "%~1"=="--runGlob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & 
 if /i "%~1"=="--glob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--runGrep" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--suite" (set "SUITE_FILTER=%~2"& shift & shift & goto parse_args)
+if /i "%~1"=="--node-only" (set NODE_ONLY=1& shift & goto parse_args)
+if /i "%~1"=="--extension-host-only" (set EXTENSION_HOST_ONLY=1& shift & goto parse_args)
 shift
 goto parse_args
 :done_parsing
@@ -49,6 +53,9 @@ if defined SHOW_HELP (
 	echo --suite selects which extension host test suites to run.
 	echo Node.js integration tests are skipped when this option is used.
 	echo.
+	echo --node-only and --extension-host-only run only one of the two kinds of tests,
+	echo for example to run them on separate machines.
+	echo.
 	echo Options:
 	echo   --build                      use the out-build directory for node.js and JSON tests
 	echo   --run ^<file^>                  run tests from a specific file ^(src/ path^)
@@ -56,6 +63,8 @@ if defined SHOW_HELP (
 	echo   --grep, -g, -f ^<pattern^>      filter test cases by name ^(matched against test titles^)
 	echo   --suite ^<pattern^>             run only matching extension host test suites
 	echo                                 supports comma-separated list
+	echo   --node-only                   run only the node.js integration tests
+	echo   --extension-host-only         run only the extension host tests
 	echo   --help, -h                    show this help
 	echo.
 	echo Available suites:
@@ -125,6 +134,7 @@ if defined SUITE_FILTER (
 :: Node.js integration tests
 
 if defined SUITE_FILTER goto skip_nodejs_tests
+if defined EXTENSION_HOST_ONLY goto skip_nodejs_tests
 echo.
 echo ### node.js integration tests
 call node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
@@ -141,9 +151,10 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_nodejs_tests
 
 :: Skip extension host tests when a non-suite filter is active
+if not defined SUITE_FILTER if defined NODE_ONLY set HAS_FILTER=1
 if not defined SUITE_FILTER if defined HAS_FILTER (
 	echo.
-	echo Filter active, skipping extension host tests.
+	echo Filter or --node-only active, skipping extension host tests.
 	rmdir /s /q "%VSCODEUSERDATADIR%" 2>nul
 	exit /b 0
 )

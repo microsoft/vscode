@@ -15,7 +15,7 @@ Integration tests in VS Code are split into two categories:
 - **macOS / Linux:** `./scripts/test-integration.sh [options]`
 - **Windows:** `.\scripts\test-integration.bat [options]`
 
-When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests. They do **not** run the deterministic Agent Host E2E suites: those run with `./scripts/test-agent-host-e2e.sh` (or `.\scripts\test-agent-host-e2e.bat`, or `npm run test-agent-host-e2e`), which runs each suite in its own isolated test process, in parallel. GitHub CI runs them in a separate `Windows (run) / Agent-Host-E2E` job on Windows, in parallel with the integration tests, and as a separate step before `🧪 Run integration tests (Electron)` on Linux and macOS; ADO runs them as the `integration-agent-host-e2e` test ID in a separate `Agent Host E2E Tests (Electron)` job, not in the `Integration Tests (Electron)` job (`integration-electron`). See `src/vs/platform/agentHost/test/node/e2e/README.md`. `--run` still accepts a single Agent Host E2E file.
+When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests. They do **not** run the deterministic Agent Host E2E suites: those run with `./scripts/test-agent-host-e2e.sh` (or `.\scripts\test-agent-host-e2e.bat`, or `npm run test-agent-host-e2e`), which runs each suite in its own isolated test process, in parallel. GitHub CI runs them in a separate `<OS> (run) / Agent-Host-E2E` job on every platform, in parallel with the integration tests; ADO runs them as the `integration-agent-host-e2e` test ID in a separate `Agent Host E2E Tests (Electron)` job, not in the `Integration Tests (Electron)` job (`integration-electron`). See `src/vs/platform/agentHost/test/node/e2e/README.md`. `--run` still accepts a single Agent Host E2E file.
 
 When run **with `--run` or `--runGlob`** (without `--suite`), only the node.js integration tests are run and the filter is applied. Extension host tests are skipped since these filters are node.js-specific.
 
@@ -77,6 +77,18 @@ The `css`, `html`, and `json` suites are standalone extension tests that run in 
 
 # Filter tests within a suite by name
 ./scripts/test-integration.sh --suite api-folder --grep 'should open'
+```
+
+### `--node-only` and `--extension-host-only` - Run one kind of tests
+
+`--node-only` runs only the node.js integration tests, and `--extension-host-only` runs only the extension host suites. GitHub CI uses them to run the two kinds on separate machines, and splits the node.js integration tests further with `--testSplit <index>/<total>`, which is forwarded to `scripts/test.sh`:
+
+```bash
+# Run the first half of the node.js integration tests
+./scripts/test-integration.sh --node-only --testSplit 1/2
+
+# Run all extension host suites
+./scripts/test-integration.sh --extension-host-only
 ```
 
 ### `--help`, `-h` - Show help

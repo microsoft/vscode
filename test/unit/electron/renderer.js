@@ -175,11 +175,9 @@ async function loadTestModules(opts) {
 	}
 	let modules = files.map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
+		// Deal the files out in turn, so that adjacent slow files, such as a folder of slow integration tests, end up in different parts.
 		const [i, n] = opts.testSplit.split('/').map(Number);
-		const chunkSize = Math.floor(modules.length / n);
-		const start = (i - 1) * chunkSize;
-		const end = i === n ? modules.length : i * chunkSize;
-		modules = modules.slice(start, end);
+		modules = modules.filter((_, index) => index % n === i - 1);
 	}
 	return loadModules(modules);
 }

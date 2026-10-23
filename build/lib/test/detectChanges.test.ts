@@ -165,9 +165,8 @@ suite('Detect Changes', () => {
 		const outputs = Object.keys(await detect([{ filename: 'README.md' }])).sort();
 		const action = load(readFileSync(path.join(repositoryRoot, '.github/actions/detect-changes/action.yml'), 'utf8')) as { readonly outputs: Record<string, unknown> };
 		assert.deepStrictEqual(Object.keys(action.outputs).sort(), outputs);
-		// The changes job also passes on the outputs of the Agent Host E2E change detection, and combines both for the
-		// Linux and macOS Electron jobs, which also run Agent Host E2E.
-		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
+		// The changes job also passes on the outputs of the Agent Host E2E change detection.
+		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason'];
 		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs].sort());
 	});
 
