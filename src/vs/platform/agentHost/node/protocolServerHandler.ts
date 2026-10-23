@@ -41,7 +41,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -144,6 +144,7 @@ export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsRe
 		resource: s.session.toString(),
 		provider,
 		title: s.summary ?? 'Session',
+		...(s.origin ? { origin: s.origin } : {}),
 		status: s.status ?? SessionStatus.Idle,
 		activity: s.activity,
 		createdAt: new Date(s.startTime).toISOString(),
@@ -1109,6 +1110,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							&& !!this._agentService.setAgentExtensionEnabled
 							&& transport.relayClientId === undefined
 							&& !transport.relayPassive,
+							!!this._agentService.deleteAutomation,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -3473,6 +3475,46 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private _handleDeleteAutomationRequest(params: unknown): Promise<readonly string[]> | undefined {
+		if (!this._agentService.deleteAutomation) {
+			return undefined;
+		}
+		const validated = deleteAutomationParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		try {
+			const { automation, deleteHistory, legacySessions, requestId } = validated.content;
+			const resource = URI.parse(automation);
+			if (resource.scheme !== 'ahp-automation' || resource.authority || resource.query || resource.fragment || !resource.path.startsWith('/') || resource.path.length < 2) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'automation must be an Automation URI');
+			}
+			if (!deleteHistory && legacySessions !== undefined && legacySessions.length > 0) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'legacySessions requires deleteHistory');
+			}
+			const sessions = legacySessions?.map(session => {
+				const resource = URI.parse(session, true);
+				if (!resource.scheme || !resource.path.startsWith('/') || resource.path.length < 2 || resource.query || resource.fragment || isAhpChatChannel(resource.toString())) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'legacySessions must contain session URIs');
+				}
+				return resource;
+			});
+			return this._agentService.deleteAutomation(automation, deleteHistory, sessions, requestId);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+
+	private _handleAcknowledgeAutomationDeletionRequest(params: unknown): Promise<void> | undefined {
+		if (!this._agentService.acknowledgeAutomationDeletion) {
+			return undefined;
+		}
+		const validated = acknowledgeAutomationDeletionParamsValidator.validate(params);
+		return validated.error
+			? Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message))
+			: this._agentService.acknowledgeAutomationDeletion(validated.content.requestId);
+	}
+
 	private _parseSessionUri(sessionParam: string): URI {
 		let session: URI;
 		try {
@@ -3667,6 +3709,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
+		}
+		if (method === DeleteAutomationExtensionMethod) {
+			return this._handleDeleteAutomationRequest(params);
+		}
+		if (method === AcknowledgeAutomationDeletionExtensionMethod) {
+			return this._handleAcknowledgeAutomationDeletionRequest(params);
 		}
 		if (method === StageCreateSessionImportChunkExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta && !client.transport.relayPassive) {
 			return this._handleStageCreateSessionImportChunkRequest(client, params);

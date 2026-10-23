@@ -377,6 +377,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			sessionResource: resource => this.agentHostConnectionsService.findSessionResource(resource, this._connectionAuthority)
 				?? (AgentSession.provider(resource) || this._sessionSchemeAlias?.backend === resource.scheme
 					? this.agentHostConnectionsService.getSessionResource(resource, this._connectionAuthority) : undefined),
+			resolveBackendSession: resource => {
+				const identity = this.agentHostConnectionsService.resolveSessionResourceIdentity(resource);
+				return identity?.backendSessionIsAdvertised && identity.connectionAuthority === this._connectionAuthority ? identity.backendSession : undefined;
+			},
 			onDidChangeSessionResolution: this.agentHostConnectionsService.onDidChangeSessionResolution,
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
 			providerForResourceScheme: scheme => {

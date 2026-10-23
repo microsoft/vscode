@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
@@ -44,8 +44,9 @@ import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/ag
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
-import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
+import { McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { getAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -153,7 +154,10 @@ suite('AgentHostAutomationService', () => {
 		}();
 		const service = new AgentHostAutomationService({
 			isSessionTemplateAvailable: execution?.isSessionTemplateAvailable ?? (() => true),
+			allocateSession: execution?.allocateSession ?? (async template => ({ session: URI.parse(`mock:/${generateUuid()}`), provider: template.provider ?? 'copilotcli' })),
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
+			getRecoverableSessionProvider: execution?.getRecoverableSessionProvider ?? (async session => stateManager.getSessionSummary(session.toString())?.provider),
+			deleteSession: execution?.deleteSession ?? (async () => { }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
 			resumeTurn: execution?.resumeTurn ?? (async () => false),
@@ -243,7 +247,7 @@ suite('AgentHostAutomationService', () => {
 		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
 		const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
 		const service = createService({
-			createSession: async (template, _run, activeClient) => {
+			createSession: async (template, _run, _session, activeClient) => {
 				created.complete({ activeClient, agent: template.agent?.uri });
 				return AgentSession.uri('mock', 'customized');
 			},
@@ -359,6 +363,368 @@ suite('AgentHostAutomationService', () => {
 			envelope.channel === resource && envelope.action.type === ActionType.AutomationRunLifecycleChanged && isTerminal(envelope.action.lifecycle.status)
 		)).then(() => undefined);
 	}
+
+	test('persists exact allocation before creation and membership before sending', async () => {
+		const session = URI.parse('ahp-session:/allocated');
+		const observations: object[] = [];
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async (template, _run, allocated) => {
+				observations.push({
+					provider: template.provider,
+					allocated: allocated.toString(),
+					intents: storageService.get<{ sessionCreations: object[] }>('automations')?.sessionCreations,
+					origin: service.getLegacySessionOrigin(allocated.toString(), 'codex'),
+				});
+				assert.strictEqual(service.getLegacySessionOrigin(allocated.toString(), 'copilotcli'), undefined);
+				return allocated;
+			},
+			startSession: async () => {
+				const stored = storageService.get<{ runs: AutomationRunState[]; sessionCreations?: object[]; runProviders: Record<string, string> }>('automations')!;
+				observations.push({ sessions: stored.runs[0].sessions, intents: stored.sessionCreations, provider: stored.runProviders[stored.runs[0].resource] });
+				await started.complete();
+			},
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'allocated' });
+		await started.p;
+		assert.deepStrictEqual(observations, [{
+			provider: 'codex',
+			allocated: session.toString(),
+			intents: [{ run: run.resource, session: session.toString(), provider: 'codex' }],
+			origin: { kind: SessionOriginKind.Automation, automation: createAction().resource, run: run.resource },
+		}, { sessions: [session.toString()], intents: undefined, provider: 'codex' }]);
+	});
+
+	test('retries failed live creation cleanup when the provider returns without replaying a prompt', async () => {
+		const session = URI.parse('ahp-session:/incomplete');
+		let available = false;
+		let sends = 0;
+		const cleanupAttempted = new DeferredPromise<void>();
+		const deleted: string[] = [];
+		const service = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async () => { throw new Error('creation failed'); },
+			getRecoverableSessionProvider: async () => undefined,
+			deleteSession: async (resource, provider) => {
+				await cleanupAttempted.complete();
+				if (!available) {
+					throw new Error('provider unavailable');
+				}
+				deleted.push(`${provider}:${resource}`);
+			},
+			startSession: async () => { sends++; },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'failed-creation' });
+		await cleanupAttempted.p;
+		await service.handleConfigurationChanged();
+		assert.ok(storageService.get<{ sessionCreations?: object[] }>('automations')?.sessionCreations);
+		available = true;
+		service.handleAgentsChanged();
+		await terminalRun(run.resource);
+		assert.deepStrictEqual({
+			deleted, sends,
+			intents: storageService.get<{ sessionCreations?: object[] }>('automations')?.sessionCreations,
+			sessions: stateManager.getAutomationRunState(run.resource)?.sessions,
+		}, { deleted: [`codex:${session}`], sends: 0, intents: undefined, sessions: [] });
+	});
+
+	test('recovers a durable native session allocation using its recorded provider', async () => {
+		const automation = createAction().resource;
+		const run: AutomationRunState = {
+			resource: 'ahp-automation-run:/interrupted', automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Running, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString() },
+			sessions: [],
+		};
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs: [run],
+			sessionCreations: [{ run: run.resource, session: 'ahp-session:/saved', provider: 'codex' }],
+		});
+		await storageService.whenIdle();
+		const lookups: object[] = [];
+		createService({
+			getRecoverableSessionProvider: async (session, provider) => { lookups.push({ session: session.toString(), provider }); return 'codex'; },
+		});
+		await terminalRun(run.resource);
+		const stored = storageService.get<{ runs: AutomationRunState[]; runProviders: Record<string, string>; sessionCreations?: object[] }>('automations')!;
+		assert.deepStrictEqual({
+			lookups, sessions: stored.runs[0].sessions, provider: stored.runProviders[run.resource], intents: stored.sessionCreations,
+		}, { lookups: [{ session: 'ahp-session:/saved', provider: 'codex' }], sessions: ['ahp-session:/saved'], provider: 'codex', intents: undefined });
+	});
+
+	test('retains inert history and provenance after deleting the definition', async () => {
+		const session = URI.parse('ahp-session:/retained');
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async () => session,
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'retained' });
+		await started.p;
+		service.dispose();
+		const restored = createService();
+		await terminalRun(run.resource);
+		await restored.deleteAutomation(createAction().resource, false);
+		const owner = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({
+			state: getAgentHostAutomationHistoryState(owner), enabled: owner.definition.enabled, operations: owner.operations,
+			runs: owner.runs.map(run => run.primarySession),
+			origin: restored.getLegacySessionOrigin(session.toString(), 'codex'),
+			definition: owner.definition,
+			customizations: owner.customizations,
+		}, {
+			state: 'retained', enabled: false, operations: [AutomationOperation.Remove], runs: [session.toString()],
+			origin: { kind: SessionOriginKind.Automation, automation: createAction().resource, run: run.resource },
+			definition: {
+				title: 'Review changes',
+				message: { text: '', origin: { kind: MessageKind.Automation } },
+				session: {},
+				enabled: false,
+				triggers: [],
+			},
+			customizations: undefined,
+		});
+		await assert.rejects(restored.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: owner.resource, requestId: 'retained-again' }), /not available/);
+	});
+
+	test('deletes all retained members beyond the history page and retries only failed rows', async () => {
+		const automation = createAction().resource;
+		const runs: AutomationRunState[] = Array.from({ length: 51 }, (_, index) => ({
+			resource: `ahp-automation-run:/${index}`, automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(index).toISOString(), startedAt: new Date(index).toISOString(), completedAt: new Date(index).toISOString() },
+			sessions: [`ahp-session:/${index}`, `ahp-session:/secondary-${index}`],
+			primarySession: `ahp-session:/${index}`,
+		}));
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs, runProviders: Object.fromEntries(runs.map(run => [run.resource, 'codex'])),
+		});
+		await storageService.whenIdle();
+		let fail = true;
+		const deleted: string[] = [];
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async (session, provider) => {
+				assert.strictEqual(provider, 'codex');
+				if (fail && session.toString() === 'ahp-session:/0') {
+					throw new Error('offline');
+				}
+				deleted.push(session.toString());
+			},
+		});
+		await service.handleConfigurationChanged();
+		await assert.rejects(service.deleteAutomation(automation, true), /offline/);
+		assert.deepStrictEqual({
+			deleted: deleted.length,
+			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
+			history: stateManager.getAutomationCatalogState()!.entries[0].runs.length,
+			secondary: service.getLegacySessionOrigin('ahp-session:/secondary-0', 'codex')?.run,
+		}, {
+			deleted: 101,
+			remaining: [{
+				automation,
+				sessions: [{ session: 'ahp-session:/0', provider: 'codex' }],
+				deletedSessions: deleted,
+			}],
+			history: 50,
+			secondary: runs[0].resource,
+		});
+		fail = false;
+		const acknowledged = await service.deleteAutomation(automation, true);
+		const missingOwner = await service.deleteAutomation(automation, true, [URI.parse('ahp-session:/unrelated')]);
+		assert.deepStrictEqual({
+			deleted: deleted.length, entries: stateManager.getAutomationCatalogState()?.entries,
+			runs: storageService.get<{ runs: object[] }>('automations')?.runs,
+			acknowledged: [...acknowledged].sort(), missingOwner,
+		}, {
+			deleted: 102,
+			entries: [],
+			runs: [],
+			acknowledged: runs.flatMap(run => run.sessions).sort(),
+			missingOwner: [],
+		});
+	});
+
+	test('receipts completed history deletion until the client acknowledges it', async () => {
+		const automation = createAction().resource;
+		const session = URI.parse('ahp-session:/receipted');
+		const started = new DeferredPromise<void>();
+		const creating = createService({
+			allocateSession: async () => ({ session, provider: 'codex' }),
+			createSession: async () => session,
+			startSession: async () => { started.complete(); },
+		});
+		await enableAndCreate(creating);
+		const run = await creating.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'receipted-run' });
+		await started.p;
+		creating.dispose();
+		const deleting = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => { },
+		});
+		await terminalRun(run.resource);
+
+		const first = await deleting.deleteAutomation(automation, true, [], 'delete-request');
+		deleting.dispose();
+		const retrying = createService();
+		const retry = await retrying.deleteAutomation(automation, true, [], 'delete-request');
+		await retrying.acknowledgeAutomationDeletion('delete-request');
+		retrying.dispose();
+		const acknowledged = createService();
+		const afterAcknowledgement = await acknowledged.deleteAutomation(automation, true, [], 'delete-request');
+
+		assert.deepStrictEqual({ first, retry, afterAcknowledgement }, {
+			first: [session.toString()],
+			retry: [session.toString()],
+			afterAcknowledgement: [],
+		});
+	});
+
+	test('history deletion does not block unrelated Automation mutations', async () => {
+		const automation = createAction().resource;
+		const session = URI.parse('ahp-session:/slow-delete');
+		const runStarted = new DeferredPromise<void>();
+		const deletionStarted = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const creating = createService({
+			allocateSession: async () => ({ session, provider: 'copilotcli' }),
+			createSession: async () => session,
+			startSession: async (createdSession, message) => {
+				stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'slow-delete-turn',
+					startedAt: new Date().toISOString(),
+					message,
+				});
+				runStarted.complete();
+			},
+		});
+		await enableAndCreate(creating);
+		const run = await creating.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'delete-with-slow-provider' });
+		await runStarted.p;
+		creating.dispose();
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => {
+				deletionStarted.complete();
+				await release.p;
+			},
+		});
+		await terminalRun(run.resource);
+
+		const deletion = service.deleteAutomation(automation, true);
+		await deletionStarted.p;
+		const unrelated = service.handleCreate(createAction('ahp-automation:/unrelated'));
+		const winner = await raceTimeout(unrelated.then(() => 'created'), 50) ?? 'blocked';
+		release.complete();
+		await deletion;
+
+		assert.deepStrictEqual({
+			winner,
+			automations: stateManager.getAutomationCatalogState()?.entries.map(entry => entry.resource),
+		}, {
+			winner: 'created',
+			automations: ['ahp-automation:/unrelated'],
+		});
+	});
+
+	test('coalesces repeated recovery signals while history deletion is in flight', async () => {
+		const automation = createAction().resource;
+		const firstAttempt = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		let attempts = 0;
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			historyDeletions: [{ automation, sessions: [{ session: 'ahp-session:/retained', provider: 'codex' }] }],
+		});
+		await storageService.whenIdle();
+		const service = createService({
+			deleteSession: async () => {
+				attempts++;
+				firstAttempt.complete();
+				await release.p;
+				throw new Error('provider unavailable');
+			},
+		});
+		await firstAttempt.p;
+
+		service.handleAgentsChanged();
+		service.handleAgentsChanged();
+		service.handleAgentsChanged();
+		release.complete();
+		await (service as unknown as { _mutationTail: Promise<void> })._mutationTail;
+
+		assert.strictEqual(attempts, 1);
+	});
+
+	for (const existingOwner of [false, true]) {
+		test(`migrates retained provider identity with ${existingOwner ? 'an existing' : 'a missing'} owner`, async () => {
+			const automation = createAction().resource;
+			const run: AutomationRunState = {
+				resource: 'ahp-automation-run:/legacy', automation,
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+				primarySession: 'opaque:/unavailable', sessions: ['opaque:/unavailable', 'opaque:/retained'],
+			};
+			storageService.set('automations', {
+				catalog: { automations: existingOwner ? [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] : [] },
+				runs: [run],
+			});
+			await storageService.whenIdle();
+			const service = createService({
+				getRecoverableSessionProvider: async session => {
+					if (session.toString() === 'opaque:/unavailable') {
+						throw new Error('optional lookup unavailable');
+					}
+					return 'codex';
+				},
+			});
+			await service.handleConfigurationChanged();
+			const owner = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				providers: storageService.get<{ runProviders: Record<string, string> }>('automations')?.runProviders,
+				origin: service.getLegacySessionOrigin('opaque:/retained', 'codex'),
+				owner: { title: owner.definition.title, enabled: owner.definition.enabled, state: getAgentHostAutomationHistoryState(owner) },
+			}, {
+				providers: { [run.resource]: 'codex' },
+				origin: { kind: SessionOriginKind.Automation, automation, run: run.resource },
+				owner: existingOwner ? { title: 'Review changes', enabled: true, state: undefined } : { title: 'Deleted automation', enabled: false, state: 'retained' },
+			});
+		});
+	}
+
+	test('persists resolved legacy deletion identity before deleting and isolates unsupported rows', async () => {
+		const automation = createAction().resource;
+		const observations: object[] = [];
+		const service = createService({
+			getRecoverableSessionProvider: async session => session.toString() === 'opaque:/supported' ? 'codex' : undefined,
+			deleteSession: async (session, provider) => {
+				observations.push({
+					session: session.toString(), provider,
+					intent: storageService.get<{ historyDeletions: { sessions: object[] }[] }>('automations')?.historyDeletions[0].sessions,
+				});
+			},
+		});
+		await enableAndCreate(service);
+		await assert.rejects(service.deleteAutomation(automation, true, [URI.parse('opaque:/unsupported'), URI.parse('opaque:/supported')]), /Cannot resolve the persisted provider/);
+		assert.deepStrictEqual({
+			observations,
+			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
+		}, {
+			observations: [{
+				session: 'opaque:/supported', provider: 'codex',
+				intent: [{ session: 'opaque:/unsupported' }, { session: 'opaque:/supported', provider: 'codex' }],
+			}],
+			remaining: [{ automation, sessions: [{ session: 'opaque:/unsupported' }], deletedSessions: ['opaque:/supported'] }],
+		});
+	});
 
 	test('logs creation once after persistence, excluding retries and failed writes', async () => {
 		const service = createService();
@@ -591,6 +957,7 @@ suite('AgentHostAutomationService', () => {
 				defaultChat: buildDefaultChatUri(session.toString()),
 			});
 			const service = createService({
+				allocateSession: async () => ({ session, provider }),
 				createSession: async () => session,
 				startSession: async () => {
 					stateManager.addChat(session.toString(), defaultChat, creationTimeChatStorageResource(session.toString(), defaultChat, buildDefaultChatUri(session.toString())));
@@ -1148,6 +1515,7 @@ suite('AgentHostAutomationService', () => {
 			const session = AgentSession.uri(scheme, 'interrupted-session');
 			const started = new DeferredPromise<void>();
 			const service = createService({
+				allocateSession: async () => ({ session, provider: 'copilotcli' }),
 				createSession: async () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '',
@@ -1173,7 +1541,7 @@ suite('AgentHostAutomationService', () => {
 				type: ActionType.RootConfigChanged,
 				config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
 			});
-			createService();
+			createService({ getRecoverableSessionProvider: async resource => resource.toString() === session.toString() ? 'copilotcli' : undefined });
 			await terminalRun(run.resource);
 			createService();
 			await storageService.whenIdle();
@@ -1195,6 +1563,7 @@ suite('AgentHostAutomationService', () => {
 			const session = AgentSession.uri(scheme, `${outcome}-session`);
 			const started = new DeferredPromise<void>();
 			const service = createService({
+				allocateSession: async () => ({ session, provider: 'copilotcli' }),
 				createSession: async () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '', status: SessionStatus.Idle,
@@ -1248,9 +1617,10 @@ suite('AgentHostAutomationService', () => {
 		}));
 	}
 
-	test('failed session-link persistence does not publish provider identity or run-start telemetry', async () => {
+	test('failed session-link persistence recovers durable identity without sending or run-start telemetry', async () => {
 		let startCalls = 0;
 		const service = createService({
+			allocateSession: async () => ({ session: URI.parse('ahp-session:/failed-link'), provider: 'copilotcli' }),
 			createSession: async () => {
 				const session = 'ahp-session:/failed-link';
 				stateManager.createSession({
@@ -1278,9 +1648,9 @@ suite('AgentHostAutomationService', () => {
 			})),
 		}, {
 			startCalls: 0,
-			providers: undefined,
+			providers: { [run.resource]: 'copilotcli' },
 			started: [],
-			completed: [{ provider: 'default', sessionCreated: false, outcome: 'error' }],
+			completed: [{ provider: 'copilotcli', sessionCreated: true, outcome: 'error' }],
 		});
 	});
 

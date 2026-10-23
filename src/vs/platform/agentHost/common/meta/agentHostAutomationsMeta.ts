@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostAutonomousAutomationsCapabilityMetaKey, supportsAgentHostAutonomousAutomations } from './vscode/agentHostAutomationsMeta.js';
+export { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey, getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostAutonomousAutomations, withAgentHostAutomationHistoryState, type AgentHostAutomationHistoryState } from './vscode/agentHostAutomationsMeta.js';

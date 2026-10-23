@@ -37,7 +37,7 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork, type BackgroundWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, SessionOriginKind, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -4980,8 +4980,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.throws(() => provider.createQuickChat('copilotcli'));
 	});
 
-	test('derives automation provenance from the authoritative host catalogue', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		agentHost.addSession(createSession('automation-1', { summary: 'Automation' }));
+	const automationOrigin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/automation', run: 'ahp-automation-run:/run' } as const;
+
+	test('hydrates automation provenance from a fresh provider cache before the live list', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [
+			{ ...createSession('cached-run', { summary: 'Cached run' }), origin: automationOrigin },
+			createSession('cached-plain', { summary: 'Cached plain' }),
+		]);
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+		assert.deepStrictEqual({
+			listSessionsCalls: nextHost.listSessionsCallCount,
+			marks: Object.fromEntries(provider.getSessions().map(session => [session.title.get(), session.isAutomation?.get()])),
+		}, { listSessionsCalls: 0, marks: { 'Cached run': true, 'Cached plain': false } });
+	}));
+
+	test('preserves typed automation provenance when the run catalogue changes or is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession({ ...createSession('automation-1', { summary: 'Automation' }), origin: automationOrigin });
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), automations: { create: {} } }, undefined);
 		const provider = createProvider(disposables, agentHost, undefined, {
 			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
@@ -5030,12 +5048,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			changed,
 		}, {
 			marked: true,
-			afterDelete: false,
-			changed: [true, false],
+			afterDelete: true,
+			changed: [],
 		});
 	}));
 
-	test('refreshing many sessions recomputes automation runs once and marks the right sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('refreshing many sessions preserves typed automation provenance without per-session run evaluation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const count = 60;
 		const ids = Array.from({ length: count }, (_, i) => `bulk-${i}`);
 		const automationIds = new Set(ids.filter((_, i) => i % 10 === 0));
@@ -5064,7 +5082,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}],
 		});
 		for (const id of ids) {
-			agentHost.addSession(createSession(id, { summary: id }));
+			agentHost.addSession({ ...createSession(id, { summary: id }), ...(automationIds.has(id) ? { origin: automationOrigin } : {}) });
 		}
 		const provider = createProvider(disposables, agentHost, undefined, {
 			configurationService: new TestConfigurationService({ [CHAT_AUTOMATIONS_ENABLED_SETTING]: true }),
