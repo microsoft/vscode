@@ -15,11 +15,13 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Session catalog and lifecycle | `ISessionsManagementService` |
 | Pin and per-sort ordering state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
-| Custom groups, their nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
+| Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
+
+Grouping-section appearance is persisted by the section's stable identity, independently of its nesting and grouping mode. Temporary absence of a workspace or remote host does not discard its appearance; custom groups and their subgroups keep independent overrides.
 
 ## Inputs
 
@@ -130,6 +132,10 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
 Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
+
+## Agent tools
+
+The `readSessionsList` and `organizeSessionsList` client tools let an agent read and change the list as the user can. Reading reports the view options and the composed tree, including rows and sections that capping hides, using stable header ids (section ids, and `group:<id>` for custom groups) and session ids. Changes go through `SessionsList` and `SessionsView` rather than directly through the owning services, so they follow the same placement precedence, validity rules, and undo affordances as drag and drop and the list's actions. The tools exist only in the Agents window, form the `vscodeSessionsList` client tool set, and are deferred behind tool search on agent hosts.
 
 ## Reactive presentation
 

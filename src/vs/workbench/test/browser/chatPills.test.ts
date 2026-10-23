@@ -1280,9 +1280,19 @@ suite('ChatPills', () => {
 				summaryAriaLabel: count => `Show ${count} canvases`,
 				promotedActionIcon,
 			}));
-			const container = mainWindow.document.createElement('div');
-			mainWindow.document.body.appendChild(container);
-			store.add(toDisposable(() => container.remove()));
+			const pillsContainer = mainWindow.document.createElement('div');
+			pillsContainer.className = 'chat-pills';
+			const actionBar = mainWindow.document.createElement('div');
+			actionBar.className = 'monaco-action-bar';
+			const actionsContainer = mainWindow.document.createElement('ul');
+			actionsContainer.className = 'actions-container';
+			const container = mainWindow.document.createElement('li');
+			container.className = 'action-item';
+			actionsContainer.appendChild(container);
+			actionBar.appendChild(actionsContainer);
+			pillsContainer.appendChild(actionBar);
+			mainWindow.document.body.appendChild(pillsContainer);
+			store.add(toDisposable(() => pillsContainer.remove()));
 			viewItem.render(container);
 			return { container, hoverActions: () => getDropdownPillHoverOptions.call(viewItem)?.actions?.map(action => action.label) };
 		};
@@ -1303,17 +1313,30 @@ suite('ChatPills', () => {
 			pillHoverActions: hoverActions(),
 			compactGlyph: promoted.classList.contains('codicon-close-compact'),
 			reservesSpace: container.classList.contains('has-promoted-action'),
+			itemDisplay: mainWindow.getComputedStyle(container).display,
+			actionCentered: Math.abs(
+				promoted.getBoundingClientRect().top + promoted.getBoundingClientRect().height / 2
+				- (container.getBoundingClientRect().top + container.getBoundingClientRect().height / 2)
+			) <= 1,
 			keepsFocus: mouseDown.defaultPrevented,
 			clicked,
 			tapped,
 		};
-		const withoutIconSingle = { promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'), pillHoverActions: withoutIcon.hoverActions() };
+		const withoutIconSingle = {
+			promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'),
+			reservesSpace: withoutIcon.container.classList.contains('has-promoted-action'),
+			pillHoverActions: withoutIcon.hoverActions(),
+		};
 		sections.set([{ title: 'Canvases', entries: [entry, { id: 'other', label: 'Other', promotedAction, open: () => { } }] }], undefined);
+		const summarized = { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') };
+		sections.set([{ title: 'Canvases', entries: [entry] }], undefined);
+		const restoredPromoted = container.querySelector('.chat-pill-promoted-action');
 
 		assert.deepStrictEqual({
 			single,
 			withoutIcon: withoutIconSingle,
-			summarized: { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') },
+			summarized,
+			restoredPromotedRecreated: !!restoredPromoted && restoredPromoted !== promoted,
 		}, {
 			single: {
 				attributes: { role: 'button', tabIndex: '-1', ariaLabel: 'Close Canvas Preview' },
@@ -1321,12 +1344,15 @@ suite('ChatPills', () => {
 				pillHoverActions: undefined,
 				compactGlyph: true,
 				reservesSpace: true,
+				itemDisplay: 'flex',
+				actionCentered: true,
 				keepsFocus: true,
 				clicked: ['closed'],
 				tapped: ['closed'],
 			},
-			withoutIcon: { promoted: null, pillHoverActions: ['Close Canvas Preview'] },
+			withoutIcon: { promoted: null, reservesSpace: false, pillHoverActions: ['Close Canvas Preview'] },
 			summarized: { shown: false, reservesSpace: false },
+			restoredPromotedRecreated: true,
 		});
 	});
 });

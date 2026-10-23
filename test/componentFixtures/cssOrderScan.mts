@@ -14,16 +14,23 @@
  * (see `cssOrderShared.mts`), and writes a self-contained Markdown report with
  * the baseline/reversed images so the fragile pairs can be reviewed.
  *
+ * The binary searches of all flagged fixtures run together, and every probe
+ * window is rendered once for all fixtures that need it, so the scan scales with
+ * the number of distinct conflicts rather than the number of fixtures. With
+ * `--time-budget-minutes`, fixtures that are not localized in time are listed
+ * in the report instead of the scan running unbounded.
+ *
  * Intended for a scheduled CI job; runs against an already-running `serve`
  * (see `component-explorer-attach.json`). Prerequisites: start the serve, e.g.
  * `npm run serve-out-rspack`, then run:
  *   node test/componentFixtures/cssOrderScan.mts [--out <dir>] [--fixture-id-regex <rx>]
+ *     [--time-budget-minutes <n>] [--batch-size <n>]
  */
 
 import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bisectConflict, type FixtureEntry, readServeUrl, Renderer } from './cssOrderShared.mts';
+import { bisectConflicts, type ConflictOutcome, type ConflictTarget, type FixtureEntry, readServeUrl, Renderer } from './cssOrderShared.mts';
 
 interface Args {
 	readonly config: string;
@@ -31,6 +38,10 @@ interface Args {
 	readonly out: string;
 	/** When set, images are linked as `<imageBaseUrl>/<hash>` instead of bundled relative paths. */
 	readonly imageBaseUrl: string | undefined;
+	/** Stop localizing (and report the rest as not localized) after this many minutes since the scan started. */
+	readonly timeBudgetMinutes: number | undefined;
+	/** Number of order-dependent fixtures localized together; earlier batches complete even if the time budget runs out. */
+	readonly batchSize: number;
 	readonly keep: boolean;
 }
 
@@ -39,6 +50,17 @@ function parseArgs(argv: readonly string[]): Args {
 		const i = argv.indexOf(`--${name}`);
 		return i >= 0 && i + 1 < argv.length ? argv[i + 1] : undefined;
 	};
+	const getPositiveNumber = (name: string): number | undefined => {
+		const value = get(name);
+		if (value === undefined) {
+			return undefined;
+		}
+		const parsed = Number(value);
+		if (!Number.isFinite(parsed) || parsed <= 0) {
+			throw new Error(`--${name} must be a positive number, got '${value}'`);
+		}
+		return parsed;
+	};
 	const here = dirname(fileURLToPath(import.meta.url));
 	const config = resolve(get('config') ?? join(here, 'component-explorer-attach.json'));
 	return {
@@ -46,6 +68,8 @@ function parseArgs(argv: readonly string[]): Args {
 		fixtureRegex: get('fixture-id-regex') ?? '.*',
 		out: resolve(get('out') ?? join(dirname(config), '.build', 'css-order-report')),
 		imageBaseUrl: get('image-base-url'),
+		timeBudgetMinutes: getPositiveNumber('time-budget-minutes'),
+		batchSize: Math.ceil(getPositiveNumber('batch-size') ?? 1000),
 		keep: argv.includes('--keep'),
 	};
 }
@@ -68,6 +92,18 @@ interface Problem {
 	readonly baselineImage: string | undefined;
 	/** Relative path of the reversed image within the report, if captured. */
 	readonly reversedImage: string | undefined;
+}
+
+/** An order-dependent fixture whose conflicting pair could not be localized. */
+interface Unlocalized {
+	readonly fixtureId: string;
+	readonly reason: string;
+}
+
+interface ScanTotals {
+	readonly scanned: number;
+	readonly orderDependent: number;
+	readonly errored: number;
 }
 
 const GITHUB_SERVER = process.env.GITHUB_SERVER_URL ?? 'https://github.com';
@@ -113,9 +149,9 @@ async function imageLink(args: Args, label: string, hash: string, relativePath: 
 	return `![${label}](${relativePath})`;
 }
 
-async function renderMarkdown(args: Args, problems: readonly Problem[], totals: { scanned: number; errored: number }): Promise<string> {
+async function renderMarkdown(args: Args, problems: readonly Problem[], unlocalized: readonly Unlocalized[], totals: ScanTotals): Promise<string> {
 	const lines: string[] = [];
-	const clean = totals.scanned - problems.length - totals.errored;
+	const clean = totals.scanned - totals.orderDependent - totals.errored;
 
 	lines.push('# CSS Cascade-Order Dependency Report', '');
 	lines.push(`- Generated: ${new Date().toISOString()}`);
@@ -123,7 +159,10 @@ async function renderMarkdown(args: Args, problems: readonly Problem[], totals: 
 		lines.push(`- Commit: [\`${GITHUB_SHA.slice(0, 8)}\`](${GITHUB_SERVER}/${GITHUB_REPO}/commit/${GITHUB_SHA})`);
 	}
 	lines.push(`- Fixtures scanned: **${totals.scanned}**`);
-	lines.push(`- Order-dependent: **${problems.length}**`);
+	lines.push(`- Order-dependent: **${totals.orderDependent}**`);
+	if (unlocalized.length > 0) {
+		lines.push(`- Order-dependent but not localized: **${unlocalized.length}**`);
+	}
 	lines.push(`- Clean: **${clean}**`);
 	lines.push(`- Errored / no image: **${totals.errored}**`, '');
 
@@ -136,11 +175,31 @@ async function renderMarkdown(args: Args, problems: readonly Problem[], totals: 
 	lines.push('> **Caveats.** Detects the dominant conflicting pair per fixture; only flips');
 	lines.push('> ties of equal specificity and importance; assumes no `@layer`.', '');
 
-	if (problems.length === 0) {
+	if (totals.orderDependent === 0) {
 		lines.push('No order-dependent fixtures detected. :tada:', '');
 		return lines.join('\n');
 	}
 
+	if (problems.length > 0) {
+		renderProblems(lines, problems);
+		await renderProblemDetails(args, lines, problems);
+	}
+
+	if (unlocalized.length > 0) {
+		lines.push('## Not localized', '');
+		lines.push('These fixtures change when the CSS order is reversed, but the conflicting pair was not localized.', '');
+		lines.push('| Fixture | Reason |');
+		lines.push('| --- | --- |');
+		for (const u of unlocalized) {
+			lines.push(`| \`${u.fixtureId}\` | ${u.reason} |`);
+		}
+		lines.push('');
+	}
+
+	return lines.join('\n');
+}
+
+function renderProblems(lines: string[], problems: readonly Problem[]): void {
 	// Aggregate by CSS source file so the most frequently fragile files surface.
 	const byFile = new Map<string, { fixtures: Set<string>; partners: Set<string> }>();
 	const note = (file: string, partner: string, fixtureId: string) => {
@@ -174,7 +233,9 @@ async function renderMarkdown(args: Args, problems: readonly Problem[], totals: 
 		lines.push(`| \`${p.fixtureId}\` | ${p.background ?? '—'} | ${fileLink(p.earlierFile)} (#${p.earlierIndex}) | ${fileLink(p.laterFile)} (#${p.laterIndex}) |`);
 	}
 	lines.push('');
+}
 
+async function renderProblemDetails(args: Args, lines: string[], problems: readonly Problem[]): Promise<void> {
 	lines.push('## Details', '');
 	for (const p of problems) {
 		lines.push(`### \`${p.fixtureId}\``, '');
@@ -193,18 +254,19 @@ async function renderMarkdown(args: Args, problems: readonly Problem[], totals: 
 		}
 		lines.push('');
 	}
-
-	return lines.join('\n');
 }
 
 async function main(): Promise<void> {
+	const startedAt = Date.now();
 	const args = parseArgs(process.argv.slice(2));
 	const configDir = dirname(args.config);
 	const serveUrl = await readServeUrl(args.config);
+	const deadline = args.timeBudgetMinutes !== undefined ? startedAt + args.timeBudgetMinutes * 60_000 : undefined;
 
 	process.stdout.write(`Serve:   ${serveUrl ?? '(from config)'}\n`);
 	process.stdout.write(`Fixtures: ${args.fixtureRegex}\n`);
-	process.stdout.write(`Output:  ${args.out}\n\n`);
+	process.stdout.write(`Output:  ${args.out}\n`);
+	process.stdout.write(`Budget:  ${args.timeBudgetMinutes !== undefined ? `${args.timeBudgetMinutes} minutes` : 'none'}\n\n`);
 
 	const probeRoot = join(configDir, '.build', 'css-order-scan');
 	await rm(probeRoot, { recursive: true, force: true });
@@ -212,7 +274,7 @@ async function main(): Promise<void> {
 	await rm(args.out, { recursive: true, force: true });
 	const assetsDir = join(args.out, 'assets');
 	await mkdir(assetsDir, { recursive: true });
-	const renderer = new Renderer(args.config, probeRoot);
+	const renderer = new Renderer(args.config, probeRoot, { keepProbeRenders: args.keep });
 
 	// One render of every fixture in product order: this is the per-fixture
 	// baseline image and also reports each fixture's document list, so the scan
@@ -232,23 +294,46 @@ async function main(): Promise<void> {
 	const errored = baseline.entries.filter(e => e.hasError || !e.imageHash).length;
 	process.stdout.write(`\nScanned ${baseline.entries.length} fixtures: ${candidates.length} order-dependent, ${errored} errored/no-image.\n`);
 
-	const problems: Problem[] = [];
-	for (let i = 0; i < candidates.length; i++) {
-		const base = candidates[i];
-		const rev = reversedById.get(base.fixtureId)!;
-		const files = base.output?.stylesheetFiles;
-		if (!files || files.length === 0) {
+	const unlocalized: Unlocalized[] = [];
+	const targets: ConflictTarget[] = [];
+	for (const base of candidates) {
+		const documentCount = base.output?.stylesheetFiles?.length ?? 0;
+		if (documentCount === 0) {
 			process.stderr.write(`::warning::${base.fixtureId} did not report stylesheetFiles; skipping.\n`);
+			unlocalized.push({ fixtureId: base.fixtureId, reason: 'did not report stylesheet files' });
 			continue;
 		}
-		const n = files.length;
-		process.stdout.write(`\n[${i + 1}/${candidates.length}] Localizing ${base.fixtureId} (${n} documents)...\n`);
-		process.stdout.write(`  hashes: baseline=${base.imageHash} reversed=${rev.imageHash}\n`);
-		let probeCount = 0;
-		const { later, earlier } = await bisectConflict(renderer, base.fixtureId, n, base.imageHash!, ({ fromIndex, toIndex, differs, ms }) => {
-			const verdict = differs ? 'DIFFERS' : 'same';
-			process.stdout.write(`  probe #${++probeCount}: reverse[${fromIndex}, ${toIndex}) -> ${verdict} (${ms}ms)\n`);
+		targets.push({ fixtureId: base.fixtureId, documentCount });
+	}
+
+	const outcomes = new Map<string, ConflictOutcome>();
+	for (let start = 0; start < targets.length; start += args.batchSize) {
+		const batch = targets.slice(start, start + args.batchSize);
+		process.stdout.write(`\nLocalizing order-dependent fixtures ${start + 1}-${start + batch.length} of ${targets.length}...\n`);
+		const batchOutcomes = await bisectConflicts(renderer, batch, {
+			deadline,
+			onProbe: ({ window, fixtureCount, ms }) => {
+				process.stdout.write(`  reverse[${window.fromIndex}, ${window.toIndex}) x ${fixtureCount} fixture(s) (${ms}ms)\n`);
+			},
 		});
+		for (const [fixtureId, outcome] of batchOutcomes) {
+			outcomes.set(fixtureId, outcome);
+		}
+	}
+
+	const problems: Problem[] = [];
+	for (const base of candidates) {
+		const outcome = outcomes.get(base.fixtureId);
+		if (!outcome) {
+			continue;
+		}
+		if (outcome.kind === 'failed') {
+			unlocalized.push({ fixtureId: base.fixtureId, reason: outcome.reason });
+			continue;
+		}
+		const rev = reversedById.get(base.fixtureId)!;
+		const files = base.output!.stylesheetFiles!;
+		const { later, earlier } = outcome.pair;
 
 		// Copy the baseline and reversed images into the report so it is
 		// self-contained (links resolve when the artifact is downloaded).
@@ -268,7 +353,7 @@ async function main(): Promise<void> {
 			fixtureId: base.fixtureId,
 			background: base.background,
 			labels: base.labels ?? [],
-			docCount: n,
+			docCount: files.length,
 			baselineHash: base.imageHash!,
 			reversedHash: rev.imageHash!,
 			laterIndex: later,
@@ -278,18 +363,23 @@ async function main(): Promise<void> {
 			baselineImage,
 			reversedImage,
 		});
-		process.stdout.write(`  → #${earlier} ${fileBaseName(files[earlier] ?? '?')} loses to #${later} ${fileBaseName(files[later] ?? '?')}\n`);
+		process.stdout.write(`${base.fixtureId}: #${earlier} ${fileBaseName(files[earlier] ?? '?')} loses to #${later} ${fileBaseName(files[later] ?? '?')}\n`);
 	}
 
-	const markdown = await renderMarkdown(args, problems, { scanned: baseline.entries.length, errored });
+	const totals: ScanTotals = { scanned: baseline.entries.length, orderDependent: candidates.length, errored };
+	const markdown = await renderMarkdown(args, problems, unlocalized, totals);
 	await writeFile(join(args.out, 'report.md'), `${markdown}\n`, 'utf8');
-	await writeFile(join(args.out, 'report.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), commit: GITHUB_SHA, scanned: baseline.entries.length, errored, problems }, undefined, '\t')}\n`, 'utf8');
+	await writeFile(join(args.out, 'report.json'), `${JSON.stringify({ generatedAt: new Date().toISOString(), commit: GITHUB_SHA, ...totals, problems, unlocalized }, undefined, '\t')}\n`, 'utf8');
 
 	if (!args.keep) {
 		await rm(probeRoot, { recursive: true, force: true });
 	}
 
-	process.stdout.write(`\nReport written to ${join(args.out, 'report.md')} (${problems.length} order-dependent fixtures).\n`);
+	if (unlocalized.length > 0) {
+		process.stderr.write(`::warning::${unlocalized.length} of ${candidates.length} order-dependent fixtures were not localized; see the report for reasons.\n`);
+	}
+	const minutes = ((Date.now() - startedAt) / 60_000).toFixed(1);
+	process.stdout.write(`\nReport written to ${join(args.out, 'report.md')} (${problems.length} localized, ${unlocalized.length} not localized, ${minutes} minutes).\n`);
 }
 
 main().catch(err => {

@@ -8725,15 +8725,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
-		const previousChats = cached.chats.get();
 		cached.applyChatCatalog(state);
 		this._cacheDirty = true;
-		// Session lists read `chats` when sessions change. Added and removed chats reach them with the root summary
-		// change, but a reorder of a subscribed session's chats leaves the root summary as it was.
-		const chats = cached.chats.get();
-		if (!arrayEquals(previousChats, chats) && previousChats.length === chats.length && chats.every(chat => previousChats.includes(chat))) {
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		}
+		// Chat order reaches consumers through the `chats` observable, not `onDidChangeSessions`: this runs
+		// while session lists observe chat details during rendering, and a session change would re-enter them.
 	}
 
 	/**

@@ -16,6 +16,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, ISessionSummaryHoverWorkspace, SessionSummaryHoverWidget } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../common/sessionApplication.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -276,7 +277,7 @@ function toHoverPullRequests(refs: Iterable<SessionPullRequestRef>, openerServic
 
 function getApplication(session: ISession, openerService: IOpenerService): ISessionSummaryHoverData['application'] {
 	const application = session.application?.get();
-	if (!application || application.id === 'vscode') {
+	if (!application || application.id === 'vscode' || application.id === UNKNOWN_SESSION_APPLICATION_ID) {
 		return undefined;
 	}
 
