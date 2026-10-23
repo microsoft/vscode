@@ -37,6 +37,9 @@ import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '.
 const pullRequestFragments = ['core', 'reviewThreads', 'checks', 'mergeability'] as const;
 const reviewThreadIcon: ArtifactIcon = { id: 'comment-discussion', colorId: 'editorWarning.foreground' };
 const checkStateOrder = { pending: 0, failed: 1, skipped: 2, passed: 3 };
+const automationPollInterval = 60_000;
+const unchangedRepairCooldown = 10 * 60_000;
+const undispatchedRetryDelay = 30_000;
 
 function authenticationRequiredMessage(owner: string, message: string): string {
 	return isSamlEnforcementError(message)
@@ -325,6 +328,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
 	private readonly hostChanges;
 	private readonly checkpointWrites = new Sequencer();
+	private refreshedAutomationRevision: number | undefined;
 
 	constructor(
 		private readonly resource: GitHubPullRequestArtifactResource,
@@ -832,13 +836,26 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		const store = new DisposableStore();
 		let running = false;
 		let pending = false;
-		const evaluate = async () => {
+		let refreshRequested = false;
+		const evaluate = async (refresh = false) => {
+			refreshRequested ||= refresh;
 			if (running) {
 				pending = true;
 				return;
 			}
 			running = true;
 			try {
+				const configuration = this.context.configuration.get();
+				if ((refreshRequested || this.refreshedAutomationRevision !== configuration.revision)
+					&& context.runs.get().every(run => isArtifactRunSettled(run) && !run.indeterminate)) {
+					refreshRequested = false;
+					// Refreshing can pause and reactivate automation; retain the revision to avoid a refresh loop.
+					this.refreshedAutomationRevision = configuration.revision;
+					await this.resource.refresh(CancellationToken.None);
+				}
+				if (store.isDisposed) {
+					return;
+				}
 				const retryAfter = await this.evaluate(context, () => !store.isDisposed);
 				if (retryAfter !== undefined && !store.isDisposed) {
 					scheduler.schedule(retryAfter);
@@ -862,9 +879,14 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					pending = false;
 					scheduler.schedule();
 				}
+				if (!store.isDisposed && !poller.isScheduled()) {
+					poller.schedule();
+				}
 			}
 		};
 		const scheduler = store.add(new RunOnceScheduler(() => { void evaluate(); }, 50));
+		const poller = store.add(new RunOnceScheduler(() => { void evaluate(true); }, automationPollInterval));
+		poller.schedule();
 		store.add(autorun(reader => {
 			this.resource.snapshot.read(reader);
 			this.resource.authenticationError.read(reader);
@@ -930,7 +952,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				if (!retryable) {
 					continue;
 				}
-				const delay = previous.updatedAt + 30_000 - Date.now();
+				const delay = previous.updatedAt + (previous.dispatched ? unchangedRepairCooldown : undispatchedRetryDelay) - Date.now();
 				if (delay > 0) {
 					retryAfter = Math.min(retryAfter ?? delay, delay);
 					continue;
