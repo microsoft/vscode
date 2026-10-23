@@ -5407,8 +5407,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				};
 			}
 
-			const isWorkspaceGroup = grouping !== SessionsGrouping.Date
-				&& isSessionGroupingSection(section.id);
+			// The "Chats" section is capped like a workspace section in every grouping mode.
+			const isWorkspaceGroup = section.id === QUICK_CHATS_SECTION_ID
+				|| (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id));
 			const limitSessions = isWorkspaceGroup
 				&& !this.hasFindPattern
 				&& this.workspaceGroupCapped;

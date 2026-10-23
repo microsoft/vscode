@@ -2977,6 +2977,54 @@ suite('Sessions - SessionsList', () => {
 				storedAfterReset: undefined,
 			});
 		});
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
+			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
+				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>
+					createTestSession(`chat-${index}`, { isQuickChat: true, createdAt: new Date(Date.now() - index * 1000) }).session));
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+				const open = () => {
+					const container = harness.createContainer(400, 1400);
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+						grouping: () => grouping,
+						sorting: () => SessionsSorting.Created,
+						onSessionOpen: () => { },
+					}));
+					list.layout(1400, 400);
+					const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
+					return {
+						list,
+						snapshot: () => ({ chats: list.getVisibleSessions().length, showMore: showMoreLabels().map(label => label.textContent) }),
+						click: (label: string) => {
+							const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
+							assert.ok(row, `Expected a "${label}" row`);
+							clickRow(row);
+						},
+					};
+				};
+
+				const first = open();
+				const defaults = first.snapshot();
+				first.click('+3 more');
+				const expanded = first.snapshot();
+				first.list.dispose();
+
+				const second = open();
+				const reloaded = second.snapshot();
+				second.list.setWorkspaceGroupCapped(false);
+				const showAll = second.snapshot();
+				second.list.setWorkspaceGroupCapped(true);
+				second.click('Show less');
+
+				assert.deepStrictEqual({ defaults, expanded, reloaded, showAll, collapsed: second.snapshot() }, {
+					defaults: { chats: 5, showMore: ['+3 more'] },
+					expanded: { chats: 8, showMore: ['Show less'] },
+					reloaded: { chats: 8, showMore: ['Show less'] },
+					showAll: { chats: 8, showMore: [] },
+					collapsed: { chats: 5, showMore: ['+3 more'] },
+				});
+			});
+		}
 	});
 
 	suite('sticky show more and less', () => {
