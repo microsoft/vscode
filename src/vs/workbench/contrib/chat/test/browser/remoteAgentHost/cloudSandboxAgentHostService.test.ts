@@ -276,6 +276,7 @@ suite('CloudSandboxAgentHostService', () => {
 		fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
 			override readonly onDidConnectionDiagnostic = Event.None;
 			override readonly onDidAction = Event.None;
+			override getConnectionDiagnosticState() { return {}; }
 		}());
 		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 		const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
@@ -314,6 +315,7 @@ suite('CloudSandboxAgentHostService', () => {
 				fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
 					override readonly onDidConnectionDiagnostic = Event.None;
 					override readonly onDidAction = Event.None;
+					override getConnectionDiagnosticState() { return {}; }
 				}());
 				const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 				const factory = fixture.getFactory();
@@ -375,6 +377,7 @@ suite('CloudSandboxAgentHostService', () => {
 				override readonly onDidChangeConnectionState = Event.None;
 				override readonly onDidConnectionDiagnostic = Event.None;
 				override readonly onDidAction = Event.None;
+				override getConnectionDiagnosticState() { return {}; }
 			}());
 			const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 			const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
@@ -440,6 +443,7 @@ suite('CloudSandboxAgentHostService', () => {
 			override readonly onDidChangeConnectionState = Event.None;
 			override readonly onDidConnectionDiagnostic = Event.None;
 			override readonly onDidAction = Event.None;
+			override getConnectionDiagnosticState() { return {}; }
 		}());
 		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
 		store.add(toDisposable(() => spy.restore()));
@@ -516,6 +520,7 @@ suite('CloudSandboxAgentHostService', () => {
 				dispose: () => { },
 				onDidConnectionDiagnostic: diagnostics.event,
 				onDidAction: actions.event,
+				getConnectionDiagnosticState: () => ({ connectionState: 'connected', authenticationRestorePending: false, lastSuccessfulResponseAgeMs: 25 }),
 			});
 			const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
 			const provisioningStartedAt = Date.now();
@@ -535,13 +540,16 @@ suite('CloudSandboxAgentHostService', () => {
 			await timeout(30);
 			fixture.settle();
 			await connecting;
+			await options.prepareReconnect?.();
 			actions.fire({ serverSeq: 1, channel: `ahp-session:/${sessionId}`, origin: undefined, action: { type: ActionType.SessionReady } });
 			created.transportDisposable.dispose();
 			created.connection.dispose();
 			fixture.service.dispose();
 			assert.deepStrictEqual({
 				client: options.clientInfo?.name, events: fixture.events, listening: diagnostics.hasListeners() || actions.hasListeners(),
-				sessionObservations: fixture.lifecycleEvents.filter(event => event.data?.phase === 'session.ready').map(event => [event.data?.environmentId, event.data?.agentSessionId, event.data?.connectionId]),
+				sessionObservations: fixture.lifecycleEvents.filter(event => event.data?.phase === 'session.ready').map(event => [event.data?.environmentId, event.data?.agentSessionId, event.data?.connectionId, event.data?.connectionState, event.data?.lastSuccessfulResponseAgeMs]),
+				protocolStates: fixture.lifecycleEvents.filter(event => event.data?.phase === 'protocol.authentication').map(event => [event.data?.connectionState, event.data?.authenticationRestorePending]),
+				credentialStates: fixture.lifecycleEvents.filter(event => event.data?.phase === 'credentials').map(event => [event.data?.outcome, event.data?.connectionState]),
 			}, {
 				client: isSessionsWindow ? 'vscode-agents-window' : 'vscode-editor-window',
 				events: [{
@@ -555,7 +563,9 @@ suite('CloudSandboxAgentHostService', () => {
 					},
 				}],
 				listening: false,
-				sessionObservations: [[environmentId, sessionId, connectionId]],
+				sessionObservations: [[environmentId, sessionId, connectionId, 'connected', 25]],
+				protocolStates: [['connected', false]],
+				credentialStates: [['started', undefined], ['succeeded', undefined], ['started', undefined], ['succeeded', undefined], ['started', 'connected'], ['succeeded', 'connected']],
 			});
 		}));
 	}
@@ -891,6 +901,7 @@ suite('CloudSandboxAgentHostService', () => {
 			onDidChangeConnectionState: Event.None,
 			onDidConnectionDiagnostic: Event.None,
 			onDidAction: Event.None,
+			getConnectionDiagnosticState: () => ({}),
 		});
 		const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
 		const factory = fixture.getFactory();
@@ -1043,6 +1054,7 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
 				override readonly onDidConnectionDiagnostic = Event.None;
 				override readonly onDidAction = Event.None;
+				override getConnectionDiagnosticState() { return {}; }
 				override dispose(): void { }
 			}());
 			const start = Date.now();

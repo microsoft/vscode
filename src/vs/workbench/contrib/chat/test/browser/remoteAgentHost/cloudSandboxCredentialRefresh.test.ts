@@ -21,7 +21,7 @@ import {
 	type IHostEncryptionKey,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 import {
 	CloudSandboxCredentialRefresher,
@@ -58,7 +58,15 @@ function tokenExpiringIn(minutes: number, from: number, overrides: Partial<IClou
 /** Records the stop reports the refresher emits; request counting is covered by its own suite. */
 class RecordingTelemetry extends mock<ICloudSandboxTelemetryService>() {
 	declare readonly _serviceBrand: undefined;
-	override readonly lifecycle = new CloudSandboxLifecycleTelemetry(NullTelemetryService);
+	readonly lifecycleEvents: ITelemetryData[] = [];
+	override readonly lifecycle = new CloudSandboxLifecycleTelemetry(new class extends mock<ITelemetryService>() {
+		constructor(private readonly events: ITelemetryData[]) { super(); }
+		override publicLog2(name: string, data?: ITelemetryData): void {
+			if (name === 'cloudSandboxLifecycle' && data) {
+				this.events.push(data);
+			}
+		}
+	}(this.lifecycleEvents));
 
 	readonly stops: { reason: CloudSandboxRefreshStopReason; consecutiveFailures: number; statusCode: number | undefined }[] = [];
 
@@ -432,6 +440,7 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 	function createRefresher(
 		initialToken: ICloudSandboxClientToken,
 		step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult>,
+		state = new CloudSandboxCredentialRefreshState(),
 	) {
 		const credentials = new ScriptedCredentialsService(step);
 		const creds: ICloudSandboxCreds = { token: initialToken };
@@ -441,7 +450,7 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
-			new CloudSandboxCredentialRefreshState(),
+			state,
 			credentials,
 			telemetry,
 			new NullLogService(),
@@ -459,6 +468,112 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 
 		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token }, { calls: 0, token: initialToken });
 	}));
+
+	test('lifecycle does not label routine credential acquisition as recovery from failure', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials, telemetry } = createRefresher(tokenExpiringIn(40, START_TIME), () => ({
+			kind: 'token', token: tokenExpiringIn(40, Date.now()),
+		}));
+		await refresher.refreshConnectionCredentials();
+		refresher.dispose();
+		assert.deepStrictEqual({
+			calls: credentials.callCount,
+			result: telemetry.lifecycleEvents.filter(event => event.outcome === 'succeeded').map(event => [event.recoveryAction, event.attemptNumber, event.consecutiveFailures]),
+		}, { calls: 1, result: [['acquired', 1, 0]] });
+	}));
+
+	test('lifecycle distinguishes deferred recovery, an actual wait, and the successful next attempt', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		let attempts = 0;
+		const { refresher, credentials, telemetry } = createRefresher(tokenExpiringIn(40, START_TIME), () => {
+			if (++attempts === 1) {
+				throw new CloudSandboxRequestError(503, 'private server response');
+			}
+			return { kind: 'token', token: tokenExpiringIn(40, Date.now()) };
+		});
+		await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed/);
+		const callsBeforeRetry = credentials.callCount;
+		const next = refresher.refreshConnectionCredentials();
+		await timeout(30_000);
+		await next;
+		refresher.dispose();
+		assert.deepStrictEqual({
+			callsBeforeRetry, calls: credentials.callCount,
+			events: telemetry.lifecycleEvents.map(event => [event.phase, event.outcome, event.recoveryAction, event.attemptNumber, event.consecutiveFailures, event.retryDelayMs, event.failurePoint]),
+			privateContent: JSON.stringify(telemetry.lifecycleEvents).includes('private'),
+		}, {
+			callsBeforeRetry: 1, calls: 2,
+			events: [
+				['credentials.acquire', 'started', 'attempting', 1, 0, undefined, undefined],
+				['credentials.acquire', 'failed', 'deferred', 1, 1, 30_000, 'credentialRefresh.request'],
+				['credentials.retryWait', 'started', 'waiting', undefined, 1, 30_000, undefined],
+				['credentials.retryWait', 'succeeded', 'deferred', undefined, 1, 0, undefined],
+				['credentials.acquire', 'started', 'attempting', 2, 1, undefined, undefined],
+				['credentials.acquire', 'succeeded', 'recovered', 2, 1, undefined, undefined],
+			],
+			privateContent: false,
+		});
+	}));
+
+	test('lifecycle keeps a late HTTP failure without changing the legacy cycle-limit aggregate', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const state = new CloudSandboxCredentialRefreshState();
+		state.unhealthyCycles = 9;
+		const { refresher, credentials, telemetry } = createRefresher(tokenExpiringIn(40, START_TIME), () => {
+			throw new CloudSandboxRequestError(503, 'private failure');
+		}, state);
+		await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed/);
+		refresher.dispose();
+		assert.deepStrictEqual({
+			calls: credentials.callCount,
+			aggregate: telemetry.stops,
+			lifecycle: telemetry.lifecycleEvents.filter(event => event.phase === 'credentials.stopped').map(event => [event.statusCode, event.errorCategory, event.consecutiveFailures]),
+		}, {
+			calls: 1,
+			aggregate: [{ reason: 'consecutiveFailures', consecutiveFailures: 10, statusCode: undefined }],
+			lifecycle: [[503, 'httpServer', 10]],
+		});
+	}));
+
+	test('lifecycle links a permanent stop to the failed acquisition without inventing a scheduled retry', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const { refresher, credentials, telemetry } = createRefresher(tokenExpiringIn(40, START_TIME), () => {
+			throw new CloudSandboxRequestError(403, 'private rejection');
+		});
+		await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed/);
+		await assert.rejects(refresher.refreshConnectionCredentials(), /stopped/);
+		refresher.dispose();
+		const [start, failed, stopped] = telemetry.lifecycleEvents;
+		assert.deepStrictEqual({
+			calls: credentials.callCount,
+			outcomes: telemetry.lifecycleEvents.map(event => [event.phase, event.outcome, event.recoveryAction, event.refreshStopReason, event.statusCode]),
+			linked: start.operationId === failed.operationId && start.operationId === stopped.parentOperationId,
+			retry: stopped.retryDelayMs,
+		}, {
+			calls: 1,
+			outcomes: [
+				['credentials.acquire', 'started', 'attempting', undefined, undefined],
+				['credentials.acquire', 'failed', 'stopped', 'permanentError', 403],
+				['credentials.stopped', 'failed', 'stopped', 'permanentError', 403],
+			],
+			linked: true, retry: undefined,
+		});
+	}));
+
+	for (const { name, result, outcome, point } of [
+		{ name: 'waking', result: { kind: 'waking', waking: { retryAfterSeconds: 45 } }, outcome: 'waking', point: 'credentialRefresh.environmentWaking' },
+		{ name: 'invalid expiry', result: { kind: 'token', token: tokenExpiringIn(-1, START_TIME) }, outcome: 'failed', point: 'credentialRefresh.invalidExpiry' },
+		{ name: 'inconsistent sealing', result: { kind: 'token', token: tokenExpiringIn(40, START_TIME, { host_encryption_key: REPLACEMENT_HOST_KEY }) }, outcome: 'failed', point: 'credentialRefresh.inconsistentCredentials' },
+	] satisfies { name: string; result: CloudSandboxConnectResult; outcome: string; point: string }[]) {
+		test(`lifecycle identifies ${name} and caller cancellation without credential content`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const { refresher, telemetry } = createRefresher(tokenExpiringIn(40, START_TIME), () => result);
+			await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed|usable future expiry/);
+			const waiting = assert.rejects(refresher.refreshConnectionCredentials(), isCancellationError);
+			refresher.dispose();
+			await waiting;
+			assert.deepStrictEqual({
+				failure: telemetry.lifecycleEvents.filter(event => event.failurePoint).map(event => [event.outcome, event.failurePoint, event.recoveryAction]),
+				wait: telemetry.lifecycleEvents.at(-1)?.outcome,
+				credentialContent: /access_token|wps_endpoint|public_key|encrypted_github_token/.test(JSON.stringify(telemetry.lifecycleEvents)),
+			}, { failure: [[outcome, point, 'deferred']], wait: 'cancelled', credentialContent: false });
+		}));
+	}
 
 	test('does not wait for an authentication refresh while the cached admission token is still valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		const response = new DeferredPromise<CloudSandboxConnectResult>();

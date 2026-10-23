@@ -61,7 +61,7 @@ import { IRequestContext } from '../../../../../base/parts/request/common/reques
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
-import { type CloudSandboxLifecycleOperation } from './cloudSandboxLifecycleTelemetry.js';
+import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation } from './cloudSandboxLifecycleTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
 import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay, retryAfterSeconds } from './cloudSandboxRateLimit.js';
@@ -1293,6 +1293,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const operation = this._telemetry.lifecycle.start(action === 'connect' ? 'credentials.connect' : 'credentials.refresh', {
 			environmentId, agentSessionId: searchParams.session_id, connectionId: searchParams.client_id,
 		});
+		let failurePoint: CloudSandboxLifecycleFailurePoint = 'credentials.request';
 		try {
 			const context = await this._sendEnvironment(action, environmentId, token, searchParams, onRequest);
 			operation.bind({ serverRequestId: getGitHubRequestId(context.res.headers?.['x-github-request-id']) });
@@ -1306,17 +1307,20 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (!isSuccess(context)) {
 				await this._throwForStatus(action, context);
 			}
+			failurePoint = 'credentials.invalidResponse';
 			const clientToken = await this._readJson<ICloudSandboxClientToken>(context);
 			if (!clientToken?.access_token || !clientToken?.wps_endpoint || !clientToken?.client_id || !clientToken?.groups) {
+				failurePoint = 'credentials.incompleteResponse';
 				throw new Error(`Mission Control ${action} returned an incomplete token response`);
 			}
 			if (action === 'reconnect' && clientToken.client_id !== searchParams.client_id) {
+				failurePoint = 'credentials.clientMismatch';
 				throw new Error('Cloud sandbox reconnect returned credentials for a different client');
 			}
 			operation.complete('succeeded', { connectionId: clientToken.client_id }, undefined, context.res.statusCode);
 			return { kind: 'token', token: clientToken };
 		} catch (error) {
-			operation.failed(error, isCancellationError(error) || token.isCancellationRequested);
+			operation.complete(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed', { failurePoint }, error);
 			throw error;
 		}
 	}

@@ -9,7 +9,16 @@ import { parseGitHubRequestId } from '../../github/common/client/headers.js';
 
 export { parseGitHubRequestId as getGitHubRequestId } from '../../github/common/client/headers.js';
 
-export interface IConnectionDiagnosticEvent {
+export interface IConnectionDiagnosticState {
+	readonly connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'incompatible' | 'closed';
+	readonly authenticationRestorePending?: boolean;
+	readonly lastSuccessfulResponseAgeMs?: number;
+	readonly reconnectAttempt?: number;
+	readonly reconnectScheduled?: boolean;
+	readonly reconnectDelayMs?: number;
+}
+
+export interface IConnectionDiagnosticEvent extends IConnectionDiagnosticState {
 	readonly operationId: string;
 	readonly attemptId?: string;
 	readonly phase: string;

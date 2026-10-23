@@ -5,7 +5,7 @@
 
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
-import { getConnectionDiagnosticError, getGitHubRequestId, type IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { getConnectionDiagnosticError, getGitHubRequestId, type IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { type CloudSandboxTaskCreationPath } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -14,6 +14,7 @@ const phases = [
 	'preparation', 'task.reserve', 'task.create', 'task.delete', 'binding',
 	'connection.connect', 'connection.recover', 'connection.closed', 'connection.disposed',
 	'credentials', 'credentials.connect', 'credentials.refresh', 'credentials.stopped',
+	'credentials.acquire', 'credentials.retryWait', 'credentials.authentication',
 	'transport.connect', 'transport.reconnect', 'protocol.initialize', 'protocol.reconnect',
 	'protocol.authentication', 'protocol.subscriptions', 'protocol.firstSessionRequest', 'protocol.sessionOpen',
 	'repository.prepare', 'repository.clone', 'session.create', 'session.subscribe',
@@ -21,11 +22,24 @@ const phases = [
 	'turn.submit', 'turn.accepted', 'turn.complete',
 ] as const;
 
+const failurePoints = [
+	'credentials.request', 'credentials.invalidResponse', 'credentials.incompleteResponse', 'credentials.clientMismatch',
+	'credentialRefresh.request', 'credentialRefresh.retryBudget', 'credentialRefresh.environmentWaking',
+	'credentialRefresh.invalidExpiry', 'credentialRefresh.inconsistentCredentials', 'credentialRefresh.authenticationTokenUnchanged',
+	'turn.rejected', 'session.rejected', 'turn.hostError', 'session.hostError',
+] as const;
+const recoveryActions = ['attempting', 'waiting', 'deferred', 'acquired', 'recovered', 'stopped', 'cancelled', 'superseded'] as const;
+const refreshStopReasons = ['permanentError', 'consecutiveFailures', 'environmentWaking', 'unusableToken'] as const;
+const connectionStates = ['connecting', 'connected', 'reconnecting', 'incompatible', 'closed'] as const;
+const MAX_DIAGNOSTIC_DURATION_MS = 7 * 24 * 60 * 60_000;
+
 export type CloudSandboxLifecyclePhase = typeof phases[number];
+export type CloudSandboxLifecycleFailurePoint = typeof failurePoints[number];
+export type CloudSandboxRefreshStopReason = typeof refreshStopReasons[number];
 export type CloudSandboxLifecycleOutcome = 'started' | 'succeeded' | 'failed' | 'cancelled' | 'observed' | 'rejected' | 'waking';
 export type CloudSandboxPreparationStep = 'started' | 'receipt' | 'reservationFailed' | 'sendWait' | 'handoff' | 'sendBlocked' | 'sendWithoutReservation' | 'sendFallback' | 'releaseRequested' | 'released' | 'releaseFailed' | 'submitted';
 
-export interface ICloudSandboxLifecycleContext {
+export interface ICloudSandboxLifecycleContext extends IConnectionDiagnosticState {
 	readonly environmentId?: string;
 	readonly agentSessionId?: string;
 	readonly taskId?: string;
@@ -39,6 +53,13 @@ export interface ICloudSandboxLifecycleContext {
 	readonly taskCreationPath?: CloudSandboxTaskCreationPath;
 	readonly preparationStep?: CloudSandboxPreparationStep;
 	readonly sessionState?: 'creating' | 'ready' | 'failed';
+	readonly failurePoint?: CloudSandboxLifecycleFailurePoint;
+	readonly recoveryAction?: typeof recoveryActions[number];
+	readonly refreshStopReason?: CloudSandboxRefreshStopReason;
+	readonly attemptNumber?: number;
+	readonly consecutiveFailures?: number;
+	readonly retryDelayMs?: number;
+	readonly hostCanResume?: boolean;
 }
 
 export interface ICloudSandboxLifecycleEvent extends ICloudSandboxLifecycleContext {
@@ -49,9 +70,10 @@ export interface ICloudSandboxLifecycleEvent extends ICloudSandboxLifecycleConte
 	readonly durationMs?: number;
 	readonly error?: unknown;
 	readonly statusCode?: number;
+	readonly hostErrorType?: string;
 }
 
-type LifecycleEvent = Omit<ICloudSandboxLifecycleEvent, 'error' | 'timestamp'> & IConnectionTelemetryError & {
+type LifecycleEvent = Omit<ICloudSandboxLifecycleEvent, 'error' | 'timestamp' | 'hostErrorType'> & IConnectionTelemetryError & {
 	schemaVersion: number;
 	eventId: string;
 	observerId: string;
@@ -59,6 +81,7 @@ type LifecycleEvent = Omit<ICloudSandboxLifecycleEvent, 'error' | 'timestamp'> &
 	omittedCorrelationFields: number;
 	omittedCorrelationFieldNames: string;
 	observedAtUnixMs: number;
+	hostErrorKind?: 'policyResolutionFailed' | 'executionInterrupted' | 'sessionInUse' | 'unknown';
 };
 
 type LifecycleClassification = ConnectionTelemetryErrorClassification & {
@@ -86,6 +109,20 @@ type LifecycleClassification = ConnectionTelemetryErrorClassification & {
 	taskCreationPath?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Client task creation/reservation path, not warm or cold compute provenance.' };
 	preparationStep?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted draft preparation observation, without draft content or repository names.' };
 	sessionState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session lifecycle read from a host snapshot, not a claim of a new transition.' };
+	failurePoint?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted first-party failure branch, never an exception message or stack.' };
+	recoveryAction?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Observed recovery decision. Deferred means eligible on demand, not an automatically scheduled request.' };
+	refreshStopReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted reason client credential acquisition stopped.' };
+	attemptNumber?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One plus the prior unhealthy acquisition cycle count at attempt entry, capped at 10000; not a lifetime request count.' };
+	consecutiveFailures?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Existing failed acquisition cycle count, capped at 10000; an immediate permanent error can have count zero.' };
+	retryDelayMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Remaining on-demand credential retry wait in milliseconds, capped at seven days; not proof a retry is scheduled.' };
+	connectionState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Client protocol connection state at the observation, not backend liveness.' };
+	authenticationRestorePending?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether client authentication restoration remains pending, not proof an authentication request is running.' };
+	lastSuccessfulResponseAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Age of the last accepted successful RPC response on the current transport, capped at seven days. Does not prove the next request is authorized.' };
+	reconnectAttempt?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Attempts already performed in the current protocol reconnect cycle, capped at 10000.' };
+	reconnectScheduled?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the protocol client currently has a reconnect timer.' };
+	reconnectDelayMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Remaining scheduled protocol reconnect delay, capped at seven days.' };
+	hostErrorKind?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Recognized host error type mapped to a fixed category; all other supplied types become unknown.' };
+	hostCanResume?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Optional host-provided resumable flag on a failed turn; not a claim that resume was attempted.' };
 	omittedCorrelationFields: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of supplied identifiers omitted because they do not match the content-free identifier contract.' };
 	omittedCorrelationFieldNames: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted identifier field names omitted by validation, never their values.' };
 };
@@ -114,6 +151,24 @@ function chatId(value: string | undefined): string | undefined {
 
 function requestId(value: string | undefined): string | undefined {
 	return uuid(value) ?? (value?.startsWith('request_') && uuid(value.slice(8)) ? `request_${value.slice(8).toLowerCase()}` : undefined);
+}
+
+function boundedDuration(value: number | undefined): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.min(value, MAX_DIAGNOSTIC_DURATION_MS) : undefined;
+}
+
+function boundedCount(value: number | undefined): number | undefined {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? Math.min(value, 10_000) : undefined;
+}
+
+function hostErrorKind(value: string | undefined): LifecycleEvent['hostErrorKind'] {
+	switch (value) {
+		case undefined: return undefined;
+		case 'policyResolutionFailed': return 'policyResolutionFailed';
+		case 'executionInterrupted': return 'executionInterrupted';
+		case 'CodexThreadInUse': return 'sessionInUse';
+		default: return 'unknown';
+	}
 }
 
 export class CloudSandboxLifecycleTelemetry {
@@ -155,6 +210,20 @@ export class CloudSandboxLifecycleTelemetry {
 			taskCreationPath: event.taskCreationPath,
 			preparationStep: event.preparationStep,
 			sessionState: event.sessionState === 'creating' || event.sessionState === 'ready' || event.sessionState === 'failed' ? event.sessionState : undefined,
+			failurePoint: failurePoints.find(value => value === event.failurePoint),
+			recoveryAction: recoveryActions.find(value => value === event.recoveryAction),
+			refreshStopReason: refreshStopReasons.find(value => value === event.refreshStopReason),
+			attemptNumber: boundedCount(event.attemptNumber),
+			consecutiveFailures: boundedCount(event.consecutiveFailures),
+			retryDelayMs: boundedDuration(event.retryDelayMs),
+			connectionState: connectionStates.find(value => value === event.connectionState),
+			authenticationRestorePending: typeof event.authenticationRestorePending === 'boolean' ? event.authenticationRestorePending : undefined,
+			lastSuccessfulResponseAgeMs: boundedDuration(event.lastSuccessfulResponseAgeMs),
+			reconnectAttempt: boundedCount(event.reconnectAttempt),
+			reconnectScheduled: typeof event.reconnectScheduled === 'boolean' ? event.reconnectScheduled : undefined,
+			reconnectDelayMs: boundedDuration(event.reconnectDelayMs),
+			hostErrorKind: hostErrorKind(event.hostErrorType),
+			hostCanResume: typeof event.hostCanResume === 'boolean' ? event.hostCanResume : undefined,
 			...errorFields,
 			statusCode: status !== undefined && Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined,
 			serverRequestId: ids.serverRequestId ?? getGitHubRequestId(error?.requestId),
@@ -172,6 +241,9 @@ export class CloudSandboxLifecycleTelemetry {
 			...context, phase, operationId: event.operationId, attemptId: event.attemptId,
 			agentSessionId: event.sessionResource, chatId: event.chatResource, requestId: event.turnId,
 			sessionState: event.sessionState,
+			connectionState: event.connectionState, authenticationRestorePending: event.authenticationRestorePending,
+			lastSuccessfulResponseAgeMs: event.lastSuccessfulResponseAgeMs,
+			reconnectAttempt: event.reconnectAttempt, reconnectScheduled: event.reconnectScheduled, reconnectDelayMs: event.reconnectDelayMs,
 			timestamp: event.timestamp, durationMs: event.durationMs, error: event.error,
 			outcome: event.outcome === 'info' ? 'observed' : event.outcome === 'failed' && event.error?.name === 'Canceled' ? 'cancelled' : event.outcome,
 		});

@@ -1280,10 +1280,22 @@ suite('CloudSandboxApiService connection credentials', () => {
 			onRequest: () => jsonResponse({ access_token: 'private', wps_endpoint: 'https://private.invalid', client_id: otherConnectionId, groups: {} }),
 		});
 		await assert.rejects(service.reconnect({ environmentId: generateUuid() }, connectionId, CancellationToken.None), /different client/);
-		assert.deepStrictEqual(lifecycleEvents.map(event => [event.phase, event.outcome, event.connectionId]), [
-			['credentials.refresh', 'started', connectionId],
-			['credentials.refresh', 'failed', connectionId],
+		assert.deepStrictEqual(lifecycleEvents.map(event => [event.phase, event.outcome, event.connectionId, event.failurePoint]), [
+			['credentials.refresh', 'started', connectionId, undefined],
+			['credentials.refresh', 'failed', connectionId, 'credentials.clientMismatch'],
 		]);
+	});
+
+	test('incomplete credentials identify the client failure branch without including the response', async () => {
+		const { service, lifecycleEvents } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({ access_token: 'private response' }),
+		});
+		await assert.rejects(service.connect({ environmentId: generateUuid() }, CancellationToken.None), /incomplete token/);
+		assert.deepStrictEqual({
+			failurePoint: lifecycleEvents.at(-1)?.failurePoint,
+			privateContent: JSON.stringify(lifecycleEvents).includes('private'),
+		}, { failurePoint: 'credentials.incompleteResponse', privateContent: false });
 	});
 
 	for (const failure of ['signed out', 'already cancelled', 'cancelled in flight', 'HTTP error', 'network error'] as const) {

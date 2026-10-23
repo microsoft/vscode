@@ -8,13 +8,15 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { LRUCache } from '../../../../../base/common/map.js';
 import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
 import { CloudSandboxRequestError, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { CloudSandboxLifecycleTelemetry, type CloudSandboxLifecycleOperation, type ICloudSandboxLifecycleContext } from './cloudSandboxLifecycleTelemetry.js';
+import { CloudSandboxLifecycleTelemetry, type CloudSandboxLifecycleOperation, type CloudSandboxRefreshStopReason, type ICloudSandboxLifecycleContext } from './cloudSandboxLifecycleTelemetry.js';
+
+export type { CloudSandboxRefreshStopReason } from './cloudSandboxLifecycleTelemetry.js';
 
 /** The Mission Control call being reported. A closed set, so it is safe to send verbatim. */
 export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessionFeed' | 'getEnvironment' | 'listEnvironments' | 'listTasks' | 'getTask' | 'createTask' | 'reserveTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels' | 'mintIdentityToken' | 'sealToken';
@@ -27,17 +29,6 @@ export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessio
  * {@link requestOutcomeForStatus}.
  */
 export type CloudSandboxRequestOutcome = 'succeeded' | 'waking' | 'clientError' | 'serverError' | 'networkError' | 'unexpectedStatus';
-
-/** Why on-demand credential acquisition stopped. A closed set of client-side decisions. */
-export type CloudSandboxRefreshStopReason =
-	/** Mission Control rejected the request in a way that repeating cannot fix (e.g. 404). */
-	| 'permanentError'
-	/** Too many consecutive failed refreshes. */
-	| 'consecutiveFailures'
-	/** `/reconnect` kept answering "waking" during credential acquisition. */
-	| 'environmentWaking'
-	/** Refreshed tokens kept arriving already expired, or without a usable `expires_at`. */
-	| 'unusableToken';
 
 export type CloudSandboxConnectionStage = 'credentials' | 'connection' | 'relay' | 'protocol' | 'authentication' | 'restoration';
 export type CloudSandboxConnectionOutcome = 'success' | 'failure' | 'cancelled';
@@ -86,7 +77,7 @@ export interface ICloudSandboxConnectionTelemetry extends IDisposable {
 	createRequestObserver(): (event: 'issued' | 'waking') => void;
 	recordConnectionDiagnostic(event: IConnectionDiagnosticEvent): void;
 	setConnectionId(connectionId: string): void;
-	recordSessionAction(envelope: ActionEnvelope): void;
+	recordSessionAction(envelope: ActionEnvelope, state?: IConnectionDiagnosticState): void;
 }
 
 export const ICloudSandboxTelemetryService = createDecorator<ICloudSandboxTelemetryService>('cloudSandboxTelemetryService');
@@ -560,7 +551,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		this._lifecycleContext = { ...this._lifecycleContext, connectionId };
 	}
 
-	recordSessionAction(envelope: ActionEnvelope): void {
+	recordSessionAction(envelope: ActionEnvelope, state?: IConnectionDiagnosticState): void {
 		if (!this._lifecycle || this._store.isDisposed) {
 			return;
 		}
@@ -568,7 +559,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		if (action.type === ActionType.SessionChatAdded && !envelope.rejectionReason) {
 			this._chatSessions.set(action.summary.resource, envelope.channel);
 			this._lifecycle.record({
-				...this._lifecycleContext, phase: 'chat.binding', outcome: 'observed', operationId: generateUuid(),
+				...this._lifecycleContext, ...state, phase: 'chat.binding', outcome: 'observed', operationId: generateUuid(),
 				agentSessionId: envelope.channel, chatId: action.summary.resource,
 			});
 			return;
@@ -590,7 +581,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		}
 		this._lifecycleActions.set(key, true);
 		this._lifecycle.record({
-			...this._lifecycleContext, operationId: generateUuid(),
+			...this._lifecycleContext, ...state, operationId: generateUuid(),
 			phase: sessionAction ? 'session.ready' : action.type === ActionType.ChatTurnStarted ? 'turn.accepted' : 'turn.complete',
 			outcome: envelope.rejectionReason ? 'rejected'
 				: action.type === ActionType.SessionCreationFailed || action.type === ActionType.ChatError ? 'failed'
@@ -598,6 +589,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			agentSessionId: sessionAction ? envelope.channel : this._chatSessions.get(envelope.channel),
 			chatId: sessionAction ? undefined : envelope.channel,
 			requestId: turnId,
+			failurePoint: envelope.rejectionReason ? sessionAction ? 'session.rejected' : 'turn.rejected' : action.type === ActionType.SessionCreationFailed ? 'session.hostError' : action.type === ActionType.ChatError ? 'turn.hostError' : undefined,
+			hostErrorType: action.type === ActionType.SessionCreationFailed ? action.error.errorType : action.type === ActionType.ChatError ? action.part.error.errorType : undefined,
+			hostCanResume: action.type === ActionType.ChatError ? action.part.resumable : undefined,
 			error: action.type === ActionType.SessionCreationFailed ? action.error : action.type === ActionType.ChatError ? action.part.error : undefined,
 		});
 	}

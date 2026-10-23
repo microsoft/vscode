@@ -267,7 +267,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			staged.authenticationLifetime = lifetime;
 			const telemetry = this._connectionTelemetry.get(address);
 			telemetry?.setConnectionId(staged.clientId);
-			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic(event);
+			let protocolClient: AgentHostProtocolClient | undefined = undefined;
+			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic({ ...event, ...protocolClient?.getConnectionDiagnosticState() });
 			const refresher = store.add(this._instantiationService.createInstance(
 				CloudSandboxCredentialRefresher,
 				address,
@@ -363,8 +364,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					} : undefined,
 				},
 			);
+			protocolClient = client;
 			store.add(client.onDidConnectionDiagnostic(diagnosticObserver));
-			store.add(client.onDidAction(envelope => telemetry?.recordSessionAction(envelope)));
+			store.add(client.onDidAction(envelope => telemetry?.recordSessionAction(envelope, client.getConnectionDiagnosticState())));
 			return { connection: client, transportDisposable: store, reconnectManagedByClient: true };
 		} catch (error) {
 			store.dispose();

@@ -90,7 +90,7 @@ import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectA
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
-import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type IConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
+import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../common/connectionDiagnostics.js';
 import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgentHostProtocolClient.js';
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
@@ -411,6 +411,19 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _onDidConnectionDiagnostic = this._register(new Emitter<IConnectionDiagnosticEvent>());
 	readonly onDidConnectionDiagnostic = this._onDidConnectionDiagnostic.event;
 	private _diagnosticAttemptId = generateUuid();
+	private _lastSuccessfulResponseAt: number | undefined;
+
+	getConnectionDiagnosticState(): IConnectionDiagnosticState {
+		const reconnect = this._state.kind === AgentHostClientState.Reconnecting ? this._state.reconnect : undefined;
+		return {
+			connectionState: this._state.kind,
+			authenticationRestorePending: this._authenticationRestorePending,
+			lastSuccessfulResponseAgeMs: this._lastSuccessfulResponseAt === undefined ? undefined : Math.max(0, Date.now() - this._lastSuccessfulResponseAt),
+			reconnectAttempt: reconnect?.attempt,
+			reconnectScheduled: reconnect?.timeoutHandle !== undefined,
+			reconnectDelayMs: reconnect?.nextAttemptAt === undefined ? undefined : Math.max(0, reconnect.nextAttemptAt - Date.now()),
+		};
+	}
 
 	private _diagnostic(phase: string, detail: string): void {
 		this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase, outcome: 'info', timestamp: Date.now(), detail });
@@ -680,6 +693,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * transport-level reconnect.
 	 */
 	private _installTransport(transport: IProtocolTransport): void {
+		this._lastSuccessfulResponseAt = undefined;
 		const listeners = new DisposableStore();
 		listeners.add(transport);
 		listeners.add(transport.onMessage(msg => this._handleMessage(msg)));
@@ -2806,6 +2820,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				} else {
 					try {
 						pending.acceptResult?.(msg.result);
+						this._lastSuccessfulResponseAt = Date.now();
 						pending.deferred.complete(msg.result);
 					} catch (error) {
 						pending.deferred.error(error);

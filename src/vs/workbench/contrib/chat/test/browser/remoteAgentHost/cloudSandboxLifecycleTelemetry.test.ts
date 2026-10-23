@@ -14,7 +14,7 @@ import { ActionType, type ActionEnvelope } from '../../../../../../platform/agen
 import { MessageKind, ResponsePartKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { validateTelemetryData } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { CloudSandboxLifecycleTelemetry, getCloudSandboxLifecycleSessionId } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
+import { CloudSandboxLifecycleTelemetry, getCloudSandboxLifecycleSessionId, type ICloudSandboxLifecycleEvent } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 import { CloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 class RecordingTelemetry extends mock<ITelemetryService>() {
@@ -132,6 +132,53 @@ suite('CloudSandboxLifecycleTelemetry', () => {
 		], [id, id, id, undefined, undefined]);
 	});
 
+	test('actionable metadata uses fixed values, bounded measurements and no raw host errors', () => {
+		const sink = new RecordingTelemetry();
+		const telemetry = new CloudSandboxLifecycleTelemetry(sink);
+		telemetry.record({
+			phase: 'credentials.acquire', operationId: generateUuid(), outcome: 'failed',
+			failurePoint: 'credentialRefresh.invalidExpiry', recoveryAction: 'deferred', refreshStopReason: 'unusableToken',
+			connectionState: 'reconnecting', authenticationRestorePending: true, reconnectScheduled: false,
+			attemptNumber: 3, consecutiveFailures: 2, retryDelayMs: 30_000,
+			reconnectAttempt: 1, reconnectDelayMs: 0, lastSuccessfulResponseAgeMs: 1250, hostCanResume: false,
+			hostErrorType: 'private arbitrary error',
+		});
+		const valid = validateTelemetryData(sink.events[0]);
+		const malformed: ICloudSandboxLifecycleEvent = { phase: 'credentials.acquire', operationId: generateUuid(), outcome: 'failed' };
+		Object.assign(malformed, {
+			failurePoint: 'private path', recoveryAction: 'private decision', refreshStopReason: 'private reason', connectionState: 'private state',
+			authenticationRestorePending: 'private', reconnectScheduled: 'private', hostCanResume: 'private',
+			attemptNumber: Infinity, consecutiveFailures: -1, retryDelayMs: NaN,
+			reconnectAttempt: 1.5, reconnectDelayMs: -1, lastSuccessfulResponseAgeMs: Infinity,
+		});
+		telemetry.record(malformed);
+		assert.deepStrictEqual({
+			properties: [valid.properties.failurePoint, valid.properties.recoveryAction, valid.properties.refreshStopReason, valid.properties.connectionState, valid.properties.hostErrorKind],
+			measurements: [valid.measurements.attemptNumber, valid.measurements.consecutiveFailures, valid.measurements.retryDelayMs, valid.measurements.lastSuccessfulResponseAgeMs, valid.measurements.authenticationRestorePending, valid.measurements.reconnectScheduled, valid.measurements.hostCanResume],
+			invalid: Object.keys(malformed).filter(key => !['phase', 'operationId', 'outcome'].includes(key) && sink.events[1][key] !== undefined),
+			privateContent: JSON.stringify(sink.events).includes('private'),
+		}, {
+			properties: ['credentialRefresh.invalidExpiry', 'deferred', 'unusableToken', 'reconnecting', 'unknown'],
+			measurements: [3, 2, 30_000, 1250, 1, 0, 0],
+			invalid: [], privateContent: false,
+		});
+	});
+
+	test('caps diagnostic counts and durations and recognizes only explicitly supported host error types', () => {
+		const sink = new RecordingTelemetry();
+		const telemetry = new CloudSandboxLifecycleTelemetry(sink);
+		for (const hostErrorType of ['policyResolutionFailed', 'executionInterrupted', 'CodexThreadInUse', 'unexpected-private-type']) {
+			telemetry.record({
+				phase: 'turn.complete', operationId: generateUuid(), outcome: 'failed', hostErrorType,
+				attemptNumber: 100_001, retryDelayMs: 30 * 24 * 60 * 60_000,
+			});
+		}
+		assert.deepStrictEqual(sink.events.map(event => [event.hostErrorKind, event.attemptNumber, event.retryDelayMs]), [
+			['policyResolutionFailed', 10_000, 604_800_000], ['executionInterrupted', 10_000, 604_800_000],
+			['sessionInUse', 10_000, 604_800_000], ['unknown', 10_000, 604_800_000],
+		]);
+	});
+
 	test('retains numeric observation time as a measurement rather than a dropped common timestamp', () => {
 		const sink = new RecordingTelemetry();
 		const telemetry = new CloudSandboxLifecycleTelemetry(sink);
@@ -178,18 +225,19 @@ suite('CloudSandboxLifecycleTelemetry', () => {
 			origin: { clientId: generateUuid(), clientSeq: 1 },
 			action: { type: ActionType.ChatTurnStarted, turnId: requestId, startedAt: '2026-01-01T00:00:00Z', message: { text: 'private prompt', origin: { kind: MessageKind.User } } },
 		};
-		connection.recordSessionAction(envelope);
+		connection.recordSessionAction(envelope, { connectionState: 'connected', authenticationRestorePending: true, lastSuccessfulResponseAgeMs: 250, reconnectScheduled: false });
 		connection.recordSessionAction(envelope);
 		connection.dispose();
 		connection.recordSessionAction({ ...envelope, serverSeq: 13 });
 		assert.deepStrictEqual({
 			turns: sink.events.filter(event => event.phase === 'turn.accepted').map(event => ({
 				environmentId: event.environmentId, session: event.agentSessionId, request: event.requestId, outcome: event.outcome,
+				failurePoint: event.failurePoint, state: event.connectionState, authenticationPending: event.authenticationRestorePending, lastResponseMs: event.lastSuccessfulResponseAgeMs,
 			})),
 			connectionSessions: sink.events.filter(event => event.phase === 'connection.connect').map(event => event.agentSessionId),
 			privateContent: JSON.stringify(sink.events).includes('private'),
 		}, {
-			turns: [{ environmentId, session: sessionB, request: requestId, outcome: 'rejected' }],
+			turns: [{ environmentId, session: sessionB, request: requestId, outcome: 'rejected', failurePoint: 'turn.rejected', state: 'connected', authenticationPending: true, lastResponseMs: 250 }],
 			connectionSessions: [undefined, undefined],
 			privateContent: false,
 		});

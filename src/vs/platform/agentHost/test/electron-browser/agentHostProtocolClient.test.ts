@@ -5900,6 +5900,40 @@ suite('AgentHostProtocolClient', () => {
 			}
 		}
 
+		test('lifecycle diagnostic state distinguishes failed responses and resets on replacement transport', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const initial = client.getConnectionDiagnosticState();
+			await completeHandshake(transports[0], client.connect());
+			await timeout(25);
+			const beforeFailure = client.getConnectionDiagnosticState();
+			const failed = assert.rejects(client.listSessions(), /authorization unavailable/);
+			const request = await waitForRequestAtWithin(transports[0], 'listSessions', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: -32007, message: 'authorization unavailable' } });
+			await failed;
+			const afterFailure = client.getConnectionDiagnosticState();
+			transports[0].fireClose();
+			client.reconnectNow();
+			const replacement = await waitForTransport(transports, 1);
+			const whileReconnecting = client.getConnectionDiagnosticState();
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			const recovered = client.getConnectionDiagnosticState();
+			client.dispose();
+			assert.deepStrictEqual({
+				initial: [initial.connectionState, initial.lastSuccessfulResponseAgeMs, initial.authenticationRestorePending],
+				before: [beforeFailure.connectionState, beforeFailure.lastSuccessfulResponseAgeMs],
+				after: [afterFailure.connectionState, afterFailure.lastSuccessfulResponseAgeMs],
+				reconnecting: [whileReconnecting.connectionState, whileReconnecting.lastSuccessfulResponseAgeMs, whileReconnecting.reconnectAttempt],
+				recovered: [recovered.connectionState, recovered.lastSuccessfulResponseAgeMs, recovered.reconnectScheduled],
+				requests: transports.flatMap(transport => transport.sentMessages).filter(message => hasKey(message, { method: true }) && message.method === 'listSessions').length,
+			}, {
+				initial: ['connecting', undefined, false], before: ['connected', 25], after: ['connected', 25],
+				reconnecting: ['reconnecting', undefined, 1], recovered: ['connected', 0, false], requests: 1,
+			});
+		}));
+
 		test('lifecycle diagnostics preserve opaque session and chat resources without extra protocol requests', () => runWithFakedTimers({}, async () => {
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
 			const transport = transports[0];
