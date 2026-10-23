@@ -71,6 +71,7 @@ import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { createSessionActionsInstantiationService } from './sessionActionsHost.js';
 import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { CIStatusWidget } from './checksWidget.js';
@@ -690,7 +691,15 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(this.instantiationService.createInstance(ChangesActionsBar, container, createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope), TITLE_BAR_EXCLUDED_OPERATION_IDS));
+		const scope = createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+		let instantiationService = this.instantiationService;
+		if (scope.session !== this.sessionsService.activeSession) {
+			// The globally bound session action context keys belong to the active session.
+			const host = createSessionActionsInstantiationService(this.instantiationService, container, scope);
+			this._register(host.store);
+			instantiationService = host.instantiationService;
+		}
+		this._register(instantiationService.createInstance(ChangesActionsBar, container, scope, TITLE_BAR_EXCLUDED_OPERATION_IDS));
 	}
 }
 
