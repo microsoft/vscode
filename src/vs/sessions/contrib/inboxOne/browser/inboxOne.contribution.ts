@@ -127,7 +127,7 @@ class ShowInboxAgentMergeAlwaysSpotlightDebugAction extends Action2 {
 			title: localize2('sessions.debug.showInboxAgentMergeAlwaysSpotlight', "Show Inbox Agent Merge Always Spotlight"),
 			category: Categories.Developer,
 			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsDevelopmentContext),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatInboxEnabledContext, IsDevelopmentContext),
 		});
 	}
 

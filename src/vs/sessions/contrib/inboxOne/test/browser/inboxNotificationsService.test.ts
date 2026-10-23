@@ -6,14 +6,16 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { type IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, autorun, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { IAgentHostSessionsProvider, IAgentMergeClientState } from '../../../../common/agentHostSessionsProvider.js';
@@ -29,6 +31,8 @@ import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/mod
 import { IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CHAT_INBOX_ENABLED_SETTING } from '../../browser/inboxNotificationsConstants.js';
 
 suite('InboxNotificationsService', () => {
 	const dismissedStorageKey = 'sessions.inboxNotifications.dismissedIds';
@@ -126,6 +130,7 @@ suite('InboxNotificationsService', () => {
 		agentHostProvider?: TestAgentHostProvider,
 		withAgentHostProvider = true,
 		additionalProviders: readonly ISessionsProvider[] = [],
+		inboxEnabled = true,
 	): {
 		readonly service: InboxNotificationsService;
 		readonly storageService: InMemoryStorageService;
@@ -133,6 +138,8 @@ suite('InboxNotificationsService', () => {
 		readonly chatService: TestChatService;
 		readonly agentHostProvider: TestAgentHostProvider;
 		readonly telemetryEvents: { readonly eventName: string; readonly data: Record<string, unknown> }[];
+		readonly configurationService: TestConfigurationService;
+		readonly sentiment: ISettableObservable<IChatSentiment>;
 		setSessions(sessions: readonly ISession[]): void;
 		setAgentHostProviderRegistered(registered: boolean): void;
 	} {
@@ -170,6 +177,9 @@ suite('InboxNotificationsService', () => {
 			},
 		});
 		const telemetryEvents: { readonly eventName: string; readonly data: Record<string, unknown> }[] = [];
+		const configurationService = new TestConfigurationService({ [CHAT_INBOX_ENABLED_SETTING]: inboxEnabled });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const sentiment = observableValue<IChatSentiment>('test.chatSentiment', {});
 		const service = store.add(new InboxNotificationsService(
 			managementService,
 			sessionsProvidersService,
@@ -181,6 +191,8 @@ suite('InboxNotificationsService', () => {
 				onDidChangeLanguageModels: Event.None,
 			}),
 			upcastPartial<ITelemetryService>({ publicLog2: ((eventName: string, data?: Record<string, unknown>) => { telemetryEvents.push({ eventName, data: data ?? {} }); }) as ITelemetryService['publicLog2'] }),
+			configurationService,
+			upcastPartial<IChatEntitlementService>({ sentimentObs: sentiment }),
 		));
 		return {
 			service,
@@ -189,6 +201,8 @@ suite('InboxNotificationsService', () => {
 			chatService: effectiveChatService,
 			agentHostProvider: effectiveAgentHostProvider,
 			telemetryEvents,
+			configurationService,
+			sentiment,
 			setSessions(nextSessions: readonly ISession[]) {
 				sessions = [...nextSessions];
 				sessionsChangeEmitter.fire({ added: [], removed: [], changed: sessions });
@@ -665,6 +679,56 @@ suite('InboxNotificationsService', () => {
 		assert.strictEqual(fixture.service.isLoading.get(), false);
 	});
 
+	test('does not retain a chat model loaded after its session is removed or the service is disposed', async () => {
+		for (const disposeService of [false, true]) {
+			const chatService = new TestChatService();
+			let resolveAcquire!: (reference: IReference<IChatModel>) => void;
+			chatService.setAcquireOrLoadHandler(() => new Promise(resolve => { resolveAcquire = resolve; }));
+			const fixture = createFixture([
+				createSession({ id: 'removed-during-load', status: SessionStatus.NeedsInput, updatedAt: 200 }),
+			], undefined, undefined, chatService);
+			if (disposeService) {
+				fixture.service.dispose();
+			} else {
+				fixture.setSessions([]);
+			}
+			let disposed = false;
+			resolveAcquire({ object: upcastPartial<IChatModel>({}), dispose: () => { disposed = true; } });
+			await waitForState(fixture.service.isLoading, isLoading => !isLoading);
+			assert.strictEqual(disposed, true);
+		}
+	});
+
+	test('does no background work while disabled and responds to enablement and AI visibility changes', async () => {
+		const gitHubService = new TestGitHubService();
+		const chatService = new TestChatService();
+		let chatLoads = 0;
+		chatService.setAcquireOrLoadHandler(async () => {
+			chatLoads++;
+			return undefined;
+		});
+		gitHubService.setPullRequest('owner', 'repo', 42, openPullRequest(42, 'sha42'));
+		const fixture = createFixture([
+			createSession({ id: 'disabled', status: SessionStatus.NeedsInput, updatedAt: 100, pullRequest: { owner: 'owner', repo: 'repo', number: 42 } }),
+		], undefined, gitHubService, chatService, undefined, true, [], false);
+		const state = () => ({
+			notifications: fixture.service.notifications.get().length,
+			polling: gitHubService.pollingCount,
+			chatLoads,
+			events: fixture.telemetryEvents.length,
+		});
+		assert.deepStrictEqual(state(), { notifications: 0, polling: 0, chatLoads: 0, events: 0 });
+		await fixture.configurationService.setUserConfiguration(CHAT_INBOX_ENABLED_SETTING, true);
+		fixture.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === CHAT_INBOX_ENABLED_SETTING,
+		}));
+		assert.deepStrictEqual({ notifications: state().notifications, polling: state().polling, chatLoads }, { notifications: 1, polling: 3, chatLoads: 1 });
+		fixture.sentiment.set({ hidden: true }, undefined);
+		assert.deepStrictEqual({ notifications: state().notifications, polling: state().polling, chatLoads }, { notifications: 0, polling: 0, chatLoads: 1 });
+		fixture.sentiment.set({}, undefined);
+		assert.deepStrictEqual({ notifications: state().notifications, polling: state().polling }, { notifications: 1, polling: 3 });
+	});
+
 	test('prefers pending confirmation when a pending question carousel has no questions', () => {
 		const chatResource = URI.parse('test:///chat/pending-empty-question-carousel');
 		const chatService = new TestChatService();
@@ -821,6 +885,7 @@ suite('InboxNotificationsService', () => {
 		})], undefined, gitHubService);
 
 		gitHubService.setPullRequest('owner', 'repo', 77, openPullRequest(77, 'sha77', { isDraft: true }));
+		assert.strictEqual(gitHubService.pollingCount, 3, 'draft PR, CI, and review models must all be polled');
 		gitHubService.setCIStatus('owner', 'repo', 77, 'sha77', GitHubCIOverallStatus.Failure, [{
 			id: 1,
 			name: 'CI',
@@ -946,6 +1011,34 @@ suite('InboxNotificationsService', () => {
 			pullRequestStates: [{ label: '#46', statusLabel: 'Merged' }],
 			actions: [InboxNotificationActionKind.OpenSession, InboxNotificationActionKind.ArchiveSession, InboxNotificationActionKind.DeleteSession, InboxNotificationActionKind.MarkDone],
 		}]);
+	});
+
+	test('drops stale CI and review notifications when a pull request merges', () => {
+		for (const ciStatus of [GitHubCIOverallStatus.Success, GitHubCIOverallStatus.Failure]) {
+			const gitHubService = new TestGitHubService();
+			const fixture = createFixture([createSession({
+				id: `merged-${ciStatus}`, status: SessionStatus.Completed, updatedAt: 100,
+				pullRequest: { owner: 'owner', repo: 'repo', number: 46 },
+			})], undefined, gitHubService);
+			gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46'));
+			gitHubService.setCIStatus('owner', 'repo', 46, 'sha46', ciStatus, []);
+			gitHubService.setReviewThreads('owner', 'repo', 46, [{
+				id: 'copilot-thread', isResolved: false, path: 'test.ts', startLine: 1, line: 1,
+				comments: [{
+					id: 1, body: 'Review', author: { login: 'copilot[bot]', avatarUrl: '' },
+					createdAt: '2026-09-21T16:00:00Z', updatedAt: '2026-09-21T16:00:00Z',
+					path: 'test.ts', line: 1, threadId: 'copilot-thread', inReplyToId: undefined,
+				}],
+			}]);
+			assert.strictEqual(fixture.service.notifications.get().length, 2);
+			gitHubService.setPullRequest('owner', 'repo', 46, openPullRequest(46, 'sha46', {
+				state: GitHubPullRequestState.Merged, mergedAt: '2026-09-21T16:06:00Z',
+			}));
+			assert.deepStrictEqual({
+				kinds: fixture.service.notifications.get().map(item => item.kind),
+				polling: gitHubService.pollingCount,
+			}, { kinds: [InboxNotificationKind.PullRequestMerged], polling: 1 });
+		}
 	});
 
 	test('aggregates pull request notifications by kind and lists pull request states', () => {
@@ -1678,6 +1771,7 @@ class TestChatService {
 }
 
 class TestGitHubService {
+	pollingCount = 0;
 	private readonly _prModels = new Map<string, TestPullRequestModel>();
 	private readonly _ciModels = new Map<string, TestCIModel>();
 	private readonly _reviewThreadModels = new Map<string, TestReviewThreadsModel>();
@@ -1710,7 +1804,7 @@ class TestGitHubService {
 		const key = `${owner}/${repo}/${prNumber}`;
 		let model = this._prModels.get(key);
 		if (!model) {
-			model = new TestPullRequestModel();
+			model = new TestPullRequestModel(() => this.trackPolling());
 			this._prModels.set(key, model);
 		}
 		return model;
@@ -1720,7 +1814,7 @@ class TestGitHubService {
 		const key = `${owner}/${repo}/${prNumber}/${headSha}`;
 		let model = this._ciModels.get(key);
 		if (!model) {
-			model = new TestCIModel();
+			model = new TestCIModel(() => this.trackPolling());
 			this._ciModels.set(key, model);
 		}
 		return model;
@@ -1730,14 +1824,20 @@ class TestGitHubService {
 		const key = `${owner}/${repo}/${prNumber}`;
 		let model = this._reviewThreadModels.get(key);
 		if (!model) {
-			model = new TestReviewThreadsModel();
+			model = new TestReviewThreadsModel(() => this.trackPolling());
 			this._reviewThreadModels.set(key, model);
 		}
 		return model;
 	}
+
+	private trackPolling() {
+		this.pollingCount++;
+		return toDisposable(() => { this.pollingCount--; });
+	}
 }
 
 class TestPullRequestModel {
+	constructor(private readonly poll: () => IDisposable) { }
 	private readonly _pullRequest = observableValue<IGitHubPullRequest | undefined>('test.pullRequest', undefined);
 	readonly pullRequest = this._pullRequest;
 
@@ -1750,19 +1850,22 @@ class TestPullRequestModel {
 	}
 
 	startPolling() {
-		return toDisposable(() => { });
+		return this.poll();
 	}
 }
 
 class TestCIModel {
+	constructor(private readonly poll: () => IDisposable) { }
 	private readonly _overallStatus = observableValue<GitHubCIOverallStatus>('test.ciStatus', GitHubCIOverallStatus.Neutral);
 	readonly overallStatus = this._overallStatus;
 	private readonly _checks = observableValue<readonly IGitHubCICheck[]>('test.ciChecks', []);
 	readonly checks = this._checks;
 
 	set(status: GitHubCIOverallStatus, checks: readonly IGitHubCICheck[]): void {
-		this._overallStatus.set(status, undefined);
-		this._checks.set(checks, undefined);
+		transaction(tx => {
+			this._overallStatus.set(status, tx);
+			this._checks.set(checks, tx);
+		});
 	}
 
 	refresh(): Promise<void> {
@@ -1770,11 +1873,12 @@ class TestCIModel {
 	}
 
 	startPolling() {
-		return toDisposable(() => { });
+		return this.poll();
 	}
 }
 
 class TestReviewThreadsModel {
+	constructor(private readonly poll: () => IDisposable) { }
 	private readonly _reviewThreads = observableValue<readonly IGitHubPullRequestReviewThread[]>('test.reviewThreads', []);
 	readonly reviewThreads = this._reviewThreads;
 
@@ -1787,6 +1891,6 @@ class TestReviewThreadsModel {
 	}
 
 	startPolling() {
-		return toDisposable(() => { });
+		return this.poll();
 	}
 }

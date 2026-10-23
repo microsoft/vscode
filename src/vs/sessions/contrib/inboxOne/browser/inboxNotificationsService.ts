@@ -6,7 +6,7 @@
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Limiter } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -19,6 +19,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModelReference, IChatQuestion, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatService, IChatToolInvocation } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -54,6 +57,7 @@ import {
 	InboxNotificationsSortMode,
 } from '../common/inboxNotificationsService.js';
 import { getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
+import { CHAT_INBOX_ENABLED_SETTING } from './inboxNotificationsConstants.js';
 
 const DISMISSED_NOTIFICATION_IDS_STORAGE_KEY = 'sessions.inboxNotifications.dismissedIds';
 
@@ -647,9 +651,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	private readonly _revealRequest: ISettableObservable<IInboxNotificationRevealRequest | undefined>;
 	readonly revealRequest: IObservable<IInboxNotificationRevealRequest | undefined>;
 	private _revealToken = 0;
-	private readonly _refreshedPullRequestModelKeys = new Set<string>();
-	private readonly _refreshedPullRequestReviewThreadModelKeys = new Set<string>();
-	private readonly _refreshedPullRequestCIModelKeys = new Set<string>();
+	private readonly _refreshedGitHubModels = new WeakSet<object>();
+	private readonly _chatLoadToken = cancelOnDispose(this._store);
+	private readonly _activeNeedsInputChatResources = new Set<string>();
+	private readonly _activeCompletedPreviewChatResources = new Set<string>();
 	private readonly _needsInputChatModelRefs = new Map<string, IChatModelReference>();
 	private readonly _completedPreviewChatModelRefs = new Map<string, IChatModelReference>();
 	private readonly _loadingNeedsInputChatModels = new Set<string>();
@@ -696,6 +701,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	readonly notifications: IObservable<readonly IInboxNotificationItem[]>;
 	readonly dismissedNotifications: IObservable<readonly IInboxNotificationItem[]>;
 	private readonly _allItems: IObservable<readonly IInboxNotificationItem[]>;
+	private readonly _enabled: IObservable<boolean>;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -705,8 +711,13 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		@IStorageService private readonly storageService: IStorageService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+
+		const inboxEnabled = observableConfigValue(CHAT_INBOX_ENABLED_SETTING, false, configurationService);
+		this._enabled = derived(this, reader => inboxEnabled.read(reader) && !chatEntitlementService.sentimentObs.read(reader).hidden);
 
 		this._previews = observableValue('sessionsInboxNotificationsPreviews', new Map<string, string>());
 		this.previews = this._previews;
@@ -735,6 +746,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}));
 
 		this._register(autorun(reader => {
+			if (!this._enabled.read(reader)) {
+				return;
+			}
 			sessionsChanged.read(reader);
 			for (const session of this.sessionsManagementService.getSessions()) {
 				this.ensureGitHubModels(session, reader as IReaderWithStore);
@@ -751,6 +765,8 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this._completedPreviewChatModelRefs.clear();
 			this._loadingNeedsInputChatModels.clear();
 			this._loadingCompletedPreviewChatModels.clear();
+			this._activeNeedsInputChatResources.clear();
+			this._activeCompletedPreviewChatResources.clear();
 			this._chatModelChangeSignals.clear();
 			for (const cts of this._previewCancellationSources) {
 				cts.cancel();
@@ -765,31 +781,39 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			this._everSeenItemIds.clear();
 		}));
 		this._register(autorun(reader => {
-			sessionsChanged.read(reader);
+			this._activeNeedsInputChatResources.clear();
+			this._activeCompletedPreviewChatResources.clear();
+			if (this._enabled.read(reader)) {
+				sessionsChanged.read(reader);
+				for (const session of this.sessionsManagementService.getSessions()) {
+					if (session.isArchived.read(reader)) {
+						continue;
+					}
 
-			const activeNeedsInputChatResources = new Set<string>();
-			const activeCompletedPreviewChatResources = new Set<string>();
-			for (const session of this.sessionsManagementService.getSessions()) {
-				if (session.isArchived.read(reader)) {
-					continue;
-				}
+					if (session.status.read(reader) === SessionStatus.NeedsInput) {
+						for (const chat of session.chats.read(reader)) {
+							this.ensureChatModelLoaded(chat.resource, this._activeNeedsInputChatResources, this._needsInputChatModelRefs, this._loadingNeedsInputChatModels);
+						}
+					}
 
-				if (session.status.read(reader) === SessionStatus.NeedsInput) {
-					for (const chat of session.chats.read(reader)) {
-						this.ensureChatModelLoaded(chat.resource, activeNeedsInputChatResources, this._needsInputChatModelRefs, this._loadingNeedsInputChatModels);
+					if (session.status.read(reader) === SessionStatus.Completed && !session.isRead.read(reader)) {
+						this.ensureChatModelLoaded(session.mainChat.read(reader).resource, this._activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs, this._loadingCompletedPreviewChatModels);
 					}
 				}
-
-				if (session.status.read(reader) === SessionStatus.Completed && !session.isRead.read(reader)) {
-					this.ensureChatModelLoaded(session.mainChat.read(reader).resource, activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs, this._loadingCompletedPreviewChatModels);
+			} else {
+				for (const cts of this._previewCancellationSources) {
+					cts.cancel();
 				}
 			}
 
-			this.disposeInactiveChatModels(activeNeedsInputChatResources, this._needsInputChatModelRefs);
-			this.disposeInactiveChatModels(activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs);
+			this.disposeInactiveChatModels(this._activeNeedsInputChatResources, this._needsInputChatModelRefs);
+			this.disposeInactiveChatModels(this._activeCompletedPreviewChatResources, this._completedPreviewChatModelRefs);
 		}));
 
 		this._allItems = derived(this, reader => {
+			if (!this._enabled.read(reader)) {
+				return [];
+			}
 			sessionsChanged.read(reader);
 			providersChanged.read(reader);
 			this.chatService.chatModels.read(reader);
@@ -887,6 +911,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	requestPreview(item: IInboxNotificationItem): void {
+		if (!this._enabled.get() || this._store.isDisposed) {
+			return;
+		}
 		const signature = item.previewSignature;
 		const inputText = item.previewInputText;
 		if (!signature || !inputText) {
@@ -1200,7 +1227,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 	}
 
 	requestDetailSummary(item: IInboxNotificationItem): void {
-		if (!item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart)) {
+		if (!this._enabled.get() || this._store.isDisposed || !item.sessionResource || (item.kind !== InboxNotificationKind.Completed && !item.needsInputPart)) {
 			return;
 		}
 		const key = item.id;
@@ -1244,7 +1271,9 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				summary = await this._utilityLimiter.queue(() => this.invokeDetailModel(item, transcript, artifacts, cts.token)) as IInboxDetailSummary | undefined;
 				// Piggyback the restricted content classification on the same on-demand path so it
 				// reuses this transcript and adds no extra fan-out beyond what the user already viewed.
-				void this.classifyContent(key, item, transcript);
+				if (!cts.token.isCancellationRequested) {
+					void this.classifyContent(key, item, transcript);
+				}
 			}
 		} catch (error) {
 			onUnexpectedError(error);
@@ -1691,16 +1720,15 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 		}
 
 		for (const pullRequestRef of this.getSessionPullRequestRefs(session, reader)) {
-			const pullRequestKey = `${pullRequestRef.owner}/${pullRequestRef.repo}#${pullRequestRef.number}`;
 			const pullRequestModelRef = reader.delayedStore.add(this.gitHubService.createPullRequestModelReference(
 				pullRequestRef.owner,
 				pullRequestRef.repo,
 				pullRequestRef.number,
 			));
-			if (!this._refreshedPullRequestModelKeys.has(pullRequestKey)) {
-				this._refreshedPullRequestModelKeys.add(pullRequestKey);
+			if (!this._refreshedGitHubModels.has(pullRequestModelRef.object)) {
+				this._refreshedGitHubModels.add(pullRequestModelRef.object);
 				const endLoading = this.beginLoadingOperation();
-				void pullRequestModelRef.object.refresh()
+				void pullRequestModelRef.object.refresh({ priority: 'background' })
 					.catch(onUnexpectedError)
 					.finally(() => endLoading());
 			}
@@ -1708,7 +1736,7 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 			const pullRequest = pullRequestModelRef.object.pullRequest.read(reader);
 			const effectiveState = pullRequest?.state ?? pullRequestRef.liveState ?? pullRequestRef.state;
-			if (effectiveState !== GitHubPullRequestState.Open || pullRequest?.isDraft) {
+			if (effectiveState !== GitHubPullRequestState.Open) {
 				continue;
 			}
 
@@ -1717,10 +1745,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				pullRequestRef.repo,
 				pullRequestRef.number,
 			));
-			if (!this._refreshedPullRequestReviewThreadModelKeys.has(pullRequestKey)) {
-				this._refreshedPullRequestReviewThreadModelKeys.add(pullRequestKey);
+			if (!this._refreshedGitHubModels.has(reviewThreadsModelRef.object)) {
+				this._refreshedGitHubModels.add(reviewThreadsModelRef.object);
 				const endLoading = this.beginLoadingOperation();
-				void reviewThreadsModelRef.object.refresh()
+				void reviewThreadsModelRef.object.refresh(false, { priority: 'background' })
 					.catch(onUnexpectedError)
 					.finally(() => endLoading());
 			}
@@ -1737,11 +1765,10 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 				pullRequestRef.number,
 				headSha,
 			));
-			const ciKey = `${pullRequestKey}@${headSha}`;
-			if (!this._refreshedPullRequestCIModelKeys.has(ciKey)) {
-				this._refreshedPullRequestCIModelKeys.add(ciKey);
+			if (!this._refreshedGitHubModels.has(ciModelRef.object)) {
+				this._refreshedGitHubModels.add(ciModelRef.object);
 				const endLoading = this.beginLoadingOperation();
-				void ciModelRef.object.refresh()
+				void ciModelRef.object.refresh(false, { priority: 'background' })
 					.catch(onUnexpectedError)
 					.finally(() => endLoading());
 			}
@@ -1774,6 +1801,18 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 			// (Passing CI → Merge) below, since a draft cannot be merged.
 			const isDraft = pullRequest?.isDraft === true;
 			if (effectiveState !== GitHubPullRequestState.Open && effectiveState !== GitHubPullRequestState.Merged) {
+				continue;
+			}
+			if (effectiveState === GitHubPullRequestState.Merged) {
+				const icon = computePullRequestIcon(effectiveState);
+				const mergedTimestamp = parseTimestamp(pullRequest?.mergedAt) ?? parseTimestamp(pullRequest?.updatedAt) ?? sessionUpdatedAt;
+				mergedCandidates.push({
+					ref: pullRequestRef,
+					icon,
+					statusLabel: getPullRequestStatusLabel(icon),
+					timestamp: mergedTimestamp,
+					identity: pullRequest?.mergedAt ?? String(mergedTimestamp),
+				});
 				continue;
 			}
 
@@ -1826,15 +1865,6 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 					...candidateBase,
 					timestamp: ciTimestamp,
 					identity: headSha ?? String(ciTimestamp),
-				});
-			}
-
-			if (effectiveState === GitHubPullRequestState.Merged) {
-				const mergedTimestamp = parseTimestamp(pullRequest?.mergedAt) ?? parseTimestamp(pullRequest?.updatedAt) ?? sessionUpdatedAt;
-				mergedCandidates.push({
-					...candidateBase,
-					timestamp: mergedTimestamp,
-					identity: pullRequest?.mergedAt ?? String(mergedTimestamp),
 				});
 			}
 
@@ -2335,12 +2365,12 @@ export class InboxNotificationsService extends Disposable implements IInboxNotif
 
 		const endLoading = this.beginLoadingOperation();
 		loadingChatResources.add(chatResourceKey);
-		void this.chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, CancellationToken.None, 'InboxNotificationsService')
+		void this.chatService.acquireOrLoadSession(chatResource, ChatAgentLocation.Chat, this._chatLoadToken, 'InboxNotificationsService')
 			.then(modelRef => {
 				if (!modelRef) {
 					return;
 				}
-				if (!activeChatResources.has(chatResourceKey)) {
+				if (this._store.isDisposed || !activeChatResources.has(chatResourceKey)) {
 					modelRef.dispose();
 					return;
 				}

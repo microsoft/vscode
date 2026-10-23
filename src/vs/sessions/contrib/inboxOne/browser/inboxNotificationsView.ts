@@ -12,6 +12,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Orientation, Sash, SashState, ISashEvent } from '../../../../base/browser/ui/sash/sash.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -332,6 +333,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 		className: 'inbox-notifications-scrollable',
 	}));
 	private readonly renderedListDisposables = this._register(new DisposableStore());
+	private readonly cardVisibilityObserver: IntersectionObserver;
+	private readonly visibleCardIds = new Set<string>();
 	private renderedCards: HTMLElement[] = [];
 	private renderedItems: readonly IInboxNotificationItem[] = [];
 	private readonly collapsedSections = new Set<string>();
@@ -389,6 +392,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	constructor(
+		intersectionObserver: typeof IntersectionObserver = mainWindow.IntersectionObserver,
 		@IInboxNotificationsService private readonly inboxNotificationsService: IInboxNotificationsService,
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -407,6 +411,33 @@ export class InboxNotificationsView extends AbstractCustomView {
 		@IAgentsActivityService private readonly agentsActivityService: IAgentsActivityService,
 	) {
 		super();
+		this.cardVisibilityObserver = new intersectionObserver(entries => {
+			for (const entry of entries) {
+				if (!isHTMLElement(entry.target) || this._store.isDisposed) {
+					continue;
+				}
+				const index = this.renderedCards.indexOf(entry.target);
+				const id = entry.target.dataset.notificationId;
+				if (!id || index < 0) {
+					continue;
+				}
+				if (!entry.isIntersecting) {
+					this.visibleCardIds.delete(id);
+					continue;
+				}
+				const item = this.getItemById(id);
+				if (!item) {
+					continue;
+				}
+				this.visibleCardIds.add(id);
+				if (!this.itemFirstSeenMs.has(id)) {
+					this.itemFirstSeenMs.set(id, Date.now());
+				}
+				this.inboxNotificationsService.requestPreview(item);
+				this.reportImpression(item, index);
+			}
+		}, { root: this.scrollableElement.getDomNode() });
+		this._register(toDisposable(() => this.cardVisibilityObserver.disconnect()));
 		InboxNotificationsView.activeInstance = this;
 		this.agentMergeAlwaysOptInService = this.instantiationService.createInstance(InboxAgentMergeAlwaysOptInService);
 		this.description = this.inboxNotificationsService.notifications.map(items => {
@@ -835,6 +866,8 @@ export class InboxNotificationsView extends AbstractCustomView {
 			: -1;
 
 		this.renderedListDisposables.clear();
+		this.cardVisibilityObserver.disconnect();
+		this.visibleCardIds.clear();
 		clearNode(list);
 
 		this.pruneAttentionTrackingMaps(items);
@@ -933,13 +966,10 @@ export class InboxNotificationsView extends AbstractCustomView {
 	}
 
 	private appendCard(list: HTMLElement, item: IInboxNotificationItem): void {
-		if (!this.itemFirstSeenMs.has(item.id)) {
-			this.itemFirstSeenMs.set(item.id, Date.now());
-		}
 		const card = this.renderItem(item);
 		this.renderedCards.push(card);
 		list.appendChild(card);
-		this.reportImpression(item, this.renderedCards.length - 1);
+		this.cardVisibilityObserver.observe(card);
 	}
 
 	/** Logs a one-per-notification impression the first time its card is shown in this view instance. */
@@ -1167,7 +1197,6 @@ export class InboxNotificationsView extends AbstractCustomView {
 
 		const descriptionEl = card.appendChild($('.inbox-notifications-item-description'));
 		if (item.previewSignature) {
-			this.inboxNotificationsService.requestPreview(item);
 			const signature = item.previewSignature;
 			// Needs-input cards never show the generic "Answer the pending questions below." text:
 			// while the model-written summary is still generating, show a playful working message so
@@ -1177,6 +1206,9 @@ export class InboxNotificationsView extends AbstractCustomView {
 			const pendingText = item.needsInputPart ? `${pickFunWorkingMessage()}…` : item.description;
 			this.renderedListDisposables.add(autorun(reader => {
 				const preview = this.inboxNotificationsService.previews.read(reader).get(signature);
+				if (!preview && this.visibleCardIds.has(item.id)) {
+					this.inboxNotificationsService.requestPreview(item);
+				}
 				descriptionEl.textContent = preview ?? pendingText;
 				descriptionEl.classList.toggle('inbox-notifications-item-description-pending', !preview);
 			}));
