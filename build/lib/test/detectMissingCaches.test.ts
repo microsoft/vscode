@@ -46,7 +46,7 @@ function readRepositoryFile(relativePath: string): Buffer {
  */
 const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os'] }> = {
 	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux' },
-	'1ES.Pool=1es-vscode-oss-windows-2022-x64': { platform: 'win32', arch: 'x64', os: 'Windows' },
+	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', os: 'Windows' },
 	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS' },
 };
 
