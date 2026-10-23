@@ -192,16 +192,27 @@ jobs:
   # The test jobs below report "<OS> (<part>) / <job>" checks and skip when the
   # changes cannot affect them. required-checks reports the required
   # "<OS> / <job>" checks from their results.
+  # The Electron unit tests run in two shards, on other machines than the node.js unit tests, so that they finish sooner.
   linux-electron-unit-tests:
-    name: Linux (run)
+    name: Linux (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: electron 1/2, suite: electron, shard: 1 }
+          - { part: electron 2/2, suite: electron, shard: 2 }
+          - { part: node, suite: node, shard: 1 }
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron-Unit
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_suite: ${{ matrix.suite }}
+      unit_test_shard_index: ${{ matrix.shard }}
+      unit_test_shard_total: ${{ matrix.suite == 'electron' && 2 || 1 }}
 
   linux-electron-tests:
     name: Linux (run)
@@ -267,15 +278,25 @@ jobs:
       remote_tests: true
 
   macos-electron-unit-tests:
-    name: macOS (run)
+    name: macOS (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: electron 1/2, suite: electron, shard: 1 }
+          - { part: electron 2/2, suite: electron, shard: 2 }
+          - { part: node, suite: node, shard: 1 }
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron-Unit
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_suite: ${{ matrix.suite }}
+      unit_test_shard_index: ${{ matrix.shard }}
+      unit_test_shard_total: ${{ matrix.suite == 'electron' && 2 || 1 }}
 
   macos-electron-tests:
     name: macOS (run)
@@ -341,15 +362,25 @@ jobs:
       remote_tests: true
 
   windows-electron-unit-tests:
-    name: Windows (run)
+    name: Windows (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: electron 1/2, suite: electron, shard: 1 }
+          - { part: electron 2/2, suite: electron, shard: 2 }
+          - { part: node, suite: node, shard: 1 }
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron-Unit
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_suite: ${{ matrix.suite }}
+      unit_test_shard_index: ${{ matrix.shard }}
+      unit_test_shard_total: ${{ matrix.suite == 'electron' && 2 || 1 }}
 
   windows-electron-tests:
     name: Windows (run)
