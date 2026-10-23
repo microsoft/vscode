@@ -56,13 +56,18 @@ export class IssueReporterOpenStateContribution extends Disposable {
 			return;
 		}
 		const evt = new StandardKeyboardEvent(e);
-		const resolved = this.keybindingService.softDispatch(evt, evt.target ?? mainWindow.document.body);
+		const target = evt.target ?? mainWindow.document.body;
+		const resolved = this.keybindingService.softDispatch(evt, target);
 		if (resolved.kind !== ResultKind.KbFound || (resolved.commandId !== ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID && resolved.commandId !== ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID)) {
 			return;
 		}
 		e.preventDefault();
 		e.stopPropagation();
-		void this.commandService.executeCommand(resolved.commandId);
+		if (this.keybindingService.inChordMode) {
+			this.keybindingService.dispatchEvent(evt, target);
+		} else {
+			void this.commandService.executeCommand(resolved.commandId);
+		}
 	}
 }
 

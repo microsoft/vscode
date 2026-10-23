@@ -19,8 +19,9 @@ suite('Standalone auxiliary native menus', () => {
 			ordinaryAfter: 1,
 			stale: { renderer: 0, picker: 0, recent: 0, newWindow: 0, handledKeybinding: true },
 			nativeActions: ['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll', 'close', 'close'],
-			nativeRoles: isMacintosh ? ['close', 'undo', 'redo', 'cut', 'copy', 'paste', 'selectall'] : [],
-			nativeAccelerators: isMacintosh ? [false, false, false, false, false, false, false] : [],
+			nativeRoles: isMacintosh ? ['none', 'none', 'none', 'cut', 'copy', 'paste', 'none'] : [],
+			workbenchAccelerators: isMacintosh ? [] : [true, true, true],
+			staleStandaloneClose: isMacintosh ? { role: 'none', nativeClose: false, dispatch: { id: 'workbench.action.closeActiveEditor', from: 'menu' } } : undefined,
 			nativeZoom: [
 				{ id: '_workbench.action.issueReporter.zoom', from: 'menu', args: [15, 'workbench.action.zoomIn'] },
 				{ id: '_workbench.action.issueReporter.zoom', from: 'menu', args: [15, 'workbench.action.zoomOut'] },

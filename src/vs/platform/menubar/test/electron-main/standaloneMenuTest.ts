@@ -37,7 +37,8 @@ export interface IStandaloneMenuTestResult {
 	stale: { renderer: number; picker: number; recent: number; newWindow: number; handledKeybinding: boolean };
 	nativeActions: string[];
 	nativeRoles: string[];
-	nativeAccelerators: boolean[];
+	workbenchAccelerators: boolean[];
+	staleStandaloneClose: { role: string; nativeClose: boolean; dispatch: INativeRunActionInWindowRequest | INativeRunKeybindingInWindowRequest | undefined } | undefined;
 	nativeZoom: INativeRunActionInWindowRequest[];
 	zoomMenuItems: string[];
 	workbenchItems: string[];
@@ -95,6 +96,7 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 		let picker = 0;
 		let recent = 0;
 		let newWindow = 0;
+		let lastRendererRequest: INativeRunActionInWindowRequest | INativeRunKeybindingInWindowRequest | undefined;
 		const nativeZoom: INativeRunActionInWindowRequest[] = [];
 		instantiation.stub(INativeHostMainService, {
 			onDidFocusMainOrAuxiliaryWindow: focus.event,
@@ -110,6 +112,7 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 					nativeZoom.push(request);
 				} else {
 					renderer++;
+					lastRendererRequest = request;
 				}
 			},
 		});
@@ -178,18 +181,30 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 		const nativeItems = isMacintosh ? menu.items
 			.filter(item => item.label === 'File' || item.label === 'Edit')
 			.flatMap(item => item.submenu!.items.filter(item => item.type !== 'separator' && item.enabled)) : [];
-		const nativeRoles = nativeItems.map(item => item.role!);
-		const nativeAccelerators = nativeItems.map(item => item.registerAccelerator);
+		const nativeRoles = nativeItems.map(item => item.role ?? 'none');
 		const zoomMenuItems = isMacintosh ? menu.items.find(item => item.label === 'View')!.submenu!.items.map(item => item.label) : [];
-		const workbenchItems = menu.items.flatMap(item => item.submenu?.items ?? []).filter(item => ['New Text File', 'Open Folder', 'Recent File'].includes(item.label)).map(item => item.label);
+		const workbenchMenuItems = menu.items.flatMap(item => item.submenu?.items ?? []).filter(item => ['New Text File', 'Open Folder', 'Recent File'].includes(item.label));
+		const workbenchItems = workbenchMenuItems.map(item => item.label);
+		const workbenchAccelerators = workbenchMenuItems.map(item => item.registerAccelerator);
 
 		isolated = false;
+		let staleStandaloneClose: IStandaloneMenuTestResult['staleStandaloneClose'];
+		if (isMacintosh) {
+			const close = nativeItems.find(item => item.label === 'Close Window')!;
+			const before = nativeActions.length;
+			lastRendererRequest = undefined;
+			if (!close.role) {
+				click(close);
+			}
+			staleStandaloneClose = { role: close.role ?? 'none', nativeClose: nativeActions.length !== before, dispatch: lastRendererRequest };
+			renderer = 0;
+		}
 		focus.fire(15);
 		menubar['menuUpdater'].cancel();
 		menubar['install']();
 		click(newText);
 		const ordinaryAfter = renderer;
-		return { ordinaryBefore, ordinaryAfter, stale, nativeActions, nativeRoles, nativeAccelerators, nativeZoom, zoomMenuItems, workbenchItems, rebuildOnAuxiliaryFocus };
+		return { ordinaryBefore, ordinaryAfter, stale, nativeActions, nativeRoles, workbenchAccelerators, staleStandaloneClose, nativeZoom, zoomMenuItems, workbenchItems, rebuildOnAuxiliaryFocus };
 	} finally {
 		shutdown.fire({ reason: ShutdownReason.QUIT, join: () => { } });
 		store.dispose();

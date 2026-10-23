@@ -424,18 +424,19 @@ export class Menubar extends Disposable {
 		menu.append(new MenuItem({ label: this.productService.nameShort, submenu: application }));
 
 		const file = new Menu();
-		file.append(this.createRoleMenuItem(nls.localize('standaloneCloseWindow', "Close Window"), 'workbench.action.closeActiveEditor', 'close'));
+		// Native roles bypass click guards while the standalone menu is waiting to be replaced.
+		file.append(this.createMenuItem(nls.localize('standaloneCloseWindow', "Close Window"), 'workbench.action.closeActiveEditor', true));
 		menu.append(new MenuItem({ label: nls.localize('standaloneFile', "File"), submenu: file }));
 
 		const edit = new Menu();
-		edit.append(this.createRoleMenuItem(nls.localize('standaloneUndo', "Undo"), 'undo', 'undo'));
-		edit.append(this.createRoleMenuItem(nls.localize('standaloneRedo', "Redo"), 'redo', 'redo'));
+		edit.append(this.createMenuItem(nls.localize('standaloneUndo', "Undo"), 'undo', true));
+		edit.append(this.createMenuItem(nls.localize('standaloneRedo', "Redo"), 'redo', true));
 		edit.append(__separator__());
-		edit.append(this.createRoleMenuItem(nls.localize('standaloneCut', "Cut"), 'editor.action.clipboardCutAction', 'cut'));
-		edit.append(this.createRoleMenuItem(nls.localize('standaloneCopy', "Copy"), 'editor.action.clipboardCopyAction', 'copy'));
-		edit.append(this.createRoleMenuItem(nls.localize('standalonePaste', "Paste"), 'editor.action.clipboardPasteAction', 'paste'));
+		edit.append(this.createMenuItem(nls.localize('standaloneCut', "Cut"), 'editor.action.clipboardCutAction', true));
+		edit.append(this.createMenuItem(nls.localize('standaloneCopy', "Copy"), 'editor.action.clipboardCopyAction', true));
+		edit.append(this.createMenuItem(nls.localize('standalonePaste', "Paste"), 'editor.action.clipboardPasteAction', true));
 		edit.append(__separator__());
-		edit.append(this.createRoleMenuItem(nls.localize('standaloneSelectAll', "Select All"), 'editor.action.selectAll', 'selectAll'));
+		edit.append(this.createMenuItem(nls.localize('standaloneSelectAll', "Select All"), 'editor.action.selectAll', true));
 		menu.append(new MenuItem({ label: nls.localize('standaloneEdit', "Edit"), submenu: edit }));
 
 		const view = new Menu();
@@ -639,9 +640,7 @@ export class Menubar extends Disposable {
 		const options: MenuItemConstructorOptions = {
 			label: this.mnemonicLabel(label),
 			role,
-			enabled: true,
-			// A stale standalone menu must not intercept a newly focused workbench's shortcuts.
-			registerAccelerator: !this.focusedStandaloneWindow
+			enabled: true
 		};
 
 		return new MenuItem(this.withKeybinding(commandId, options));
@@ -748,8 +747,7 @@ export class Menubar extends Disposable {
 		const options: MenuItemConstructorOptions = {
 			label,
 			click,
-			enabled,
-			registerAccelerator: !this.focusedStandaloneWindow
+			enabled
 		};
 
 		if (checked) {

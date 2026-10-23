@@ -7,14 +7,16 @@ import assert from 'assert';
 import { spy } from 'sinon';
 import { $, addDisposableListener, Dimension, EventHelper, registerWindow } from '../../../../../base/browser/dom.js';
 import { getZoomLevel } from '../../../../../base/browser/browser.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IME } from '../../../../../base/common/ime.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { decodeKeybinding, Keybinding } from '../../../../../base/common/keybindings.js';
 import { isMacintosh, OS } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -29,15 +31,18 @@ import { IEditorOptions } from '../../../../../platform/editor/common/editor.js'
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, _util } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeyboardEvent, IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { AbstractKeybindingService } from '../../../../../platform/keybinding/common/abstractKeybindingService.js';
 import { KeybindingResolver, NoMatchingKb } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindow, IAuxiliaryWindowCloseHandler, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -786,6 +791,55 @@ suite('NativeIssueFormService reporter windows', () => {
 		editor.dispatchEvent(capture);
 		assert.deepStrictEqual({ zoom: getZoomLevel(windows[0].window), zoomPrevented: zoom.defaultPrevented, capturePrevented: capture.defaultPrevented, commands }, {
 			zoom: initialLevel + 1, zoomPrevented: true, capturePrevented: true, commands: [ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID],
+		});
+	});
+
+	test('completes capture chords through the dispatcher before ordinary typing', async () => {
+		const { service, instantiation, source } = createService();
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, { executeCommand: async id => { commands.push(id); } });
+		const mapper = new MockKeybindingService();
+		const binding = decodeKeybinding(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS), OS)!;
+		const resolver = new KeybindingResolver([], [new ResolvedKeybindingItem(mapper.resolveKeybinding(binding)[0], ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, undefined, undefined, false, null, false)], () => { });
+		const keybindings = store.add(new class extends AbstractKeybindingService {
+			protected override _getResolver() { return resolver; }
+			protected override _documentHasFocus() { return true; }
+			override resolveKeybinding(keybinding: Keybinding) { return mapper.resolveKeybinding(keybinding); }
+			override resolveKeyboardEvent(event: IKeyboardEvent) { return mapper.resolveKeyboardEvent(event); }
+			override resolveUserBinding() { return []; }
+			override registerSchemaContribution() { return Disposable.None; }
+			override enableKeybindingHoldMode() { return undefined; }
+			override _dumpDebugInfo() { return ''; }
+			override _dumpDebugInfoJSON() { return ''; }
+		}(instantiation.get(IContextKeyService), instantiation.get(ICommandService), NullTelemetryService, new class extends mock<INotificationService>() {
+			override status() { return { close: () => { } }; }
+		}(), store.add(new NullLogService())));
+		instantiation.stub(IKeybindingService, keybindings);
+		store.add(instantiation.createInstance(IssueReporterOpenStateContribution));
+		store.add(addDisposableListener(mainWindow, 'keydown', event => {
+			const key = new StandardKeyboardEvent(event);
+			if (keybindings.dispatchEvent(key, key.target ?? source)) {
+				event.preventDefault();
+			}
+		}));
+		await service.openReporter(data());
+		const editor = source.appendChild($<HTMLTextAreaElement>('textarea'));
+		editor.focus();
+		const press = (key: string, keyCode: number, primary = false) => {
+			const event = new KeyboardEvent('keydown', { key, keyCode, ctrlKey: primary && !isMacintosh, metaKey: primary && isMacintosh, bubbles: true, cancelable: true });
+			editor.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const prefixPrevented = press('k', 75, true);
+		const chordStarted = keybindings.inChordMode;
+		const capturePrevented = press('s', 83, true);
+		const afterCapture = { chord: keybindings.inChordMode, imeEnabled: IME.enabled };
+		const typingPrevented = press('x', 88);
+		if (!typingPrevented) {
+			editor.ownerDocument.execCommand('insertText', false, 'x');
+		}
+		assert.deepStrictEqual({ prefixPrevented, chordStarted, capturePrevented, afterCapture, typingPrevented, text: editor.value, commands }, {
+			prefixPrevented: true, chordStarted: true, capturePrevented: true, afterCapture: { chord: false, imeEnabled: true }, typingPrevented: false, text: 'x', commands: [ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID],
 		});
 	});
 
