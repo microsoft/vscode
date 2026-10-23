@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
@@ -403,19 +403,22 @@ export class VisibleSessions extends Disposable {
 	private readonly _windowSessionsByChat = new Map<string, VisibleSession>();
 	private readonly _windowSessions = observableValue<readonly IActiveSession[]>(this, []);
 	readonly windowSessions: IObservable<readonly IActiveSession[]> = this._windowSessions;
-	/** The grid slot that was active when a window session became active, to fall back to when that window closes. */
-	private _lastGridActive: IActiveSession | undefined | typeof NO_RECENT = NO_RECENT;
+	/** Chat resources of window sessions that do not become the active session; see {@link isPassiveWindowSession}. */
+	private readonly _passiveWindowChats = new Set<string>();
 
 	/**
 	 * Shows a chat of a session in a window of its own, outside the grid: the session shows only that chat there. The
 	 * session is not shown in the grid by this; it can become the active session while its window is focused.
 	 */
-	showInWindow(session: ISession, chat: IChat, transaction?: ITransaction): IActiveSession {
+	showInWindow(session: ISession, chat: IChat, transaction?: ITransaction, passive = false): IActiveSession {
 		const key = chat.resource.toString();
 		let wrapper = this._windowSessionsByChat.get(key);
 		if (!wrapper) {
 			wrapper = new VisibleSession(session, chat, undefined, [key], chat.resource, true);
 			this._windowSessionsByChat.set(key, wrapper);
+			if (passive) {
+				this._passiveWindowChats.add(key);
+			}
 			this._windowSessions.set([...this._windowSessionsByChat.values()], transaction);
 		}
 		return wrapper;
@@ -424,6 +427,14 @@ export class VisibleSessions extends Disposable {
 	/** Whether `session` is shown in a window of its own; see {@link showInWindow}. */
 	isWindowSession(session: ISession | undefined): boolean {
 		return session instanceof VisibleSession && !!session.scopedChatResource && this._windowSessionsByChat.get(session.scopedChatResource.toString()) === session;
+	}
+
+	/**
+	 * Whether `session` is a window session that does not become the active session, shown with `passive`; see
+	 * {@link showInWindow}. It stays so when the session is replaced.
+	 */
+	isPassiveWindowSession(session: ISession | undefined): boolean {
+		return this.isWindowSession(session) && this._passiveWindowChats.has((session as VisibleSession).scopedChatResource!.toString());
 	}
 
 	/** The window session of a session: of the given chat, or of any chat of it. */
@@ -445,12 +456,12 @@ export class VisibleSessions extends Disposable {
 		}
 		const wrapper = session as VisibleSession;
 		transaction(tx => {
-			this._windowSessionsByChat.delete(wrapper.scopedChatResource!.toString());
+			const key = wrapper.scopedChatResource!.toString();
+			this._windowSessionsByChat.delete(key);
+			this._passiveWindowChats.delete(key);
 			this._windowSessions.set([...this._windowSessionsByChat.values()], tx);
 			if (this._activeSession.get() === wrapper) {
-				const grid = this._gridSessions.get();
-				const last = this._lastGridActive;
-				this._setActiveSession(last !== NO_RECENT && grid.includes(last) ? last : grid[0], false, tx);
+				this._setActiveSession(this._getGridActiveSession(undefined), false, tx);
 			}
 		});
 		wrapper.dispose();
@@ -468,10 +479,11 @@ export class VisibleSessions extends Disposable {
 			const replacement = chat ? new VisibleSession(updatedSession, chat, undefined, [key], chat.resource, true) : undefined;
 			if (replacement) {
 				this._windowSessionsByChat.set(key, replacement);
+			} else {
+				this._passiveWindowChats.delete(key);
 			}
 			if (this._activeSession.get() === wrapper) {
-				const grid = this._gridSessions.get();
-				this._setActiveSession(replacement ?? grid[0], true, tx);
+				this._setActiveSession(replacement ?? this._getGridActiveSession(undefined), true, tx);
 			}
 			this._windowSessions.set([...this._windowSessionsByChat.values()], tx);
 			wrapper.dispose();
@@ -609,8 +621,11 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
-	/** The active session of the grid, which stays while a window session is the active session; see {@link mainWindowActiveSession}. */
-	private readonly _gridActiveSession = observableValue<IActiveSession | undefined>(this, undefined);
+	/**
+	 * The active session of the grid, which stays while a window session is the active session: `undefined` while the
+	 * empty new-session slot is, and {@link NO_RECENT} before any session of the grid was. See {@link mainWindowActiveSession}.
+	 */
+	private readonly _gridActiveSession = observableValue<IActiveSession | undefined | typeof NO_RECENT>(this, NO_RECENT);
 
 	/**
 	 * The session of the grid the main window is laid out for: the active session, or, while a window session is, the
@@ -621,10 +636,18 @@ export class VisibleSessions extends Disposable {
 		if (!this.isWindowSession(active)) {
 			return active;
 		}
+		return this._getGridActiveSession(reader);
+	});
+
+	/**
+	 * The session of the grid active before a window session became the active session, including the empty
+	 * new-session slot, while the grid still shows it; else the first slot of the grid.
+	 */
+	private _getGridActiveSession(reader: IReader | undefined): IActiveSession | undefined {
 		const grid = this._gridSessions.read(reader);
 		const gridActive = this._gridActiveSession.read(reader);
-		return gridActive && grid.includes(gridActive) ? gridActive : grid[0];
-	});
+		return gridActive !== NO_RECENT && grid.includes(gridActive) ? gridActive : grid[0];
+	}
 
 	/**
 	 * Whether the most recent active-session change asked to preserve keyboard
@@ -687,7 +710,6 @@ export class VisibleSessions extends Disposable {
 	 */
 	private _setActiveSession(session: IActiveSession | undefined, preserveFocus: boolean, tsx: ITransaction): void {
 		if (!this.isWindowSession(session)) {
-			this._lastGridActive = session;
 			this._gridActiveSession.set(session, tsx);
 		}
 		this._activeSession.set(session, tsx);
@@ -1263,7 +1285,7 @@ export class VisibleSessions extends Disposable {
 		const active = this._activeSession.get();
 		if (this.isWindowSession(active)) {
 			// A window is focused: the grid's own active slot is the one active before it.
-			const last = this._lastGridActive;
+			const last = this._gridActiveSession.get();
 			if (last === NO_RECENT) {
 				return NO_RECENT;
 			}

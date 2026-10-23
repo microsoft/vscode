@@ -1303,6 +1303,36 @@ suite('VisibleSessions', () => {
 			});
 			model.removeFromWindow(windowSession);
 		});
+
+		test('the main window and closing the window agree on the new-session slot that was active', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			model.restoreGrid([{ session: a, sticky: false }, { session: undefined, sticky: false }], 1);
+			const windowSession = model.showInWindow(b, stubChat);
+			model.setActive(windowSession);
+			const windowFocused = { active: model.activeSession.get()?.sessionId, mainWindow: model.mainWindowActiveSession.get()?.sessionId ?? 'composer' };
+			model.removeFromWindow(windowSession);
+			assert.deepStrictEqual({ windowFocused, closed: { ...snapshot(model), mainWindow: model.mainWindowActiveSession.get()?.sessionId ?? 'composer' } }, {
+				windowFocused: { active: 'b', mainWindow: 'composer' },
+				closed: { visible: ['a', undefined], active: undefined, sticky: [], mainWindow: 'composer' },
+			});
+		});
+
+		test('a passive window session stays passive when its session is replaced', () => {
+			const model = createModel();
+			const a = stubSession('a');
+			const b = stubSession('b');
+			model.restoreGrid([{ session: a, sticky: false }], 0);
+			const passive = model.showInWindow(b, stubChat, undefined, true);
+			const shown = model.isPassiveWindowSession(passive);
+			model.updateSession(b, { ...stubSession('b') });
+			const replacement = model.getWindowSession('b', stubChat.resource);
+			assert.deepStrictEqual({ shown, replaced: replacement !== passive, passiveAfterUpdate: model.isPassiveWindowSession(replacement) }, {
+				shown: true, replaced: true, passiveAfterUpdate: true,
+			});
+			model.removeFromWindow(replacement!);
+		});
 	});
 });
 
