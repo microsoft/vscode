@@ -684,6 +684,62 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	for (const targetKind of ['skill', 'plugin'] as const) {
+		test(`equivalent ${targetKind} installation target URIs keep browse cards and focus`, async () => {
+			const fixture = createPage(['agentFinder']);
+			const item = resource('installed-item');
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/item'), name: 'item' } });
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({ items: [item] });
+			await timeout(0);
+			const card = fixture.container.querySelector('.customization-discovery-card');
+			const primaryAction = card?.querySelector<HTMLElement>('.customization-discovery-card-primary');
+			assert.ok(card && primaryAction);
+			primaryAction.focus();
+
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/item'), name: 'item' } });
+			fixture.notifyInstallChange();
+			const unchanged = { mounted: card.isConnected, focused: DOM.getActiveElement() === primaryAction };
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/other'), name: 'item' } });
+			fixture.notifyInstallChange();
+
+			assert.deepStrictEqual({ unchanged, changedTargetRerendered: !card.isConnected }, {
+				unchanged: { mounted: true, focused: true },
+				changedTargetRerendered: true,
+			});
+		});
+	}
+
+	test('equivalent setup URLs keep browse cards while changed URLs update actions', async () => {
+		const fixture = createPage(['agentFinder']);
+		const item = resource('setup-item');
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/setup') });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		assert.ok(card);
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/setup') });
+		fixture.notifyInstallChange();
+		const unchangedCardKept = card.isConnected;
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/other') });
+		fixture.notifyInstallChange();
+		const setupAction = fixture.container.querySelector<HTMLElement>('.customization-discovery-card-actions .monaco-button');
+		assert.ok(setupAction);
+		setupAction.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unchangedCardKept,
+			changedUrlRerendered: !card.isConnected,
+			opened: fixture.opened.map(uri => typeof uri === 'string' ? uri : uri.toString()),
+		}, {
+			unchangedCardKept: true,
+			changedUrlRerendered: true,
+			opened: ['https://example.com/other'],
+		});
+	});
+
 	test('curated browse cards track installation changes independently of catalog results', async () => {
 		const item = resource('curated-skill', { mediaType: CustomizationMarketplaceMediaType.Skill });
 		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, undefined, {
