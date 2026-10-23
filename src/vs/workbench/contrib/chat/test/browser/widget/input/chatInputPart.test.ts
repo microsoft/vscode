@@ -31,7 +31,7 @@ import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
@@ -40,10 +40,209 @@ import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '..
 import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IChatModelInputState } from '../../../../common/model/chatModel.js';
+import { ModelSelectionReason } from '../../../../common/modelSelection.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('custom agent model pin', () => {
+		const createModel = (identifier: string): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier,
+			metadata: {
+				extension: new ExtensionIdentifier('test.extension'),
+				id: identifier,
+				name: identifier,
+				vendor: 'copilot',
+				version: '1.0',
+				family: identifier,
+				maxInputTokens: 1,
+				maxOutputTokens: 1,
+				isDefaultForLocation: {},
+			},
+		});
+		const pickerModel = createModel('GPT');
+		const pinnedModel = createModel('Claude Haiku 4.5');
+		const otherModel = createModel('Other');
+
+		for (const { name, pin, expected, suppressed } of [
+			{ name: 'single model', pin: ['Claude Haiku 4.5 (copilot)'], expected: pinnedModel },
+			{ name: 'ordered list', pin: ['Missing (copilot)', 'Claude Haiku 4.5 (copilot)', 'Other (copilot)'], expected: pinnedModel },
+			{ name: 'list order over catalog order', pin: ['Other (copilot)', 'Claude Haiku 4.5 (copilot)'], expected: otherModel },
+			{ name: 'no pin', pin: undefined, expected: pickerModel },
+			{ name: 'unavailable pin', pin: ['Missing (copilot)'], expected: pickerModel },
+			{ name: 'suppressed preference', pin: ['Claude Haiku 4.5 (copilot)'], expected: pickerModel, suppressed: true },
+		]) {
+			test(`${name} takes precedence over the restored picker model`, () => {
+				let selectedModel = pickerModel;
+				const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+					options: { suppressModePreferredModel: suppressed },
+					_currentModeObservable: observableValue('mode', { id: 'reviewer', model: observableValue('pin', pin) }),
+					_currentLanguageModel: observableValue('model', pickerModel),
+					_isSyncingToOrFromInputModel: false,
+					_attachmentModel: { attachments: [] },
+					_syncTextDebounced: { cancel: () => { } },
+					configurationService: { getValue: () => true },
+					logService: new NullLogService(),
+					getModels: () => [pickerModel, pinnedModel, otherModel],
+					_restoreReasonFor: () => undefined,
+					_modelSelectionController: {
+						syncFromConversationState: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+						applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+					},
+				}) as { _syncFromModel(state: IChatModelInputState, resource: URI): void };
+				const state: IChatModelInputState = {
+					mode: { id: 'reviewer', kind: ChatModeKind.Agent },
+					selectedModel: pickerModel,
+					inputText: '',
+					selections: [],
+					attachments: [],
+					contrib: {},
+				};
+
+				inputPart._syncFromModel(state, URI.parse('vscode-chat-session:/test'));
+
+				assert.strictEqual(selectedModel, expected);
+			});
+		}
+
+		test('keeps a model the user deliberately picked when the input state is restored', () => {
+			let selectedModel = pickerModel;
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: {},
+				_currentModeObservable: observableValue('mode', { id: 'reviewer', model: observableValue('pin', ['Claude Haiku 4.5 (copilot)']) }),
+				_currentLanguageModel: observableValue('model', pickerModel),
+				_isSyncingToOrFromInputModel: false,
+				_attachmentModel: { attachments: [] },
+				_syncTextDebounced: { cancel: () => { } },
+				configurationService: { getValue: () => true },
+				logService: new NullLogService(),
+				getModels: () => [pickerModel, pinnedModel, otherModel],
+				_restoreReasonFor: () => undefined,
+				_modelSelectionController: {
+					syncFromConversationState: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+					applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+				},
+			}) as { _syncFromModel(state: IChatModelInputState, resource: URI): void };
+
+			inputPart._syncFromModel({
+				mode: { id: 'reviewer', kind: ChatModeKind.Agent },
+				selectedModel: otherModel,
+				selectedModelReason: ModelSelectionReason.UserSelection,
+				inputText: '',
+				selections: [],
+				attachments: [],
+				contrib: {},
+			}, URI.parse('vscode-chat-session:/test'));
+
+			assert.strictEqual(selectedModel, otherModel);
+		});
+
+		test('applies the pin when its model becomes available', () => {
+			let models = [pickerModel];
+			let selectedModel = pickerModel;
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: {},
+				_currentModeObservable: observableValue('mode', { model: observableValue('pin', ['Claude Haiku 4.5 (copilot)']) }),
+				logService: new NullLogService(),
+				getModels: () => models,
+				_modelSelectionController: {
+					applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = model; },
+				},
+			}) as { applyModePreferredModel(): void };
+
+			inputPart.applyModePreferredModel();
+			const before = selectedModel;
+			models = [pickerModel, pinnedModel];
+			inputPart.applyModePreferredModel();
+
+			assert.deepStrictEqual([before, selectedModel], [pickerModel, pinnedModel]);
+		});
+
+		suite('agent host harness', () => {
+			const sessionType = 'agent-host-copilot';
+			const createAgentHostModel = (id: string, name: string): ILanguageModelChatMetadataAndIdentifier => ({
+				identifier: `${sessionType}:${id}`,
+				metadata: {
+					extension: new ExtensionIdentifier('test.extension'),
+					id,
+					name,
+					vendor: sessionType,
+					version: '1.0',
+					family: id,
+					maxInputTokens: 1,
+					maxOutputTokens: 1,
+					isDefaultForLocation: {},
+					targetChatSessionType: sessionType,
+					configurationSchema: { properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium', 'high'] } } },
+				},
+			});
+			const hostPickerModel = createAgentHostModel('gpt-6-luna', 'GPT-6 Luna');
+			const hostPinnedModel = createAgentHostModel('claude-sonnet-4.5', 'Claude Sonnet 4.5');
+
+			const createInputPart = (pin: readonly string[], reasoningEffort: string | undefined, options: object = {}) => {
+				const result = {
+					selectedModel: hostPickerModel,
+					presented: [] as [string, object][],
+					inputPart: undefined as unknown as { applyModePreferredModel(): void },
+				};
+				result.inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+					options,
+					_currentModeObservable: observableValue('mode', { model: observableValue('pin', pin), reasoningEffort: observableValue('effort', reasoningEffort) }),
+					logService: new NullLogService(),
+					getModels: () => [hostPickerModel, hostPinnedModel],
+					_modelSelectionController: {
+						applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => { result.selectedModel = model; },
+					},
+					_modelConfigStore: {
+						presentModelConfiguration: (identifier: string, values: object) => { result.presented.push([identifier, values]); },
+					},
+				});
+				return result;
+			};
+
+			for (const pin of ['Claude Sonnet 4.5 (copilot)', 'claude-sonnet-4.5']) {
+				test(`resolves agent-file model '${pin}' to the harness model`, () => {
+					const result = createInputPart([pin], undefined);
+					result.inputPart.applyModePreferredModel();
+					assert.strictEqual(result.selectedModel, hostPinnedModel);
+					assert.deepStrictEqual(result.presented, []);
+				});
+			}
+
+			test('presents the agent reasoning effort on the selected harness model', () => {
+				const result = createInputPart(['Claude Sonnet 4.5 (copilot)'], 'high');
+				result.inputPart.applyModePreferredModel();
+				assert.strictEqual(result.selectedModel, hostPinnedModel);
+				assert.deepStrictEqual(result.presented, [[hostPinnedModel.identifier, { reasoningEffort: 'high' }]]);
+			});
+
+			test('ignores a reasoning effort the model does not support', () => {
+				const result = createInputPart(['claude-sonnet-4.5'], 'ultra');
+				result.inputPart.applyModePreferredModel();
+				assert.strictEqual(result.selectedModel, hostPinnedModel);
+				assert.deepStrictEqual(result.presented, []);
+			});
+
+			test('leaves the picker unchanged when the pin does not resolve', () => {
+				const result = createInputPart(['Missing (copilot)'], 'high');
+				result.inputPart.applyModePreferredModel();
+				assert.strictEqual(result.selectedModel, hostPickerModel);
+				assert.deepStrictEqual(result.presented, []);
+			});
+
+			test('defers to host-owned model selection', () => {
+				const result = createInputPart(['claude-sonnet-4.5'], 'high', { hostModelSelection: {} });
+				result.inputPart.applyModePreferredModel();
+				assert.strictEqual(result.selectedModel, hostPickerModel);
+				assert.deepStrictEqual(result.presented, []);
+			});
+		});
+	});
 
 	test('uses only visible platform bounds beneath the pet', () => {
 		const root = dom.append(mainWindow.document.body, dom.$('div'));
