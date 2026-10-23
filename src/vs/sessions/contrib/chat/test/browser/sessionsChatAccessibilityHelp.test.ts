@@ -120,7 +120,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual(enabled, [false, true]);
 	});
 
-	test('documents repo-less Cloud chats in the harness picker', () => {
+	test('documents repo-less Cloud chats with and without the Environment picker', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -132,7 +132,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
-		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
+		assert.deepStrictEqual({
+			environmentPicker: content.includes('When GitHub sandboxes are enabled, choose Cloud in the Environment picker, then Chat in the workspace picker, to chat without a repository or pull request.'),
+			harnessPicker: content.includes('If the Environment picker is disabled, choose Cloud in the harness picker instead.'),
+		}, { environmentPicker: true, harnessPicker: true });
 	});
 
 	test('documents nested chats in quick chats and moving chats with their folder', () => {
@@ -272,9 +275,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
-				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				sharingKeyboard: content.includes('Enter or Space to open it'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
-				backendPicker: content.includes('single Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments'),
+				backendPicker: content.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				enabling: content.includes('Selecting a method updates the setting and enables sharing'),
 				disabling: content.includes('Selecting Off disables sharing'),
 				remembered: content.includes('without changing the preferred method'),
