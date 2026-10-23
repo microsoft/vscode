@@ -245,4 +245,14 @@ suite('AgentHostChatpadService', () => {
 			caseInsensitive: { note: true, differentCase: true },
 		});
 	});
+
+	test('of two concurrent claims, only the first makes its session the Chatpad chat', async () => {
+		const { service, existing, sessions } = createService();
+		existing.add(first.toString());
+		existing.add(second.toString());
+
+		const claimed = await Promise.all([service.claim(first, sessions), service.claim(second, sessions)]);
+
+		assert.deepStrictEqual({ claimed, session: service.session }, { claimed: [true, false], session: first.toString() });
+	});
 });
