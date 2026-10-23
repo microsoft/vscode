@@ -28,7 +28,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
@@ -44,28 +44,38 @@ suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const remotesEnabled of [false, true]) {
-		test(`documents the Environment picker Manage action when available (${remotesEnabled})`, () => {
-			const instantiation = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({
-				[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
-				[ENVIRONMENT_PICKER_SETTING]: true,
-				[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
+		for (const manageEnabled of [undefined, false, true]) {
+			test(`documents Manage only when available (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, () => {
+				const instantiation = store.add(new TestInstantiationService());
+				const configuration = new TestConfigurationService({
+					[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+					[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+					[ENVIRONMENT_PICKER_SETTING]: true,
+					[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
+					...(manageEnabled === undefined ? {} : { [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: manageEnabled }),
+				});
+				store.add(configuration.onDidChangeConfigurationEmitter);
+				instantiation.stub(IConfigurationService, configuration);
+				stubContextKeyService(instantiation, configuration);
+				instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+				instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+				instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+				const container = mainWindow.document.createElement('div');
+				instantiation.stub(IWorkbenchLayoutService, { mainContainer: container });
+				instantiation.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				instantiation.stub(ITelemetryService, telemetry);
+				instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
+				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+				assert.deepStrictEqual({
+					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
+				}, {
+					describesManage: !isWeb && remotesEnabled && manageEnabled === true,
+					triggers: !isWeb && remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
+				});
 			});
-			store.add(configuration.onDidChangeConfigurationEmitter);
-			instantiation.stub(IConfigurationService, configuration);
-			stubContextKeyService(instantiation, configuration);
-			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
-			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
-			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
-			const container = mainWindow.document.createElement('div');
-			instantiation.stub(IWorkbenchLayoutService, { mainContainer: container });
-			instantiation.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
-			instantiation.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
-			instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
-			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
-			assert.strictEqual(content.includes('Choose Manage at the bottom of the Environment picker'), !isWeb && remotesEnabled);
-		});
+		}
 	}
 
 	for (const enabled of [true, false]) {

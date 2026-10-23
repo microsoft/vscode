@@ -23,12 +23,13 @@ import { NullPolicyService } from '../../../../../platform/policy/common/policy.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled, isSessionEnvironmentPickerEnabled, isSessionWorkspaceOptOutEnabled } from '../../browser/newChatWidget.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
 
 // Capture the registered schema before configuration tests reset the shared registry.
 const experimentalNewSessionComposerLayoutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING];
 const environmentPickerProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_SETTING];
+const environmentPickerManageRemotesProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
 const workspaceOptOutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[WORKSPACE_OPT_OUT_SETTING];
 const environmentPickerBeforeWorkspaceProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING];
 const newSessionComposerOptionsExpandedProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING];
@@ -55,6 +56,16 @@ suite('New session composer layout', () => {
 			scope: workspaceOptOutProperty.scope,
 			tags: workspaceOptOutProperty.tags,
 			experiment: workspaceOptOutProperty.experiment,
+		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+	});
+
+	test('Manage Remotes is a default-off experiment-controlled window setting', () => {
+		assert.deepStrictEqual({
+			type: environmentPickerManageRemotesProperty.type,
+			default: environmentPickerManageRemotesProperty.default,
+			scope: environmentPickerManageRemotesProperty.scope,
+			tags: environmentPickerManageRemotesProperty.tags,
+			experiment: environmentPickerManageRemotesProperty.experiment,
 		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
 	});
 

@@ -22,6 +22,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAgentHostConnectionStatusLabel, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
@@ -34,7 +36,7 @@ import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 export function isEnvironmentPickerLocalIsolationEnabled(configurationService: IConfigurationService): boolean {
 	return !isWeb
@@ -144,6 +146,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -241,15 +244,18 @@ export class SessionEnvironmentPicker extends Disposable {
 			}
 		}
 		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
-			items.push(
-				{ kind: ActionListItemKind.Separator, label: '' },
-				{
-					kind: ActionListItemKind.Action,
-					label: localize('environmentPicker.manage', "Manage..."),
-					group: { title: '', icon: Codicon.settingsGear },
-					item: { run: async () => { await this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID); } },
-				},
-			);
+			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+			if (this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
+				items.push(
+					{ kind: ActionListItemKind.Separator, label: '' },
+					{
+						kind: ActionListItemKind.Action,
+						label: localize('environmentPicker.manage', "Manage..."),
+						group: { title: '', icon: Codicon.settingsGear },
+						item: { run: async () => { await this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID); } },
+					},
+				);
+			}
 		}
 		trigger.setAttribute('aria-expanded', 'true');
 		this.actionWidgetService.show('sessionEnvironmentPicker', false, items, {
