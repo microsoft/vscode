@@ -176,9 +176,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
-		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace"));
-		if (!stopped) {
-			return;
+		// A local extension host can own the remote connection. Keep it alive for
+		// configuration and data migration, and let the reload's shutdown lifecycle
+		// disconnect the remote agent before stopping the extension hosts.
+		if (!this.environmentService.remoteAuthority) {
+			const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace"));
+			if (!stopped) {
+				return;
+			}
 		}
 
 		const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
