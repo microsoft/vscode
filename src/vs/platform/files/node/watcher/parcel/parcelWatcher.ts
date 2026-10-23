@@ -20,7 +20,7 @@ import { normalize, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { Promises, realcase } from '../../../../../base/node/pfs.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
+import { coalesceEvents, IRecursiveWatchRequest, normalizeWatcherPattern, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -157,6 +157,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	};
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
+
+	// The name of a child path that only exclude patterns for everything
+	// inside of a folder are expected to match (see `excludesContentsOf`)
+	private static readonly EXCLUDED_CONTENTS_PROBE = 'vscode-watcher-probe';
 
 	private readonly _onDidError = this._register(new Emitter<IWatcherErrorEvent>());
 	readonly onDidError = this._onDidError.event;
@@ -714,12 +718,23 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
 
-			for (const request of requestsForCorrelation.values()) {
+			for (let request of requestsForCorrelation.values()) {
 
 				// Check for overlapping request paths (but preserve symbolic links)
-				if (requestTrie.findSubstr(request.path)) {
+				const parentRequest = requestTrie.findSubstr(request.path);
+				if (parentRequest) {
 					if (requestTrie.has(request.path)) {
 						this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
+					} else if (this.excludesContentsOf(parentRequest, request.path)) {
+
+						// The parent watcher does not report events inside the path
+						// of the request, so watch it separately. To prevent duplicate
+						// events, only report what the parent watcher excludes.
+						this.trace(`watching a request separately because its parent excludes its path: ${this.requestToString(request)}`);
+
+						if (!request.includes?.length) {
+							request = { ...request, includes: parentRequest.excludes.map(exclude => normalizeWatcherPattern(parentRequest.path, exclude)) };
+						}
 					} else {
 						try {
 							if (!(await promises.lstat(request.path)).isSymbolicLink()) {
@@ -751,6 +766,17 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 
 		return normalizedRequests;
+	}
+
+	/**
+	 * Whether the excludes of a request match what is inside of `path`, which
+	 * is checked with a child path that only patterns for everything inside
+	 * of a folder are expected to match.
+	 */
+	private excludesContentsOf(request: IRecursiveWatchRequest, path: string): boolean {
+		const child = join(path, ParcelWatcher.EXCLUDED_CONTENTS_PROBE);
+
+		return parseWatcherPatterns(request.path, request.excludes, !isLinux).some(exclude => exclude(child));
 	}
 
 	private async isPathValid(path: string): Promise<boolean> {

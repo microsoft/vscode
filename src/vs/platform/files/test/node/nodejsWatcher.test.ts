@@ -25,6 +25,51 @@ import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { TestParcelWatcher } from './parcelWatcher.test.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+
+suite('File Watcher (node.js) request deduplication', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class DeduplicatingNodeJSWatcher extends NodeJSWatcher {
+		deduplicateRequests(requests: INonRecursiveWatchRequest[]): Promise<INonRecursiveWatchRequest[]> {
+			return this.removeDuplicateRequests(requests);
+		}
+	}
+
+	let testDir: string;
+
+	setup(async () => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'nodejswatcherdeduplication');
+		await fs.promises.mkdir(join(testDir, 'folder'), { recursive: true });
+		await fs.promises.writeFile(join(testDir, 'folder', 'file.txt'), '');
+	});
+
+	teardown(() => Promises.rm(testDir));
+
+	test('uncorrelated requests for files are ignored when the request for their folder reports them', async () => {
+		const watcher = store.add(new DeduplicatingNodeJSWatcher(undefined));
+		const folder: INonRecursiveWatchRequest = { path: join(testDir, 'folder'), excludes: [], recursive: false };
+		const file: INonRecursiveWatchRequest = { path: join(testDir, 'folder', 'file.txt'), excludes: [], recursive: false };
+		const missingFile: INonRecursiveWatchRequest = { ...file, path: join(testDir, 'folder', 'missing.txt') };
+
+		assert.deepStrictEqual({
+			reported: await watcher.deduplicateRequests([file, folder]),
+			excluded: await watcher.deduplicateRequests([file, { ...folder, excludes: ['file.txt'] }]),
+			notIncluded: await watcher.deduplicateRequests([file, { ...folder, includes: ['*.md'] }]),
+			included: await watcher.deduplicateRequests([file, { ...folder, includes: ['*.txt'] }]),
+			correlated: await watcher.deduplicateRequests([{ ...file, correlationId: 1 }, folder]),
+			missing: await watcher.deduplicateRequests([missingFile, folder]),
+		}, {
+			reported: [folder],
+			excluded: [file, { ...folder, excludes: ['file.txt'] }],
+			notIncluded: [file, { ...folder, includes: ['*.md'] }],
+			included: [{ ...folder, includes: ['*.txt'] }],
+			correlated: [{ ...file, correlationId: 1 }, folder],
+			missing: [missingFile, folder],
+		});
+	});
+});
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in

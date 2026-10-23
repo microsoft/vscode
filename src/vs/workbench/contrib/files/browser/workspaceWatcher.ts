@@ -44,9 +44,12 @@ class WorkspaceFolderWatch extends Disposable {
 	 */
 	get gitIgnoreExcludes(): readonly string[] | undefined { return this._gitIgnoreExcludes; }
 
-	setGitIgnoreExcludes(excludes: readonly string[], ignoreCase: boolean): void {
+	setGitIgnoreExcludes(excludes: readonly string[]): void {
 		this._gitIgnoreExcludes = excludes;
-		this.gitIgnoreExcludesMatchers = excludes.map(exclude => parse(exclude, { ignoreCase }));
+
+		// Match case sensitively like the recursive watcher does, which still
+		// reports events for paths that only match when ignoring case
+		this.gitIgnoreExcludesMatchers = excludes.map(exclude => parse(exclude));
 	}
 
 	/**
@@ -227,7 +230,7 @@ export class WorkspaceWatcher extends Disposable {
 			return; // already watching with these excludes
 		}
 
-		watch.setGitIgnoreExcludes(gitIgnoreExcludes, this.uriIdentityService.extUri.ignorePathCasing(workspace.uri));
+		watch.setGitIgnoreExcludes(gitIgnoreExcludes);
 		watch.watches.value = this.doWatchWorkspace(workspace, config, gitIgnoreExcludes);
 
 		this.updateGitIgnoreExcludedEditorWatches();
