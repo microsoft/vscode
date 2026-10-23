@@ -208,6 +208,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const configChannels: { channel: string; type: string }[] = [];
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
+		const hoverOptions = new Map<HTMLElement, Parameters<IHoverService['setupDelayedHover']>[1]>();
 		const instantiationService = store.add(new TestInstantiationService());
 		const sessionOptions = new Map<string, Map<string, string>>();
 		const sessionOptionsChanged = store.add(new Emitter<IChatSessionOptionsChangeEvent>());
@@ -274,9 +275,10 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.set(IActionWidgetService, actionWidget);
 		instantiationService.set(IConfigurationService, configuration);
 		instantiationService.stub(IHoverService, {
-			setupDelayedHover: target => {
+			setupDelayedHover: (target, options) => {
 				hoverTargets.push(target);
-				return { dispose: () => { } };
+				hoverOptions.set(target, options);
+				return toDisposable(() => hoverOptions.delete(target));
 			},
 		});
 		instantiationService.set(IOpenerService, NullOpenerService);
@@ -350,7 +352,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 			return state;
 		};
-		return { modePicker, permissionPicker, createPicker, submissions, model, hasActiveRequest, isInputBlocked, sessionOptions, chatSessionsService, modeContainer, permissionContainer, configuration, config, actionWidget, menu, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, createPicker, submissions, model, hasActiveRequest, isInputBlocked, sessionOptions, chatSessionsService, modeContainer, permissionContainer, configuration, config, actionWidget, menu, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, hoverOptions, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
 
 	function setupCloudDraft(combined = true) {
@@ -446,6 +448,11 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 	test('cloud draft pickers reflect option changes and the combined-picker setting', async () => {
 		const rig = setupCloudDraft();
+		dom.append(document.body, rig.modeContainer, rig.permissionContainer);
+		store.add(toDisposable(() => {
+			rig.modeContainer.remove();
+			rig.permissionContainer.remove();
+		}));
 		rig.chatSessionsService.setSessionOption(rig.resource, 'approvalMode', 'allow-all');
 		const combinedLabel = rig.modeContainer.querySelector('.agent-host-mode-permission-summary')?.textContent;
 		await rig.configuration.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, false);
@@ -455,34 +462,75 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			visible: rig.permissionContainer.style.display,
 			label: rig.permissionContainer.querySelector('.agent-host-chat-input-picker-label')?.textContent,
 		};
-		await rig.permissionPicker['_showPicker'](rig.permissionPicker.triggerElement!);
+		const permissionTrigger = rig.permissionPicker.triggerElement!;
+		const modeTrigger = rig.modePicker.triggerElement!;
+		await rig.permissionPicker['_showPicker'](permissionTrigger);
 		await rig.actionWidget.select('Manual permissions');
-		assert.deepStrictEqual({ combinedLabel, separate, selected: rig.chatSessionsService.getSessionOption(rig.resource, 'approvalMode') }, {
+		const permissionFocusRestored = document.activeElement === permissionTrigger && permissionTrigger === rig.permissionPicker.triggerElement;
+		await rig.modePicker['_showPicker'](modeTrigger);
+		await rig.actionWidget.select('Plan');
+		const hover = rig.hoverOptions.get(permissionTrigger)!;
+		assert.deepStrictEqual({
+			combinedLabel, separate, permissionFocusRestored,
+			permissionHover: (typeof hover === 'function' ? hover() : hover).content,
+			modeFocusRestored: document.activeElement === modeTrigger && modeTrigger === rig.modePicker.triggerElement,
+			selected: Object.fromEntries(rig.sessionOptions.get(rig.resource.toString())!),
+		}, {
 			combinedLabel: 'Allow all',
 			separate: { combined: false, visible: '', label: 'Allow all' },
-			selected: 'manual',
+			permissionFocusRestored: true, modeFocusRestored: true,
+			permissionHover: 'Copilot asks before running tools unless your configured settings allow the tool.',
+			selected: { mode: 'plan', approvalMode: 'manual' },
 		});
 	});
 
-	test('cloud draft policy refresh rejects stale permission choices and restores available choices', async () => {
-		const rig = setupCloudDraft();
-		await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!, true);
-		const selectStale = rig.actionWidget.select;
-		rig.configuration.policyRestricted = true;
-		rig.fireConfigurationChange(ChatConfiguration.GlobalAutoApprove);
-		const closed = !rig.actionWidget.isVisible;
-		await assert.rejects(selectStale('Allow all'), /does not offer/);
-		await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!, true);
-		const restrictedChoices = rig.actionWidget.items.filter(item => permissionPresentations.some(permission => permission.label === item.label)).map(item => item.label);
-		rig.configuration.policyRestricted = false;
-		rig.fireConfigurationChange(ChatConfiguration.GlobalAutoApprove);
-		await rig.modePicker['_showPicker'](rig.modePicker.triggerElement!, true);
-		assert.deepStrictEqual({
-			closed, restrictedChoices,
-			restoredChoices: rig.actionWidget.items.filter(item => permissionPresentations.some(permission => permission.label === item.label)).map(item => item.label),
-			selected: rig.chatSessionsService.getSessionOption(rig.resource, 'approvalMode'),
-		}, { closed: true, restrictedChoices: ['Manual permissions'], restoredChoices: permissionPresentations.map(permission => permission.label), selected: 'manual' });
-	});
+	for (const combined of [true, false]) {
+		test(`cloud draft policy refresh explains unavailable choices and rejects stale selections (${combined ? 'combined' : 'separate'})`, async () => {
+			const rig = setupCloudDraft(combined);
+			const picker = combined ? rig.modePicker : rig.permissionPicker;
+			const container = combined ? rig.modeContainer : rig.permissionContainer;
+			dom.append(document.body, container);
+			store.add(toDisposable(() => container.remove()));
+			const trigger = combined ? container.querySelector<HTMLElement>('.agent-host-permissions-button')! : picker.triggerElement!;
+			await picker['_showPicker'](trigger, true);
+			const selectStale = rig.actionWidget.select;
+			rig.configuration.policyRestricted = true;
+			rig.fireConfigurationChange(ChatConfiguration.GlobalAutoApprove);
+			const closed = !rig.actionWidget.isVisible;
+			const focusRestored = document.activeElement === trigger && container.contains(trigger);
+			await assert.rejects(selectStale('Allow all'), /does not offer/);
+			await picker['_showPicker'](trigger, true);
+			const restrictedChoices = rig.actionWidget.items.filter(item => permissionPresentations.some(permission => permission.label === item.label)).map(item => ({
+				label: item.label, disabled: item.disabled, badge: item.badge,
+				description: isMarkdownString(item.description) ? item.description.value : item.description,
+				ariaDescription: item.ariaDescription,
+			}));
+			for (const label of ['Assisted permissions', 'Allow all']) {
+				await assert.rejects(rig.actionWidget.select(label), /does not offer/);
+			}
+			const allowedValues = picker['_readContext'](SessionConfigKey.AutoApprove)?.propertySchema.enum;
+			rig.configuration.policyRestricted = false;
+			rig.fireConfigurationChange(ChatConfiguration.GlobalAutoApprove);
+			await picker['_showPicker'](trigger, true);
+			assert.deepStrictEqual({
+				closed, focusRestored, restrictedChoices, allowedValues,
+				restoredChoices: rig.actionWidget.items.filter(item => permissionPresentations.some(permission => permission.label === item.label)).map(item => ({ label: item.label, disabled: item.disabled })),
+				selected: rig.chatSessionsService.getSessionOption(rig.resource, 'approvalMode'),
+				dispatches: rig.dispatches,
+			}, {
+				closed: true, focusRestored: true, allowedValues: ['manual'],
+				restrictedChoices: [
+					{ label: 'Manual permissions', disabled: false, badge: undefined, description: undefined, ariaDescription: undefined },
+					...['Assisted permissions', 'Allow all'].map(label => ({
+						label, disabled: true, badge: undefined, description: '$(briefcase) Disabled by policy',
+						ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+					})),
+				],
+				restoredChoices: permissionPresentations.map(permission => ({ label: permission.label, disabled: false })),
+				selected: 'manual', dispatches: [],
+			});
+		});
+	}
 
 	for (const blockedBy of ['hasActiveRequest', 'isInputBlocked'] as const) {
 		test(`cloud draft choices are locked during ${blockedBy}`, async () => {
