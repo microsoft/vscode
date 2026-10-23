@@ -13,7 +13,7 @@ parameters:
 
 jobs:
   - job: UnitTestStress_${{ parameters.platform }}
-    displayName: ${{ parameters.platform }} parallel unit tests (10 iterations)
+    displayName: ${{ parameters.platform }} parallel unit tests (20 iterations)
     timeoutInMinutes: 240
     pool: ${{ parameters.pool }}
     variables:
@@ -72,24 +72,24 @@ jobs:
       - pwsh: Write-Host "##vso[task.setvariable variable=UNIT_TEST_SETUP_READY]true"
         displayName: Mark unit-test setup complete
 
-      - ${{ each iteration in split('1,2,3,4,5,6,7,8,9,10', ',') }}:
+      - ${{ each iteration in split('1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20', ',') }}:
           - ${{ if eq(parameters.platform, 'win32') }}:
               - powershell: .\scripts\test.bat --workers --tfs "Unit Tests Iteration ${{ iteration }}"
-                displayName: Electron unit tests (${{ iteration }}/10)
+                displayName: Electron unit tests (${{ iteration }}/20)
                 timeoutInMinutes: 30
                 condition: and(succeededOrFailed(), eq(variables['UNIT_TEST_SETUP_READY'], 'true'))
                 env:
                   VSCODE_SKIP_PRELAUNCH: '1'
           - ${{ else }}:
               - script: ./scripts/test.sh --workers --tfs "Unit Tests Iteration ${{ iteration }}"
-                displayName: Electron unit tests (${{ iteration }}/10)
+                displayName: Electron unit tests (${{ iteration }}/20)
                 timeoutInMinutes: 30
                 condition: and(succeededOrFailed(), eq(variables['UNIT_TEST_SETUP_READY'], 'true'))
                 env:
                   VSCODE_SKIP_PRELAUNCH: '1'
 
           - script: npm run test-node -- --workers
-            displayName: Node.js unit tests (${{ iteration }}/10)
+            displayName: Node.js unit tests (${{ iteration }}/20)
             timeoutInMinutes: 30
             condition: and(succeededOrFailed(), eq(variables['UNIT_TEST_SETUP_READY'], 'true'))
             env:
@@ -102,6 +102,6 @@ jobs:
           testResultsFormat: JUnit
           testResultsFiles: "*-unit-tests-iteration-*-results.xml"
           searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
-          testRunTitle: "${{ parameters.platform }} parallel unit tests (10 iterations)"
+          testRunTitle: "${{ parameters.platform }} parallel unit tests (20 iterations)"
           failTaskOnFailedTests: true
           failTaskOnMissingResultsFile: true

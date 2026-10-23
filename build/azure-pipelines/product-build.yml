@@ -335,7 +335,7 @@ extends:
 
       # Temporary validation for #342237; remove with the stress-test commit.
       - stage: UnitTestStress
-        displayName: Parallel unit tests (10 iterations)
+        displayName: Parallel unit tests (20 iterations)
         dependsOn: []
         jobs:
           - template: build/azure-pipelines/common/unit-test-stress.yml@self
