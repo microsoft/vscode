@@ -1095,8 +1095,13 @@ registerAction2(class NewChatWindowTerminalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const row = accessor.get(IChatWindowService).getActiveWindow()?.terminalGroup.get();
+	override async run(accessor: ServicesAccessor, context?: { groupId?: number }): Promise<void> {
+		// The row the button was clicked in, which is not necessarily that of the active chat window.
+		const chatWindowService = accessor.get(IChatWindowService);
+		const window = context?.groupId === undefined
+			? chatWindowService.getActiveWindow()
+			: chatWindowService.windows.get().find(w => w.terminalGroup.get()?.id === context.groupId);
+		const row = window?.terminalGroup.get();
 		if (!row) {
 			return;
 		}

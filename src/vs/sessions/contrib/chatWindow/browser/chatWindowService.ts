@@ -15,7 +15,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorsOrder, GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { decideTerminalRowMove, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
+import { completeTerminalReturn, decideTerminalRowMove, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -339,7 +339,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				if (e.kind === GroupModelChangeKind.EDITOR_OPEN && e.editor?.typeId === TerminalEditorInput.ID) {
 					// After the move that opened it completes: a terminal dragged out of the row is still closed in the row, and moving it
 					// back meanwhile would leave it in no group.
-					void timeout(0).then(() => this._moveTerminalToRow(window, editorGroup, e.editor!));
+					void timeout(0).then(() => {
+						if (!windowDisposables.isDisposed) {
+							return this._moveTerminalToRow(window, editorGroup, e.editor!);
+						}
+						return undefined;
+					});
 				}
 			}));
 			// What the Session Activity Bar of the chat window shows as checked, and offers, as it does for the main window.
@@ -524,10 +529,16 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 					returningTerminals++;
 					void timeout(0).then(() => {
 						const target = this._editorGroupsService.getGroup(e.target);
-						if (target?.contains(e.editor) && !row.contains(e.editor)) {
-							target.moveEditor(e.editor, row, { pinned: true });
-						}
-					}).finally(() => returningTerminals--);
+						completeTerminalReturn({
+							isCurrent: () => !store.isDisposed && window.state.terminalGroup.get() === row,
+							canMove: () => !!target?.contains(e.editor) && !row.contains(e.editor),
+							move: () => target!.moveEditor(e.editor, row, { pinned: true }),
+							end: () => --returningTerminals,
+							rowIsEmpty: () => row.isEmpty,
+							isEmptying: () => this._emptyingTerminalRows.has(window),
+							hideRow: () => void this.setTerminalShown(window, false, false),
+						});
+					});
 				}
 			}));
 			// Its last terminal exited or closed.
