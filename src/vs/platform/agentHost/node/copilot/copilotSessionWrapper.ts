@@ -473,6 +473,12 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
 	}
 
+	private _onSkillsLoaded: Event<SessionEventPayload<'session.skills_loaded'>> | undefined;
+	/** Fires when the runtime (re)loads skills, including after it reloads plugins. */
+	get onSkillsLoaded(): Event<SessionEventPayload<'session.skills_loaded'>> {
+		return this._onSkillsLoaded ??= this._sdkEvent('session.skills_loaded');
+	}
+
 	private _onBackgroundTasksChanged: Event<SessionEventPayload<'session.background_tasks_changed'>> | undefined;
 	get onBackgroundTasksChanged(): Event<SessionEventPayload<'session.background_tasks_changed'>> {
 		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');

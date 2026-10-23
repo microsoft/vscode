@@ -55,6 +55,7 @@ import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModel
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from '../../common/meta/agentSandboxDiagnostics.js';
+import { readRuntimePluginEnablement } from '../../common/meta/runtimePluginEnablement.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
@@ -236,6 +237,7 @@ class MockCopilotSession {
 	readonly pluginEnableCalls: Array<{ names: string[] }> = [];
 	/** Runs after `rpc.plugins.enable` records a call; it may throw to fail the call. */
 	onPluginEnable?: () => void;
+	pluginListResult: Array<{ name: string; marketplace: string; enabled: boolean; directSourceId?: string; installed?: boolean }> = [];
 	pluginInstallGate: Promise<void> | undefined;
 	onPluginInstall: (() => void) | undefined;
 	readonly managedPluginRetryCalls: unknown[] = [];
@@ -693,7 +695,7 @@ class MockCopilotSession {
 			},
 		},
 		plugins: {
-			list: async () => ({ plugins: [] }),
+			list: async () => ({ plugins: this.pluginListResult }),
 			install: async (params: { source: string }) => {
 				this.pluginInstallCalls.push(params);
 				this.onPluginInstall?.();
@@ -8639,6 +8641,51 @@ suite('CopilotAgentSession', () => {
 			activityWhileInstalling: ['Installing plugin…'],
 			activity: ['Installing plugin…', undefined],
 			installCalls: [{ source: 'elasticsearch@awesome-copilot' }],
+		});
+	});
+
+	test('publishes the session-reported plugin enablement at start and when the runtime reloads plugins', async () => {
+		const { session, mockSession, dispatchedActions } = await createAgentSession(disposables, {
+			// Team defaults resolve in the background, so the first listing can still report the persisted state.
+			configureMockSession: mockSession => {
+				mockSession.pluginListResult = [
+					{ name: 'eval', marketplace: 'github-copilot-evals', enabled: false },
+					{ name: 'managed', marketplace: 'corp', enabled: true, installed: false },
+				];
+			},
+		});
+		const latestReport = () => dispatchedActions.findLast(action => action.type === ActionType.SessionMetaChanged && readRuntimePluginEnablement(action) !== undefined);
+		const reported = () => {
+			const action = latestReport();
+			return action?.type === ActionType.SessionMetaChanged ? readRuntimePluginEnablement(action) : undefined;
+		};
+		await timeout(0);
+		const atStart = reported();
+
+		mockSession.pluginListResult = [{ name: 'eval', marketplace: 'github-copilot-evals', enabled: true }];
+		mockSession.fire('session.skills_loaded', { skills: [] });
+		await timeout(0);
+		const afterSkillsLoaded = reported();
+		const reportAction = latestReport();
+		mockSession.fire('session.skills_loaded', { skills: [] });
+		await timeout(0);
+		const unchangedReportRepublished = latestReport() !== reportAction;
+
+		mockSession.pluginListResult = [
+			{ name: 'eval', marketplace: 'github-copilot-evals', enabled: true },
+			{ name: 'direct', marketplace: '', directSourceId: 'source-id', enabled: true },
+		];
+		await session.installPlugin('direct');
+		await timeout(0);
+
+		assert.deepStrictEqual({ atStart, afterSkillsLoaded, unchangedReportRepublished, afterReload: reported() }, {
+			atStart: [{ name: 'eval', marketplace: 'github-copilot-evals', enabled: false }],
+			afterSkillsLoaded: [{ name: 'eval', marketplace: 'github-copilot-evals', enabled: true }],
+			unchangedReportRepublished: false,
+			afterReload: [
+				{ name: 'eval', marketplace: 'github-copilot-evals', enabled: true },
+				{ name: 'direct', marketplace: '', directSourceId: 'source-id', enabled: true },
+			],
 		});
 	});
 

@@ -26,6 +26,8 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { readRuntimePluginEnablement } from '../../../../../platform/agentHost/common/meta/runtimePluginEnablement.js';
+import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { localize } from '../../../../../nls.js';
@@ -1151,10 +1153,20 @@ function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPl
 
 /**
  * Discovers the plugins committed to the Copilot CLI's installedPlugins state.
+ *
+ * A record's persisted `enabled` flag is only the runtime's new-session
+ * preference: the runtime keeps team-default plugins persisted as disabled and
+ * enables them per session. Once a live Copilot session on the local Agent
+ * Host reports its plugin enablement, that runtime value becomes the default
+ * instead. It is never persisted, so an explicit user choice still wins.
  */
 export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 	private readonly _installedPlugins: CopilotCliInstalledPluginsStore;
 	private _refreshScheduler: RunOnceScheduler | undefined;
+	/** Latest session-reported enablement, keyed by {@link getCopilotCliPluginIdentity}. */
+	private readonly _runtimeEnablement = new Map<string, boolean>();
+	/** Discovered plugin enablement keys, keyed by {@link getCopilotCliPluginIdentity}. */
+	private _discoveredPluginKeys = new Map<string, string>();
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -1170,6 +1182,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			this._logService,
 			() => this._refreshScheduler?.schedule(),
 		));
+		this._register(this._agentHostService.onDidAction(envelope => this._onDidAgentHostAction(envelope)));
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -1179,15 +1192,41 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		scheduler.schedule(0);
 	}
 
+	private _onDidAgentHostAction(envelope: ActionEnvelope): void {
+		if (envelope.action.type !== ActionType.SessionMetaChanged || envelope.rejectionReason) {
+			return;
+		}
+		const plugins = readRuntimePluginEnablement(envelope.action);
+		if (!plugins) {
+			return;
+		}
+		transaction(tx => {
+			for (const plugin of plugins) {
+				const identity = getCopilotCliPluginIdentity(plugin);
+				if (this._runtimeEnablement.get(identity) === plugin.enabled) {
+					continue;
+				}
+				this._runtimeEnablement.set(identity, plugin.enabled);
+				const key = this._discoveredPluginKeys.get(identity);
+				if (key !== undefined) {
+					this._enablementModel?.setDefaultEnabled?.(key, plugin.enabled, tx);
+				}
+			}
+		});
+	}
+
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
+		const discoveredPluginKeys = new Map<string, string>();
 		for (const installedPlugin of await this._installedPlugins.getInstalledPlugins()) {
 			try {
 				const stat = await this._fileService.resolve(installedPlugin.uri);
 				if (!stat.isDirectory) {
 					continue;
 				}
-				this._enablementModel.setDefaultEnabled?.(stat.resource.toString(), installedPlugin.enabled);
+				const identity = getCopilotCliPluginIdentity(installedPlugin);
+				discoveredPluginKeys.set(identity, stat.resource.toString());
+				this._enablementModel.setDefaultEnabled?.(stat.resource.toString(), this._runtimeEnablement.get(identity) ?? installedPlugin.enabled);
 				const canUninstall = !!installedPlugin.marketplace || !!installedPlugin.directSourceId;
 				sources.push({
 					uri: stat.resource,
@@ -1206,6 +1245,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 							...(installedPlugin.directSourceId ? { directSourceId: installedPlugin.directSourceId } : {}),
 						});
 						this._enablementModel.remove(stat.resource.toString());
+						this._runtimeEnablement.delete(identity);
 						return true;
 					} : undefined,
 				});
@@ -1213,8 +1253,14 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				continue;
 			}
 		}
+		this._discoveredPluginKeys = discoveredPluginKeys;
 		return sources;
 	}
+}
+
+/** Identifies a Copilot CLI plugin the way the runtime's plugin listings do. */
+function getCopilotCliPluginIdentity(plugin: { readonly name: string; readonly marketplace: string; readonly directSourceId?: string }): string {
+	return JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId ?? null]);
 }
 
 // ---------------------------------------------------------------------------

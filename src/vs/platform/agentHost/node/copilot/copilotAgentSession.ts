@@ -97,6 +97,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './copilotSessionHistory.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
+import { CopilotRuntimePluginEnablement } from './copilotRuntimePluginEnablement.js';
 import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1142,6 +1143,16 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Reloading plugins: reason=${reason}`);
 		this._recordRuntimeMutation('customizationsChanged');
 		await this._wrapper.session.rpc.plugins.reload();
+		this._refreshRuntimePluginEnablement(this._wrapper);
+	}
+
+	/**
+	 * Publishes the plugin enablement this SDK session reports. Runs when the
+	 * session starts (prewarm or first send/resume) and whenever the runtime
+	 * reloads plugins, because team defaults resolve in the background.
+	 */
+	private _refreshRuntimePluginEnablement(wrapper: CopilotSessionWrapper): void {
+		void this._runtimePluginEnablement.refresh(async () => (await wrapper.session.rpc.plugins.list()).plugins);
 	}
 
 	async refreshPluginMarketplaces(name?: string) {
@@ -1800,6 +1811,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Settles when this session observes the runtime's top-level `session.managed_settings_resolved` event. */
 	private readonly _managedSettingsResolved = new DeferredPromise<void>();
 	private readonly _sandbox: CopilotSessionSandbox;
+	private readonly _runtimePluginEnablement: CopilotRuntimePluginEnablement;
 	private readonly _mcpEnablementSequencer = new Sequencer();
 	private readonly _mcpServerLifecycleSequencer = new SequencerByKey<string>();
 	private _runtimeMutation: { cause: CopilotRuntimeMutation; sequence: number } | undefined;
@@ -2122,6 +2134,7 @@ export class CopilotAgentSession extends Disposable {
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
 		}));
+		this._runtimePluginEnablement = this._register(this._instantiationService.createInstance(CopilotRuntimePluginEnablement, () => this._owner.get().toString(), this.sessionId));
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._onSteeringReady = options.onSteeringReady;
@@ -4281,6 +4294,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._subscribeToEvents(this._wrapperDisposables);
 			this._subscribeToSdkEvents(this._wrapperDisposables);
+			this._wrapperDisposables.add(wrapper.onSkillsLoaded(event => {
+				this._logService.trace(`[Copilot:${this.sessionId}] Skills loaded: count=${event.data.skills.length}`);
+				this._refreshRuntimePluginEnablement(wrapper);
+			}));
+			this._refreshRuntimePluginEnablement(wrapper);
 			this._readCommittedAutoTier(wrapper);
 			this._subscribeForMemoInvalidation(this._wrapperDisposables);
 			this._subscribeForInstructionsCollectedTelemetry(this._wrapperDisposables);

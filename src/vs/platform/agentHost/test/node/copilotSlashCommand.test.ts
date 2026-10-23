@@ -408,6 +408,37 @@ suite('Copilot slash command handlers', () => {
 			});
 		});
 
+		test('uses the session plugin state over a disabled global record', async () => {
+			// A team-default plugin stays persisted as disabled for new sessions but is enabled in the session.
+			const sessionApi: ICopilotPluginCommandApi = {
+				...pluginApi([]),
+				list: async () => ({ plugins: [{ name: 'eval', marketplace: 'github-copilot-evals', version: '0.18.0', enabled: true }] }),
+			};
+			const handler = getCopilotCustomizationCommandHandler(command, { api: sessionApi, reload: reloadPlugins([]) }, async () => [
+				{ name: 'eval', marketplace: 'github-copilot-evals', version: '0.18.0', enabled: false },
+				{ name: 'azure', marketplace: 'awesome-copilot', version: '1.2.94', enabled: false },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: [
+					'Installed Plugins:',
+					'',
+					'  • eval v0.18.0',
+				].join('\n'),
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: [
+					'# Installed plugins',
+					'',
+					'- `eval@github-copilot-evals` — v0.18.0',
+					'- `azure@awesome-copilot` — v1.2.94 (disabled)',
+				].join('\n'),
+				markdown: true,
+			});
+		});
+
 		test('keeps disabled plugins with the same name from other marketplaces', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
 				{ name: 'azure', marketplace: 'marketplace-one', enabled: true },

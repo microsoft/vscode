@@ -57,7 +57,7 @@ export function getCopilotCustomizationCommandHandler(
 				case 'mcp':
 					return formatCopilotMcpOutput(input, result);
 				case 'plugin':
-					return formatCopilotPluginOutput(input, result, getInstalledPlugins ? await getInstalledPlugins() : undefined);
+					return formatCopilotPluginOutput(input, result, () => listCopilotPluginsForDisplay(plugins?.api, getInstalledPlugins));
 				case 'skills':
 					return formatCopilotSkillsOutput(input, result);
 			}
@@ -533,11 +533,54 @@ function formatCopilotMcpServer(line: string, details: readonly string[]): strin
 	];
 }
 
+type CopilotPluginList = Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'];
+
+interface ICopilotPluginDisplayInventory {
+	readonly plugins: CopilotPluginList;
+	/** Records reported by the session listing, whose `enabled` is the session's current state. */
+	readonly sessionPlugins: ReadonlySet<CopilotPluginList[number]>;
+}
+
+/**
+ * Combines a session's plugin listing with the global installed-plugin
+ * records. The session listing reports each plugin's current enabled state
+ * in that session (for example an enabled team default), while a global
+ * record's `enabled` is only the persisted new-session flag, so global
+ * records only add plugins the session does not list.
+ */
+export function mergeCopilotSessionAndInstalledPlugins(sessionPlugins: CopilotPluginList, installedPlugins: CopilotPluginList): CopilotPluginList {
+	const key = (plugin: CopilotPluginList[number]) => JSON.stringify([plugin.name, plugin.marketplace, plugin.directSourceId]);
+	const sessionPluginIds = new Set(sessionPlugins.map(key));
+	return [
+		...sessionPlugins,
+		...installedPlugins.filter(plugin => !sessionPluginIds.has(key(plugin))),
+	];
+}
+
+async function listCopilotPluginsForDisplay(
+	sessionApi: ICopilotPluginCommandApi | undefined,
+	getInstalledPlugins: (() => Promise<CopilotPluginList>) | undefined,
+): Promise<ICopilotPluginDisplayInventory | undefined> {
+	const installedPlugins = getInstalledPlugins ? await getInstalledPlugins() : undefined;
+	if (!installedPlugins) {
+		return undefined;
+	}
+	let sessionPlugins: CopilotPluginList = [];
+	if (sessionApi) {
+		try {
+			sessionPlugins = (await sessionApi.list()).plugins;
+		} catch {
+			// Fall back to the global records; the runtime's own list output still marks disabled plugins.
+		}
+	}
+	return { plugins: mergeCopilotSessionAndInstalledPlugins(sessionPlugins, installedPlugins), sessionPlugins: new Set(sessionPlugins) };
+}
+
 function formatCopilotPluginOutput(
 	input: string,
 	result: CopilotSlashCommandResult,
-	installedPlugins?: Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'],
-): CopilotSlashCommandOutput | undefined {
+	getPlugins: () => Promise<ICopilotPluginDisplayInventory | undefined>,
+): Promise<CopilotSlashCommandOutput | undefined> | undefined {
 	const subcommand = input.trim().toLowerCase();
 	if (!isPlainTextResult(result)) {
 		return undefined;
@@ -550,7 +593,11 @@ function formatCopilotPluginOutput(
 	if (lines[0] !== 'Installed Plugins:' || (lines[1] !== undefined && lines[1] !== '')) {
 		return undefined;
 	}
+	return getPlugins().then(inventory => formatCopilotPluginList(lines, inventory));
+}
 
+function formatCopilotPluginList(lines: readonly string[], inventory: ICopilotPluginDisplayInventory | undefined): CopilotSlashCommandOutput | undefined {
+	const installedPlugins = inventory?.plugins;
 	const output = [`# ${localize('copilotPlugins.installed', "Installed plugins")}`, ''];
 	const listedPluginNames = new Set<string>();
 	for (const line of lines.slice(2)) {
@@ -573,7 +620,11 @@ function formatCopilotPluginOutput(
 			plugin = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
 		}
 		listedPluginNames.add(plugin);
-		const disabled = match.groups.disabled || installedPlugin?.enabled === false
+		// A session record is authoritative; a global record's `enabled` is only the new-session flag.
+		const isDisabled = installedPlugin && inventory?.sessionPlugins.has(installedPlugin)
+			? !installedPlugin.enabled
+			: !!match.groups.disabled || installedPlugin?.enabled === false;
+		const disabled = isDisabled
 			? ` (${localize('copilotPlugins.disabled', "disabled")})`
 			: '';
 		output.push(`- ${appendEscapedMarkdownInlineCode(plugin)}${version ? ` — v${escapeCustomizationMarkdownText(version)}` : ''}${disabled}`);
