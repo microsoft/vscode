@@ -504,11 +504,16 @@ suite('ChatPetWidget', () => {
 			sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
 			const waitForLanding = async () => {
 				const bottoms = [button.getBoundingClientRect().bottom];
-				for (let frame = 0; button.classList.contains('throwing') && frame < 180; frame++) {
-					await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+				const sample = () => {
 					bottoms.push(button.getBoundingClientRect().bottom);
-				}
-				assert.ok(!button.classList.contains('throwing'), 'The fall must reach a collision');
+					frame = mainWindow.requestAnimationFrame(sample);
+				};
+				let frame = mainWindow.requestAnimationFrame(sample);
+				const sampling = disposables.add(toDisposable(() => mainWindow.cancelAnimationFrame(frame)));
+				// The landing step removes `throwing` and positions the pet synchronously, so the sample taken after it is the landed position.
+				await waitForPetAnimation(() => !button.classList.contains('throwing'));
+				sampling.dispose();
+				bottoms.push(button.getBoundingClientRect().bottom);
 				assert.ok(bottoms.every((bottom, i) => i === 0 || bottom >= bottoms[i - 1] - 0.5), 'Falling must never snap upward at the landing');
 				if (!reducedMotion) {
 					assert.ok(bottoms.some(bottom => bottom > bottoms[0] + 1 && bottom < bottoms[bottoms.length - 1] - 1), 'Normal motion must render intermediate gravity positions');
