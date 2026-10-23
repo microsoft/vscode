@@ -30,6 +30,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
 const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
+const missionControlDisableRepositoryMetadata = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
 	declare readonly _serviceBrand: undefined;
@@ -72,6 +73,9 @@ export class MissionControlSharingService extends Disposable implements IMission
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
 			} else if (e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy) || e.affectsConfiguration(MissionControlUseLocalCredentialsSettingId)) {
 				void this._withdraw().catch(error => this._reportWithdrawalError(error));
+				this._update.schedule();
+			} else if (e.affectsConfiguration(missionControlDisableRepositoryMetadata)) {
+				this._generation++;
 				this._update.schedule();
 			}
 		}));
@@ -305,6 +309,8 @@ export class MissionControlSharingService extends Disposable implements IMission
 			if (ignoreRemoteControlPolicy) {
 				this._logService.warn('[Mission Control] Device remote-control policy override enabled: registration will omit enterprise remote-control restrictions');
 			}
+			const repositoryMetadataSetting = this._configuration.inspect<boolean>(missionControlDisableRepositoryMetadata);
+			const disableRepositoryMetadata = (repositoryMetadataSetting.userLocalValue ?? repositoryMetadataSetting.applicationValue) === true;
 			await this._agentHost.configureMissionControl?.({
 				baseUrl: 'https://api.github.com',
 				accountId: sessions[0].account.id,
@@ -315,6 +321,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				live: true,
 				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 				...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),
+				...(disableRepositoryMetadata ? { disableRepositoryMetadata: true } : {}),
 			});
 			if (generation === this._generation && !this._store.isDisposed) {
 				this._configured = true;

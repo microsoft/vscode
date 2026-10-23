@@ -869,6 +869,8 @@ export interface IMissionControlOptions {
 	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
+	/** Host-owner development override; omit project metadata from mirrored session events. */
+	readonly disableRepositoryMetadata?: boolean;
 }
 
 /** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */

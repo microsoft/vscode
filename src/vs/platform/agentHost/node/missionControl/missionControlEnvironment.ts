@@ -199,6 +199,7 @@ export class MissionControlEnvironment extends Disposable {
 
 	get environmentId(): string | undefined { return this._environment?.id; }
 	get isEnabled(): boolean { return this._options?.live === true; }
+	get isRepositoryMetadataEnabled(): boolean { return this._options?.disableRepositoryMetadata !== true; }
 
 	private _getIdentityApiBase(): string {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
