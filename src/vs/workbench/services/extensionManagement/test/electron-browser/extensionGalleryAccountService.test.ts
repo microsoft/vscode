@@ -260,14 +260,18 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 			resourceSessions = async () => [];
 			const provider = createProvider();
 			await provider.getAccount(marketplaceUrl);
-			await provider.signIn();
+			if (scopes?.length) {
+				await provider.signIn();
+			} else {
+				await provider.getAccount(marketplaceUrl);
+			}
 
 			assert.deepStrictEqual({ requests: requests.length, createdSessions }, {
 				requests: 1,
-				createdSessions: [
+				createdSessions: scopes?.length ? [
 					{ scopes: signInScopes, authorizationServer: undefined },
-					{ scopes: scopes?.length ? scopes : signInScopes, authorizationServer },
-				],
+					{ scopes, authorizationServer },
+				] : [],
 			});
 		});
 	}
