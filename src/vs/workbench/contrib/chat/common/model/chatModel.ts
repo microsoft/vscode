@@ -2424,6 +2424,9 @@ export interface IChatModelInputState {
 	/** Whether {@link selectedModel} was picked by the user or just fallen back to. Not saved. */
 	selectedModelReason?: ModelSelectionReason;
 
+	/** Pins of the selected custom agent that the user overrode in this conversation. Saved with the draft. */
+	agentPinOverrides?: IChatAgentPinOverrides;
+
 	/** Current input text */
 	inputText: string;
 
@@ -2466,7 +2469,36 @@ export interface ISerializableChatModelInputState {
 	inputText: string;
 	selections: ISelection[];
 	permissionLevel?: ChatPermissionLevel;
+	agentPinOverrides?: IChatAgentPinOverrides;
 	contrib: Record<string, unknown>;
+}
+
+/**
+ * Records that the user chose something other than what the selected custom agent pins (its frontmatter
+ * `model` or a model configuration key such as `reasoningEffort`), so restoring the conversation, including
+ * after a reload, keeps the user's choice instead of re-applying the pin. Applies only while {@link modeId}
+ * is the selected mode.
+ */
+export interface IChatAgentPinOverrides {
+	readonly modeId: string;
+	readonly model?: boolean;
+	readonly configKeys?: readonly string[];
+}
+
+function reviveAgentPinOverrides(value: unknown): IChatAgentPinOverrides | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const { modeId, model, configKeys } = value as Partial<Record<keyof IChatAgentPinOverrides, unknown>>;
+	if (typeof modeId !== 'string') {
+		return undefined;
+	}
+	const keys = Array.isArray(configKeys) ? configKeys.filter((key): key is string => typeof key === 'string') : [];
+	return {
+		modeId,
+		...(model === true ? { model: true } : {}),
+		...(keys.length > 0 ? { configKeys: keys } : {}),
+	};
 }
 
 /**
@@ -2483,6 +2515,7 @@ interface ILegacySerializableChatModelInputState extends ISerializableChatModelI
  * Revives persisted or transferred input state into its live shape, including the legacy model configuration fallback.
  */
 export function reviveSerializableInputState(state: ISerializableChatModelInputState): IChatModelInputState {
+	const agentPinOverrides = reviveAgentPinOverrides(state.agentPinOverrides);
 	return {
 		attachments: (state.attachments ?? []).map(IChatRequestVariableEntry.fromExport),
 		mode: state.mode,
@@ -2495,6 +2528,7 @@ export function reviveSerializableInputState(state: ISerializableChatModelInputS
 		inputText: state.inputText,
 		selections: state.selections,
 		permissionLevel: state.permissionLevel,
+		...(agentPinOverrides ? { agentPinOverrides } : {}),
 	};
 }
 
@@ -2783,6 +2817,7 @@ class InputModel implements IInputModel {
 			inputText: value.inputText,
 			selections: value.selections,
 			permissionLevel: value.permissionLevel,
+			...(value.agentPinOverrides ? { agentPinOverrides: value.agentPinOverrides } : {}),
 		};
 	}
 }

@@ -10,7 +10,7 @@ import type { IAgentModelInfo } from '../../common/agent.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import { withAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
-import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, type CopilotManagedModelPolicy } from '../../node/copilot/copilotManagedModelConfiguration.js';
+import { createCopilotModelConfigurationReport, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, type CopilotManagedModelPolicy } from '../../node/copilot/copilotManagedModelConfiguration.js';
 
 suite('Copilot managed model configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -179,5 +179,16 @@ suite('Copilot managed model configuration', () => {
 			unmanaged: configurations[0],
 			otherModel: configurations[0],
 		});
+	});
+
+	test('keeps a client overlay\'s provenance on the applied value so the client never adopts it as a preference', () => {
+		const source = modelConfigurationSourceKey('thinkingLevel');
+		const current = { modelId: 'gpt-5', reasoningEffort: 'high' } as Parameters<typeof createCopilotModelConfigurationReport>[2];
+		const reportedSource = (config: Record<string, string>) => createCopilotModelConfigurationReport([model], { values: {} }, current, { id: 'gpt-5', config }, new NullLogService()).current?.config?.[source];
+		assert.deepStrictEqual({
+			overlay: reportedSource({ thinkingLevel: 'high', [source]: 'agent' }),
+			explicit: reportedSource({ thinkingLevel: 'high', [source]: 'explicit' }),
+			defaulted: reportedSource({ thinkingLevel: 'high', [source]: 'default' }),
+		}, { overlay: 'agent', explicit: 'explicit', defaulted: 'default' });
 	});
 });

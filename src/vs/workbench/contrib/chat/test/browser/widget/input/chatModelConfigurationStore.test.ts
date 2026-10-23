@@ -17,7 +17,7 @@ import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsServic
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { extractSchemaDefaults, filterConfigurationToSchema } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
-import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
+import { ChatModelConfigurationStore, PresentedConfigurationSource } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
 import { renderModelConfigurationButton } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -1418,6 +1418,8 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editorC.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 200_000 });
 	});
 
+	const presentedSource = { [modelConfigurationSourceKey('thinkingEffort')]: PresentedConfigurationSource };
+
 	test('a presented value overlays the configuration without becoming a durable preference', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createMultiKeyService());
@@ -1425,19 +1427,85 @@ suite('ChatModelConfigurationStore', () => {
 
 		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
 		const presented = editor.getModelConfiguration(MODEL);
-		// An unrelated edit, and a restore of a state captured while the overlay was shown.
+		// An unrelated edit, then a restore of the state captured while the overlay was shown.
 		editor.setModelConfiguration(MODEL, { contextSize: 1_000_000 });
-		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high', contextSize: 1_000_000 });
+		editor.restoreModelConfiguration(MODEL, editor.getModelConfiguration(MODEL)!);
 		const afterEdits = editor.getModelConfiguration(MODEL);
 		const newEditor = createStore(storage, createMultiKeyService()).getModelConfiguration(MODEL);
 		editor.setPresentedConfiguration(undefined);
 
 		assert.deepStrictEqual({ presented, afterEdits, newEditor, cleared: editor.getModelConfiguration(MODEL) }, {
-			presented: { thinkingEffort: 'high', contextSize: 200_000 },
-			afterEdits: { thinkingEffort: 'high', contextSize: 1_000_000 },
+			presented: { thinkingEffort: 'high', contextSize: 200_000, ...presentedSource },
+			afterEdits: { thinkingEffort: 'high', contextSize: 1_000_000, ...presentedSource },
 			newEditor: { thinkingEffort: 'low', contextSize: 1_000_000 },
 			cleared: { thinkingEffort: 'low', contextSize: 1_000_000 },
 		});
+	});
+
+	test('captured overlay values are recognised by provenance after the store is cleared or recreated', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createMultiKeyService());
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+		const captured = editor.getModelConfiguration(MODEL)!;
+
+		// Conversation switch: the store is cleared and the captured state restored before the overlay is reinstalled.
+		editor.clear();
+		editor.restoreModelConfiguration(MODEL, captured);
+		const restored = editor.getModelConfiguration(MODEL);
+		const fresh = createStore(storage, createMultiKeyService());
+		fresh.restoreModelConfiguration(MODEL, captured);
+		// A later unrelated edit must not persist the agent's value into the shared bucket.
+		editor.setModelConfiguration(MODEL, { contextSize: 1_000_000 });
+
+		assert.deepStrictEqual({ restored, fresh: fresh.getModelConfiguration(MODEL), newEditor: createStore(storage, createMultiKeyService()).getModelConfiguration(MODEL) }, {
+			restored: { thinkingEffort: 'low', contextSize: 200_000 },
+			fresh: { thinkingEffort: 'low', contextSize: 200_000 },
+			newEditor: { thinkingEffort: 'low', contextSize: 1_000_000 },
+		});
+	});
+
+	test('a presented value never overrides host-locked or unavailable choices', () => {
+		const control = createControllableService();
+		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'medium' } } }, ['thinkingEffort']);
+		const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+		const unlocked = editor.getModelConfiguration(MODEL)?.thinkingEffort;
+		const report = (readOnly: string[], values: string[]) => editor.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { thinkingEffort: 'low' }, readOnly, choices: { thinkingEffort: { values } } } },
+		});
+
+		report(['thinkingEffort'], ['low', 'medium', 'high']);
+		const locked = editor.getModelConfiguration(MODEL)?.thinkingEffort;
+		report([], ['low', 'medium']);
+		const narrowed = editor.getModelConfiguration(MODEL)?.thinkingEffort;
+		report([], ['low', 'medium', 'high']);
+
+		assert.deepStrictEqual({ unlocked, lockedShowsAgent: locked === 'high', narrowedShowsAgent: narrowed === 'high', reopened: editor.getModelConfiguration(MODEL)?.thinkingEffort }, {
+			unlocked: 'high', lockedShowsAgent: false, narrowedShowsAgent: false, reopened: 'high',
+		});
+	});
+
+	test('the runtime applying a presented value never adopts it as the stored value', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setSchema(schema, ['thinkingEffort']);
+		const editor = createStore(storage, control.service, () => false);
+		const source = modelConfigurationSourceKey('thinkingEffort');
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+
+		editor.setSessionModelConfiguration({ models: {}, current: { id: MODEL, config: { thinkingEffort: 'high', [source]: PresentedConfigurationSource } } });
+		const whilePresented = editor.getModelConfiguration(MODEL)?.thinkingEffort;
+		// The user switches to another agent: the overlay is cleared before the next request reaches the runtime.
+		editor.setPresentedConfiguration(undefined);
+		const afterSwitch = editor.getModelConfiguration(MODEL);
+		editor.restoreModelConfiguration(MODEL, afterSwitch ?? {});
+
+		assert.deepStrictEqual({
+			whilePresented,
+			afterSwitch: afterSwitch?.thinkingEffort,
+			fresh: createStore(storage, control.service).getModelConfiguration(MODEL)?.thinkingEffort,
+		}, { whilePresented: 'high', afterSwitch: 'medium', fresh: 'medium' });
 	});
 
 	test('a host session report does not absorb a presented value', () => {
@@ -1453,19 +1521,23 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual({ reported, cleared: editor.getModelConfiguration(MODEL)?.thinkingEffort }, { reported: 'high', cleared: 'low' });
 	});
 
-	test('an explicit choice supersedes a presented value', () => {
+	test('an explicit choice supersedes a presented value and reports the overridden key', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const editor = createStore(storage, createMultiKeyService());
 		editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
 		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
 		let changes = 0;
+		const overridden: (readonly string[])[] = [];
 		store.add(editor.onDidChange(() => changes++));
+		store.add(editor.onDidOverridePresented(e => overridden.push(e.keys)));
 
+		editor.setModelConfiguration(MODEL, { contextSize: 1_000_000 });
 		editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
 
-		assert.deepStrictEqual({ configuration: editor.getModelConfiguration(MODEL), changes }, {
-			configuration: { thinkingEffort: 'low', contextSize: 200_000 },
-			changes: 1,
+		assert.deepStrictEqual({ configuration: editor.getModelConfiguration(MODEL), changes, overridden }, {
+			configuration: { thinkingEffort: 'low', contextSize: 1_000_000 },
+			changes: 2,
+			overridden: [['thinkingEffort']],
 		});
 	});
 

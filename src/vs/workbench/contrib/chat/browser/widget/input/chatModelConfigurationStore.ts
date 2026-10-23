@@ -20,6 +20,12 @@ import { isModelConfigurationDefault, modelConfigurationSourceKey, type IAgentMo
 import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.js';
 
 /**
+ * Provenance recorded for presented overlay values (see {@link ChatModelConfigurationStore.setPresentedConfiguration}).
+ * It is not `default`/`managed`, so the host applies the value, while restores can still recognise and drop it.
+ */
+export const PresentedConfigurationSource = 'agent';
+
+/**
  * Per-editor store for model configuration (e.g. context size, thinking effort).
  *
  * It keeps an in-memory snapshot per model so an editor's value stays stable
@@ -53,6 +59,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private readonly _onDidSelectConfiguration = this._register(new Emitter<string>());
 	/** Explicit selections, including reselecting a value; restores and schema updates do not fire. */
 	readonly onDidSelectConfiguration: Event<string> = this._onDidSelectConfiguration.event;
+
+	private readonly _onDidOverridePresented = this._register(new Emitter<{ readonly modelId: string; readonly keys: readonly string[] }>());
+	/** Fires before the change is applied when an explicit selection replaces presented overlay keys. */
+	readonly onDidOverridePresented: Event<{ readonly modelId: string; readonly keys: readonly string[] }> = this._onDidOverridePresented.event;
 
 	constructor(
 		private readonly getStorageKey: () => string,
@@ -116,8 +126,32 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
 		const effective = this._getStoredConfiguration(modelId);
-		const presented = this._presented?.modelId === modelId ? { ...effective, ...this._presented.values } : effective;
-		return Object.keys(presented).length > 0 ? presented : undefined;
+		const presented = this._effectivePresented(modelId);
+		const result = presented ? { ...effective, ...presented } : effective;
+		return Object.keys(result).length > 0 ? result : undefined;
+	}
+
+	/**
+	 * The overlay values the model currently accepts, each tagged with the {@link PresentedConfigurationSource}
+	 * provenance. Validated on every read against the effective (session-scoped) schema, so host locks and
+	 * narrowed choices always win, including when they change after the overlay was set.
+	 */
+	private _effectivePresented(modelId: string): IStringDictionary<unknown> | undefined {
+		if (this._presented?.modelId !== modelId) {
+			return undefined;
+		}
+		const properties = this.getModelConfigurationSchema(modelId)?.properties;
+		const result: IStringDictionary<unknown> = {};
+		for (const [key, value] of Object.entries(this._presented.values)) {
+			const property = properties?.[key];
+			const index = property?.enum?.indexOf(value);
+			if (!property || property.readOnly || index === -1 || (index !== undefined && property.enumItemDisabled?.[index])) {
+				continue;
+			}
+			result[key] = value;
+			result[modelConfigurationSourceKey(key)] = PresentedConfigurationSource;
+		}
+		return Object.keys(result).length > 0 ? result : undefined;
 	}
 
 	/** The configuration without the presented overlay, for internal callers that feed it back into `_overrides`. */
@@ -152,18 +186,30 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		}
 	}
 
-	/** An explicit choice for a key supersedes the overlay; restored copies of overlay values are not preferences. */
+	/** An explicit choice for a key supersedes the overlay; overlay values captured into restored state are not preferences. */
 	private _withoutPresented(modelId: string, values: IStringDictionary<unknown>, supersede: boolean): IStringDictionary<unknown> {
+		if (!supersede) {
+			// Provenance travels with captured state, so this holds even after the store was cleared or recreated.
+			const result = { ...values };
+			for (const key of Object.keys(values)) {
+				if (values[modelConfigurationSourceKey(key)] === PresentedConfigurationSource) {
+					delete result[key];
+					delete result[modelConfigurationSourceKey(key)];
+				}
+			}
+			return result;
+		}
 		const presented = this._presented?.modelId === modelId ? this._presented.values : undefined;
 		if (!presented) {
 			return values;
 		}
-		if (supersede) {
-			const remaining = Object.fromEntries(Object.entries(presented).filter(([key]) => !Object.hasOwn(values, key)));
+		const superseded = Object.keys(presented).filter(key => Object.hasOwn(values, key));
+		if (superseded.length > 0) {
+			const remaining = Object.fromEntries(Object.entries(presented).filter(([key]) => !superseded.includes(key)));
 			this._presented = Object.keys(remaining).length > 0 ? { modelId, values: remaining } : undefined;
-			return values;
+			this._onDidOverridePresented.fire({ modelId, keys: superseded });
 		}
-		return Object.fromEntries(Object.entries(values).filter(([key, value]) => !Object.hasOwn(presented, key) || !equals(presented[key], value)));
+		return values;
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
@@ -354,11 +400,12 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const applied = filterConfigurationToSchema(current.config, this.getModelConfigurationSchema(modelId));
 		const result = { ...configuration };
 		for (const key of this._defaultKeys(modelId) ?? []) {
-			if (!Object.hasOwn(applied, key) || !isModelConfigurationDefault(configuration, key)) {
+			const source = current.config[modelConfigurationSourceKey(key)];
+			// The runtime is applying this client's presented overlay; the overlay itself owns that value.
+			if (!Object.hasOwn(applied, key) || !isModelConfigurationDefault(configuration, key) || source === PresentedConfigurationSource) {
 				continue;
 			}
 			result[key] = applied[key];
-			const source = current.config[modelConfigurationSourceKey(key)];
 			if (source === 'default' || source === 'managed' || source === 'explicit') {
 				result[modelConfigurationSourceKey(key)] = source;
 			}

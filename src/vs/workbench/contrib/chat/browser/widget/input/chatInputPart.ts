@@ -30,7 +30,7 @@ import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDispos
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { mixin } from '../../../../../../base/common/objects.js';
+import { mixin, equals as objectEquals } from '../../../../../../base/common/objects.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isWeb, OS } from '../../../../../../base/common/platform.js';
 import { isTerminalSandboxSupported } from '../../../../../../platform/sandbox/common/settings.js';
@@ -112,7 +112,7 @@ import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostAutoTierScope.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
-import { ChatInputStateOrigin, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
+import { ChatInputStateOrigin, IChatAgentPinOverrides, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { getRegisteredLanguageModels, isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, resolveModelIdentifierFromLanguageModels, RestoredModelReason } from '../../../common/modelSelection.js';
 import { filterModelsForSession, getNextModelInCycle, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, isSessionStarted, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -1255,6 +1255,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// snapshot that overwrites the newer config on reopen. The `_syncFromModel` guard
 		// and the store's redundant-update short-circuit prevent feedback loops on restore.
 		this._register(this._modelConfigStore.onDidChange(() => this._syncInputStateToModel()));
+		// Fires before the store's change event, so the recorded override is part of the state that event syncs.
+		this._register(this._modelConfigStore.onDidOverridePresented(({ keys }) => this._recordAgentPinOverride({ configKeys: keys })));
 		this._register(this._modelConfigStore.onDidSelectConfiguration(modelId => {
 			const model = this._currentLanguageModel.get();
 			if (model?.identifier === modelId) {
@@ -1421,7 +1423,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const mode = this._currentModeObservable.read(r);
 			this.chatModeKindKey.set(mode.kind);
 			this.chatModeNameKey.set(mode.name.read(r));
-			this.applyModePreferredModel(mode.model?.read(r), mode.reasoningEffort?.read(r));
+			this.applyModePreferredModel(mode.model?.read(r));
+		}));
+		// Reconciled independently of model switching so it follows the current model, including late-registering ones.
+		this._register(autorun(r => {
+			const reasoningEffort = this._currentModeObservable.read(r).reasoningEffort?.read(r);
+			const model = this._currentLanguageModel.read(r);
+			this._agentPinOverrides.read(r);
+			this._reconcileModeReasoningEffort(reasoningEffort, model);
 		}));
 
 		this.registerChatModeValidation();
@@ -1429,21 +1438,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _modePreferredModelPending = false;
 
-	private applyModePreferredModel(models = this._currentModeObservable.get().model?.get(), reasoningEffort = this._currentModeObservable.get().reasoningEffort?.get()): void {
-		if (this.options.suppressModePreferredModel || this.options.hostModelSelection) {
+	/** What the user overrode of the selected agent's pins in this conversation; persisted with the input state. */
+	private readonly _agentPinOverrides = observableValue<IChatAgentPinOverrides | undefined>('agentPinOverrides', undefined);
+
+	private _isAgentPinOverridden(pin: 'model' | string): boolean {
+		const overrides = this._agentPinOverrides.get();
+		if (!overrides || overrides.modeId !== this._currentModeObservable.get().id) {
+			return false;
+		}
+		return pin === 'model' ? overrides.model === true : overrides.configKeys?.includes(pin) === true;
+	}
+
+	private _recordAgentPinOverride(update: { readonly model?: true; readonly configKeys?: readonly string[] }): void {
+		const modeId = this._currentModeObservable.get().id;
+		const current = this._agentPinOverrides.get();
+		const base: IChatAgentPinOverrides = current?.modeId === modeId ? current : { modeId };
+		const configKeys = [...new Set([...(base.configKeys ?? []), ...(update.configKeys ?? [])])];
+		const next: IChatAgentPinOverrides = {
+			modeId,
+			...(base.model || update.model ? { model: true } : {}),
+			...(configKeys.length > 0 ? { configKeys } : {}),
+		};
+		if (!objectEquals(current, next)) {
+			this._agentPinOverrides.set(next, undefined);
+		}
+	}
+
+	private applyModePreferredModel(models = this._currentModeObservable.get().model?.get()): void {
+		if (this.options.suppressModePreferredModel || this.options.hostModelSelection || !models?.length || this._isAgentPinOverridden('model')) {
 			this._modePreferredModelPending = false;
 			return;
 		}
-		let model: ILanguageModelChatMetadataAndIdentifier | undefined;
-		if (models?.length) {
-			model = this._switchModelByQualifiedName(models);
-			this._modePreferredModelPending = !model;
-		} else {
-			this._modePreferredModelPending = false;
-			// An effort-only pin applies to whichever model is already selected.
-			model = reasoningEffort ? this._currentLanguageModel.get() : undefined;
-		}
-		this._presentModeReasoningEffort(model, reasoningEffort);
+		this._modePreferredModelPending = !this._switchModelByQualifiedName(models);
 	}
 
 	private setImplicitContextEnablement() {
@@ -1480,6 +1506,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// (`event=initialize`), which carries the storage key, session and conversation already.
 		const storedSelection = getStoredSelectedModel(this.storageService, this.location, this.getSelectedModelTarget());
 		this._modelSelectionController.initialize(storedSelection);
+		// Clearing dropped the overlay; restore it even when the selected model didn't change.
+		this._reconcileModeReasoningEffort();
 	}
 
 	public setEditing(enabled: boolean, editingSentRequest: ChatContextKeys.EditingRequestType | undefined) {
@@ -1564,12 +1592,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Agent-host harnesses read reasoning effort from the picker's model configuration, so overlay the
-	 * agent's `reasoning-effort` there for this conversation only; anything else clears the overlay.
+	 * agent's `reasoning-effort` on the current model for this conversation only, unless the user chose
+	 * that setting themselves; anything else clears the overlay.
 	 */
-	private _presentModeReasoningEffort(model: ILanguageModelChatMetadataAndIdentifier | undefined, reasoningEffort: string | undefined): void {
-		const properties = model?.metadata.targetChatSessionType ? model.metadata.configurationSchema?.properties : undefined;
-		const key = reasoningEffort ? ['reasoningEffort', 'thinkingLevel'].find(key => properties?.[key]?.enum?.includes(reasoningEffort)) : undefined;
-		if (model && key) {
+	private _reconcileModeReasoningEffort(reasoningEffort = this._currentModeObservable.get().reasoningEffort?.get(), model = this._currentLanguageModel.get()): void {
+		const applies = !this.options.suppressModePreferredModel && !this.options.hostModelSelection && !!reasoningEffort && !!model?.metadata.targetChatSessionType;
+		const properties = applies ? model?.metadata.configurationSchema?.properties : undefined;
+		const key = ['reasoningEffort', 'thinkingLevel'].find(key => properties?.[key]?.enum?.includes(reasoningEffort));
+		if (model && key && !this._isAgentPinOverridden(key)) {
 			this._modelConfigStore.setPresentedConfiguration(model.identifier, { [key]: reasoningEffort });
 		} else {
 			this._modelConfigStore.setPresentedConfiguration(undefined);
@@ -2045,16 +2075,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		try {
 			this._isSyncingToOrFromInputModel = true;
 
+			// Before the mode sync, so pins applied by the mode switch already respect this conversation's overrides.
+			this._agentPinOverrides.set(state?.agentPinOverrides, undefined);
+
 			// Sync mode
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
 				if (currentMode.id !== state.mode.id) {
 					this.setChatMode(state.mode.id, false);
 				}
-				// Judged on the incoming conversation alone: a model chosen in it (including one restored
-				// from an earlier pass) outranks the agent's pin, whatever mode the widget showed before.
+				// Persisted overrides (checked in `applyModePreferredModel`) survive reloads. Within a session the
+				// selection reason also protects a model chosen in the conversation, and a peer's draft owns its own pins.
 				reapplyModePin = state.selectedModelReason !== ModelSelectionReason.UserSelection
-					&& state.selectedModelReason !== ModelSelectionReason.RestoredChoice;
+					&& state.selectedModelReason !== ModelSelectionReason.RestoredChoice
+					&& state.origin !== ChatInputStateOrigin.Remote;
 			}
 
 			// Sync selected model - validate it belongs to the current session's model pool
@@ -2069,7 +2103,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					currentModel: this._currentLanguageModel.get()?.identifier,
 				});
 			}
-			if (state && !reapplyModePin) {
+			if (state && (!reapplyModePin || this._isAgentPinOverridden('model'))) {
 				// Switching modes above may have queued a retry for an unresolved pin; the restored choice wins.
 				this._modePreferredModelPending = false;
 			}
@@ -2114,6 +2148,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (reapplyModePin) {
 			this.applyModePreferredModel();
 		}
+		// The restore may have replaced the model or its configuration, and a store reset drops the overlay.
+		this._reconcileModeReasoningEffort();
 	}
 
 	/**
@@ -2155,6 +2191,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (isUserAction) {
 			// An explicit choice outranks an agent pin still waiting for its model to register.
 			this._modePreferredModelPending = false;
+			const pins = this._currentModeObservable.get().model?.get();
+			// Configuration selections re-select the current model, so only a different model counts as an override.
+			if (pins?.length && this._findModelByQualifiedName(pins)?.identifier !== model.identifier) {
+				this._recordAgentPinOverride({ model: true });
+			}
 		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
@@ -2218,6 +2259,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		if (isUserInitiated && this._agentPinOverrides.get()?.modeId !== mode.id) {
+			// Overrides belong to the agent they were made against; the user picking another agent re-arms its pins.
+			// Programmatic switches (restores, fallbacks while an agent registers) keep them for when it returns.
+			this._agentPinOverrides.set(undefined, undefined);
+		}
 		this._currentModeObservable.set(mode, undefined);
 		this._onDidChangeCurrentChatMode.fire({ isUserInitiated });
 
@@ -2447,6 +2493,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			selectedModel,
 			modelConfiguration: selectedModel ? this._modelConfigStore.getModelConfiguration(selectedModel.identifier) : undefined,
 			selectedModelReason: selectedModel ? this._modelSelectionController.selectionReason : undefined,
+			agentPinOverrides: this._agentPinOverrides.get(),
 			selections: this._inputEditor?.getSelections() || [],
 			permissionLevel: this._currentPermissionLevel.get(),
 			contrib: {},

@@ -268,8 +268,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				handOffs: undefined,
 				hooks: undefined,
 				// Selecting the agent switches the picker to these so the host doesn't override the agent's pins.
-				model: meta.models ?? (agent.model ? [agent.model] : undefined),
-				...(meta.reasoningEffort ? { reasoningEffort: meta.reasoningEffort } : {}),
+				model: meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined),
+				...(meta['vscode.reasoningEffort'] ? { reasoningEffort: meta['vscode.reasoningEffort'] } : {}),
 				agentInstructions: { content: '', toolReferences: [] },
 				visibility: {
 					agentInvocable: true,

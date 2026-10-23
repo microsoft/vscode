@@ -10,7 +10,7 @@ import { DeferredPromise, retry, timeout } from '../../../../../../../base/commo
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -43,7 +43,7 @@ import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
-import { IChatModelInputState } from '../../../../common/model/chatModel.js';
+import { IChatAgentPinOverrides, IChatModelInputState } from '../../../../common/model/chatModel.js';
 import { ModelSelectionReason } from '../../../../common/modelSelection.js';
 import '../../../../browser/widget/media/chat.css';
 
@@ -87,12 +87,18 @@ suite('ChatInputPart', () => {
 		const otherModel = createModel('Other');
 		const hostPickerModel = createAgentHostModel('gpt-6-luna', 'GPT-6 Luna');
 		const hostPinnedModel = createAgentHostModel('claude-sonnet-4.5', 'Claude Sonnet 4.5');
+		const hostOtherModel = createAgentHostModel('gpt-6-sol', 'GPT-6 Sol');
 
 		interface ITestInputPart {
 			_syncFromModel(state: IChatModelInputState, resource: URI): void;
 			applyModePreferredModel(): void;
 			setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction?: boolean, storeSelection?: boolean): void;
+			getCurrentInputState(): IChatModelInputState;
+			setChatMode(id: string, storeSelection?: boolean, isUserInitiated?: boolean): void;
+			_recordAgentPinOverride(update: { readonly model?: true; readonly configKeys?: readonly string[] }): void;
+			_reconcileModeReasoningEffort(): void;
 			readonly _modePreferredModelPending: boolean;
+			readonly _agentPinOverrides: IObservable<IChatAgentPinOverrides | undefined>;
 		}
 
 		interface IPinnedMode {
@@ -101,30 +107,35 @@ suite('ChatInputPart', () => {
 			readonly reasoningEffort?: string;
 		}
 
-		/** Mirrors the mode autorun: switching modes applies the new mode's pin. */
+		/**
+		 * A stub with the pin-relevant members. The two autoruns below mirror the ones registered in the
+		 * constructor, so mode switches, model changes and overrides react in the real order.
+		 */
 		const createInputPart = (options: {
 			readonly mode: IPinnedMode;
 			readonly modes?: readonly IPinnedMode[];
 			readonly models: () => readonly ILanguageModelChatMetadataAndIdentifier[];
-			readonly selected: ILanguageModelChatMetadataAndIdentifier;
+			readonly selected: ILanguageModelChatMetadataAndIdentifier | undefined;
 			readonly inputOptions?: object;
+			readonly isRegistered?: (modeId: string) => boolean;
 		}) => {
 			const toMode = (mode: IPinnedMode) => ({ id: mode.id, model: observableValue('pin', mode.pin), reasoningEffort: observableValue('effort', mode.reasoningEffort) });
 			const result = {
-				selectedModel: options.selected,
+				get selectedModel() { return currentLanguageModel.get(); },
 				presented: undefined as [string, object] | undefined,
 				inputPart: undefined as unknown as ITestInputPart,
+				select: (model: ILanguageModelChatMetadataAndIdentifier | undefined) => currentLanguageModel.set(model, undefined),
 			};
 			const currentMode = observableValue('mode', toMode(options.mode));
-			const currentLanguageModel = observableValue('model', options.selected);
-			const select = (model: ILanguageModelChatMetadataAndIdentifier) => {
-				result.selectedModel = model;
-				currentLanguageModel.set(model, undefined);
-			};
-			result.inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
-				options: options.inputOptions ?? {},
+			const currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('model', options.selected);
+			const select = (model: ILanguageModelChatMetadataAndIdentifier) => currentLanguageModel.set(model, undefined);
+			const agentPinOverrides = observableValue<IChatAgentPinOverrides | undefined>('agentPinOverrides', undefined);
+			const inputPart = result.inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options: { supportsChangingModes: true, ...options.inputOptions },
+				_onDidChangeCurrentChatMode: { fire: () => { } },
 				_currentModeObservable: currentMode,
 				_currentLanguageModel: currentLanguageModel,
+				_agentPinOverrides: agentPinOverrides,
 				_isSyncingToOrFromInputModel: false,
 				_attachmentModel: { attachments: [] },
 				_syncTextDebounced: { cancel: () => { } },
@@ -133,12 +144,13 @@ suite('ChatInputPart', () => {
 				getModels: options.models,
 				_restoreReasonFor: () => undefined,
 				_modelSelectionDiagnostics: { report: () => { } },
-				setChatMode(this: ITestInputPart, id: string) {
-					const mode = options.modes?.find(candidate => candidate.id === id);
-					if (mode) {
-						currentMode.set(toMode(mode), undefined);
-						this.applyModePreferredModel();
-					}
+				_currentPermissionLevel: observableValue('permission', undefined),
+				getPermittedPermissionLevel: () => undefined,
+				// Like the real `setChatMode`: an unregistered agent falls back to Agent mode. Never syncs to an input model here.
+				setChatMode(this: { setChatMode2(mode: unknown, storeSelection: boolean, isUserInitiated: boolean): void }, id: string, _storeSelection = true, isUserInitiated = false) {
+					const modes = [...(options.modes ?? [options.mode]), { id: 'agent' }].filter(mode => !options.isRegistered || options.isRegistered(mode.id));
+					const mode = modes.find(candidate => candidate.id === id) ?? modes.find(candidate => candidate.id === 'agent')!;
+					this.setChatMode2(toMode(mode), false, isUserInitiated);
 				},
 				_modelSelectionController: {
 					syncFromConversationState: select,
@@ -146,20 +158,32 @@ suite('ChatInputPart', () => {
 					applySelection: select,
 				},
 				_modelConfigStore: {
+					getModelConfiguration: () => undefined,
 					setPresentedConfiguration: (identifier: string | undefined, values?: object) => { result.presented = identifier && values ? [identifier, values] : undefined; },
 				},
-			});
+			}) as ITestInputPart;
+			store.add(autorun(r => {
+				const mode = currentMode.read(r);
+				mode.model.read(r);
+				inputPart.applyModePreferredModel();
+			}));
+			store.add(autorun(r => {
+				currentMode.read(r).reasoningEffort.read(r);
+				currentLanguageModel.read(r);
+				agentPinOverrides.read(r);
+				inputPart._reconcileModeReasoningEffort();
+			}));
 			return result;
 		};
 
-		const restoredState = (mode: string, selectedModel: ILanguageModelChatMetadataAndIdentifier, selectedModelReason?: ModelSelectionReason): IChatModelInputState => ({
+		const restoredState = (mode: string, selectedModel: ILanguageModelChatMetadataAndIdentifier, extra?: Partial<IChatModelInputState>): IChatModelInputState => ({
 			mode: { id: mode, kind: ChatModeKind.Agent },
 			selectedModel,
-			...(selectedModelReason ? { selectedModelReason } : {}),
 			inputText: '',
 			selections: [],
 			attachments: [],
 			contrib: {},
+			...extra,
 		});
 		const session = URI.parse('vscode-chat-session:/test');
 
@@ -190,41 +214,86 @@ suite('ChatInputPart', () => {
 				const result = createInputPart({
 					mode: { id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] },
 					models: () => [pickerModel, pinnedModel, otherModel],
-					selected: otherModel,
+					selected: pinnedModel,
 				});
 
-				result.inputPart._syncFromModel(restoredState('reviewer', otherModel, reason), session);
+				result.inputPart._syncFromModel(restoredState('reviewer', otherModel, { selectedModelReason: reason }), session);
 
 				assert.strictEqual(result.selectedModel, otherModel);
 			});
 		}
 
-		test('keeps a deliberate choice when navigating back from a conversation in another mode', () => {
+		test('a deliberate model choice is recorded, persisted and kept after a reload and navigation', () => {
 			const result = createInputPart({
 				mode: { id: 'agent' },
-				modes: [{ id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] }],
+				modes: [{ id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] }, { id: 'agent' }],
 				models: () => [pickerModel, pinnedModel, otherModel],
 				selected: pickerModel,
 			});
+			result.inputPart._syncFromModel(restoredState('reviewer', pinnedModel), session);
+			result.inputPart.setCurrentLanguageModel(otherModel, true, false);
+			const captured = result.inputPart.getCurrentInputState().agentPinOverrides;
 
-			result.inputPart._syncFromModel(restoredState('reviewer', otherModel, ModelSelectionReason.UserSelection), session);
+			// Reload: `selectedModelReason` isn't saved, only the persisted overrides survive. Arrive from another mode.
+			result.inputPart._syncFromModel(restoredState('agent', pickerModel), session);
+			result.inputPart._syncFromModel(restoredState('reviewer', otherModel, { agentPinOverrides: captured }), session);
 
-			assert.strictEqual(result.selectedModel, otherModel);
+			assert.deepStrictEqual({ captured, selected: result.selectedModel, pending: result.inputPart._modePreferredModelPending }, {
+				captured: { modeId: 'reviewer', model: true },
+				selected: otherModel,
+				pending: false,
+			});
 		});
 
-		test('a restored deliberate choice cancels a pending pin retry', () => {
-			let models = [pickerModel, otherModel];
+		test('re-selecting the pinned model, as configuration changes do, is not an override', () => {
 			const result = createInputPart({
-				mode: { id: 'agent' },
-				modes: [{ id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] }],
-				models: () => models,
+				mode: { id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] },
+				models: () => [pickerModel, pinnedModel],
 				selected: pickerModel,
 			});
 
-			result.inputPart._syncFromModel(restoredState('reviewer', otherModel, ModelSelectionReason.UserSelection), session);
-			models = [pickerModel, pinnedModel, otherModel];
+			result.inputPart.setCurrentLanguageModel(pinnedModel, true, false);
 
-			assert.deepStrictEqual([result.inputPart._modePreferredModelPending, result.selectedModel], [false, otherModel]);
+			assert.strictEqual(result.inputPart._agentPinOverrides.get(), undefined);
+		});
+
+		test('the user switching to another agent and back re-arms its pins', () => {
+			const result = createInputPart({
+				mode: { id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] },
+				models: () => [pickerModel, pinnedModel, otherModel],
+				selected: pinnedModel,
+			});
+			result.inputPart.setCurrentLanguageModel(otherModel, true, false);
+			const overridden = result.selectedModel;
+
+			result.inputPart.setChatMode('agent', true, true);
+			result.inputPart.setChatMode('reviewer', true, true);
+
+			assert.deepStrictEqual([overridden, result.selectedModel], [otherModel, pinnedModel]);
+		});
+
+		test('overrides survive the fallback to Agent while the agent registers late', () => {
+			let registered = false;
+			const overrides: IChatAgentPinOverrides = { modeId: 'reviewer', model: true };
+			const result = createInputPart({
+				mode: { id: 'plan' },
+				modes: [{ id: 'plan' }, { id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] }],
+				models: () => [pickerModel, pinnedModel, otherModel],
+				selected: pickerModel,
+				isRegistered: id => id !== 'reviewer' || registered,
+			});
+
+			result.inputPart._syncFromModel(restoredState('reviewer', otherModel, { agentPinOverrides: overrides }), session);
+			const fallback = result.selectedModel;
+			// As `_restorePersistedCustomModeIfAvailable` does once the agent registers.
+			registered = true;
+			result.inputPart.setChatMode('reviewer', false);
+
+			assert.deepStrictEqual({ fallback, registered: result.selectedModel, overrides: result.inputPart._agentPinOverrides.get() }, {
+				fallback: otherModel,
+				registered: otherModel,
+				overrides,
+			});
 		});
 
 		test('applies the pin when its model becomes available', () => {
@@ -235,7 +304,6 @@ suite('ChatInputPart', () => {
 				selected: pickerModel,
 			});
 
-			result.inputPart.applyModePreferredModel();
 			const before = result.selectedModel;
 			models = [pickerModel, pinnedModel];
 			result.inputPart.applyModePreferredModel();
@@ -250,7 +318,6 @@ suite('ChatInputPart', () => {
 				selected: pickerModel,
 			});
 
-			result.inputPart.applyModePreferredModel();
 			const pendingBefore = result.inputPart._modePreferredModelPending;
 			result.inputPart.setCurrentLanguageModel(otherModel, true, false);
 
@@ -258,48 +325,68 @@ suite('ChatInputPart', () => {
 		});
 
 		suite('agent host harness', () => {
-			const createHostInputPart = (pin: readonly string[] | undefined, reasoningEffort: string | undefined, inputOptions?: object) => createInputPart({
+			const createHostInputPart = (pin: readonly string[] | undefined, reasoningEffort: string | undefined, inputOptions?: object, selected: ILanguageModelChatMetadataAndIdentifier | undefined = hostPickerModel) => createInputPart({
 				mode: { id: 'pinned', pin, reasoningEffort },
-				models: () => [hostPickerModel, hostPinnedModel],
-				selected: hostPickerModel,
+				modes: [{ id: 'pinned', pin, reasoningEffort }, { id: 'agent' }],
+				models: () => [hostPickerModel, hostPinnedModel, hostOtherModel],
+				selected,
 				inputOptions,
 			});
 
 			for (const pin of ['Claude Sonnet 4.5 (copilot)', 'claude-sonnet-4.5']) {
 				test(`resolves agent-file model '${pin}' to the harness model`, () => {
 					const result = createHostInputPart([pin], undefined);
-					result.inputPart.applyModePreferredModel();
 					assert.deepStrictEqual([result.selectedModel, result.presented], [hostPinnedModel, undefined]);
 				});
 			}
 
 			test('overlays the agent reasoning effort on the selected harness model', () => {
 				const result = createHostInputPart(['Claude Sonnet 4.5 (copilot)'], 'high');
-				result.inputPart.applyModePreferredModel();
 				assert.deepStrictEqual([result.selectedModel, result.presented], [hostPinnedModel, [hostPinnedModel.identifier, { reasoningEffort: 'high' }]]);
 			});
 
-			test('applies an effort-only pin to the current harness model', () => {
+			test('an effort-only pin follows the current model, including one that registers late', () => {
+				const result = createHostInputPart(undefined, 'high', undefined, undefined);
+				const noModel = result.presented;
+				result.select(hostPickerModel);
+				const late = result.presented;
+				result.inputPart.setCurrentLanguageModel(hostOtherModel, true, false);
+
+				assert.deepStrictEqual({ noModel, late, switched: result.presented }, {
+					noModel: undefined,
+					late: [hostPickerModel.identifier, { reasoningEffort: 'high' }],
+					switched: [hostOtherModel.identifier, { reasoningEffort: 'high' }],
+				});
+			});
+
+			test('an explicitly chosen effort survives navigation and reload', () => {
 				const result = createHostInputPart(undefined, 'high');
-				result.inputPart.applyModePreferredModel();
-				assert.deepStrictEqual([result.selectedModel, result.presented], [hostPickerModel, [hostPickerModel.identifier, { reasoningEffort: 'high' }]]);
+				result.inputPart._recordAgentPinOverride({ configKeys: ['reasoningEffort'] });
+				const captured = result.inputPart.getCurrentInputState().agentPinOverrides;
+
+				result.inputPart._syncFromModel(restoredState('agent', hostPickerModel), session);
+				const otherConversation = result.presented;
+				result.inputPart._syncFromModel(restoredState('pinned', hostPickerModel, { agentPinOverrides: captured }), session);
+
+				assert.deepStrictEqual({ captured, otherConversation, restored: result.presented }, {
+					captured: { modeId: 'pinned', configKeys: ['reasoningEffort'] },
+					otherConversation: undefined,
+					restored: undefined,
+				});
 			});
 
 			test('ignores a reasoning effort the model does not support', () => {
 				const result = createHostInputPart(['claude-sonnet-4.5'], 'ultra');
-				result.inputPart.applyModePreferredModel();
 				assert.deepStrictEqual([result.selectedModel, result.presented], [hostPinnedModel, undefined]);
 			});
 
 			test('leaves the picker unchanged when the pin does not resolve', () => {
-				const result = createHostInputPart(['Missing (copilot)'], 'high');
-				result.inputPart.applyModePreferredModel();
+				const result = createHostInputPart(['Missing (copilot)'], undefined);
 				assert.deepStrictEqual([result.selectedModel, result.presented], [hostPickerModel, undefined]);
 			});
 
 			test('defers to host-owned model selection', () => {
 				const result = createHostInputPart(['claude-sonnet-4.5'], 'high', { hostModelSelection: {} });
-				result.inputPart.applyModePreferredModel();
 				assert.deepStrictEqual([result.selectedModel, result.presented], [hostPickerModel, undefined]);
 			});
 		});

@@ -21,10 +21,10 @@ export interface IAgentCustomizationMeta {
 	 * explicit `false` hides the agent from direct user invocation.
 	 */
 	readonly userInvocable?: boolean;
-	/** Ordered model preferences from the agent file's frontmatter `model`; the first available one applies. */
-	readonly models?: readonly string[];
-	/** The agent file's frontmatter `reasoning-effort`. */
-	readonly reasoningEffort?: string;
+	/** VS Code extension: ordered model preferences from the agent file's frontmatter `model`; the first available one applies. */
+	readonly 'vscode.models'?: readonly string[];
+	/** VS Code extension: the agent file's frontmatter `reasoning-effort`. */
+	readonly 'vscode.reasoningEffort'?: string;
 }
 
 /**
@@ -42,12 +42,13 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 	} else if (typeof meta?.userInvocable === 'boolean') {
 		result.userInvocable = meta.userInvocable;
 	}
-	const models = meta?.models;
-	if (Array.isArray(models) && models.length > 0 && models.every(model => typeof model === 'string')) {
-		result.models = models;
+	const models = meta?.['vscode.models'];
+	if (Array.isArray(models) && models.length > 0 && models.every(model => typeof model === 'string' && model.length > 0)) {
+		result['vscode.models'] = models;
 	}
-	if (typeof meta?.reasoningEffort === 'string' && meta.reasoningEffort) {
-		result.reasoningEffort = meta.reasoningEffort;
+	const reasoningEffort = meta?.['vscode.reasoningEffort'];
+	if (typeof reasoningEffort === 'string' && reasoningEffort) {
+		result['vscode.reasoningEffort'] = reasoningEffort;
 	}
 	return result;
 }

@@ -104,8 +104,9 @@ suite('AgentCustomizationItemProvider', () => {
 
 	test('carries host-published model and reasoning-effort pins into custom chat modes', async () => {
 		const agents: AgentCustomization[] = [
-			{ type: CustomizationType.Agent, id: 'pinned', uri: 'other-host:/agents/pinned.agent.md', name: 'Pinned', model: 'claude-sonnet-4.5', _meta: { models: ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], reasoningEffort: 'high' } },
+			{ type: CustomizationType.Agent, id: 'pinned', uri: 'other-host:/agents/pinned.agent.md', name: 'Pinned', model: 'claude-sonnet-4.5', _meta: { 'vscode.models': ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], 'vscode.reasoningEffort': 'high' } },
 			{ type: CustomizationType.Agent, id: 'plugin', uri: 'other-host:/plugin/agents/plugin.agent.md', name: 'Plugin', model: 'gpt-6-luna' },
+			{ type: CustomizationType.Agent, id: 'foreign', uri: 'other-host:/agents/foreign.agent.md', name: 'Foreign', model: 'host-model', _meta: { models: ['unrelated'], reasoningEffort: 'high' } },
 			{ type: CustomizationType.Agent, id: 'unpinned', uri: 'other-host:/agents/unpinned.agent.md', name: 'Unpinned' },
 		];
 		class TestCustomizationService extends NullAgentHostCustomizationService {
@@ -122,6 +123,7 @@ suite('AgentCustomizationItemProvider', () => {
 		assert.deepStrictEqual(modes.map(mode => ({ name: mode.name.get(), model: mode.model.get(), reasoningEffort: mode.reasoningEffort.get() })), [
 			{ name: 'Pinned', model: ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], reasoningEffort: 'high' },
 			{ name: 'Plugin', model: ['gpt-6-luna'], reasoningEffort: undefined },
+			{ name: 'Foreign', model: ['host-model'], reasoningEffort: undefined },
 			{ name: 'Unpinned', model: undefined, reasoningEffort: undefined },
 		]);
 	});

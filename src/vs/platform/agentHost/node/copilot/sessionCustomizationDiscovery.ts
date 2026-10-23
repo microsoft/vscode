@@ -602,7 +602,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					name: agent.name,
 					description: agent.description,
 					...(pins.models ? { model: pins.models[0] } : {}),
-					_meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable, models: pins.models, reasoningEffort: pins.reasoningEffort }),
+					_meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable, 'vscode.models': pins.models, 'vscode.reasoningEffort': pins.reasoningEffort }),
 				});
 			}
 		}

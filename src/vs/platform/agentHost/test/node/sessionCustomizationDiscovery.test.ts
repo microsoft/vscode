@@ -286,7 +286,7 @@ suite('SessionCustomizationDiscovery', () => {
 			.sort((a, b) => a.name.localeCompare(b.name));
 
 		assert.deepStrictEqual(agents, [
-			{ name: 'pinned', model: 'claude-sonnet-4.5', meta: { userInvocable: true, models: ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], reasoningEffort: 'high' } },
+			{ name: 'pinned', model: 'claude-sonnet-4.5', meta: { userInvocable: true, 'vscode.models': ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], 'vscode.reasoningEffort': 'high' } },
 			{ name: 'unpinned', model: undefined, meta: { userInvocable: true } },
 		]);
 	});
