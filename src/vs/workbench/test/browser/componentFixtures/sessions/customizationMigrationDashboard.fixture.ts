@@ -100,6 +100,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'disabled'),
 	}),
+	MigrationsPending: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 860, 'pending'),
+	}),
+	MigrationsActive: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The workspace prompt migration group shows a disabled Migrating button while the page is marked busy. Other migration groups remain visible but unavailable until the active migration finishes.'],
+		render: ctx => renderDashboard(ctx, 860, 'active'),
+	}),
+	MigrationsMarketplaceActive: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The Plugin Marketplaces user group shows four selected marketplaces and a disabled Migrating button while the page is marked busy.'],
+		render: ctx => renderDashboard(ctx, 860, 'marketplaceActive'),
+	}),
+	MigrationsMarketplaceActiveNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderDashboard(ctx, 360, 'marketplaceActive'),
+	}),
 	MigrationsIgnored: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderDashboard(ctx, 860, 'ignored'),
@@ -119,8 +139,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	MigrationsMarketplaceError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['A marketplace-specific error card appears above otherwise usable migration groups with an error icon, localized guidance, and a Retry button.'],
+		expectedVisualDescriptions: ['A compact marketplace-specific error card appears above the yellow prompt-to-skill warning and otherwise usable migration groups. Both cards keep their icons beside their title and description, and the Retry button is content-sized at the trailing edge.'],
 		render: ctx => renderDashboard(ctx, 860, 'marketplaceError'),
+	}),
+	MigrationsMarketplaceErrorNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow dashboard, the marketplace error icon stays beside its wrapped title and description while the content-sized Retry button moves below the text. The yellow prompt-to-skill warning below keeps its icon beside the wrapped warning text.'],
+		render: ctx => renderDashboard(ctx, 360, 'marketplaceError'),
 	}),
 	MigrationsMcpWarnings: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -134,8 +159,9 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 });
 
-async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
+async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'pending' | 'active' | 'marketplaceActive' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
 	const { container, disposableStore, theme } = ctx;
+	container.classList.add('ai-customization-management-editor');
 	const dashboardContainer = state === 'tooltip' ? DOM.append(container, DOM.$('.customization-migration-dashboard-fixture')) : container;
 	container.style.width = `${state === 'tooltip' ? width + 300 : width}px`;
 	const height = width < 500 ? 1000 : 740;
@@ -195,6 +221,52 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 				} : category),
 			} : scope),
 		};
+	} else if (state === 'pending' || state === 'active') {
+		model = {
+			...model,
+			migrationInProgress: state === 'active',
+			scopes: model.scopes.map(scope => scope.storage === PromptsStorage.local ? {
+				...scope,
+				categories: scope.categories.map(category => category.id === CustomizationMigrationCategoryId.PromptFiles ? {
+					...category,
+					...(state === 'active' ? { actionLabel: 'Migrating...', migrationInProgress: true } : {}),
+					migrateDisabled: true,
+				} : { ...category, migrateDisabled: true }),
+			} : {
+				...scope,
+				categories: scope.categories.map(category => ({ ...category, migrateDisabled: true })),
+			}),
+		};
+	} else if (state === 'marketplaceActive') {
+		model = {
+			...model,
+			migrationInProgress: true,
+			manualReviewItems: [],
+			scopes: [{
+				storage: PromptsStorage.user,
+				label: 'Your profile',
+				count: 4,
+				hasConfigurableDestinations: false,
+				categories: [{
+					id: CustomizationMigrationCategoryId.PluginMarketplaces,
+					label: 'Plugin Marketplaces',
+					description: 'Migrate plugin marketplaces to Copilot settings while keeping them available to the Local agent.',
+					actionLabel: 'Migrating...',
+					count: 4,
+					selectedCount: 4,
+					countLabel: '4 marketplaces',
+					migrationInProgress: true,
+					migrateDisabled: true,
+					destinationLabel: '~/.copilot/settings.json',
+					items: [
+						{ id: 'marketplace-team-kit', label: 'microsoft/vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-engineering', label: 'contoso/engineering-plugins', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-data', label: 'contoso/data-agents', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+						{ id: 'marketplace-security', label: 'contoso/security-tools', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
+					],
+				}],
+			}],
+		};
 	} else if (state === 'ignored') {
 		model = {
 			...model,
@@ -209,8 +281,8 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 			...model,
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		};
 	} else if (state === 'mcpWarnings') {
@@ -271,7 +343,7 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 	dashboard.layout(height);
 	if (state === 'tooltip') {
 		const migrateButton = [...dashboardContainer.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-			.find(element => element.textContent === 'Migrate');
+			.find(element => element.textContent === 'Migrate...');
 		if (!migrateButton) {
 			throw new Error('Prompt migration button was not rendered');
 		}

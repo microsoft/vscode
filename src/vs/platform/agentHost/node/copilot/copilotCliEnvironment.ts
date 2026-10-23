@@ -80,6 +80,23 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	return env;
 }
 
+/** Temporary host-tool lookup workaround pending the planned upstream fix in https://github.com/microsoft/mxc/issues/1545; remove once the bundled runtime includes it.
+ * Applies to the CLI subprocess and its children, not the agent host's environment.
+ */
+export function addCopilotSandboxPath(env: Record<string, string | undefined>, platform: NodeJS.Platform = process.platform): void {
+	if (platform !== 'linux') {
+		return;
+	}
+
+	const directories = env['PATH'] ? env['PATH'].split(':') : [];
+	for (const directory of ['/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin']) {
+		if (!directories.includes(directory)) {
+			directories.push(directory);
+		}
+	}
+	env['PATH'] = directories.join(':');
+}
+
 /** The SDK's default WebSocket forwarder drops `Authorization`, so while the on-device handler is installed the runtime uses HTTP Responses for CAPI; otherwise nothing changes. */
 export function setLocalModelRequestHandlerEnvironment(env: Record<string, string | undefined>, requestHandlerInstalled: boolean): void {
 	if (requestHandlerInstalled) {

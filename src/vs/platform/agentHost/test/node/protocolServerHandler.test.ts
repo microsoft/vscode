@@ -17,6 +17,7 @@ import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
@@ -25,7 +26,7 @@ import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSa
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
-import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -41,9 +42,10 @@ import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/common/artifactIntegration.js';
@@ -252,6 +254,9 @@ class MockAgentService extends Disposable implements IAgentService {
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
+	agentExtensionInventory: IAgentExtensionInventory = { mode: 'load_and_augment', extensions: [] };
+	readonly listAgentExtensionsCalls: { session: string | undefined; chat: string | undefined }[] = [];
+	readonly setAgentExtensionEnabledCalls: { extensionId: string; enabled: boolean; session: string | undefined; chat: string | undefined }[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -420,6 +425,13 @@ class MockAgentService extends Disposable implements IAgentService {
 	async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session.toString());
 	}
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		this.listAgentExtensionsCalls.push({ session: session?.toString(), chat: chat?.toString() });
+		return this.agentExtensionInventory;
+	}
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		this.setAgentExtensionEnabledCalls.push({ extensionId, enabled, session: session?.toString(), chat: chat?.toString() });
+	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
 		return { handle: '00000000-0000-4000-8000-000000000001', worktree: URI.file('/workspace.worktrees/prepared') };
@@ -438,6 +450,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async cancelDebugLogs(_progressToken: string): Promise<void> { }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async getModelsForCredentials(_provider: string, _credentials: IAgentHostCredentialSource, _token?: CancellationToken): Promise<readonly IAgentModelInfo[]> { return []; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
 		this.browsedUris.push(uri);
@@ -664,6 +677,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.createChatWorkspace': true,
+				'vscode.createSessionImport': true,
 				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
@@ -673,6 +687,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.devContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
+				'vscode.copilotExtensions': true,
 			},
 		});
 	});
@@ -1675,6 +1690,7 @@ suite('ProtocolServerHandler', () => {
 		const initialize = findResponse(transport.sent, 1);
 		assert.ok(initialize && hasKey(initialize, { result: true }));
 		assert.strictEqual(supportsAgentHostTiming(initialize.result as InitializeResult), true);
+		assert.strictEqual(supportsAgentHostCopilotExtensions(initialize.result as InitializeResult), false);
 		assert.strictEqual(supportsAgentHostTiming(undefined), false);
 		assert.strictEqual(supportsAgentHostTiming({ ...(initialize.result as InitializeResult), _meta: { 'vscode.agentHostTiming': 'true' } }), false);
 		const diagnostic: IAgentHostFirstResponseDiagnostic = {
@@ -1919,6 +1935,99 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
+	test('advertises createSession import support, routes valid importConversation metadata, and rejects malformed metadata', async () => {
+		const transport = connectClient('client-create-session-import');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const initializeResult = initialized.result as InitializeResult;
+
+		const importConversation: NonNullable<IAgentCreateSessionConfig['importConversation']> = {
+			title: 'Migrated title',
+			model: { id: 'gpt-5', config: { reasoningEffort: 'high' } },
+			turns: [{
+				id: '11111111-1111-4111-8111-111111111111',
+				message: { text: 'Original prompt', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'm-1', content: 'Original response' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		};
+		const validResponse = waitForResponse(transport, 30);
+		transport.simulateMessage(request(30, 'createSession', {
+			channel: 'ahp-session:/migrated-1',
+			provider: 'copilot',
+			_meta: withCreateSessionImportMeta({ keep: 'yes' }, importConversation),
+		}));
+		const invalidResponse = waitForResponse(transport, 31);
+		transport.simulateMessage(request(31, 'createSession', {
+			channel: 'ahp-session:/migrated-invalid',
+			provider: 'copilot',
+			_meta: { [AgentHostCreateSessionImportMetaKey]: { turns: 'not-an-array' } },
+		}));
+
+		const stagedChunks = splitCreateSessionImportChunks(JSON.stringify(serializeCreateSessionImport(importConversation)), 40);
+		for (const [index, chunk] of stagedChunks.entries()) {
+			const stageId = 40 + index;
+			const stageResponse = waitForResponse(transport, stageId);
+			transport.simulateMessage(request(stageId, StageCreateSessionImportChunkExtensionMethod, { transferId: 'staged-transfer-1', chunk }));
+			assert.deepStrictEqual(await stageResponse, { jsonrpc: '2.0', id: stageId, result: null });
+		}
+		const stagedCreateResponse = waitForResponse(transport, 60);
+		transport.simulateMessage(request(60, 'createSession', {
+			channel: 'ahp-session:/migrated-staged',
+			provider: 'copilot',
+			_meta: withStagedCreateSessionImportMeta({ keep: 'staged' }, 'staged-transfer-1'),
+		}));
+		const replayStagedResponse = waitForResponse(transport, 61);
+		transport.simulateMessage(request(61, 'createSession', {
+			channel: 'ahp-session:/migrated-staged-replay',
+			provider: 'copilot',
+			_meta: withStagedCreateSessionImportMeta(undefined, 'staged-transfer-1'),
+		}));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCreateSessionImport(initializeResult),
+			validResponse: await validResponse,
+			invalidResponse: await invalidResponse,
+			stagedCreateResponse: await stagedCreateResponse,
+			replayStagedResponse: await replayStagedResponse,
+			createdConfigs: agentService.createSessionConfigs.map(config => ({
+				session: config?.session?.toString(),
+				model: config?.model,
+				meta: config?._meta,
+				importConversation: config?.importConversation,
+			})),
+		}, {
+			supported: true,
+			validResponse: { jsonrpc: '2.0', id: 30, result: null },
+			invalidResponse: {
+				jsonrpc: '2.0',
+				id: 31,
+				error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid createSession importConversation metadata' },
+			},
+			stagedCreateResponse: { jsonrpc: '2.0', id: 60, result: null },
+			replayStagedResponse: {
+				jsonrpc: '2.0',
+				id: 61,
+				error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid createSession importConversation metadata' },
+			},
+			createdConfigs: [
+				{
+					session: 'ahp-session:/migrated-1',
+					model: { id: 'gpt-5', config: { reasoningEffort: 'high' } },
+					meta: { keep: 'yes' },
+					importConversation,
+				},
+				{
+					session: 'ahp-session:/migrated-staged',
+					model: { id: 'gpt-5', config: { reasoningEffort: 'high' } },
+					meta: { keep: 'staged' },
+					importConversation,
+				},
+			],
+		});
+	});
+
 	test('advertises and routes external session import', async () => {
 		const transport = connectClient('client-import');
 		const initialized = findResponse(transport.sent, 1);
@@ -1937,6 +2046,165 @@ suite('ProtocolServerHandler', () => {
 			supported: true, legacy: false, malformed: false, uninitialized: false,
 			response: { jsonrpc: '2.0', id: 20, result: null },
 			imported: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('advertises and routes Copilot extension inventory', async () => {
+		agentService.agentExtensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				resource: URI.file('/extensions/preview/extension.mjs'),
+				source: 'user',
+				status: 'running',
+			}],
+		};
+		const transport = connectClient('client-copilot-extensions');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const listExtensions = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, {
+			session: 'copilotcli:/session-1',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+		}));
+		const setExtension = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, SetAgentExtensionEnabledExtensionMethod, {
+			extensionId: 'user:preview',
+			enabled: false,
+			session: 'copilotcli:/session-1',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+		}));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			listExtensions: await listExtensions,
+			listCalls: agentService.listAgentExtensionsCalls,
+			setExtension: await setExtension,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: true,
+			listExtensions: {
+				jsonrpc: '2.0',
+				id: 20,
+				result: {
+					mode: 'load_and_augment',
+					extensions: [{
+						id: 'user:preview',
+						name: 'Preview',
+						resource: 'file:///extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'running',
+					}],
+				},
+			},
+			listCalls: [{ session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
+			setExtension: { jsonrpc: '2.0', id: 21, result: null },
+			setCalls: [{ extensionId: 'user:preview', enabled: false, session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
+		});
+	});
+
+	test('rejects Copilot extension mutation from relay connections', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		const relayHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: true },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-client' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SetAgentExtensionEnabledExtensionMethod, {
+			extensionId: 'user:preview',
+			enabled: false,
+		}));
+		await relayHandler.whenIdle();
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			response: await response,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: false,
+			response: {
+				jsonrpc: '2.0',
+				id: 20,
+				error: {
+					code: JsonRpcErrorCodes.InvalidRequest,
+					message: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				},
+			},
+			setCalls: [],
+		});
+	});
+
+	test('rejects empty Copilot extension scope parameters', async () => {
+		const transport = connectClient('client-copilot-extension-invalid-scope');
+		const requests = [
+			[20, request(20, ListAgentExtensionsExtensionMethod, { session: '' })],
+			[21, request(21, ListAgentExtensionsExtensionMethod, { chat: '' })],
+			[22, request(22, ListAgentExtensionsExtensionMethod, { chat: 'vendor-chat:/peer' })],
+			[23, request(23, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false, session: '' })],
+			[24, request(24, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false, chat: '' })],
+		] as const;
+		const responses = requests.map(([id, message]) => {
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(message);
+			return response;
+		});
+
+		assert.deepStrictEqual({
+			errorCodes: (await Promise.all(responses)).map(message => hasKey(message, { error: true }) ? message.error?.code : undefined),
+			listCalls: agentService.listAgentExtensionsCalls,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			errorCodes: [
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+			],
+			listCalls: [],
+			setCalls: [],
+		});
+	});
+
+	test('does not advertise or route Copilot extension methods when host extension methods are disabled', async () => {
+		const disabledServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, disabledServer,
+			{ allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport());
+		disabledServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'disabled-extension-methods' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const listResponse = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, {}));
+		const setResponse = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false }));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			errorCodes: [await listResponse, await setResponse].map(message => hasKey(message, { error: true }) ? message.error?.code : undefined),
+			listCalls: agentService.listAgentExtensionsCalls,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: false,
+			errorCodes: [JsonRpcErrorCodes.MethodNotFound, JsonRpcErrorCodes.MethodNotFound],
+			listCalls: [],
+			setCalls: [],
 		});
 	});
 
@@ -2076,6 +2344,19 @@ suite('ProtocolServerHandler', () => {
 			}));
 			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
 		});
+
+		test('allows a protocol measurement to finish after thirty seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			agentService.measureWorktreeDiskUsage = async (_uri, token) => {
+				await raceCancellationError(timeout(30_000), token);
+				return allocatedBytes;
+			};
+			const transport = connectClient('worktree-slow');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'slow-measurement',
+			}));
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
+		}));
 
 		test('shares the two-scan budget across separate protocol handlers', async () => {
 			const gate = new DeferredPromise<void>();
@@ -3828,7 +4109,7 @@ suite('ProtocolServerHandler', () => {
 	suite('scoped relay credentials', () => {
 		const resource = 'https://api.github.com';
 
-		async function fixture(extension?: IProtocolServerExtension, resolveRelayCredentials?: IProtocolServerConfig['resolveRelayCredentials']) {
+		async function fixture(extension?: IProtocolServerExtension, resolveRelayCredentials?: IProtocolServerConfig['resolveRelayCredentials'], withHostCredential = true) {
 			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 			const providerTokens: string[] = [];
 			const handledTokens: string[] = [];
@@ -3846,7 +4127,9 @@ suite('ProtocolServerHandler', () => {
 				}
 			}();
 			disposables.add(authentication.onDidChangeAuthToken(event => changedTokens.push(event.token)));
-			await authentication.authenticate({ resource, token: 'desktop-token' }, [provider]);
+			if (withHostCredential) {
+				await authentication.authenticate({ resource, token: 'desktop-token' }, [provider]);
+			}
 			agentService.authenticate = async (params, scope?: IAgentHostAuthenticationScope) => {
 				authentications.push({ params, scope });
 				return authentication.authenticate(params, [provider], scope);
@@ -3857,13 +4140,14 @@ suite('ProtocolServerHandler', () => {
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
-			const connect = (clientId: string, passive = false, owner = '123') => {
+			const connect = (clientId: string, passive = false, owner = '123', expiry?: Event<void>) => {
 				const transport = disposables.add(new class extends MockProtocolTransport {
 					override get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
 						return { resource, owner, authenticated: this.relayAuthenticated === true };
 					}
 				}(AgentHostTransportKind.WebSocket, clientId, passive));
 				transport.relayAuthenticated = false;
+				transport.onDidRelayAuthenticationExpire = expiry;
 				transport.relayAuthenticate = async params => {
 					if (params.resource === resource) {
 						transport.relayAuthenticated = true;
@@ -3908,6 +4192,157 @@ suite('ProtocolServerHandler', () => {
 				handledTokens: ['desktop-token', 'desktop-token'],
 				changedTokens: ['desktop-token'],
 			});
+		});
+
+		test('authenticated CLI-host lanes receive isolated model catalogs in snapshots and live updates', async () => {
+			const f = await fixture(undefined, undefined, false);
+			const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }];
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			agentService.getModelsForCredentials = async (provider, credentials) => {
+				const token = credentials.getCredential({ resource })?.token;
+				return token ? [{ provider, id: token, name: token, supportsVision: false }] : [];
+			};
+			const first = f.connect('first-model-client');
+			const second = f.connect('second-model-client');
+			first.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			second.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.authenticate(first, 'first-model');
+			await f.authenticate(second, 'second-model');
+			first.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			second.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.scopedHandler.whenIdle();
+			const snapshotModels = (transport: MockProtocolTransport) => {
+				const response = findResponse(transport.sent, 4);
+				assert.ok(response && hasKey(response, { result: true }));
+				const snapshot = (response.result as SubscribeResult).snapshot;
+				assert.ok(snapshot);
+				return (snapshot.state as RootState).agents.flatMap(agent => agent.models.map(model => model.id));
+			};
+			const liveModels = (transport: MockProtocolTransport) => {
+				const envelopes = transport.sent.filter(isJsonRpcNotification)
+					.filter(message => message.method === 'action')
+					.map(message => message.params as ActionEnvelope);
+				const latest = envelopes.findLast(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+				return latest?.action.type === ActionType.RootAgentsChanged ? latest.action.agents.flatMap(agent => agent.models.map(model => model.id)) : [];
+			};
+			assert.deepStrictEqual({
+				snapshots: [snapshotModels(first), snapshotModels(second)],
+				live: [liveModels(first), liveModels(second)],
+				shared: stateManager.rootState.agents,
+				providerTokens: f.providerTokens,
+			}, {
+				snapshots: [['first-model'], ['second-model']],
+				live: [['first-model'], ['second-model']],
+				shared: agents,
+				providerTokens: [],
+			});
+		});
+
+		test('model discovery failure is logged without failing authentication or borrowing the host catalog', async () => {
+			const f = await fixture();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [{ provider: 'copilotcli', id: 'host-model', name: 'Host Model' }] }],
+			});
+			agentService.getModelsForCredentials = async () => { throw new Error('model discovery failed'); };
+			const transport = f.connect('failed-model-client');
+			await f.authenticate(transport, 'caller-token');
+			transport.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 4);
+			assert.ok(response && hasKey(response, { result: true }));
+			const snapshot = (response.result as SubscribeResult).snapshot;
+			assert.ok(snapshot);
+			assert.deepStrictEqual({
+				models: (snapshot.state as RootState).agents.flatMap(agent => agent.models),
+				errors: logService.errors,
+				hostToken: f.authentication.getAuthToken({ resource }),
+			}, {
+				models: [],
+				errors: ['[ProtocolServer] Failed to discover connection-scoped models'],
+				hostToken: 'desktop-token',
+			});
+		});
+
+		test('disconnect cancels pending model discovery and drops its eventual result', async () => {
+			const f = await fixture();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }],
+			});
+			const gate = new DeferredPromise<readonly IAgentModelInfo[]>();
+			let cancellation: CancellationToken | undefined;
+			agentService.getModelsForCredentials = async (_provider, _source, token) => {
+				cancellation = token;
+				return gate.p;
+			};
+			const transport = f.connect('disconnected-model-client');
+			const authenticated = waitForResponse(transport, 4);
+			transport.simulateMessage(request(4, 'authenticate', { resource, token: 'caller-token' }));
+			await authenticated;
+			const before = transport.sent.length;
+			transport.simulateClose();
+			gate.complete([{ provider: 'copilotcli', id: 'late-model', name: 'Late Model', supportsVision: false }]);
+			await f.scopedHandler.whenIdle();
+			assert.deepStrictEqual({ cancelled: cancellation?.isCancellationRequested, additionalMessages: transport.sent.length - before, errors: logService.errors }, {
+				cancelled: true, additionalMessages: 0, errors: [],
+			});
+		});
+
+		test('relay identity expiry withdraws the connection model catalog', async () => {
+			const f = await fixture();
+			const expiry = disposables.add(new Emitter<void>());
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }],
+			});
+			agentService.getModelsForCredentials = async () => [{ provider: 'copilotcli', id: 'caller-model', name: 'Caller Model', supportsVision: false }];
+			const transport = f.connect('expired-model-client', false, '123', expiry.event);
+			transport.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.authenticate(transport, 'caller-token');
+			transport.relayAuthenticated = false;
+			expiry.fire();
+			const catalogs = transport.sent.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'action')
+				.map(message => (message.params as ActionEnvelope).action)
+				.filter(action => action.type === ActionType.RootAgentsChanged)
+				.map(action => action.agents.flatMap(agent => agent.models.map(model => model.id)));
+			assert.deepStrictEqual(catalogs, [['caller-model'], []]);
+		});
+
+		test('a rotated credential cannot publish a superseded model request', async () => {
+			const f = await fixture();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }],
+			});
+			const oldModels = new DeferredPromise<readonly IAgentModelInfo[]>();
+			agentService.getModelsForCredentials = async (provider, credentials) => {
+				const token = credentials.getCredential({ resource })?.token;
+				return token === 'old-token' ? oldModels.p : [{ provider, id: 'new-model', name: 'New Model', supportsVision: false }];
+			};
+			const transport = f.connect('rotated-model-client');
+			transport.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			const oldAuthenticated = waitForResponse(transport, 4);
+			transport.simulateMessage(request(4, 'authenticate', { resource, token: 'old-token' }));
+			await oldAuthenticated;
+			const newModels = Event.toPromise(Event.filter(transport.onDidSend, message => {
+				if (!isJsonRpcNotification(message) || message.method !== 'action') {
+					return false;
+				}
+				const { action } = message.params as ActionEnvelope;
+				return action.type === ActionType.RootAgentsChanged && action.agents.some(agent => agent.models.some(model => model.id === 'new-model'));
+			}));
+			transport.simulateMessage(request(5, 'authenticate', { resource, token: 'new-token' }));
+			await newModels;
+			oldModels.complete([{ provider: 'copilotcli', id: 'old-model', name: 'Old Model', supportsVision: false }]);
+			await f.scopedHandler.whenIdle();
+			const catalogs = transport.sent.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'action')
+				.map(message => (message.params as ActionEnvelope).action)
+				.filter(action => action.type === ActionType.RootAgentsChanged)
+				.map(action => action.agents.flatMap(agent => agent.models.map(model => model.id)));
+			assert.deepStrictEqual(catalogs, [['new-model']]);
 		});
 
 		test('only listener configuration can delegate execution to a local credential source', async () => {

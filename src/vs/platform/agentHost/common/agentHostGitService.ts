@@ -283,6 +283,8 @@ export interface IAgentHostGitService {
 	 * whose worktree was previously cleaned up on archive).
 	 */
 	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
+	/** Whether Git still registers the exact worktree path; registry failures conservatively return true. */
+	isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean>;
 	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */
 	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void>;
 	/**
@@ -418,9 +420,10 @@ export interface IAgentHostGitService {
 
 	/**
 	 * Creates a commit object from a tree (optionally chained to a parent)
-	 * and returns its OID. Does NOT update any ref.
+	 * and returns its OID. Does NOT update any ref. `useInternalIdentity`
+	 * avoids requiring user Git identity for VS Code-owned commits.
 	 */
-	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined>;
+	commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined>;
 
 	/**
 	 * Updates a ref to point at `newOid`. Creates the ref if missing.

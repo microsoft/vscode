@@ -24,19 +24,10 @@ import { FileService } from '../../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 
 suite('AgentHostDebugLogsCollector', () => {
 	const emptyProvider = { id: 'test', collectDebugLogs: async () => false };
-
-	async function waitForEmptyDirectory(path: string): Promise<void> {
-		for (let i = 0; i < 100; i++) {
-			if ((await readdir(path)).length === 0) {
-				return;
-			}
-			await new Promise(resolve => setTimeout(resolve, 5));
-		}
-		assert.deepStrictEqual(await readdir(path), []);
-	}
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let testRoot: string;
@@ -557,8 +548,15 @@ suite('AgentHostDebugLogsCollector', () => {
 			tmpDir: URI.file(outputRoot),
 		}, new NullLogService(), 5));
 
-		await collector.collect([emptyProvider], URI.parse('test:/session-1'), 'directory');
-		await waitForEmptyDirectory(outputRoot);
+		const expired = Event.toPromise(collector.onDidExpireArtifact);
+		const artifact = await collector.collect([emptyProvider], URI.parse('test:/session-1'), 'directory');
+		assert.deepStrictEqual({
+			expired: (await expired).fsPath,
+			remaining: await readdir(outputRoot),
+		}, {
+			expired: artifact.resource.fsPath,
+			remaining: [],
+		});
 	});
 
 	test('renews an artifact lease on each read and expires after inactivity', async () => {

@@ -117,6 +117,8 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -2328,7 +2330,102 @@ suite('ChatListRenderer', () => {
 		}
 	});
 
+	suite('request side-chat origins', () => {
+		for (const requestText of ['', ' ', 'Hello']) {
+			for (const withAttachment of [false, true]) {
+				test(`only renders a timestamp for request content (text=${JSON.stringify(requestText)}, attachment=${withAttachment})`, () => {
+					const { model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer({ requestText });
+					if (withAttachment) {
+						model.updateRequest(request, {
+							variables: [{ kind: 'file', id: 'attachment', name: 'attachment.ts', value: URI.file('/test/attachment.ts') }],
+						});
+					}
+					const element = viewModel.getItems().find(isRequestVM)!;
+					renderer.renderElement({ ...node, element }, 0, template);
+
+					assert.deepStrictEqual({
+						hiddenOrigin: !!template.value.querySelector('.chat-request-origin.hidden'),
+						attachment: !!template.value.querySelector('.chat-request-file-attachments'),
+						timestamp: !!template.requestTimestampContainer.querySelector('time'),
+					}, {
+						hiddenOrigin: true,
+						attachment: withAttachment,
+						timestamp: !!requestText.trim() || withAttachment,
+					});
+				});
+			}
+		}
+
+		test('hydrates a quoted source on the first editor-window request without rerendering', () => {
+			const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+			const origin = observableValue<IChatSideChatOrigin | undefined>('origin', undefined);
+			const sideChatService = disposables.add(new ChatSideChatService());
+			disposables.add(sideChatService.registerProvider({
+				canAskInSideChat: () => false,
+				askInSideChat: async () => { },
+				observeSideChatOrigin: () => origin,
+				revealSideChatSource: async () => { },
+			}));
+			instantiationService.stub(IChatSideChatService, sideChatService);
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const hiddenBeforeHydration = !!template.value.querySelector('.chat-request-origin.hidden');
+			origin.set({
+				sourceSessionResource: URI.parse('agent-host-copilot:/source'),
+				sourceTurnId: 'source-turn',
+				sourceTitle: 'Original conversation',
+				selection: { text: 'An older assistant response' },
+			}, undefined);
+			assert.deepStrictEqual({
+				isSessionsWindow: !!instantiationService.get(IWorkbenchEnvironmentService).isSessionsWindow,
+				hiddenBeforeHydration,
+				visible: !!template.value.querySelector('.chat-request-origin:not(.hidden)'),
+				quote: template.value.querySelector('.chat-request-origin-quote')?.textContent,
+			}, { isSessionsWindow: false, hiddenBeforeHydration: true, visible: true, quote: 'An older assistant response' });
+		});
+
+		test('ordinary requests stay unannotated and side-chat followups and sticky rows do not repeat the origin', () => {
+			const { disposables, instantiationService, model, viewModel, request, renderer, template, node, container } = createPersistentProgressRenderer();
+			const origin = observableValue<IChatSideChatOrigin | undefined>('origin', undefined);
+			const sideChatService = disposables.add(new ChatSideChatService());
+			disposables.add(sideChatService.registerProvider({
+				canAskInSideChat: () => false,
+				askInSideChat: async () => { },
+				observeSideChatOrigin: () => origin,
+				revealSideChatSource: async () => { },
+			}));
+			instantiationService.stub(IChatSideChatService, sideChatService);
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const ordinaryVisibleOrigins = template.value.querySelectorAll('.chat-request-origin:not(.hidden)').length;
+			origin.set({ sourceSessionResource: URI.parse('agent-host-copilot:/source'), sourceTurnId: 'turn', sourceTitle: 'Source', selection: { text: 'Source excerpt' } }, undefined);
+			request.response?.complete();
+			model.addRequest({ text: 'Follow up', parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Follow up')] }, { variables: [] }, 0);
+			const followup = viewModel.getItems().filter(isRequestVM)[1];
+			renderer.renderElement({ ...node, element: followup }, 2, template);
+			const followupOrigins = template.value.querySelectorAll('.chat-request-origin').length;
+			container.classList.add('monaco-tree-sticky-row');
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			assert.deepStrictEqual({
+				ordinaryVisibleOrigins, followupOrigins, stickyOrigins: template.value.querySelectorAll('.chat-request-origin').length,
+			}, { ordinaryVisibleOrigins: 0, followupOrigins: 0, stickyOrigins: 0 });
+		});
+	});
+
 	suite('request summaries', () => {
+		test('keeps the timestamp when only the summary has content', () => {
+			const { viewModel, renderer, template, node } = createPersistentProgressRenderer({
+				requestText: '', rendererOptions: { firstRequestSummary: 'Judge Instructions' },
+			});
+			const element = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element }, 0, template);
+
+			assert.deepStrictEqual({
+				summary: template.value.querySelector('summary')?.textContent,
+				timestamp: !!template.requestTimestampContainer.querySelector('time'),
+			}, { summary: 'Judge Instructions', timestamp: true });
+		});
+
 		for (const summary of ['Judge Instructions', 'Synthesis Instructions']) {
 			test(`collapses ${summary} without changing the full request and preserves expansion across rendering`, () => {
 				const prompt = 'Call #readAttemptComparison with the comparison ID, then inspect the attempt worktrees.';
@@ -3596,6 +3693,109 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	for (const { toolId, imageCount } of ['image_generation', 'image_gen.imagegen'].flatMap(toolId => [1, 3].map(imageCount => ({ toolId, imageCount })))) {
+		for (const width of [760, 320.5]) {
+			test(`${toolId} keeps every handoff frame painted and stationary until expansion (${imageCount} calls, width=${width})`, async () => {
+				const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, 13);
+				container.style.width = `${width}px`;
+				container.classList.remove('monaco-reduce-motion');
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced() { return false; }
+				}());
+				const imageBytes = new DeferredPromise<VSBuffer>();
+				const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 });
+				const context = canvas.getContext('2d')!;
+				context.fillStyle = '#4682b4';
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				const bytes = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				disposables.add(toDisposable(() => { void imageBytes.complete(bytes); }));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						return { ...await super.readFile(resource), value: await imageBytes.p };
+					}
+				}()));
+				const backendSession = URI.parse('remote-provider:/image-handoff');
+				const toolCall: ToolCallRunningState = {
+					toolCallId: 'image-handoff',
+					toolName: toolId,
+					displayName: 'Generate Image',
+					invocationMessage: 'Generating image',
+					status: ToolCallStatus.Running,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					toolInput: '{"prompt":"Draw a landscape"}',
+				};
+				const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+				model.acceptResponseProgress(request, tool);
+				for (let index = 1; index < imageCount; index++) {
+					model.acceptResponseProgress(request, toolCallStateToInvocation({ ...toolCall, toolCallId: `image-handoff-${index}` }, undefined, backendSession, 'remote'));
+				}
+				renderer.renderElement(node, 0, template);
+				const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				const geometry = () => {
+					const bounds = template.value.querySelector('.chat-image-generation-line')!.getBoundingClientRect();
+					const origin = container.getBoundingClientRect();
+					return {
+						left: bounds.left - origin.left,
+						top: bounds.top - origin.top,
+						width: bounds.width,
+						height: bounds.height,
+						footerTop: template.value.querySelector('.chat-working-progress')!.getBoundingClientRect().top - origin.top,
+					};
+				};
+				const painted = () => {
+					const field = template.value.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs');
+					return !!field?.width && !!field.height && field.getContext('2d')!.getImageData(0, 0, field.width, field.height).data
+						.some((value, index) => index % 4 === 3 && value > 0);
+				};
+				await nextFrame();
+				await nextFrame();
+				const running = geometry();
+				const loadingSurface = template.value.querySelector('.chat-image-loading-glyphs');
+				assert.ok(painted());
+				finalizeToolInvocation(tool, {
+					...toolCall,
+					status: ToolCallStatus.Completed,
+					success: true,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/handoff.png', contentType: 'image/png' }],
+				}, backendSession, 'remote');
+				const handoff = [{ painted: painted(), geometry: geometry() }];
+				for (let frame = 0; frame < 3; frame++) {
+					await nextFrame();
+					handoff.push({ painted: painted(), geometry: geometry() });
+				}
+				await imageBytes.complete(bytes);
+				await retry(async () => assert.ok(template.value.querySelector('.chat-image-reveal.revealing')), 10, 50);
+				const field = template.value.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+				const clock = field.getAnimations()[0];
+				assert.ok(clock);
+				clock.pause();
+				clock.currentTime = 0;
+				await nextFrame();
+				const expansionStart = { painted: painted(), geometry: geometry() };
+				clock.currentTime = Number(clock.effect?.getTiming().duration) / 2;
+				await nextFrame();
+				const expanded = geometry();
+				assert.deepStrictEqual({
+					sameSurface: field === loadingSurface,
+					handoff,
+					expansionStart,
+					expands: expanded.width > running.width && expanded.height >= running.height,
+					anchored: Math.abs(expanded.top - running.top) <= 1 / 64 && Math.abs(expanded.left - running.left) <= 1 / 64,
+					footerFollowsExpansion: Math.abs(expanded.footerTop - running.footerTop - (expanded.height - running.height)) <= 1 / 64,
+				}, {
+					sameSurface: true,
+					handoff: Array.from({ length: 4 }, () => ({ painted: true, geometry: running })),
+					expansionStart: { painted: true, geometry: running },
+					expands: true,
+					anchored: true,
+					footerFollowsExpansion: true,
+				});
+			});
+		}
+	}
+
 	for (const [toolId, width] of ['image_generation', 'image_gen.imagegen'].flatMap(toolId => [760, 320.5, 280].map(width => [toolId, width] as const))) {
 		test(`image tool icon alignment survives the reveal and restore (${toolId}, width=${width})`, async () => {
 			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
@@ -4144,8 +4344,8 @@ suite('ChatListRenderer', () => {
 				const imageBounds = image.getBoundingClientRect();
 				const previewBounds = preview.getBoundingClientRect();
 				return {
-					onlyImageAndMargin: Math.abs(previewBounds.height - imageBounds.height - 8) < 1,
-					thumbnailsFollowImage: Math.abs(thumbnails[0].getBoundingClientRect().top - imageBounds.bottom - 24) < 1,
+					onlyImage: Math.abs(previewBounds.height - imageBounds.height) < 1,
+					thumbnailsFollowImage: Math.abs(thumbnails[0].getBoundingClientRect().top - imageBounds.bottom - 16) < 1,
 					aspectRatio: Math.abs(imageBounds.width / imageBounds.height - image.naturalWidth / image.naturalHeight) < 0.01,
 					widthBounded: imageBounds.width <= Math.min(512, previewBounds.width),
 					heightBounded: imageBounds.height <= Math.min(400, mainWindow.innerHeight * 0.6) + 1,
@@ -4192,7 +4392,7 @@ suite('ChatListRenderer', () => {
 			await tools[4].didExecuteTool({ content: [], toolResultError: 'Image provider failed', toolResultMessage: 'Generated image failed' });
 			const failed = emptyLayout();
 			thumbnails[0].click();
-			const knownImageSizeRestored = Math.abs(preview.getBoundingClientRect().height - heights[0] - 8) < 1;
+			const knownImageSizeRestored = Math.abs(preview.getBoundingClientRect().height - heights[0]) < 1;
 			layouts.push(imageLayout(await settledImage()));
 			thumbnails[1].click();
 			const wideImage = await settledImage();
@@ -4213,7 +4413,7 @@ suite('ChatListRenderer', () => {
 				growsWithWidth: Math.abs(wideImage.getBoundingClientRect().height - wideHeight) < 1,
 				selected: thumbnails.map(thumbnail => thumbnail.getAttribute('aria-pressed')),
 			}, {
-				layouts: Array.from({ length: 6 }, () => ({ onlyImageAndMargin: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
+				layouts: Array.from({ length: 6 }, () => ({ onlyImage: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
 				pending: { previewHeight: 200, thumbnailGap: 16, glyphs: 1, images: 0 },
 				cancelled: { height: 0, text: '', thumbnailGap: 16, statusCount: 1 },
 				waiting: { height: 0, text: '', thumbnailGap: 24 },

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -517,7 +517,7 @@ suite('AgentHostSnapshotController', () => {
 			const log: string[] = [];
 			const controller = createController(store, new Map());
 			const before = { global: controller.isGlobalEditingSession.get(), keepUndo: controller.supportsKeepUndo.get(), entries: controller.entries.get().length };
-			controller.attachReview(createReview(log));
+			controller.attachReview(constObservable(true), () => createReview(log));
 			await controller.accept(URI.file('/file.ts'));
 			await controller.reject();
 
@@ -546,8 +546,8 @@ suite('AgentHostSnapshotController', () => {
 			const second = createReview([]);
 			second.dispose = () => disposed.push('second');
 
-			controller.attachReview(first);
-			controller.attachReview(second);
+			controller.attachReview(constObservable(true), () => first);
+			controller.attachReview(constObservable(true), () => second);
 			const afterReplacement = disposed.slice();
 			controller.dispose();
 
@@ -555,6 +555,42 @@ suite('AgentHostSnapshotController', () => {
 				capabilities: [[false, false], [true, true], [false, false]],
 				afterReplacement: ['first'],
 				disposed: ['first', 'second'],
+			});
+		});
+
+		test('toggles review immediately without recreating the session or keeping observers after disposal', async () => {
+			const controller = createController(store, new Map());
+			const enabled = observableValue('reviewEnabled', true);
+			const log: string[] = [];
+			let created = 0;
+			let disposed = 0;
+			controller.attachReview(enabled, () => {
+				created++;
+				const review = createReview(log);
+				review.dispose = () => { disposed++; };
+				return review;
+			});
+			const state = () => ({ enabled: controller.supportsKeepUndo.get(), entries: controller.entries.get().length, created, disposed });
+			const states = [state()];
+			enabled.set(false, undefined);
+			await controller.accept();
+			await controller.reject();
+			states.push(state());
+			enabled.set(true, undefined);
+			states.push(state());
+			controller.dispose();
+			enabled.set(false, undefined);
+			enabled.set(true, undefined);
+			states.push(state());
+
+			assert.deepStrictEqual({ states, log }, {
+				states: [
+					{ enabled: true, entries: 1, created: 1, disposed: 0 },
+					{ enabled: false, entries: 0, created: 1, disposed: 1 },
+					{ enabled: true, entries: 1, created: 2, disposed: 1 },
+					{ enabled: false, entries: 0, created: 2, disposed: 2 },
+				],
+				log: [],
 			});
 		});
 	});

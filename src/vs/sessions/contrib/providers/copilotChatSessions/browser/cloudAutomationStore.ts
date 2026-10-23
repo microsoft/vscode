@@ -102,7 +102,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			sessionTypes: [sessionTypeId],
 			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered by events or on a schedule."),
 			timeZone: 'UTC',
-			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
+			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "Certain settings cannot be changed for an existing cloud automation. Duplicate this automation to change those settings."),
 			tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),
 			loadTools: () => this.store.get()?.loadTools(),
 			triggers: derived(this, reader => this.store.read(reader)?.triggerCatalog.read(reader) ?? { kind: 'loading' as const }),
@@ -173,7 +173,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				throw new CancellationError();
 			}
 			if (this.gitHubService.enterpriseHost !== undefined) {
-				throw new Error(localize('cloudAutomations.githubRequired', "Select a private repository on GitHub.com."));
+				throw new Error(localize('cloudAutomations.githubRequired', "Select a supported repository on GitHub.com."));
 			}
 		};
 		try {
@@ -185,10 +185,18 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				checkAccount();
 				const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
 				checkAccount();
-				return repositories.filter(repository => repository.isPrivate).map(repository => repository.fullName);
+				const results: (string | undefined)[] = [];
+				for (let offset = 0; offset < repositories.length; offset += 5) {
+					checkAccount();
+					results.push(...await Promise.all(repositories.slice(offset, offset + 5).map(async repository => {
+						const [owner, repo] = repository.fullName.split('/');
+						return await store.isRepositorySelectable({ owner, repo }, requestToken) ? repository.fullName : undefined;
+					})));
+				}
+				return results.filter(repository => repository !== undefined);
 			}, {
 				allowRepositoryUrl: true,
-				placeholder: localize('cloudAutomations.searchPrivateRepository', "Search for a private repository or paste a repository URL..."),
+				placeholder: localize('cloudAutomations.searchRepository', "Search for a repository or paste a repository URL..."),
 			}, token);
 			checkAccount();
 			if (!result) {
@@ -196,7 +204,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			}
 			const repository = getGitHubRepositoryId(result.repository ?? result.cloneUrl ?? '');
 			if (!repository) {
-				throw new Error(localize('cloudAutomations.githubRequired', "Select a private repository on GitHub.com."));
+				throw new Error(localize('cloudAutomations.githubRequired', "Select a supported repository on GitHub.com."));
 			}
 			return URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository}/HEAD` });
 		} finally {
@@ -307,7 +315,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	canDeleteAutomation(id: string): boolean {
 		const store = this.store.get();
 		const item = this.catalogue.get().itemsById.get(id);
-		return this.canCreateAutomation.get() && !!store && !!item && store.canWriteRepository(item.entry.repository);
+		return this.canCreateAutomation.get() && !!store && !!item && store.canManageRepository(item.entry.repository);
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {

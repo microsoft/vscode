@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { $, getActiveElement } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,14 +24,20 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextMenuHandler } from '../../../../../platform/contextview/browser/contextMenuHandler.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
@@ -107,14 +116,16 @@ suite('Sessions - View Menu', () => {
 				getProviders: () => environments.map(environment => ({ environment })),
 			},
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
+			sessionsControl,
 			registerSessionFilters: Reflect.get(SessionsView.prototype, 'registerSessionFilters') as (control: SessionsList) => void,
 			registerArchivedFilter: Reflect.get(SessionsView.prototype, 'registerArchivedFilter') as (control: SessionsList) => void,
-			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as (control: SessionsList) => void,
+			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as () => void,
+			resetFilters: SessionsView.prototype.resetFilters,
 			syncFilterContextKeys: Reflect.get(SessionsView.prototype, 'syncFilterContextKeys') as (control: SessionsList) => void,
 		};
 		host.registerSessionFilters(sessionsControl);
 		host.registerArchivedFilter(sessionsControl);
-		host.registerResetFiltersAction(sessionsControl);
+		host.registerResetFiltersAction();
 
 		const snapshot = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(item => contextKeyService.contextMatchesRules(item.when))
@@ -166,6 +177,62 @@ suite('Sessions - View Menu', () => {
 			openToTheSide: true,
 			openInGridSubmenu: false,
 			openInGridCommands: [],
+		});
+	});
+
+	test('application filter command opens the Sessions view before showing its filter menu', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const calls: string[] = [];
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'openView', async (id: string) => {
+			calls.push(id);
+			return upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push('showApplicationFilters') });
+		});
+		await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+
+		assert.deepStrictEqual(calls, ['sessions.workbench.view.sessionsView', 'showApplicationFilters']);
+	});
+
+	test('opens the filter menu with Created In focused and returns focus to the list', () => {
+		const { contextKeyService } = createMenu([buildTestSession({ id: 'external', title: 'External', application: 'copilot-cli' }).session]);
+		const menuService = store.add(new MenuService(new TestCommandService(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
+		const container = mainWindow.document.body.appendChild($('div'));
+		store.add(toDisposable(() => container.remove()));
+		const contextViewService = upcastPartial<IContextViewService>({
+			showContextView: delegate => {
+				store.add(delegate.render(container));
+				delegate.focus?.();
+				return { close: () => delegate.onHide?.() };
+			},
+		});
+		const handler = new ContextMenuHandler(contextViewService, NullTelemetryService, new TestNotificationService(), new MockKeybindingService());
+		let shownMenu: IContextMenuDelegate | undefined;
+		let shown = 0;
+		let focused = 0;
+		let hoverHidden = 0;
+		const view = {
+			sessionsHeaders: new Set(),
+			sessionsControlContainer: container,
+			scopedContextKeyService: contextKeyService,
+			menuService,
+			hoverService: { hideHover: () => hoverHidden++ },
+			sessionsControl: { reportFilterMenuShown: () => shown++, focus: () => focused++ },
+			contextMenuService: {
+				showContextMenu: (delegate: IContextMenuDelegate) => {
+					shownMenu = delegate;
+					handler.showContextMenu(delegate);
+				},
+			},
+			showApplicationFilters: SessionsView.prototype.showApplicationFilters,
+		};
+		view.showApplicationFilters();
+		const focusedAction = getActiveElement()?.textContent;
+		shownMenu?.onHide?.(true);
+
+		assert.deepStrictEqual({ focusedAction, shown, focused, hoverHidden }, {
+			focusedAction: 'Created In',
+			shown: 1,
+			focused: 1,
+			hoverHidden: 1,
 		});
 	});
 
@@ -277,11 +344,18 @@ suite('Sessions - View Menu', () => {
 		grouping.set(SessionsGrouping.Repository);
 		const repositoryTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
 		const repositoryShow = snapshot(Menus.SessionsViewShow);
+		grouping.set(SessionsGrouping.Environment);
+		const environmentTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
+		const environmentGrouping = snapshot(Menus.SessionsViewGrouping);
+		const environmentShow = snapshot(Menus.SessionsViewShow);
 		grouping.set(SessionsGrouping.Date);
 
 		assert.deepStrictEqual({
 			workspaceTitles,
 			repositoryTitles,
+			environmentTitles,
+			environmentGrouping,
+			environmentShow,
 			timeTitles: snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title),
 			ordering: snapshot(Menus.SessionsViewOrdering),
 			grouping: snapshot(Menus.SessionsViewGrouping),
@@ -290,6 +364,17 @@ suite('Sessions - View Menu', () => {
 		}, {
 			workspaceTitles: ['Ordering', 'Grouping', 'Show'],
 			repositoryTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentGrouping: [
+				{ title: 'Time', group: '1_group', checked: false },
+				{ title: 'Workspace', group: '1_group', checked: false },
+				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: true },
+			],
+			environmentShow: [
+				{ title: 'Recent', group: '1_show', checked: false },
+				{ title: 'All', group: '1_show', checked: true },
+			],
 			timeTitles: ['Ordering', 'Grouping'],
 			ordering: [
 				{ title: 'Created', group: '1_sort', checked: false },
@@ -299,6 +384,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Time', group: '1_group', checked: true },
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: false },
 			],
 			show: [
 				{ title: 'Recent', group: '1_show', checked: false },

@@ -733,6 +733,79 @@ suite('AgentPluginRepositoryService', () => {
 		assert.strictEqual(clonedRef, 'marketplace');
 	});
 
+	for (const sourceDescriptor of [
+		{ kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/test' },
+		{ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', path: 'plugins/test' },
+	] satisfies IPluginSourceDescriptor[]) {
+		for (const sha of [undefined, 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0']) {
+			test(`clones ${sourceDescriptor.kind} sources at ${sha ? 'the pinned SHA instead of the ref' : 'the requested ref'}`, async () => {
+				const calls: { operation: string; revision: string | undefined }[] = [];
+				const service = createService(async () => false, undefined, {
+					cloneRepository: async (_url, _directory, ref) => { calls.push({ operation: 'clone', revision: ref }); },
+					checkoutCommit: async (_directory, commit) => { calls.push({ operation: 'checkoutCommit', revision: commit }); },
+					checkout: async (_directory, ref) => { calls.push({ operation: 'checkout', revision: ref }); },
+					revParse: async (_directory, ref) => { calls.push({ operation: 'revParse', revision: ref }); return sha?.toUpperCase() ?? ''; },
+				});
+				const plugin = {
+					...createPlugin('microsoft/vscode', 'plugins/test'),
+					sourceDescriptor: { ...sourceDescriptor, ref: 'main', sha },
+				};
+
+				const installUri = await service.ensurePluginSource(plugin);
+
+				assert.deepStrictEqual({
+					calls,
+					installPath: installUri.path,
+				}, {
+					calls: [
+						{ operation: 'clone', revision: sha ?? 'main' },
+						{ operation: sha ? 'revParse' : 'checkout', revision: sha ? 'HEAD' : 'main' },
+					],
+					installPath: service.getPluginSourceInstallUri(plugin.sourceDescriptor).path,
+				});
+			});
+		}
+
+		test(`verifies ${sourceDescriptor.kind} pins when a clone reports a different commit`, async () => {
+			const sha = 'a'.repeat(40);
+			const calls: string[] = [];
+			const service = createService(async () => false, undefined, {
+				cloneRepository: async () => { calls.push('clone'); },
+				revParse: async () => { calls.push('revParse'); return 'b'.repeat(40); },
+				checkoutCommit: async (_directory, commit) => {
+					calls.push(`checkoutCommit:${commit}`);
+					throw new Error('Pinned commit resolved to a different commit');
+				},
+			});
+			const plugin = {
+				...createPlugin('microsoft/vscode', 'plugins/test'),
+				sourceDescriptor: { ...sourceDescriptor, sha },
+			};
+
+			await assert.rejects(service.ensurePluginSource(plugin), /Pinned commit resolved to a different commit/);
+
+			assert.deepStrictEqual(calls, ['clone', 'revParse', `checkoutCommit:${sha}`]);
+		});
+
+		test(`still checks out ${sourceDescriptor.kind} pins when reusing a cached repository`, async () => {
+			const sha = 'a'.repeat(40);
+			const calls: string[] = [];
+			const service = createService(async () => true, undefined, {
+				cloneRepository: async () => { calls.push('clone'); },
+				revParse: async () => { calls.push('revParse'); return sha; },
+				checkoutCommit: async (_directory, commit) => { calls.push(`checkoutCommit:${commit}`); },
+			});
+			const plugin = {
+				...createPlugin('microsoft/vscode', 'plugins/test'),
+				sourceDescriptor: { ...sourceDescriptor, sha },
+			};
+
+			await service.ensurePluginSource(plugin);
+
+			assert.deepStrictEqual(calls, [`checkoutCommit:${sha}`]);
+		});
+	}
+
 	test('concurrent ensureRepository calls for the same marketplace clone only once', async () => {
 		let cloneCount = 0;
 		const instantiationService = store.add(new TestInstantiationService());

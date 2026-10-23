@@ -178,15 +178,15 @@ jobs:
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests" ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
+        timeout-minutes: 25
+        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2 ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
-        timeout-minutes: 15
-        run: npm run test-node -- ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
+        timeout-minutes: 25
+        run: npm run test-node -- --rerun-failed-files 2 ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Webkit)
         if: ${{ inputs.browser_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}

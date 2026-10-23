@@ -291,6 +291,35 @@ export interface IAgentPluginUninstallRequest {
 	readonly directSourceId?: string;
 }
 
+/** Provider-owned persisted installation, not a session-effective or client-provided plugin. */
+export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
+	readonly version?: string;
+	readonly description?: string;
+	readonly verifiedSource?: { readonly repository: string; readonly revision: string };
+	readonly iconUrl?: string;
+}
+
+export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
+export type AgentExtensionSource = 'user' | 'project' | 'plugin';
+export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** One executable extension discovered from the provider's persisted or session-effective inventory. */
+export interface IAgentExtensionInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly resource?: URI;
+	readonly source: AgentExtensionSource;
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
+	readonly status: AgentExtensionStatus;
+	readonly pluginName?: string;
+}
+
+/** Host-scoped extension inventory and the provider's effective loading mode. */
+export interface IAgentExtensionInventory {
+	readonly mode: AgentExtensionMode;
+	readonly extensions: readonly IAgentExtensionInfo[];
+}
+
 export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
 
 /** One canvas declaration available to an initialized provider chat. */
@@ -1686,9 +1715,14 @@ export interface IAgent {
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
+	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
+	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
+
 	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
 	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
+	/** List SDK-owned installations, excluding runtime-only and client-provided plugins. */
+	listPluginInstallations?(session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 
@@ -1745,6 +1779,15 @@ export interface IAgent {
 	 * @see https://github.com/github/copilot-agent-runtime/issues/26495
 	 */
 	addMcpServerConfiguration?(name: string, config: IMcpServerConfiguration): Promise<void>;
+
+	/** Discover executable extensions from the provider's persisted inventory. */
+	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
+
+	/**
+	 * Persist User/Plugin enablement and reconcile one exact live chat when supplied.
+	 * Project entries are inventory-only; Project and Session mutation are unsupported.
+	 */
+	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

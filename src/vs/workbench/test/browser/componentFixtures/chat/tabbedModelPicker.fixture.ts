@@ -254,6 +254,8 @@ const COPILOT_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	return { ...model, metadata: { ...model.metadata, autoModelFusion: true, autoModelProviderTiers: true, autoModelDiscountPercent: 10 } };
 })();
 const COPILOT_FUSION_MODELS = [COPILOT_FUSION_MODEL, ...RELAYED_MODELS.slice(1)];
+/** Copilot Fusion without a discount, which it marks as recommended instead. */
+const COPILOT_FUSION_FULL_PRICE_MODELS = [{ ...COPILOT_FUSION_MODEL, metadata: { ...COPILOT_FUSION_MODEL.metadata, autoModelDiscountPercent: undefined } }, ...RELAYED_MODELS.slice(1)];
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];
 
 const GB = 1024 ** 3;
@@ -920,13 +922,18 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
-	/** Copilot Fusion leads the list on a row twice as tall, its discount in the Copilot brand gradient. */
+	/** Copilot Fusion leads the list on a row twice as tall, a line beneath its name saying what it does and its discount in the Copilot brand gradient. */
 	PickerWithCopilotFusionDiscount: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerCopilotFusionSelected: defineComponentFixture({
 		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: COPILOT_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
+	}),
+	/** Copilot Fusion with no discount is badged Recommended, in the same Copilot brand gradient. */
+	PickerWithCopilotFusionRecommended: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: COPILOT_FUSION_FULL_PRICE_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
 	/** HydraFusion's details, with Default and Max as its tiers, before either is chosen. */
 	PickerHydraFusionDetails: defineComponentFixture({

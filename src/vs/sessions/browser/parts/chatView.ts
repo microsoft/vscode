@@ -8,6 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -86,6 +87,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	abstract readonly kind: ChatViewKind;
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
+
+	get activityBarActions(): IObservable<readonly IAction[]> {
+		return constObservable([]);
+	}
 
 	get scrollDownButtonDomNode(): HTMLElement | undefined {
 		return undefined;

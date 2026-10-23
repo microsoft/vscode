@@ -286,8 +286,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		const peerChats = summary.chats.filter(chat =>
 			chat !== defaultChat &&
 			chat.interactivity !== ChatInteractivity.Hidden &&
-			chat.origin?.kind !== ChatOriginKind.Tool &&
-			chat.origin?.kind !== ChatOriginKind.SideChat
+			chat.origin?.kind !== ChatOriginKind.Tool
 		);
 		return this._makeItem(resource, {
 			...base,

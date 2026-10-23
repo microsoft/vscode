@@ -33,6 +33,8 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { NotificationTelemetryId, type NotificationTelemetry } from '../../../../../../platform/notification/common/notificationTelemetry.js';
+import { IProgressService, Progress, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
@@ -51,9 +53,9 @@ import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '.
 import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
+import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionContribution, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestProgressService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import type { ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardItem, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
 import { type ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, updateCustomizationMigrationRecovery } from '../../../browser/aiCustomization/customizationMigrationRecovery.js';
@@ -308,6 +310,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationTargetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>;
 		customizationMigrationInProgress: boolean;
 		customizationMigrationWritesInProgress: boolean;
+		activeCustomizationMigration: { readonly categoryId: CustomizationMigrationCategoryId; readonly storage: PromptsStorage } | undefined;
 		customizationMigrationLoading: boolean;
 		customizationMigrationLoadError: string | undefined;
 		customizationMigrationResultsSettled: boolean;
@@ -338,6 +341,7 @@ suite('aiCustomizationManagementEditor', () => {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
 			activeProjectLabel: ISettableObservable<string>;
 			isSessionsWindow: boolean;
+			managementSections: readonly AICustomizationManagementSection[];
 			commitFiles?(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 		};
 		workingCopyService: { getAll(resource: URI): readonly { isDirty(): boolean; save(options?: { reason?: SaveReason }): Promise<boolean> }[] | undefined };
@@ -404,6 +408,7 @@ suite('aiCustomizationManagementEditor', () => {
 			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
+		progressService: IProgressService;
 		fileService: IFileService;
 		environmentService: { workspaceStorageHome: URI };
 		workspaceContextService: { getWorkspace(): { id: string } };
@@ -414,7 +419,9 @@ suite('aiCustomizationManagementEditor', () => {
 		selectedSection: AICustomizationManagementSection | undefined;
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
 		contributedSectionWidgets: Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>;
+		contributedSectionWidgetDisposables: Map<AICustomizationManagementSection, DisposableStore>;
 		getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined;
+		initializeContributedSectionWidgets(): void;
 		selectSection(section: AICustomizationManagementSection): void;
 		setInput: AICustomizationManagementEditor['setInput'];
 		clearInput(): void;
@@ -488,6 +495,8 @@ suite('aiCustomizationManagementEditor', () => {
 		updateContentVisibility(): void;
 		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void;
 		rebuildVisibleSections(): void;
+		sectionBadges: Map<AICustomizationManagementSection, string>;
+		registerContributedSectionBadges(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
 		editorGroupsService: {
@@ -546,6 +555,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationMigrationTargetFoldersByType = new Map();
 		editor.customizationMigrationInProgress = false;
 		editor.customizationMigrationWritesInProgress = false;
+		editor.activeCustomizationMigration = undefined;
 		editor.customizationMigrationLoading = false;
 		editor.customizationMigrationResultsSettled = false;
 		editor.selectedCustomizationMigrationTargets = new Map();
@@ -587,6 +597,7 @@ suite('aiCustomizationManagementEditor', () => {
 			activeProjectRoot: observableValue<URI | undefined>('project', URI.file('/workspace')),
 			activeProjectLabel: observableValue('projectLabel', 'vscode'),
 			isSessionsWindow: false,
+			managementSections: [],
 		};
 		editor.workspaceContextService = { getWorkspace: () => ({ id: 'workspace-id' }) };
 		editor.commandService = { executeCommand: async () => undefined };
@@ -654,10 +665,13 @@ suite('aiCustomizationManagementEditor', () => {
 			info: () => { },
 			warn: () => { },
 		};
+		editor.progressService = new TestProgressService();
 		editor.getActiveHarnessLabel = () => 'Copilot';
 		editor.welcomePage = undefined;
 		editor.contributedSectionContainers = new Map();
 		editor.contributedSectionWidgets = new Map();
+		editor.sectionBadges = new Map();
+		editor.contributedSectionWidgetDisposables = new Map();
 		editor.editorPreviewRenderScheduler = {
 			cancel(): void { },
 			schedule(): void { },
@@ -880,7 +894,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[], initializeOnEditorOpen = false, getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -905,7 +919,9 @@ suite('aiCustomizationManagementEditor', () => {
 			description: 'Test contributed section lifecycle',
 			icon: Codicon.search,
 			enablementSettings,
+			initializeOnEditorOpen,
 			supportsHarness: id => id === harnessId,
+			getBadge,
 			create: () => {
 				state.created++;
 				return {
@@ -921,13 +937,23 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
-	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]) {
-		const context = createContributedSectionEditor(enablementSettings);
+	test('initializes opted-in contributed sections before first navigation', () => {
+		const { editor, section, state } = createContributedSectionEditor(undefined, true);
+		Object.assign(editor.workspaceService, { managementSections: [section] });
+
+		editor.initializeContributedSectionWidgets();
+
+		assert.deepStrictEqual(state, { created: 1, visible: false, promptsFocused: 0, disposed: 0 });
+	});
+
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: IAICustomizationManagementSectionContribution['getBadge'], initializeOnEditorOpen = false) {
+		const context = createContributedSectionEditor(enablementSettings, initializeOnEditorOpen, getBadge);
 		const { editor, section } = context;
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;
 		Object.assign(editor, { marketplaceService: { sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed] } });
-		const sections: { id: AICustomizationManagementSection }[] = [];
+		Object.assign(editor.workspaceService, { managementSections: [section] });
+		const sections: { id: AICustomizationManagementSection; badge?: string }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
 		Object.assign(editor, {
 			allSections: [
@@ -944,6 +970,16 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		return { ...context, configuration, sections, getOverview: () => overview };
 	}
+
+	test('reinitializes opted-in contributed sections when their setting is enabled', async () => {
+		const { editor, section, state, configuration } = createGatedSectionEditor(false, undefined, undefined, true);
+		Object.assign(editor.workspaceService, { managementSections: [section] });
+		editor.updateContributedSectionEnablement();
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		editor.updateContributedSectionEnablement();
+
+		assert.deepStrictEqual(state, { created: 1, visible: false, promptsFocused: 0, disposed: 0 });
+	});
 
 	for (const enabled of [undefined, false]) {
 		test(`does not expose or instantiate a contributed section when its experiment is ${enabled === undefined ? 'unset' : 'disabled'}`, () => {
@@ -969,6 +1005,26 @@ suite('aiCustomizationManagementEditor', () => {
 			});
 		});
 	}
+
+	test('shows contributed section badges, including after the visible sections are rebuilt', () => {
+		const badge = observableValue<string | undefined>('badge', 'Suggestions to review.');
+		const { editor, section, sections } = createGatedSectionEditor(true, undefined, () => badge);
+		Object.assign(editor.workspaceService, { managementSections: [AICustomizationManagementSection.Agents, section] });
+		const readBadges = () => sections.map(item => ({ id: item.id, badge: item.badge }));
+
+		editor.registerContributedSectionBadges();
+		editor.rebuildVisibleSections();
+		const shown = readBadges();
+		badge.set(undefined, undefined);
+		const cleared = readBadges();
+		badge.set('More suggestions to review.', undefined);
+
+		assert.deepStrictEqual({ shown, cleared, updated: readBadges() }, {
+			shown: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'Suggestions to review.' }],
+			cleared: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: undefined }],
+			updated: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'More suggestions to review.' }],
+		});
+	});
 
 	test('disabling a section experiment disposes its widget and restores the overview', async () => {
 		const { editor, section, state, sections, getOverview, configuration } = createGatedSectionEditor(true);
@@ -1140,7 +1196,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	}
 
-	test('reopening input reactivates the selected contributed widget without a visibility transition', async () => {
+	test('reopening input recreates the selected contributed widget', async () => {
 		const { editor, section, state, visibilityChanges } = createContributedSectionEditor();
 		const firstInput = store.add(new AICustomizationManagementEditorInput());
 		const reopenedInput = store.add(new AICustomizationManagementEditorInput());
@@ -1166,9 +1222,9 @@ suite('aiCustomizationManagementEditor', () => {
 			afterClose: { editorVisible: true, widgetVisible: false },
 			editorVisible: true,
 			widgetVisible: true,
-			visibilityChanges: [false, true],
-			reused: true,
-			created: 1,
+			visibilityChanges: [false, true, true],
+			reused: false,
+			created: 2,
 		});
 	});
 
@@ -1314,7 +1370,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	test('clearing input hides contributed widgets before their editor disposes them', () => {
+	test('clearing input hides and disposes contributed widgets', () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		Object.assign(editor, {
@@ -1323,11 +1379,15 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		Object.assign(editor.workspaceService, { clearOverrideProjectRoot() { } });
 		const events: (boolean | 'disposed')[] = [];
-		const widget = editor.editorDisposables.add({
+		const widget = {
 			setVisible(visible: boolean) { events.push(visible); },
 			dispose() { events.push('disposed'); },
-		});
+		};
+		const widgetDisposables = new DisposableStore();
+		widgetDisposables.add(widget);
+		editor.editorDisposables.add(widgetDisposables);
 		editor.contributedSectionWidgets.set(AICustomizationManagementSection.Marketplace, widget);
+		editor.contributedSectionWidgetDisposables.set(AICustomizationManagementSection.Marketplace, widgetDisposables);
 		editor.selectedSection = AICustomizationManagementSection.Marketplace;
 
 		editor.setVisible(true);
@@ -1336,7 +1396,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorDisposables.clear();
 
 		assert.deepStrictEqual({ afterClear, events }, {
-			afterClear: [true, false],
+			afterClear: [true, false, 'disposed'],
 			events: [true, false, 'disposed'],
 		});
 	});
@@ -1880,8 +1940,8 @@ suite('aiCustomizationManagementEditor', () => {
 			categories: [CustomizationMigrationCategoryId.PromptFiles],
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		});
 		editor.editorPreviewDisposables.dispose();
@@ -2968,15 +3028,44 @@ suite('aiCustomizationManagementEditor', () => {
 				return { confirmed: true };
 			},
 		};
+		const progressEvents: string[] = [];
+		const progressOptions: {
+			readonly location: ProgressLocation | string;
+			readonly telemetry: NotificationTelemetry | undefined;
+			readonly title: string | undefined;
+			readonly cancellable: boolean | string | undefined;
+			readonly activeCategory: CustomizationMigrationCategoryId | undefined;
+		}[] = [];
+		editor.progressService = {
+			_serviceBrand: undefined,
+			async withProgress(options, task) {
+				progressOptions.push({
+					location: options.location,
+					telemetry: options.telemetry,
+					title: typeof options.title === 'string' ? options.title : undefined,
+					cancellable: options.cancellable,
+					activeCategory: editor.activeCustomizationMigration?.categoryId,
+				});
+				progressEvents.push('progress:start');
+				try {
+					return await task(Progress.None);
+				} finally {
+					progressEvents.push('progress:end');
+				}
+			},
+		};
 		const migrated: IPluginMarketplaceCustomizationMigrationCandidate[][] = [];
 		editor.customizationMigrationService = {
 			migrateMcpServers: async () => ({ migratedCount: 0, failures: [] }),
 			migratePluginMarketplaces: async (_sessionResource, candidates) => {
+				progressEvents.push('migration');
 				migrated.push([...candidates]);
 				return { migratedCount: 1, failures: [] };
 			},
 		};
-		editor.refreshCustomizationMigrationInfo = async () => { };
+		editor.refreshCustomizationMigrationInfo = async () => {
+			progressEvents.push(`refresh:${editor.activeCustomizationMigration?.categoryId}`);
+		};
 		let dashboardShown = 0;
 		editor.showCustomizationMigrationDashboard = () => dashboardShown++;
 		const notifications: string[] = [];
@@ -2993,6 +3082,9 @@ suite('aiCustomizationManagementEditor', () => {
 			migrationCompleted,
 			notifications,
 			dashboardShown,
+			progressOptions,
+			progressEvents,
+			activeMigration: editor.activeCustomizationMigration,
 			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PluginMarketplaces)),
 		}, {
 			confirmations: [{
@@ -3005,6 +3097,20 @@ suite('aiCustomizationManagementEditor', () => {
 			migrationCompleted: [[CustomizationMigrationType.PluginMarketplaces, 1, 1, 0, [], 'migration-flow-id']],
 			notifications: ['Migrated 1 plugin marketplace to Copilot.'],
 			dashboardShown: 1,
+			progressOptions: [{
+				location: ProgressLocation.Notification,
+				telemetry: NotificationTelemetryId.CustomizationMigration,
+				title: 'Migrating 1 plugin marketplace...',
+				cancellable: false,
+				activeCategory: CustomizationMigrationCategoryId.PluginMarketplaces,
+			}],
+			progressEvents: [
+				'progress:start',
+				'migration',
+				'refresh:pluginMarketplaces',
+				'progress:end',
+			],
+			activeMigration: undefined,
 			remainingCandidates: [],
 		});
 		editor.editorPreviewDisposables.dispose();

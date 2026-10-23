@@ -22,7 +22,7 @@ import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposab
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -108,6 +108,8 @@ import { FileSystemProviderCapabilities, IFileService } from '../../../../../pla
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -245,6 +247,8 @@ interface ISectionItem {
 	readonly label: string;
 	readonly description: string;
 	count: number;
+	/** Describes why the entry shows a badge, if it does. */
+	badge?: string;
 }
 
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
@@ -289,6 +293,7 @@ class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
 interface ISectionItemTemplateData {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
+	readonly badge: HTMLElement;
 	readonly count: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 }
@@ -301,14 +306,17 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 	renderTemplate(container: HTMLElement): ISectionItemTemplateData {
 		container.classList.add('section-list-item');
 		const label = DOM.append(container, $('.section-label'));
+		// The row's accessible name includes the badge description.
+		const badge = DOM.append(container, $('.section-badge', { 'aria-hidden': 'true' }));
 		const count = DOM.append(container, $('.section-count'));
 		const templateDisposables = new DisposableStore();
-		return { container, label, count, templateDisposables };
+		return { container, label, badge, count, templateDisposables };
 	}
 
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.label.textContent = element.label;
+		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {
 			templateData.count.textContent = String(element.count);
 			templateData.count.style.display = '';
@@ -316,7 +324,7 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 			templateData.count.textContent = '';
 			templateData.count.style.display = 'none';
 		}
-		templateData.templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.container, element.description));
+		templateData.templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.container, element.badge ?? element.description));
 	}
 
 	disposeTemplate(templateData: ISectionItemTemplateData): void {
@@ -374,6 +382,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private toolsContentContainer: HTMLElement | undefined;
 	private readonly contributedSectionContainers = new Map<AICustomizationManagementSection, HTMLElement>();
 	private readonly contributedSectionWidgets = new Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>();
+	private readonly contributedSectionWidgetDisposables = new Map<AICustomizationManagementSection, DisposableStore>();
 	private modelsFooterElement: HTMLElement | undefined;
 
 	// Embedded editor state
@@ -476,6 +485,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
+	private readonly sectionBadges = new Map<AICustomizationManagementSection, string>();
 	private readonly allSections: ISectionItem[] = [];
 	private selectedSection: AICustomizationManagementSection | undefined;
 	private contentNavigationGeneration = 0;
@@ -494,6 +504,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private customizationMigrationResultsSettled = false;
 	private customizationMigrationInProgress = false;
 	private customizationMigrationWritesInProgress = false;
+	private activeCustomizationMigration: { readonly categoryId: CustomizationMigrationCategoryId; readonly storage: PromptsStorage } | undefined;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
@@ -539,6 +550,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IProgressService private readonly progressService: IProgressService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -622,6 +634,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.clear();
 		this.contributedSectionContainers.clear();
 		this.contributedSectionWidgets.clear();
+		this.contributedSectionWidgetDisposables.clear();
 		this.container = DOM.append(parent, $('.ai-customization-management-editor'));
 
 		this.createSplitView();
@@ -750,7 +763,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
 			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
-				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description } : s);
+				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description, badge: this.sectionBadges.get(s.id) } : s);
 			}
 		}
 
@@ -777,14 +790,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateContributedSectionEnablement(): void {
-		for (const [section, widget] of this.contributedSectionWidgets) {
+		for (const section of this.contributedSectionWidgets.keys()) {
 			if (!this.isContributedSectionEnabled(section)) {
-				this.editorDisposables.delete(widget);
-				this.contributedSectionWidgets.delete(section);
-				this.contributedSectionContainers.get(section)?.replaceChildren();
+				this.disposeContributedSectionWidget(section);
 			}
 		}
 		this.rebuildVisibleSections();
+		this.initializeContributedSectionWidgets();
 	}
 
 	private createSidebar(): void {
@@ -806,9 +818,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel: (item: ISectionItem) => item.count > 0
-						? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
-						: item.label,
+					getAriaLabel: (item: ISectionItem) => {
+						const label = item.count > 0
+							? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
+							: item.label;
+						return item.badge ? localize('sectionAriaLabelWithBadge', "{0}, {1}", label, item.badge) : label;
+					},
 					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "Agent Customization Sections"),
 				},
 				openOnSingleClick: true,
@@ -836,18 +851,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// count refresh completes. Only reset when the active harness
 			// actually changed to avoid flicker on harness registration events.
 			if (this._previousActiveHarnessId !== undefined && this._previousActiveHarnessId !== activeId) {
-				for (const [section, widget] of this.contributedSectionWidgets) {
-					this.editorDisposables.delete(widget);
-					this.contributedSectionContainers.get(section)?.replaceChildren();
+				for (const section of [...this.contributedSectionWidgets.keys()]) {
+					this.disposeContributedSectionWidget(section);
 				}
-				this.contributedSectionWidgets.clear();
 				for (const section of this.sections) {
 					this.updateSectionCount(section.id, 0);
 				}
 				this.updateContentVisibility();
+				this.initializeContributedSectionWidgets();
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
+		this.registerContributedSectionBadges();
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.welcomePage?.isMarketplaceConfigurationChange(e)) {
@@ -1292,7 +1307,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (!aiCustomizationManagementSectionRegistry.has(section)) {
 				continue;
 			}
-			const container = DOM.append(contentInner, $('.contributed-section-container'));
+			const container = DOM.append(contentInner, $('.contributed-section-container.tools-content-container'));
 			this.contributedSectionContainers.set(section, container);
 		}
 
@@ -1344,6 +1359,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(section, observable.read(reader));
 			}));
 		}
+		this.initializeContributedSectionWidgets();
 
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
@@ -1908,50 +1924,52 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			const deleteOriginalFiles = confirmed.checkboxChecked !== false;
-			const result = await this.runCustomizationMigration(files, targetFolders, deleteOriginalFiles);
-			this.customizationMigrationTelemetryService.migrationCompleted(
-				category.migrationType,
-				files.length,
-				result.migratedCount,
-				result.failedCustomizationFileNames.length,
-				result.failureReasons,
-				migrationFlowId,
-			);
-			if (result.failedCustomizationFileNames.length > 0) {
-				if (result.nameConflicts.length > 0) {
-					this.notificationService.error(this.getCustomizationMigrationNameConflictMessage(result.nameConflicts));
+			await this.runCustomizationMigrationWithProgress(category, files, async () => {
+				const result = await this.runCustomizationMigration(files, targetFolders, deleteOriginalFiles);
+				this.customizationMigrationTelemetryService.migrationCompleted(
+					category.migrationType,
+					files.length,
+					result.migratedCount,
+					result.failedCustomizationFileNames.length,
+					result.failureReasons,
+					migrationFlowId,
+				);
+				if (result.failedCustomizationFileNames.length > 0) {
+					if (result.nameConflicts.length > 0) {
+						this.notificationService.error(this.getCustomizationMigrationNameConflictMessage(result.nameConflicts));
+					}
+					const otherFailedFileNames = result.failures
+						.filter(failure => failure.reasons.some(reason => reason !== FileCustomizationMigrationFailureReason.TargetAlreadyExists))
+						.map(failure => failure.sourceFileName);
+					if (otherFailedFileNames.length > 0) {
+						const displayedFileNames = otherFailedFileNames.slice(0, 3);
+						this.notificationService.error(category.getFailedMessage(displayedFileNames, otherFailedFileNames.length - displayedFileNames.length));
+					}
 				}
-				const otherFailedFileNames = result.failures
-					.filter(failure => failure.reasons.some(reason => reason !== FileCustomizationMigrationFailureReason.TargetAlreadyExists))
-					.map(failure => failure.sourceFileName);
-				if (otherFailedFileNames.length > 0) {
-					const displayedFileNames = otherFailedFileNames.slice(0, 3);
-					this.notificationService.error(category.getFailedMessage(displayedFileNames, otherFailedFileNames.length - displayedFileNames.length));
+				if (result.migratedCount === 0) {
+					if (result.failedCustomizationFileNames.length === 0) {
+						this.notificationService.warn(category.noFilesMigratedMessage);
+					}
+					return;
 				}
-			}
-			if (result.migratedCount === 0) {
-				if (result.failedCustomizationFileNames.length === 0) {
-					this.notificationService.warn(category.noFilesMigratedMessage);
+				if (result.failedCustomizationFileNames.length === 0 && result.migratedCount === files.length && settingsToClear.length > 0) {
+					try {
+						await this.clearConfiguredLocationSettings(settingsToClear);
+					} catch (error) {
+						this.notificationService.error(localize('customizationMigrationClearSettingsFailed', "Customizations were migrated, but the custom location settings could not be cleared: {0}", getErrorMessage(error)));
+					}
 				}
-				return;
-			}
-			if (result.failedCustomizationFileNames.length === 0 && result.migratedCount === files.length && settingsToClear.length > 0) {
-				try {
-					await this.clearConfiguredLocationSettings(settingsToClear);
-				} catch (error) {
-					this.notificationService.error(localize('customizationMigrationClearSettingsFailed', "Customizations were migrated, but the custom location settings could not be cleared: {0}", getErrorMessage(error)));
+				if (deleteOriginalFiles) {
+					const migratedFiles = result.migratedSources.flatMap(source => files.filter(file => file.storage === source.storage && isEqual(file.uri, source.uri)));
+					this.markCustomizationMigrationsCompleted(category, migratedFiles);
+					await this.refreshCustomizationMigrationInfo();
 				}
-			}
-			if (deleteOriginalFiles) {
-				const migratedFiles = result.migratedSources.flatMap(source => files.filter(file => file.storage === source.storage && isEqual(file.uri, source.uri)));
-				this.markCustomizationMigrationsCompleted(category, migratedFiles);
-				await this.refreshCustomizationMigrationInfo();
-			}
-			const unsupportedKeys = result.unsupportedHeaderKeys.join(', ');
-			this.notificationService.info(unsupportedKeys && category.getMigratedWithReviewMessage
-				? category.getMigratedWithReviewMessage(result.migratedCount, unsupportedKeys)
-				: category.getMigratedMessage(result.migratedCount));
-			this.showCustomizationMigrationDashboard();
+				const unsupportedKeys = result.unsupportedHeaderKeys.join(', ');
+				this.notificationService.info(unsupportedKeys && category.getMigratedWithReviewMessage
+					? category.getMigratedWithReviewMessage(result.migratedCount, unsupportedKeys)
+					: category.getMigratedMessage(result.migratedCount));
+				this.showCustomizationMigrationDashboard();
+			});
 		} finally {
 			this.customizationMigrationInProgress = false;
 			this.renderCustomizationMigrationDashboardState();
@@ -1979,44 +1997,46 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		this.customizationMigrationWritesInProgress = true;
-		let result: IMcpServerCustomizationMigrationResult;
-		try {
-			result = await this.customizationMigrationService.migrateMcpServers(sessionResource, servers);
-		} finally {
-			await timeout(0);
-			this.customizationMigrationWritesInProgress = false;
-		}
-		this.customizationMigrationTelemetryService.migrationCompleted(
-			category.migrationType,
-			servers.length,
-			result.migratedCount,
-			result.failures.length,
-			result.failures.map(failure => failure.reason),
-			migrationFlowId,
-		);
-		const migratedServers = servers.filter(server => !result.failures.some(failure => failure.id === server.id && isEqual(failure.sourceUri, server.sourceUri)));
-		if (result.migratedCount > 0) {
-			this.markCustomizationMigrationsCompleted(category, migratedServers);
-		}
-		await this.refreshCustomizationMigrationInfo();
-
-		for (const failure of result.failures) {
-			if (failure.error) {
-				onUnexpectedError(failure.error);
+		await this.runCustomizationMigrationWithProgress(category, servers, async () => {
+			this.customizationMigrationWritesInProgress = true;
+			let result: IMcpServerCustomizationMigrationResult;
+			try {
+				result = await this.customizationMigrationService.migrateMcpServers(sessionResource, servers);
+			} finally {
+				await timeout(0);
+				this.customizationMigrationWritesInProgress = false;
 			}
-		}
-		if (result.failures.length > 0) {
-			const message = category.getMcpServerFailureMessage?.(result.failures)
-				?? category.getFailedMessage(result.failures.slice(0, 3).map(failure => failure.name), Math.max(0, result.failures.length - 3));
-			this.notificationService.error(message);
-		}
-		if (result.migratedCount > 0) {
-			this.notificationService.info(category.getMigratedMessage(result.migratedCount));
-			this.showCustomizationMigrationDashboard();
-		} else if (result.failures.length === 0) {
-			this.notificationService.warn(category.noFilesMigratedMessage);
-		}
+			this.customizationMigrationTelemetryService.migrationCompleted(
+				category.migrationType,
+				servers.length,
+				result.migratedCount,
+				result.failures.length,
+				result.failures.map(failure => failure.reason),
+				migrationFlowId,
+			);
+			const migratedServers = servers.filter(server => !result.failures.some(failure => failure.id === server.id && isEqual(failure.sourceUri, server.sourceUri)));
+			if (result.migratedCount > 0) {
+				this.markCustomizationMigrationsCompleted(category, migratedServers);
+			}
+			await this.refreshCustomizationMigrationInfo();
+
+			for (const failure of result.failures) {
+				if (failure.error) {
+					onUnexpectedError(failure.error);
+				}
+			}
+			if (result.failures.length > 0) {
+				const message = category.getMcpServerFailureMessage?.(result.failures)
+					?? category.getFailedMessage(result.failures.slice(0, 3).map(failure => failure.name), Math.max(0, result.failures.length - 3));
+				this.notificationService.error(message);
+			}
+			if (result.migratedCount > 0) {
+				this.notificationService.info(category.getMigratedMessage(result.migratedCount));
+				this.showCustomizationMigrationDashboard();
+			} else if (result.failures.length === 0) {
+				this.notificationService.warn(category.noFilesMigratedMessage);
+			}
+		});
 	}
 
 	private async migrateSelectedPluginMarketplaces(
@@ -2040,44 +2060,72 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		this.customizationMigrationWritesInProgress = true;
-		let result: IPluginMarketplaceCustomizationMigrationResult;
-		try {
-			result = await this.customizationMigrationService.migratePluginMarketplaces(sessionResource, marketplaces);
-		} finally {
-			await timeout(0);
-			this.customizationMigrationWritesInProgress = false;
-		}
-		this.customizationMigrationTelemetryService.migrationCompleted(
-			category.migrationType,
-			marketplaces.length,
-			result.migratedCount,
-			result.failures.length,
-			result.failures.map(failure => failure.reason),
-			migrationFlowId,
-		);
-		const migratedMarketplaces = marketplaces.filter(marketplace => !result.failures.some(failure => failure.canonicalId === marketplace.canonicalId));
-		if (migratedMarketplaces.length > 0) {
-			this.markCustomizationMigrationsCompleted(category, migratedMarketplaces);
-		}
-		await this.refreshCustomizationMigrationInfo();
-
-		for (const failure of result.failures) {
-			if (failure.error) {
-				onUnexpectedError(failure.error);
+		await this.runCustomizationMigrationWithProgress(category, marketplaces, async () => {
+			this.customizationMigrationWritesInProgress = true;
+			let result: IPluginMarketplaceCustomizationMigrationResult;
+			try {
+				result = await this.customizationMigrationService.migratePluginMarketplaces(sessionResource, marketplaces);
+			} finally {
+				await timeout(0);
+				this.customizationMigrationWritesInProgress = false;
 			}
-		}
-		if (result.failures.length > 0) {
-			this.notificationService.error(category.getFailedMessage(
-				result.failures.slice(0, 3).map(failure => failure.name),
-				Math.max(0, result.failures.length - 3),
-			));
-		}
-		if (result.migratedCount > 0) {
-			this.notificationService.info(category.getMigratedMessage(result.migratedCount));
-			this.showCustomizationMigrationDashboard();
-		} else if (result.failures.length === 0) {
-			this.notificationService.warn(category.noFilesMigratedMessage);
+			this.customizationMigrationTelemetryService.migrationCompleted(
+				category.migrationType,
+				marketplaces.length,
+				result.migratedCount,
+				result.failures.length,
+				result.failures.map(failure => failure.reason),
+				migrationFlowId,
+			);
+			const migratedMarketplaces = marketplaces.filter(marketplace => !result.failures.some(failure => failure.canonicalId === marketplace.canonicalId));
+			if (migratedMarketplaces.length > 0) {
+				this.markCustomizationMigrationsCompleted(category, migratedMarketplaces);
+			}
+			await this.refreshCustomizationMigrationInfo();
+
+			for (const failure of result.failures) {
+				if (failure.error) {
+					onUnexpectedError(failure.error);
+				}
+			}
+			if (result.failures.length > 0) {
+				this.notificationService.error(category.getFailedMessage(
+					result.failures.slice(0, 3).map(failure => failure.name),
+					Math.max(0, result.failures.length - 3),
+				));
+			}
+			if (result.migratedCount > 0) {
+				this.notificationService.info(category.getMigratedMessage(result.migratedCount));
+				this.showCustomizationMigrationDashboard();
+			} else if (result.failures.length === 0) {
+				this.notificationService.warn(category.noFilesMigratedMessage);
+			}
+		});
+	}
+
+	private async runCustomizationMigrationWithProgress<T>(
+		category: ICustomizationMigrationCategory,
+		customizations: readonly CustomizationMigrationCandidate[],
+		task: () => Promise<T>,
+	): Promise<T> {
+		const activeMigration = {
+			categoryId: category.id,
+			storage: customizations[0].storage,
+		};
+		this.activeCustomizationMigration = activeMigration;
+		this.renderCustomizationMigrationDashboardState();
+		try {
+			return await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				telemetry: NotificationTelemetryId.CustomizationMigration,
+				title: category.getProgressTitle(customizations.length),
+				cancellable: false,
+			}, task);
+		} finally {
+			if (this.activeCustomizationMigration === activeMigration) {
+				this.activeCustomizationMigration = undefined;
+			}
+			this.renderCustomizationMigrationDashboardState();
 		}
 	}
 
@@ -2319,7 +2367,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const actionState = this.getMigrationItemActionState(item);
 		const migrate = disposables.add(new Action(
 			'customizationMigration.migrateItem',
-			localize('migrateThisCustomization', "Migrate This Item"),
+			localize('migrateThisCustomization', "Migrate This Item..."),
 			undefined,
 			actionState.canMigrate,
 			() => this.migrateMigrationItem(item),
@@ -2540,13 +2588,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		return {
 			scopes,
+			migrationInProgress: this.activeCustomizationMigration !== undefined,
 			recoveries: this.agentMigrationRecoveries.map(({ manifest }) => this.getAgentMigrationRecoveryDashboardItem(manifest)),
 			supportsAgentMigration: !isRemoteAgentHostTarget(this.harnessService.activeHarness.get())
 				&& this.getAllMigrationCandidates().some(candidate => !isPluginMarketplaceCustomizationMigrationCandidate(candidate)),
 			categoryErrors: this.pluginMarketplaceMigrationDiscoveryError ? [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: localize('pluginMarketplaceMigrationLoadError', "Plugin marketplaces could not be checked"),
-				description: localize('pluginMarketplaceMigrationLoadErrorDescription', "Check the active agent connection, then try again."),
+				label: localize('pluginMarketplaceMigrationLoadError', "Couldn't load Copilot's plugin marketplaces"),
+				description: localize('pluginMarketplaceMigrationLoadErrorDescription', "Check the Copilot connection, then try again."),
 			}] : undefined,
 			manualReviewItems: storages.flatMap(storage => this.getMcpMigrationExclusions(storage).map(exclusion => ({
 				id: `${CustomizationMigrationCategoryId.McpServers}:${storage}:exclusion:${exclusion.id}`,
@@ -2696,6 +2745,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		const selectedCount = candidates.filter(candidate => this.isCustomizationSelectedForMigration(candidate)).length;
 		const destination = this.getMigrationCategoryDestination(id, candidates, storage);
+		const migrationInProgress = this.activeCustomizationMigration?.categoryId === id
+			&& this.activeCustomizationMigration.storage === storage;
+		const migrationState = {
+			migrationInProgress,
+			migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+			...(migrationInProgress ? { actionLabel: localize('migrationInProgressAction', "Migrating...") } : {}),
+		};
 		switch (id) {
 			case CustomizationMigrationCategoryId.PromptFiles:
 				return {
@@ -2704,7 +2760,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					description: category.preMigrationConsequences ?? '',
 					countLabel: count === 1 ? localize('migrationChecklistOnePrompt', "1 prompt") : localize('migrationChecklistPromptsCount', "{0} prompts", count),
 					highRisk: true,
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2717,7 +2773,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 						? localize('migrationChecklistUserMcpDescription', "Move eligible user servers to mcp-config.json in Copilot home.")
 						: localize('migrationChecklistMcpDescription', "Move eligible workspace servers to the root .mcp.json."),
 					countLabel: count === 1 ? localize('migrationChecklistOneMcpServer', "1 server") : localize('migrationChecklistMcpServers', "{0} servers", count),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2728,11 +2784,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 					id, count,
 					label: this.getMigrationDashboardCategoryLabel(id),
 					description: localize('migrationChecklistPluginMarketplacesDescription', "Migrate plugin marketplaces to Copilot settings while keeping them available to the Local agent."),
-					actionLabel: localize('migratePluginMarketplaces', "Migrate"),
+					actionLabel: migrationInProgress
+						? localize('migrationInProgressAction', "Migrating...")
+						: localize('migratePluginMarketplaces', "Migrate..."),
 					countLabel: count === 1
 						? localize('migrationChecklistOnePluginMarketplace', "1 marketplace")
 						: localize('migrationChecklistPluginMarketplacesCount', "{0} marketplaces", count),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2752,7 +2810,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					label: this.getMigrationDashboardCategoryLabel(id),
 					description: localize('migrationChecklistUserDataDescription', "Move agents and instructions to shared locations so they remain available to supported agent experiences."),
 					countLabel: counts.join(' · '),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2766,7 +2824,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					countLabel: count === 1
 						? localize('migrationChecklistOneConfiguredLocationCustomization', "1 customization")
 						: localize('migrationChecklistConfiguredLocationCustomizationsCount', "{0} customizations", count),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -3324,6 +3382,45 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.ensureSectionsListReflectsActiveSection();
 	}
 
+	/**
+	 * Shows the badges that contributed sections describe on their navigation entries.
+	 */
+	private registerContributedSectionBadges(): void {
+		// Resolve the badge observables once per harness so that badge changes only re-read them.
+		const sectionBadges = derived(this, reader => {
+			const activeHarness = this.harnessService.activeHarness.read(reader);
+			return this.workspaceService.managementSections.map(section => {
+				const getBadge = aiCustomizationManagementSectionRegistry.get(section, activeHarness)?.getBadge;
+				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
+			});
+		});
+		this.editorDisposables.add(autorun(reader => {
+			for (const { section, badge } of sectionBadges.read(reader)) {
+				this.updateSectionBadge(section, badge?.read(reader));
+			}
+		}));
+	}
+
+	/**
+	 * Updates the badge of a section, which also applies when the visible sections are rebuilt, and re-renders the sidebar.
+	 */
+	private updateSectionBadge(sectionId: AICustomizationManagementSection, badge: string | undefined): void {
+		if (badge === undefined) {
+			this.sectionBadges.delete(sectionId);
+		} else {
+			this.sectionBadges.set(sectionId, badge);
+		}
+		const section = this.sections.find(s => s.id === sectionId);
+		if (!section || section.badge === badge) {
+			return;
+		}
+		section.badge = badge;
+		if (this.sectionsList) {
+			this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+			this.ensureSectionsListReflectsActiveSection();
+		}
+	}
+
 	//#endregion
 
 	/**
@@ -3574,12 +3671,39 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		const widget = contribution.create(this.instantiationService, container);
 		this.contributedSectionWidgets.set(section, widget);
-		this.editorDisposables.add(widget);
+		widget.setCloseCustomizationEditor?.(() => this.closeCustomizationEditor());
+		const disposables = new DisposableStore();
+		disposables.add(widget);
+		this.contributedSectionWidgetDisposables.set(section, disposables);
+		this.editorDisposables.add(disposables);
+		if (widget.onDidChangeItemCount) {
+			disposables.add(widget.onDidChangeItemCount(count => this.updateSectionCount(section, count)));
+		}
+		widget.fireItemCount?.();
 		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
 		if (this.dimension) {
 			widget.layout?.(this.dimension);
 		}
 		return widget;
+	}
+
+	private disposeContributedSectionWidget(section: AICustomizationManagementSection): void {
+		const disposables = this.contributedSectionWidgetDisposables.get(section);
+		if (disposables) {
+			this.editorDisposables.delete(disposables);
+			this.contributedSectionWidgetDisposables.delete(section);
+		}
+		this.contributedSectionWidgets.delete(section);
+		this.contributedSectionContainers.get(section)?.replaceChildren();
+	}
+
+	private initializeContributedSectionWidgets(): void {
+		for (const section of this.workspaceService.managementSections) {
+			const contribution = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get());
+			if (contribution?.initializeOnEditorOpen) {
+				this.ensureContributedSectionWidget(section);
+			}
+		}
 	}
 
 	getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined {
@@ -3597,6 +3721,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	getCustomizationDiscoveryAccessibilityContent(): string {
+		const contributedContent = this.selectedSection
+			? this.contributedSectionWidgets.get(this.selectedSection)?.getAccessibilityContent?.()
+			: undefined;
+		if (contributedContent !== undefined) {
+			return contributedContent;
+		}
 		return this.isCustomizationDiscoveryDetailVisible()
 			? this.embeddedMarketplaceDetail?.getAccessibilityContent() ?? ''
 			: this.welcomePage?.getAccessibilityContent() ?? '';
@@ -3750,6 +3880,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
 		if (!token.isCancellationRequested) {
+			this.initializeContributedSectionWidgets();
+			if (this.selectedSection && this.isContributedSectionEnabled(this.selectedSection)) {
+				this.ensureContributedSectionWidget(this.selectedSection);
+			}
 			this.welcomePage?.setVisible(this.isVisible() && this.viewMode === 'list' && this.selectedSection === undefined);
 			for (const [section, widget] of this.contributedSectionWidgets) {
 				widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
@@ -3793,8 +3927,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.cancelCustomizationMigrationRefresh();
 		this.disposeBuiltinEditingSessions();
 		this.welcomePage?.setVisible(false);
-		for (const widget of this.contributedSectionWidgets.values()) {
+		for (const [section, widget] of [...this.contributedSectionWidgets]) {
 			widget.setVisible?.(false);
+			this.disposeContributedSectionWidget(section);
 		}
 		super.clearInput();
 	}
@@ -5399,7 +5534,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			ariaLabel: localize('migrateCustomization', "Migrate customization"),
 		}));
 		migrate.element.classList.add('migration-detail-action');
-		migrate.label = localize('migrate', "Migrate");
+		migrate.label = localize('migrate', "Migrate...");
 		this.editorDisposables.add(migrate.onDidClick(() => {
 			void this.migrateCurrentMigrationDetail().catch(error => this.notificationService.error(
 				localize('migrateCustomizationFailed', "Could not migrate the customization: {0}", getErrorMessage(error))

@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -52,6 +52,7 @@ import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telem
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { AgentHostEditReview } from '../../../browser/agentSessions/agentHost/agentHostEditReview.js';
+import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatEditingModifiedDocumentEntry } from '../../../browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 import { IChatService, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
@@ -502,6 +503,46 @@ suite('AgentHostEditReview', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('hiding review releases editor restrictions and re-enabling reviews the latest host changes', async () => {
+		review.dispose();
+		const enabled = observableValue('reviewEnabled', true);
+		const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, undefined, new NullLogService(), new class extends mock<IFileService>() { }()));
+		controller.attachReview(enabled, () => review = createReview());
+		hostWrites('/a.ts', 'A\nb\n');
+		const first = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
+		host.setWorkingSet([first]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		openDiffEditor(entry);
+		host.setWorkingSet([{ ...first, isEditing: true }]);
+		const editing = !!entry.isCurrentlyBeingModifiedBy.get();
+
+		enabled.set(false, undefined);
+		const hidden = {
+			entries: controller.entries.get().length,
+			editing: !!entry.isCurrentlyBeingModifiedBy.get(),
+			originalDisposed: entry.originalModel.isDisposed(),
+		};
+		hostWrites('/a.ts', 'A\nB\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', 'tc2')]);
+		await settle();
+		enabled.set(true, undefined);
+		await settle();
+		const resumed = await getChanges(getEntry('/a.ts'));
+		const invokedBeforeKeep = host.invoked.slice();
+		await controller.accept();
+
+		assert.deepStrictEqual({ editing, hidden, resumed, invokedBeforeKeep, invoked: host.invoked, errors }, {
+			editing: true,
+			hidden: { entries: 0, editing: false, originalDisposed: false },
+			resumed: ['[1,3)'],
+			invokedBeforeKeep: [],
+			invoked: ['keep /a.ts @tc2'],
+			errors: [],
+		});
+	});
 
 	test('reviews the files of the Working Set against their baseline', async () => {
 		hostWrites('/a.ts', 'one\nTWO\nthree\n');
