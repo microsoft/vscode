@@ -291,6 +291,21 @@ function normalizedName(value: string): string {
 	return value.trim().toLowerCase();
 }
 
+function installationStatesEqual(a: CustomizationMarketplaceInstallState, b: CustomizationMarketplaceInstallState): boolean {
+	if (a.kind === 'unavailable' && b.kind === 'unavailable') {
+		return a.message === b.message && isEqual(a.setupUrl, b.setupUrl);
+	}
+	if (hasInstallationTarget(a) && hasInstallationTarget(b)
+		&& (a.target.kind === 'skill' || a.target.kind === 'plugin')
+		&& (b.target.kind === 'skill' || b.target.kind === 'plugin')) {
+		return isEqual(a.target.uri, b.target.uri) && structuralEquals(
+			{ ...a, target: { ...a.target, uri: undefined } },
+			{ ...b, target: { ...b.target, uri: undefined } },
+		);
+	}
+	return structuralEquals(a, b);
+}
+
 function hasInstallationTarget(state: CustomizationMarketplaceInstallState): state is Extract<CustomizationMarketplaceInstallState, { target: CustomizationMarketplaceInstallationTarget }> {
 	return 'target' in state;
 }
@@ -851,6 +866,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly browseDisposables = this._register(new DisposableStore());
 	private readonly browsePrimaryActions = new Map<string, HTMLButtonElement>();
 	private readonly browseAlternativeActions = new Map<string, HTMLButtonElement>();
+	private readonly browseInstallStates = new Map<ICustomizationMarketplaceResource, CustomizationMarketplaceInstallState>();
 	private readonly resultAlternativeActions = new Map<string, HTMLButtonElement>();
 	private readonly resultStatusDisposables = this._register(new DisposableStore());
 	private readonly descriptionDisposables = this._register(new DisposableStore());
@@ -1084,7 +1100,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.refreshInstalledItems();
 			}
 		});
-		this._register(this.installService.onDidChange(() => this.render()));
+		this._register(this.installService.onDidChange(() => {
+			if (!this.resultListContainer.hidden || [...this.browseInstallStates].some(([resource, state]) => !installationStatesEqual(state, this.getInstallState(resource)))) {
+				this.render();
+			}
+		}));
 		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
 		if (this.marketplaceService.onDidChangeSources) {
 			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
@@ -2120,6 +2140,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.clear();
 		this.browsePrimaryActions.clear();
 		this.browseAlternativeActions.clear();
+		this.browseInstallStates.clear();
 		DOM.clearNode(this.browseSections);
 		if (!this.isCatalogEnabled()) {
 			this.browseStatus.textContent = localize('customizationDiscovery.catalogDisabled', "Search your installed customizations, or enable a marketplace source to explore available items.");
@@ -2306,6 +2327,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const resourceKey = getCustomizationMarketplaceResourceKey(item);
 		card.dataset.resourceKey = resourceKey;
 		const state = this.getInstallState(item);
+		this.browseInstallStates.set(item, state);
 		const primaryAction = createCustomizationCardPrimaryAction(
 			card,
 			state.kind === 'installed'
