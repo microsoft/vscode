@@ -154,8 +154,8 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 		assert.deepStrictEqual([...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map(row => ({
 			title: row.querySelector('a')?.textContent,
-			spinning: !!row.querySelector('.codicon-loading.codicon-modifier-spin'),
-		})), [{ title: 'first', spinning: true }, { title: 'second', spinning: true }, { title: 'existing', spinning: false }]);
+			progress: row.querySelector('.session-worktree-cleanup-reason')?.textContent,
+		})), [{ title: 'first', progress: 'Cleaning up…' }, { title: 'second', progress: 'Cleaning up…' }, { title: 'existing', progress: 'Worktree still present' }]);
 		await timeout(2_000);
 		assert.deepStrictEqual({
 			checked,

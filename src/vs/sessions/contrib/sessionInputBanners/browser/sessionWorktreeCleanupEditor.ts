@@ -11,7 +11,6 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { fromNow } from '../../../../base/common/date.js';
@@ -445,8 +444,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				const reason = dom.append(titleCell, dom.$('span.session-worktree-cleanup-reason'));
 				if (cleaning) {
 					row.setAttribute('aria-busy', 'true');
-					const spinner = dom.append(reason, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
-					spinner.setAttribute('aria-hidden', 'true');
 				}
 				reason.appendChild(titleCell.ownerDocument.createTextNode(label));
 				this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), reason, label));
