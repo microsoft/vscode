@@ -598,7 +598,11 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		};
 	}
 
-	/** The GitHub Actions job behind a failed check run of the open pull request's current head, which can be rerun on its own. */
+	/**
+	 * The GitHub Actions job behind a failed check run of the open pull request's head, which can be rerun on its own.
+	 * Actions job IDs are their check-run IDs, so a check whose details link to another check's job is not offered.
+	 * This also accepts retained data during a refresh; {@link rerunCheck} confirms the result against current state.
+	 */
 	private rerunnableJob(snapshot: PullRequestSnapshot, check: PullRequestCheck): { readonly runId: number; readonly jobId: number } | undefined {
 		if (snapshot.core.value?.state !== 'open' || snapshot.checks.value?.headSha !== snapshot.core.value.headSha
 			|| check.type !== 'checkRun' || checkPresentationState(check) !== 'failed' || !check.detailsUrl) {
@@ -611,39 +615,56 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		const jobId = Number(match?.groups?.jobId);
 		return match?.groups && url.authority.toLowerCase() === target.resource.authority.toLowerCase()
 			&& match.groups.owner.toLowerCase() === target.owner.toLowerCase() && match.groups.repo.toLowerCase() === target.repo.toLowerCase()
-			&& Number.isSafeInteger(runId) && Number.isSafeInteger(jobId) ? { runId, jobId } : undefined;
+			&& Number.isSafeInteger(runId) && Number.isSafeInteger(jobId) && String(jobId) === check.id ? { runId, jobId } : undefined;
 	}
 
 	/** Item actions are idempotent GitHub requests that run directly, so they never wait for or block artifact actions. */
-	private runItemAction(detailsId: string, itemId: string, actionId: string, token: CancellationToken): Promise<void> {
-		const snapshot = this.resource.snapshot.get();
+	private async runItemAction(detailsId: string, itemId: string, actionId: string, token: CancellationToken): Promise<void> {
+		if (detailsId === 'checks' && actionId === 'rerunCheck') {
+			await this.rerunCheck(itemId, token);
+		} else if (detailsId === 'comments' && actionId === 'resolveThread') {
+			await this.resolveThread(itemId, token);
+		} else {
+			throw new Error('Unknown pull request item action');
+		}
+	}
+
+	private async rerunCheck(checkId: string, token: CancellationToken): Promise<void> {
+		// Retained values remain visible while refreshing, so rerun only what GitHub currently reports as failing.
+		const snapshot = await this.resource.refresh(token);
+		const headSha = snapshot.core.value?.headSha;
+		const check = isCurrentPullRequestFragment(snapshot.core) && isCurrentPullRequestFragment(snapshot.checks, headSha)
+			? getPullRequestArtifactChecks(snapshot).find(check => check.id === checkId) : undefined;
+		const job = check && this.rerunnableJob(snapshot, check);
+		if (!check || !job || !headSha) {
+			throw new Error(localize('prArtifact.checkNotRerunnable', "This check is no longer failing on the pull request's current revision, or GitHub Actions cannot rerun it."));
+		}
 		const repository = { owner: this.resource.target.owner, repo: this.resource.target.repo };
-		return withSignal(token, signal => this.resource.withAuthentication(() => this.resource.withApiClient(signal, async api => {
-			if (detailsId === 'checks' && actionId === 'rerunCheck') {
-				const check = getPullRequestArtifactChecks(snapshot).find(check => check.id === itemId);
-				const job = check && this.rerunnableJob(snapshot, check);
-				if (!check || !job) {
-					throw new Error(localize('prArtifact.checkNotRerunnable', "This check is no longer failing on the pull request's current revision, or GitHub Actions cannot rerun it."));
-				}
-				// GitHub rejects job reruns while other jobs of the same workflow run are still in progress.
-				if ((await api.actions.getRun(repository, job.runId, signal, { caller })).status !== 'completed') {
-					throw new Error(localize('prArtifact.workflowRunning', "The workflow of {0} is still running. Rerun the check after it finishes.", check.name));
-				}
-				await api.actions.rerunJob(repository, job.jobId, signal, { caller });
-				this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['checks']);
-			} else if (detailsId === 'comments' && actionId === 'resolveThread') {
-				if (!this.threads(snapshot).some(thread => thread.id === itemId)) {
-					throw new Error(localize('prArtifact.threadNotResolvable', "This review thread is already resolved or no longer available."));
-				}
-				const resolution = await api.reviews.resolveThread(itemId, signal, { caller });
-				if (resolution.isResolved) {
-					this.resolvedThreads.set(new Map([...this.resolvedThreads.get(), [itemId, Date.now()]]), undefined);
-				}
-				this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['reviewThreads']);
-			} else {
-				throw new Error('Unknown pull request item action');
+		await withSignal(token, signal => this.resource.withAuthentication(() => this.resource.withApiClient(signal, async api => {
+			// The details link is integration data, so confirm with GitHub that the job is this check's run on the current head.
+			const workflowJob = await api.actions.getJob(repository, job.jobId, signal, { caller });
+			if (workflowJob.run_id !== job.runId || workflowJob.head_sha !== headSha || !workflowJob.check_run_url.endsWith(`/check-runs/${check.id}`)) {
+				throw new Error(localize('prArtifact.checkNotRerunnable', "This check is no longer failing on the pull request's current revision, or GitHub Actions cannot rerun it."));
 			}
+			// GitHub rejects job reruns while other jobs of the same workflow run are still in progress.
+			if ((await api.actions.getRun(repository, job.runId, signal, { caller })).status !== 'completed') {
+				throw new Error(localize('prArtifact.workflowRunning', "The workflow of {0} is still running. Rerun the check after it finishes.", check.name));
+			}
+			await api.actions.rerunJob(repository, job.jobId, signal, { caller });
 		}), token));
+		this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['checks']);
+	}
+
+	/** Resolving is idempotent, so it uses the observed threads to stay immediate rather than refreshing first. */
+	private async resolveThread(threadId: string, token: CancellationToken): Promise<void> {
+		if (!this.threads(this.resource.snapshot.get()).some(thread => thread.id === threadId)) {
+			throw new Error(localize('prArtifact.threadNotResolvable', "This review thread is already resolved or no longer available."));
+		}
+		const resolution = await withSignal(token, signal => this.resource.withAuthentication(() => this.resource.withApiClient(signal, api => api.reviews.resolveThread(threadId, signal, { caller })), token));
+		if (resolution.isResolved) {
+			this.resolvedThreads.set(new Map([...this.resolvedThreads.get(), [threadId, Date.now()]]), undefined);
+		}
+		this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['reviewThreads']);
 	}
 
 	private applicable(actionId: string, snapshot: PullRequestSnapshot, automatic: boolean): boolean {

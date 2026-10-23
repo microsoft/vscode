@@ -12,7 +12,7 @@ import { IListRenderer } from '../../../base/browser/ui/list/list.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Event } from '../../../base/common/event.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
@@ -57,7 +57,17 @@ export interface IArtifactDetailsItemActionProvider {
 	readonly hoverDelegate: IHoverDelegate;
 	/** Fires when the actions of rendered items changed, so rows update in place and keep keyboard focus. */
 	readonly onDidChange: Event<void>;
+	/** Fires when the owning list's focused item changed. */
+	readonly onDidChangeFocus: Event<void>;
 	getActions(item: ArtifactDetailsItem): readonly IAction[];
+	/** Whether the item is the owning list's focused item, whose actions alone are in the tab order. */
+	isFocused(item: ArtifactDetailsItem): boolean;
+}
+
+/** An item action that has keyboard focus, identified independently of the row that renders it. */
+export interface IArtifactDetailsItemActionFocus {
+	readonly itemId: string;
+	readonly actionId: string;
 }
 
 interface IArtifactDetailsItemTemplate {
@@ -74,6 +84,7 @@ export class ArtifactDetailsItemRenderer implements IListRenderer<ArtifactDetail
 	static readonly rowHeight = 28;
 	readonly templateId = 'artifactDetailsItem';
 	readonly rowHeight: number;
+	private readonly templates = new Set<IArtifactDetailsItemTemplate>();
 
 	constructor(private readonly hoverService: IHoverService, private readonly showDescription = false, private readonly actionProvider?: IArtifactDetailsItemActionProvider) {
 		this.rowHeight = showDescription ? 40 : ArtifactDetailsItemRenderer.rowHeight;
@@ -92,9 +103,16 @@ export class ArtifactDetailsItemRenderer implements IListRenderer<ArtifactDetail
 		const { actionBar } = template;
 		const actionProvider = this.actionProvider;
 		if (actionBar && actionProvider) {
+			this.templates.add(template);
+			store.add(toDisposable(() => this.templates.delete(template)));
 			store.add(actionProvider.onDidChange(() => {
 				if (template.item) {
-					this.renderActions(actionBar, actionProvider.getActions(template.item), template.item, row);
+					this.renderActions(template, template.item, true);
+				}
+			}));
+			store.add(actionProvider.onDidChangeFocus(() => {
+				if (template.item) {
+					actionBar.setFocusable(actionProvider.isFocused(template.item));
 				}
 			}));
 		}
@@ -106,6 +124,8 @@ export class ArtifactDetailsItemRenderer implements IListRenderer<ArtifactDetail
 	}
 
 	renderElement(item: ArtifactDetailsItem, _index: number, template: IArtifactDetailsItemTemplate): void {
+		// Lists reuse rows by position, so focus inside a row only belongs to the same item.
+		const sameItem = template.item?.id === item.id;
 		template.item = item;
 		reset(template.icon, renderArtifactIcon(getArtifactThemeIcon(item.icon)));
 		template.label.textContent = item.label;
@@ -113,25 +133,58 @@ export class ArtifactDetailsItemRenderer implements IListRenderer<ArtifactDetail
 			template.description.textContent = item.description ?? '';
 			template.description.hidden = !item.description;
 		}
-		if (template.actionBar && this.actionProvider) {
-			this.renderActions(template.actionBar, this.actionProvider.getActions(item), item, template.row);
+		this.renderActions(template, item, sameItem);
+	}
+
+	private renderActions(template: IArtifactDetailsItemTemplate, item: ArtifactDetailsItem, restoreFocus: boolean): void {
+		const { actionBar } = template;
+		if (!actionBar || !this.actionProvider) {
+			return;
+		}
+		const actions = this.actionProvider.getActions(item);
+		const focused = restoreFocus ? this.focusedAction(actionBar) : undefined;
+		actionBar.clear();
+		actionBar.push(actions, { icon: true, label: false });
+		actionBar.setFocusable(this.actionProvider.isFocused(item));
+		actionBar.setAriaLabel(localize('artifactItemActions', "Actions for {0}", item.label));
+		template.row.classList.toggle('has-actions', actions.length > 0);
+		if (focused) {
+			// Keep focus on the same action, or on the action now at its position, or return it to the list.
+			const index = actions.findIndex(action => action.id === focused.id);
+			if (actions.length) {
+				actionBar.focus(index >= 0 ? index : Math.min(focused.index, actions.length - 1));
+			} else {
+				template.row.closest<HTMLElement>('.monaco-list')?.focus();
+			}
 		}
 	}
 
-	private renderActions(actionBar: ActionBar, actions: readonly IAction[], item: ArtifactDetailsItem, row: HTMLElement): void {
-		// Re-rendering replaces the action items; keep keyboard focus on the same position, or return it to the list.
-		const focused = actionBar.isFocused() ? actionBar.viewItems.findIndex((_item, index) => actionBar.isFocused(index)) : -1;
-		actionBar.clear();
-		actionBar.push(actions, { icon: true, label: false });
-		actionBar.setAriaLabel(localize('artifactItemActions', "Actions for {0}", item.label));
-		row.classList.toggle('has-actions', actions.length > 0);
-		if (focused >= 0) {
-			if (actions.length) {
-				actionBar.focus(Math.min(focused, actions.length - 1));
-			} else {
-				row.closest<HTMLElement>('.monaco-list')?.focus();
+	private focusedAction(actionBar: ActionBar): { readonly id: string; readonly index: number } | undefined {
+		const index = actionBar.isFocused() ? actionBar.viewItems.findIndex((_item, index) => actionBar.isFocused(index)) : -1;
+		return index >= 0 ? { id: actionBar.viewItems[index].action.id, index } : undefined;
+	}
+
+	/** The item action that has keyboard focus, so a list update can restore it to the same item wherever it moves. */
+	getFocusedAction(): IArtifactDetailsItemActionFocus | undefined {
+		for (const template of this.templates) {
+			const focused = template.item && template.actionBar && this.focusedAction(template.actionBar);
+			if (template.item && focused) {
+				return { itemId: template.item.id, actionId: focused.id };
 			}
 		}
+		return undefined;
+	}
+
+	/** Focuses an item's action if its row is rendered. */
+	focusAction(target: IArtifactDetailsItemActionFocus): boolean {
+		for (const template of this.templates) {
+			const index = template.item?.id === target.itemId ? template.actionBar?.viewItems.findIndex(item => item.action.id === target.actionId) ?? -1 : -1;
+			if (index >= 0) {
+				template.actionBar!.focus(index);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	disposeTemplate(template: IArtifactDetailsItemTemplate): void {

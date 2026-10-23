@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append, getActiveElement } from '../../../../../base/browser/dom.js';
+import { $, append, getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -27,7 +27,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -35,7 +35,7 @@ import { HoverService } from '../../../../../platform/hover/browser/hoverService
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IListService, ListService, WorkbenchListWidget } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -213,7 +213,17 @@ suite('Artifact Integration Presentation', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IContextKeyService, store.add(instantiation.createInstance(ContextKeyService)));
-		instantiation.stub(IListService, store.add(new ListService()));
+		const lists: WorkbenchListWidget[] = [];
+		instantiation.stub(IListService, store.add(new class extends ListService {
+			override register(widget: WorkbenchListWidget, extraContextKeys?: IContextKey<boolean>[]) {
+				lists.push(widget);
+				const registration = super.register(widget, extraContextKeys);
+				return toDisposable(() => {
+					lists.splice(lists.indexOf(widget), 1);
+					registration.dispose();
+				});
+			}
+		}()));
 		const keybindingService = new class extends MockKeybindingService {
 			override lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
 				return commandId === 'editor.action.accessibilityHelp' ? this.resolveKeybinding(new Keybinding([new KeyCodeChord(false, false, true, false, KeyCode.F1)]))[0] : undefined;
@@ -375,7 +385,7 @@ suite('Artifact Integration Presentation', () => {
 			};
 		}
 		return {
-			host, row, input, controller, contextView, hovers, hoverGroups, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService,
+			host, row, input, controller, contextView, hovers, hoverGroups, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService, lists,
 			openedChats, revealedActivities, focusedActivities, registerActivityChat, activeSession,
 			setOpenChatResult: (result: Promise<void>) => { openChatResult = result; },
 			contextShows: () => contextShows,
@@ -1444,6 +1454,74 @@ suite('Artifact Integration Presentation', () => {
 			focus: getActiveElement() === list, focusedRow: list.querySelector('.monaco-list-row.focused .artifact-details-item-label')?.textContent,
 			open: f.controller.selected.get() === a.presentation, errors: f.errors,
 		}, { rows: ['Cover keyboard navigation'], focus: true, focusedRow: 'Cover keyboard navigation', open: true, errors: [] });
+	});
+
+	function withRerunActions(a: Artifact): void {
+		a.details.checks.set({
+			...a.details.checks.get(), itemActions: [{ id: 'rerun', label: 'Rerun Check', iconId: 'debug-rerun' }],
+			items: a.details.checks.get().items.map(item => ({ ...item, actions: ['rerun'] })),
+		}, undefined);
+	}
+
+	function itemRow(panel: HTMLElement, label: string): HTMLElement {
+		const row = [...panel.querySelectorAll<HTMLElement>('[role="tabpanel"]:not([hidden]) .monaco-list-row')].find(row => row.querySelector('.artifact-details-item-label')?.textContent === label);
+		assert.ok(row, `Missing row: ${label}`);
+		return row;
+	}
+
+	/** Moves list focus like the Down Arrow keybinding, which workbench lists handle through commands. */
+	function focusNextRow(f: Fixture, panel: HTMLElement): void {
+		const element = panel.querySelector('[role="tabpanel"]:not([hidden]) .monaco-list');
+		const list = f.lists.find(list => list.getHTMLElement() === element);
+		assert.ok(list);
+		list.focusNext();
+	}
+
+	test('only the focused row\'s actions are in the tab order, even when another row is selected and shows its actions', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		withRerunActions(a);
+		const panel = await open(f, a, 0);
+		itemRow(panel, 'Lint').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await settle(f);
+		focusNextRow(f, panel);
+		await settle(f);
+		const rows = ['Lint', 'Build'].map(label => {
+			const row = itemRow(panel, label);
+			const action = row.querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!;
+			return {
+				label, selected: row.classList.contains('selected'), focused: row.classList.contains('focused'),
+				visible: mainWindow.getComputedStyle(row.querySelector('.artifact-details-item-actions')!).display !== 'none', tabIndex: action.tabIndex,
+			};
+		});
+		assert.deepStrictEqual(rows, [
+			{ label: 'Lint', selected: true, focused: false, visible: true, tabIndex: -1 },
+			{ label: 'Build', selected: false, focused: true, visible: true, tabIndex: 0 },
+		]);
+	});
+
+	test('a focused row action follows its item when the list reorders', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		withRerunActions(a);
+		const panel = await open(f, a, 0);
+		focusNextRow(f, panel);
+		await settle(f);
+		itemRow(panel, 'Build').querySelector<HTMLElement>('.artifact-details-item-actions .action-label')!.focus();
+		a.details.checks.set({ ...a.details.checks.get(), items: [...a.details.checks.get().items].reverse() }, undefined);
+		await settle(f);
+		const active = getActiveElement();
+		assert.ok(isHTMLElement(active));
+		const focusedRow = active.closest('.monaco-list-row')?.querySelector('.artifact-details-item-label')?.textContent;
+		active.click();
+		await settle(f);
+		assert.deepStrictEqual({
+			order: [...panel.querySelectorAll('[role="tabpanel"]:not([hidden]) .artifact-details-item-label')].map(label => label.textContent),
+			focusedRow, action: active.getAttribute('aria-label'), calls: a.itemActions,
+		}, {
+			order: ['Build', 'Lint'], focusedRow: 'Build', action: 'Rerun Check',
+			calls: [{ detailsId: 'checks', itemId: 'build', actionId: 'rerun' }],
+		});
 	});
 
 	test('item action failures are reported and leave the action available', async () => {

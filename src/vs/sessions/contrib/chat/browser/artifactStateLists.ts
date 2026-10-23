@@ -38,15 +38,18 @@ class ArtifactStateList extends Disposable {
 	private readonly message = append(this.element, $('p.artifact-state-list-message'));
 	private readonly itemsContainer = append(this.element, $('.artifact-details-list'));
 	private readonly items: WorkbenchList<ArtifactDetailsItem>;
+	private readonly renderer: ArtifactDetailsItemRenderer;
 	private readonly itemActionsChanged = this._register(new Emitter<void>());
+	private readonly itemFocusChanged = this._register(new Emitter<void>());
 	private readonly more: ArtifactButtons;
 	private data: IArtifactListViewData;
 
 	constructor(data: IArtifactListViewData, instantiationService: IInstantiationService, hoverService: IHoverService, hoverDelegate: IHoverDelegate) {
 		super();
 		this.data = data;
-		const renderer = new ArtifactDetailsItemRenderer(hoverService, false, {
-			hoverDelegate, onDidChange: this.itemActionsChanged.event,
+		const renderer = this.renderer = new ArtifactDetailsItemRenderer(hoverService, false, {
+			hoverDelegate, onDidChange: this.itemActionsChanged.event, onDidChangeFocus: this.itemFocusChanged.event,
+			isFocused: item => this.items.getFocusedElements()[0]?.id === item.id,
 			getActions: item => (this.data.itemActions.get(item.id) ?? []).map(action => toAction({
 				id: action.id, label: action.label, enabled: action.enabled !== false,
 				tooltip: action.description ? localize('artifactItemActionDescription', "{0}. {1}", action.label, action.description) : action.label,
@@ -65,6 +68,7 @@ class ArtifactStateList extends Disposable {
 				accessibilityProvider: { getWidgetAriaLabel: () => this.data.title, getAriaLabel: getArtifactDetailsItemLabel },
 			},
 		));
+		this._register(this.items.onDidChangeFocus(() => this.itemFocusChanged.fire()));
 		this._register(this.items.onDidOpen(event => {
 			if (event.element) {
 				this.data.openItem(event.element);
@@ -81,6 +85,7 @@ class ArtifactStateList extends Disposable {
 		this.data = data;
 		if (data.items !== previous.items) {
 			const focused = isAncestorOfActiveElement(this.itemsContainer);
+			const focusedAction = this.renderer.getFocusedAction();
 			const index = this.items.getFocus()[0] ?? 0;
 			this.items.splice(0, this.items.length, data.items);
 			if (focused && !this.items.getFocus().length) {
@@ -91,8 +96,15 @@ class ArtifactStateList extends Disposable {
 					this.element.focus({ preventScroll: true });
 				}
 			}
-			// Replaced rows drop focus from their actions; keep it in the list.
-			if (focused && data.items.length && !isAncestorOfActiveElement(this.itemsContainer)) {
+			this.itemFocusChanged.fire();
+			// Rows are reused by position, so return focus to the same item's action wherever it moved, or to the list.
+			const target = focusedAction ? data.items.findIndex(item => item.id === focusedAction.itemId) : -1;
+			if (focusedAction && target >= 0) {
+				this.items.setFocus([target]);
+				this.items.reveal(target);
+			}
+			const restored = !!focusedAction && target >= 0 && this.renderer.focusAction(focusedAction);
+			if (focused && data.items.length && !restored && !isAncestorOfActiveElement(this.itemsContainer)) {
 				this.items.domFocus();
 			}
 		} else if (itemActionsKey(data) !== itemActionsKey(previous)) {
