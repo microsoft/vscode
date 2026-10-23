@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { bufferToStream, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount, IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -33,7 +35,7 @@ import { IHostService } from '../../../host/browser/host.js';
 import { IRemoteAgentConnection, IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { WorkbenchExtensionGalleryManifestService } from '../../electron-browser/extensionGalleryManifestService.js';
 import { ExtensionGalleryAccountService, GitHubGalleryAccountProvider, MicrosoftGalleryAccountProvider } from '../../electron-browser/extensionGalleryAccountService.js';
-import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from '../../common/extensionGalleryAccount.js';
+import { ExtensionGalleryAccountStatus, IExtensionGalleryAccount, IExtensionGalleryAccountProvider, IExtensionGalleryAccountService } from '../../common/extensionGalleryAccount.js';
 
 function mockResponse(statusCode: number, body: object, headers: Record<string, string> = {}): IRequestContext {
 	return {
@@ -118,6 +120,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	let authorizationService: IExtensionGalleryManifestService;
 	let accountService: ExtensionGalleryAccountService;
 	let marketplaceWarnings: string[];
+	let authorizationUpdates: { readonly manifest: IExtensionGalleryManifest | null; readonly accessToken: string | undefined }[];
 
 	setup(() => {
 		defaultAccount = null;
@@ -128,6 +131,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		restartPrompts = [];
 		sharedAuthorizationError = undefined;
 		marketplaceWarnings = [];
+		authorizationUpdates = [];
 
 		onDidChangeDefaultAccount = disposableStore.add(new Emitter<IDefaultAccount | null>());
 		onDidChangeSessions = disposableStore.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -183,10 +187,11 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			override registerChannel(): void { }
 			override getChannel(_channelName: string): any {
 				return {
-					call: () => {
+					call: (_command: string, args: [IExtensionGalleryManifest | null, string | undefined]) => {
 						if (sharedAuthorizationError) {
 							throw sharedAuthorizationError;
 						}
+						authorizationUpdates.push({ manifest: args[0], accessToken: args[1] });
 						return Promise.resolve();
 					},
 					listen: () => Event.None,
@@ -1118,7 +1123,8 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		scopes_supported: ['api://11111111-2222-4333-8444-555555555555/access_as_user'],
 	};
 	/** Mints `resource-token` only for the advertised resource scopes and authorization server. */
-	function stubResourceScopedAuthentication(resourceScopes: readonly string[] = PROTECTED_RESOURCE_METADATA.scopes_supported) {
+	function stubResourceScopedAuthentication(resourceScopesOrSession: readonly string[] | (() => AuthenticationSession | Promise<AuthenticationSession>) = PROTECTED_RESOURCE_METADATA.scopes_supported) {
+		const resourceScopes = typeof resourceScopesOrSession === 'function' ? PROTECTED_RESOURCE_METADATA.scopes_supported : resourceScopesOrSession;
 		const resourceRequests: (readonly string[] | IAuthenticationWwwAuthenticateRequest | undefined)[] = [];
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
@@ -1133,6 +1139,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 				if (options.authorizationServer.toString(true) !== PROTECTED_RESOURCE_METADATA.authorization_servers[0]
 					|| scopes?.length !== resourceScopes.length || !scopes.every((scope, index) => scope === resourceScopes[index])) {
 					return microsoftSessions;
+				}
+				if (typeof resourceScopesOrSession === 'function') {
+					return [await resourceScopesOrSession()];
 				}
 				const session = microsoftSessions.find(session => session.account.id === options.account?.id);
 				return session ? [{ ...session, accessToken: 'resource-token', scopes: [...resourceScopes] }] : [];
@@ -1266,6 +1275,228 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		microsoftSessions = [createMicrosoftSession('signin-token')];
 		stubResourceScopedAuthentication();
 		await assertAnonymousMarketplace(undefined, false);
+	});
+
+	function fakeClock() {
+		const clock = useFakeTimers();
+		disposableStore.add(toDisposable(() => clock.restore()));
+		return clock;
+	}
+
+	test('Microsoft resource token renews before expiry and updates the process snapshot', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resourceRequests = 0;
+		let resourceToken = 'resource-1';
+		stubResourceScopedAuthentication(() => {
+			resourceToken = `resource-${++resourceRequests}`;
+			return { ...createMicrosoftSession(resourceToken), expiresAfter: 60_000 };
+		});
+		requestHandler = options => gatedMarketplace(resourceToken, PROTECTED_RESOURCE_METADATA)(options);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		await clock.tickAsync(44_999);
+		const requestsBeforeRenewal = resourceRequests;
+		await clock.tickAsync(1);
+
+		assert.deepStrictEqual({
+			requestsBeforeRenewal,
+			resourceRequests,
+			status: service.extensionGalleryManifestStatus,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			publishedTokens: authorizationUpdates.map(update => update.accessToken),
+			manifests: authorizationUpdates.map(update => update.manifest),
+		}, {
+			requestsBeforeRenewal: 1,
+			resourceRequests: 2,
+			status: ExtensionGalleryManifestStatus.Available,
+			token: 'resource-2',
+			publishedTokens: ['resource-1', 'resource-2'],
+			manifests: [createGalleryManifest(), createGalleryManifest()],
+		});
+	});
+
+	test('Microsoft keeps the current manifest while token renewal is pending', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resolveRenewal!: (session: AuthenticationSession) => void;
+		const renewal = new Promise<AuthenticationSession>(resolve => resolveRenewal = resolve);
+		let resourceRequests = 0;
+		stubResourceScopedAuthentication(() => ++resourceRequests === 1
+			? { ...createMicrosoftSession('resource-1'), expiresAfter: 60_000 }
+			: renewal);
+		requestHandler = options => gatedMarketplace(resourceRequests === 1 ? 'resource-1' : 'resource-2', PROTECTED_RESOURCE_METADATA)(options);
+
+		const service = createService();
+		const manifest = await service.getExtensionGalleryManifest();
+		await clock.tickAsync(45_000);
+		const pending = {
+			sameManifest: await service.getExtensionGalleryManifest() === manifest,
+			status: service.extensionGalleryManifestStatus,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+		};
+		resolveRenewal({ ...createMicrosoftSession('resource-2'), expiresAfter: 60_000 });
+		await clock.tickAsync(0);
+
+		assert.deepStrictEqual({
+			pending,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			publishedTokens: authorizationUpdates.map(update => update.accessToken),
+		}, {
+			pending: { sameManifest: true, status: ExtensionGalleryManifestStatus.Available, token: 'resource-1' },
+			token: 'resource-2',
+			publishedTokens: ['resource-1', 'resource-2'],
+		});
+	});
+
+	test('Microsoft rechecks opaque resource tokens without expiry metadata', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resourceRequests = 0;
+		stubResourceScopedAuthentication(() => {
+			resourceRequests++;
+			return createMicrosoftSession('opaque-resource-token');
+		});
+		requestHandler = gatedMarketplace('opaque-resource-token', PROTECTED_RESOURCE_METADATA);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		await clock.tickAsync(299_999);
+		const requestsBeforeRenewal = resourceRequests;
+		await clock.tickAsync(1);
+
+		assert.deepStrictEqual({ requestsBeforeRenewal, resourceRequests }, { requestsBeforeRenewal: 1, resourceRequests: 2 });
+	});
+
+	test('Microsoft retries a transient renewal failure without retracting the manifest', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let unavailable = false;
+		let resourceRequests = 0;
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override async getSessions(_providerId: string, _scopes?: readonly string[], options?: IAuthenticationGetSessionsOptions) {
+				if (unavailable) {
+					throw new Error('Authentication provider unavailable');
+				}
+				return options?.authorizationServer
+					? [{ ...createMicrosoftSession(`resource-${++resourceRequests}`), expiresAfter: 60_000 }]
+					: microsoftSessions;
+			}
+		}());
+		requestHandler = options => gatedMarketplace(`resource-${resourceRequests}`, PROTECTED_RESOURCE_METADATA)(options);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		unavailable = true;
+		await clock.tickAsync(45_000);
+		const duringFailure = {
+			status: service.extensionGalleryManifestStatus,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			resourceRequests,
+		};
+		unavailable = false;
+		await clock.tickAsync(30_000);
+
+		assert.deepStrictEqual({ duringFailure, resourceRequests, token: await service.getAccessToken(MARKETPLACE_URL) }, {
+			duringFailure: { status: ExtensionGalleryManifestStatus.Available, token: 'resource-1', resourceRequests: 1 },
+			resourceRequests: 2,
+			token: 'resource-2',
+		});
+	});
+
+	test('Microsoft sign-out cancels renewal and supersedes an in-flight resource token', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resolveRenewal!: (session: AuthenticationSession) => void;
+		const renewal = new Promise<AuthenticationSession>(resolve => resolveRenewal = resolve);
+		let resourceRequests = 0;
+		stubResourceScopedAuthentication(() => ++resourceRequests === 1
+			? { ...createMicrosoftSession('resource-1'), expiresAfter: 60_000 }
+			: renewal);
+		requestHandler = gatedMarketplace('resource-1', PROTECTED_RESOURCE_METADATA);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+		await clock.tickAsync(45_000);
+		microsoftSessions = [];
+		onDidChangeSessions.fire({ providerId: 'microsoft', label: 'Microsoft', event: { added: [], removed: [], changed: [] } });
+		await clock.tickAsync(0);
+		resolveRenewal({ ...createMicrosoftSession('resource-2'), expiresAfter: 60_000 });
+		await clock.tickAsync(120_000);
+
+		assert.deepStrictEqual({
+			resourceRequests,
+			status: service.extensionGalleryManifestStatus,
+			token: await service.getAccessToken(MARKETPLACE_URL),
+			lastPublishedToken: authorizationUpdates.at(-1)?.accessToken,
+		}, {
+			resourceRequests: 2,
+			status: ExtensionGalleryManifestStatus.RequiresSignIn,
+			token: undefined,
+			lastPublishedToken: undefined,
+		});
+	});
+
+	test('account service disposal cancels scheduled token renewal', async () => {
+		const clock = fakeClock();
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		microsoftSessions = [createMicrosoftSession('signin-token')];
+		let resourceRequests = 0;
+		stubResourceScopedAuthentication(() => {
+			resourceRequests++;
+			return { ...createMicrosoftSession('resource-token'), expiresAfter: 60_000 };
+		});
+		requestHandler = gatedMarketplace('resource-token', PROTECTED_RESOURCE_METADATA);
+
+		await createService().getExtensionGalleryManifest();
+		accountService.dispose();
+		await clock.tickAsync(120_000);
+
+		assert.strictEqual(resourceRequests, 1);
+	});
+
+	test('account resolution coalesces requests and rejects results from a previous marketplace', async () => {
+		const clock = fakeClock();
+		const accountChanges = disposableStore.add(new Emitter<void>());
+		let resolveFirst!: (account: IExtensionGalleryAccount) => void;
+		const firstAccount = new Promise<IExtensionGalleryAccount>(resolve => resolveFirst = resolve);
+		const requests: string[] = [];
+		const provider: IExtensionGalleryAccountProvider = {
+			accountStatus: ExtensionGalleryAccountStatus.Eligible,
+			onDidChangeAccount: accountChanges.event,
+			onDidChangeAccountStatus: Event.None,
+			getAccount: async url => {
+				requests.push(url);
+				return url === MARKETPLACE_URL ? firstAccount : { accessToken: 'other-resource-token', refreshAfter: 60_000 };
+			},
+			signIn: async () => { },
+		};
+		const service = disposableStore.add(new ExtensionGalleryAccountService());
+		service.setAccountProvider(provider);
+		let changes = 0;
+		disposableStore.add(service.onDidChangeAccount(() => changes++));
+		const first = service.getAccount(MARKETPLACE_URL);
+		const duplicate = service.getAccount(MARKETPLACE_URL);
+		await service.getAccount('https://other-marketplace.example.com');
+		resolveFirst({ accessToken: 'stale-resource-token', refreshAfter: 45_000 });
+		const results = await Promise.all([first, duplicate]);
+		await clock.tickAsync(45_000);
+		const changesAtOldDeadline = changes;
+		await clock.tickAsync(15_000);
+
+		assert.deepStrictEqual({ requests, results, changesAtOldDeadline, changes }, {
+			requests: [MARKETPLACE_URL, 'https://other-marketplace.example.com'],
+			results: [undefined, undefined],
+			changesAtOldDeadline: 0,
+			changes: 1,
+		});
 	});
 
 	test('Microsoft — gated index advertising no protected resource → RequiresSignIn without a token', async () => {

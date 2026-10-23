@@ -234,8 +234,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus, accessToken?: string, serviceIndexUrl?: string): void {
 		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
-		this.setAuthorization(manifest ? accessToken : undefined, manifest ? serviceIndexUrl : undefined);
-		if (this.extensionGalleryManifest !== manifest) {
+		const nextAccessToken = manifest ? accessToken : undefined;
+		const nextServiceIndexUrl = manifest ? serviceIndexUrl : undefined;
+		const authorizationChanged = this.extensionGalleryAccessToken !== nextAccessToken || this.extensionGalleryServiceIndexUrl !== nextServiceIndexUrl;
+		this.setAuthorization(nextAccessToken, nextServiceIndexUrl);
+		if (this.extensionGalleryManifest !== manifest || authorizationChanged) {
 			this.extensionGalleryManifest = manifest;
 			this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		}
