@@ -434,6 +434,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
 		this.addedExistingWorktrees.push({ repositoryRoot, worktree, branchName });
 	}
+	async isWorktreeRegistered(): Promise<boolean> { return false; }
 	async removeWorktree(repositoryRoot: URI, worktree: URI): Promise<void> {
 		this.removedWorktrees.push({ repositoryRoot, worktree });
 	}
