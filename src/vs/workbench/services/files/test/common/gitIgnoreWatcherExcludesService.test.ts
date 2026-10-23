@@ -54,7 +54,7 @@ suite('GitIgnoreWatcherExcludesService', () => {
 			outsideWorkspace: await enabled.service.getExcludes(URI.from({ scheme: Schemas.inMemory, path: '/other' })),
 			disabled: await disabled.service.getExcludes(folder),
 		}, {
-			root: ['target', 'target/**'],
+			root: ['target/**/*'],
 			subfolder: [],
 			outsideWorkspace: [],
 			disabled: [],
@@ -79,10 +79,10 @@ suite('GitIgnoreWatcherExcludesService', () => {
 		const afterPattern = await service.getExcludes(folder);
 
 		assert.deepStrictEqual({ initial, afterComment, changesAfterComment, afterPattern, changes }, {
-			initial: ['target', 'target/**'],
-			afterComment: ['target', 'target/**'],
+			initial: ['target/**/*'],
+			afterComment: ['target/**/*'],
 			changesAfterComment: [],
-			afterPattern: ['target', 'target/**', '**/node_modules', '**/node_modules/**'],
+			afterPattern: ['target/**/*', 'node_modules/**/*', '*/**/node_modules/**/*'],
 			changes: ['/repo'],
 		});
 	}));

@@ -24,24 +24,41 @@ suite('Watcher .gitignore excludes', () => {
 		assert.deepStrictEqual(getWatcherExcludesFromGitIgnore([
 			'# Cargo output',
 			'/target/',
-			'/target',
+			'/build',
 			'node_modules',
 			'.local/',
 			'*.log',
 			'src/generated/',
-			'/build/*.o',
+			'/dist/*.o',
 			'**/coverage',
-			'foo/**',
+			'out/**',
 			'',
 		].join('\n')), [
-			'target', 'target/**',
-			'**/node_modules', '**/node_modules/**',
-			'**/.local', '**/.local/**',
-			'**/*.log', '**/*.log/**',
-			'src/generated', 'src/generated/**',
-			'build/*.o', 'build/*.o/**',
-			'**/coverage', '**/coverage/**',
-			'foo/**',
+			'target/**/*',
+			'build', 'build/**',
+			'node_modules', 'node_modules/**', '*/**/node_modules', '*/**/node_modules/**',
+			'.local/**/*', '*/**/.local/**/*',
+			'*.log', '*.log/**', '*/**/*.log', '*/**/*.log/**',
+			'src/generated/**/*',
+			'dist/*.o', 'dist/*.o/**',
+			'coverage', 'coverage/**', '*/**/coverage', '*/**/coverage/**',
+			'out/**/*',
+		]);
+	});
+
+	test('translates characters that globs treat specially', () => {
+		assert.deepStrictEqual(getWatcherExcludesFromGitIgnore([
+			'/\\#notes',
+			'/{a,b}',
+			'/file (1).txt',
+			'/ leading',
+			'/*.[!o]',
+		].join('\n')), [
+			'#notes', '#notes/**',
+			'[{]a,b[}]', '[{]a,b[}]/**',
+			'file [(]1[)].txt', 'file [(]1[)].txt/**',
+			'[ ]leading', '[ ]leading/**',
+			'*.[^o]', '*.[^o]/**',
 		]);
 	});
 
@@ -50,27 +67,33 @@ suite('Watcher .gitignore excludes', () => {
 			'dist/',
 			'*.log',
 			'!important.log',
-			'target/',
-			' leading-space',
-			'\\#not-a-comment',
-			'{a,b}',
-			'file (1).txt',
+			'/target/',
+			'\\\\backslash',
+			'C:/drive',
+			'\\!bang',
 			'*',
 			'/*',
 			'**/*',
+			'*/',
 			'.*',
 			'.gitignore',
-			'out',
-		].join('\r\n')), ['**/target', '**/target/**', '**/out', '**/out/**']);
+			'.git',
+			'*[[:space:]]',
+			'foo/**/',
+			'./foo',
+			'foo[',
+			'/out',
+		].join('\r\n')), ['target/**/*', 'out', 'out/**']);
 	});
 
 	test('excludes match the expected paths of the watched folder', () => {
-		const folder = URI.file('/repo').fsPath;
-		const excludes = parseWatcherPatterns(folder, getWatcherExcludesFromGitIgnore('/target/\nnode_modules/\n'), false);
+		// `tmp/` also matches a parent of the watched folder, which must not matter
+		const folder = URI.file('/tmp/repo').fsPath;
+		const excludes = parseWatcherPatterns(folder, getWatcherExcludesFromGitIgnore('/target/\nnode_modules/\ntmp/\n*.log\n'), false);
 		const isExcluded = (path: string) => excludes.some(exclude => exclude(join(folder, path)));
 
-		const paths = ['target', 'target/debug/build.rs', 'src/target', 'target.rs', 'node_modules', 'packages/a/node_modules/x/index.js', 'src/main.rs', '.gitignore'];
-		assert.deepStrictEqual(paths.filter(isExcluded), ['target', 'target/debug/build.rs', 'node_modules', 'packages/a/node_modules/x/index.js']);
+		const paths = ['target', 'target/debug/build.rs', 'src/target/x', 'target.rs', 'node_modules', 'node_modules/x', 'packages/a/node_modules/x/index.js', 'tmp/x', 'a/tmp/x', 'a.log', 'logs/b.log', 'src/main.rs', '.gitignore'];
+		assert.deepStrictEqual(paths.filter(isExcluded), ['target/debug/build.rs', 'node_modules/x', 'packages/a/node_modules/x/index.js', 'tmp/x', 'a/tmp/x', 'a.log', 'logs/b.log']);
 	});
 
 	test('reads the .gitignore file at the root of the folder', async () => {
@@ -82,6 +105,6 @@ suite('Watcher .gitignore excludes', () => {
 		await fileService.writeFile(joinPath(folder, '.gitignore'), VSBuffer.fromString('/target/\n'));
 		const present = await readGitIgnoreWatcherExcludes(fileService, folder);
 
-		assert.deepStrictEqual({ missing, present }, { missing: [], present: ['target', 'target/**'] });
+		assert.deepStrictEqual({ missing, present }, { missing: [], present: ['target/**/*'] });
 	});
 });
