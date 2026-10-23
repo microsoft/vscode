@@ -39,6 +39,7 @@ import { MissionControlSharingService } from '../../../browser/remoteAgentHost/m
 import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
+const disableRepositoryMetadataSetting = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
 const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const remoteConnectionsSetting = configurationProperties[AgentHostRemoteConnectionsSettingId];
@@ -281,6 +282,7 @@ suite('Mission Control sharing service', () => {
 	for (const [setting, option] of [
 		[localCredentialSetting, 'useLocalCredentials'],
 		[remoteControlPolicyOverrideSetting, 'ignoreRemoteControlPolicy'],
+		[disableRepositoryMetadataSetting, 'disableRepositoryMetadata'],
 	] as const) {
 		for (const scenario of [
 			{ name: 'local user opt-in in Insiders', config: { value: false, userLocalValue: true }, enabled: true },
@@ -302,7 +304,7 @@ suite('Mission Control sharing service', () => {
 			}));
 		}
 
-		test(`withdraws the previous registration when ${option} changes and reconfigures`, () => runWithFakedTimers({}, async () => {
+		test(`reconfigures when ${option} changes`, () => runWithFakedTimers({}, async () => {
 			const { calls, configuration, sharing } = fixture();
 			await sharing.setEnabled(true);
 			await timeout(0);
@@ -315,9 +317,9 @@ suite('Mission Control sharing service', () => {
 			}
 			assert.deepStrictEqual(calls, [
 				{ options: expectedOptions, withdrawingAccountId: undefined },
-				{ options: undefined, withdrawingAccountId: 'account' },
+				...(option === 'disableRepositoryMetadata' ? [] : [{ options: undefined, withdrawingAccountId: 'account' }]),
 				{ options: { ...expectedOptions, [option]: true }, withdrawingAccountId: undefined },
-				{ options: undefined, withdrawingAccountId: 'account' },
+				...(option === 'disableRepositoryMetadata' ? [] : [{ options: undefined, withdrawingAccountId: 'account' }]),
 				{ options: expectedOptions, withdrawingAccountId: undefined },
 			]);
 		}));
