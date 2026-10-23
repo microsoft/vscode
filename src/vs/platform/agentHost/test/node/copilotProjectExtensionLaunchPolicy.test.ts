@@ -309,34 +309,41 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 		}
 	});
 
-	test('lets a worktree the host created inherit its repository\'s trust, and only that worktree', async () => {
+	test('lets only the worktree the host created as the working directory inherit its repository\'s trust', async () => {
 		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-worktree-`);
 		const repository = join(root, 'repo');
 		const worktree = join(root, 'repo.worktrees', 'feature');
-		const sibling = join(root, 'repo.worktrees', 'sibling');
+		const additional = join(root, 'repo.worktrees', 'additional');
 		const impostor = join(root, 'other.worktrees', 'feature');
+		const linked = join(root, 'repo.worktrees', 'linked');
+		const outside = join(root, 'outside');
 		const module = (folder: string, name: string) => join(folder, '.github', 'extensions', name, 'extension.mjs');
-		for (const path of [module(repository, 'repo-canvas'), module(worktree, 'worktree-canvas'), module(sibling, 'sibling-canvas'), module(impostor, 'impostor-canvas')]) {
+		for (const path of [module(repository, 'repo-canvas'), module(worktree, 'worktree-canvas'), module(additional, 'additional-canvas'), module(impostor, 'impostor-canvas'), module(outside, 'linked-canvas')]) {
 			await fs.mkdir(join(path, '..'), { recursive: true });
 			await fs.writeFile(path, '');
 		}
+		// Named like a worktree of the repository, but resolves outside its worktrees folder.
+		await fs.symlink(outside, linked, process.platform === 'win32' ? 'junction' : 'dir');
 		const { configurationService, policy } = createPolicy();
 		const trust = (folders: string[]) => {
 			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => URI.file(folder).toString()) } });
 			return policy.updateTrust() ?? { expanded: false, contracted: false };
 		};
 		const launches = async (path: string) => !!(await policy.resolveLaunch(path, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		const created = (folder: string) => ({ worktree: URI.file(folder), repository: URI.file(repository) });
 		try {
-			const inheriting = await policy.acquireAdmission([URI.file(worktree)], undefined, URI.file(repository));
-			disposables.add(await policy.acquireAdmission([URI.file(sibling)], undefined, undefined));
-			disposables.add(await policy.acquireAdmission([URI.file(impostor)], undefined, URI.file(repository)));
+			// One session: the created worktree is its working directory, the other worktree an additional directory.
+			const inheriting = await policy.acquireAdmission([URI.file(worktree), URI.file(additional)], undefined, created(worktree));
+			disposables.add(await policy.acquireAdmission([URI.file(impostor)], undefined, created(impostor)));
+			disposables.add(await policy.acquireAdmission([URI.file(linked)], undefined, created(linked)));
 			trust([]);
 			const repositoryUntrusted = await launches(module(worktree, 'worktree-canvas'));
 			trust([repository]);
 			const repositoryTrusted = {
-				worktree: await launches(module(worktree, 'worktree-canvas')),
-				siblingWithoutInheritance: await launches(module(sibling, 'sibling-canvas')),
+				createdWorktree: await launches(module(worktree, 'worktree-canvas')),
+				additionalDirectory: await launches(module(additional, 'additional-canvas')),
 				impostorOutsideRepositoryWorktrees: await launches(module(impostor, 'impostor-canvas')),
+				linkEscapingRepositoryWorktrees: await launches(module(linked, 'linked-canvas')),
 			};
 			const revokedWithRepository = [...(await policy.reconciliationFor(trust([]))).revokedExtensionNames];
 			trust([repository]);
@@ -347,7 +354,7 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 
 			assert.deepStrictEqual({ repositoryUntrusted, repositoryTrusted, revokedWithRepository, inheritanceEndsWithAdmission }, {
 				repositoryUntrusted: false,
-				repositoryTrusted: { worktree: true, siblingWithoutInheritance: false, impostorOutsideRepositoryWorktrees: false },
+				repositoryTrusted: { createdWorktree: true, additionalDirectory: false, impostorOutsideRepositoryWorktrees: false, linkEscapingRepositoryWorktrees: false },
 				revokedWithRepository: ['worktree-canvas'],
 				inheritanceEndsWithAdmission: false,
 			});
