@@ -37,6 +37,7 @@ const CHAT_WINDOW_KIND: IChatWindowKind = {
 	title: localize('chatWindow.title', "Chat"),
 	windowSize: { width: 1200, height: 800 },
 	defaultLayout: ChatWindowLayout.SideBySide,
+	showActivityBar: true,
 };
 
 /**
@@ -67,6 +68,8 @@ interface IStoredChatWindow {
 	readonly session: string;
 	readonly chat?: string;
 	readonly editors?: readonly ISerializedChatWindowEditor[];
+	/** Whether it showed its terminal row. */
+	readonly terminal?: boolean;
 }
 
 /** How long restoring a chat window waits for its session to load. */
@@ -98,7 +101,8 @@ class ChatWindowsRestoration extends Disposable implements IWorkbenchContributio
 			const stored: unknown = JSON.parse(this._storageService.get(OPEN_CHAT_WINDOWS_STORAGE_KEY, StorageScope.WORKSPACE, '[]'));
 			return Array.isArray(stored) ? stored.filter((entry): entry is IStoredChatWindow => typeof entry?.session === 'string'
 				&& (entry.chat === undefined || typeof entry.chat === 'string')
-				&& (entry.editors === undefined || (Array.isArray(entry.editors) && entry.editors.every(isSerializedChatWindowEditor)))) : [];
+				&& (entry.editors === undefined || (Array.isArray(entry.editors) && entry.editors.every(isSerializedChatWindowEditor)))
+				&& (entry.terminal === undefined || typeof entry.terminal === 'boolean')) : [];
 		} catch {
 			return [];
 		}
@@ -111,6 +115,7 @@ class ChatWindowsRestoration extends Disposable implements IWorkbenchContributio
 				session: window.content.get().session.toString(),
 				chat: window.content.get().chat?.toString(),
 				editors: window.editorGroup ? serializeChatWindowEditors(window.editorGroup) : undefined,
+				terminal: window.terminalShown.get() || undefined,
 			}));
 		if (stored.length) {
 			this._storageService.store(OPEN_CHAT_WINDOWS_STORAGE_KEY, JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -129,7 +134,7 @@ class ChatWindowsRestoration extends Disposable implements IWorkbenchContributio
 				continue;
 			}
 			const editors = deserializeChatWindowEditors(this._instantiationService, entry.editors ?? []);
-			await this._instantiationService.invokeFunction(accessor => openChatInWindow(accessor, session, entry.chat ? URI.parse(entry.chat) : undefined, { preserveFocus: true }, editors));
+			await this._instantiationService.invokeFunction(accessor => openChatInWindow(accessor, session, entry.chat ? URI.parse(entry.chat) : undefined, { preserveFocus: true, showTerminal: entry.terminal }, editors));
 		}
 	}
 

@@ -948,6 +948,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
 	hideGroupTitle(_group: IEditorGroup | GroupIdentifier): IDisposable { return Disposable.None; }
+	maximizeGroup(_group: IEditorGroup | GroupIdentifier, _visibleGroups: readonly (IEditorGroup | GroupIdentifier)[]): void { }
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
 	registerContextKeyProvider<T extends ContextKeyValue>(_provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('not implemented'); }
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService { throw new Error('Method not implemented.'); }

@@ -527,6 +527,12 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * returned disposable is disposed.
 	 */
 	hideGroupTitle(group: IEditorGroup | GroupIdentifier): IDisposable;
+
+	/**
+	 * Maximizes `group` as {@link IEditorGroupsContainer.arrangeGroups} with {@link GroupsArrangement.MAXIMIZE} does,
+	 * but keeps `visibleGroups` shown beside it.
+	 */
+	maximizeGroup(group: IEditorGroup | GroupIdentifier, visibleGroups: readonly (IEditorGroup | GroupIdentifier)[]): void;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {

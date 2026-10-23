@@ -19,6 +19,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IChatWindow, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -110,6 +113,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
 	private readonly _standaloneTerminalIds = new Set<number>();
+	/** Terminals that chat windows show in their terminal rows, which the terminal panel leaves to them. */
+	private readonly _chatWindowTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
 	private readonly _sessionTerminalGenerations = new Map<string, number>();
@@ -146,7 +151,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		const profileOverride = derived(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (!session || session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
 				return; // no need to override local default profiles with the local AH
 			}
@@ -173,7 +178,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// so that "New Terminal" uses it automatically.
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
 			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
 			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader) || !remoteHostAvailable) {
@@ -186,7 +191,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			const isArchived = session?.isArchived.read(reader);
 			const worktreePending = session?.worktreePending?.read(reader);
 			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
@@ -231,6 +236,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
 			this._standaloneTerminalIds.delete(instance.instanceId);
+			this._chatWindowTerminalIds.delete(instance.instanceId);
 		}));
 
 		// Hide restored terminals from a previous window session that don't
@@ -721,7 +727,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
-			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId)) {
+			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			const currentInstance = this._getAvailableTerminal(instance, 'update terminal visibility');
@@ -762,7 +768,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let mostRecent: ITerminalInstance | undefined;
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
-			if (this._standaloneTerminalIds.has(instance.instanceId)) {
+			if (this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			if (!await this._terminalMatchesScope(instance, activeKey, activeAgentHostAddress)) {
@@ -865,7 +871,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private async _ensureActiveSessionTerminalAfterLateArchiveCleanup(sessionId: string): Promise<void> {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		if (!activeSession
 			|| activeSession.sessionId !== sessionId
 			|| activeSession.isArchived.get()
@@ -901,6 +907,25 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return result;
 	}
 
+	/**
+	 * The terminal a chat window shows `session` with in its terminal row: one of the session's terminals in its working
+	 * directory, or a new one there.
+	 */
+	async getChatWindowTerminal(session: IActiveSession): Promise<ITerminalInstance | undefined> {
+		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd ?? await this._pathService.userHome();
+		const instances = await this._ensureTerminal(cwd, false, session, undefined, true);
+		return instances.find(instance => !this._chatWindowTerminalIds.has(instance.instanceId)) ?? instances[0];
+	}
+
+	/** Leaves `instance` to the chat window that shows it, out of the terminal panel, or gives it back to the panel. */
+	setShownInChatWindow(instance: ITerminalInstance, shown: boolean): void {
+		if (shown) {
+			this._chatWindowTerminalIds.add(instance.instanceId);
+		} else {
+			this._chatWindowTerminalIds.delete(instance.instanceId);
+		}
+	}
+
 	async dumpTracking(): Promise<void> {
 		console.log(`[SessionsTerminal] Active key: ${this._activeKey ?? '<none>'}`);
 		console.log(`[SessionsTerminal] Session terminals: ${JSON.stringify([...this._sessionTerminals.entries()].map(([sessionId, terminalIds]) => [sessionId, [...terminalIds]]))}`);
@@ -925,6 +950,84 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Shows the terminals of the sessions of chat windows in their terminal rows: an editor of the terminal, moved out of the
+ * panel, and back to the background of the panel, still running, when the row hides or the window closes.
+ */
+class ChatWindowTerminalHost implements IChatWindowTerminalHost {
+
+	private readonly _terminals = new Map<IChatWindow, ITerminalInstance>();
+
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService,
+	) { }
+
+	private get _contribution(): SessionsTerminalContribution {
+		return getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
+	}
+
+	async show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<void> {
+		const session = window.session.get();
+		if (!session) {
+			return;
+		}
+		let instance = this._terminals.get(window);
+		if (!instance || instance.isDisposed) {
+			instance = await this._contribution.getChatWindowTerminal(session);
+		}
+		// Hidden meanwhile, or the terminal could not start.
+		if (!instance || instance.isDisposed || window.terminalGroup.get() !== group) {
+			return;
+		}
+		this._terminals.set(window, instance);
+		this._contribution.setShownInChatWindow(instance, true);
+		if (instance.target === TerminalLocation.Editor && this._terminalService.foregroundInstances.includes(instance)) {
+			// Shown in an editor elsewhere: from the panel, it moves to the row.
+			await this._terminalService.moveToTerminalView(instance);
+		}
+		if (!this._terminalService.foregroundInstances.includes(instance)) {
+			await this._terminalService.showBackgroundTerminal(instance, true);
+		}
+		this._terminalService.moveToEditor(instance, group.id);
+		if (focus) {
+			await instance.focusWhenReady(true);
+		}
+	}
+
+	hide(window: IChatWindow): void {
+		const instance = this._terminals.get(window);
+		if (instance && !instance.isDisposed && instance.target === TerminalLocation.Editor) {
+			// Into the background of the panel, rather than of the editors, which would reveal it in an editor.
+			this._terminalService.moveToBackground(instance);
+			instance.target = TerminalLocation.Panel;
+		}
+	}
+
+	release(window: IChatWindow): void {
+		this.hide(window);
+		const instance = this._terminals.get(window);
+		this._terminals.delete(window);
+		if (instance && !instance.isDisposed) {
+			this._contribution.setShownInChatWindow(instance, false);
+		}
+	}
+}
+
+class ChatWindowTerminalHostContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatWindowTerminalHost';
+
+	constructor(
+		@IChatWindowService chatWindowService: IChatWindowService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(chatWindowService.registerTerminalHost(instantiationService.createInstance(ChatWindowTerminalHost)));
+	}
+}
+
+registerWorkbenchContribution2(ChatWindowTerminalHostContribution.ID, ChatWindowTerminalHostContribution, WorkbenchPhase.AfterRestored);
 
 /**
  * Registers an {@link AgentHostSessionTaskRunner} with the

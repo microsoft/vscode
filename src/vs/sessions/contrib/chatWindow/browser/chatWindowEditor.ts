@@ -22,7 +22,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { EditorInputCapabilities, IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { GroupDirection, GroupsArrangement, IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsArrangement, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import type { AbstractChatView } from '../../../browser/parts/chatView.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
@@ -37,6 +37,10 @@ const CHAT_WINDOW_INPUT_MAX_HEIGHT = 400;
 
 /** The least room the conversation gets above the input while it is shown below the editor. */
 const CHAT_WINDOW_CONVERSATION_MIN_HEIGHT = 120;
+
+/** The share of the height of a chat window that its terminal row takes when it shows, and the least it takes. */
+const CHAT_WINDOW_TERMINAL_HEIGHT_RATIO = 0.3;
+const CHAT_WINDOW_TERMINAL_MIN_HEIGHT = 120;
 
 /** The chat of a chat window: the session it shows, with the state of the chat window. */
 export class ChatWindowChatInput extends EditorInput {
@@ -180,8 +184,8 @@ export class ChatWindowChatEditor extends EditorPane {
 			const kind = state.kind;
 			const view = this._sessionView = this._register(this._scopedInstantiationService.createInstance(SessionView, {
 				showHeader: kind.showSessionHeader ?? true,
-				// Its views, such as Changes, are the main window's.
-				showActivityBar: false,
+				// With an editor area, its entries open their tabs there; see chatWindowActivityBar.ts.
+				showActivityBar: kind.showActivityBar ?? false,
 				input: { placeholder: kind.inputPlaceholder, minLines: kind.inputMinLines, showPills: kind.showPills ?? true },
 			}));
 			this._container.appendChild(view.element);
@@ -251,6 +255,10 @@ export class ChatWindowChatEditor extends EditorPane {
 		let wasConversationOnly: boolean | undefined;
 		/** The group this editor maximized to hide the other one. */
 		let maximized: IEditorGroup | undefined;
+		/** The terminal row that showed beside the group this editor maximized. */
+		let maximizedBeside: IEditorGroup | undefined;
+		/** The terminal row as last arranged, across the bottom of the window. */
+		let arrangedTerminal: IEditorGroup | undefined;
 
 		store.add(autorun(reader => {
 			const current = conversationOnly.read(reader);
@@ -282,6 +290,7 @@ export class ChatWindowChatEditor extends EditorPane {
 
 		store.add(autorun(reader => {
 			partChanged.read(reader);
+			const terminal = state.terminalGroup.read(reader);
 			const layout = state.layout.read(reader);
 			const splitLayout = state.splitLayout.read(reader);
 			const inputOnly = view.inputOnly.read(reader);
@@ -308,28 +317,41 @@ export class ChatWindowChatEditor extends EditorPane {
 			}
 			this._sizing = true;
 			try {
-				// Side by side, the chat leads and the editor follows it; otherwise the editor sits above the chat.
-				const editor = part.groups.find(group => group !== this.group);
+				// Side by side, the chat leads and the editor follows it; otherwise the editor sits above the chat. The terminal
+				// row spans the bottom of the window below both: below the chat first, then the editor beside or above the chat.
+				const editor = part.groups.find(group => group !== this.group && group !== terminal);
+				const terminalAdded = !!terminal && terminal !== arrangedTerminal;
+				arrangedTerminal = terminal;
 				if (editor) {
 					const arrangedSplitLayout = this._arrangedSplitLayout;
-					if (arrangedSplitLayout === undefined ? sideBySide : arrangedSplitLayout !== splitLayout) {
+					if (terminalAdded || (arrangedSplitLayout === undefined ? sideBySide : arrangedSplitLayout !== splitLayout)) {
 						if (maximized) {
 							part.toggleMaximizeGroup();
 							maximized = undefined;
 						}
+						if (terminal) {
+							part.moveGroup(terminal, this.group, GroupDirection.DOWN);
+						}
 						part.moveGroup(editor, this.group, sideBySide ? GroupDirection.RIGHT : GroupDirection.UP);
+						if (terminal) {
+							this._sizeTerminalRow(part, terminal);
+						}
 					}
 					this._arrangedSplitLayout = splitLayout;
 				}
 
-				// With one of the editor and the chat hidden, the other fills the chat window.
+				// With one of the editor and the chat hidden, the other fills the chat window, above the terminal row.
 				const shown = layout === ChatWindowLayout.EditorOnly ? editor : layout === ChatWindowLayout.ChatOnly ? this.group : undefined;
-				if (shown !== maximized) {
+				if (shown !== maximized || (shown && terminal !== maximizedBeside)) {
 					if (maximized) {
 						part.toggleMaximizeGroup();
 					}
 					maximized = shown;
-					if (shown) {
+					maximizedBeside = shown ? terminal : undefined;
+					if (shown && terminal) {
+						// Sized before, as resizing a group shows the hidden ones again.
+						part.maximizeGroup(shown, [terminal]);
+					} else if (shown) {
 						part.arrangeGroups(GroupsArrangement.MAXIMIZE, shown);
 					}
 				}
@@ -353,6 +375,9 @@ export class ChatWindowChatEditor extends EditorPane {
 				if (sideBySide) {
 					if (previous !== layout) {
 						part.arrangeGroups(GroupsArrangement.EVEN);
+						if (terminal) {
+							this._sizeTerminalRow(part, terminal);
+						}
 					}
 				} else if (inputOnly) {
 					if (height !== collapsedHeight) {
@@ -368,6 +393,12 @@ export class ChatWindowChatEditor extends EditorPane {
 			}
 		}));
 		return store;
+	}
+
+	/** Sizes the terminal row across the bottom of the window as the panel of the main window opens. */
+	private _sizeTerminalRow(part: IEditorPart, terminal: IEditorGroup): void {
+		const { width } = part.getSize(terminal);
+		part.setSize(terminal, { width, height: Math.max(CHAT_WINDOW_TERMINAL_MIN_HEIGHT, Math.round(part.contentDimension.height * CHAT_WINDOW_TERMINAL_HEIGHT_RATIO)) });
 	}
 
 	private _setSizeConstraints(minimumHeight: number | undefined, maximumHeight: number | undefined): void {

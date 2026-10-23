@@ -6,7 +6,7 @@
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, ISettableObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { timeout } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -21,7 +21,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
@@ -101,6 +101,14 @@ class ChatWindow implements IChatWindow {
 		this._resetSize();
 	}
 
+	get terminalGroup(): IObservable<IEditorGroup | undefined> { return this.state.terminalGroup; }
+
+	readonly terminalShown: IObservable<boolean> = derived(this, reader => !!this.state.terminalGroup.read(reader));
+
+	setTerminalShown(shown: boolean, options?: { readonly focus?: boolean }): Promise<void> {
+		return this._service.setTerminalShown(this, shown, options?.focus ?? false);
+	}
+
 	setEditor(editor: IChatWindowEditor): Promise<void> {
 		return this._service.setEditor(this, editor);
 	}
@@ -124,7 +132,10 @@ class ChatWindow implements IChatWindow {
 	}
 
 	close(): boolean {
+		// Its terminal keeps running for its session: closing the window would close it.
+		this._service.releaseTerminal(this);
 		if (!this._close()) {
+			this._service.showTerminalAgain(this);
 			return false;
 		}
 		this.didClose();
@@ -154,6 +165,12 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 	/** Chat windows waiting for content to replace theirs with, which stay open meanwhile; see {@link replace}. */
 	private readonly _replacing = new Set<ChatWindow>();
+
+	private _terminalHost: IChatWindowTerminalHost | undefined;
+	/** What each terminal row holds on to while it shows. */
+	private readonly _terminalRows = new Map<ChatWindow, DisposableStore>();
+	/** Chat windows whose terminal row is being emptied on purpose, rather than by its terminal exiting. */
+	private readonly _emptyingTerminalRows = new Set<ChatWindow>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -282,6 +299,21 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		editorGroup?.lock(!!content.editor);
 		const window = new ChatWindow(state, part, chatGroup, editorGroup, content, sessionObs, this, close, resetSize);
 		windowDisposables.add(autorun(reader => editorViewTypeContext.set(window.content.read(reader).editor?.viewType ?? '')));
+		ChatWindowHasEditorAreaContext.bindTo(windowContextKeyService).set(!!content.editorArea);
+		const terminalShownContext = ChatWindowTerminalShownContext.bindTo(windowContextKeyService);
+		windowDisposables.add(autorun(reader => terminalShownContext.set(window.terminalShown.read(reader))));
+		windowDisposables.add(toDisposable(() => this._terminalRows.get(window)?.dispose()));
+		if (content.editorArea && editorGroup) {
+			// What the Session Activity Bar of the chat window shows as checked, and offers, as it does for the main window.
+			const editorAreaEditorContext = ChatWindowEditorAreaEditorContext.bindTo(windowContextKeyService);
+			const activeEditor = observableFromEvent(this, editorGroup.onDidActiveEditorChange, () => editorGroup.activeEditorPane?.getId() ?? '');
+			windowDisposables.add(autorun(reader => editorAreaEditorContext.set(activeEditor.read(reader))));
+			const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(windowContextKeyService);
+			windowDisposables.add(autorun(reader => {
+				const session = window.session.read(reader);
+				hasWorkspaceContext.set(!!session && !session.isQuickChat?.read(reader) && !!session.workspace.read(reader));
+			}));
+		}
 		windowDisposables.add(toDisposable(() => this._remove(window)));
 		Event.once(part.onWillDispose)(() => windowDisposables.dispose());
 		this._windows.set([...this._windows.get(), window], undefined);
@@ -308,6 +340,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 
 		// The title of its content, or of its kind, in its title bar, or its header when docked.
 		const auxiliaryWindow = docked ? undefined : this._auxiliaryWindowService.getWindow(part.windowId);
+		if (auxiliaryWindow) {
+			// Closed from its window: the terminal keeps running for its session before its editors close.
+			windowDisposables.add(auxiliaryWindow.onBeforeUnload(() => this.releaseTerminal(window)));
+		}
 		const titlebar = auxiliaryWindow ? this._titleService.getPart(auxiliaryWindow.container) : undefined;
 		const dockedPart = floatingPart;
 		windowDisposables.add(autorun(reader => {
@@ -318,6 +354,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				titlebar.setTitle(title);
 			}
 		}));
+		if (options?.showTerminal && content.editorArea) {
+			void window.setTerminalShown(true);
+		}
 		return window;
 	}
 
@@ -401,6 +440,82 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			const active = restored.activeEditor ?? restored.editors.at(-1);
 			this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			await this._editorService.openEditors(restored.editors.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })), this._editorGroupsService.mainPart.activeGroup);
+		}
+	}
+
+	registerTerminalHost(host: IChatWindowTerminalHost): IDisposable {
+		this._terminalHost = host;
+		// Terminal rows restored before it registered.
+		for (const window of this._windows.get()) {
+			this.showTerminalAgain(window);
+		}
+		return toDisposable(() => {
+			if (this._terminalHost === host) {
+				this._terminalHost = undefined;
+			}
+		});
+	}
+
+	/** See {@link IChatWindow.setTerminalShown}: the row is a group across the bottom of the window, which the chat lays out. */
+	async setTerminalShown(window: ChatWindow, shown: boolean, focus: boolean): Promise<void> {
+		if (!window.editorGroup || !window.content.get().editorArea) {
+			return;
+		}
+		const group = window.state.terminalGroup.get();
+		if (shown) {
+			if (group) {
+				if (group.isEmpty) {
+					await this._terminalHost?.show(window, group, focus);
+				} else if (focus) {
+					group.focus();
+				}
+				return;
+			}
+			const row = window.part.addGroup(window.chatGroup, GroupDirection.DOWN);
+			// Only its terminal shows there, as the panel shows it, without tabs.
+			row.lock(true);
+			const store = new DisposableStore();
+			this._terminalRows.set(window, store);
+			store.add(window.part.hideGroupTitle(row));
+			// Its terminal exited.
+			store.add(row.onDidCloseEditor(() => {
+				if (row.isEmpty && !this._emptyingTerminalRows.has(window)) {
+					void this.setTerminalShown(window, false, false);
+				}
+			}));
+			window.state.terminalGroup.set(row, undefined);
+			await this._terminalHost?.show(window, row, focus);
+		} else if (group) {
+			this._emptyTerminalRow(window, host => host.hide(window));
+			window.state.terminalGroup.set(undefined, undefined);
+			this._terminalRows.get(window)?.dispose();
+			this._terminalRows.delete(window);
+			window.part.removeGroup(group);
+		}
+	}
+
+	/** Gives the terminal of `window` back to its session, before the window closes or its chat moves. */
+	releaseTerminal(window: ChatWindow): void {
+		this._emptyTerminalRow(window, host => host.release(window));
+	}
+
+	/** Shows the terminal of `window` again in its row, after the window stayed open. */
+	showTerminalAgain(window: ChatWindow): void {
+		const group = window.state.terminalGroup.get();
+		if (group?.isEmpty) {
+			void this._terminalHost?.show(window, group, false);
+		}
+	}
+
+	private _emptyTerminalRow(window: ChatWindow, empty: (host: IChatWindowTerminalHost) => void): void {
+		if (!this._terminalHost || !window.state.terminalGroup.get()) {
+			return;
+		}
+		this._emptyingTerminalRows.add(window);
+		try {
+			empty(this._terminalHost);
+		} finally {
+			this._emptyingTerminalRows.delete(window);
 		}
 	}
 

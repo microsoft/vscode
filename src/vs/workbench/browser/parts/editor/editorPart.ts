@@ -481,6 +481,15 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
+	maximizeGroup(group: IEditorGroupView | GroupIdentifier, visibleGroups: readonly (IEditorGroupView | GroupIdentifier)[]): void {
+		if (this.count < 2 || !this.gridWidget) {
+			return;
+		}
+		const groupView = this.assertGroupView(group);
+		this.gridWidget.maximizeView(groupView, visibleGroups.map(visibleGroup => this.assertGroupView(visibleGroup)));
+		groupView.focus();
+	}
+
 	toggleMaximizeGroup(target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.hasMaximizedGroup()) {
 			this.unmaximizeGroup();

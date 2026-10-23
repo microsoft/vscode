@@ -5,6 +5,7 @@
 
 import { IObservable, ISettableObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
 
 /**
@@ -83,6 +84,9 @@ export class ChatWindowState {
 
 	/** The layouts it can show; see {@link IChatWindow.layouts}. */
 	readonly layouts: readonly ChatWindowLayout[];
+
+	/** The group of the terminal row across the bottom of the window, while it shows; see {@link IChatWindow.terminalGroup}. */
+	readonly terminalGroup = observableValue<IEditorGroup | undefined>(this, undefined);
 
 	constructor(
 		readonly kind: IChatWindowKind,

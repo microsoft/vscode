@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -50,6 +51,11 @@ export interface IChatWindowKind {
 	readonly showPills?: boolean;
 	/** Whether the session of a chat window becomes the active session while the chat window is focused; `true` by default. */
 	readonly activatesSession?: boolean;
+	/**
+	 * Whether its chat windows with an editor area show the Session Activity Bar beside their chat, as the main window
+	 * does, following its settings; `false` by default.
+	 */
+	readonly showActivityBar?: boolean;
 	/** Whether its chat windows can dock in the corner of the main window. Defaults to `false`. */
 	readonly dockable?: boolean;
 	/** Whether its chat windows open docked until the user chooses otherwise, when they can dock. Defaults to `false`. */
@@ -109,6 +115,8 @@ export interface IChatWindowOpenOptions {
 	readonly docked?: boolean;
 	/** Whether to open it without focusing it, and so without its session becoming the active session, such as when restoring it. */
 	readonly preserveFocus?: boolean;
+	/** With an editor area: whether to show the terminal row across the bottom of the window; see {@link IChatWindow.terminalShown}. */
+	readonly showTerminal?: boolean;
 }
 
 /** An open chat window: in a window of its own, or docked in the bottom right corner of the main window. */
@@ -140,6 +148,15 @@ export interface IChatWindow {
 	showEditor(): void;
 	/** Docked: resizes it to its default size, which its kind then opens with too. */
 	resetSize(): void;
+	/**
+	 * With an editor area: whether a terminal of its session shows in a row across the bottom of the window, below the
+	 * chat and the editor area, as the panel shows it in the main window.
+	 */
+	readonly terminalShown: IObservable<boolean>;
+	/** The group of the terminal row, while it shows. */
+	readonly terminalGroup: IObservable<IEditorGroup | undefined>;
+	/** Shows or hides the terminal row. Hiding it keeps its terminal running, to show again. */
+	setTerminalShown(shown: boolean, options?: { readonly focus?: boolean }): Promise<void>;
 	/** Shows the resource of its one editor with another editor, such as as text; see {@link IChatWindowEditor.viewType}. */
 	setEditor(editor: IChatWindowEditor): Promise<void>;
 	/**
@@ -187,6 +204,22 @@ export interface IChatWindowService {
 
 	/** Closes `window`, and shows its chat in the main window again, with the editors of its editor area. */
 	moveToMainWindow(window: IChatWindow): Promise<void>;
+
+	/** Registers what shows terminals in the terminal rows of chat windows; see {@link IChatWindow.terminalShown}. */
+	registerTerminalHost(host: IChatWindowTerminalHost): IDisposable;
+}
+
+/**
+ * Shows terminals of the sessions of chat windows in their terminal rows, and keeps them running while the rows are
+ * hidden or the windows close.
+ */
+export interface IChatWindowTerminalHost {
+	/** Shows a terminal of the session of `window` in `group`, the terminal row. */
+	show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<void>;
+	/** Takes the terminal of `window` out of its terminal row, which is about to go, keeping it running to show again. */
+	hide(window: IChatWindow): void;
+	/** Takes the terminal of `window` out of it, which closes or moves its chat: the terminal is its session's again. */
+	release(window: IChatWindow): void;
 }
 
 /** The kind of the chat window, by its {@link IChatWindowKind.id}, or empty outside chat windows. */
@@ -208,6 +241,24 @@ export const ChatWindowEditorViewTypeContext = new RawContextKey<string>('sessio
 
 /** Whether the docked chat window was resized from its default size. */
 export const ChatWindowDockedResizedContext = new RawContextKey<boolean>('sessions.chatWindowDockedResized', false, localize('chatWindowDockedResized', "Whether the docked chat window was resized from its default size."));
+
+/** Whether the chat window shows an editor area beside its chat, which takes the editors opened from it. */
+export const ChatWindowHasEditorAreaContext = new RawContextKey<boolean>('sessions.chatWindowHasEditorArea', false, localize('chatWindowHasEditorArea', "Whether the chat window shows an editor area beside its chat."));
+
+/** The identifier of the editor that the editor area of the chat window shows, or empty. */
+export const ChatWindowEditorAreaEditorContext = new RawContextKey<string>('sessions.chatWindowEditorAreaEditor', '', localize('chatWindowEditorAreaEditor', "The identifier of the editor that the editor area of the chat window shows."));
+
+/** Whether the session of the chat window has a workspace and is not a quick chat, so that it has changes and files. */
+export const ChatWindowSessionHasWorkspaceContext = new RawContextKey<boolean>('sessions.chatWindowSessionHasWorkspace', false, localize('chatWindowSessionHasWorkspace', "Whether the session of the chat window has a workspace and is not a quick chat."));
+
+/** Shows or hides the editor of the active chat window, or its editor area. */
+export const CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID = 'sessions.chatWindow.toggleEditor';
+
+/** Shows or hides the terminal row of the active chat window; see {@link IChatWindow.terminalShown}. */
+export const CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID = 'sessions.chatWindow.toggleTerminal';
+
+/** Whether the chat window shows its terminal row. */
+export const ChatWindowTerminalShownContext = new RawContextKey<boolean>('sessions.chatWindowTerminalShown', false, localize('chatWindowTerminalShown', "Whether the chat window shows a terminal across its bottom."));
 
 /** Whether the chat window shows an editor, or an editor area, beside its chat. */
 export const ChatWindowHasEditorContext = new RawContextKey<boolean>('sessions.chatWindowHasEditor', false, localize('chatWindowHasEditor', "Whether the chat window shows an editor beside its chat."));
