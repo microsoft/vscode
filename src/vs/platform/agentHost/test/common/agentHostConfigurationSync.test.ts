@@ -16,6 +16,7 @@ import { artifactToolsConfigurationProperties } from '../../common/artifactTools
 import { ArtifactIntegrationsSettingId } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
 import { ChatMoveConfigKey, ChatMoveSettingId } from '../../common/agentHostChatMove.js';
+import { chatMoveConfigurationProperties } from '../../common/chatMoveConfiguration.js';
 import product from '../../../product/common/product.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../common/githubPullRequestArtifact.js';
 
@@ -50,8 +51,8 @@ suite('AgentHostConfigurationSync', () => {
 		type: 'object' as const,
 		properties: {
 			...artifactToolsConfigurationProperties,
+			...chatMoveConfigurationProperties,
 			[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
-			[ChatMoveSettingId.Enabled]: { type: 'boolean' as const, default: product.quality !== 'stable', agentHost: { key: ChatMoveConfigKey.Enabled } },
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
 				default: true,
