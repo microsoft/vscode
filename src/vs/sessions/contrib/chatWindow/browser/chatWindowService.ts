@@ -310,9 +310,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const terminalPositionContext = ChatWindowTerminalPositionContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => terminalPositionContext.set(state.terminalPosition.read(reader))));
 		// An editor area shows its editors in tabs, and stays when its last editor closes. Tabs show for the whole part.
+		// Double-clicking a tab must not maximize or expand a group: the window arranges its groups.
 		windowDisposables.add(part.enforcePartOptions(content.editorArea
-			? { showTabs: 'multiple', closeEmptyGroups: false }
-			: { showTabs: 'none', showBreadcrumbs: false, editorActionsLocation: 'hidden' }));
+			? { showTabs: 'multiple', closeEmptyGroups: false, doubleClickTabToToggleEditorGroupSizes: 'off' }
+			: { showTabs: 'none', showBreadcrumbs: false, editorActionsLocation: 'hidden', doubleClickTabToToggleEditorGroupSizes: 'off' }));
 		// The chat shows as a chat view, not as an editor: no tab, lock or editor actions.
 		windowDisposables.add(part.hideGroupTitle(chatGroup));
 		chatGroup.lock(true);
