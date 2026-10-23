@@ -1043,7 +1043,16 @@ export class WorkspacePicker extends Disposable {
 				return false;
 			}
 			const attachesContext = selection.action?.attachesContext === true || item.attachAsContext === true;
-			if (!await this._canSelectWorkspace(folderUri, selection.providerId, attachesContext)) {
+			const environment = attachesContext ? undefined : this._getEnvironment();
+			const selectsWorkspace = !attachesContext || !this._selectedFolderUri && !this.options.environment?.get();
+			const relatedWorkspace = selectsWorkspace
+				? environment
+					? this._findRelatedEnvironmentWorkspace(selection.workspace, environment)
+					: this._findRelatedLocalWorkspace(selection.workspace)
+				: undefined;
+			const selectedFolderUri = relatedWorkspace?.workspace.folders[0]?.root ?? folderUri;
+			const selectedProviderId = relatedWorkspace?.providerId ?? selection.providerId;
+			if (!await this._canSelectWorkspace(selectedFolderUri, selectedProviderId, attachesContext)) {
 				return false;
 			}
 			if (generation !== this._selectionGeneration) {
@@ -1075,14 +1084,13 @@ export class WorkspacePicker extends Disposable {
 				}
 				return false;
 			}
-			const preferDevContainer = this._getEnvironment()?.kind === 'container';
-			this._selectedDevContainerFolderUri = preferDevContainer ? folderUri : undefined;
-			this._onDidSelectWorkspaceMode.fire({ folderUri, preferDevContainer });
-			const relatedWorkspace = this._getEnvironment() ? undefined : this._findRelatedLocalWorkspace(selection.workspace);
+			const preferDevContainer = environment?.kind === 'container';
+			this._selectedDevContainerFolderUri = preferDevContainer ? selectedFolderUri : undefined;
+			this._onDidSelectWorkspaceMode.fire({ folderUri: selectedFolderUri, preferDevContainer });
 			this._selectFolder(
-				relatedWorkspace?.workspace.folders[0]?.root ?? folderUri,
+				selectedFolderUri,
 				true,
-				relatedWorkspace?.providerId ?? selection.providerId,
+				selectedProviderId,
 			);
 			return true;
 		} else if (item.folderUri) {
@@ -1162,6 +1170,29 @@ export class WorkspacePicker extends Disposable {
 			return this._selectedResolved;
 		}
 		return this._getRecentWorkspaces().find(matchesRepository);
+	}
+
+	private _findRelatedEnvironmentWorkspace(workspace: ISessionWorkspace, environment: ISessionCreationEnvironment): IResolvedFolderWorkspace | undefined {
+		const repositoryId = this._getRepositoryId(workspace);
+		if (!repositoryId) {
+			return undefined;
+		}
+		const providers = this.sessionsProvidersService.getProviders();
+		const resolve = (candidate: IResolvedFolderWorkspace | undefined): IResolvedFolderWorkspace | undefined => {
+			if (!candidate || this._getRepositoryIdForResolvedWorkspace(candidate) !== repositoryId) {
+				return undefined;
+			}
+			const folderUri = candidate.workspace.folders[0]?.root;
+			const resolved = folderUri && resolveEnvironmentWorkspace(environment, providers, folderUri);
+			return resolved ? { providerId: resolved.provider.id, workspace: resolved.workspace } : undefined;
+		};
+		for (const candidate of [this._selectedResolved, ...this._getRecentWorkspaces()]) {
+			const resolved = resolve(candidate);
+			if (resolved) {
+				return resolved;
+			}
+		}
+		return undefined;
 	}
 
 	private _getRepositoryId(workspace: ISessionWorkspace, reader?: IReader): string | undefined {
@@ -1557,10 +1588,12 @@ export class WorkspacePicker extends Disposable {
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		const environment = this._getEnvironment();
+		// Local-capable providers can contribute repository sources that resolve through the selected environment.
 		const providers = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id)
-			&& (!environment || environment.providerIds.includes(provider.id)));
+			&& (!environment || environment.providerIds.includes(provider.id) || provider.supportsLocalWorkspaces));
 		const all = providers.flatMap(p => p.browseActions);
-		const hasLocalSupport = providers.some(p => p.supportsLocalWorkspaces);
+		const hasLocalSupport = providers.some(provider => provider.supportsLocalWorkspaces
+			&& (!environment || environment.providerIds.includes(provider.id)));
 		if (hasLocalSupport) {
 			all.unshift(this._localBrowseAction);
 		}

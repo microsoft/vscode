@@ -740,6 +740,103 @@ suite('WorkspacePicker - Environment', () => {
 		});
 	});
 
+	test('keeps local-capable repository actions when any environment comes first', async () => {
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
+		const remoteEnvironment: ISessionCreationEnvironment = {
+			id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote-1'],
+		};
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const localUri = URI.file('/agent-host/project');
+		const localBaseProvider = createMockProvider('local-agent-host');
+		const localProvider: ISessionsProvider = {
+			...localBaseProvider,
+			supportsLocalWorkspaces: true,
+			resolveWorkspace: uri => {
+				const workspace = localBaseProvider.resolveWorkspace(uri);
+				return workspace ? {
+					...workspace,
+					group: SESSION_WORKSPACE_GROUP_LOCAL,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: {
+							uri,
+							workTreeUri: uri,
+							baseBranchName: 'main',
+							gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+						},
+					})),
+				} : undefined;
+			},
+		};
+		const repositoryUri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/microsoft/vscode/HEAD' });
+		const repositoryWorkspace: ISessionWorkspace = {
+			uri: URI.parse('https://github.com/microsoft/vscode'),
+			label: 'microsoft/vscode',
+			icon: Codicon.repo,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: [{
+				root: repositoryUri,
+				workingDirectory: repositoryUri,
+				name: 'vscode',
+				description: undefined,
+				gitRepository: undefined,
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+		providers.setProviders([
+			localProvider,
+			{
+				...createMockProvider('default-copilot', {
+					browseActions: [{
+						...makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Work in Repository...'),
+						run: async () => repositoryWorkspace,
+					}],
+				}),
+				supportsLocalWorkspaces: true,
+			},
+			createMockProvider('agenthost-remote-1', {
+				browseActions: [makeBrowseAction('agenthost-remote-1', SESSION_WORKSPACE_GROUP_REMOTE, 'Selected Remote Folder...')],
+			}),
+			createMockProvider('agenthost-remote-2', {
+				browseActions: [makeBrowseAction('agenthost-remote-2', SESSION_WORKSPACE_GROUP_REMOTE, 'Other Remote Folder...')],
+			}),
+		]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: localUri, providerId: localProvider.id, checked: false }]);
+		const picker = createTestPicker(disposables, providers, storage, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+			environment,
+			restoreFromSessions: false,
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const actions = () => picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label);
+		const workspaceFirst = actions();
+		environment.set(localEnvironment, undefined);
+		const local = actions();
+		const repositoryItem = picker.getItems().find(item => item.label === 'Work in Repository')?.item;
+		assert.ok(repositoryItem);
+		const repositorySelected = await picker.dispatchItem(repositoryItem);
+		environment.set(remoteEnvironment, undefined);
+		const remote = actions();
+		environment.set(containerEnvironment, undefined);
+		const container = actions();
+
+		assert.deepStrictEqual({
+			workspaceFirst, local, remote, container, repositorySelected,
+			selectedFolder: picker.selectedFolderUri?.toString(),
+			selectedProvider: picker.selectedResolved?.providerId,
+		}, {
+			workspaceFirst: ['Open Folder...', 'Work in Repository', 'Selected Remote Folder', 'Other Remote Folder'],
+			local: ['Open Folder...', 'Work in Repository'],
+			remote: ['Work in Repository', 'Selected Remote Folder'],
+			container: ['Open Folder...', 'Work in Repository'],
+			repositorySelected: true,
+			selectedFolder: localUri.toString(),
+			selectedProvider: localProvider.id,
+		});
+	});
+
 	test('omits redundant environment labels in folder rows and triggers only for the selected environment', () => {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		const base = createMockProvider('agenthost-remote-1', { group: SESSION_WORKSPACE_GROUP_REMOTE });
