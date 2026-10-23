@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isKeyboardEvent, isMouseEvent, isPointerEvent, getActiveWindow } from '../../../../base/browser/dom.js';
+import { Limiter } from '../../../../base/common/async.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -558,6 +559,57 @@ export function registerTerminalActions() {
 		run: async (c) => {
 			c.groupService.setActiveGroupToPrevious();
 			await c.groupService.showPanel(true);
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.MoveTabUp,
+		title: localize2('workbench.action.terminal.moveTabUp', 'Move Terminal Tab Up'),
+		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+		run: (c, accessor, focusedArgs, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs) ?? getSelectedViewInstances2(accessor, focusedArgs);
+			const instance = instances?.[0] ?? c.groupService.activeInstance;
+			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
+			if (group) {
+				c.groupService.moveGroupUp(group);
+			}
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.MoveTabDown,
+		title: localize2('workbench.action.terminal.moveTabDown', 'Move Terminal Tab Down'),
+		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+		run: (c, accessor, focusedArgs, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs) ?? getSelectedViewInstances2(accessor, focusedArgs);
+			const instance = instances?.[0] ?? c.groupService.activeInstance;
+			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
+			if (group) {
+				c.groupService.moveGroupDown(group);
+			}
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.KillGroupsBelow,
+		title: localize2('workbench.action.terminal.killGroupsBelow', 'Kill Terminals Below'),
+		f1: true,
+		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+		run: async (c, accessor, focusedArgs, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs) ?? getSelectedViewInstances2(accessor, focusedArgs);
+			const instance = instances?.[0] ?? c.groupService.activeInstance;
+			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
+			if (group) {
+				const groupsBelow = c.groupService.getGroupsBelow(group);
+				const limiter = new Limiter<void>(5);
+				const disposePromises: Promise<void>[] = [];
+				for (const g of groupsBelow) {
+					for (const inst of g.terminalInstances.slice()) {
+						disposePromises.push(limiter.queue(() => c.service.safeDisposeTerminal(inst)));
+					}
+				}
+				await Promise.all(disposePromises);
+			}
 		}
 	});
 
