@@ -2331,7 +2331,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const actionState = this.getMigrationItemActionState(item);
 		const migrate = disposables.add(new Action(
 			'customizationMigration.migrateItem',
-			localize('migrateThisCustomization', "Migrate This Item"),
+			localize('migrateThisCustomization', "Migrate This Item..."),
 			undefined,
 			actionState.canMigrate,
 			() => this.migrateMigrationItem(item),
@@ -2740,7 +2740,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					id, count,
 					label: this.getMigrationDashboardCategoryLabel(id),
 					description: localize('migrationChecklistPluginMarketplacesDescription', "Migrate plugin marketplaces to Copilot settings while keeping them available to the Local agent."),
-					actionLabel: localize('migratePluginMarketplaces', "Migrate"),
+					actionLabel: localize('migratePluginMarketplaces', "Migrate..."),
 					countLabel: count === 1
 						? localize('migrationChecklistOnePluginMarketplace', "1 marketplace")
 						: localize('migrationChecklistPluginMarketplacesCount', "{0} marketplaces", count),
@@ -5488,7 +5488,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			ariaLabel: localize('migrateCustomization', "Migrate customization"),
 		}));
 		migrate.element.classList.add('migration-detail-action');
-		migrate.label = localize('migrate', "Migrate");
+		migrate.label = localize('migrate', "Migrate...");
 		this.editorDisposables.add(migrate.onDidClick(() => {
 			void this.migrateCurrentMigrationDetail().catch(error => this.notificationService.error(
 				localize('migrateCustomizationFailed', "Could not migrate the customization: {0}", getErrorMessage(error))
