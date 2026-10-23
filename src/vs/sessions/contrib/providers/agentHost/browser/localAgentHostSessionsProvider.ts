@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { ISessionsProviderAutomations, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProviderAutomations, type ISessionsProviderChatpad, type SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -428,6 +428,15 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// `workspace.label` as the group key — divergent labels would surface
 		// the same folder as multiple groups.
 		return buildAgentHostSessionWorkspace(project, workingDirectories, { providerLabel: undefined, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_LOCAL }, gitHubInfo, gitState);
+	}
+
+	/** The Chatpad is kept on the local host only: no other Agent Host provider offers one. */
+	getChatpad(): Promise<ISessionsProviderChatpad | undefined> {
+		return this._getChatpad();
+	}
+
+	appendToChatpad(text: string): Promise<void> {
+		return this._appendToChatpad(text);
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, IChatWindowContent, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
@@ -15,8 +14,11 @@ import type { ISessionsProviderChatpad } from '../../../services/sessions/common
 /** The command that opens the Chatpad, or reveals it when it is open. */
 export const OPEN_CHATPAD_COMMAND_ID = 'sessions.openChatpad';
 
-/** Where the Chatpad can be used: in the Agents window, with AI features and the agent host enabled. */
-export const ChatpadEnabledContext = ContextKeyExpr.and(ChatContextKeys.enabled, AGENT_HOST_ENABLED_CONTEXT_KEY, IsSessionsWindowContext);
+/** Whether a sessions provider offers the Chatpad. */
+export const ChatpadProviderContext = new RawContextKey<boolean>('sessionsChatpadProvider', false, localize('sessionsChatpadProvider', "Whether a sessions provider offers the Chatpad."));
+
+/** Where the Chatpad can be used: in the Agents window, with AI features enabled and a provider that offers it. */
+export const ChatpadEnabledContext = ContextKeyExpr.and(ChatContextKeys.enabled, ChatpadProviderContext, IsSessionsWindowContext);
 
 /** The experimental setting that gates the Chatpad entry points: the commands, the launcher and restoring it at startup. */
 export const CHATPAD_ENABLED_SETTING = 'sessions.chatpad.enabled';

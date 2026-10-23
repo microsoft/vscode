@@ -1044,6 +1044,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('creates one Chatpad session for concurrent calls', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostChatpadCapabilityMetaKey]: true } }, undefined);
+		agentHost.getChatpad = async () => {
+			await timeout(10);
+			const session = agentHost.createdSessionUris.at(0);
+			return session && { note: URI.file(`/home/.copilot/chats${session.path}/chatpad.md`), session, provider: 'copilotcli' };
+		};
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const [first, second, appended] = await Promise.all([provider.getChatpad(), provider.getChatpad(), provider.appendToChatpad('text')]);
+
+		assert.deepStrictEqual({ created: agentHost.createdSessionUris.length, same: first?.session === second?.session, appended }, { created: 1, same: true, appended: undefined });
+	}));
+
+	test('creates a new Chatpad once its session is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostChatpadCapabilityMetaKey]: true } }, undefined);
+		let deleted = false;
+		agentHost.getChatpad = async () => {
+			const session = deleted ? agentHost.createdSessionUris.at(1) : agentHost.createdSessionUris.at(0);
+			return session && { note: URI.file(`/home/.copilot/chats${session.path}/chatpad.md`), session, provider: 'copilotcli' };
+		};
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const first = await provider.getChatpad();
+		await provider.deleteSession(first!.session.sessionId);
+		deleted = true;
+		const second = await provider.getChatpad();
+
+		assert.deepStrictEqual({ created: agentHost.createdSessionUris.length, replaced: second?.session !== first?.session, isChatpad: second?.session.isChatpad?.get() }, { created: 2, replaced: true, isChatpad: true });
+	}));
+
 	test('offers no Chatpad, and creates no session, with a host that lacks the capability', async () => {
 		const calls: string[] = [];
 		agentHost.getChatpad = async () => { calls.push('getChatpad'); return undefined; };

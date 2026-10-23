@@ -29,7 +29,7 @@ import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowEditorViewTypeContext, IChatWindowSe
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider, ISessionsProviderChatpad } from '../../../services/sessions/common/sessionsProvider.js';
-import { CHATPAD_NOTE_MARKDOWN_EDITOR, getChatpadChatWindowContent, OPEN_CHATPAD_COMMAND_ID, setChatpadNoteViewType, CHATPAD_CHAT_WINDOW_KIND, ChatpadEnabledContext, ChatpadAvailableContext, ChatpadWindowContext, CHATPAD_ENABLED_SETTING } from './chatpad.js';
+import { CHATPAD_NOTE_MARKDOWN_EDITOR, getChatpadChatWindowContent, OPEN_CHATPAD_COMMAND_ID, setChatpadNoteViewType, CHATPAD_CHAT_WINDOW_KIND, ChatpadEnabledContext, ChatpadAvailableContext, ChatpadProviderContext, ChatpadWindowContext, CHATPAD_ENABLED_SETTING } from './chatpad.js';
 import { ChatpadLauncherContribution } from './chatpadLauncher.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -49,26 +49,44 @@ interface IResolvedChatpad {
 	readonly chatpad: ISessionsProviderChatpad;
 }
 
-/** Resolves the Chatpad of the first provider that has one. */
-async function resolveChatpad(providersService: ISessionsProvidersService, logService: ILogService): Promise<IResolvedChatpad | undefined> {
-	for (const provider of providersService.getProviders()) {
-		if (!provider.getChatpad) {
-			continue;
-		}
-		try {
-			const chatpad = await provider.getChatpad();
-			if (chatpad) {
-				return { provider, chatpad };
-			}
-		} catch (error) {
-			logService.error(`[Chatpad] Failed to resolve the Chatpad of ${provider.id}`, error);
-		}
-	}
-	return undefined;
+/**
+ * The provider that keeps the Chatpad: the one that implements it. Only the local
+ * provider does, so the Chatpad is never read from or created on a remote one.
+ * Open, Append and restore all go through it, so they use the same note.
+ */
+function getChatpadProvider(providersService: ISessionsProvidersService): ISessionsProvider | undefined {
+	return providersService.getProviders().find(provider => provider.getChatpad && provider.appendToChatpad);
+}
+
+/**
+ * Resolves the Chatpad, or `undefined` when there is no provider for it, or its
+ * provider cannot offer it. Rejects when the provider fails to resolve it.
+ */
+async function resolveChatpad(providersService: ISessionsProvidersService): Promise<IResolvedChatpad | undefined> {
+	const provider = getChatpadProvider(providersService);
+	const chatpad = await provider?.getChatpad?.();
+	return provider && chatpad ? { provider, chatpad } : undefined;
 }
 
 function notifyUnavailable(notificationService: INotificationService): void {
-	notificationService.info(localize('chatpad.unavailable', "The Chatpad is not available. It requires an agent host that provides one."));
+	notificationService.info(localize('chatpad.unavailable', "The Chatpad is not available."));
+}
+
+/** Tells the context key whether a provider offers the Chatpad. */
+export class ChatpadProviderContextContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatpadProviderContext';
+
+	constructor(
+		@ISessionsProvidersService providersService: ISessionsProvidersService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+		const key = ChatpadProviderContext.bindTo(contextKeyService);
+		const update = () => key.set(!!getChatpadProvider(providersService));
+		update();
+		this._register(providersService.onDidChangeProviders(update));
+	}
 }
 
 /** Where the Clear action shows in the chat window's title bar and docked header, before its layout actions. */
@@ -99,12 +117,17 @@ registerAction2(class OpenChatpadAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const storageService = accessor.get(IStorageService);
 
-		const resolved = await resolveChatpad(providersService, logService);
-		if (!resolved) {
-			notifyUnavailable(notificationService);
-			return;
+		try {
+			const resolved = await resolveChatpad(providersService);
+			if (!resolved) {
+				notifyUnavailable(notificationService);
+				return;
+			}
+			await chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad, storageService));
+		} catch (error) {
+			logService.error('[Chatpad] Failed to open the Chatpad', error);
+			notificationService.error(localize('openChatpad.failed', "Could not open the Chatpad."));
 		}
-		await chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad, storageService));
 	}
 });
 
@@ -245,7 +268,14 @@ registerAction2(class AppendToChatpadAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const resolved = await resolveChatpad(providersService, logService);
+		let resolved: IResolvedChatpad | undefined;
+		try {
+			resolved = await resolveChatpad(providersService);
+		} catch (error) {
+			logService.error('[Chatpad] Failed to resolve the Chatpad', error);
+			notificationService.error(localize('appendToChatpad.failed', "Could not append to the Chatpad."));
+			return;
+		}
 		if (!resolved?.provider.appendToChatpad) {
 			notifyUnavailable(notificationService);
 			return;
@@ -274,7 +304,7 @@ const CHATPAD_OPEN_STORAGE_KEY = 'sessions.chatpad.open';
 const CHATPAD_RESTORE_TIMEOUT = 30_000;
 
 /** Opens the Chatpad, as it was, when it was open as the window last closed. */
-class ChatpadRestoration extends Disposable implements IWorkbenchContribution {
+export class ChatpadRestoration extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsChatpadRestoration';
 
@@ -309,8 +339,9 @@ class ChatpadRestoration extends Disposable implements IWorkbenchContribution {
 		await waitForState(this._sessionsService.initialRestoreComplete);
 		const deadline = Date.now() + CHATPAD_RESTORE_TIMEOUT;
 		while (Date.now() < deadline && !this._store.isDisposed) {
-			if (this._contextKeyService.contextMatchesRules(ChatpadAvailableContext)) {
-				const resolved = await resolveChatpad(this._providersService, this._logService);
+			const available = this._contextKeyService.contextMatchesRules(ChatpadAvailableContext);
+			if (available) {
+				const resolved = await resolveChatpad(this._providersService);
 				if (resolved) {
 					if (!this._chatWindowService.windows.get().some(window => window.kind === CHATPAD_CHAT_WINDOW_KIND)) {
 						await this._chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad, this._storageService), { preserveFocus: true });
@@ -318,11 +349,15 @@ class ChatpadRestoration extends Disposable implements IWorkbenchContribution {
 					return;
 				}
 			}
-			// Once an agent host that provides it is there.
-			await raceTimeout(Event.toPromise(Event.any<unknown>(this._providersService.onDidChangeProviders, this._contextKeyService.onDidChangeContext)), Math.max(0, deadline - Date.now()));
+			// Once a provider offers it, and then once it can resolve it; context changes only matter while a provider is there.
+			const changed = getChatpadProvider(this._providersService)
+				? Event.any<unknown>(this._providersService.onDidChangeProviders, this._contextKeyService.onDidChangeContext)
+				: this._providersService.onDidChangeProviders;
+			await raceTimeout(Event.toPromise(changed), Math.max(0, deadline - Date.now()));
 		}
 	}
 }
 
+registerWorkbenchContribution2(ChatpadProviderContextContribution.ID, ChatpadProviderContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatpadLauncherContribution.ID, ChatpadLauncherContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatpadRestoration.ID, ChatpadRestoration, WorkbenchPhase.AfterRestored);
