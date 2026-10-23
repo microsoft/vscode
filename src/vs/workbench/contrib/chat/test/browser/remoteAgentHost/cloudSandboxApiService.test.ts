@@ -31,6 +31,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
 	return {
@@ -205,9 +206,11 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			return jsonResponse({ tasks: slice }, 200, { link, date: options.discoveryDate?.() ?? new Date().toUTCString() });
 		}
 	}());
+	let selectedSessions: readonly AuthenticationSession[] = [];
 	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 		override async getSessions(_providerId: string, scopes?: readonly string[]) {
-			return options.authenticationSessions ? options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+			selectedSessions = options.authenticationSessions ? await options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+			return selectedSessions;
 		}
 		override readonly onDidChangeSessions = authenticationChanges.event;
 		override readonly onDidRegisterAuthenticationProvider = providerRegistered.event;
@@ -225,17 +228,18 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	}());
 	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
 		override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
-			assert.deepStrictEqual(authorization, {
-				providerId: 'github', sessionId: 's', accountId: 'a', scopes: [], authorizationServer: undefined,
-			});
+			const session = selectedSessions.find(session => session.id === authorization.sessionId && session.account.id === authorization.accountId);
+			assert.ok(session);
+			assert.strictEqual(authorization.providerId, 'github');
 			const provider = new class extends BufferedApiRequestProvider {
-				protected override async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string | undefined>> {
+				protected override async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal, bodyText?: string): Promise<ApiResponse<string | undefined>> {
 					const lifetime = new DisposableStore();
 					try {
 						const token = CancellationToken.fromAbortSignal(signal, lifetime);
 						const context = await requests.request({
 							type: request.method, url: `https://api.github.com/cmc_internal/api/agents${request.path}`,
-							headers: { Authorization: 'test-token', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID },
+							headers: { Authorization: `Bearer ${session.accessToken}`, 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID, ...(bodyText === undefined ? {} : { 'Content-Type': 'application/json' }) },
+							...(bodyText === undefined ? {} : { data: bodyText }),
 							callSite: request.options?.caller ?? 'test',
 						}, token);
 						const status = context.res.statusCode!;
@@ -251,6 +255,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			}();
 			return new class extends mock<IGitHubAccountClient>() {
 				override readonly tasks = new TasksClient(new MissionControlClient(provider));
+				override readonly environments = new EnvironmentsClient(new MissionControlClient(provider));
 				override dispose(): void { }
 			}();
 		}
@@ -896,7 +901,7 @@ suite('CloudSandboxApiService session feed', () => {
 		{ url: 'wss://user:password@feed.example.test/' },
 		{ url: 'wss://feed.example.test/#secret' },
 		{ reconnect_after: new Date(0).toISOString() },
-		{ reconnect_after: new Date(Date.now() + 20 * 60_000).toISOString() },
+		{ get reconnect_after() { return new Date(Date.now() + 20 * 60_000).toISOString(); } },
 		{ frame_schema_version: 2 },
 		{ subprotocol: 'json.reliable.webpubsub.azure.v1' },
 		{ group: '' },

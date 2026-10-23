@@ -1036,6 +1036,7 @@ suite('Editor cloud sandbox discovery', () => {
 				type,
 				hiddenFromPicker: contribution.hideFromSessionTypePicker,
 				canDelegate: contribution.canDelegate,
+				inputPlaceholder: contribution.inputPlaceholder,
 				// The chat widget locks a draft to the participant named after its type.
 				participant: h.agents.get(type)?.fullName,
 			})),
@@ -1044,8 +1045,8 @@ suite('Editor cloud sandbox discovery', () => {
 			created: h.calls.created,
 		}, {
 			providers: [
-				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, participant: 'Cloud' },
-				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, participant: undefined },
+				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, inputPlaceholder: 'Chat with Copilot', participant: 'Cloud' },
+				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, inputPlaceholder: 'Chat with Copilot', participant: undefined },
 			],
 			repositoryOptions: [],
 			created: 0,
@@ -1242,7 +1243,7 @@ suite('Editor cloud sandbox discovery', () => {
 	});
 
 	for (const supportsImageGeneration of [false, true]) {
-		test(`drafts without config picks negotiate native image support (supported: ${supportsImageGeneration})`, async () => {
+		test(`drafts send displayed defaults and negotiate native image support (supported: ${supportsImageGeneration})`, async () => {
 			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
 			const h = createHarness(store, {
 				createSession: async () => created,
@@ -1253,12 +1254,14 @@ suite('Editor cloud sandbox discovery', () => {
 			await h.refresh();
 			await h.startDraft('Generate an image');
 			const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+			const defaults = { mode: 'interactive', approvalMode: 'assisted' };
+			const initialConfig = { ...defaults, ...(supportsImageGeneration ? { imageGeneration: true } : {}) };
 			assert.deepStrictEqual({
 				resolved: h.calls.resolvedConfigs,
 				initialConfig: h.customizations.get(address)?.resolveInitialSessionConfig?.(newResource),
 			}, {
-				resolved: supportsImageGeneration ? [{}, { imageGeneration: true }] : [{}],
-				initialConfig: supportsImageGeneration ? { imageGeneration: true } : undefined,
+				resolved: supportsImageGeneration ? [defaults, initialConfig] : [defaults],
+				initialConfig,
 			});
 		});
 	}

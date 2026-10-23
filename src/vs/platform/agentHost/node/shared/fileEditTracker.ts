@@ -297,6 +297,8 @@ export class FileEditTracker extends Disposable {
 			afterText,
 			initialEdit,
 			modelId,
+			...(autoTier !== undefined ? { autoTier } : {}),
+			...(fusionModel !== undefined ? { fusionModel } : {}),
 			toolName,
 			mode: edit.mode,
 			completionTime,

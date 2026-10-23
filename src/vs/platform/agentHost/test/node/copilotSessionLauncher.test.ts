@@ -22,7 +22,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -66,7 +66,7 @@ const testRuntime: ICopilotSessionRuntime = {
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
-	setCopilotConnectorServers: () => { },
+	adoptLaunchConnectorReconcile: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },
@@ -228,7 +228,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: captured?.enableSessionStore,
 			infiniteSessions: captured?.infiniteSessions,
 			memory: captured?.memory,
-			remoteSession: captured?.remoteSession,
 			managedSettings: captured?.managedSettings,
 			featureFlags: captured?.featureFlags,
 			gitHubToken: captured?.gitHubToken,
@@ -246,7 +245,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: false,
 			infiniteSessions: { enabled: false },
 			memory: { enabled: false },
-			remoteSession: 'off',
 			managedSettings: { permissions },
 			featureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -1407,11 +1405,11 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const scenario of ['create', 'resume', 'reconcileError', 'unsupported', 'noAccount', 'disabled'] as const) {
-		test(`uses session-owned Connector accounts: ${scenario}`, async () => {
+	for (const scenario of ['create', 'resume', 'reconcileError', 'malformedStatus', 'unsupported', 'noAccount', 'disabled'] as const) {
+		test(`uses session-owned Connector accounts without delaying launch: ${scenario}`, async () => {
 			const connectorCalls: string[] = [];
 			const logService = new CapturingLogService();
-			let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
+			const reconcileReleased = new DeferredPromise<void>();
 			let featureFlags: Record<string, boolean> | undefined;
 			const connectorStatus = {
 				apiVersion: 1,
@@ -1452,8 +1450,13 @@ suite('CopilotSessionLauncher Connectors', () => {
 						},
 						reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
 							connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
+							// The runtime answers only after the Connector's MCP servers finish their remote handshake.
+							await reconcileReleased.p;
 							if (scenario === 'reconcileError') {
 								throw new Error('MCP server requires authentication');
+							}
+							if (scenario === 'malformedStatus') {
+								return { ...connectorStatus, catalog: { ...connectorStatus.catalog, connectors: [{ ...connectorStatus.catalog.connectors[0], displayName: undefined }] } };
 							}
 							return connectorStatus;
 						},
@@ -1495,27 +1498,34 @@ suite('CopilotSessionLauncher Connectors', () => {
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
 			};
 
+			let launchConnectorReconcile: Parameters<ICopilotSessionRuntime['adoptLaunchConnectorReconcile']>[0] | undefined;
 			const launched = await launcher.launch(plan, {
 				...testRuntime,
-				setCopilotConnectorServers: connectorServers => connectorDisplayNames = new Map([...connectorServers.servers].map(([serverName, server]) => [serverName, server.displayName])),
+				adoptLaunchConnectorReconcile: reconcile => launchConnectorReconcile = reconcile,
 			});
 			try {
+				const adopted = launchConnectorReconcile !== undefined;
+				reconcileReleased.complete();
+				const connectorServers = await launchConnectorReconcile;
 				assert.deepStrictEqual({
+					adopted,
 					featureFlags,
 					connectorCalls,
-					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
+					connectorDisplayName: connectorServers?.servers.get('connector-mail')?.displayName,
 					warnings: logService.warnings.map(warning => warning.message),
 				}, {
+					adopted: scenario !== 'disabled',
 					featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, CONNECTORS: scenario !== 'disabled', TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
 					connectorCalls: scenario === 'disabled' ? []
 						: scenario === 'unsupported' ? ['capabilities']
 							: scenario === 'noAccount' ? ['capabilities', 'account']
 								: ['capabilities', 'account', 'reconcile:session-account:true', ...(scenario === 'reconcileError' ? ['status'] : [])],
-					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' ? undefined : 'Work IQ Mail',
+					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' || scenario === 'malformedStatus' ? undefined : 'Work IQ Mail',
 					warnings: scenario === 'unsupported' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts']
 						: scenario === 'noAccount' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the session account could not be resolved']
 							: scenario === 'reconcileError' ? ['[Copilot:connector-session] Connector MCP reconciliation failed; using the current Connector state when available: MCP server requires authentication']
-								: [],
+								: scenario === 'malformedStatus' ? ['[Copilot:connector-session] Connector MCP reconciliation failed unexpectedly']
+									: [],
 				});
 			} finally {
 				launched.dispose();
@@ -1588,7 +1598,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [AgentHostSessionSyncEnabledConfigKey]: true });
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
 		let byokResolutions = 0;
 		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
@@ -1626,7 +1636,6 @@ suite('CopilotSessionLauncher shared session config', () => {
 			environment: config.systemMessage?.mode === 'customize' ? config.systemMessage.sections?.environment_context : undefined,
 			sessionStore: config.enableSessionStore,
 			oauthStorage: config.mcpOAuthTokenStorage,
-			remoteSession: config.remoteSession,
 			connectors: config.featureFlags?.CONNECTORS,
 			tools: config.availableTools, excludedTools: config.excludedTools,
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
@@ -1637,7 +1646,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			skipCustomInstructions: undefined, onDemandInstructions: undefined, hostGit: undefined, sessionTelemetry: undefined,
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
-			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
+			sessionStore: true, oauthStorage: 'in-memory',
 			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
@@ -3363,7 +3372,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			sessionId: 'sess-1',
 			workingDirectory: URI.file('/workspace'),
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
