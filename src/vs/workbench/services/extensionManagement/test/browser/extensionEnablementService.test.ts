@@ -1439,6 +1439,37 @@ suite('ExtensionEnablementService Test', () => {
 		});
 	});
 
+	test('test automatic enablement in the sessions window notifies the extensions that depend on affected extensions', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+		await configurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		const supported: Partial<IExtensionManifest> = { main: 'main.js', capabilities: { agentsWindow: { supported: true } } };
+		const tools = aLocalExtension2('pub.tools', { main: 'main.js', contributes: someContributions({ languageModelTools: [{}] }) });
+		const dependent = aLocalExtension2('pub.dependent', { ...supported, extensionDependencies: ['pub.tools'] });
+		const transitiveDependent = aLocalExtension2('pub.transitiveDependent', { ...supported, extensionDependencies: ['pub.dependent'] });
+		const unrelated = aLocalExtension2('pub.unrelated', supported);
+		installed.push(tools, dependent, transitiveDependent, unrelated);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		const changed: string[][] = [];
+		disposableStore.add(testObject.onEnablementChanged(extensions => changed.push(extensions.map(e => e.identifier.id))));
+		const update = async (value: boolean) => {
+			await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE }));
+			return [tools, dependent, transitiveDependent, unrelated].map(extension => testObject.getEnablementState(extension));
+		};
+
+		const on = await update(true);
+		const off = await update(false);
+
+		assert.deepStrictEqual({ on, off, changed }, {
+			on: [EnablementState.EnabledGlobally, EnablementState.EnabledGlobally, EnablementState.EnabledGlobally, EnablementState.EnabledGlobally],
+			off: [EnablementState.DisabledWorkspace, EnablementState.DisabledByExtensionDependency, EnablementState.DisabledByExtensionDependency, EnablementState.EnabledGlobally],
+			changed: [['pub.tools', 'pub.dependent', 'pub.transitiveDependent'], ['pub.tools', 'pub.dependent', 'pub.transitiveDependent']],
+		});
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`test built-in npm tasks are parsed in ${isSessionsWindow ? 'sessions' : 'editor'} window`, () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
