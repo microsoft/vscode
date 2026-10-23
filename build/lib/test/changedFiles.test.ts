@@ -77,6 +77,8 @@ suite('changedFiles', () => {
 				modified('extensions/copilot/.eslintplugin/index.ts'),
 				modified('package.json'),
 				deleted('package-lock.json'),
+				modified('extensions/copilot/package.json'),
+				modified('extensions/copilot/package-lock.json'),
 				modified('build/lib/i18n.resources.json'),
 				modified('src/vs/base/common/arrays.ts', 'build/filters.ts'),
 			].map(changes => getEslintScope(changes, noFiles)), [
@@ -88,6 +90,8 @@ suite('changedFiles', () => {
 				{ kind: 'full', reason: 'extensions/copilot/.eslintplugin/index.ts changed' },
 				{ kind: 'full', reason: 'package.json changed' },
 				{ kind: 'full', reason: 'package-lock.json changed' },
+				{ kind: 'full', reason: 'extensions/copilot/package.json changed' },
+				{ kind: 'full', reason: 'extensions/copilot/package-lock.json changed' },
 				{ kind: 'full', reason: 'build/lib/i18n.resources.json changed' },
 				{ kind: 'full', reason: 'build/filters.ts changed' },
 			]);
