@@ -39,7 +39,7 @@
 }
 
 .remote-connections-picker .action-list-footer {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size60) var(--vscode-spacing-size40);
 	overflow-wrap: anywhere;
 }
 
