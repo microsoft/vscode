@@ -82,7 +82,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		setupUrl?: URI,
 		installedIdentifiers: readonly string[] = [],
 		browseSections?: ICustomizationMarketplaceBrowseSections | Promise<ICustomizationMarketplaceBrowseSections>,
-		sourcePreviews: Readonly<Record<string, readonly ICustomizationMarketplaceResource[]>> = {},
+		sourcePreviews: Readonly<Record<string, readonly ICustomizationMarketplaceResource[] | Promise<readonly ICustomizationMarketplaceResource[]>>> = {},
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -164,8 +164,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) {
 				if (options.pageSize === 4 && options.sourceIds?.length === 1 && !options.query && !options.mediaType && !options.cursor) {
-					const items = sourcePreviews[options.sourceIds[0]] ?? [];
-					return Promise.resolve({ items, total: items.length });
+					return Promise.resolve(sourcePreviews[options.sourceIds[0]] ?? []).then(items => ({ items, total: items.length }));
 				}
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();
 				requests.push({ options, token, onProgress, result });
@@ -2876,6 +2875,94 @@ suite('AICustomizationDiscoveryPage', () => {
 			},
 		});
 		await fixture.requests[2].result.complete({ items: [resource('source-24', { sourceId: 'other' })] });
+	});
+
+	test('selected-source Browse replaces progressive snapshots with native final order', async () => {
+		const fixture = createPage(['other']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		await fixture.selectSource('other');
+		fixture.requests[1].onProgress?.({
+			page: {
+				items: [resource('default-result', { sourceId: 'other' })],
+			},
+			completedSourceIds: ['other.default'],
+			cachedSourceIds: [],
+			totalSourceCount: 2,
+		});
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('custom-result', { sourceId: 'other' }),
+				resource('default-result', { sourceId: 'other' }),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			fixture.page.getAccessibilityContent().match(/^(?:custom|default)-result$/gm),
+			['custom-result', 'default-result'],
+		);
+	});
+
+	test('final All Sources Browse snapshots discard stale cached results', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		fixture.requests[0].onProgress?.({
+			page: {
+				items: [resource('stale-result'), resource('current-result')],
+			},
+			completedSourceIds: [],
+			cachedSourceIds: ['agentFinder'],
+			totalSourceCount: 1,
+		});
+		await fixture.requests[0].result.complete({ items: [resource('current-result')] });
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			fixture.page.getAccessibilityContent().match(/^(?:stale|current)-result$/gm),
+			['current-result'],
+		);
+	});
+
+	test('does not restore a partially loaded source-shelf cache', async () => {
+		const pendingOtherPreview = new DeferredPromise<readonly ICustomizationMarketplaceResource[]>();
+		const browseSections = {
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			sections: [{
+				id: 'editors',
+				title: 'Editor\'s picks',
+				items: [resource('editorial-item')],
+			}],
+		};
+		const fixture = createPage(
+			['agentFinder', 'copilotConnectors', 'other'],
+			[AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			browseSections,
+			{
+				copilotConnectors: [resource('connector-item', { sourceId: 'copilotConnectors' })],
+				other: pendingOtherPreview.p,
+			},
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		await fixture.selectSource('copilotConnectors');
+		await fixture.requests[1].result.complete({ items: [resource('connector-item', { sourceId: 'copilotConnectors' })] });
+		await timeout(0);
+		await fixture.selectSource(undefined);
+		await waitForRequestCount(fixture.requests, 3);
+		await fixture.requests[2].result.complete({ items: [] });
+		await pendingOtherPreview.complete([]);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			fixture.requests.map(request => request.options.sourceIds),
+			[undefined, ['copilotConnectors'], undefined],
+		);
 	});
 
 	test('falls back to catalog Browse groups when curated feeds fail', async () => {

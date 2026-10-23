@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -274,6 +276,74 @@ suite('McpGalleryService - marketplace pages', () => {
 		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 3600 seconds/);
 
 		assert.strictEqual(requests.requests.length, 1);
+	});
+
+	test('scopes rate-limit cooldowns to the gallery query endpoint', async () => {
+		const otherServersUrl = 'https://other-registry.test/servers';
+		const requestedUrls: string[] = [];
+		const requests = new class extends mock<IRequestService>() {
+			override async request(options: IRequestOptions): Promise<IRequestContext> {
+				requestedUrls.push(options.url ?? '');
+				const rateLimited = options.url?.startsWith(SERVERS_URL);
+				return {
+					res: { statusCode: rateLimited ? 429 : 200, headers: rateLimited ? { 'retry-after': '60' } : {} },
+					stream: bufferToStream(VSBuffer.fromString(rateLimited ? '' : JSON.stringify({
+						servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+						metadata: { count: 1 },
+					}))),
+				};
+			}
+		}();
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const otherManifest: IMcpGalleryManifest = {
+			...manifest,
+			resources: [{ id: otherServersUrl, type: McpGalleryResourceType.McpServersQueryService }],
+		};
+
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 60 seconds/);
+		const healthy = await service.queryPage({ pageSize: 30 }, CancellationToken.None, otherManifest);
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 60 seconds/);
+
+		assert.deepStrictEqual({
+			requestedUrls,
+			healthy: healthy.items.map(item => item.name),
+		}, {
+			requestedUrls: [
+				`${SERVERS_URL}?limit=30&version=latest`,
+				`${otherServersUrl}?limit=30&version=latest`,
+			],
+			healthy: ['io.github.owner/server'],
+		});
+	});
+
+	test('keeps a live cooldown after an overlapping request succeeds', async () => {
+		const responses: DeferredPromise<IRequestContext>[] = [];
+		const requests = new class extends mock<IRequestService>() {
+			override request(): Promise<IRequestContext> {
+				const response = new DeferredPromise<IRequestContext>();
+				responses.push(response);
+				return response.p;
+			}
+		}();
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+		const rateLimited = service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest);
+		const successful = service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest);
+		await responses[0].complete({
+			res: { statusCode: 429, headers: { 'retry-after': '60' } },
+			stream: bufferToStream(VSBuffer.fromString('')),
+		});
+		await assert.rejects(rateLimited, /Try again in 60 seconds/);
+		await responses[1].complete({
+			res: { statusCode: 200, headers: {} },
+			stream: bufferToStream(VSBuffer.fromString(JSON.stringify({
+				servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+				metadata: { count: 1 },
+			}))),
+		});
+		await successful;
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None, manifest), /Try again in 60 seconds/);
+
+		assert.strictEqual(responses.length, 2);
 	});
 
 	test('does not invent a zero total when older registry responses omit count', async () => {

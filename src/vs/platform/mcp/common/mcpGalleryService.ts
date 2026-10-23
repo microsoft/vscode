@@ -836,8 +836,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	_serviceBrand: undefined;
 
 	private galleryMcpServerDataSerializers: Map<string, IGalleryMcpServerDataSerializer>;
-	private rateLimitedUntil = 0;
-	private rateLimitRetryAfterSeconds: number | undefined;
+	private readonly rateLimits = new Map<string, { until: number; retryAfterSeconds: number | undefined }>();
 
 	constructor(
 		@IRequestService private readonly requestService: IRequestService,
@@ -1144,12 +1143,16 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
-		const rateLimitRemaining = this.rateLimitedUntil - Date.now();
+		const rateLimit = this.rateLimits.get(mcpGalleryUrl);
+		const rateLimitRemaining = (rateLimit?.until ?? 0) - Date.now();
 		if (rateLimitRemaining > 0) {
 			if (strict) {
-				throw this.createRateLimitError(this.rateLimitRetryAfterSeconds === undefined ? undefined : Math.ceil(rateLimitRemaining / 1000));
+				throw this.createRateLimitError(rateLimit?.retryAfterSeconds === undefined ? undefined : Math.ceil(rateLimitRemaining / 1000));
 			}
 			return { servers: [], metadata: { count: 0 } };
+		}
+		if (rateLimit) {
+			this.rateLimits.delete(mcpGalleryUrl);
 		}
 
 		let url = `${mcpGalleryUrl}?limit=${query.pageSize}&version=latest`;
@@ -1183,11 +1186,17 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			if (context.res.statusCode === 429) {
 				const retryAfterSeconds = retryAfterFromHeaders(context.res.headers);
 				const backoffSeconds = Math.min(retryAfterSeconds ?? 60, 60 * 60);
-				this.rateLimitedUntil = Date.now() + backoffSeconds * 1000;
-				this.rateLimitRetryAfterSeconds = retryAfterSeconds === undefined ? undefined : backoffSeconds;
+				const until = Date.now() + backoffSeconds * 1000;
+				const current = this.rateLimits.get(mcpGalleryUrl);
+				if (!current || until > current.until) {
+					this.rateLimits.set(mcpGalleryUrl, {
+						until,
+						retryAfterSeconds: retryAfterSeconds === undefined ? undefined : backoffSeconds,
+					});
+				}
 				this.logService.warn(`Failed to query MCP gallery: Server returned 429; retrying is blocked for ${backoffSeconds} seconds.`);
 				if (strict) {
-					throw this.createRateLimitError(this.rateLimitRetryAfterSeconds);
+					throw this.createRateLimitError(retryAfterSeconds === undefined ? undefined : backoffSeconds);
 				}
 				return { servers: [], metadata: { count: 0 } };
 			}
@@ -1207,9 +1216,6 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 			return { servers: [], metadata: { count: 0 } };
 		}
-		this.rateLimitedUntil = 0;
-		this.rateLimitRetryAfterSeconds = undefined;
-
 		const data = await asJson(context);
 
 		if (!data) {

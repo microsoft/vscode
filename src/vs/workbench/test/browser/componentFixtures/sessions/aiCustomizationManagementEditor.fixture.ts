@@ -1421,11 +1421,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					return Promise.resolve(result);
 				}
 				override query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
+					const isSourcePreviewQuery = query.pageSize === 4 && query.sourceIds?.length === 1 && !query.query && !query.mediaType && !query.cursor;
+					const queryCountBeforeRequest = customizationMarketplaceQueryCount;
 					customizationMarketplaceQueryCount++;
-					if (query.pageSize !== 4 || query.sourceIds?.length !== 1 || query.query || query.mediaType || query.cursor) {
+					if (!isSourcePreviewQuery) {
 						customizationMarketplacePrimaryQueryCount++;
 					}
-					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
+					if (!sourceEnabled()) {
+						assert(options.toggleMarketplaceVisibility === true && queryCountBeforeRequest > 0 && isSourcePreviewQuery, 'A fixture with no enabled sources must not query the catalog.');
+						return Promise.resolve({ items: [], total: 0 });
+					}
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
@@ -1448,7 +1453,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 								? new DeferredPromise<ICustomizationMarketplacePage>().p
 								: Promise.resolve({ items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) });
 						}
-						case 'error': return Promise.reject(new Error('The catalog is temporarily unavailable. Try again later.'));
+						case 'error': return isSourcePreviewQuery
+							? Promise.resolve({ items: [], total: 0 })
+							: Promise.reject(new Error('The catalog is temporarily unavailable. Try again later.'));
 						case 'empty': return Promise.resolve({ items: [], total: 0 });
 					}
 					const text = query.query?.toLowerCase() ?? '';

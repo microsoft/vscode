@@ -38,6 +38,14 @@ interface IMcpGalleryMarketplaceContinuation {
 	expiresAt: number;
 }
 
+function cloneContinuation(continuation: IMcpGalleryMarketplaceContinuation): IMcpGalleryMarketplaceContinuation {
+	return {
+		...continuation,
+		buffered: [...continuation.buffered],
+		seenNames: new Set(continuation.seenNames),
+	};
+}
+
 export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
 	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
 	return normalized || undefined;
@@ -154,13 +162,10 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 			}
 		}
 		const continuation = options.cursor ? this.continuations.get(options.cursor) : undefined;
-		if (options.cursor) {
-			this.continuations.delete(options.cursor);
-		}
 		if (options.cursor && (!continuation || continuation.query !== options.query || continuation.pageSize !== pageSize || continuation.registryUrl !== registryUrl)) {
 			throw new Error(localize('mcpGalleryInvalidPage', "The MCP gallery page is invalid. Start a new search."));
 		}
-		const state = continuation ?? {
+		const state = continuation ? cloneContinuation(continuation) : {
 			query: options.query,
 			pageSize,
 			registryUrl,
@@ -175,8 +180,14 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 		};
 
 		let cursorError: string | undefined;
-		for (let attempt = 0; state.buffered.length < pageSize && (!state.hasQueried || state.nativeCursor); attempt++) {
-			if (attempt >= maxMcpGalleryEmptyPages) {
+		let emptyPageCount = 0;
+		let recoveryPageCount = 0;
+		let maxRecoveryPages = 0;
+		while (state.buffered.length < pageSize && (!state.hasQueried || state.nativeCursor)) {
+			if (state.recoveryAttempted && recoveryPageCount++ >= maxRecoveryPages) {
+				throw new Error(localize('mcpGalleryRecoveryPages', "The MCP gallery could not recover its pagination cursor. Try the search again."));
+			}
+			if (!state.recoveryAttempted && emptyPageCount >= maxMcpGalleryEmptyPages) {
 				throw new Error(localize('mcpGalleryEmptyPages', "The MCP gallery returned too many empty pages. Try the search again."));
 			}
 			const nativeCursor = state.nativeCursor;
@@ -186,6 +197,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 					pageSize: state.nativePageSize,
 					cursor: nativeCursor,
 				}, token, manifest);
+				const seenCount = state.seenNames.size;
 				state.hasQueried = true;
 				state.nativeCursor = page.nextCursor;
 				state.total = page.total;
@@ -194,6 +206,9 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 						state.seenNames.add(server.name);
 						state.buffered.push(server);
 					}
+				}
+				if (!state.recoveryAttempted) {
+					emptyPageCount = state.seenNames.size === seenCount ? emptyPageCount + 1 : 0;
 				}
 				if (page.nextCursor && page.nextCursor === nativeCursor) {
 					throw new Error(localize('mcpGalleryRepeatedCursor', "The MCP gallery returned the same pagination cursor. Try the search again."));
@@ -204,6 +219,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 				}
 				if (!state.recoveryAttempted) {
 					state.recoveryAttempted = true;
+					maxRecoveryPages = Math.ceil(state.seenNames.size / fallbackMcpGalleryPageSize) + maxMcpGalleryEmptyPages;
 					state.nativePageSize = fallbackMcpGalleryPageSize;
 					state.nativeCursor = undefined;
 					state.hasQueried = false;

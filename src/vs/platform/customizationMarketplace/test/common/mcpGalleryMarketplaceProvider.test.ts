@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -140,6 +141,39 @@ suite('McpGalleryMarketplaceProvider', () => {
 		});
 	});
 
+	test('retains continuation checkpoints when fetching a later page is cancelled', async () => {
+		const requests: (string | undefined)[] = [];
+		let cancelNextContinuation = true;
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options.cursor);
+				if (options.cursor && cancelNextContinuation) {
+					cancelNextContinuation = false;
+					throw new CancellationError();
+				}
+				const start = options.cursor ? 1 : 0;
+				return {
+					items: [{ ...server, name: `io.github.owner/server-${start}` }],
+					nextCursor: start ? undefined : 'next',
+				};
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 1 }, CancellationToken.None);
+		await assert.rejects(provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None), error => error instanceof CancellationError);
+		const retried = await provider.query({ pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests,
+			first: first.items.map(item => item.identifier),
+			retried: retried.items.map(item => item.identifier),
+		}, {
+			requests: [undefined, 'next', 'next'],
+			first: ['custom:io.github.owner/server-0'],
+			retried: ['custom:io.github.owner/server-1'],
+		});
+	});
+
 	test('recovers once from a registry-issued invalid cursor with a different native boundary', async () => {
 		const requests: IMcpGalleryQueryPageOptions[] = [];
 		const firstServer = { ...server, name: 'io.github.owner/first' };
@@ -177,6 +211,41 @@ suite('McpGalleryMarketplaceProvider', () => {
 			first: ['custom:io.github.owner/first'],
 			second: ['custom:io.github.owner/second'],
 			error: undefined,
+		});
+	});
+
+	test('recovery can replay more than four full native pages', async () => {
+		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options);
+				const cursor = options.cursor ? Number(options.cursor.split('-')[1]) : 0;
+				if (options.pageSize === 100 && cursor === 400) {
+					throw new McpGalleryInvalidCursorError();
+				}
+				const items = Array.from({ length: options.pageSize }, (_, index) => ({
+					...server,
+					name: `io.github.owner/server-${cursor + index}`,
+				}));
+				return {
+					items,
+					nextCursor: `${options.pageSize === 100 ? 'native' : 'recovery'}-${cursor + options.pageSize}`,
+				};
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		let page = await provider.query({ pageSize: 100 }, CancellationToken.None);
+		for (let index = 0; index < 3; index++) {
+			page = await provider.query({ pageSize: 100, cursor: page.nextCursor }, CancellationToken.None);
+		}
+		const recovered = await provider.query({ pageSize: 100, cursor: page.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			recoveryRequests: requests.filter(request => request.pageSize === 99).map(request => request.cursor),
+			recovered: recovered.items.map(item => item.identifier),
+		}, {
+			recoveryRequests: [undefined, 'recovery-99', 'recovery-198', 'recovery-297', 'recovery-396', 'recovery-495'],
+			recovered: Array.from({ length: 100 }, (_, index) => `custom:io.github.owner/server-${400 + index}`),
 		});
 	});
 

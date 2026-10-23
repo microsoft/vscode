@@ -1597,7 +1597,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const incoming = new Map(page.items.map(item => [getCustomizationMarketplaceResourceKey(item), item]));
 			const existingKeys = new Set(this.catalogPage.items.map(item => getCustomizationMarketplaceResourceKey(item)));
 			items = [
-				...this.catalogPage.items.map(item => incoming.get(getCustomizationMarketplaceResourceKey(item)) ?? item),
+				...this.catalogPage.items.flatMap(item => {
+					const updated = incoming.get(getCustomizationMarketplaceResourceKey(item));
+					return updated ? [updated] : [];
+				}),
 				...page.items.filter(item => !existingKeys.has(getCustomizationMarketplaceResourceKey(item))),
 			];
 		} else {
@@ -1700,7 +1703,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					});
 					this.sourceSections = [...sections];
 					this.noteBrowseFirstContent();
-					this.cacheBrowseCatalog();
 					onProgress();
 				}
 			} catch (error) {
@@ -1795,13 +1797,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 							total: progress.totalSourceCount,
 							cached: progress.cachedSourceIds.length,
 						};
-						this.updateCatalogPage(progress.page, false, true);
+						this.updateCatalogPage(progress.page, false, !this.selectedSourceId);
 						this.render(false);
 					} : undefined);
 					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
 						return;
 					}
-					hasMatchingCatalogItem = this.updateCatalogPage(page, append, browseRequest && !append);
+					hasMatchingCatalogItem = this.updateCatalogPage(page, append, browseRequest && !append && !this.selectedSourceId);
 					append = true;
 					if (!backfill || !page.nextCursor || hasMatchingCatalogItem) {
 						break;
