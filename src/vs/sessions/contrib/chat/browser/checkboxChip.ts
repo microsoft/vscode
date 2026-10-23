@@ -126,6 +126,10 @@ export class CheckboxChip extends Disposable {
 		slot.classList.toggle('disabled', state === 'disabled');
 		slot.classList.toggle('hidden', state === 'hidden');
 
-		checkbox.domNode.setAttribute('aria-description', state === 'disabled' ? disabledReason ?? '' : '');
+		if (state === 'disabled' && disabledReason) {
+			checkbox.domNode.setAttribute('aria-description', disabledReason);
+		} else {
+			checkbox.domNode.removeAttribute('aria-description');
+		}
 	}
 }
