@@ -172,8 +172,9 @@ pub fn changed_nodes(
 	let mut head_seeds = Vec::new();
 	let mut base_seeds = Vec::new();
 	for path in paths {
-		head_seeds.extend(hg.dir_dependents(path).0);
-		base_seeds.extend(bg.dir_dependents(path).0);
+		let data = !base.role(path).is_module() && !head.role(path).is_module();
+		head_seeds.extend(hg.dir_dependents(path, data).0);
+		base_seeds.extend(bg.dir_dependents(path, data).0);
 		let bi = base.find(path);
 		let hi = head.find(path);
 		let bf = bi.and_then(|i| base.entries[i as usize].facts.clone());
@@ -414,15 +415,24 @@ pub fn select(
 	};
 	dependent_tests(head, hg, &head_seeds, &mut sel.decl);
 	dependent_tests(base, bg, &base_seeds, &mut sel.decl);
+	let is_data = |p: &str| !base.role(p).is_module() && !head.role(p).is_module();
 	let head_files: Vec<u32> = paths
 		.iter()
 		.filter_map(|p| head.find(p))
-		.chain(paths.iter().flat_map(|p| hg.dir_dependents(p).1))
+		.chain(
+			paths
+				.iter()
+				.flat_map(|p| hg.dir_dependents(p, is_data(p)).1),
+		)
 		.collect();
 	let base_files: Vec<u32> = paths
 		.iter()
 		.filter_map(|p| base.find(p))
-		.chain(paths.iter().flat_map(|p| bg.dir_dependents(p).1))
+		.chain(
+			paths
+				.iter()
+				.flat_map(|p| bg.dir_dependents(p, is_data(p)).1),
+		)
 		.collect();
 	for runtime in [false, true] {
 		let out = if runtime {
@@ -1089,6 +1099,91 @@ mod tests {
 			(
 				vec!["src/app/test/a.test.ts".to_owned()],
 				vec!["src/app/test/b.test.ts".to_owned()]
+			)
+		);
+	}
+
+	#[test]
+	fn computed_paths_read_the_data_files_of_their_folder() {
+		let files = [
+			// A helper that reads expected output through an alias path: `lib/` is `src/lib/`. Its
+			// path can name any file of the folder, but modules there are code, not data.
+			(
+				"src/lib/test/node/mapperUtils.ts",
+				"export function expected(file) { return read(`lib/test/node/${file}`); }\n",
+			),
+			(
+				"src/lib/test/node/mapper.test.ts",
+				"import { expected } from './mapperUtils.js';\ntest('a', () => expected('mac_de.txt'));\n",
+			),
+			("src/lib/test/node/other.test.ts", "test('a', () => 1);\n"),
+			// Names that are not paths of data files: no data file has the static start and end.
+			(
+				"src/lib/test/node/display.test.ts",
+				"test('a', () => [`./file${i}.ts`, `../My output ${x}.txt`]);\n",
+			),
+			// A static start of the file name: `mac_${variant}.txt`.
+			(
+				"src/lib/test/node/mac.test.ts",
+				"test('a', () => read(`lib/test/node/mac_${variant}.txt`));\n",
+			),
+			("src/lib/test/node/mac_de.txt", "1"),
+			("src/lib/test/node/win_de.txt", "1"),
+			// Paths relative to the module, and from the repository root.
+			(
+				"src/lib/test/rel/rel.test.ts",
+				"test('a', () => read(`./${name}.json`));\n",
+			),
+			("src/lib/test/rel/case.json", "1"),
+			(
+				"src/lib/test/root/root.test.ts",
+				"test('a', () => read(`src/lib/test/root/${name}.txt`));\n",
+			),
+			("src/lib/test/root/case.txt", "1"),
+			// A computed path at the top of the tree is too broad to follow.
+			(
+				"src/lib/test/broad.test.ts",
+				"test('a', () => read(`src/${name}`));\n",
+			),
+			("src/lib/data.json", "1"),
+		];
+		let changed = |path: &str| -> Vec<String> {
+			let head: Vec<(&str, &str)> = files
+				.iter()
+				.map(|&(p, c)| {
+					(
+						p,
+						if p != path {
+							c
+						} else if p.ends_with(".ts") {
+							"test('a', () => 2);\n"
+						} else {
+							"2"
+						},
+					)
+				})
+				.collect();
+			selected(&files, &head)
+		};
+		assert_eq!(
+			(
+				changed("src/lib/test/node/mac_de.txt"),
+				changed("src/lib/test/node/win_de.txt"),
+				changed("src/lib/test/node/other.test.ts"),
+				changed("src/lib/test/rel/case.json"),
+				changed("src/lib/test/root/case.txt"),
+				changed("src/lib/data.json"),
+			),
+			(
+				vec![
+					"src/lib/test/node/mac.test.ts".to_owned(),
+					"src/lib/test/node/mapper.test.ts".to_owned()
+				],
+				vec!["src/lib/test/node/mapper.test.ts".to_owned()],
+				vec!["src/lib/test/node/other.test.ts".to_owned()],
+				vec!["src/lib/test/rel/rel.test.ts".to_owned()],
+				vec!["src/lib/test/root/root.test.ts".to_owned()],
+				vec![]
 			)
 		);
 	}

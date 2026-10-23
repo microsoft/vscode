@@ -36,6 +36,10 @@ pub struct ImportSpec {
 	/// as a grammar that a test reads. It refers to nothing unless the path exists, and never to
 	/// a package.
 	pub root: bool,
+	/// For the folder that a computed path starts in, such as `vs/.../test/node` in
+	/// `` `vs/.../test/node/${name}.txt` ``: the static start and end of the path in that folder
+	/// (`""` and `".txt"`). The code reads the data files of the folder that match them.
+	pub data: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -750,6 +754,7 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			specifier,
 			type_only,
 			root: false,
+			data: None,
 		});
 		(facts.specs.len() - 1) as u32
 	};
@@ -1196,6 +1201,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	let mut deferred = vec![false; nodes.len()];
 	let mut path_strings: Vec<(u32, String)> = Vec::new();
 	let mut root_paths: Vec<(u32, String)> = Vec::new();
+	// Computed paths, as (position, folder, from the repository root, static start and end of the
+	// path in the folder).
+	let mut data_folders: Vec<(u32, String, bool, String, String)> = Vec::new();
 	let mut dynamic: Vec<(u32, String)> = Vec::new();
 	let mut globals: Vec<(u32, String)> = Vec::new();
 	let mut uses: Vec<(u32, u64)> = Vec::new();
@@ -1460,6 +1468,29 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 						add_path_segments(&js_str(&s.value), &mut facts.path_segments)
 					}
 					AstKind::TemplateLiteral(t) => {
+						let cooked = |i: usize| t.quasis[i].value.cooked.as_ref().map(js_str);
+						if let (false, Some(prefix), Some(end)) = (
+							t.expressions.is_empty(),
+							cooked(0),
+							cooked(t.quasis.len() - 1),
+						) {
+							if let Some((folder, start)) = prefix.rsplit_once('/') {
+								let relative = folder == "."
+									|| folder == ".." || folder.starts_with("./")
+									|| folder.starts_with("../");
+								let alias = config.has_alias(&format!("{folder}/"));
+								let root = !relative && !alias && may_name_repository_path(folder);
+								if relative || alias || root {
+									data_folders.push((
+										t.span.start,
+										folder.to_owned(),
+										root,
+										start.to_owned(),
+										end,
+									));
+								}
+							}
+						}
 						for q in &t.quasis {
 							match &q.value.cooked {
 								Some(cooked) => {
@@ -1820,18 +1851,24 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 
 	let add_all = |facts: &mut FileFacts, pos: u32, specifier: String, root: bool| {
 		if is_excluded(pos) {
-			return;
+			return None;
 		}
-		let Some(src) = node_at(pos) else { return };
+		let src = node_at(pos)?;
 		let spec = push_spec(facts, specifier, false);
 		facts.specs[spec as usize].root = root;
 		facts.decls[src as usize].refs.push(Ref::All(spec));
+		Some(spec)
 	};
 	for (pos, specifier) in dynamic.into_iter().chain(path_strings) {
 		add_all(&mut facts, pos, specifier, false);
 	}
 	for (pos, specifier) in root_paths {
 		add_all(&mut facts, pos, specifier, true);
+	}
+	for (pos, folder, root, start, end) in data_folders {
+		if let Some(spec) = add_all(&mut facts, pos, folder, root) {
+			facts.specs[spec as usize].data = Some((start, end));
+		}
 	}
 	for (pos, name) in globals {
 		if let Some(src) = node_at(pos) {

@@ -57,6 +57,9 @@ enum Res {
 	File(u32),
 	/// A directory, such as a fixture folder read by a test: index into `Linker::dirs`.
 	Dir(u32),
+	/// The data files (not modules) of a directory that code reads by a computed path: index into
+	/// `Linker::data_dirs`.
+	DataDir(u32),
 	Pkg(u32),
 }
 
@@ -100,6 +103,14 @@ const BUILTINS: &[&str] = &[
 	"worker_threads",
 	"zlib",
 ];
+
+/// A computed path: the directory it starts in, and the static start and end of the path in it.
+type DataPattern = (Box<str>, Box<str>, Box<str>);
+
+/// Whether a path inside the directory of a computed path has the path's static start and end.
+fn matches_data_pattern(start: &str, end: &str, path: &str) -> bool {
+	path.len() >= start.len() + end.len() && path.starts_with(start) && path.ends_with(end)
+}
 
 /// The test data folders of a snapshot, by folder name: the folders next to test files that
 /// contain no module, each with the test files next to it.
@@ -162,6 +173,9 @@ struct Linker<'s> {
 	globals: HashMap<String, u32>,
 	dirs: Vec<Box<str>>,
 	dir_index: HashMap<Box<str>, u32>,
+	/// Computed paths: (directory, static start, static end of the path in the directory).
+	data_dirs: Vec<DataPattern>,
+	data_dir_index: HashMap<DataPattern, u32>,
 	file_nodes_end: u32,
 	next: u32,
 }
@@ -275,6 +289,40 @@ impl<'s> Linker<'s> {
 		d
 	}
 
+	/// The data files that a computed path can name: those under the folder it starts in whose path
+	/// in that folder has its static start and end. The folder must be specific enough: not a
+	/// top-level folder such as `src/vs`.
+	fn data_dir(&mut self, from: &str, spec: &str, root: bool, start: &str, end: &str) -> Res {
+		let relative =
+			spec == "." || spec == ".." || spec.starts_with("./") || spec.starts_with("../");
+		let path = if root {
+			Some(spec.to_owned())
+		} else if relative {
+			join(from.rsplit_once('/').map_or("", |(d, _)| d), spec)
+		} else {
+			self.config.resolve_alias(&format!("{spec}/"))
+		};
+		let Some(path) = path else {
+			return Res::None;
+		};
+		let path = path.trim_end_matches('/');
+		let range = self.snap.under(path);
+		if path.matches('/').count() < 2
+			|| !self.snap.entries[range].iter().any(|e| {
+				!e.role.is_module() && matches_data_pattern(start, end, &e.path[path.len() + 1..])
+			}) {
+			return Res::None;
+		}
+		let pattern: DataPattern = (path.into(), start.into(), end.into());
+		if let Some(&d) = self.data_dir_index.get(&pattern) {
+			return Res::DataDir(d);
+		}
+		let d = self.data_dirs.len() as u32;
+		self.data_dirs.push(pattern.clone());
+		self.data_dir_index.insert(pattern, d);
+		Res::DataDir(d)
+	}
+
 	fn resolve_specifier(&mut self, from: &str, spec: &str) -> Res {
 		if spec.starts_with("./") || spec.starts_with("../") {
 			let dir = from.rsplit_once('/').map_or("", |(d, _)| d);
@@ -300,7 +348,9 @@ impl<'s> Linker<'s> {
 				.specs
 				.iter()
 				.map(|s| {
-					if s.root {
+					if let Some((start, end)) = &s.data {
+						self.data_dir(&entry.path, &s.specifier, s.root, start, end)
+					} else if s.root {
 						self.resolve_path(&s.specifier)
 					} else {
 						self.resolve_specifier(&entry.path, &s.specifier)
@@ -489,6 +539,9 @@ pub struct Graph {
 	files_runtime: Csr,
 	/// Nodes and files that read a directory by path, keyed by directory.
 	dirs: HashMap<Box<str>, (Vec<u32>, Vec<u32>)>,
+	/// Nodes and files that read data files of a directory by a computed path, by directory, with
+	/// the static start and end of the path in the directory.
+	data_dirs: HashMap<Box<str>, Vec<(Box<str>, Box<str>, u32, u32)>>,
 	/// Globals injected by the test runners, and the nodes standing for them.
 	pub globals: HashMap<String, u32>,
 	/// Modules loaded by each entry's initializer.
@@ -520,12 +573,15 @@ impl Graph {
 			globals: HashMap::new(),
 			dirs: Vec::new(),
 			dir_index: HashMap::new(),
+			data_dirs: Vec::new(),
+			data_dir_index: HashMap::new(),
 			file_nodes_end: next,
 			next,
 		};
 		let mut loads: Vec<Box<[u32]>> = vec![Box::new([]); n];
 		let mut load_edges: Vec<(u32, u32)> = Vec::new();
 		let mut dir_refs: Vec<(u32, u32, u32)> = Vec::new();
+		let mut data_dir_refs: Vec<(u32, u32, u32)> = Vec::new();
 		let mut edges: Vec<(u32, u32)> = Vec::new();
 		let mut files_all: Vec<(u32, u32)> = Vec::new();
 		let mut files_runtime: Vec<(u32, u32)> = Vec::new();
@@ -582,6 +638,7 @@ impl Graph {
 						Ref::All(spec) => match linker.spec_res(f, *spec) {
 							Res::File(t) => edges.extend(linker.all_nodes(t).map(|v| (u, v))),
 							Res::Dir(d) => dir_refs.push((d, u, f)),
+							Res::DataDir(d) => data_dir_refs.push((d, u, f)),
 							Res::Pkg(p) => edges.push((u, p)),
 							_ => {}
 						},
@@ -662,6 +719,11 @@ impl Graph {
 			entry.0.push(u);
 			entry.1.push(f);
 		}
+		let mut data_dirs: HashMap<Box<str>, Vec<(Box<str>, Box<str>, u32, u32)>> = HashMap::new();
+		for (d, u, f) in data_dir_refs {
+			let (dir, start, end) = linker.data_dirs[d as usize].clone();
+			data_dirs.entry(dir).or_default().push((start, end, u, f));
+		}
 		if std::env::var_os("RIPPLE_DEBUG").is_some() {
 			let mut list: Vec<(&Box<str>, &(Vec<u32>, Vec<u32>))> = dirs.iter().collect();
 			list.sort_by_key(|(d, _)| (d.matches('/').count(), d.len()));
@@ -681,6 +743,7 @@ impl Graph {
 		let swapped: Vec<(u32, u32)> = edges.iter().copied().collect();
 		Self {
 			dirs,
+			data_dirs,
 			globals,
 			loads,
 			effectful,
@@ -793,13 +856,27 @@ impl Graph {
 		false
 	}
 
-	/// Nodes and files that read a directory containing `path`.
-	pub fn dir_dependents(&self, path: &str) -> (Vec<u32>, Vec<u32>) {
+	/// Nodes and files that read a directory containing `path`, including, for a data file (not
+	/// a module), the directories that computed paths read.
+	pub fn dir_dependents(&self, path: &str, data: bool) -> (Vec<u32>, Vec<u32>) {
 		let (mut nodes, mut files) = (Vec::new(), Vec::new());
 		for (i, _) in path.match_indices('/') {
-			if let Some((n, f)) = self.dirs.get(&path[..i]) {
+			let dir = &path[..i];
+			if let Some((n, f)) = self.dirs.get(dir) {
 				nodes.extend_from_slice(n);
 				files.extend_from_slice(f);
+			}
+			let computed = self
+				.data_dirs
+				.get(dir)
+				.filter(|_| data)
+				.into_iter()
+				.flatten();
+			for (start, end, n, f) in computed {
+				if matches_data_pattern(start, end, &path[i + 1..]) {
+					nodes.push(*n);
+					files.push(*f);
+				}
 			}
 		}
 		(nodes, files)
