@@ -565,14 +565,17 @@ suite('RemotesWidget', () => {
 		model.remotes.set([{
 			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: false,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
-			removeUnavailableReason: 'Managed by GitHub.',
+			removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.',
 		}], undefined);
 		const connect = getConnectionAction(parent, 'environment:desktop');
 		const remove = getManagementAction(parent, 'environment:desktop', 'remove');
 		assert.deepStrictEqual({
 			connect: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled'),
 			remove: remove.getAttribute('aria-label'), renameDisabled: getManagementAction(parent, 'environment:desktop', 'rename').getAttribute('aria-disabled'),
-		}, { connect: 'Connect to Desktop: Start the owning application.', disabled: 'true', remove: 'Remove Desktop: Managed by GitHub.', renameDisabled: null });
+		}, {
+			connect: 'Connect to Desktop: Start the owning application.', disabled: 'true',
+			remove: 'Remove Desktop: Removing environments is not supported here. Manage sharing in the application running on that machine.', renameDisabled: null,
+		});
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
 		assert.deepStrictEqual({ label: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled') }, {
 			label: 'Disconnect Desktop', disabled: null,

@@ -396,7 +396,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					detail = target.host.id;
 					unavailableReason = target.host.status !== 'online'
 						? localize('remotes.environmentOffline', "This environment is not online. Start its owning application before connecting.") : undefined;
-					removeUnavailableReason = localize('remotes.environmentRemoveUnavailable', "Environments are managed by GitHub and cannot be removed here.");
+					removeUnavailableReason = localize('remotes.environmentRemoveUnavailable', "Removing environments is not supported here. Manage sharing in the application running on that machine.");
 					break;
 				case 'devContainer':
 					name = target.container.name;
