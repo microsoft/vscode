@@ -4203,6 +4203,8 @@ interface IChatConfigSubscription extends IDisposable {
 	readonly resolving: IObservable<boolean>;
 }
 
+const CHATPAD_UNAVAILABLE_MESSAGE = () => localize('chatpadUnavailable', "The Chatpad is unavailable.");
+
 export abstract class BaseAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	abstract readonly id: string;
@@ -7018,7 +7020,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async getChatpad(): Promise<ISessionsProviderChatpad | undefined> {
+	/**
+	 * Resolves the Chatpad of the host, creating its chat when there is none. Not part of every Agent Host provider:
+	 * the Chatpad is kept on the local host only, whose provider exposes this as `getChatpad`. Concurrent calls
+	 * share one resolution, so that they can't create two Chatpad chats.
+	 */
+	protected _getChatpad(): Promise<ISessionsProviderChatpad | undefined> {
+		this._chatpadResolution ??= this._resolveChatpad().finally(() => this._chatpadResolution = undefined);
+		return this._chatpadResolution;
+	}
+
+	private _chatpadResolution: Promise<ISessionsProviderChatpad | undefined> | undefined;
+
+	private async _resolveChatpad(): Promise<ISessionsProviderChatpad | undefined> {
 		const connection = this.connection;
 		if (!connection?.getChatpad || !supportsAgentHostChatpad(connection.initializeResult.get())) {
 			return undefined;
@@ -7028,7 +7042,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			await this._createChatpadSession(connection);
 			chatpad = await connection.getChatpad();
 			if (!chatpad) {
-				throw new Error(localize('chatpadUnavailable', "The Chatpad is unavailable."));
+				throw new Error(CHATPAD_UNAVAILABLE_MESSAGE());
 			}
 		}
 		const session = this._ensureChatpadSession(chatpad.session, chatpad.provider);
@@ -7071,13 +7085,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		});
 	}
 
-	async appendToChatpad(text: string): Promise<void> {
+	/** Appends text to the note of the host's Chatpad. See {@link _getChatpad}. */
+	protected async _appendToChatpad(text: string): Promise<void> {
 		const connection = this.connection;
 		if (!connection?.appendToChatpad || !supportsAgentHostChatpad(connection.initializeResult.get())) {
-			throw new Error(localize('chatpadUnavailable', "The Chatpad is unavailable."));
+			throw new Error(CHATPAD_UNAVAILABLE_MESSAGE());
 		}
 		// The note is in the Chatpad chat's folder, so the chat has to exist first.
-		await this.getChatpad();
+		await this._getChatpad();
 		await connection.appendToChatpad(text);
 	}
 
@@ -9502,6 +9517,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._metadataBySession.delete(rawId);
 		this._chatCatalogLoading.delete(rawId);
+		if (rawId === this._chatpadSession) {
+			this._chatpadSession = undefined;
+		}
 		const stateOwner = cached ?? expected;
 		if (!stateOwner) {
 			return undefined;
