@@ -48,7 +48,7 @@ interface IChatWindowLayoutChoice {
 const chatWindowLayoutChoices: readonly IChatWindowLayoutChoice[] = [{
 	layout: ChatWindowLayout.EditorAboveChat,
 	id: 'sessions.chatWindow.showEditorAboveChat',
-	title: localize2('chatWindowShowEditorAboveChat', "Show Editor Above Chat"),
+	title: localize2('chatWindowShowStacked', "Show Chat and Editor Stacked"),
 	icon: Codicon.splitVertical,
 }, {
 	layout: ChatWindowLayout.SideBySide,
@@ -189,29 +189,36 @@ for (const toggle of chatWindowPaneToggles) {
 }
 
 // How the chat and the editor show together, in a chat window of its own: docked, the editor always shows above the
-// chat. Checked as they last showed together, and disabled while one of them is hidden.
+// chat. One action switches between the two arrangements, named after the one it switches to, and is disabled while
+// one of them is hidden. Its button, which the user can show, swaps its icon likewise.
+const TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID = 'sessions.chatWindow.toggleArrangement';
 const ChatWindowBothShownContext = ContextKeyExpr.or(ChatWindowLayoutContext.isEqualTo(ChatWindowLayout.EditorAboveChat), ChatWindowLayoutContext.isEqualTo(ChatWindowLayout.SideBySide));
-const chatWindowArrangements = [
-	{ layout: ChatWindowLayout.EditorAboveChat, title: localize2('chatWindowEditorAboveChat', "Editor Above Chat") },
-	{ layout: ChatWindowLayout.SideBySide, title: localize2('chatWindowSideBySide', "Chat and Editor Side by Side") },
-] as const;
-const chatWindowArrangementButtonsOrder = chatWindowPaneToggles.length + 1;
-for (const [index, arrangement] of chatWindowArrangements.entries()) {
-	const choice = chatWindowLayoutChoices.find(candidate => candidate.layout === arrangement.layout)!;
-	MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
-		command: { id: choice.id, title: arrangement.title, toggled: ChatWindowSplitLayoutContext.isEqualTo(arrangement.layout), precondition: ChatWindowBothShownContext },
-		group: ChatWindowLayoutMenuGroup.arrangement,
-		order: index,
-		when: ContextKeyExpr.and(ChatWindowHasEditorContext, ChatWindowDockedContext.negate()),
-	});
-	// Its button is disabled while the chat and the editor show as it arranges them.
-	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, {
-		command: { id: choice.id, title: arrangement.title, icon: choice.icon, precondition: ContextKeyExpr.and(ChatWindowBothShownContext, ChatWindowLayoutContext.notEqualsTo(arrangement.layout)) },
-		group: 'navigation',
-		order: chatWindowArrangementButtonsOrder + index,
-		when: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowDockedContext.negate()),
-		isHiddenByDefault: true,
-	});
+const ChatWindowArrangementContext = ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowDockedContext.negate());
+registerAction2(class ToggleChatWindowArrangementAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID,
+			title: localize2('chatWindowToggleArrangement', "Toggle Stacked or Side by Side"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatWindowArrangementContext, ChatWindowBothShownContext),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const window = accessor.get(IChatWindowService).getActiveWindow();
+		window?.setLayout(window.splitLayout.get() === ChatWindowLayout.SideBySide ? ChatWindowLayout.EditorAboveChat : ChatWindowLayout.SideBySide);
+	}
+});
+
+const chatWindowArrangementButtonOrder = chatWindowPaneToggles.length + 1;
+for (const target of [ChatWindowLayout.SideBySide, ChatWindowLayout.EditorAboveChat] as const) {
+	const choice = chatWindowLayoutChoices.find(candidate => candidate.layout === target)!;
+	const title = target === ChatWindowLayout.SideBySide ? localize2('chatWindowShowSideBySideShort', "Show Side by Side") : localize2('chatWindowShowStackedShort', "Show Stacked");
+	const command = { id: TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, title, icon: choice.icon, precondition: ChatWindowBothShownContext };
+	const when = ContextKeyExpr.and(ChatWindowArrangementContext, ChatWindowSplitLayoutContext.notEqualsTo(target));
+	MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, { command, group: ChatWindowLayoutMenuGroup.arrangement, when });
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, { command, group: 'navigation', order: chatWindowArrangementButtonOrder, when, isHiddenByDefault: true });
 }
 
 registerAction2(class ToggleChatWindowDockedAction extends Action2 {
@@ -245,7 +252,7 @@ MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
 	group: ChatWindowLayoutMenuGroup.window,
 	when: ChatWindowDockedContext,
 });
-const chatWindowDockButtonOrder = chatWindowArrangementButtonsOrder + chatWindowArrangements.length;
+const chatWindowDockButtonOrder = chatWindowArrangementButtonOrder + 1;
 MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock in Main Window"), icon: Codicon.layoutSidebarRightDock },
 	group: 'navigation',
