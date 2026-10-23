@@ -1555,10 +1555,12 @@ export class WorkspacePicker extends Disposable {
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		const environment = this._getEnvironment();
+		// Local-capable providers can contribute repository sources that resolve through the selected environment.
 		const providers = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id)
-			&& (!environment || environment.providerIds.includes(provider.id) || environment.kind === 'local' && provider.supportsLocalWorkspaces));
+			&& (!environment || environment.providerIds.includes(provider.id) || provider.supportsLocalWorkspaces));
 		const all = providers.flatMap(p => p.browseActions);
-		const hasLocalSupport = providers.some(p => p.supportsLocalWorkspaces);
+		const hasLocalSupport = providers.some(provider => provider.supportsLocalWorkspaces
+			&& (!environment || environment.providerIds.includes(provider.id)));
 		if (hasLocalSupport) {
 			all.unshift(this._localBrowseAction);
 		}

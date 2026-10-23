@@ -688,11 +688,14 @@ suite('WorkspacePicker - Environment', () => {
 		});
 	});
 
-	test('keeps local-capable repository actions when the environment picker comes first', () => {
-		const environmentFirst = observableValue('environmentFirst', false);
+	test('keeps local-capable repository actions when any environment comes first', () => {
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
+		const remoteEnvironment: ISessionCreationEnvironment = {
+			id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote-1'],
+		};
 		const providers = disposables.add(new MockSessionsProvidersService());
 		providers.setProviders([
-			createMockProvider('local-agent-host'),
+			{ ...createMockProvider('local-agent-host'), supportsLocalWorkspaces: true },
 			{
 				...createMockProvider('default-copilot', {
 					browseActions: [makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Work in Repository...')],
@@ -700,23 +703,32 @@ suite('WorkspacePicker - Environment', () => {
 				supportsLocalWorkspaces: true,
 			},
 			createMockProvider('agenthost-remote-1', {
-				browseActions: [makeBrowseAction('agenthost-remote-1', SESSION_WORKSPACE_GROUP_REMOTE, 'Remote Folder...')],
+				browseActions: [makeBrowseAction('agenthost-remote-1', SESSION_WORKSPACE_GROUP_REMOTE, 'Selected Remote Folder...')],
+			}),
+			createMockProvider('agenthost-remote-2', {
+				browseActions: [makeBrowseAction('agenthost-remote-2', SESSION_WORKSPACE_GROUP_REMOTE, 'Other Remote Folder...')],
 			}),
 		]);
 		const picker = createTestPicker(disposables, providers, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
-			environment: derived(reader => environmentFirst.read(reader) ? localEnvironment : undefined),
+			environment,
 			restoreFromSessions: false,
 			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
 		});
 		assert.ok(picker instanceof DispatchingWorkspacePicker);
 		const actions = () => picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label);
 		const workspaceFirst = actions();
-		environmentFirst.set(true, undefined);
-		const environmentFirstActions = actions();
+		environment.set(localEnvironment, undefined);
+		const local = actions();
+		environment.set(remoteEnvironment, undefined);
+		const remote = actions();
+		environment.set(containerEnvironment, undefined);
+		const container = actions();
 
-		assert.deepStrictEqual({ workspaceFirst, environmentFirstActions }, {
-			workspaceFirst: ['Open Folder...', 'Work in Repository', 'Remote Folder'],
-			environmentFirstActions: ['Open Folder...', 'Work in Repository'],
+		assert.deepStrictEqual({ workspaceFirst, local, remote, container }, {
+			workspaceFirst: ['Open Folder...', 'Work in Repository', 'Selected Remote Folder', 'Other Remote Folder'],
+			local: ['Open Folder...', 'Work in Repository'],
+			remote: ['Work in Repository', 'Selected Remote Folder'],
+			container: ['Open Folder...', 'Work in Repository'],
 		});
 	});
 
