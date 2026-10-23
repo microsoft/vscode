@@ -2485,7 +2485,8 @@ export interface IChatAgentPinOverrides {
 	readonly configKeys?: readonly string[];
 }
 
-function reviveAgentPinOverrides(value: unknown): IChatAgentPinOverrides | undefined {
+/** Validates override intent from persisted or transferred state, dropping it when malformed. */
+export function reviveAgentPinOverrides(value: unknown): IChatAgentPinOverrides | undefined {
 	if (!value || typeof value !== 'object') {
 		return undefined;
 	}

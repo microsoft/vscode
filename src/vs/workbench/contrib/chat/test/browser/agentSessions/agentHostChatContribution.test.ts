@@ -59,6 +59,7 @@ import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../.
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { agentModelConfigurationReportKey, modelConfigurationSourceKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { PresentedConfigurationSource } from '../../../browser/widget/input/chatModelConfigurationStore.js';
+import { AgentPinOverridesDraftMetaKey } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
@@ -3933,6 +3934,7 @@ suite('AgentHostChatContribution', () => {
 					draft: {
 						text: 'draft body',
 						origin: { kind: MessageKind.User },
+						_meta: { [AgentPinOverridesDraftMetaKey]: null },
 						model: { id: 'opus-4.7' },
 						agent: { uri: 'agent://reviewer' },
 					},
@@ -4171,7 +4173,7 @@ suite('AgentHostChatContribution', () => {
 		suite('custom agent pin overrides from peer drafts', () => {
 			const source = modelConfigurationSourceKey('reasoningEffort');
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
-			const draftFor = (text: string, config: Record<string, string>): ChatState['draft'] => ({
+			const draftFor = (text: string, config: Record<string, string>): NonNullable<ChatState['draft']> => ({
 				text, origin: { kind: MessageKind.User }, model: { id: 'opus-4.7', config }, agent: { uri: 'agent://reviewer' },
 			});
 
@@ -4200,8 +4202,63 @@ suite('AgentHostChatContribution', () => {
 				}));
 				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 				disposables.add(toDisposable(() => chatSession.dispose()));
-				return { fire: (draft: ChatState['draft']) => fireRemoteDraft(agentHostService, backendSession, draft), inputState };
+				return { fire: (draft: ChatState['draft']) => fireRemoteDraft(agentHostService, backendSession, draft), inputState, sessionHandler, sessionResource };
 			}
+
+			test('a peer re-arming its pin removes the override its earlier explicit effort created', async () => {
+				const { fire, inputState } = await setup('peer-rearm', { reasoningEffort: 'high', [source]: PresentedConfigurationSource });
+
+				fire(draftFor('chosen', { reasoningEffort: 'low', [source]: 'explicit' }));
+				const afterChoice = inputState.get()?.agentPinOverrides;
+				fire(draftFor('re-armed', { reasoningEffort: 'high', [source]: PresentedConfigurationSource }));
+
+				assert.deepStrictEqual({ afterChoice, afterRearm: inputState.get()?.agentPinOverrides }, {
+					afterChoice: { modeId: 'agent://reviewer', configKeys: ['reasoningEffort'] },
+					afterRearm: undefined,
+				});
+			});
+
+			test('synced override intent, including a model override, is adopted from and published in drafts', async () => {
+				const { fire, inputState, sessionHandler, sessionResource } = await setup('peer-synced', { reasoningEffort: 'high', [source]: PresentedConfigurationSource });
+				const overrides = { modeId: 'agent://reviewer', model: true };
+
+				fire({ ...draftFor('peer picked a model', { reasoningEffort: 'high', [source]: PresentedConfigurationSource }), _meta: { [AgentPinOverridesDraftMetaKey]: overrides } });
+				const adopted = inputState.get()?.agentPinOverrides;
+				const published = (sessionHandler as unknown as { _inputStateToDraft(resource: URI, state: IChatModelInputState): ChatState['draft'] })._inputStateToDraft(sessionResource, inputState.get()!)?._meta;
+				// The peer re-arms the pin for the same agent: its synced `null` clears the stale model override.
+				fire({ ...draftFor('peer re-armed', { reasoningEffort: 'high', [source]: PresentedConfigurationSource }), _meta: { [AgentPinOverridesDraftMetaKey]: null } });
+				const rearmed = inputState.get()?.agentPinOverrides;
+				fire({ ...draftFor('other agent', {}), agent: { uri: 'agent://other' }, _meta: { [AgentPinOverridesDraftMetaKey]: overrides } });
+
+				assert.deepStrictEqual({ adopted, published, rearmed, otherAgent: inputState.get()?.agentPinOverrides }, {
+					adopted: overrides,
+					published: { [AgentPinOverridesDraftMetaKey]: overrides },
+					rearmed: undefined,
+					otherAgent: undefined,
+				});
+			});
+
+			test('the first transferred draft carries a peer\'s synced overrides, but never guesses them over saved ones', async () => {
+				const transferred = async (name: string, draft: ChatState['draft']) => {
+					const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels: new Map([['agent-host-copilot:opus-4.7', modelMetadata]]) });
+					const backendSession = AgentSession.uri('copilot', name);
+					seedDraftSession(agentHostService, backendSession, name, draft);
+					const chatSession = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: `/${name}` }), CancellationToken.None);
+					disposables.add(toDisposable(() => chatSession.dispose()));
+					return chatSession.transferredState?.inputState?.agentPinOverrides;
+				};
+
+				assert.deepStrictEqual({
+					synced: await transferred('first-synced', { ...draftFor('peer picked a model', {}), _meta: { [AgentPinOverridesDraftMetaKey]: { modeId: 'agent://reviewer', model: true } } }),
+					// Left to the locally saved overrides (recovered by the chat service) and live-draft derivation layered on them.
+					unsynced: await transferred('first-unsynced', draftFor('older peer chose Low', { reasoningEffort: 'low', [source]: 'explicit' })),
+					none: await transferred('first-none', { ...draftFor('pin applies', {}), _meta: { [AgentPinOverridesDraftMetaKey]: null } }),
+				}, {
+					synced: { modeId: 'agent://reviewer', model: true },
+					unsynced: undefined,
+					none: undefined,
+				});
+			});
 
 			test('a peer\'s explicit effort becomes an override; its overlaid effort does not', async () => {
 				const { fire, inputState } = await setup('peer-overrides', { reasoningEffort: 'high', [source]: PresentedConfigurationSource });
@@ -4226,6 +4283,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({ text: inputState.get()?.inputText, agentPinOverrides: inputState.get()?.agentPinOverrides }, { text: '', agentPinOverrides: undefined });
 			});
 		});
+
 		test('remote clear wipes text and attachments but keeps the model', async () => {
 			const modelMetadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'opus-4.7', name: 'Opus 4.7' });
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
