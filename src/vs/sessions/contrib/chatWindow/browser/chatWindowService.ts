@@ -24,6 +24,8 @@ import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { InFlightOperations, IChatWindowOpening, openCleaningUpOnFailure } from './chatWindowOpening.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatWindowCustomEditorInput } from './chatWindowCustomEditorInput.js';
@@ -210,7 +212,14 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		this._register(autorun(reader => this._dockedOpen.set(this._windows.read(reader).some(window => window.docked))));
 	}
 
-	async open(kind: IChatWindowKind, content: IChatWindowContent, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
+	/** The chat windows being opened, by session: opening a session again meanwhile gives the same chat window. */
+	private readonly _opening = new InFlightOperations<IChatWindow | undefined>();
+
+	open(kind: IChatWindowKind, content: IChatWindowContent, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
+		return this._opening.run(content.session.toString(), () => this._openOrReveal(kind, content, options));
+	}
+
+	private async _openOrReveal(kind: IChatWindowKind, content: IChatWindowContent, options?: IChatWindowOpenOptions): Promise<IChatWindow | undefined> {
 		const opened = this._windows.get().find(window => isEqual(window.content.get().session, content.session));
 		if (opened) {
 			await this._reveal(opened);
@@ -225,6 +234,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (!session) {
 			return undefined;
 		}
+		return openCleaningUpOnFailure(opening => this._openWindow(kind, content, options, replacing, session, opening));
+	}
+
+	private async _openWindow(kind: IChatWindowKind, content: IChatWindowContent, options: IChatWindowOpenOptions | undefined, replacing: ChatWindow | undefined, session: ISession, created: IChatWindowOpening): Promise<ChatWindow> {
 
 		const defaults = new ChatWindowDefaults(kind, this._storageService);
 		let docked = !!kind.dockable && (options?.docked ?? defaults.getDocked(kind.dockedByDefault ?? false));
@@ -235,7 +248,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const state = new ChatWindowState(kind, docked, !!content.editor || !!content.editorArea, defaults);
 		const sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 		const input = new ChatWindowChatInput(sessionObs, state);
-		const windowDisposables = new DisposableStore();
+		const windowDisposables = created.disposables;
 		let part: IEditorPart;
 		let floatingPart: IFloatingEditorPart | undefined;
 		let chatGroup: IEditorGroup | undefined;
@@ -251,7 +264,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			});
 			part = floatingPart;
 			const dockedPart = floatingPart;
-			close = () => dockedPart.close();
+			close = created.close = () => dockedPart.close();
 			const resizedContext = ChatWindowDockedResizedContext.bindTo(this._editorGroupsService.getScopedInstantiationService(floatingPart).invokeFunction(accessor => accessor.get(IContextKeyService)));
 			resizedContext.set(!!defaults.getDockedSize());
 			windowDisposables.add(floatingPart.onDidChangeSize(size => {
@@ -269,7 +282,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			// which the Agents window applies as it switches sessions, and which would close it.
 			const auxiliaryPart = await this._editorGroupsService.createAuxiliaryEditorPart({ bounds: kind.windowSize ?? CHAT_WINDOW_DEFAULT_SIZE, excludeFromWorkingSets: true });
 			part = auxiliaryPart;
-			close = () => auxiliaryPart.close();
+			close = created.close = () => auxiliaryPart.close();
 			chatGroup = (await this._editorService.openEditor(input, { pinned: true }, auxiliaryPart.activeGroup))?.group ?? auxiliaryPart.activeGroup;
 		}
 
@@ -648,6 +661,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (windows.includes(window)) {
 			this._windows.set(windows.filter(candidate => candidate !== window), undefined);
 		}
+		// Also when its part is disposed without the window having been closed.
+		this.releaseTerminal(window);
 		window.didClose();
 		this._releaseSession(window.session.get());
 	}
