@@ -74,7 +74,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('sessions.sessionActivityBar.showGitHubActions', "Controls whether the Session Activity Bar shows pull request and issue actions for the active chat when a contributed opener is available for their links. Does not affect pills above the chat input. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
+			markdownDescription: localize('sessions.sessionActivityBar.showGitHubActions', "Controls whether the Session Activity Bar shows a pull request action for the active chat when a contributed opener is available for its links. Does not affect pills above the chat input. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
 		},
 	},
 });

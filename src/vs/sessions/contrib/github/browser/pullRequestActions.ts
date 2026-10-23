@@ -31,7 +31,7 @@ registerAction2(class ToggleSessionActivityBarGitHubActionsAction extends Action
 	constructor() {
 		super({
 			id: TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID,
-			title: localize2('toggleSessionActivityBarGitHubActions', "Toggle Pull Request and Issue Actions in Session Activity Bar"),
+			title: localize2('toggleSessionActivityBarGitHubActions', "Toggle Pull Request Action in Session Activity Bar"),
 			category: Categories.View,
 			f1: true,
 			precondition: ContextKeyExpr.and(DesktopLayoutContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true)),
@@ -48,7 +48,7 @@ registerAction2(class ToggleSessionActivityBarGitHubActionsAction extends Action
 MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
 	command: {
 		id: TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID,
-		title: localize('showSessionActivityBarGitHubActions', "Show Pull Request and Issue Actions"),
+		title: localize('showSessionActivityBarGitHubActions', "Show Pull Request Action"),
 		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING}`, true),
 	},
 	group: '1_configuration',

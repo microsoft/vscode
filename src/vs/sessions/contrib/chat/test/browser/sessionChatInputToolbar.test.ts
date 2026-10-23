@@ -194,24 +194,57 @@ suite('SessionChatInputToolbar', () => {
 		};
 	}
 
-	for (const suffix of ['#issuecomment-1', '?notification_referrer_id=1', '?notification_referrer_id=1#issuecomment-1']) {
-		test(`activity bar checks and reuses the canonical issue editor for ${suffix}`, async () => {
-			const { toolbar, artifacts, artifact, main, setEditor, setPaneVisible, opened, revealed } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
-			const issue = artifact(1, main);
-			artifacts.set([{ ...issue, link: URI.parse(`${issue.link}${suffix}`) }], undefined);
-			await timeout(0);
-			const editor = store.add(new TestEditorInput(issue.link!, 'test.githubEditor'));
-			setEditor(editor);
-			setPaneVisible(true);
-			const checked = toolbar.activityBarActions.get()[0].checked;
-			await toolbar.activityBarActions.get()[0].run();
-			assert.deepStrictEqual({ checked, opened, revealed }, {
-				checked: true, opened: [], revealed: [{ editor, groupId: 1 }],
-			});
+	test('activity bar retains PR availability without repeating opener checks on metadata refresh', async () => {
+		let lookups = 0;
+		const { toolbar, artifacts } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID, async () => {
+			lookups++;
+			return upcastPartial<IExternalUriOpener>({ id: 'supported' });
 		});
-	}
+		const before = lookups;
+		const counts: number[] = [];
+		for (let i = 0; i < 10; i++) {
+			artifacts.set(artifacts.get().map(entry => ({ ...entry, label: `Updated title ${i}` })), undefined);
+			counts.push(toolbar.activityBarActions.get().length);
+			await timeout(0);
+		}
+		assert.deepStrictEqual({ counts, lookups: lookups - before }, { counts: Array(10).fill(1), lookups: 0 });
+	});
 
-	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+	test('activity bar retains supported PRs while opener revalidation is pending', async () => {
+		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
+		let complete!: (value: IExternalUriOpener | undefined) => void;
+		instantiationService.stub(IExternalUriOpenerService, 'getOpener', () => new Promise<IExternalUriOpener | undefined>(resolve => { complete = resolve; }));
+		extensionsChanged.fire({ added: [], removed: [] });
+		const pending = toolbar.activityBarActions.get().length;
+		complete(undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ pending, unsupported: toolbar.activityBarActions.get().length }, { pending: 1, unsupported: 0 });
+	});
+
+	test('activity bar does not reuse opener support for a changed URL with the same artifact id', async () => {
+		let complete!: (value: IExternalUriOpener | undefined) => void;
+		const { toolbar, artifacts, instantiationService } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
+		instantiationService.stub(IExternalUriOpenerService, 'getOpener', () => new Promise<IExternalUriOpener | undefined>(resolve => { complete = resolve; }));
+		artifacts.set(artifacts.get().map(entry => ({ ...entry, link: URI.parse('https://github.com/owner/repo/pull/99') })), undefined);
+		const pending = toolbar.activityBarActions.get().length;
+		complete(undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ pending, unsupported: toolbar.activityBarActions.get().length }, { pending: 0, unsupported: 0 });
+	});
+
+	test('activity bar omits Issue actions and opener checks without removing composer pills', async () => {
+		let lookups = 0;
+		const { toolbar } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID, async () => {
+			lookups++;
+			return upcastPartial<IExternalUriOpener>({ id: 'supported' });
+		});
+		assert.deepStrictEqual({
+			actions: toolbar.activityBarActions.get().length, lookups,
+			pill: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
+		}, { actions: 0, lookups: 0, pill: 'Open Issue #1: Item 1' });
+	});
+
+	for (const kind of [SessionArtifactKind.PullRequest] as const) {
 		test(`activity bar reveals a hidden ${kind} editor instead of toggling the Detail-only pane`, async () => {
 			const { toolbar, setEditor, setDetailVisible, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
 			setEditor(store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor')));
@@ -221,7 +254,7 @@ suite('SessionChatInputToolbar', () => {
 			assert.deepStrictEqual({ before, after: toolbar.activityBarActions.get()[0].checked, opened }, { before: false, after: true, opened: [] });
 		});
 
-		test(`activity bar keeps ${kind} editors visible on repeated activation`, async () => {
+		test(`activity bar toggles ${kind} editors on repeated activation`, async () => {
 			const { toolbar, setEditor, setPaneVisible, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
 			const editor = store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor'));
 			const states = [toolbar.activityBarActions.get()[0].checked];
@@ -234,7 +267,7 @@ suite('SessionChatInputToolbar', () => {
 			states.push(toolbar.activityBarActions.get()[0].checked);
 			setEditor(undefined);
 			states.push(toolbar.activityBarActions.get()[0].checked);
-			assert.deepStrictEqual({ states, opened }, { states: [false, true, true, true, false], opened: [] });
+			assert.deepStrictEqual({ states, opened }, { states: [false, true, false, true, false], opened: [] });
 		});
 
 		test(`activity bar reveals restored inactive ${kind} overview webviews instead of opening a reference`, async () => {
@@ -273,7 +306,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 	}
 
-	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+	for (const kind of [SessionArtifactKind.PullRequest] as const) {
 		test(`activity bar opts ${kind} actions in without changing composer pills`, async () => {
 			let lookups = 0;
 			const { toolbar, configuration, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
@@ -305,7 +338,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 	}
 
-	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+	for (const kind of [SessionArtifactKind.PullRequest] as const) {
 		test(`activity bar hides ${kind} without a contributed opener and preserves its composer pill`, async () => {
 			const { toolbar } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID, async () => undefined);
 			assert.deepStrictEqual({
@@ -332,7 +365,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('activity bar refreshes opener support after extension and opener-configuration changes', async () => {
 		let available = false;
-		const { toolbar, extensionsChanged, configuration, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+		const { toolbar, extensionsChanged, configuration, opened } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 			async () => available ? upcastPartial<IExternalUriOpener>({ id: 'supported' }) : undefined);
 		const absent = toolbar.activityBarActions.get().length;
 		available = true;
@@ -344,13 +377,13 @@ suite('SessionChatInputToolbar', () => {
 		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 			affectsConfiguration: key => key === externalUriOpenersSettingId,
 		}));
-		await stale.run();
 		await timeout(0);
+		await stale.run();
 		assert.deepStrictEqual({ absent, added, removed: toolbar.activityBarActions.get().length, opened }, { absent: 0, added: 1, removed: 0, opened: [] });
 	});
 
 	test('activity bar logs opener lookup failures and hides unsupported actions', async () => {
-		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
 		const error = new Error('Opener lookup failed');
 		const errors: Error[] = [];
 		instantiationService.stub(ILogService, 'error', (_message: string, reported: Error) => errors.push(reported));
@@ -362,7 +395,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('activity bar cancels pending opener checks on chat switches and disposal', async () => {
 		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
-		const { toolbar, session, peer } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+		const { toolbar, session, peer } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
 		const before = toolbar.activityBarActions.get().length;
 		toolbar.setSession(session, peer);
@@ -380,7 +413,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('disabling GitHub activity actions cancels pending checks and ignores late results', async () => {
 		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
-		const { toolbar, configuration } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+		const { toolbar, configuration } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
 		await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
 		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
@@ -407,7 +440,7 @@ suite('SessionChatInputToolbar', () => {
 	});
 
 	test('activity bar removes AI-hidden actions and rejects stale invocations after hiding or disposal', async () => {
-		const { toolbar, sentiment, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+		const { toolbar, sentiment, opened } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
 		const action = toolbar.activityBarActions.get()[0];
 		sentiment.set({ hidden: true }, undefined);
 		const hidden = toolbar.activityBarActions.get().length;
@@ -421,7 +454,7 @@ suite('SessionChatInputToolbar', () => {
 	});
 
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}test-host`]) {
-		for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+		for (const kind of [SessionArtifactKind.PullRequest] as const) {
 			test(`activity bar opens the single ${kind} of its own chat on ${providerId}`, async () => {
 				const { toolbar, session, main, peer, artifacts, opened } = await createGitHubActivityBar(kind, providerId);
 				const first = toolbar.activityBarActions.get()[0];
@@ -466,7 +499,7 @@ suite('SessionChatInputToolbar', () => {
 		test(`activity bar resolves current references after ${transition}`, async () => {
 			let openerAvailable = true;
 			const { toolbar, session, peer, artifacts, artifact, main, opened, configuration, sentiment, extensionsChanged } = await createGitHubActivityBar(
-				SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+				SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
 				async () => openerAvailable ? upcastPartial<IExternalUriOpener>({ id: 'test-opener' }) : undefined,
 			);
 			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);

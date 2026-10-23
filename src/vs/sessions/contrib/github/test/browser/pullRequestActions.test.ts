@@ -106,7 +106,7 @@ suite('Pull Request Actions', () => {
 			afterFirstRun: await run(),
 			afterSecondRun: await run(),
 		}, {
-			title: 'Show Pull Request and Issue Actions',
+			title: 'Show Pull Request Action',
 			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING}`, true),
 			when: 'chatIsEnabled',
 			afterFirstRun: true, afterSecondRun: false,
