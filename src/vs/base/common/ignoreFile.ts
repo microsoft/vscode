@@ -12,10 +12,16 @@ import { startsWithIgnoreCase, stripUTF8BOM } from './strings.js';
  */
 type IgnoreMatcher = (relativePath: string, isDir: boolean) => boolean | undefined;
 
+/**
+ * Globs that match every entry of the folder that contains an ignore file:
+ * `*` or `**`, optionally preceded by `**` segments.
+ */
+const MATCH_ALL_ENTRIES_GLOB = /^(\*\*\/)*\*\*?$/;
+
 export class IgnoreFile {
 
 	private readonly location: string;
-	private matcher: IgnoreMatcher;
+	private parsed: { readonly matcher: IgnoreMatcher; readonly ignoresAllEntries: boolean };
 
 	constructor(
 		contents: string,
@@ -26,7 +32,7 @@ export class IgnoreFile {
 			throw Error('Unexpected path format, do not use trailing backslashes');
 		}
 		this.location = location[location.length - 1] === '/' ? location : `${location}/`;
-		this.matcher = this.parseIgnoreFile(contents);
+		this.parsed = this.parseIgnoreFile(contents);
 	}
 
 	/**
@@ -34,7 +40,16 @@ export class IgnoreFile {
 	 * @param contents The new contents of the gitignore file
 	 */
 	updateContents(contents: string) {
-		this.matcher = this.parseIgnoreFile(contents);
+		this.parsed = this.parseIgnoreFile(contents);
+	}
+
+	/**
+	 * Whether the patterns ignore every entry of the folder that contains the
+	 * ignore file, as `*` does. `git status` then reports the folder itself as
+	 * ignored, although no pattern matches it.
+	 */
+	get ignoresAllEntries(): boolean {
+		return this.parsed.ignoresAllEntries;
 	}
 
 	/**
@@ -87,7 +102,7 @@ export class IgnoreFile {
 	private isPathIgnored(path: string, isDir: boolean): boolean {
 		const isInLocation = this.ignoreCase ? startsWithIgnoreCase(path, this.location) : path.startsWith(this.location);
 		if (isInLocation) {
-			const ignored = this.matcher(path.substring(this.location.length), isDir);
+			const ignored = this.parsed.matcher(path.substring(this.location.length), isDir);
 			if (ignored !== undefined) {
 				return ignored; // patterns in this file take precedence over patterns in parent files
 			}
@@ -96,7 +111,7 @@ export class IgnoreFile {
 		return this.parent?.isPathIgnored(path, isDir) ?? false;
 	}
 
-	private parseIgnoreFile(contents: string): IgnoreMatcher {
+	private parseIgnoreFile(contents: string): { matcher: IgnoreMatcher; ignoresAllEntries: boolean } {
 		const patterns = parseGitIgnore(contents);
 		const lastNegation = patterns.findLastIndex(pattern => pattern.negated);
 
@@ -135,17 +150,22 @@ export class IgnoreFile {
 			directories: glob.parse(group.directories, options)
 		}));
 
-		return (relativePath, isDir) => {
+		const matcher: IgnoreMatcher = (relativePath, isDir) => {
 			const basename = relativePath.substring(relativePath.lastIndexOf('/') + 1);
 			for (let i = matchers.length - 1; i >= 0; i--) {
-				const matcher = matchers[i];
-				if (matcher.any(relativePath, basename) || (isDir && matcher.directories(relativePath, basename))) {
-					return !matcher.negated;
+				const { negated, any, directories } = matchers[i];
+				if (any(relativePath, basename) || (isDir && directories(relativePath, basename))) {
+					return !negated;
 				}
 			}
 
 			return undefined;
 		};
+
+		// No later negation may re-include an entry that such a pattern ignores
+		const ignoresAllEntries = patterns.slice(lastNegation + 1).some(pattern => !pattern.directoryOnly && MATCH_ALL_ENTRIES_GLOB.test(pattern.glob));
+
+		return { matcher, ignoresAllEntries };
 	}
 }
 

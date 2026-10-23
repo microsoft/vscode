@@ -731,4 +731,26 @@ suite('Parsing .gitignore files', () => {
 			globCharacters: ['/[repo] {1}/build', '/[repo] {1}/a/node_modules'],
 		});
 	});
+
+	test('detects ignore files that ignore every entry of their folder', () => {
+		const contents = [
+			'# Created by pytest automatically.\n*\n',
+			'/*\n',
+			'**\n',
+			'/**/*\n',
+			'!keep.txt\n*\n',
+			'*\n!keep.txt\n',
+			'*/\n',
+			'*.log\n',
+			'',
+		];
+
+		assert.deepStrictEqual(contents.filter(content => new IgnoreFile(content, '/').ignoresAllEntries), [
+			'# Created by pytest automatically.\n*\n',
+			'/*\n',
+			'**\n',
+			'/**/*\n',
+			'!keep.txt\n*\n',
+		]);
+	});
 });
