@@ -318,11 +318,31 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		};
 		try {
 			const { metadata } = await fetchResourceMetadata(serviceIndexUrl, undefined, { fetch: fetcher });
-			const authorizationServer = metadata.authorization_servers?.[0];
+			const authorizationServers = metadata.authorization_servers;
+			if (authorizationServers === undefined) {
+				return undefined;
+			}
+			if (!Array.isArray(authorizationServers) || !authorizationServers.every(server => {
+				if (typeof server !== 'string' || !/^https:\/\/[^/]/i.test(server) || /[\s\\]/.test(server) || !URL.canParse(server)) {
+					return false;
+				}
+				const url = new URL(server);
+				return !!url.hostname && !url.username && !url.password && !url.search && !url.hash;
+			})) {
+				this.logService.warn('[Marketplace] Ignoring invalid protected resource authorization servers');
+				return undefined;
+			}
+			const authorizationServer = authorizationServers[0];
 			if (!authorizationServer) {
 				return undefined;
 			}
-			return { authorizationServer, scopes: metadata.scopes_supported ?? [] };
+			const scopes = metadata.scopes_supported ?? [];
+			// RFC 6749 section 3.3 defines the allowed characters of a scope token.
+			if (!Array.isArray(scopes) || !scopes.every(scope => typeof scope === 'string' && scope.length > 0 && !/[^\x21\x23-\x5B\x5D-\x7E]/.test(scope))) {
+				this.logService.warn('[Marketplace] Ignoring invalid protected resource scopes');
+				return undefined;
+			}
+			return { authorizationServer, scopes };
 		} catch {
 			return undefined;
 		}
