@@ -374,7 +374,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				this._registerAgent(address, connection, agent, connState.name);
 			} else {
 				const modelProvider = connState.modelProviders.get(agent.provider);
-				modelProvider?.updateModels(agent.models);
+				modelProvider?.updateModels(agent.models, agent);
 			}
 		}
 	}
@@ -529,7 +529,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		connState.modelProviders.set(agent.provider, modelProvider);
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
-		modelProvider.updateModels(agent.models);
+		modelProvider.updateModels(agent.models, agent);
 		if (isCloudSandboxConnectionAddress(address) && agent.provider === CLOUD_SANDBOX_AGENT_PROVIDER) {
 			// Sandbox runtimes can accept cloud-service models omitted from their AHP catalog.
 			const cloudModels = agentStore.add(this._instantiationService.createInstance(CloudSandboxModels, sessionType, vendor, modelProvider));

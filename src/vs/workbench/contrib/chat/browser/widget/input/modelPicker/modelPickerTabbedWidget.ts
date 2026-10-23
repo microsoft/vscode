@@ -596,15 +596,16 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
-		const autoModel = this._autoModel(context);
-		const hydraFusionModels = this._hydraFusionModels(context);
+		const builtInContext = { ...context, models: context.models.filter(model => model.metadata.modelSourceId === undefined) };
+		const autoModel = this._autoModel(builtInContext);
+		const hydraFusionModels = this._hydraFusionModels(builtInContext);
 		// Fusion's HydraFusion is never a row of its own, even when Fusion does not offer it.
 		const fusionHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelFusion && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
 		// On-device direct models are listed only in the "On This Device" tab, never under a provider of their own or among
 		// the cloud models (even while status is unavailable), and comparisons don't offer them.
 		const localModels = context.localModels;
 		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model));
-		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || fusionHydraFusion(model), this._hasBuiltInUpsells(context));
+		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || fusionHydraFusion(model), this._hasBuiltInUpsells(builtInContext));
 		if (this._showsOnDeviceTab(context)) {
 			destinations.splice(destinations[0]?.id === MODEL_PICKER_BUILT_IN_DESTINATION ? 1 : 0, 0, {
 				id: MODEL_PICKER_ON_DEVICE_DESTINATION,
@@ -635,6 +636,7 @@ export class TabbedModelPicker extends Disposable {
 
 	/** Whether Copilot offers anything selectable, as opposed to only models to unlock. */
 	private _hasBuiltInChoices(context: ITabbedModelPickerContext): boolean {
+		context = { ...context, models: context.models.filter(model => model.metadata.modelSourceId === undefined) };
 		return !!(this._autoModel(context) || this._hydraFusionModels(context).length || this._fallbackModel(context));
 	}
 
@@ -739,28 +741,37 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _destinationForSelectedModel(destinations: readonly IModelPickerDestination[], context: ITabbedModelPickerContext): string | undefined {
+		const source = destinations.find(destination => destination.source && destination.models.some(model => model.identifier === context.selectedModelId));
+		if (source) {
+			return source.id;
+		}
 		if (context.selectedModelId === this._autoModel(context)?.identifier || this._hydraFusionModels(context).some(model => model.identifier === context.selectedModelId)) {
 			return MODEL_PICKER_BUILT_IN_DESTINATION;
 		}
 		return destinations.find(destination => destination.models.some(model => model.identifier === context.selectedModelId))?.id;
 	}
 
-	private _buildSections(destination: Pick<IModelPickerDestination, 'id' | 'models'>, context: ITabbedModelPickerContext): IModelPickerSections {
-		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
+	private _buildSections(destination: Pick<IModelPickerDestination, 'id' | 'models' | 'source' | 'supportsCopilotCuration'>, context: ITabbedModelPickerContext): IModelPickerSections {
+		if (destination.source) {
+			context = { ...context, models: destination.models };
+		}
+		const isBuiltIn = destination.supportsCopilotCuration ?? destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
+		const auto = isBuiltIn ? this._autoModel(context) : undefined;
+		const routing = isBuiltIn ? this._hydraFusionModels(context) : [];
 		const sections = buildModelPickerSections({
-			models: destination.models,
+			models: isBuiltIn ? destination.models.filter(model => model !== auto && !routing.includes(model)) : destination.models,
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
 			recentModelIds: context.recentModelIds,
 			pinnedModelIds: context.pinnedModelIds,
-			controlModels: context.controlModels,
+			controlModels: destination.source ? {} : context.controlModels,
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
 			// gets a tab of its own, which is already the whole of what it offers.
 			showSuggested: isBuiltIn,
 			// Only the built-in provider has a curated catalogue to compare against.
-			showUnavailable: isBuiltIn && context.unavailableContext.show,
-			alwaysShowUnavailableModelIds: isBuiltIn && isHydraFusionUpgradeOnly(this._entitlementService.entitlement)
+			showUnavailable: isBuiltIn && !destination.source && context.unavailableContext.show,
+			alwaysShowUnavailableModelIds: isBuiltIn && !destination.source && isHydraFusionUpgradeOnly(this._entitlementService.entitlement)
 				? new Set([COPILOT_HYDRA_FUSION_MODEL_ID])
 				: undefined,
 			currentVSCodeVersion: context.unavailableContext.currentVSCodeVersion,
@@ -955,7 +966,10 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
-		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
+		if (destination.source) {
+			context = { ...context, models: destination.models };
+		}
+		const isBuiltIn = destination.supportsCopilotCuration ?? destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
 		// Auto leads the built-in provider's list, ahead of any section. Guided selection
 		// compares individual models, so it leaves routing out.
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = isBuiltIn && !context.comparison?.state.get() ? this._buildRoutingItems(context) : [];
@@ -1037,13 +1051,16 @@ export class TabbedModelPicker extends Disposable {
 	 * get in the way of a result list, but each row still names its provider.
 	 */
 	private _buildSearchItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		if (destination.source) {
+			context = { ...context, models: destination.models };
+		}
 		// On-device models are found under the name of their tab, which no provider shares.
 		if (destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION) {
 			return [...destination.models]
 				.sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
 				.map(model => this._createModelItem(model, context, undefined, destination.label));
 		}
-		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION
+		const routingModels = (destination.supportsCopilotCuration ?? destination.id === MODEL_PICKER_BUILT_IN_DESTINATION)
 			? [this._autoModel(context), ...this._hydraFusionRowModels(context)].filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model)
 			: [];
 		const modelToProviderGroup = this._modelToProviderGroup(context);

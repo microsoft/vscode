@@ -375,11 +375,10 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 					},
 					then: {
 						properties: {
-							settings: {
+							[metadata.modelSourceId === undefined ? 'settings' : 'sourceSettings']: {
 								type: 'object',
-								properties: {
-									[metadata.id]: metadata.configurationSchema
-								}
+								properties: metadata.modelSourceId === undefined ? { [metadata.id]: metadata.configurationSchema }
+									: { [metadata.modelSourceId]: { type: 'object', properties: { [metadata.id]: metadata.configurationSchema } } },
 							}
 						}
 					}
@@ -399,7 +398,11 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 					settings: {
 						type: 'object',
 						description: localize('settings.perModelConfig', "Per-model settings"),
-					}
+					},
+					sourceSettings: {
+						type: 'object',
+						description: localize('settings.perModelSourceConfig', "Per-model settings, scoped by the model source identifier."),
+					},
 				},
 				allOf: [
 					...vendors.map(vendor => ({

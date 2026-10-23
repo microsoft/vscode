@@ -26,6 +26,8 @@ import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../co
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
+import { createAgentModelCatalog } from '../common/agentModelSource.js';
+import { getModelSourceCatalogError } from '../common/agentModelSelection.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
@@ -569,19 +571,14 @@ export class AgentSideEffects extends Disposable {
 			const protectedResources = a.getProtectedResources();
 			const models = reader ? a.models.read(reader) : a.models.get();
 			const customizations = a.getCustomizations?.();
+			const catalog = createAgentModelCatalog(models, d.modelSources);
+			const catalogError = getModelSourceCatalogError({ ...catalog, provider: d.provider });
+			if (catalogError) {
+				this._logService.error(`[AgentSideEffects] Invalid model catalog for ${d.provider}: ${catalogError}`);
+			}
 			return {
-				provider: d.provider, displayName: d.displayName, description: d.description, models: models.map(m => ({
-					id: m.id,
-					provider: m.provider,
-					name: m.name,
-					maxContextWindow: m.maxContextWindow,
-					maxOutputTokens: m.maxOutputTokens,
-					maxPromptTokens: m.maxPromptTokens,
-					supportsVision: m.supportsVision,
-					policyState: m.policyState,
-					configSchema: m.configSchema,
-					_meta: m._meta,
-				})),
+				provider: d.provider, displayName: d.displayName, description: d.description,
+				...(catalogError ? { models: [], modelSources: [] } : catalog),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
 				capabilities: d.capabilities ? { ...d.capabilities } : undefined,

@@ -44,4 +44,5 @@ export interface ILanguageModelsProviderGroup extends IStringDictionary<unknown>
 	readonly range?: IRange;
 	readonly modelsRange?: IRange;
 	readonly settings?: IStringDictionary<IStringDictionary<unknown>>;
+	readonly sourceSettings?: IStringDictionary<IStringDictionary<IStringDictionary<unknown>>>;
 }

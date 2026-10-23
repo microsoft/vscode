@@ -42,7 +42,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -3720,6 +3720,33 @@ suite('AgentHostChatContributions', () => {
 		const contributions = disposables.add(createContributions(disposables, OrderedFirstContribution));
 
 		assert.deepStrictEqual(contributions.incomingRequest(incomingRequest()), { kind: 'accept' });
+	});
+
+	test('model source admission revalidates queued selections and rejects lost capabilities', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const agent = {
+			provider: 'test', displayName: 'Test', description: 'Test',
+			capabilities: { modelSourceSelection: {} },
+			modelSources: [{ id: 'a', displayName: 'Source A' }, { id: 'b', displayName: 'Source B' }],
+			models: [
+				{ id: 'shared', name: 'Shared', provider: 'test', modelSourceId: 'a' },
+				{ id: 'shared', name: 'Shared', provider: 'test', modelSourceId: 'b' },
+			],
+		};
+		contributions.stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [agent] });
+		const request = {
+			...incomingRequest(contributions.session, buildDefaultChatUri(contributions.session), 'queued'),
+			message: { text: 'queued', origin: { kind: MessageKind.User }, model: { id: 'shared', modelSourceId: 'b' } },
+		};
+		const available = contributions.service.incomingRequest(request);
+		const oldClient = contributions.service.incomingRequest({ ...request, source: 'direct' });
+		contributions.stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [{ ...agent, models: agent.models.slice(0, 1) }] });
+		const removed = contributions.service.incomingRequest(request);
+		contributions.stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [{ ...agent, capabilities: undefined }] });
+		const downgraded = contributions.service.incomingRequest(request);
+		assert.deepStrictEqual({
+			available: available.kind, oldClient: oldClient.kind, removed: removed.kind, downgraded: downgraded.kind,
+		}, { available: 'accept', oldClient: 'reject', removed: 'reject', downgraded: 'reject' });
 	});
 
 	test('rejects incoming requests for archived sessions and read-only chats', () => {

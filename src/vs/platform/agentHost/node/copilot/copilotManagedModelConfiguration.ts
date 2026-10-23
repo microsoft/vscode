@@ -82,7 +82,7 @@ export function createCopilotModelConfigurationReport(
 	requested: ModelSelection | undefined,
 	logService: ILogService,
 ): IAgentModelConfigurationReport {
-	const entries: [string, IAgentModelConfigurationOptions][] = models.map(model => {
+	const entries: { model: IAgentModelInfo; options: IAgentModelConfigurationOptions }[] = models.map(model => {
 		const projected = projectCopilotManagedModelConfiguration(model, policy, logService);
 		const properties = projected.configSchema?.properties ?? {};
 		const defaults: [string, JsonPrimitive][] = [];
@@ -102,13 +102,21 @@ export function createCopilotModelConfigurationReport(
 			}
 		}
 		const managedDefaults = readAgentManagedModelDefaults(projected)?.keys ?? [];
-		return [model.id, { defaults: Object.fromEntries(defaults), readOnly, choices: Object.fromEntries(choices), ...(managedDefaults.length ? { managedDefaults } : {}) }];
+		return { model, options: { defaults: Object.fromEntries(defaults), readOnly, choices: Object.fromEntries(choices), ...(managedDefaults.length ? { managedDefaults } : {}) } };
 	});
-	const options = Object.fromEntries(entries);
-	const currentModelId = current.modelId && (current.providerId ? `${current.providerId}/${current.modelId}` : current.modelId);
-	const model = models.find(model => model.id === currentModelId);
+	const options = Object.fromEntries(entries.filter(entry => entry.model.modelSource === undefined).map(entry => [entry.model.id, entry.options]));
+	const sourceModels = entries.flatMap(entry => entry.model.modelSource ? [{ id: entry.model.id, modelSourceId: entry.model.modelSource.id, options: entry.options }] : []);
+	const model = models.find(model => model.id === current.modelId && model.modelSource?.id === current.providerId)
+		?? models.find(model => model.modelSource === undefined && model.id === current.modelId)
+		?? (current.providerId ? models.find(model => model.modelSource === undefined && model.id === `${current.providerId}/${current.modelId}`) : undefined);
+	const currentSelection: ModelSelection | undefined = model
+		? { id: model.id, ...(model.modelSource ? { modelSourceId: model.modelSource.id } : {}) }
+		: requested?.modelSourceId !== undefined || !current.modelId ? undefined : { id: current.modelId };
+	const currentOptions = currentSelection?.modelSourceId !== undefined
+		? sourceModels.find(model => model.id === currentSelection.id && model.modelSourceId === currentSelection.modelSourceId)?.options
+		: currentSelection ? options[currentSelection.id] : undefined;
 	const config: Record<string, JsonPrimitive> = {};
-	if (model && currentModelId) {
+	if (model && currentSelection) {
 		const properties = model.configSchema?.properties;
 		const values = {
 			thinkingLevel: current.reasoningEffort,
@@ -121,11 +129,11 @@ export function createCopilotModelConfigurationReport(
 				continue;
 			}
 			config[key] = value;
-			config[modelConfigurationSourceKey(key)] = options[currentModelId]?.readOnly.includes(key) ? 'managed'
-				: requested?.id === currentModelId && requested.config?.[key] !== undefined && !isModelConfigurationDefault(requested.config, key) ? 'explicit' : 'default';
+			config[modelConfigurationSourceKey(key)] = currentOptions?.readOnly.includes(key) ? 'managed'
+				: requested?.id === currentSelection.id && requested?.modelSourceId === currentSelection.modelSourceId && requested.config?.[key] !== undefined && !isModelConfigurationDefault(requested.config, key) ? 'explicit' : 'default';
 		}
 	}
-	return { models: options, ...(currentModelId ? { current: { id: currentModelId, config } } : {}) };
+	return { models: options, ...(sourceModels.length ? { sourceModels } : {}), ...(currentSelection ? { current: { ...currentSelection, config } } : {}) };
 }
 
 /** Projects runtime-composed startup defaults without inferring locks from server-normalized values. */

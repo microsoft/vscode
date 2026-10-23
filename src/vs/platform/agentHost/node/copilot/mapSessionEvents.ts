@@ -796,7 +796,7 @@ export async function mapSessionEvents(
 			case 'session.start': {
 				// Restore the initial model; later model-change events take precedence.
 				if (!e.agentId && e.data.selectedModel) {
-					currentModel = { id: e.data.selectedModel };
+					currentModel = { id: e.data.selectedModel, ...(e.data.providerId !== undefined ? { modelSourceId: e.data.providerId } : {}) };
 				}
 				break;
 			}
@@ -815,7 +815,7 @@ export async function mapSessionEvents(
 						}
 					}
 				} else {
-					currentModel = { id: e.data.newModel };
+					currentModel = { id: e.data.newModel, ...(e.data.providerId !== undefined ? { modelSourceId: e.data.providerId } : {}) };
 				}
 				break;
 			}

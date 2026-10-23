@@ -30,7 +30,7 @@ import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService
 import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatAIDisabledSettingId, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -378,6 +378,7 @@ export class OpenModelPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModelPicker';
 
 	constructor() {
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not(`config.${ChatAIDisabledSettingId}`), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate());
 		super({
 			id: OpenModelPickerAction.ID,
 			title: localize2('interactive.openModelPicker.label', "Open Model Picker"),
@@ -388,13 +389,14 @@ export class OpenModelPickerAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ChatContextKeys.inChatInput
 			},
-			precondition: ChatContextKeys.enabled,
+			precondition: enabled,
 			menu: {
 				id: MenuId.ChatInput,
 				order: 3,
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
+						enabled,
 						// Hide the model picker while a delegation (continue in) target is pending
 						ChatContextKeys.hasPendingDelegationTarget.negate(),
 						ContextKeyExpr.or(

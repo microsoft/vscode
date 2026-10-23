@@ -7,7 +7,7 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, getLanguageModelSourceIdentifier, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon, type ILanguageModelSource } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
@@ -40,6 +40,8 @@ export interface IModelPickerProviderPlaceholder {
  */
 export interface IModelPickerDestination {
 	readonly id: string;
+	readonly source?: ILanguageModelSource;
+	readonly supportsCopilotCuration?: boolean;
 	/** Names the destination in the tab tooltip and as the list heading. */
 	readonly label: string;
 	/** The provider's declared icon, or one recognised from its name. */
@@ -80,6 +82,10 @@ export function getModelProviderLabel(
 	languageModelsService: ILanguageModelsService,
 	modelToGroup = buildModelToProviderGroupMap(languageModelsService),
 ): string {
+	const source = model.metadata.modelSourceId === undefined ? undefined : languageModelsService.getLanguageModelGroups(model.metadata.vendor).find(group => group.source?.id === model.metadata.modelSourceId)?.source;
+	if (source) {
+		return source.displayName;
+	}
 	return getProviderGroupForModel(model, modelToGroup, languageModelsService).groupName;
 }
 
@@ -99,12 +105,26 @@ export function buildModelPickerDestinations(
 	keepBuiltIn = false,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
-	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+	const providerModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+	const sourceDestinations = new Map<string, { source: ILanguageModelSource; models: ILanguageModelChatMetadataAndIdentifier[] }>();
 	for (const model of models) {
+		if (model.metadata.modelSourceId !== undefined) {
+			const source = languageModelsService.getLanguageModelGroups(model.metadata.vendor).find(group => group.source?.id === model.metadata.modelSourceId)?.source;
+			if (source) {
+				const id = getLanguageModelSourceIdentifier(model.metadata.vendor, source.id);
+				let destination = sourceDestinations.get(id);
+				if (!destination) {
+					destination = { source, models: [] };
+					sourceDestinations.set(id, destination);
+				}
+				destination.models.push(model);
+			}
+			continue;
+		}
 		if (hasOwnRow(model)) {
 			continue;
 		}
-		(isUserProvidedModel(model, languageModelsService) ? userModels : builtInModels).push(model);
+		(model.metadata.isCopilotModel === false || isUserProvidedModel(model, languageModelsService) ? providerModels : builtInModels).push(model);
 	}
 
 	const builtInVendor = languageModelsService.getVendors().find(vendor => vendor.isDefault);
@@ -116,7 +136,7 @@ export function buildModelPickerDestinations(
 	// The built-in destination stands even with nothing to list: a plan that only grants
 	// Auto still needs somewhere to show it, and its curated models still need to name
 	// the upgrade that would unlock them.
-	const hasOwnRowModel = models.some(hasOwnRow);
+	const hasOwnRowModel = models.some(model => model.metadata.modelSourceId === undefined && hasOwnRow(model));
 	const destinations: IModelPickerDestination[] = [];
 	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel || keepBuiltIn) {
 		destinations.push({
@@ -125,6 +145,17 @@ export function buildModelPickerDestinations(
 			icon: builtInVendor?.icon ?? getProviderIconForIdentity(`${builtInLabel} ${builtInVendorId}`),
 			models: builtInModels,
 			placeholders: builtInPlaceholders,
+		});
+	}
+	for (const [id, destination] of sourceDestinations) {
+		destinations.push({
+			id: `source:${id}`,
+			source: destination.source,
+			label: destination.source.displayName,
+			icon: getProviderIconForIdentity(destination.source.displayName),
+			models: destination.models,
+			placeholders: [],
+			supportsCopilotCuration: destination.models.some(model => model.metadata.isCopilotModel === true),
 		});
 	}
 
@@ -141,7 +172,7 @@ export function buildModelPickerDestinations(
 		entry.icon ??= icon;
 		return entry;
 	};
-	for (const model of userModels) {
+	for (const model of providerModels) {
 		const { vendor, groupName, icon } = getProviderGroupForModel(model, modelToGroup, languageModelsService);
 		providerEntry(getProviderGroupKey(vendor, groupName), groupName, icon).models.push(model);
 	}

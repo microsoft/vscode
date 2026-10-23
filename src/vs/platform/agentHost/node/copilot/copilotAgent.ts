@@ -47,6 +47,10 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierP
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
+import { readCopilotModelSource } from './copilotModelSelection.js';
+import { toAgentModelProviderMeta } from '../../common/meta/agentModelProvider.js';
+import { getModelSelectionKey, supportsModelSourceSelection } from '../../common/agentModelSelection.js';
+import { groupByMap } from '../../../../base/common/collections.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
@@ -751,6 +755,7 @@ type CopilotModelInfo = Awaited<ReturnType<CopilotClient['rpc']['models']['list'
 interface ISerializedModelSelection {
 	id?: unknown;
 	config?: unknown;
+	modelSourceId?: unknown;
 }
 
 /**
@@ -2352,6 +2357,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			displayName: 'Copilot',
 			description: localize('copilotAgent.description', "Copilot SDK agent running in the local agent host process"),
 			capabilities: {
+				// Keep source selection unadvertised until the paired runtime's shared catalog and restore paths are qualified.
 				multipleChats: { fork: true, sideChat: true },
 				multipleWorkingDirectories: { immutablePrimary: true },
 			},
@@ -4322,11 +4328,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Returns `undefined` when the model exposes no such picker (or the model list isn't loaded yet),
 	 * leaving the SDK on its default tier.
 	 */
-	private _longContextWindowFor(modelId: string | undefined, models = this._models.get()): number | undefined {
-		if (!modelId) {
+	private _longContextWindowFor(model: ModelSelection | undefined, models = this._models.get()): number | undefined {
+		if (!model) {
 			return undefined;
 		}
-		const windows = models.find(m => m.id === modelId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
+		const windows = models.find(candidate => candidate.id === model.id && candidate.modelSource?.id === model.modelSourceId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
 		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
 		return numericWindows && numericWindows.length > 0 ? Math.max(...numericWindows) : undefined;
 	}
@@ -4335,8 +4341,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Whether the model has a larger long-context window at no additional cost. When true, a session
 	 * with no explicit selection defaults to `long_context` while the picker still offers both sizes.
 	 */
-	private _isFreeLongContext(modelId: string | undefined, models = this._freeLongContextModels): boolean {
-		return !!modelId && models.has(modelId);
+	private _isFreeLongContext(model: ModelSelection | undefined, models: ReadonlySet<string> = this._freeLongContextModels): boolean {
+		return !!model && models.has(getModelSelectionKey(model));
 	}
 
 	private _getScopedModelCatalog(source: IAgentHostCredentialSource | undefined): ICopilotModelCatalog | undefined {
@@ -4481,10 +4487,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const value: ISerializedModelSelection | string | number | boolean | null = JSON.parse(raw);
 			if (value && typeof value === 'object' && typeof value.id === 'string') {
 				const modelSelection: ModelSelection = { id: value.id };
+				if (value.modelSourceId !== undefined) {
+					if (typeof value.modelSourceId !== 'string' || !value.modelSourceId.trim()) {
+						throw new Error('Stored model selection has an invalid model source.');
+					}
+					modelSelection.modelSourceId = value.modelSourceId;
+				}
 				if (value.config && typeof value.config === 'object') {
-					const config: Record<string, string> = {};
+					const config: NonNullable<ModelSelection['config']> = {};
 					for (const [key, configValue] of Object.entries(value.config)) {
-						if (typeof configValue === 'string') {
+						if (configValue === null || typeof configValue === 'string' || typeof configValue === 'boolean' || (typeof configValue === 'number' && Number.isFinite(configValue))) {
 							config[key] = configValue;
 						}
 					}
@@ -4494,8 +4506,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				return modelSelection;
 			}
-		} catch {
-			// Older session metadata stored the raw model id as a plain string.
+		} catch (error) {
+			if (!(error instanceof SyntaxError)) {
+				throw error;
+			}
 		}
 
 		return { id: raw };
@@ -5188,21 +5202,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!models.length && previousModels.some(model => !this._fallbackAutoModels.has(model))) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
 		}
+		const sourceSelection = supportsModelSourceSelection(this.getDescriptor().capabilities);
+		const modelsById = groupByMap(models, model => model.id);
+		const availableModels = sourceSelection ? models : models.filter(model => modelsById.get(model.id)?.length === 1);
+		if (availableModels.length !== models.length) {
+			this._logService.warn('[Copilot] Omitting ambiguous model IDs while exact model-source selection is unavailable.');
+		}
 		const freeLongContextModels = new Set<string>();
-		const result = models.map((m): IAgentModelInfo => {
+		const result = availableModels.map((m): IAgentModelInfo => {
+			const source = readCopilotModelSource(m.provider);
+			const modelSource = sourceSelection ? source : undefined;
+			const modelAuto = m.provider === undefined || m.provider.kind === 'copilot' ? auto : undefined;
 			const billing = normalizeCAPIBilling(m.billing);
-			const configSchema = this._createModelConfigSchema(m, billing, auto);
+			const configSchema = this._createModelConfigSchema(m, billing, modelAuto);
 			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
 				&& !!tokenPrices.longContext?.contextMax
 				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
 			if (hasLargerLongContext && !hasLongContextSurcharge(billing)) {
-				freeLongContextModels.add(m.id);
+				freeLongContextModels.add(getModelSelectionKey({ id: m.id, modelSourceId: modelSource?.id }));
 			}
 			return {
 				provider: this.id,
 				id: m.id,
+				...(modelSource ? { modelSource } : {}),
 				name: m.name,
 				// Synthetic SDK entries like `auto` ship with `capabilities: {}` and
 				// no fixed context window — surface them with maxContextWindow undefined.
@@ -5212,11 +5236,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				supportsVision: !!m.capabilities?.supports?.vision,
 				configSchema,
 				policyState: m.policy?.state as PolicyState | undefined,
-				_meta: this._createModelPickerMeta(m, billing, auto, promotions),
+				_meta: { ...this._createModelPickerMeta(m, billing, modelAuto, modelAuto ? promotions : []), ...toAgentModelProviderMeta(m.provider) },
 			};
 		});
 		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
-		if (!result.length) {
+		if (!models.length) {
 			// Plans such as Copilot Free and Student can list nothing. Offer Auto rather than an
 			// empty picker, as the Copilot CLI integration does.
 			this._logService.info('[Copilot] No models listed; offering Auto');
@@ -6565,8 +6589,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				shellManager,
 				githubCredentials: this._getGitHubSessionCredentials(provisional.chat),
 				model: provisional.model,
-				longContextWindow: this._longContextWindowFor(provisional.model?.id),
-				freeLongContext: this._isFreeLongContext(provisional.model?.id),
+				longContextWindow: this._longContextWindowFor(provisional.model),
+				freeLongContext: this._isFreeLongContext(provisional.model),
 				workspaceless: provisional.workspaceless,
 				worktreeRepository: this._createdWorktreeRepository(provisional, workingDirectory),
 				stageRecorder,
@@ -7694,7 +7718,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					shellManager,
 					githubCredentials: this._getGitHubSessionCredentials(chat),
 					workspaceless,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model), freeLongContext: this._isFreeLongContext(model) },
 					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
 			} else {
@@ -7713,8 +7737,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 					githubCredentials: this._getGitHubSessionCredentials(chat),
 					workspaceless,
 					model,
-					longContextWindow: this._longContextWindowFor(model?.id),
-					freeLongContext: this._isFreeLongContext(model?.id),
+					longContextWindow: this._longContextWindowFor(model),
+					freeLongContext: this._isFreeLongContext(model),
 					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
 			}
@@ -8352,7 +8376,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				githubCredentials: this._getGitHubSessionCredentials(chat),
 				workspaceless: storedMetadata.workspaceless,
 				stageRecorder,
-				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
+				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model), freeLongContext: this._isFreeLongContext(info.model) },
 			};
 			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.ownerRef, chatChannelUri: chat, resource: context.resource });
 			const initializingSession = agentSession;
@@ -8465,6 +8489,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _validateModelSelection(model: ModelSelection, credentials?: IAgentHostCredentialSource): Promise<void> {
+		if (model.modelSourceId !== undefined) {
+			await (this._invalidatingModelRefresh ?? this._modelRefreshInFlight);
+			const models = credentials ? this._getScopedModelCatalog(credentials)?.models ?? [] : this._models.get();
+			if (!models.some(candidate => candidate.id === model.id && candidate.modelSource?.id === model.modelSourceId)) {
+				throw new Error(localize('copilotAgent.modelSourceNotAvailable', "The selected model source and model are not available."));
+			}
+			return;
+		}
+		const currentModels = credentials ? this._getScopedModelCatalog(credentials)?.models ?? [] : this._models.get();
+		if (currentModels.some(candidate => candidate.id === model.id && candidate.modelSource !== undefined)) {
+			throw new Error(localize('copilotAgent.modelSourceRequired', "An exact model source is required for this model."));
+		}
 		if (credentials) {
 			const catalog = this._getScopedModelCatalog(credentials);
 			const models = catalog?.models ?? [];
@@ -8507,8 +8543,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await raceCancellationError(this._validateModelSelection(model, credentials), token);
 			let current = this._resolveChatContext(chat, operationContext);
 			const catalog = this._getScopedModelCatalog(credentials);
-			const longContextWindow = this._longContextWindowFor(model.id, credentials ? catalog?.models ?? [] : undefined);
-			const freeLongContext = catalog ? catalog.freeLongContextModels.has(model.id) : !credentials && this._isFreeLongContext(model.id);
+			const longContextWindow = this._longContextWindowFor(model, credentials ? catalog?.models ?? [] : undefined);
+			const freeLongContext = catalog ? this._isFreeLongContext(model, catalog.freeLongContextModels) : !credentials && this._isFreeLongContext(model);
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.provisionalKey);
@@ -8840,8 +8876,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (credentials) {
 			const model = launchPlan.kind === 'create' ? launchPlan.model : launchPlan.fallback.model;
 			const context = {
-				longContextWindow: this._longContextWindowFor(model?.id, availableModels()),
-				freeLongContext: !!model && catalog()?.freeLongContextModels.has(model.id) === true,
+				longContextWindow: this._longContextWindowFor(model, availableModels()),
+				freeLongContext: !!model && catalog()?.freeLongContextModels.has(getModelSelectionKey(model)) === true,
 			};
 			launchPlan = launchPlan.kind === 'create'
 				? { ...launchPlan, ...context }
@@ -9196,8 +9232,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				stageRecorder,
 				fallback: {
 					model: storedMetadata.model,
-					longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
-					freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
+					longContextWindow: this._longContextWindowFor(storedMetadata.model),
+					freeLongContext: this._isFreeLongContext(storedMetadata.model),
 				},
 			};
 

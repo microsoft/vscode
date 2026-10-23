@@ -22,7 +22,7 @@ import { isCustomizationEnabled } from '../../../../../platform/agentHost/common
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { type IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState, type ModelSelection } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents, type ClientPluginCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -31,6 +31,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../workbench/services/a
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { getSourceQualifiedModelIdentifier, parseSourceQualifiedModelIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 
 const MUTATION_TIMEOUT_MS = 30_000;
 const LEGACY_RUN_ARCHIVE_VERSION = 1;
@@ -365,7 +366,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			this._logService.warn(`[AgentHostAutomationStore] Cannot project Automation with no provider: resource=${state.resource}.`);
 			return undefined;
 		}
-		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
+		const selection = state.definition.message.model ?? state.definition.session.model;
+		const modelId = this._projectModelId(selection?.id, state.definition.session.provider, selection?.modelSourceId);
 		const newestRun = state.runs[0];
 		const schedule = projectSchedule(state.definition.triggers);
 		return {
@@ -603,6 +605,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const modelId = sessionTemplate ? sessionTemplate.modelId : descriptor.modelId;
 		const provider = descriptor.target.sessionTypeId ?? this._providerFromModelId(modelId);
 		const existingSession = existing && existing.session.provider === provider ? existing.session : undefined;
+		const model = modelId ? {
+			...this._toHostModelSelection(modelId, provider),
+			...(sessionTemplate?.modelConfiguration !== undefined ? { config: sessionTemplate.modelConfiguration } : {}),
+		} : undefined;
+		const messageSelection = existingSession !== undefined && existing?.message.model !== undefined;
 		let projectedConfig: Record<string, unknown>;
 		if (sessionTemplate) {
 			projectedConfig = {
@@ -630,13 +637,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const meta = existing?._meta ?? {};
 		return {
 			title: descriptor.name,
-			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
+			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation }, ...(messageSelection && model ? { model } : {}) },
 			session: {
 				provider,
-				model: modelId ? {
-					id: this._toHostModelId(modelId, provider),
-					...(sessionTemplate?.modelConfiguration !== undefined ? { config: sessionTemplate.modelConfiguration } : {}),
-				} : undefined,
+				model: messageSelection && model ? existingSession?.model : model,
 				agent: resetSessionTemplate ? undefined : sessionTemplate ? sessionTemplate.agent : existingSession?.agent,
 				workingDirectories: descriptor.target.kind === 'workspace'
 					? [(this._boundaryMapper?.toHost(descriptor.target.folderUri) ?? descriptor.target.folderUri).toString()]
@@ -650,29 +654,46 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		};
 	}
 
-	private _toHostModelId(modelId: string, provider: string | undefined): string {
+	private _toHostModelSelection(modelId: string, provider: string | undefined): ModelSelection {
 		const resourceScheme = provider ? this._boundaryMapper?.resourceSchemeForProvider(provider) : undefined;
+		const source = parseSourceQualifiedModelIdentifier(modelId);
+		if (source) {
+			if (source.vendor !== resourceScheme) {
+				throw new AutomationUnavailableError(localize('agentHostAutomation.modelSourceOwner', "The selected model source belongs to a different Agent Host or agent."));
+			}
+			return { id: source.modelId, modelSourceId: source.modelSourceId };
+		}
 		const prefix = resourceScheme ? `${resourceScheme}:` : undefined;
 		if (prefix && modelId.startsWith(prefix)) {
-			return modelId.slice(prefix.length);
+			return { id: modelId.slice(prefix.length) };
 		}
-		return modelId;
+		return { id: modelId };
 	}
 
 	private _providerFromModelId(modelId: string | undefined): string | undefined {
 		if (!modelId) {
 			return undefined;
 		}
+		const source = parseSourceQualifiedModelIdentifier(modelId);
+		if (source) {
+			return this._boundaryMapper?.providerForResourceScheme?.(source.vendor);
+		}
 		const separator = modelId.indexOf(':');
 		return separator > 0 ? this._boundaryMapper?.providerForResourceScheme?.(modelId.slice(0, separator)) : undefined;
 	}
 
 	// Projects an Agent Host model identifier into the editor-facing provider namespace.
-	private _projectModelId(modelId: string | undefined, provider: string | undefined): string | undefined {
+	private _projectModelId(modelId: string | undefined, provider: string | undefined, modelSourceId?: string): string | undefined {
 		if (!modelId) {
 			return undefined;
 		}
 		const resourceScheme = provider ? this._boundaryMapper?.resourceSchemeForProvider(provider) : undefined;
+		if (modelSourceId !== undefined) {
+			if (!resourceScheme) {
+				throw new AutomationUnavailableError(localize('agentHostAutomation.modelSourceNamespace', "The saved model source has no available Agent Host namespace."));
+			}
+			return getSourceQualifiedModelIdentifier(resourceScheme, modelSourceId, modelId);
+		}
 		const prefix = resourceScheme ? `${resourceScheme}:` : undefined;
 		return prefix && !modelId.startsWith(prefix) ? `${prefix}${modelId}` : modelId;
 	}
@@ -922,7 +943,7 @@ function readString(value: unknown): string | undefined {
 
 function projectAutomationSessionTemplate(definition: AutomationDefinition, modelId: string | undefined): IAutomationSessionTemplate | undefined {
 	const config = omitAutomationSessionTemplateConfigValues({ ...definition.session.config });
-	return createAutomationSessionTemplate(modelId, definition.session.model?.config, definition.session.agent, config);
+	return createAutomationSessionTemplate(modelId, (definition.message.model ?? definition.session.model)?.config, definition.session.agent, config);
 }
 
 function synchronizeAutomationSessionTemplate(template: IAutomationSessionTemplate | undefined, provider: string | undefined, modelId: string | undefined, mode: string | undefined, permissionLevel: string | undefined): IAutomationSessionTemplate | undefined {

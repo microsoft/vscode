@@ -17,9 +17,11 @@ import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } fro
 import { ArtifactChatAction } from '../common/artifactIntegrationChat.js';
 import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
+import { automationHasModelSourceSelection, chatHasModelSourceSelection, conversationHasModelSourceSelection, getModelSourceActionError, getModelSourceSelectionError, supportsModelSourceSelection } from '../common/agentModelSelection.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
@@ -56,7 +58,8 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, AUTOMATION_CATALOG_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type AutomationState, type ChatState, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
+import type { AutomationDefinition } from '../common/state/protocol/channels-automation/state.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../common/state/protocol/channels-chat/commands.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
@@ -843,6 +846,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				protocolVersions: getAgentHostSupportedProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
+				capabilities: { modelSourceSelection: {} },
 				_meta: this._clientMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true }));
@@ -859,6 +863,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 
 			if (isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
+				this._validateModelSourceOutbox(this._state.outbox);
 				for (const message of this._state.outbox) {
 					this._transport.send(message);
 				}
@@ -1222,6 +1227,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			protocolVersions: getAgentHostSupportedProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
+			capabilities: { modelSourceSelection: {} },
 			_meta: this._clientMeta(),
 			initialSubscriptions: subscriptions,
 		}, { bypassReconnectGate: true });
@@ -1649,6 +1655,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// Replays first (dispatched before the reconnect window), then the
 		// outbox (dispatched during it) so wire order roughly tracks
 		// dispatch order.
+		this._validateModelSourceOutbox([...replays, ...outbox]);
 		for (const msg of replays) {
 			this._transport.send(msg);
 		}
@@ -1684,6 +1691,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+		this._throwModelSourceError(this._getModelSourceActionError(channel, action));
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
@@ -1752,6 +1760,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw subscription.value;
 			}
 			if (!confirmed.isSettled) {
+				this._throwModelSourceError(this._getModelSourceActionError(channel, action));
 				clientSeq = this._subscriptionManager.dispatchOptimistic(channel, action);
 				this.dispatchAction(channel, action, this._clientId, clientSeq);
 			}
@@ -1865,8 +1874,143 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
 	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+		this._throwModelSourceError(this._getModelSourceActionError(channel, action));
 		this._grantImplicitReadsForOutgoingAction(action);
 		this._sendNotification('dispatchAction', { channel, clientSeq, action });
+	}
+
+	private _getModelSourceAgent(channel: string): AgentInfo | undefined {
+		const resource = URI.parse(channel);
+		for (const subscription of this.getActiveSubscriptions()) {
+			if (subscription.kind !== StateComponents.Session) {
+				continue;
+			}
+			const session = this._subscriptionManager.getSubscriptionUnmanaged<SessionState>(subscription.resource)?.verifiedValue;
+			if (session && typeof session.provider === 'string' && (isEqual(subscription.resource, resource)
+				|| (session.defaultChat !== undefined && isEqual(URI.parse(session.defaultChat), resource))
+				|| session.chats?.some(chat => isEqual(URI.parse(chat.resource), resource)))) {
+				return this.rootState.verifiedValue?.agents.find(agent => agent.provider === session.provider);
+			}
+		}
+		return undefined;
+	}
+
+	private _getAutomationDefinition(resource: string): AutomationDefinition | undefined {
+		return this._subscriptionManager.getSubscriptionUnmanaged<AutomationState>(URI.parse(AUTOMATION_CATALOG_URI))?.verifiedValue?.entries
+			.find(entry => entry.resource === resource)?.definition;
+	}
+
+	private _getAutomationModelSourceError(definition: Pick<AutomationDefinition, 'session' | 'message'>, previous?: AutomationDefinition): string | undefined {
+		const provider = definition.session.provider ?? previous?.session.provider;
+		const agent = this.rootState.verifiedValue?.agents.find(agent => agent.provider === provider);
+		if (previous && automationHasModelSourceSelection(previous)
+			&& (provider !== previous.session.provider || !supportsModelSourceSelection(agent?.capabilities))) {
+			return 'This update cannot preserve the saved model-source owner.';
+		}
+		return getModelSourceSelectionError(definition.session.model, agent) ?? getModelSourceSelectionError(definition.message.model, agent);
+	}
+
+	private _getModelSourceActionError(channel: string, action: ActionEnvelope['action']): string | undefined {
+		switch (action.type) {
+			case ActionType.ChatDraftChanged:
+			case ActionType.ChatPendingMessageSet:
+			case ActionType.ChatTurnStarted:
+			case ActionType.ChatTurnResume: {
+				const value = this._subscriptionManager.getSubscriptionUnmanaged<ChatState>(URI.parse(channel))?.value;
+				return getModelSourceActionError(action, value instanceof Error ? undefined : value, this._getModelSourceAgent(channel), true);
+			}
+			case ActionType.AutomationCreateRequested:
+				return this._getAutomationModelSourceError(action.definition);
+			case ActionType.AutomationUpdateRequested: {
+				const previous = this._getAutomationDefinition(action.resource);
+				const session = action.changes.session ?? previous?.session;
+				const message = action.changes.message ?? previous?.message;
+				if (session && message) {
+					return this._getAutomationModelSourceError({ session, message }, previous);
+				}
+				return getModelSourceSelectionError(session?.model, undefined) ?? getModelSourceSelectionError(message?.model, undefined);
+			}
+			default:
+				return undefined;
+		}
+	}
+
+	private _getModelSourceRequestError(method: string, params: unknown): string | undefined {
+		const fields: { readonly channel?: unknown; readonly initialMessage?: unknown; readonly automation?: unknown; readonly source?: unknown; readonly destination?: unknown; readonly session?: unknown; readonly chat?: unknown } | undefined = typeof params === 'object' && params !== null ? params : undefined;
+		if (method === 'runAutomation' && typeof fields?.automation === 'string') {
+			const definition = this._getAutomationDefinition(fields.automation);
+			return definition ? this._getAutomationModelSourceError(definition) : undefined;
+		}
+		if (method === 'moveChat' && typeof fields?.channel === 'string') {
+			const destination: { readonly session?: unknown } | undefined = typeof fields.destination === 'object' && fields.destination !== null ? fields.destination : undefined;
+			return this._getModelSourceTransferError(fields.channel, typeof destination?.session === 'string' ? destination.session : undefined);
+		}
+		if ((method === MoveAgentHostSessionExtensionMethod || method === CompleteSavedChatContinuationExtensionMethod) && typeof fields?.session === 'string' && typeof fields.destination === 'string') {
+			return this._getModelSourceTransferError(typeof fields.chat === 'string' ? fields.chat : fields.session, fields.destination);
+		}
+		if (method !== 'createChat') {
+			return undefined;
+		}
+		const source: { readonly chat?: unknown } | undefined = typeof fields?.source === 'object' && fields.source !== null ? fields.source : undefined;
+		if (typeof source?.chat === 'string' && typeof fields?.channel === 'string') {
+			const error = this._getModelSourceTransferError(source.chat, fields.channel);
+			if (error) {
+				return error;
+			}
+		}
+		const message: { readonly model?: unknown } | undefined = typeof fields?.initialMessage === 'object' && fields.initialMessage !== null ? fields.initialMessage : undefined;
+		const model: { readonly id?: unknown; readonly modelSourceId?: unknown } | undefined = typeof message?.model === 'object' && message.model !== null ? message.model : undefined;
+		const modelSourceId = model?.modelSourceId;
+		if (modelSourceId !== undefined && typeof modelSourceId !== 'string') {
+			return 'Invalid model-source selection.';
+		}
+		if (typeof model?.id !== 'string' || typeof fields?.channel !== 'string') {
+			return modelSourceId !== undefined ? 'Invalid model-source selection.' : undefined;
+		}
+		return getModelSourceSelectionError({ id: model.id, modelSourceId }, this._getModelSourceAgent(fields.channel));
+	}
+
+	private _getModelSourceTransferError(channel: string, destination: string | undefined): string | undefined {
+		const resource = URI.parse(channel);
+		const subscription = this.getActiveSubscriptions().find(subscription => isEqual(subscription.resource, resource));
+		const chat = subscription?.kind === StateComponents.Session
+			? this._subscriptionManager.getSubscriptionUnmanaged<SessionState>(resource)?.verifiedValue?.defaultChat
+			: subscription?.kind === StateComponents.Chat ? channel : undefined;
+		const value = chat ? this._subscriptionManager.getSubscriptionUnmanaged<ChatState>(URI.parse(chat))?.value : undefined;
+		if (!value || value instanceof Error || !chatHasModelSourceSelection(value)) {
+			return undefined;
+		}
+		const sourceAgent = this._getModelSourceAgent(channel);
+		const destinationAgent = destination ? this._getModelSourceAgent(destination) : sourceAgent;
+		return sourceAgent?.provider !== destinationAgent?.provider
+			|| !supportsModelSourceSelection(sourceAgent?.capabilities)
+			|| !supportsModelSourceSelection(destinationAgent?.capabilities)
+			? 'A source-qualified chat cannot be transferred without preserving its host and agent namespace.'
+			: undefined;
+	}
+
+	private _throwModelSourceError(message: string | undefined): void {
+		if (message) {
+			this._logService.warn(`[RemoteAgentHostProtocol] Refusing model-source selection: ${message}`);
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, message);
+		}
+	}
+
+	private _validateModelSourceOutbox(messages: readonly ProtocolMessage[]): void {
+		for (const message of messages) {
+			if (!hasKey(message, { method: true })) {
+				continue;
+			}
+			const reason = message.method === 'dispatchAction'
+				? this._getModelSourceActionError(message.params.channel, message.params.action)
+				: this._getModelSourceRequestError(message.method, message.params);
+			if (reason) {
+				const error = new ProtocolError(JsonRpcErrorCodes.InvalidParams, reason);
+				this._logService.warn(`[RemoteAgentHostProtocol] Cannot safely replay queued model-source selection: ${reason}`);
+				this._handleFatalClose(error);
+				throw error;
+			}
+		}
 	}
 
 	/**
@@ -1876,6 +2020,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const provider = config?.provider;
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
+		}
+		if (config.importConversation && conversationHasModelSourceSelection(config.importConversation)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'A source-qualified conversation cannot be imported without preserving its host and agent namespace.');
 		}
 		if (config.importConversation && !this.supportsConversationImport) {
 			// A host that does not advertise `vscode.createSessionImport` cannot carry
@@ -3364,6 +3511,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (options.authenticationToken?.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		this._throwModelSourceError(this._getModelSourceRequestError(method, params));
 		const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs, options.acceptResult);
 		if (method === 'initialize') {
 			this._logService.info(`[RemoteAgentHostProtocol] Sending initialize: address=${this._address} clientId=${this._clientId} requestId=${request.id}`);

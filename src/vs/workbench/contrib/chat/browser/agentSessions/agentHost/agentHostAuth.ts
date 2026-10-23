@@ -71,7 +71,7 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	if (!model) {
 		return true;
 	}
-	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
+	const selectedModel = agent.models.find(candidate => candidate.id === model.id && candidate.modelSourceId === model.modelSourceId);
 	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
 }
 

@@ -1023,9 +1023,9 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		const { vendorEntry } = entry;
 		const primaryActions: IAction[] = [];
 		const secondaryActions: IAction[] = [];
-		if (vendorEntry.vendor.configuration) {
+		if (!vendorEntry.modelSource && vendorEntry.vendor.configuration) {
 			secondaryActions.push(...createProviderGroupActions(this.viewModel, vendorEntry.vendor, vendorEntry.group.name, this.languageModelsService, this.dialogService));
-		} else if (vendorEntry.vendor.managementCommand) {
+		} else if (!vendorEntry.modelSource && vendorEntry.vendor.managementCommand) {
 			primaryActions.push(toAction({
 				id: 'manageVendor',
 				label: localize('models.manageProvider', 'Manage {0}...', vendorEntry.group.name),
@@ -1562,15 +1562,15 @@ export class ChatModelsWidget extends Disposable {
 				// Show configure action if all models are from the same group
 				configureGroup = selectedModelEntries[0].model.provider.group.name;
 				configureVendor = selectedModelEntries[0].model.provider.vendor;
-				if (selectedModelEntries.some(entry => entry.model.provider.vendor.isDefault || entry.model.provider.group.name !== configureGroup)) {
+				if (selectedModelEntries.some(entry => entry.model.provider.modelSource || entry.model.provider.vendor.isDefault || entry.model.provider.group.name !== configureGroup)) {
 					configureGroup = undefined;
 					configureVendor = undefined;
 				}
 			} else if (selectedEntries.length === 1) {
 				const entry = e.element;
 				if (isLanguageModelProviderEntry(entry)) {
-					configureGroup = entry.vendorEntry.group.name;
-					configureVendor = entry.vendorEntry.vendor;
+					configureGroup = entry.vendorEntry.modelSource ? undefined : entry.vendorEntry.group.name;
+					configureVendor = entry.vendorEntry.modelSource ? undefined : entry.vendorEntry.vendor;
 
 					actions.push(toAction({
 						id: entry.hidden ? 'showGroup' : 'hideGroup',

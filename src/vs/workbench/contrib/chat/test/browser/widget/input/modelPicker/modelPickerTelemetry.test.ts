@@ -81,6 +81,22 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
+	test('source-qualified identifiers and provider-owned option values are not telemetry-safe', () => {
+		const events: { name: string; data?: IStringDictionary<unknown> }[] = [];
+		const sourceModel = createModel('shared', { modelSourceId: 'private-account-source' });
+		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
+			publicLog2: (name: string, data?: IStringDictionary<unknown>) => events.push({ name, data }),
+		}), new NullLanguageModelsService(), { entryPoint: 'configuration', inputMethod: 'keyboard' }, sourceModel, {}, 'copilotcli');
+		session.logConfigurationChange(sourceModel, 'navigation', 'private-option', 'private-before', 'private-after', Date.now());
+		assert.deepStrictEqual(events.map(event => ({
+			name: event.name, model: event.data?.model, property: event.data?.property, from: event.data?.fromValue, to: event.data?.toValue,
+		})), [
+			{ name: 'chat.modelPickerOpened', model: 'unknown', property: undefined, from: undefined, to: undefined },
+			{ name: 'chat.thinkingEffortChange', model: 'unknown', property: 'unknown', from: 'unknown', to: 'unknown' },
+		]);
+		session.close();
+	});
+
 	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];

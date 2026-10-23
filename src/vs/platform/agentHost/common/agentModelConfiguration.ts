@@ -24,6 +24,7 @@ export interface IAgentModelConfigurationOptions {
 /** A server-owned, chat-scoped snapshot; personal preferences are not stored here. */
 export interface IAgentModelConfigurationReport {
 	readonly models: Readonly<Record<string, IAgentModelConfigurationOptions>>;
+	readonly sourceModels?: readonly { readonly id: string; readonly modelSourceId: string; readonly options: IAgentModelConfigurationOptions }[];
 	readonly current?: ModelSelection;
 }
 
@@ -46,6 +47,41 @@ function isModelConfigurationPrimitive(value: unknown): value is JsonPrimitive {
 	return value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value));
 }
 
+function readModelConfigurationOptions(options: unknown): IAgentModelConfigurationOptions | undefined {
+	if (!isObject(options)) {
+		return undefined;
+	}
+	const fields: { defaults?: unknown; readOnly?: unknown; choices?: unknown; managedDefaults?: unknown } = options;
+	const defaults = readPrimitiveRecord(fields.defaults);
+	const readOnly = fields.readOnly;
+	if (!defaults || !Array.isArray(readOnly) || !readOnly.every((key): key is string => typeof key === 'string' && Object.hasOwn(defaults, key))) {
+		return undefined;
+	}
+	const managedDefaults = fields.managedDefaults;
+	if (managedDefaults !== undefined && (!Array.isArray(managedDefaults) || !managedDefaults.every((key): key is string => typeof key === 'string' && Object.hasOwn(defaults, key)))) {
+		return undefined;
+	}
+	const choices: Record<string, { values: JsonPrimitive[]; labels?: string[]; descriptions?: string[] }> = {};
+	if (fields.choices !== undefined) {
+		if (!isObject(fields.choices)) {
+			return undefined;
+		}
+		for (const [key, raw] of Object.entries(fields.choices)) {
+			if (!isObject(raw)) {
+				return undefined;
+			}
+			const choice: { values?: unknown; labels?: unknown; descriptions?: unknown } = raw;
+			if (!Array.isArray(choice.values) || !choice.values.every(isModelConfigurationPrimitive)
+				|| (choice.labels !== undefined && (!Array.isArray(choice.labels) || choice.labels.length !== choice.values.length || !choice.labels.every((label): label is string => typeof label === 'string')))
+				|| (choice.descriptions !== undefined && (!Array.isArray(choice.descriptions) || choice.descriptions.length !== choice.values.length || !choice.descriptions.every((description): description is string => typeof description === 'string')))) {
+				return undefined;
+			}
+			choices[key] = { values: choice.values, ...(choice.labels ? { labels: choice.labels } : {}), ...(choice.descriptions ? { descriptions: choice.descriptions } : {}) };
+		}
+	}
+	return { defaults, readOnly, ...(managedDefaults !== undefined ? { managedDefaults } : {}), ...(fields.choices !== undefined ? { choices } : {}) };
+}
+
 /** Reads only the current chat's report, including explicit removal across JSON serialization. */
 export function readAgentModelConfigurationReport(config: Readonly<Record<string, unknown>> | undefined, chat: string): IAgentModelConfigurationReport | undefined {
 	const reports = config?.[agentModelConfigurationReportKey];
@@ -53,61 +89,51 @@ export function readAgentModelConfigurationReport(config: Readonly<Record<string
 	if (!isObject(candidate)) {
 		return undefined;
 	}
-	const value: { models?: unknown; current?: unknown } = candidate;
+	const value: { models?: unknown; sourceModels?: unknown; current?: unknown } = candidate;
 	if (!isObject(value.models)) {
 		return undefined;
 	}
 	const models: [string, IAgentModelConfigurationOptions][] = [];
-	for (const [id, options] of Object.entries(value.models)) {
-		if (!isObject(options)) {
+	for (const [id, raw] of Object.entries(value.models)) {
+		const options = readModelConfigurationOptions(raw);
+		if (!options) {
 			return undefined;
 		}
-		const fields: { defaults?: unknown; readOnly?: unknown; choices?: unknown; managedDefaults?: unknown } = options;
-		const defaults = readPrimitiveRecord(fields.defaults);
-		const readOnly = fields.readOnly;
-		if (!defaults || !Array.isArray(readOnly) || !readOnly.every((key): key is string => typeof key === 'string' && Object.hasOwn(defaults, key))) {
+		models.push([id, options]);
+	}
+	const sourceModels: { id: string; modelSourceId: string; options: IAgentModelConfigurationOptions }[] = [];
+	if (value.sourceModels !== undefined) {
+		if (!Array.isArray(value.sourceModels)) {
 			return undefined;
 		}
-		const managedDefaults = fields.managedDefaults;
-		if (managedDefaults !== undefined && (!Array.isArray(managedDefaults) || !managedDefaults.every((key): key is string => typeof key === 'string' && Object.hasOwn(defaults, key)))) {
-			return undefined;
-		}
-		const choices: Record<string, { values: JsonPrimitive[]; labels?: string[]; descriptions?: string[] }> = {};
-		if (fields.choices !== undefined) {
-			if (!isObject(fields.choices)) {
+		for (const raw of value.sourceModels) {
+			if (!isObject(raw)) {
 				return undefined;
 			}
-			for (const [key, raw] of Object.entries(fields.choices)) {
-				if (!isObject(raw)) {
-					return undefined;
-				}
-				const choice: { values?: unknown; labels?: unknown; descriptions?: unknown } = raw;
-				if (!Array.isArray(choice.values) || !choice.values.every(isModelConfigurationPrimitive)
-					|| (choice.labels !== undefined && (!Array.isArray(choice.labels) || choice.labels.length !== choice.values.length || !choice.labels.every((label): label is string => typeof label === 'string')))
-					|| (choice.descriptions !== undefined && (!Array.isArray(choice.descriptions) || choice.descriptions.length !== choice.values.length || !choice.descriptions.every((description): description is string => typeof description === 'string')))) {
-					return undefined;
-				}
-				choices[key] = { values: choice.values, ...(choice.labels ? { labels: choice.labels } : {}), ...(choice.descriptions ? { descriptions: choice.descriptions } : {}) };
+			const source: { id?: unknown; modelSourceId?: unknown; options?: unknown } = raw;
+			const options = readModelConfigurationOptions(source.options);
+			if (!options || typeof source.id !== 'string' || typeof source.modelSourceId !== 'string' || !source.modelSourceId.trim()) {
+				return undefined;
 			}
+			sourceModels.push({ id: source.id, modelSourceId: source.modelSourceId, options });
 		}
-		models.push([id, { defaults, readOnly, ...(managedDefaults !== undefined ? { managedDefaults } : {}), ...(fields.choices !== undefined ? { choices } : {}) }]);
 	}
 	let current: ModelSelection | undefined;
 	if (value.current !== undefined) {
 		if (!isObject(value.current)) {
 			return undefined;
 		}
-		const selection: { id?: unknown; config?: unknown } = value.current;
-		if (typeof selection.id !== 'string') {
+		const selection: { id?: unknown; config?: unknown; modelSourceId?: unknown } = value.current;
+		if (typeof selection.id !== 'string' || (selection.modelSourceId !== undefined && (typeof selection.modelSourceId !== 'string' || !selection.modelSourceId.trim()))) {
 			return undefined;
 		}
 		const config = selection.config === undefined ? undefined : readPrimitiveRecord(selection.config);
 		if (selection.config !== undefined && !config) {
 			return undefined;
 		}
-		current = { id: selection.id, ...(config ? { config } : {}) };
+		current = { id: selection.id, ...(config ? { config } : {}), ...(selection.modelSourceId !== undefined ? { modelSourceId: selection.modelSourceId } : {}) };
 	}
-	return { models: Object.fromEntries(models), ...(current ? { current } : {}) };
+	return { models: Object.fromEntries(models), ...(value.sourceModels !== undefined ? { sourceModels } : {}), ...(current ? { current } : {}) };
 }
 
 /** Scalar provenance survives ModelSelection.config without becoming an SDK model option. */

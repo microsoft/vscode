@@ -64,9 +64,12 @@ function getModelSelectionKind(provider: string, modelId: string | undefined, ef
 }
 
 export function getModelTelemetryContext(agent: IAgent, modelId: string): { model: string; modelTelemetryKind: AgentHostModelTelemetryKind } {
-	const model = agent.models.get().find(model => model.id === modelId);
+	const candidates = agent.models.get().filter(model => model.id === modelId);
+	const model = candidates.length === 1 ? candidates[0] : undefined;
 	let modelTelemetryKind: AgentHostModelTelemetryKind;
-	if (modelId === 'auto') {
+	if (candidates.some(candidate => candidate.modelSource !== undefined)) {
+		modelTelemetryKind = 'unknown';
+	} else if (modelId === 'auto') {
 		modelTelemetryKind = 'trusted';
 	} else if (model === undefined) {
 		modelTelemetryKind = 'unknown';

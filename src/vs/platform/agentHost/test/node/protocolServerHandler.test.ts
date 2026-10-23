@@ -4909,6 +4909,140 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
+	suite('model source selection', () => {
+		const agents: AgentInfo[] = [{
+			provider: 'copilot', displayName: 'Copilot', description: 'One harness',
+			capabilities: { modelSourceSelection: {} },
+			modelSources: [{ id: 'a', displayName: 'Source A' }, { id: 'b', displayName: 'Source B' }],
+			models: [
+				{ id: 'shared', name: 'Shared A', provider: 'copilot', modelSourceId: 'a' },
+				{ id: 'shared', name: 'Shared B', provider: 'copilot', modelSourceId: 'b' },
+				{ id: 'unique', name: 'Unique A', provider: 'copilot', modelSourceId: 'a' },
+				{ id: 'legacy', name: 'Legacy', provider: 'copilot' },
+			],
+		}];
+
+		for (const capable of [false, true]) {
+			test(`preserves ${capable ? 'qualified' : 'safe legacy'} catalogs through snapshots, live updates and reconnect`, async () => {
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				const initialized = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', {
+					clientId: 'source-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI],
+					...(capable ? { capabilities: { modelSourceSelection: {} } } : {}),
+				}));
+				const response = await initialized;
+				assert.ok(hasKey(response, { result: true }));
+				const initial = (response.result as InitializeResult).snapshots[0].state as RootState;
+				const renamed = [{ ...agents[0], modelSources: [{ id: 'a', displayName: 'Renamed' }, { id: 'b', displayName: 'Source B' }] }];
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: renamed });
+				const live = findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope).at(-1);
+				assert.ok(live?.action.type === ActionType.RootAgentsChanged);
+				const cursor = stateManager.serverSeq;
+				transport.simulateClose();
+				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+				const reconnected = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(reconnected);
+				const replayed = waitForResponse(reconnected, 2);
+				reconnected.simulateMessage(request(2, 'reconnect', {
+					clientId: 'source-client', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI],
+				}));
+				const replayResponse = await replayed;
+				assert.ok(hasKey(replayResponse, { result: true }));
+				const replay = replayResponse.result as ReconnectResult;
+				assert.ok(replay.type === 'replay');
+				const action = replay.actions.find(envelope => envelope.action.type === ActionType.RootAgentsChanged)?.action;
+				assert.ok(action?.type === ActionType.RootAgentsChanged);
+				const legacy = [{ provider: 'copilot', displayName: 'Copilot', description: 'One harness', capabilities: { modelSourceSelection: {} }, models: [agents[0].models[3]] }];
+				assert.deepStrictEqual({
+					initial: initial.agents,
+					live: live.action.agents,
+					replay: action.agents,
+					support: clientConnections.supportsModelSourceSelection('source-client'),
+					authoritative: stateManager.rootState.agents,
+				}, {
+					initial: capable ? agents : legacy,
+					live: capable ? renamed : legacy,
+					replay: capable ? agents : legacy,
+					support: capable,
+					authoritative: agents,
+				});
+			});
+		}
+
+		test('requires agent support and surfaces invalid source catalogs', async () => {
+			const unsupported = { ...agents[0], capabilities: undefined };
+			const invalid = { ...agents[0], provider: 'invalid', modelSources: [] };
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [unsupported, invalid] });
+			const transport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'source-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI],
+				capabilities: { modelSourceSelection: {} },
+			}));
+			const response = await initialized;
+			assert.ok(hasKey(response, { result: true }));
+			const root = (response.result as InitializeResult).snapshots[0].state as RootState;
+			assert.deepStrictEqual({
+				models: root.agents.map(agent => agent.models.map(model => model.id)),
+				invalidCatalogReported: logService.errors.some(error => error.includes('Invalid model catalog for invalid')),
+			}, { models: [['legacy'], []], invalidCatalogReported: true });
+		});
+
+		test('forwards exact pairs but rejects ambiguous, lost and unavailable qualifiers', async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const transport = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'source-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [defaultChatUri],
+				capabilities: { modelSourceSelection: {} },
+			}));
+			await initialized;
+			const selection = { id: 'shared', modelSourceId: 'b' };
+			const draft = { text: 'prompt', origin: { kind: MessageKind.User }, model: selection };
+			const actions: ChatAction[] = [
+				{ type: ActionType.ChatDraftChanged, draft },
+				{ type: ActionType.ChatPendingMessageSet, id: 'queued', kind: PendingMessageKind.Queued, message: draft },
+				{ type: ActionType.ChatDraftChanged, draft: { ...draft, model: { id: 'shared' } } },
+				{ type: ActionType.ChatDraftChanged, draft: { ...draft, model: { id: 'unique' } } },
+				{ type: ActionType.ChatDraftChanged, draft: { ...draft, model: { id: 'shared', modelSourceId: 'missing' } } },
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), queuedMessageId: 'queued', message: { ...draft, model: { id: 'legacy' } } },
+			];
+			for (const [index, action] of actions.entries()) {
+				transport.simulateMessage(notification('dispatchAction', { channel: defaultChatUri, clientSeq: index + 1, action }));
+				await handler.whenIdle();
+			}
+			const echoes = findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope);
+			assert.deepStrictEqual({
+				accepted: agentService.handledActions,
+				rejected: echoes.filter(envelope => envelope.rejectionReason).length,
+				draft: stateManager.getChatState(defaultChatUri)?.draft,
+				pending: stateManager.getChatState(defaultChatUri)?.queuedMessages?.map(pending => pending.message.model),
+			}, { accepted: actions.slice(0, 2), rejected: 4, draft, pending: [selection] });
+		});
+
+		test('an incapable client cannot erase a qualified draft or pending message', async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const draft = { text: 'kept', origin: { kind: MessageKind.User }, model: { id: 'shared', modelSourceId: 'a' } };
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatDraftChanged, draft });
+			const transport = disposables.add(connectClient('legacy-source-client', [defaultChatUri]));
+			transport.simulateMessage(notification('dispatchAction', {
+				channel: defaultChatUri, clientSeq: 1,
+				action: { type: ActionType.ChatDraftChanged, draft: { ...draft, model: { id: 'legacy' } } },
+			}));
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				accepted: agentService.handledActions,
+				draft: stateManager.getChatState(defaultChatUri)?.draft,
+			}, { accepted: [], draft });
+		});
+	});
+
 	for (const scenario of [
 		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
 		{ name: 'Agents window', clientInfo: agentsWindowAgentHostClientInfo, vscode: true },

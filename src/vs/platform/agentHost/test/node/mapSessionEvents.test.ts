@@ -29,6 +29,18 @@ function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events
 }
 
 suite('mapSessionEvents — history replay', () => {
+	test('preserves model sources when identical raw model IDs change owners', async () => {
+		const { turns } = await mapSessionEvents(URI.parse('copilot:/qualified-history'), undefined, toSessionEvents([
+			{ type: 'session.model_change', data: { newModel: 'shared', providerId: 'a' } },
+			{ type: 'user.message', data: { content: 'A' } },
+			{ type: 'assistant.message', data: { messageId: 'answer-a', content: 'A answer' } },
+			{ type: 'session.model_change', data: { previousModel: 'shared', previousProviderId: 'a', newModel: 'shared', providerId: 'b' } },
+			{ type: 'user.message', data: { content: 'B' } },
+			{ type: 'assistant.message', data: { messageId: 'answer-b', content: 'B answer' } },
+		]));
+		assert.deepStrictEqual(turns.map(turn => turn.message.model), [{ id: 'shared', modelSourceId: 'a' }, { id: 'shared', modelSourceId: 'b' }]);
+	});
+
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 

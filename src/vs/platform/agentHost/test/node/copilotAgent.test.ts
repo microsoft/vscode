@@ -713,6 +713,7 @@ function reportManagedSettings(config: Parameters<CopilotClient['resumeSession']
 interface ITestCopilotModelInfo {
 	readonly id: string;
 	readonly name: string;
+	readonly provider?: CopilotModelInfo['provider'];
 	readonly capabilities?: {
 		readonly supports?: { readonly vision?: boolean };
 		readonly limits?: { readonly max_context_window_tokens?: number; readonly max_output_tokens?: number; readonly max_prompt_tokens?: number };
@@ -6100,6 +6101,29 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('keeps unambiguous legacy models usable until exact source selection is enabled', async () => {
+		const provider: NonNullable<CopilotModelInfo['provider']> = { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' };
+		const client = new TestCopilotClient([], [
+			{ id: 'unique', name: 'Unique', provider },
+			{ id: 'shared', name: 'First', provider },
+			{ id: 'shared', name: 'Second', provider: { id: 'm365', kind: 'loki', label: 'Microsoft 365 Copilot' } },
+		]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'model-token');
+			await waitForState(agent.models, models => models.length > 0);
+			assert.deepStrictEqual({
+				capability: agent.getDescriptor().capabilities?.modelSourceSelection,
+				models: agent.models.get().map(model => ({ id: model.id, source: model.modelSource })),
+			}, {
+				capability: undefined,
+				models: [{ id: 'unique', source: undefined }],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('restarts an authenticated GitHub Enterprise client after a token change', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -7415,6 +7439,31 @@ suite('CopilotAgent', () => {
 				}, { earlyInventory: ['previous'], cached: ['preview'], notifications: 3, preservesMembership: true });
 			} finally {
 				listener.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restored history preserves the source and every model-configuration primitive without activation', async () => {
+			const data = disposables.add(new TestSessionDataService());
+			const session = AgentSession.uri('copilotcli', 'source-history');
+			const chat = defaultChatUri(session);
+			const events = toSessionEvents([
+				{ type: 'user.message', id: 'question', data: { content: 'Question' } },
+				{ type: 'assistant.message', data: { messageId: 'answer', content: 'Answer' } },
+			]);
+			const { agent, launches } = setup(data, [], events);
+			const context = { ...exactChatContext(session, chat, session), credentials: { getCredential: () => { assert.fail('History must not request a credential'); } } };
+			const model: ModelSelection = {
+				id: 'shared', modelSourceId: 'saved-source',
+				config: { contextSize: 1_000_000, thinkingLevel: 'high', enabled: true, reset: null },
+			};
+			const database = disposables.add(data.openDatabase(session));
+			await database.object.setMetadata('copilot.model', JSON.stringify(model));
+			try {
+				await agent.materializeChat(chat, context, undefined);
+				const turns = await agent.chats.getMessages(chat, context);
+				assert.deepStrictEqual({ models: turns.map(turn => turn.message.model), launches: launches.length }, { models: [model], launches: 0 });
+			} finally {
 				await disposeAgent(agent);
 			}
 		});

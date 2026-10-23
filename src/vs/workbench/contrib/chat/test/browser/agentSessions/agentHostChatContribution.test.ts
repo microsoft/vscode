@@ -94,7 +94,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatSessionForkError, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
-import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { getSourceQualifiedModelIdentifier, ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -1844,7 +1844,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			const chatSession = disposables.add(await opening);
 			let serverSeq = 0;
-			const fire = (action: SessionAction | AgentHostChatAction, channel = chatUri) => peer.deliver({
+			const fire = (action: ActionEnvelope['action'], channel = chatUri) => peer.deliver({
 				jsonrpc: '2.0', method: 'action',
 				params: { channel, serverSeq: ++serverSeq, origin: undefined, action },
 			});
@@ -1875,8 +1875,82 @@ suite('AgentHostChatContribution', () => {
 					},
 				};
 			};
-			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, instantiationService, chatService };
+			return { startRequest, fire, echo, peer, client, handler, chatSession, sessionResource, backendSession, chatUri, modelService, quotaUpdates, instantiationService, chatService, chatAgentService };
 		}
+
+		test('qualified source rows send distinct exact pairs over AHP and missing sources never send a bare ID', async () => {
+			const namespace = 'agent-host-copilot';
+			const identifiers = ['a', 'b'].map(source => getSourceQualifiedModelIdentifier(namespace, source, 'shared'));
+			const models = new Map(identifiers.map((identifier, index) => [identifier, upcastPartial<ILanguageModelChatMetadata>({
+				id: 'shared', name: 'Shared', vendor: namespace, modelSourceId: index === 0 ? 'a' : 'b', targetChatSessionType: namespace,
+			})]));
+			const { startRequest, fire, peer, chatAgentService, sessionResource } = await openWireSession({ languageModels: models });
+			fire({
+				type: ActionType.RootAgentsChanged,
+				agents: [{
+					provider: 'copilot', displayName: 'One Harness', description: 'test',
+					capabilities: { modelSourceSelection: {} },
+					modelSources: [{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }],
+					models: ['a', 'b'].map(modelSourceId => ({ provider: 'copilot', id: 'shared', name: 'Shared', modelSourceId })),
+				}],
+			}, ROOT_STATE_URI);
+			const sentModels: Array<ITurnStartedAction['message']['model']> = [];
+			for (const identifier of identifiers) {
+				const request = await startRequest({ userSelectedModelId: identifier, modelConfiguration: { thinkingLevel: 'high' } });
+				assert.ok(request.sent.action.type === ActionType.ChatTurnStarted);
+				sentModels.push(request.sent.action.message.model);
+				await request.finish();
+			}
+			models.delete(identifiers[1]);
+			let dispatches = 0;
+			disposables.add(peer.onDispatch(() => dispatches++));
+			const agent = chatAgentService.registeredAgents.get(namespace);
+			assert.ok(agent);
+			await assert.rejects(agent.impl.invoke(makeRequest({ sessionResource, userSelectedModelId: identifiers[1] }), () => { }, [], CancellationToken.None), /no longer available/);
+			assert.deepStrictEqual({
+				sentModels, dispatches,
+			}, {
+				sentModels: [{ id: 'shared', modelSourceId: 'a', config: { thinkingLevel: 'high' } }, { id: 'shared', modelSourceId: 'b', config: { thinkingLevel: 'high' } }],
+				dispatches: 0,
+			});
+		});
+
+		test('restored source selections and captured execution labels survive an empty current catalog', async () => {
+			const model = { id: 'shared', modelSourceId: 'old-source' };
+			const { chatSession } = await openWireSession({
+				chat: {
+					draft: { text: 'Continue', origin: { kind: MessageKind.User }, model },
+					turns: [{
+						id: 'recorded', state: TurnState.Complete,
+						message: { text: 'Recorded request', origin: { kind: MessageKind.User }, model },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'answer', content: 'Recorded answer' }],
+						usage: { model: 'shared', _meta: { 'vscode.modelExecution': { modelId: 'shared', modelDisplayName: 'Captured Model', provider: { id: 'old-source', kind: 'loki', label: 'Captured Source' } } } },
+					}],
+				},
+			});
+			const identifier = getSourceQualifiedModelIdentifier('agent-host-copilot', 'old-source', 'shared');
+			assert.deepStrictEqual({
+				requests: chatSession.history.filter(item => item.type === 'request').map(item => item.modelId),
+				footers: chatSession.history.filter(item => item.type === 'response').map(item => item.details),
+				selection: chatSession.transferredState?.inputState?.selectedModel?.identifier,
+				selectable: chatSession.transferredState?.inputState?.selectedModel?.metadata.isUserSelectable,
+			}, { requests: [identifier], footers: ['Captured Model (Captured Source)'], selection: identifier, selectable: false });
+		});
+
+		test('a requested source does not become actual-call attribution when usage is missing', async () => {
+			const model = { id: 'requested-model', modelSourceId: 'requested-source' };
+			const { chatSession } = await openWireSession({
+				chat: {
+					turns: [{
+						id: 'unattributed', state: TurnState.Complete,
+						message: { text: 'Request', origin: { kind: MessageKind.User }, model },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'answer', content: 'Answer' }],
+						usage: undefined,
+					}],
+				},
+			});
+			assert.deepStrictEqual(chatSession.history.filter(item => item.type === 'response').map(item => item.details), [undefined]);
+		});
 
 		for (const synchronous of [false, true]) {
 			test(`rejected turn starts surface the reason and settle without a host turn (synchronous: ${synchronous})`, async () => {

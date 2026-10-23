@@ -246,6 +246,9 @@ export function findBestMatchingModel(
 	if (!previous || pool.length === 0) {
 		return undefined;
 	}
+	if (previous.metadata.modelSourceId !== undefined) {
+		return pool.find(model => model.metadata.vendor === previous.metadata.vendor && model.metadata.modelSourceId === previous.metadata.modelSourceId && model.metadata.id === previous.metadata.id);
+	}
 	const candidates = pool.filter(m => isSameBillingIdentity(previous, m));
 	if (candidates.length === 0) {
 		return undefined;

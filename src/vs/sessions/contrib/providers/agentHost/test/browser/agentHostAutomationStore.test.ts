@@ -35,6 +35,7 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/co
 import { ReconnectableAgentHostAutomationStore } from '../../browser/reconnectableAgentHostAutomationStore.js';
 import { AutomationUnavailableError, type AutomationCatalogueState } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { IAutomationDescriptor, IAutomationRun } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { getSourceQualifiedModelIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -1827,6 +1828,46 @@ suite('AgentHostAutomationStore', () => {
 			scheduleDay: 0,
 		});
 	});
+
+	for (const messageOnly of [false, true]) {
+		test(`preserves a qualified ${messageOnly ? 'message' : 'template'} model across the Automation renderer boundary`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const store = disposables.add(new AgentHostAutomationStore('remote-agent-host', connection, {
+				toHost: resource => resource,
+				fromHost: resource => resource,
+				resourceSchemeForProvider: provider => `remote-test-${provider}`,
+				providerForResourceScheme: scheme => scheme === 'remote-test-mock' ? 'mock' : undefined,
+			}, new NullLogService(), storage, activeClientService));
+			const model = { id: 'shared/model:version', modelSourceId: 'opaque/source:one', config: { thinkingLevel: 'high' } };
+			const timestamp = new Date().toISOString();
+			connection.setAutomation({
+				resource: 'ahp-automation:/source', createdAt: timestamp, modifiedAt: timestamp, runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				definition: {
+					title: 'Source', enabled: true, triggers: [],
+					message: { text: 'Source prompt', origin: { kind: MessageKind.Automation }, ...(messageOnly ? { model } : {}) },
+					session: { provider: 'mock', ...(!messageOnly ? { model } : {}) },
+				},
+			});
+			const id = 'remote-agent-host:ahp-automation:/source';
+			const original = store.getAutomation(id);
+			await store.updateAutomation(id, { name: 'Renamed' });
+			const update = connection.dispatched.at(-1)?.action;
+			assert.ok(update?.type === ActionType.AutomationUpdateRequested);
+			assert.deepStrictEqual({
+				projected: original?.sessionTemplate?.modelId,
+				owner: update.changes.session?.provider,
+				message: update.changes.message?.model,
+				template: update.changes.session?.model,
+			}, {
+				projected: getSourceQualifiedModelIdentifier('remote-test-mock', model.modelSourceId, model.id),
+				owner: 'mock',
+				message: messageOnly ? model : undefined,
+				template: messageOnly ? undefined : model,
+			});
+		});
+	}
 
 	test('maps remote workspace and model identifiers at the AHP boundary', async () => {
 		const connection = new TestAutomationConnection();

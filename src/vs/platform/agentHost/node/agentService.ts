@@ -99,6 +99,7 @@ import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSa
 import { hasSingleUserChat, ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
 import { IAgentHostResourceProviders } from './agentHostResourceProviders.js';
+import { chatHasModelSourceSelection, conversationHasModelSourceSelection } from '../common/agentModelSelection.js';
 import { GIT_BLOB_SCHEME } from './gitDiffContent.js';
 import { EditAttributionResourceProvider } from './resourceProviders/editAttributionResourceProvider.js';
 import { GitBlobResourceProvider } from './resourceProviders/gitBlobResourceProvider.js';
@@ -5858,6 +5859,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async createSession(config: IAgentServiceCreateSessionConfig | undefined): Promise<URI> {
+		if (config?.importConversation && conversationHasModelSourceSelection(config.importConversation)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'A source-qualified conversation cannot be imported without preserving its host and agent namespace.');
+		}
 		const provider = this._providerService.resolveProvider(config?.provider);
 		if (provider && config?.session && this._providerService.getProviderForSession(config.session) === provider) {
 			this._cancelPendingSessionGc(config.session);
@@ -7020,6 +7024,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (!this._supportsChats(provider)) {
 			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
+		}
+		const source = sideChat?.source ?? providerOptions.fork?.source;
+		if (source && this._providerService.getProviderForSession(this._chatOwnership.getChatOwner(source.toString()) ?? source)?.id !== provider.id) {
+			const { sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(source);
+			if (chatHasModelSourceSelection(sourceState) && this._providerService.getProviderForSession(sourceSessionKey)?.id !== provider.id) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'A source-qualified chat cannot be copied to a different agent harness.');
+			}
 		}
 		this._orchestratorDatabase.recordChatStorageIdentity(sessionKey, chat.toString(), { kind: 'peer' });
 		const explicitTitle = requestedTitle?.trim() || undefined;

@@ -21,7 +21,7 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
  * HydraFusion Max as its Max tier.
  */
 export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-	return model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.metadata.id);
+	return (model.metadata.isCopilotModel === true || model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID) && isCopilotHydraFusionModelId(model.metadata.id);
 }
 
 /** The label of a HydraFusion model as one of HydraFusion's own tiers, outside Fusion. */
@@ -73,7 +73,7 @@ export function filterModelPickerModelsForEntitlement(models: ILanguageModelChat
 export function filterModelPickerModelsForEntitlement(models: readonly ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement, languageModelsService: ILanguageModelsService): readonly ILanguageModelChatMetadataAndIdentifier[];
 export function filterModelPickerModelsForEntitlement(models: readonly ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement, languageModelsService: ILanguageModelsService): readonly ILanguageModelChatMetadataAndIdentifier[] {
 	return isHydraFusionUpgradeOnly(entitlement)
-		? models.filter(model => !isHydraFusionModel(model) || isUserProvidedModel(model, languageModelsService))
+		? models.filter(model => model.metadata.modelSourceId !== undefined || !isHydraFusionModel(model) || isUserProvidedModel(model, languageModelsService))
 		: models;
 }
 

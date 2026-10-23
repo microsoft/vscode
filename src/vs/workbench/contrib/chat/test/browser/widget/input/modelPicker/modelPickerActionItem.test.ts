@@ -30,7 +30,7 @@ import { NullTelemetryService } from '../../../../../../../../platform/telemetry
 import { IUpdateService } from '../../../../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../../platform/workspace/common/workspaceTrust.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService, type IChatSentiment } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
 import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
@@ -71,7 +71,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService; readonly sentiment?: IChatSentiment } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		let modelReads = 0;
 		const modelsChanged = disposables.add(new Emitter<string>());
@@ -86,7 +86,9 @@ suite('ModelPickerActionItem', () => {
 			override getLanguageModelIds() { return models.map(candidate => candidate.identifier); }
 		}());
 		instantiationService.stub(IProductService, {});
-		const entitlementService = new TestChatEntitlementService();
+		const entitlementService = new class extends TestChatEntitlementService {
+			override readonly sentiment = options.sentiment ?? {};
+		}();
 		entitlementService.entitlement = ChatEntitlement.Pro;
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IUpdateService, {});
@@ -170,6 +172,19 @@ suite('ModelPickerActionItem', () => {
 			})),
 		};
 	}
+
+	test('does not open model sources when AI is hidden globally or in the workspace', () => {
+		const observations = [];
+		for (const options of [{ sentiment: { hidden: true } }, { sentiment: { disabledInWorkspace: true } }, { configurationService: new TestConfigurationService({ 'chat.disableAIFeatures': true }) }]) {
+			const picker = renderPicker(createModel('model'), options);
+			const button = picker.domNode.querySelector<HTMLElement>('.model-picker-name');
+			assert.ok(button);
+			const reads = picker.getModelReadCount();
+			button.click();
+			observations.push({ active: picker.domNode.classList.contains('model-picker-active'), reads: picker.getModelReadCount() - reads });
+		}
+		assert.deepStrictEqual(observations, [{ active: false, reads: 0 }, { active: false, reads: 0 }, { active: false, reads: 0 }]);
+	});
 
 	function createManagedConfiguration(policyDefault?: string) {
 		const policy = new TestConfigurationService({ [ChatConfiguration.DefaultModel]: policyDefault });

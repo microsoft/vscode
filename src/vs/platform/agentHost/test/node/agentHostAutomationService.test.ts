@@ -29,7 +29,7 @@ import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type Message, type SessionActiveClient } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
@@ -140,7 +140,7 @@ suite('AgentHostAutomationService', () => {
 		} as const;
 	}
 
-	function createService(execution?: Partial<IAgentHostAutomationExecution>): AgentHostAutomationService {
+	function createService(execution?: Partial<IAgentHostAutomationExecution>, providerService?: IAgentHostProviderService): AgentHostAutomationService {
 		const models: IAgentModelInfo[] = [
 			{ provider: 'copilotcli', id: 'catalog-model', name: 'Catalog model', supportsVision: false },
 			{ provider: 'copilotcli', id: 'private-byok-model', name: 'Private model', supportsVision: false, _meta: createAgentModelByokMeta('private/vendor/model') },
@@ -157,7 +157,7 @@ suite('AgentHostAutomationService', () => {
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
 			resumeTurn: execution?.resumeTurn ?? (async () => false),
-		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
+		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providerService ?? providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
 		return disposables.add(service);
 	}
 
@@ -976,6 +976,64 @@ suite('AgentHostAutomationService', () => {
 			outcome: name === 'automation.runCompleted' ? 'success' : undefined,
 		})));
 	});
+
+	for (const messageOnly of [false, true]) {
+		test(`model source ownership survives a default-harness change with a ${messageOnly ? 'message' : 'template'} qualifier`, async () => {
+			let defaultProvider = 'first';
+			const models: IAgentModelInfo[] = [{ id: 'shared', name: 'Shared', provider: 'first', supportsVision: false, modelSource: { id: 'source', displayName: 'Source' } }];
+			const providers = new Map(['first', 'second'].map(id => [id, upcastPartial<IAgent>({
+				id, models: constObservable(models),
+				getDescriptor: () => ({ provider: id, displayName: id, description: id, capabilities: { modelSourceSelection: {} } }),
+			})]));
+			const providerService = new class extends mock<IAgentHostProviderService>() {
+				override resolveProvider(provider?: string): IAgent | undefined { return providers.get(provider ?? defaultProvider); }
+			}();
+			const completed = new DeferredPromise<void>();
+			const session = URI.parse('first:/qualified-run');
+			let created: AutomationDefinition['session'] | undefined;
+			let sent: Message | undefined;
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
+					void completed.complete();
+				}
+			}));
+			const service = createService({
+				createSession: async template => {
+					created = template;
+					stateManager.createSession({
+						resource: session.toString(), provider: template.provider!, title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), defaultChat: buildDefaultChatUri(session),
+					});
+					return session;
+				},
+				startSession: async (_session, message) => {
+					sent = message;
+					stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+					stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+				},
+			}, providerService);
+			const model = { id: 'shared', modelSourceId: 'source' };
+			const automation = definition();
+			automation.session = messageOnly ? {} : { model };
+			if (messageOnly) {
+				automation.message.model = model;
+			}
+			await service.handleCreate({ ...createAction(), definition: automation });
+			const initialOwner = stateManager.getAutomationCatalogState()?.entries[0].definition.session.provider;
+			defaultProvider = 'second';
+			await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { session: messageOnly ? {} : { model } } });
+			const updatedOwner = stateManager.getAutomationCatalogState()?.entries[0].definition.session.provider;
+			await assert.rejects(service.handleUpdate({
+				type: ActionType.AutomationUpdateRequested, resource: createAction().resource,
+				changes: { session: { provider: 'second', ...(!messageOnly ? { model } : {}) } },
+			}), /cannot change its owning agent harness/);
+			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'qualified-run' });
+			await completed.p;
+			assert.deepStrictEqual({
+				initialOwner, updatedOwner, createdOwner: created?.provider, createdModel: created?.model, sentModel: sent?.model,
+			}, { initialOwner: 'first', updatedOwner: 'first', createdOwner: 'first', createdModel: model, sentModel: model });
+		});
+	}
 
 	for (const hasMessageModel of [false, true]) {
 		test(hasMessageModel ? 'preserves an explicit Automation message model' : 'records the Automation model configuration on its first turn', async () => {

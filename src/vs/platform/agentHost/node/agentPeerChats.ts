@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
+import { hasKey } from '../../../base/common/types.js';
 import { type AgentSelection, type ModelSelection } from '../common/state/protocol/state.js';
 
 /**
@@ -52,6 +53,9 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 		// a future serialization change: only accept values that actually look
 		// like a `ModelSelection` / `AgentSelection`.
 		const validModel = isModelSelection(value.model) ? value.model : undefined;
+		if (!validModel && value.model && typeof value.model === 'object' && hasKey(value.model, { modelSourceId: true })) {
+			return undefined;
+		}
 		const validAgent = isAgentSelection(value.agent) ? value.agent : undefined;
 		return {
 			sdkSessionId,
@@ -64,7 +68,10 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 }
 
 function isModelSelection(value: unknown): value is ModelSelection {
-	return !!value && typeof value === 'object' && typeof (value as { id?: unknown }).id === 'string';
+	if (!value || typeof value !== 'object' || !('id' in value) || typeof value.id !== 'string') {
+		return false;
+	}
+	return !('modelSourceId' in value) || value.modelSourceId === undefined || (typeof value.modelSourceId === 'string' && value.modelSourceId.trim().length > 0);
 }
 
 function isAgentSelection(value: unknown): value is AgentSelection {

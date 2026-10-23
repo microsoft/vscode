@@ -4,7 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IAgentModelInfo } from './agent.js';
-import type { SessionModelInfo } from './state/protocol/state.js';
+import type { AgentInfo, ModelSourceInfo, SessionModelInfo } from './state/protocol/state.js';
+
+/** Projects provider-owned model references into one atomic AHP catalog. */
+export function createAgentModelCatalog(models: readonly IAgentModelInfo[], modelSources: readonly ModelSourceInfo[] = []): Pick<AgentInfo, 'models' | 'modelSources'> {
+	const sources = [...modelSources];
+	const rows = models.map(({ modelSource, ...model }): SessionModelInfo => {
+		if (!modelSource) {
+			return model;
+		}
+		if (!sources.some(source => source.id === modelSource.id && source.displayName === modelSource.displayName)) {
+			sources.push(modelSource);
+		}
+		return { ...model, modelSourceId: modelSource.id };
+	});
+	return { models: rows, ...(sources.length ? { modelSources: sources } : {}) };
+}
 
 /** Well-known source id for models provided by a user's ChatGPT subscription. */
 export const CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID = 'chatgptSubscription';

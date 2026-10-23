@@ -2259,6 +2259,83 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 	}
 });
 
+suite('CopilotSessionLauncher model source selection', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const outcome of ['applied', 'unchanged', 'deferred', 'lost qualifier', 'unavailable source'] as const) {
+			test(`${kind} verifies the effective source before exposing the session: ${outcome}`, async () => {
+				const source = { id: 'source-b', kind: 'loki' as const, label: 'Second source', ordering: 1 };
+				const model: ModelSelection = { id: 'shared', modelSourceId: source.id, config: { thinkingLevel: 'high', contextSize: 1_000_000 } };
+				const switches: Parameters<CopilotSession['rpc']['model']['switchTo']>[0][] = [];
+				let disconnected = 0;
+				const session = new class extends mock<CopilotSession>() {
+					override readonly sessionId = 'session-1';
+					override on: CopilotSession['on'] = () => () => { };
+					override async disconnect(): Promise<void> { disconnected++; }
+					override async setModel(): Promise<void> { throw new Error('Unexpected bare model retry'); }
+					override get rpc(): CopilotSession['rpc'] {
+						return {
+							...new class extends mock<CopilotSession['rpc']>() { }(),
+							agent: { ...new class extends mock<CopilotSession['rpc']['agent']>() { }(), ...emptyAgentCatalog },
+							options: { ...new class extends mock<CopilotSession['rpc']['options']>() { }(), update: async () => ({ success: true }) },
+							model: {
+								...new class extends mock<CopilotSession['rpc']['model']>() { }(),
+								switchTo: async params => {
+									switches.push(params);
+									return { status: outcome === 'deferred' ? 'deferred' : outcome === 'unchanged' ? 'unchanged' : 'applied', deferred: outcome === 'deferred' };
+								},
+								list: async () => ({ providers: [source], list: outcome === 'unavailable source' ? [] : [{ id: model.id, provider: source }] }),
+								getCurrent: async () => ({ modelId: model.id, ...(outcome === 'lost qualifier' ? {} : { providerId: source.id }) }),
+							},
+						};
+					}
+				}();
+				const opens: string[] = [];
+				const client = new class extends mock<CopilotClient>() {
+					override get rpc(): CopilotClient['rpc'] {
+						return { ...new class extends mock<CopilotClient['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
+					}
+					override async createSession(config: SessionConfig): Promise<CopilotSession> {
+						reportManagedSettings(config);
+						opens.push('create');
+						return session;
+					}
+					override async resumeSession(_id: string, config?: ResumeSessionConfig): Promise<CopilotSession> {
+						reportManagedSettings(config);
+						opens.push('resume');
+						return session;
+					}
+				}();
+				const basePlan = {
+					client, sessionId: session.sessionId, workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+					snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create'
+					? { ...basePlan, kind, model, longContextWindow: 1_000_000 }
+					: { ...basePlan, kind, fallback: { model, longContextWindow: 1_000_000 } };
+				const launcher = createTestLauncher();
+				const accepted = outcome === 'applied' || outcome === 'unchanged';
+				if (accepted) {
+					store.add(await launcher.launch(plan, testRuntime));
+				} else {
+					await assert.rejects(launcher.launch(plan, testRuntime), /model source|source and model/);
+				}
+				assert.deepStrictEqual({ switches, opens, disconnected }, {
+					switches: [{
+						modelId: model.id, providerId: source.id, requireAvailable: true,
+						reasoningEffort: kind === 'create' ? 'high' : undefined,
+						contextTier: kind === 'create' ? 'long_context' : undefined,
+					}],
+					opens: [kind], disconnected: accepted ? 0 : 1,
+				});
+			});
+		}
+	}
+});
+
 suite('CopilotSessionLauncher canvas config', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 

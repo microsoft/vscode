@@ -41,12 +41,12 @@ import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecyc
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatAction, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
@@ -109,6 +109,7 @@ const syncTestConfigurationNode = {
 	},
 };
 import type { DispatchActionParams, Implementation } from '../../common/state/protocol/common/commands.js';
+import type { AutomationDefinition, AutomationState } from '../../common/state/protocol/channels-automation/state.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -4994,6 +4995,170 @@ suite('AgentHostProtocolClient', () => {
 				},
 			});
 		}
+
+		suite('model-source selection', () => {
+			const sessionUri = URI.parse('ahp-session:/source-owner');
+			const chatUri = URI.parse('ahp-chat:/source-chat');
+			const model = { id: 'shared-model', modelSourceId: 'source-b' };
+			const message: Message = { text: 'Continue', origin: { kind: MessageKind.User }, model };
+
+			async function createSourceClient(supported = true) {
+				const agent: AgentInfo = {
+					provider: 'source-agent', displayName: 'Source agent', description: 'Test',
+					capabilities: supported ? { modelSourceSelection: {} } : {},
+					modelSources: [{ id: 'source-a', displayName: 'First source' }, { id: 'source-b', displayName: 'Second source' }],
+					models: ['source-a', 'source-b'].map(modelSourceId => ({ id: model.id, name: 'Shared model', provider: 'source-agent', modelSourceId })),
+				};
+				const summary = {
+					resource: sessionUri.toString(), provider: agent.provider, title: 'Source test', status: SessionStatus.Idle,
+					createdAt: '2026-10-23T00:00:00.000Z', modifiedAt: '2026-10-23T00:00:00.000Z',
+				};
+				const chat = createChatState(createDefaultChatSummary(summary, chatUri.toString()));
+				const session: SessionState = { ...createSessionState(summary), defaultChat: chat.resource, chats: [chat] };
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], undefined, undefined, [agent]);
+				await connecting;
+				const sessionRef = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, sessionUri, 'model-source test'));
+				const sessionRequest = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: sessionRequest.id, result: { snapshot: { resource: sessionUri.toString(), state: session, fromSeq: 0 } } });
+				const chatRef = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, chatUri, 'model-source test'));
+				const chatRequest = await waitForRequestAtWithin(transports[0], 'subscribe', 1);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: chatRequest.id, result: { snapshot: { resource: chatUri.toString(), state: chat, fromSeq: 0 } } });
+				await flushMicrotasks();
+				return { client, transports, agent, session, chat, sessionRef, chatRef };
+			}
+
+			test('forwards qualified initial messages and draft selections without changing raw IDs', async () => {
+				const { client, transports } = await createSourceClient();
+				const transport = transports[0];
+				const created = client.createChat(sessionUri, URI.parse('ahp-chat:/new-source-chat'), { initialMessage: message });
+				const request = await waitForRequestAtWithin(transport, 'createChat', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+				await created;
+				client.dispatch(chatUri.toString(), { type: ActionType.ChatDraftChanged, draft: message });
+				assert.deepStrictEqual({
+					request: request.params,
+					draft: findDispatchAction(transport, ActionType.ChatDraftChanged)?.params,
+				}, {
+					request: { channel: sessionUri.toString(), chat: 'ahp-chat:/new-source-chat', initialMessage: message },
+					draft: { channel: chatUri.toString(), clientSeq: 1, action: { type: ActionType.ChatDraftChanged, draft: message } },
+				});
+			});
+
+			test('rejects unsupported sources before requests or optimistic mutations reach the transport', async () => {
+				const { client, transports, chatRef, chat } = await createSourceClient(false);
+				const sent = transports[0].sentMessages.length;
+				await assert.rejects(client.createChat(sessionUri, URI.parse('ahp-chat:/new-source-chat'), { initialMessage: message }), /does not support exact model-source selection/);
+				for (const action of [
+					{ type: ActionType.ChatDraftChanged, draft: message },
+					{ type: ActionType.ChatPendingMessageSet, id: 'queued', kind: PendingMessageKind.Queued, message },
+					{ type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: '2026-10-23T00:00:00.000Z', message },
+				] satisfies ChatAction[]) {
+					assert.throws(() => client.dispatch(chatUri.toString(), action), /does not support exact model-source selection/);
+				}
+				assert.deepStrictEqual({ sent: transports[0].sentMessages.length, state: chatRef.object.value }, { sent, state: chat });
+			});
+
+			test('rejects unknown ownership and bare-ID selection of qualified rows', async () => {
+				const { client, transports } = await createSourceClient();
+				const sent = transports[0].sentMessages.length;
+				await assert.rejects(client.createChat(URI.parse('source-agent:/unsubscribed'), URI.parse('ahp-chat:/new-source-chat'), { initialMessage: message }), /does not support exact model-source selection/);
+				assert.throws(() => client.dispatch(chatUri.toString(), {
+					type: ActionType.ChatDraftChanged, draft: { ...message, model: { id: model.id } },
+				}), /exact model source is required/);
+				assert.strictEqual(transports[0].sentMessages.length, sent);
+			});
+
+			test('rejects qualified portable imports and cross-harness transfers but keeps same-harness copies', async () => {
+				const { client, transports, agent, session } = await createSourceClient();
+				const transport = transports[0];
+				client.dispatch(chatUri.toString(), { type: ActionType.ChatDraftChanged, draft: message });
+				const destination = URI.parse('ahp-session:/different-harness');
+				const differentAgent = { ...agent, provider: 'different-agent', models: agent.models.map(model => ({ ...model, provider: 'different-agent' })) };
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'action',
+					params: { channel: ROOT_STATE_URI, serverSeq: 1, origin: undefined, action: { type: ActionType.RootAgentsChanged, agents: [agent, differentAgent] } },
+				});
+				disposables.add(client.getSubscription<SessionState>(StateComponents.Session, destination, 'model-source test'));
+				const subscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
+				transport.fireMessage({
+					jsonrpc: '2.0', id: subscription.id,
+					result: { snapshot: { resource: destination.toString(), state: { ...session, provider: differentAgent.provider, defaultChat: undefined, chats: [] }, fromSeq: 1 } },
+				});
+				await flushMicrotasks();
+				const sent = transport.sentMessages.length;
+				assert.throws(() => client.createSession({ provider: agent.provider, importConversation: { model, turns: [] } }), /source-qualified conversation cannot be imported/);
+				await assert.rejects(client.createChat(destination, URI.parse('ahp-chat:/foreign-copy'), { fork: { source: chatUri, turnId: 'recorded' } }), /preserving its host and agent namespace/);
+				await assert.rejects(client.moveChat(chatUri, { kind: 'session', session: destination, after: undefined }), /preserving its host and agent namespace/);
+				assert.strictEqual(transport.sentMessages.length, sent);
+				const copied = client.createChat(sessionUri, URI.parse('ahp-chat:/same-harness-copy'), { fork: { source: chatUri, turnId: 'recorded' } });
+				const request = await waitForRequestAtWithin(transport, 'createChat', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+				await copied;
+				assert.deepStrictEqual(request.params, {
+					channel: sessionUri.toString(), chat: 'ahp-chat:/same-harness-copy',
+					source: { kind: ChatSourceKind.Fork, chat: chatUri.toString(), turnId: 'recorded' },
+				});
+			});
+
+			test('guards message-only automation selections and preserves their saved harness', async () => {
+				const { client, transports, agent } = await createSourceClient();
+				const transport = transports[0];
+				const resource = 'ahp-automation:/source-test';
+				const definition: AutomationDefinition = {
+					title: 'Source automation', enabled: false, triggers: [],
+					session: { provider: agent.provider }, message: { ...message, origin: { kind: MessageKind.Automation } },
+				};
+				disposables.add(client.getSubscription<AutomationState>(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'model-source test'));
+				const subscription = await waitForRequestAtWithin(transport, 'subscribe', 2);
+				const state: AutomationState = {
+					entries: [{ resource, definition, runs: [], operations: [], createdAt: '2026-10-23T00:00:00.000Z', modifiedAt: '2026-10-23T00:00:00.000Z' }],
+				};
+				transport.fireMessage({ jsonrpc: '2.0', id: subscription.id, result: { snapshot: { resource: AUTOMATION_CATALOG_URI, state, fromSeq: 0 } } });
+				await flushMicrotasks();
+				const sent = transport.sentMessages.length;
+				assert.throws(() => client.dispatch(AUTOMATION_CATALOG_URI, {
+					type: ActionType.AutomationUpdateRequested, resource, changes: { session: { provider: 'different-agent' } },
+				}), /saved model-source owner/);
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'action',
+					params: { channel: ROOT_STATE_URI, serverSeq: 1, origin: undefined, action: { type: ActionType.RootAgentsChanged, agents: [{ ...agent, capabilities: {} }] } },
+				});
+				assert.throws(() => client.dispatch(AUTOMATION_CATALOG_URI, {
+					type: ActionType.AutomationCreateRequested, resource: 'ahp-automation:/new-source-test', definition,
+				}), /does not support exact model-source selection/);
+				assert.throws(() => client.dispatch(AUTOMATION_CATALOG_URI, {
+					type: ActionType.AutomationUpdateRequested, resource, changes: { session: {} },
+				}), /saved model-source owner/);
+				await assert.rejects(client.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: resource, requestId: 'source-run' }), /does not support exact model-source selection/);
+				assert.strictEqual(transport.sentMessages.length, sent);
+			});
+
+			test('closes before replaying a qualified turn after an agent capability downgrade', async () => {
+				const { client, transports, agent, session, chat } = await createSourceClient();
+				client.dispatch(chatUri.toString(), {
+					type: ActionType.ChatTurnStarted, turnId: 'pending-source-turn', startedAt: '2026-10-23T00:00:00.000Z', message,
+				});
+				transports[0].fireClose();
+				await waitForReconnecting(client);
+				const transport = await waitForTransport(transports, 1);
+				transport.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(transport, 'reconnect', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Restarted host' } });
+				await initializeAdvertised(transport, undefined, undefined, [{ ...agent, capabilities: {} }]);
+				const closed = Event.toPromise(client.onDidClose);
+				const restoredSession = await waitForRequestAtWithin(transport, 'subscribe', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: restoredSession.id, result: { snapshot: { resource: sessionUri.toString(), state: session, fromSeq: 0 } } });
+				const restoredChat = await waitForRequestAtWithin(transport, 'subscribe', 1);
+				transport.fireMessage({ jsonrpc: '2.0', id: restoredChat.id, result: { snapshot: { resource: chatUri.toString(), state: chat, fromSeq: 0 } } });
+				await awaitWithin(closed, 2000, () => 'Unsafe qualified replay did not close the downgraded connection.');
+				assert.deepStrictEqual({
+					state: client.connectionState,
+					replayed: findDispatchAction(transport, ActionType.ChatTurnStarted),
+				}, { state: AgentHostClientState.Closed, replayed: undefined });
+			});
+		});
 
 		for (const encryption of ['mcp-key', 'missing-key', 'provider-key-only'] as const) {
 			test(`untargeted non-GitHub MCP credentials require trusted relay encryption: ${encryption}`, async () => {

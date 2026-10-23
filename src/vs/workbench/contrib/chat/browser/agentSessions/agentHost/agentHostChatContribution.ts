@@ -304,7 +304,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			} else {
 				// Push updated models to existing model provider
 				const modelProvider = this._modelProviders.get(agent.provider);
-				modelProvider?.updateModels(agent.models);
+				modelProvider?.updateModels(agent.models, agent);
 			}
 		}
 	}
@@ -441,7 +441,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
-		modelProvider.updateModels(agent.models);
+		modelProvider.updateModels(agent.models, agent);
 
 	}
 

@@ -15,7 +15,7 @@ import { latestOfEachLine, parseModelLine } from '../../../../../browser/widget/
 import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browser/widget/input/modelPicker/modelPickerVariants.js';
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { getProviderGroupKey } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, LanguageModelProviderIcon } from '../../../../../common/languageModels.js';
+import { getLanguageModelSourceIdentifier, getSourceQualifiedModelIdentifier, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, LanguageModelProviderIcon } from '../../../../../common/languageModels.js';
 
 interface IFixtureModelOptions {
 	readonly vendor?: string;
@@ -109,6 +109,31 @@ suite('Model picker destinations', () => {
 
 	/** The destination id a provider gets, keyed by identity rather than by display name. */
 	const providerId = (vendor: string, label: string) => `provider:${getProviderGroupKey(vendor, label)}`;
+
+	test('native model sources get separate stable tabs without being classified as BYOK', () => {
+		const vendor = 'agent-host-copilotcli';
+		const sources = [{ id: 'a', displayName: 'GitHub Copilot' }, { id: 'b', displayName: 'Microsoft 365' }];
+		const models = sources.map(source => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+			metadata: { ...createModel('shared', 'Shared', { vendor }).metadata, modelSourceId: source.id },
+		}));
+		const sourceService: ILanguageModelsService = {
+			...service,
+			getLanguageModelGroups: () => sources.map(source => ({ source, modelIdentifiers: models.filter(model => model.metadata.modelSourceId === source.id).map(model => model.identifier) })),
+		};
+		const before = buildModelPickerDestinations(models, sourceService);
+		sources[1] = { ...sources[1], displayName: 'Renamed' };
+		const after = buildModelPickerDestinations(models, sourceService);
+		assert.deepStrictEqual({
+			before: before.map(destination => [destination.id, destination.label, destination.models.map(model => model.identifier)]),
+			after: after.map(destination => [destination.id, destination.label]),
+			byok: models.map(model => model.metadata.isBYOK),
+		}, {
+			before: sources.map((source, index) => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, index === 0 ? 'GitHub Copilot' : 'Microsoft 365', [models[index].identifier]]),
+			after: sources.map(source => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, source.displayName]),
+			byok: [undefined, undefined],
+		});
+	});
 
 	test('a host that relays the built-in provider keeps its models built in', () => {
 		// An agent host registers a vendor of its own and republishes the built-in

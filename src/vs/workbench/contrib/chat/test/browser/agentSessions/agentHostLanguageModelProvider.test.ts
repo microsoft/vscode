@@ -13,7 +13,7 @@ import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentH
 import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
-import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { getSourceQualifiedModelIdentifier, ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
 suite('AgentHostLanguageModelProvider', () => {
@@ -26,6 +26,49 @@ suite('AgentHostLanguageModelProvider', () => {
 	function createProvider(): AgentHostLanguageModelProvider {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
+
+	test('publishes distinct source identities and descriptors without BYOK or label suffixes', async () => {
+		const provider = createProvider();
+		const sources = { capabilities: { modelSourceSelection: {} }, modelSources: [{ id: 'a', displayName: 'Source A' }, { id: 'b', displayName: 'Source B' }] };
+		provider.updateModels([{ ...makeModel('shared'), modelSourceId: 'a', maxPromptTokens: 100 }, { ...makeModel('shared'), modelSourceId: 'b', maxPromptTokens: 200 }], sources);
+		const first = await provider.provideLanguageModelChatCatalog({ silent: true }, CancellationToken.None);
+		provider.updateModels([{ ...makeModel('shared'), modelSourceId: 'b', maxPromptTokens: 200 }], { ...sources, modelSources: [{ id: 'b', displayName: 'Renamed' }] });
+		const second = await provider.provideLanguageModelChatCatalog({ silent: true }, CancellationToken.None);
+		assert.deepStrictEqual({
+			sources: first.sources,
+			models: first.models.map(model => [model.identifier, model.metadata.id, model.metadata.name, model.metadata.modelSourceId, model.metadata.maxInputTokens, model.metadata.isBYOK]),
+			renamed: second.sources,
+			retained: second.models[0].identifier,
+		}, {
+			sources: sources.modelSources,
+			models: [
+				[getSourceQualifiedModelIdentifier('copilotcli', 'a', 'shared'), 'shared', 'shared', 'a', 100, undefined],
+				[getSourceQualifiedModelIdentifier('copilotcli', 'b', 'shared'), 'shared', 'shared', 'b', 200, undefined],
+			],
+			renamed: [{ id: 'b', displayName: 'Renamed' }],
+			retained: first.models[1].identifier,
+		});
+	});
+
+	test('refuses dangling sources and unsupported exact selection instead of making legacy rows', async () => {
+		const provider = createProvider();
+		provider.updateModels([{ ...makeModel('shared'), modelSourceId: 'missing' }], { capabilities: { modelSourceSelection: {} }, modelSources: [] });
+		await assert.rejects(provider.provideLanguageModelChatInfo(undefined, CancellationToken.None), /unknown model source/);
+		provider.updateModels([{ ...makeModel('shared'), modelSourceId: 'a' }], { modelSources: [{ id: 'a', displayName: 'Source A' }] });
+		await assert.rejects(provider.provideLanguageModelChatInfo(undefined, CancellationToken.None), /cannot safely select/);
+	});
+
+	test('does not turn an unattributed Auto row into a Copilot source', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('auto')], { capabilities: { modelSourceSelection: {} }, modelSources: [] });
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			copilot: model.metadata.isCopilotModel,
+			group: model.metadata.modelGroup,
+			source: model.metadata.modelSourceId,
+			byok: model.metadata.isBYOK,
+		}, { copilot: false, group: { id: 'copilotcli' }, source: undefined, byok: false });
+	});
 
 	test('passes host-owned defaults and locks through without assuming model identifiers', async () => {
 		const provider = createProvider();

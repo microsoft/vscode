@@ -15,14 +15,16 @@ import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHos
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
-import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ConfigSchema, SessionModelInfo, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getModelSelectionKey, getModelSourceCatalogError, supportsModelSourceSelection } from '../../../../../../platform/agentHost/common/agentModelSelection.js';
+import { readAgentModelProvider } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, getSourceQualifiedModelIdentifier, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService, type ILanguageModelChatCatalog, type ILanguageModelChatInfoOptions } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -63,10 +65,12 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	readonly onDidChange = this._onDidChange.event;
 	private readonly _promotionChange = this._register(new MutableDisposable());
 
-	private _models: readonly SessionModelInfo[] = [];
-	/** Whether {@link updateModels} was called, whose first call publishes even an empty list so the vendor resolves. */
-	private _receivedModels = false;
+	private _catalog: (Pick<AgentInfo, 'modelSources' | 'capabilities'> & { readonly provider?: string; readonly models: readonly SessionModelInfo[] }) | undefined;
 	private _additionalModels: readonly SessionModelInfo[] = [];
+
+	private get _models(): readonly SessionModelInfo[] {
+		return this._catalog?.models ?? [];
+	}
 
 	constructor(
 		private readonly _sessionType: string,
@@ -94,13 +98,13 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	/**
 	 * Called by {@link AgentHostContribution} when models change in root state.
 	 */
-	updateModels(models: readonly SessionModelInfo[]): void {
+	updateModels(models: readonly SessionModelInfo[], sources?: Pick<AgentInfo, 'modelSources' | 'capabilities'> & { readonly provider?: string }): void {
 		// Agents are republished on every root state change, so most updates repeat the same models.
-		if (this._receivedModels && equals(this._models, models)) {
+		const catalog = { models, provider: sources?.provider, modelSources: sources?.modelSources, capabilities: sources?.capabilities };
+		if (equals(this._catalog, catalog)) {
 			return;
 		}
-		this._receivedModels = true;
-		this._models = models;
+		this._catalog = catalog;
 		this._onDidChange.fire();
 		this._schedulePromotionChange();
 	}
@@ -139,15 +143,29 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		this._onDidChange.fire();
 	}
 
+	async provideLanguageModelChatCatalog(options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatCatalog> {
+		const sources = this._catalog?.modelSources;
+		return { models: await this.provideLanguageModelChatInfo(options, token), ...(sources ? { sources } : {}) };
+	}
+
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
-		const hostModelIds = new Set(this._models.map(model => model.id));
-		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
+		const error = getModelSourceCatalogError({ models: [...this._models], provider: this._catalog?.provider, modelSources: this._catalog?.modelSources });
+		if (error) {
+			throw new Error(error);
+		}
+		if (this._models.some(model => model.modelSourceId !== undefined) && !supportsModelSourceSelection(this._catalog?.capabilities)) {
+			throw new Error(localize('agentHost.modelSourceUnsupported', "The agent host cannot safely select models from these sources."));
+		}
+		const hostModelIds = new Set(this._models.map(model => getModelSelectionKey(model)));
+		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(getModelSelectionKey(model)) && !this._models.some(host => host.id === model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
 				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
-				const isAuto = m.id === AUTO_RAW_MODEL_ID;
+				const sourceAware = supportsModelSourceSelection(this._catalog?.capabilities);
+				const isCopilotModel = readAgentModelProvider(m)?.kind === 'copilot' || (m.modelSourceId === undefined && !sourceAware);
+				const isAuto = isCopilotModel && m.id === AUTO_RAW_MODEL_ID;
 				const fusion = isAuto && isAgentModelFusion(m);
 				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
@@ -163,26 +181,27 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt }));
 				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
 				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
-				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
+				const { detail, description } = isCopilotModel ? this._routingPresentationFor(m, promotionDiscount ?? modelDiscount) : {};
 				const tooltip = notices?.rowWarning ?? description;
-				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
+				const modelGroup = m.modelSourceId !== undefined ? undefined : sourceAware && !isCopilotModel && byokModelIdentifier === undefined ? { id: this._vendor } : this._modelGroupFor(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
 				// token counts, so fall back to the workbench's own catalogue entry for the same
 				// model. See `_catalogueEntryFor`.
-				const known = this._catalogueEntryFor(m, modelGroup);
+				const known = m.modelSourceId === undefined && !supportsModelSourceSelection(this._catalog?.capabilities) ? this._catalogueEntryFor(m, modelGroup) : undefined;
 				const maxOutputTokens = m.maxOutputTokens ?? known?.maxOutputTokens ?? 0;
 				// BYOK models can advertise only a total window; the workbench expects separate input/output limits.
 				const maxInputTokens = m.maxPromptTokens
 					?? (m.maxContextWindow !== undefined ? Math.max(0, m.maxContextWindow - maxOutputTokens) : undefined)
 					?? known?.maxInputTokens ?? 0;
 				return {
-					identifier: `${this._vendor}:${m.id}`,
+					identifier: m.modelSourceId === undefined ? `${this._vendor}:${m.id}` : getSourceQualifiedModelIdentifier(this._vendor, m.modelSourceId, m.id),
 					metadata: {
 						extension: nullExtensionDescription.identifier,
 						name: m.name,
 						id: m.id,
 						vendor: this._vendor,
+						...(m.modelSourceId !== undefined ? { modelSourceId: m.modelSourceId, isCopilotModel } : sourceAware && byokModelIdentifier === undefined ? { isCopilotModel, isBYOK: false } : {}),
 						version: '1.0',
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),

@@ -20,6 +20,8 @@ import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomat
 import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
+import { automationHasModelSourceSelection, getModelSourceSelectionError } from '../common/agentModelSelection.js';
+import { createAgentModelCatalog } from '../common/agentModelSource.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
 import { AUTOMATION_CATALOG_URI, type AutomationState, type ErrorInfo, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
@@ -246,7 +248,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private async _handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void> {
 		const catalog = this._requireCatalog();
 		this._validateAutomationResource(action.resource);
-		const definition = action.definition;
+		const definition = this._withModelSourceOwner(action.definition);
 		this._validateDefinition(definition);
 		const existing = catalog.entries.find(automation => automation.resource === action.resource);
 		if (existing && equals(existing.definition, definition)) {
@@ -294,10 +296,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 		let automation: AutomationEntry = {
 			...existing,
-			definition: {
+			definition: this._withModelSourceOwner({
 				...existing.definition,
 				...action.changes,
-			},
+			}, existing.definition),
 			modifiedAt: new Date().toISOString(),
 		};
 		this._validateDefinition(automation.definition);
@@ -713,6 +715,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				throw new Error(`Automation not found: ${initialRun.automation}`);
 			}
 			definition = entry.definition;
+			this._validateDefinition(definition);
 			const sessionTemplate = getExecutionSessionTemplate(definition);
 			const template = { ...sessionTemplate, agent: this._customizations.resolveAgent(sessionTemplate, entry.customizations ?? []) };
 			const activeClient = this._customizations.toRunActiveClient(entry);
@@ -1112,7 +1115,34 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 	}
 
+	private _withModelSourceOwner(definition: AutomationDefinition, previous?: AutomationDefinition): AutomationDefinition {
+		if (!automationHasModelSourceSelection(definition)) {
+			return definition;
+		}
+		const previousOwner = previous && automationHasModelSourceSelection(previous) ? previous.session.provider : undefined;
+		if (previous && automationHasModelSourceSelection(previous) && (!previousOwner || (definition.session.provider !== undefined && definition.session.provider !== previousOwner))) {
+			throw new Error('A qualified automation cannot change its owning agent harness.');
+		}
+		const provider = definition.session.provider ?? previousOwner ?? this._providerService.resolveProvider()?.id;
+		if (!provider) {
+			throw new Error('A qualified automation requires an owning agent harness.');
+		}
+		return { ...definition, session: { ...definition.session, provider } };
+	}
+
 	private _validateDefinition(definition: AutomationDefinition): void {
+		if (automationHasModelSourceSelection(definition)) {
+			const provider = definition.session.provider && this._providerService.resolveProvider(definition.session.provider);
+			if (!provider) {
+				throw new Error('The saved model-source owner is unavailable.');
+			}
+			const descriptor = provider.getDescriptor();
+			const catalog = { ...createAgentModelCatalog(provider.models.get(), descriptor.modelSources), capabilities: descriptor.capabilities };
+			const error = getModelSourceSelectionError(definition.session.model, catalog) ?? getModelSourceSelectionError(definition.message.model, catalog);
+			if (error) {
+				throw new Error(error);
+			}
+		}
 		if (definition.title.trim().length === 0) {
 			throw new Error('Automation title must not be empty.');
 		}

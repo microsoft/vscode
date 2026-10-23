@@ -24,6 +24,7 @@ export interface IAgentHostClientConnectionSource {
 	usesLegacySessionUris?(clientId: string): boolean;
 	/** Whether a positively identified VS Code connection lacks opaque chat URI support (`vscode.ahpChatUris`). */
 	usesLegacyChatUris(clientId: string): boolean;
+	supportsModelSourceSelection?(clientId: string): boolean;
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number>;
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
 	/** Requests silent MCP authentication from connected clients. */
@@ -41,6 +42,7 @@ export interface IAgentHostClientConnectionService {
 	isLocalClient(clientId: string): boolean;
 	usesLegacySessionUris(clientId: string): boolean;
 	usesLegacyChatUris(clientId: string): boolean;
+	supportsModelSourceSelection(clientId: string): boolean;
 	getConnectionCounts(clientId: string): IAgentHostClientConnectionCounts;
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
 	/** Requests silent MCP authentication, stopping at the first successful source. */
@@ -117,6 +119,10 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 
 	usesLegacyChatUris(clientId: string): boolean {
 		return [...this._sources].some(source => source.usesLegacyChatUris(clientId));
+	}
+
+	supportsModelSourceSelection(clientId: string): boolean {
+		return [...this._sources].some(source => source.supportsModelSourceSelection?.(clientId) === true);
 	}
 
 	async requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean> {

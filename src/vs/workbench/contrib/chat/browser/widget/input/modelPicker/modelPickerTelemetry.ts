@@ -214,13 +214,14 @@ export class ModelPickerTelemetrySession {
 		toValue: unknown,
 		requestedAt: number,
 	): void {
-		const isFirstParty = !isUserProvidedModel(model, this._languageModelsService);
+		const isSourceModel = model.metadata.modelSourceId !== undefined || model.metadata.isCopilotModel === false;
+		const isFirstParty = !isSourceModel && !isUserProvidedModel(model, this._languageModelsService);
 		if (group === MODEL_CONFIG_GROUP_CONTEXT) {
 			this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
 				provider: this._provider,
 				model: getTelemetryModelIdentifier(model, this._languageModelsService),
-				fromValue: String(fromValue ?? ''),
-				toValue: String(toValue),
+				fromValue: isSourceModel ? 'unknown' : String(fromValue ?? ''),
+				toValue: isSourceModel ? 'unknown' : String(toValue),
 				durationMs: this._elapsed(requestedAt),
 				pickerSessionId: this.id,
 			});
@@ -233,8 +234,8 @@ export class ModelPickerTelemetrySession {
 				model: getTelemetryModelIdentifier(model, this._languageModelsService),
 				// Models the user brought choose their own property keys.
 				property: isFirstParty ? key : 'unknown',
-				fromValue: String(fromValue ?? ''),
-				toValue: String(toValue),
+				fromValue: isSourceModel ? 'unknown' : String(fromValue ?? ''),
+				toValue: isSourceModel ? 'unknown' : String(toValue),
 				durationMs: this._elapsed(requestedAt),
 				pickerSessionId: this.id,
 			});

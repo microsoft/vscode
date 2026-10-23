@@ -32,7 +32,7 @@ import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCop
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getAddModelsUnavailableReason, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatAIDisabledSettingId, ChatConfiguration } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -266,9 +266,17 @@ export class ModelPickerWidget extends Disposable {
 		// The setup-required state derives from entitlement / sentiment / anonymous
 		// access, so refresh the label when any of those change (e.g. after sign-in).
 		this._register(this._entitlementService.onDidChangeEntitlement(() => this.setSelectedModel(this._selectedModel)));
-		this._register(this._entitlementService.onDidChangeSentiment(() => this._renderLabel()));
+		this._register(this._entitlementService.onDidChangeSentiment(() => {
+			if (this._isChatDisabled()) {
+				this._tabbedPicker.value?.hide();
+			}
+			this._renderLabel();
+		}));
 		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId) && this._isChatDisabled()) {
+				this._tabbedPicker.value?.hide();
+			}
 			if (e.affectsConfiguration(ChatConfiguration.DefaultModel)) {
 				this._renderLabel();
 			}
@@ -710,14 +718,20 @@ export class ModelPickerWidget extends Disposable {
 		}
 	}
 
+	private _isChatDisabled(): boolean {
+		const sentiment = this._entitlementService.sentiment;
+		return sentiment.hidden === true || sentiment.disabledInWorkspace === true || this._configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
+	}
+
 	canOpenWithFilter(): boolean {
 		return !!this._domNode?.isConnected && !this._domNode.classList.contains('disabled')
+			&& !this._isChatDisabled()
 			&& !this.isRestrictedMode() && !this.isSetupRequired();
 	}
 
 	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false, trigger: IModelPickerOpenTrigger = { entryPoint: 'command', inputMethod: 'unknown' }, options?: IModelPickerOpenOptions): void {
 		const anchorElement = anchor ?? this._domNode;
-		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
+		if (!anchorElement || this._domNode?.classList.contains('disabled') || this._isChatDisabled()) {
 			return;
 		}
 		if (this._tabbedPicker.value?.isVisible) {

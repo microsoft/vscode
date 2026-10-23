@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
+import { getLanguageModelSourceIdentifier, getSourceQualifiedModelIdentifier, IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
 import { ChatModelsViewModel, getManageModelsProviderLabel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
@@ -68,6 +68,11 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 	addGroupStatus(vendorId: string, message: string): void {
 		this.modelGroups.get(vendorId)?.push({ modelIdentifiers: [], status: { message, severity: Severity.Error } });
+	}
+
+	setModelGroups(vendorId: string, groups: ILanguageModelsGroup[]): void {
+		this.modelGroups.set(vendorId, groups);
+		this._onDidChangeLanguageModels.fire(vendorId);
 	}
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
@@ -318,6 +323,37 @@ suite('ChatModelsViewModel', () => {
 		viewModel = store.add(new ChatModelsViewModel(languageModelsService));
 
 		await viewModel.refresh();
+	});
+
+	test('native model sources have stable groups, independent visibility and no configuration ownership', async () => {
+		const vendor = 'agent-host-copilotcli';
+		languageModelsService.addVendor({ vendor, displayName: 'One Harness', configuration: undefined, managementCommand: undefined, when: undefined });
+		const base = languageModelsService.lookupLanguageModel('copilot-gpt-4');
+		assert.ok(base);
+		const sources = [{ id: 'a', displayName: 'GitHub Copilot' }, { id: 'b', displayName: 'Microsoft 365' }];
+		const identifiers = sources.map(source => getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'));
+		for (const [index, source] of sources.entries()) {
+			languageModelsService.addModel(vendor, identifiers[index], { ...base, vendor, id: 'shared', name: 'Shared', modelSourceId: source.id, targetChatSessionType: vendor });
+		}
+		languageModelsService.setModelGroups(vendor, sources.map((source, index) => ({ source, modelIdentifiers: [identifiers[index]] })));
+		await viewModel.refresh();
+		viewModel.setSessionType(vendor);
+		const sourceGroups = () => viewModel.filter('').filter(isLanguageModelProviderEntry).filter(entry => entry.vendorEntry.modelSource);
+		const initial = sourceGroups();
+		const first = initial.find(entry => entry.vendorEntry.modelSource?.id === 'a')!;
+		viewModel.toggleGroupHidden(first);
+		languageModelsService.setModelGroups(vendor, sources.map((source, index) => ({ source: { ...source, displayName: index === 0 ? 'Renamed' : source.displayName }, modelIdentifiers: [identifiers[index]] })));
+		assert.deepStrictEqual({
+			initial: initial.map(entry => [entry.id, entry.label]).sort(),
+			updated: sourceGroups().map(entry => [entry.id, entry.label]).sort(),
+			hidden: identifiers.map(identifier => languageModelsService.isModelHidden(identifier)),
+			configurable: sourceGroups().map(entry => entry.vendorEntry.vendor.configuration),
+			names: sourceGroups().flatMap(entry => viewModel.getModelsForGroup(entry).map(model => model.metadata.name)),
+		}, {
+			initial: sources.map(source => [getLanguageModelSourceIdentifier(vendor, source.id), source.displayName]).sort(),
+			updated: sources.map(source => [getLanguageModelSourceIdentifier(vendor, source.id), source.id === 'a' ? 'Renamed' : source.displayName]).sort(),
+			hidden: [true, false], configurable: [undefined, undefined], names: ['Shared', 'Shared'],
+		});
 	});
 
 	test('should fetch all models without filters', () => {

@@ -8,6 +8,8 @@ import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
 import type { AttributedPermissionResult, CopilotClient, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
+import { assertCopilotModelSource, switchCopilotModelSource } from './copilotModelSelection.js';
+import { toAgentModelExecutionMeta, type IAgentModelExecution } from '../../common/meta/agentModelProvider.js';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -768,6 +770,7 @@ interface UsageContext {
 	model?: string;
 	cacheReadTokens?: number;
 	cost?: number;
+	modelExecution?: IAgentModelExecution;
 }
 
 /** Which SDK source produced an MCP lifecycle log record. */
@@ -5888,6 +5891,7 @@ export class CopilotAgentSession extends Disposable {
 		await this._sandbox.applyConfig(true, undefined, recorder);
 		await this._syncShellInitScript(recorder);
 		await this._reconcileMcpServerEnablement(recorder);
+		await this._awaitControlPlaneRpc('modelSourceSelection', assertCopilotModelSource(this._wrapper.session, this._requestedModel));
 	}
 
 	/**
@@ -6133,6 +6137,12 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
+			const model = steeringMessage.message.model;
+			if ((model?.modelSourceId !== undefined || this._requestedModel?.modelSourceId !== undefined)
+				&& (model?.modelSourceId !== this._requestedModel?.modelSourceId || model?.id !== this._requestedModel?.id)) {
+				throw new Error(localize('copilot.steeringModelSource', "A steering message cannot change the active model source or model."));
+			}
+			await this._awaitControlPlaneRpc('modelSourceSelection', assertCopilotModelSource(this._wrapper.session, this._requestedModel));
 			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
 			// Steering is injected into the active turn and never fires the SDK's `user-prompt-submitted`
 			// hook, so the read-only snapshot signal can't ride `additionalContext` here. Fold it into the
@@ -6181,6 +6191,21 @@ export class CopilotAgentSession extends Disposable {
 					});
 				}
 			} else if (this._pendingSteeringFlips.delete(steeringMessage.id)) {
+				if ((this._requestedModel?.modelSourceId !== undefined || steeringMessage.message.model?.modelSourceId !== undefined) && !abortToken.isCancellationRequested) {
+					const turn = this._currentTurn.value;
+					if (!turn) {
+						return false;
+					}
+					this._emitAction({
+						type: ActionType.ChatResponsePart,
+						turnId: turn.id,
+						part: {
+							kind: ResponsePartKind.SystemNotification,
+							content: localize('copilotAgent.steeringFailed', "Failed to send the steering message: {0}", getErrorMessage(err)),
+							_meta: toAgentSystemNotificationMeta({ severity: AgentSystemNotificationSeverity.Warning }),
+						},
+					}, undefined, true);
+				}
 				this._fireSteeringConsumed(steeringMessage.id);
 			}
 		} finally {
@@ -6432,6 +6457,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
+		if (requested?.modelSourceId !== undefined && requested.id !== model) {
+			throw new Error('The source-qualified selection must retain its raw model ID.');
+		}
 		// The runtime rejects a BYOK model that is not registered on the session.
 		try {
 			await this.syncByokModels();
@@ -6443,11 +6471,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		try {
-			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
+			const options = {
 				reasoningEffort,
 				contextTier,
 				...(autoTier !== undefined ? { autoTier } : {}),
-			}));
+			};
+			await this._awaitControlPlaneRpc('session.setModel', requested?.modelSourceId !== undefined
+				? switchCopilotModelSource(this._wrapper.session, requested, options)
+				: this._wrapper.session.setModel(model, options));
 			this._requestedModel = requested ?? { id: model };
 		} finally {
 			this.refreshModelConfiguration();
@@ -9809,12 +9840,13 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			// This event's own context usage (the model call that produced it).
-			const eventContext = {
+			const eventContext: UsageContext = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
 				model: e.data.model,
 				cacheReadTokens: e.data.cacheReadTokens,
 				...(typeof e.data.cost === 'number' ? { cost: e.data.cost } : {}),
+				...(e.data.provider ? { modelExecution: { provider: e.data.provider, modelId: e.data.model, ...(e.data.modelDisplayName !== undefined ? { modelDisplayName: e.data.modelDisplayName } : {}) } } : {}),
 			};
 			const modelCall = readAgentModelCallDiagnostics({
 				_meta: {
@@ -9862,7 +9894,7 @@ export class CopilotAgentSession extends Disposable {
 			// the credit total for the given scope. `copilotUsage` is the scope's
 			// Copilot billing metadata, or `undefined` when nothing is billed yet.
 			const buildUsage = (context: UsageContext, scopedCopilotUsage: UsageInfoMeta['copilotUsage'], isParentScope: boolean, directOwnerToolCallId: string | undefined): UsageInfo => {
-				const metadata: UsageInfoMeta = {};
+				const metadata: UsageInfoMeta = { ...toAgentModelExecutionMeta(context.modelExecution) };
 				const modelConfiguration = directOwnerToolCallId ? readAgentRuntimeModelConfiguration(this._lastSubagentUsageByToolCallId.get(directOwnerToolCallId)) : undefined;
 				if (modelConfiguration) {
 					metadata[agentModelConfigurationMetaKey] = modelConfiguration;

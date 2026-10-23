@@ -15,7 +15,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, getSourceQualifiedModelIdentifier, getTelemetryModelIdentifier, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon, type ILanguageModelChatCatalog } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -43,7 +43,7 @@ suite('LanguageModels', function () {
 	const store = new DisposableStore();
 	const activationEvents = new Set<string>();
 
-	function createLanguageModelsService(storageService: IStorageService): LanguageModelsService {
+	function createLanguageModelsService(storageService: IStorageService, configurationService?: ILanguageModelsConfigurationService, contextKeyService = new MockContextKeyService()): LanguageModelsService {
 		return new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
 				override activateByEvent(name: string) {
@@ -53,8 +53,8 @@ suite('LanguageModels', function () {
 			},
 			new NullLogService(),
 			storageService,
-			new MockContextKeyService(),
-			new class extends mock<ILanguageModelsConfigurationService>() {
+			contextKeyService,
+			configurationService ?? new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
 					return [];
@@ -128,6 +128,122 @@ suite('LanguageModels', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('owns source groups atomically and keeps qualified preferences and telemetry isolated', async () => {
+		const vendor = 'source-host';
+		let groups: ILanguageModelsProviderGroup[] = [{ vendor, name: 'Options', settings: { solo: { effort: 'high' }, shared: { effort: 'high' } } }];
+		const configured: ConfigureLanguageModelsOptions[] = [];
+		languageModels.dispose();
+		const service = languageModels = createLanguageModelsService(store.add(new TestStorageService()), new class extends mock<ILanguageModelsConfigurationService>() {
+			override onDidChangeLanguageModelGroups = Event.None;
+			override getLanguageModelsProviderGroups() { return groups; }
+			override async updateLanguageModelsProviderGroup(old: ILanguageModelsProviderGroup, updated: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+				groups = groups.map(group => group === old ? updated : group);
+				return updated;
+			}
+			override async configureLanguageModels(options: ConfigureLanguageModelsOptions): Promise<void> {
+				configured.push(options);
+			}
+		}());
+		service.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: 'One Harness', configuration: undefined, managementCommand: undefined, when: undefined }], []);
+		const model = (id: string, modelSourceId: string): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, modelSourceId, id),
+			metadata: {
+				id, modelSourceId, vendor, name: id, family: id, version: '1', extension: nullExtensionDescription.identifier,
+				maxInputTokens: 100, maxOutputTokens: 10, isDefaultForLocation: {}, targetChatSessionType: vendor,
+				configurationSchema: { properties: { effort: { type: 'string', enum: ['low', 'high'], default: 'low' } } },
+			},
+		});
+		const solo = model('solo', 'a');
+		const first = model('shared', 'a');
+		const second = model('shared', 'b');
+		let catalog: ILanguageModelChatCatalog = {
+			sources: [{ id: 'a', displayName: 'Source A' }, { id: 'b', displayName: 'Source B' }, { id: 'empty', displayName: 'Empty' }],
+			models: [solo, first, second],
+		};
+		service.pinModel(`${vendor}:solo`);
+		service.pinModel(`${vendor}:shared`);
+		service.addToRecentlyUsedList(`${vendor}:solo`);
+		const changed = store.add(new Emitter<void>());
+		store.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: changed.event,
+			provideLanguageModelChatInfo: async () => catalog.models,
+			provideLanguageModelChatCatalog: async () => catalog,
+			sendChatRequest: async () => { throw new Error('The harness owns dispatch'); },
+			provideTokenCount: async () => 0,
+		}));
+		await service.selectLanguageModels({ vendor });
+		const initial = service.getLanguageModelGroups(vendor).filter(group => group.source).map(group => ({ source: group.source, models: group.modelIdentifiers }));
+		await service.setModelConfiguration(first.identifier, { effort: 'high' });
+		await service.configureModel(second.identifier);
+		await service.configureModel(first.identifier);
+		catalog = { ...catalog, sources: [{ id: 'a', displayName: 'Renamed' }, { id: 'b', displayName: 'Source B' }, { id: 'empty', displayName: 'Empty' }] };
+		changed.fire();
+		await service.selectLanguageModels({ vendor });
+		assert.deepStrictEqual({
+			initial,
+			renamed: service.getLanguageModelGroups(vendor).find(group => group.source?.id === 'a')?.source,
+			identifiers: service.getLanguageModelIds(),
+			pinned: service.getPinnedModelIds(),
+			recent: service.getRecentlyUsedModelIds(),
+			options: [solo, first, second].map(model => service.getModelConfiguration(model.identifier)?.effort),
+			telemetry: getTelemetryModelIdentifier(first, service),
+			configuration: groups.map(group => ({ name: group.name, sources: group.sourceSettings })),
+			opened: configured.map(options => ({ name: options.group.name, snippet: options.snippet })),
+		}, {
+			initial: [
+				{ source: { id: 'a', displayName: 'Source A' }, models: [solo.identifier, first.identifier] },
+				{ source: { id: 'b', displayName: 'Source B' }, models: [second.identifier] },
+				{ source: { id: 'empty', displayName: 'Empty' }, models: [] },
+			],
+			renamed: { id: 'a', displayName: 'Renamed' },
+			identifiers: [solo.identifier, first.identifier, second.identifier],
+			pinned: [solo.identifier],
+			recent: [solo.identifier],
+			options: ['high', 'high', 'low'],
+			telemetry: 'unknown',
+			configuration: [{ name: 'Options', sources: { a: { solo: { effort: 'high' }, shared: { effort: 'high' } }, b: { shared: {} } } }],
+			opened: [{ name: 'Options', snippet: undefined }, { name: 'Options', snippet: undefined }],
+		});
+	});
+
+	test('keeps empty sources and catalog errors inspectable without claiming selectable models', async () => {
+		languageModels.dispose();
+		const context = new MockContextKeyService();
+		const service = languageModels = createLanguageModelsService(store.add(new TestStorageService()), undefined, context);
+		const vendor = 'empty-source-host';
+		service.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: 'Source host', configuration: undefined, managementCommand: undefined, when: undefined }], []);
+		const changed = store.add(new Emitter<void>());
+		let invalid = false;
+		const provider = store.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: changed.event,
+			provideLanguageModelChatInfo: async () => [],
+			provideLanguageModelChatCatalog: async () => {
+				if (invalid) {
+					throw new Error('Invalid model source catalog');
+				}
+				return { sources: [{ id: 'empty', displayName: 'Empty source' }], models: [] };
+			},
+			sendChatRequest: async () => { throw new Error('No selectable model'); },
+			provideTokenCount: async () => 0,
+		}));
+		const snapshot = () => ({
+			catalog: context.getContextKeyValue('chatModelCatalogAvailable'),
+			selectable: context.getContextKeyValue('chatModelsAreUserSelectable'),
+		});
+		await service.selectLanguageModels({ vendor });
+		const empty = snapshot();
+		invalid = true;
+		changed.fire();
+		await service.selectLanguageModels({ vendor });
+		const failed = snapshot();
+		provider.dispose();
+		assert.deepStrictEqual({ empty, failed, removed: snapshot() }, {
+			empty: { catalog: true, selectable: false },
+			failed: { catalog: true, selectable: false },
+			removed: { catalog: false, selectable: false },
+		});
+	});
 
 	test('bounds Auto edit attribution to known tiers and leaves other models unset', () => {
 		const known = ['efficiency', 'balance', 'intelligence', 'fast'];

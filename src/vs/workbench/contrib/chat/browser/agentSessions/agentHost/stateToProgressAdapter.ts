@@ -801,9 +801,9 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
  */
 export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
-	toLanguageModelId(rawModelId: string | undefined): string | undefined;
+	toLanguageModelId(rawModelId: string | undefined, modelSourceId?: string): string | undefined;
 	/** Resolves the actual model's registered id when available, without falling back to the selected model. */
-	toActualModelId(rawModelId: string | undefined): string | undefined;
+	toActualModelId(rawModelId: string | undefined, usage?: UsageInfo): string | undefined;
 	/** Returns the registered display name for a raw AHP model id. */
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
@@ -820,7 +820,7 @@ export interface TurnModelLookup {
 }
 
 export interface ITurnModelInfo {
-	readonly modelId: string;
+	readonly modelId?: string;
 	readonly modelName: string;
 	readonly modelConfiguration?: Record<string, unknown>;
 	readonly runtimeModelConfiguration?: IChatSubagentToolInvocationData['runtimeModelConfiguration'];
@@ -1227,7 +1227,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
-		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
+		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId, turn.message.model?.modelSourceId);
 		const details = turnToResponseDetails(turn, lookup);
 
 		// Request
@@ -1274,7 +1274,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
-			const actualModelId = lookup?.toActualModelId(rawModelId);
+			const actualModelId = lookup?.toActualModelId(rawModelId, turn.usage);
 			if (actualModelId) {
 				usage.actualModelId = actualModelId;
 			}

@@ -8416,6 +8416,19 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects a source-qualified conversation import without a host namespace', async () => {
+			const { svc } = await setupTitleGeneration(new TestCopilotApiService());
+			await assert.rejects(svc.createSession({
+				legacyChatUris: true, provider: 'copilot',
+				importConversation: {
+					turns: [{
+						id: 'imported', state: TurnState.Complete, responseParts: [], usage: undefined,
+						message: { text: 'Do not reinterpret', origin: { kind: MessageKind.User }, model: { id: 'shared', modelSourceId: 'source' } },
+					}],
+				},
+			}), error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams);
+		});
+
 		test('keeps the deferred fallback for imported conversations', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.response = 'Imported conversation title';

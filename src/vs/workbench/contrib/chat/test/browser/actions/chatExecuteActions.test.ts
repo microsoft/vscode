@@ -190,7 +190,7 @@ suite('GetHandoffsAction', () => {
 		chatExecuteActions = registerChatExecuteActions();
 	});
 
-	test('shows Copilot Agent Host models in the signed-out Agents welcome view', () => {
+	test('shows Copilot Agent Host models in the signed-out Agents welcome view only while AI is enabled', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.ChatInput)
 			.find((candidate): candidate is IMenuItem => isIMenuItem(candidate) && candidate.command.id === OpenModelPickerAction.ID);
 		assert.ok(item?.when);
@@ -199,6 +199,7 @@ suite('GetHandoffsAction', () => {
 			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
 		});
 		const context = {
+			[ChatContextKeys.enabled.key]: true,
 			[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
 			[ChatContextKeys.inAgentSessionsWelcome.key]: true,
 			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
@@ -207,11 +208,17 @@ suite('GetHandoffsAction', () => {
 
 		assert.deepStrictEqual({
 			enabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
+			hidden: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true, [ChatContextKeys.Setup.hidden.key]: true }),
+			workspaceDisabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true, [ChatContextKeys.Setup.disabledInWorkspace.key]: true }),
+			configurationDisabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true, 'config.chat.disableAIFeatures': true }),
 			disabled: evaluate({ ...context, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: false }),
 			editorWindow: evaluate({ ...context, [IsSessionsWindowContext.key]: false, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
 			claude: evaluate({ ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostClaude, [`config.${AgentHostAllowSignedOutWhenUsableSettingId}`]: true }),
 		}, {
 			enabled: true,
+			hidden: false,
+			workspaceDisabled: false,
+			configurationDisabled: false,
 			disabled: false,
 			editorWindow: false,
 			claude: false,

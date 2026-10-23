@@ -21,7 +21,7 @@
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { createUnavailableSourceModel, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
 import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
 import { findBestMatchingModel, IsModelSupportedHere, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
@@ -208,7 +208,8 @@ export class ChatInputModelSelectionController extends Disposable {
 		if (!this._intendedModel) {
 			// Storage records only explicit picks, but it is not an in-conversation choice: a new
 			// conversation still lets `chat.defaultModel` take precedence over it.
-			this._remember(rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered } : undefined);
+			const unavailable = rememberedModelId ? createUnavailableSourceModel(rememberedModelId, this._runtime.getCurrentSessionType()) : undefined;
+			this._remember(rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered, ...(unavailable ? { model: unavailable } : {}) } : undefined);
 		}
 		const resolveSelection = (): InitialModelSelectionResult => {
 			const models = this._pool();
@@ -253,6 +254,10 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	ensureCurrentModelSupported(): void {
+		const current = this._currentModel.get();
+		if (current?.metadata.modelSourceId !== undefined && current.metadata.targetChatSessionType === this._runtime.getCurrentSessionType()) {
+			return;
+		}
 		const currentModel = this._currentModel.get();
 		const sessionType = this._runtime.getCurrentSessionType();
 		const models = this._pool(sessionType);
@@ -332,6 +337,10 @@ export class ChatInputModelSelectionController extends Disposable {
 	reconcileModelListChange(models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
 		const currentModel = this._currentModel.get();
 		const republishedCurrentModel = currentModel && models.find(model => model.identifier === currentModel.identifier);
+		if (currentModel?.metadata.modelSourceId !== undefined && !republishedCurrentModel && currentModel.metadata.targetChatSessionType === this._runtime.getCurrentSessionType()) {
+			this._display(createUnavailableSourceModel(currentModel.identifier, currentModel.metadata.targetChatSessionType) ?? currentModel);
+			return;
+		}
 		if (republishedCurrentModel && republishedCurrentModel !== currentModel) {
 			// A provider can enrich a model after it was selected (for example, when a
 			// second catalogue supplies its context-size schema). Refresh the displayed
@@ -433,6 +442,10 @@ export class ChatInputModelSelectionController extends Disposable {
 		const allModels = this._runtime.getAllModels();
 		const currentModel = this._currentModel.get();
 		const syncResult = resolveModelFromSyncState(desiredModel, currentModel, allModels, sessionType, this._runtime.isModelSupportedHere);
+		if (desiredModel.metadata.modelSourceId !== undefined && desiredModel.metadata.targetChatSessionType === sessionType) {
+			this._applySessionRestore(desiredModel, syncResult.action !== 'keep', modelConfiguration, ModelSelectionReason.RestoredChoice, keepsAwaitedModel);
+			return;
+		}
 		this._diagnostics.report('conversation-restore', {
 			desiredModel: desiredModel.identifier,
 			currentModel: currentModel?.identifier,
@@ -504,6 +517,10 @@ export class ChatInputModelSelectionController extends Disposable {
 	 * on offer — but never a billable stand-in for a model the conversation is still awaiting.
 	 */
 	private _defaultModel(models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const intended = this._intendedModel?.model;
+		if (intended?.metadata.modelSourceId !== undefined && intended.metadata.targetChatSessionType === this._runtime.getCurrentSessionType()) {
+			return intended;
+		}
 		return this._runtime.getDeclaredDefaultModel(models)
 			?? models.find(model => !isByokModel(model.metadata))
 			?? (this.isAwaitingRememberedModel() ? undefined : models[0]);
@@ -534,6 +551,10 @@ export class ChatInputModelSelectionController extends Disposable {
 		const restoredModel = this._currentModel.get();
 		const sessionType = this._runtime.getCurrentSessionType();
 		const models = this._pool(sessionType);
+		if (previousModel?.metadata.modelSourceId !== undefined && previousModel.metadata.targetChatSessionType === sessionType) {
+			this._applyModel(models.find(model => model.identifier === previousModel.identifier) ?? previousModel, ModelSelectionReason.RestoredChoice);
+			return;
+		}
 		if (restoredModel && models.some(model => model.identifier === restoredModel.identifier)) {
 			return;
 		}

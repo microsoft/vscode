@@ -485,10 +485,21 @@ class MockCopilotSession {
 
 	currentModel: Awaited<ReturnType<CopilotSession['rpc']['model']['getCurrent']>> = {};
 	currentModelGate: Promise<void> | undefined;
+	modelCatalog: Awaited<ReturnType<CopilotSession['rpc']['model']['list']>> = { list: [] };
+	modelSwitchResult: Awaited<ReturnType<CopilotSession['rpc']['model']['switchTo']>> | undefined;
+	readonly modelSwitchRequests: Parameters<CopilotSession['rpc']['model']['switchTo']>[0][] = [];
 
 	readonly rpc = {
 		model: {
-			list: async () => ({ list: [] }),
+			list: async () => this.modelCatalog,
+			switchTo: async (request: Parameters<CopilotSession['rpc']['model']['switchTo']>[0]) => {
+				this.modelSwitchRequests.push(request);
+				if (this.modelSwitchResult) {
+					return this.modelSwitchResult;
+				}
+				this.currentModel = { modelId: request.modelId, providerId: request.providerId };
+				return { status: 'applied', modelState: this.currentModel };
+			},
 			getCurrent: async () => {
 				await this.currentModelGate;
 				return this.currentModel;
@@ -2780,6 +2791,80 @@ suite('CopilotAgentSession', () => {
 			errorCount: rows.find(row => row.kind === 'operation' && row.name === 'sdkSend')?.errorCount,
 			milestones: rows.filter(row => row.kind === 'milestone').map(row => row.name),
 		}, { active: false, errorCount: 1, milestones: ['sdkSend', 'sdkSendRejected'] });
+	});
+
+	suite('model source selection', () => {
+		const catalog: Awaited<ReturnType<CopilotSession['rpc']['model']['list']>> = {
+			providers: [{ id: 'a', label: 'Source A', kind: 'copilot', ordering: 0 }, { id: 'b', label: 'Source B', kind: 'loki', ordering: 1 }],
+			list: [{ id: 'shared', provider: { id: 'a', label: 'Source A', kind: 'copilot' } }, { id: 'shared', provider: { id: 'b', label: 'Source B', kind: 'loki' } }],
+		};
+
+		test('selects duplicate raw IDs through the exact RPC before sending', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.modelCatalog = catalog;
+			for (const modelSourceId of ['a', 'b']) {
+				await session.setModel('shared', undefined, undefined, undefined, { id: 'shared', modelSourceId });
+			}
+			await session.send('qualified prompt', undefined, 'qualified-turn');
+			assert.deepStrictEqual({
+				pairs: mockSession.modelSwitchRequests.map(request => [request.modelId, request.providerId]),
+				bareSwitches: mockSession.setModelCalls,
+				sends: mockSession.sendRequests.length,
+				current: mockSession.currentModel,
+			}, { pairs: [['shared', 'a'], ['shared', 'b']], bareSwitches: [], sends: 1, current: { modelId: 'shared', providerId: 'b' } });
+		});
+
+		for (const scenario of ['deferred', 'lost qualifier', 'different source', 'unavailable source'] as const) {
+			test(`rejects a ${scenario} without a bare-model retry`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables);
+				mockSession.modelCatalog = scenario === 'unavailable source' ? { ...catalog, list: catalog.list.slice(0, 1) } : catalog;
+				mockSession.currentModel = { modelId: 'shared', ...(scenario === 'different source' ? { providerId: 'a' } : {}) };
+				mockSession.modelSwitchResult = scenario === 'deferred' ? { status: 'deferred', deferred: true } : { status: 'applied' };
+				await assert.rejects(session.setModel('shared', undefined, undefined, undefined, { id: 'shared', modelSourceId: 'b' }), /model source|source and model/);
+				assert.deepStrictEqual({ exactSwitches: mockSession.modelSwitchRequests.length, bareSwitches: mockSession.setModelCalls, sends: mockSession.sendRequests }, { exactSwitches: 1, bareSwitches: [], sends: [] });
+			});
+		}
+
+		test('revalidates the effective pair before later sends and resume', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.modelCatalog = catalog;
+			await session.setModel('shared', undefined, undefined, undefined, { id: 'shared', modelSourceId: 'b' });
+			mockSession.currentModel = { modelId: 'shared', providerId: 'a' };
+			await assert.rejects(session.send('must not reach A', undefined, 'send'), /did not activate/);
+			await assert.rejects(session.resume('resume'), /did not activate/);
+			assert.deepStrictEqual({ sends: mockSession.sendRequests, resumptions: mockSession.sendMessagesRequests, bareSwitches: mockSession.setModelCalls }, { sends: [], resumptions: [], bareSwitches: [] });
+		});
+
+		for (const failure of ['lost qualifier', 'runtime changed source'] as const) {
+			test(`surfaces rejected steering without stopping the tracked turn: ${failure}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const model = { id: 'shared', modelSourceId: 'b' };
+				mockSession.modelCatalog = catalog;
+				await session.setModel(model.id, undefined, undefined, undefined, model);
+				await session.send('initial request', undefined, 'source-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-source-turn' });
+				if (failure === 'runtime changed source') {
+					mockSession.currentModel = { modelId: model.id, providerId: 'a' };
+				}
+				await session.sendSteering({
+					id: 'source-steering',
+					message: { text: 'follow up', origin: { kind: MessageKind.User }, model: failure === 'lost qualifier' ? { id: model.id } : model },
+				});
+				assert.deepStrictEqual({
+					sends: mockSession.sendRequests.length,
+					running: session.hasRunningTurn,
+					consumed: signals.filter(signal => signal.kind === 'steering_consumed').map(signal => signal.id),
+					notices: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.SystemNotification ? [signal.action.part.content] : []),
+				}, {
+					sends: 1,
+					running: true,
+					consumed: ['source-steering'],
+					notices: [`Failed to send the steering message: ${failure === 'lost qualifier'
+						? 'A steering message cannot change the active model source or model.'
+						: 'The runtime did not activate the selected model source and model. No message was sent.'}`],
+				});
+			});
+		}
 	});
 
 	test('forwards Auto routing preferences and explicit resets with the model configuration', async () => {

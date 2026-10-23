@@ -10,7 +10,7 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { getSourceQualifiedModelIdentifier, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { ModelSelectionReason, resolveModelIdentifierFromCatalog, type IIntendedModelSelection } from '../../../../common/modelSelection.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from '../../../../browser/widget/input/chatInputModelSelectionController.js';
 import { hasModelsTargetingSession, isModelSupportedForInlineChat, isModelSupportedForMode } from '../../../../browser/widget/input/chatInputModelUtils.js';
@@ -171,6 +171,46 @@ function runConformanceScenario(
 }
 
 suite('ChatInputModelSelectionController', () => {
+	test('keeps a lost exact source selected rather than substituting an identical model from another source', () => {
+		const changes = disposables.add(new Emitter<string>());
+		const namespace = 'agent-host-copilotcli';
+		const [first, second] = ['a', 'b'].map(modelSourceId => {
+			const base = hostModel(getSourceQualifiedModelIdentifier(namespace, modelSourceId, 'shared'));
+			return { ...base, metadata: { ...base.metadata, id: 'shared', family: 'shared', name: 'Shared', modelSourceId } };
+		});
+		const applied: string[] = [];
+		const state: IRuntimeState = { models: [first, second], sessionType: namespace, isEmpty: false };
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, applied)));
+		controller.syncFromConversationState(second, undefined, namespace, 'chat:one');
+		state.models = [first];
+		changes.fire(namespace);
+		controller.ensureCurrentModelSupported();
+		const missing = controller.currentModel.get()?.identifier;
+		controller.revalidateForSessionType(() => controller.initialize(undefined));
+		assert.deepStrictEqual({ missing, afterRebind: controller.currentModel.get()?.identifier, substituted: applied.includes(first.identifier) }, { missing: second.identifier, afterRebind: second.identifier, substituted: false });
+	});
+
+	test('retains a remote source through repeated empty catalog updates when vendor and session type differ', () => {
+		const changes = disposables.add(new Emitter<string>());
+		const vendor = 'remote-host-specific-vendor';
+		const base = hostModel(getSourceQualifiedModelIdentifier(vendor, 'source', 'shared'));
+		const remote = { ...base, metadata: { ...base.metadata, vendor, id: 'shared', modelSourceId: 'source' } };
+		const state: IRuntimeState = { models: [remote], sessionType: 'agent-host-copilotcli', isEmpty: false, conversationKey: 'chat:remote' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, applied)));
+		controller.syncFromConversationState(remote, undefined, state.sessionType, 'chat:remote');
+		state.models = [];
+		changes.fire(vendor);
+		changes.fire(vendor);
+		controller.revalidateForSessionType(() => controller.initialize(undefined));
+		assert.deepStrictEqual({
+			identifier: controller.currentModel.get()?.identifier,
+			vendor: controller.currentModel.get()?.metadata.vendor,
+			sessionType: controller.currentModel.get()?.metadata.targetChatSessionType,
+			selectable: controller.currentModel.get()?.metadata.isUserSelectable,
+		}, { identifier: remote.identifier, vendor, sessionType: state.sessionType, selectable: false });
+	});
+
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 

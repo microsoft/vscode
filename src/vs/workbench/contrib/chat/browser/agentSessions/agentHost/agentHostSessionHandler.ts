@@ -116,6 +116,8 @@ import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { getModelSourceSelectionError } from '../../../../../../platform/agentHost/common/agentModelSelection.js';
+import { hasAgentModelExecutionMetadata, readAgentModelExecution } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { ChatSessionForkError, getChatSessionInitialMessageVariables, IChatSession, IChatSessionContentProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionInitialMessage, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -126,7 +128,7 @@ import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfi
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
-import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, createUnavailableSourceModel, getLanguageModelDisplayNameWithProvider, getSourceQualifiedModelIdentifier, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -783,7 +785,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		readonly historyLoadError: IChatSession['historyLoadError'],
 		readonly title: string | undefined,
 		backendSession: URI,
-		toLanguageModelId: (rawModelId: string) => string | undefined,
+		toLanguageModelId: (rawModelId: string, modelSourceId?: string) => string | undefined,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
 		chatSubscription: IAgentSubscription<ChatState> | undefined,
 		canvasProvider: AgentHostCanvasCollection | undefined,
@@ -815,7 +817,13 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 				const id = toLanguageModelId(rawId);
 				return id ? [[id, options]] : [];
 			}));
-			const id = report.current ? toLanguageModelId(report.current.id) : undefined;
+			for (const model of report.sourceModels ?? []) {
+				const id = toLanguageModelId(model.id, model.modelSourceId);
+				if (id) {
+					models[id] = model.options;
+				}
+			}
+			const id = report.current ? toLanguageModelId(report.current.id, report.current.modelSourceId) : undefined;
 			return { models, ...(id && report.current ? { current: { ...report.current, id } } : {}) };
 		});
 
@@ -1794,7 +1802,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						if (!sessionState.draft && draft) {
 							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
 						}
-						const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
+						const fallbackRawModelId = lastTurnModelSelection(sessionState);
 						// History is built once and never rebuilt, so settle the
 						// treatment first rather than baking in a guess.
 						await this._hideAutoExplainabilityReady;
@@ -1835,13 +1843,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						// progressObs for live streaming.
 						if (sessionState.activeTurn) {
 							activeTurnId = sessionState.activeTurn.id;
-							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
+							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId?.id;
 							history.push({
 								id: sessionState.activeTurn.id,
 								type: 'request',
 								prompt: sessionState.activeTurn.message.text,
 								participant: this._config.agentId,
-								modelId: lookup.toLanguageModelId(sessionState.activeTurn.message.model?.id ?? activeRawModelId),
+								modelId: lookup.toLanguageModelId(sessionState.activeTurn.message.model?.id ?? activeRawModelId, sessionState.activeTurn.message.model?.modelSourceId),
 								...(sessionState.activeTurn.message.model?.config ? { modelConfiguration: sessionState.activeTurn.message.model.config } : {}),
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
 								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
@@ -1873,7 +1881,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
 							// on reconnection (same enrichment as _observeTurn).
-							const actualModelId = lookup.toActualModelId(sessionState.activeTurn.usage?.model);
+							const actualModelId = lookup.toActualModelId(sessionState.activeTurn.usage?.model, sessionState.activeTurn.usage);
 							if (actualModelId) {
 								for (const p of initialProgress) {
 									if (p.kind === 'usage') {
@@ -1934,7 +1942,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				historyLoadError,
 				chatTitle,
 				resolvedSession,
-				rawModelId => this._toLanguageModelId(sessionResource, rawModelId),
+				(rawModelId, modelSourceId) => this._toLanguageModelId(sessionResource, modelSourceId === undefined ? rawModelId : { id: rawModelId, modelSourceId }),
 				sessionSubscription,
 				chatSubscription,
 				this._canvasProvider,
@@ -2592,7 +2600,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			kind,
 			message: pending.message.text,
 			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
-			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
+			modelId: this._toLanguageModelId(sessionResource, pending.message.model),
 			modelConfiguration: pending.message.model?.config,
 			agentHostMessageOrigin: pending.message.origin,
 			metadata: pending.message._meta,
@@ -2867,7 +2875,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			historyRefreshPending = false;
-			const lookup = this._createTurnModelLookup(sessionResource, lastTurnModelSelection(state)?.id);
+			const lookup = this._createTurnModelLookup(sessionResource, lastTurnModelSelection(state));
 			const allowTurnResume = !this._isChatReadOnly(sessionStr, chatURI);
 			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
 				lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
@@ -2969,7 +2977,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				activeTurn.message.text,
 				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
 				{
-					modelId: this._toLanguageModelId(sessionResource, activeTurn.message.model?.id),
+					modelId: this._toLanguageModelId(sessionResource, activeTurn.message.model),
 					metadata: readAgentMessageRoundTripMetadata(activeTurn.message),
 					modelConfiguration: activeTurn.message.model?.config,
 					isSystemInitiated: activeTurn.message.origin.kind === MessageKind.SystemNotification,
@@ -3482,13 +3490,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			onTurnEnded: lastTurn => {
 				const errorDetails = this._getTurnErrorDetails(lastTurn, !this._isChatReadOnly(backendSession.toString(), chatURI));
 				const metadata = turnToResultMetadata(lastTurn);
-				if (errorDetails || metadata) {
+				const details = this._getTurnResponseDetails(chatSession.sessionResource, backendSession, lastTurn);
+				if (errorDetails || metadata || details !== undefined) {
 					const response = this._chatService.getSession(chatSession.sessionResource)
 						?.getRequests()
 						.find(request => request.id === turnId)
 						?.response;
 					response?.setResult({
 						...response.result,
+						...(details !== undefined ? { details } : {}),
 						...(errorDetails ? { errorDetails } : {}),
 						...(metadata ? { metadata: { ...response.result?.metadata, ...metadata } } : {}),
 					});
@@ -4228,7 +4238,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// Carry through the actual model so the context-usage widget
 				// can look up context window metadata when the request-level
 				// model (e.g. "auto") doesn't expose one.
-				const actualModelId = modelLookup.toActualModelId(rawUsage?.model);
+				const actualModelId = modelLookup.toActualModelId(rawUsage?.model, rawUsage);
 				if (actualModelId) {
 					usage.actualModelId = actualModelId;
 				}
@@ -6032,7 +6042,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (typeof turnCredits === 'number') {
 				credits += turnCredits;
 			}
-			const turnModel = this._createTurnModelLookup(sessionResource, turn.message.model?.id).toBilledModelInfo?.(turn.usage);
+			const turnModel = this._createTurnModelLookup(sessionResource, turn.message.model).toBilledModelInfo?.(turn.usage);
 			if (turnModel) {
 				model = { ...turnModel, modelConfiguration: turn.message.model?.config };
 			}
@@ -7217,9 +7227,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _createModelSelection(languageModelIdentifier: string | undefined, modelConfiguration: Record<string, unknown> | undefined): ModelSelection | undefined {
-		const rawModelId = this._extractRawModelId(languageModelIdentifier);
+		const metadata = languageModelIdentifier ? this._languageModelsService.lookupLanguageModel(languageModelIdentifier) : undefined;
+		if (languageModelIdentifier?.startsWith('@agent-host-model:') && metadata?.modelSourceId === undefined) {
+			throw new Error(localize('agentHost.modelSourceUnavailable', "The selected model source is no longer available. Select an available model before sending."));
+		}
+		const rawModelId = metadata?.modelSourceId === undefined ? this._extractRawModelId(languageModelIdentifier) : metadata.id;
 		if (!rawModelId) {
 			return undefined;
+		}
+		const model: ModelSelection = { id: rawModelId, ...(metadata?.modelSourceId !== undefined ? { modelSourceId: metadata.modelSourceId } : {}) };
+		if (model.modelSourceId !== undefined) {
+			const ownerMatches = metadata?.vendor === this._config.sessionType || this._config.modelIdentifierAliases?.includes(metadata?.vendor ?? '');
+			const error = getModelSourceSelectionError(model, this._getRootState()?.agents.find(agent => agent.provider === this._config.provider));
+			if (!ownerMatches || error) {
+				this._logService.warn(`[AgentHost] Refusing model-source selection: ${error ?? 'different host or harness'}`);
+				throw new Error(localize('agentHost.modelSourceUnsupported', "The selected model source cannot be used by this agent. Select an available model before sending."));
+			}
 		}
 
 		// Forward model-specific config values as-is. Most pickers produce strings,
@@ -7234,15 +7257,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
+		return Object.keys(config).length > 0 ? { ...model, config } : model;
 	}
 
 	private _draftToInputState(sessionResource: URI, draft: Message | undefined): ISerializableChatModelInputState | undefined {
 		if (!draft) {
 			return undefined;
 		}
-		const modelId = this._toLanguageModelId(sessionResource, draft.model?.id);
-		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
+		const modelId = this._toLanguageModelId(sessionResource, draft.model);
+		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) ?? createUnavailableSourceModel(modelId, this._config.sessionType)?.metadata : undefined;
 		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		const agent = draft.agent && this._customizationService.getCustomAgents(sessionResource).find(agent => agent.uri === draft.agent?.uri);
@@ -7291,16 +7314,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return languageModelIdentifier;
 	}
 
-	private _toLanguageModelId(sessionResource: URI, rawModelId: string | undefined): string | undefined {
-		if (!rawModelId) {
+	private _toLanguageModelId(sessionResource: URI, selection: ModelSelection | string | undefined): string | undefined {
+		if (!selection) {
 			return undefined;
 		}
+		const model = typeof selection === 'string' ? { id: selection } : selection;
+		if (model.modelSourceId !== undefined) {
+			return getSourceQualifiedModelIdentifier(getChatSessionType(sessionResource), model.modelSourceId, model.id);
+		}
 		const prefix = `${getChatSessionType(sessionResource)}:`;
-		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
+		return model.id.startsWith(prefix) ? model.id : `${prefix}${model.id}`;
 	}
 
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
-		const fallbackRawModelId = turn?.message?.model?.id ?? lastTurnModelSelection(this._getSessionState(backendSession.toString()))?.id;
+		const fallbackRawModelId = turn?.message?.model ?? lastTurnModelSelection(this._getSessionState(backendSession.toString()));
 		return turnToResponseDetails(turn, this._createTurnModelLookup(sessionResource, fallbackRawModelId));
 	}
 
@@ -7313,8 +7340,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * `usage?.model` is not yet set (e.g. older sessions or turns that
 	 * never reported usage).
 	 */
-	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined, hideAutoExplainability: boolean | undefined = this._hideAutoExplainability.get()): TurnModelLookup {
-		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
+	private _createTurnModelLookup(sessionResource: URI, fallback: ModelSelection | string | undefined, hideAutoExplainability: boolean | undefined = this._hideAutoExplainability.get()): TurnModelLookup {
+		const fallbackSelection = typeof fallback === 'string' ? { id: fallback } : fallback;
+		const fallbackRawModelId = fallbackSelection?.id;
 		// Try the raw billed id and its dots-normalised form (slug mismatch:
 		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
 		const lookupRawModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: true } | undefined => {
@@ -7358,14 +7386,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return resolved && displayName(resolved);
 		}, hideAutoExplainability);
 		return {
-			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
+			toLanguageModelId: (rawModelId, modelSourceId) => this._toLanguageModelId(sessionResource, modelSourceId !== undefined && rawModelId ? { id: rawModelId, modelSourceId } : rawModelId ?? fallbackSelection),
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
-			toActualModelId: rawModelId => lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
+			toActualModelId: (rawModelId, usage) => {
+				const execution = readAgentModelExecution(usage);
+				if (hasAgentModelExecutionMetadata(usage) || fallbackSelection?.modelSourceId !== undefined) {
+					const id = execution && this._toLanguageModelId(sessionResource, { id: execution.modelId, modelSourceId: execution.provider.id });
+					return id && this._languageModelsService.lookupLanguageModel(id) ? id : undefined;
+				}
+				return lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId);
+			},
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId),
 			toResponseDetails: (rawModelId, usage, responseModelId) => {
 				const local = responseModelId ? undefined : localTurn(usage);
 				if (local) {
 					return formatTurnResponseDetails({ name: local.name, pricing: local.pricing }, undefined, usage);
+				}
+				const execution = readAgentModelExecution(usage);
+				if ((hasAgentModelExecutionMetadata(usage) || fallbackSelection?.modelSourceId !== undefined) && !responseModelId && !(hideAutoExplainability && readUsageInfoMeta(usage).autoModeResolved)) {
+					const name = execution ? localize('agentHost.actualModelSource', "{0} ({1})", execution.modelDisplayName ?? execution.modelId, execution.provider.label) : rawModelId;
+					return formatTurnResponseDetails(name ? { name } : undefined, undefined, usage);
 				}
 				const { billedId, resolved } = resolveBilledModel(rawModelId, usage, responseModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
@@ -7393,6 +7433,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const known = lookupRawModel(localBilled.rawModelId);
 					const localModelId = known?.identifier ?? this._toLanguageModelId(sessionResource, localBilled.rawModelId);
 					return localModelId ? { modelId: localModelId, modelName: known ? displayName(known) : localBilled.name, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
+				}
+				const execution = readAgentModelExecution(usage);
+				if ((hasAgentModelExecutionMetadata(usage) || fallbackSelection?.modelSourceId !== undefined) && !(hideAutoExplainability && readUsageInfoMeta(usage).autoModeResolved)) {
+					if (!execution) {
+						return usage?.model ? { modelName: usage.model } : undefined;
+					}
+					const id = this._toLanguageModelId(sessionResource, { id: execution.modelId, modelSourceId: execution.provider.id });
+					return {
+						modelId: id && this._languageModelsService.lookupLanguageModel(id) ? id : undefined,
+						modelName: localize('agentHost.actualModelSource', "{0} ({1})", execution.modelDisplayName ?? execution.modelId, execution.provider.label),
+						...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}),
+					};
 				}
 				// Auto names the model it picked, which is the one worth showing.
 				const chosenModel = readUsageInfoMeta(usage).autoModeResolved?.chosenModel;

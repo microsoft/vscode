@@ -7,6 +7,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -20,8 +21,8 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatAIDisabledSettingId, CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ModelsManagementEditor } from './chatManagementEditor.js';
 import { ModelsManagementEditorInput } from './chatManagementEditorInput.js';
@@ -37,7 +38,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 
 const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settings', Codicon.goToFile, localize('languageModelsOpenSettings', 'Icon for open language models settings commands.'));
 
-const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
+const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not(`config.${ChatAIDisabledSettingId}`), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate(), ContextKeyExpr.or(
 	ChatContextKeys.Entitlement.planFree,
 	ChatContextKeys.Entitlement.planEdu,
 	ChatContextKeys.Entitlement.planPro,
@@ -46,6 +47,7 @@ const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextK
 	ChatContextKeys.Entitlement.planBusiness,
 	ChatContextKeys.Entitlement.planEnterprise,
 	ChatContextKeys.Entitlement.internal,
+	ChatContextKeys.languageModelCatalogAvailable,
 	ChatEntitlementContextKeys.clientByokEnabled
 ));
 
@@ -129,6 +131,10 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 				});
 			}
 			async run(accessor: ServicesAccessor, searchQuery?: string, sessionType?: string) {
+				const sentiment = accessor.get(IChatEntitlementService).sentiment;
+				if (sentiment.hidden || sentiment.disabledInWorkspace || accessor.get(IConfigurationService).getValue<boolean>(ChatAIDisabledSettingId) === true) {
+					return;
+				}
 				const editorService = accessor.get(IEditorService);
 				// Without an explicit harness, use the one the last focused chat selects models for.
 				const fallbackSessionType = accessor.get(IChatWidgetService).lastFocusedWidget?.input.modelTargetSessionType
@@ -196,6 +202,10 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 			}
 
 			async run(accessor: ServicesAccessor) {
+				const sentiment = accessor.get(IChatEntitlementService).sentiment;
+				if (sentiment.hidden || sentiment.disabledInWorkspace || accessor.get(IConfigurationService).getValue<boolean>(ChatAIDisabledSettingId) === true) {
+					return;
+				}
 				const languageModelsConfigurationService = accessor.get(ILanguageModelsConfigurationService);
 				await languageModelsConfigurationService.configureLanguageModels();
 			}

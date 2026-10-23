@@ -38,6 +38,8 @@ import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatReque
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostAuthenticationScope } from './agentHostAuthenticationScope.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { automationHasModelSourceSelection, getModelSourceActionError, getModelSourceCatalogError, projectLegacyModelSourceCatalog, supportsModelSourceSelection } from '../common/agentModelSelection.js';
+import { createAgentModelCatalog } from '../common/agentModelSource.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
@@ -337,6 +339,7 @@ function projectDiscoveryAgents(agents: RootState['agents']): RootState['agents'
 		models: agent.models,
 		protectedResources: agent.protectedResources,
 		capabilities: agent.capabilities,
+		...(agent.modelSources ? { modelSources: agent.modelSources } : {}),
 	}));
 }
 
@@ -462,6 +465,7 @@ interface IConnectedClient {
 	readonly legacySessionUris: boolean;
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
 	readonly legacyChatUris: boolean;
+	readonly modelSourceSelection: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
@@ -520,6 +524,7 @@ interface IActiveClientRecord {
 interface IGraceClientRecord {
 	readonly legacySessionUris?: boolean;
 	readonly legacyChatUris?: boolean;
+	readonly modelSourceSelection?: boolean;
 	readonly state: 'grace';
 	readonly seenConnection: boolean;
 	readonly clientInfo: Implementation | undefined;
@@ -966,6 +971,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							seenConnection: true,
 							legacySessionUris: client.legacySessionUris,
 							legacyChatUris: client.legacyChatUris,
+							modelSourceSelection: client.modelSourceSelection,
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
@@ -1029,6 +1035,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			legacyChatUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
+			modelSourceSelection: supportsModelSourceSelection(params.capabilities),
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 			telemetryContext,
@@ -1312,11 +1319,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const priorProtocolVersion = existingRecord.state === 'active'
 			? existingRecord.connections.at(-1)?.protocolVersion
 			: existingRecord.protocolVersion;
+		const modelSourceSelection = existingRecord.state === 'active'
+			? existingRecord.connections.at(-1)?.modelSourceSelection
+			: existingRecord.modelSourceSelection;
+		if (modelSourceSelection === undefined) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, 'Client capabilities are unavailable; initialize a new connection.');
+		}
 		const isReconnect = this._clientConnections.hasSeenClient(params.clientId);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			legacyChatUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostChatUris(params),
+			modelSourceSelection,
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
@@ -1873,6 +1887,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			: record?.legacyChatUris === true;
 	}
 
+	supportsModelSourceSelection(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			? this._getActiveClientFromRecord(record)?.modelSourceSelection === true
+			: record?.modelSourceSelection === true;
+	}
+
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {
 		const result = new Map<string, number>();
 		for (const [clientId, record] of this._clients) {
@@ -2342,6 +2363,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (this._config.scopedRelayCredentials) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Automations do not support client-owned credentials');
 			}
+			const definition = this._stateManager.getAutomationCatalogState()?.entries.find(entry => entry.resource === params.automation)?.definition;
+			if (!_client.modelSourceSelection && definition && automationHasModelSourceSelection(definition)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'This client cannot run a source-qualified automation.');
+			}
 			return this._agentService.runAutomation(params);
 		},
 		fetchAutomationRuns: async (_client, params) => {
@@ -2771,6 +2796,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				rejection = error.message;
 			}
 		}
+		if (!rejection && isChatAction(action)) {
+			const session = this._chatOwnership.getChatOwner(params.channel) ?? params.channel;
+			const provider = this._stateManager.getSessionSummary(session)?.provider;
+			const agent = this._projectScopedModels(client, this._stateManager.rootState.agents).find(agent => agent.provider === provider);
+			rejection = getModelSourceActionError(action, this._stateManager.getChatState(params.channel), agent, client.modelSourceSelection);
+		}
+		if (!rejection && !client.modelSourceSelection) {
+			if (action.type === ActionType.AutomationCreateRequested && automationHasModelSourceSelection(action.definition)) {
+				rejection = 'This client cannot create a source-qualified automation.';
+			} else if (action.type === ActionType.AutomationUpdateRequested) {
+				const existing = this._stateManager.getAutomationCatalogState()?.entries.find(entry => entry.resource === action.resource)?.definition;
+				if (existing && (automationHasModelSourceSelection(existing) || automationHasModelSourceSelection({ ...existing, ...action.changes }))) {
+					rejection = 'This client cannot replace a source-qualified automation.';
+				}
+			}
+		}
 		if (rejection) {
 			this._logService.warn(`[ProtocolServer] rejecting client action: ${rejection}`);
 			this._stateManager.rejectClientAction(params.channel, action, origin, rejection);
@@ -3017,7 +3058,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
 		snapshot = this._projectModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
-			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, this._projectScopedModels(client, snapshot.state.agents)) } };
+			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, this._projectModelSources(client, this._projectScopedModels(client, snapshot.state.agents))) } };
 		}
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
@@ -3160,7 +3201,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _projectScopedModels(client: IConnectedClient, agents: RootState['agents']): RootState['agents'] {
 		return this._config.scopedRelayCredentials
-			? agents.map(agent => ({ ...agent, models: [...(client.scopedModels?.get(agent.provider) ?? [])] }))
+			? agents.map(({ modelSources, ...agent }) => ({ ...agent, ...createAgentModelCatalog(client.scopedModels?.get(agent.provider) ?? []) }))
 			: agents;
 	}
 
@@ -3226,6 +3267,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				return { ...model, configSchema: { ...model.configSchema, properties } };
 			}),
+		});
+	}
+
+	private _projectModelSources(client: IConnectedClient, agents: RootState['agents']): RootState['agents'] {
+		return agents.map(agent => {
+			const error = getModelSourceCatalogError(agent);
+			if (error) {
+				this._logService.error(`[ProtocolServer] Invalid model catalog for ${agent.provider}: ${error}`);
+				return { ...agent, models: [], modelSources: [] };
+			}
+			return client.modelSourceSelection && supportsModelSourceSelection(agent.capabilities) ? agent : projectLegacyModelSourceCatalog(agent);
 		});
 	}
 
@@ -3772,6 +3824,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					})),
 				}));
 			}
+
 			case SetAgentExtensionEnabledExtensionMethod: {
 				if (client.transport.relayClientId !== undefined || client.transport.relayPassive || this._config.relayRoots || this._config.relayRootMeta) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage));
@@ -4139,7 +4192,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _projectRelayRootAction(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope {
 		if (envelope.action.type === ActionType.RootAgentsChanged) {
-			envelope = { ...envelope, action: { ...envelope.action, agents: this._projectModelConfigAliases(client, this._projectScopedModels(client, envelope.action.agents)) } };
+			envelope = { ...envelope, action: { ...envelope.action, agents: this._projectModelConfigAliases(client, this._projectModelSources(client, this._projectScopedModels(client, envelope.action.agents))) } };
 		}
 		const configEnvelope = client.transport.relayClientId !== undefined ? this._relayRootConfigEnvelopes.get(envelope) : undefined;
 		if (configEnvelope) {

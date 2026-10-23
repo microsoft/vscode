@@ -6,7 +6,8 @@
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { canHideModel, getLanguageModelProviderDisplayName, ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
+import { canHideModel, getLanguageModelProviderDisplayName, getLanguageModelSourceIdentifier, ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier, type ILanguageModelSource } from '../../../chat/common/languageModels.js';
+import { localize } from '../../../../../nls.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 import Severity from '../../../../../base/common/severity.js';
@@ -38,6 +39,7 @@ export interface ILanguageModelProvider {
 	group: ILanguageModelsProviderGroup;
 	sourceId?: string;
 	sourcePresentation?: ILanguageModelSourcePresentation;
+	modelSource?: ILanguageModelSource;
 }
 
 export interface ILanguageModel extends ILanguageModelChatMetadataAndIdentifier {
@@ -53,6 +55,9 @@ export function getManageModelsProviderLabel(model: ILanguageModel): string {
 const COPILOT_PROVIDER_GROUPS = new Set(['copilot', 'copilotcli']);
 
 function isCopilotProvider(provider: ILanguageModelProvider): boolean {
+	if (provider.modelSource) {
+		return false;
+	}
 	return !!provider.vendor.isDefault
 		|| COPILOT_PROVIDER_GROUPS.has(provider.group.vendor)
 		// A Copilot agent host's own default group, e.g. a status-only group when its models fail to load.
@@ -393,6 +398,9 @@ export class ChatModelsViewModel extends Disposable {
 			for (const statusGroup of this.languageModelGroupStatuses) {
 				// Agent host vendors are registered under their session type; the regular Copilot vendor belongs to no harness.
 				const owner = statusGroup.provider.vendor.isDefault ? undefined : statusGroup.provider.vendor.vendor;
+				if (statusGroup.provider.modelSource && this._sessionType && owner !== this._sessionType) {
+					continue;
+				}
 				if (!isInSessionScope(isCopilotProvider(statusGroup.provider), owner)) {
 					continue;
 				}
@@ -439,7 +447,9 @@ export class ChatModelsViewModel extends Disposable {
 
 	private getModelsInSessionScope(languageModels: ILanguageModel[]): ILanguageModel[] {
 		const isInSessionScope = this.createSessionScope();
-		return languageModels.filter(model => isInSessionScope(isCopilotProvider(model.provider), model.metadata.targetChatSessionType));
+		return languageModels.filter(model => model.provider.modelSource
+			? !this._sessionType || model.metadata.targetChatSessionType === this._sessionType
+			: isInSessionScope(isCopilotProvider(model.provider), model.metadata.targetChatSessionType));
 	}
 
 	/**
@@ -452,8 +462,8 @@ export class ChatModelsViewModel extends Disposable {
 		if (!sessionType) {
 			return () => true;
 		}
-		const harnessHasOwnCopilotList = this.languageModels.some(model => isCopilotProvider(model.provider) && model.metadata.targetChatSessionType === sessionType)
-			|| this.languageModelGroupStatuses.some(status => isCopilotProvider(status.provider) && status.provider.vendor.vendor === sessionType);
+		const harnessHasOwnCopilotList = this.languageModels.some(model => (model.provider.modelSource || isCopilotProvider(model.provider)) && model.metadata.targetChatSessionType === sessionType)
+			|| this.languageModelGroupStatuses.some(status => (status.provider.modelSource || isCopilotProvider(status.provider)) && status.provider.vendor.vendor === sessionType);
 		return (isCopilot, owner) => !isCopilot || (harnessHasOwnCopilotList ? owner === sessionType : owner === undefined);
 	}
 
@@ -517,16 +527,18 @@ export class ChatModelsViewModel extends Disposable {
 			const defaultProvider: ILanguageModelProvider = {
 				group: group.group ?? {
 					vendor: vendor.vendor,
-					name: vendor.displayName
+					name: group.source?.displayName ?? vendor.displayName
 				},
-				vendor
+				vendor,
+				...(group.source ? { modelSource: group.source } : {}),
 			};
-			if (group.status) {
+			const status = group.status ?? (group.source && !group.modelIdentifiers.length ? { severity: Severity.Info, message: localize('chat.models.emptySource', "No models are currently available from this source.") } : undefined);
+			if (status) {
 				this.languageModelGroupStatuses.push({
 					provider: defaultProvider,
 					status: {
-						message: group.status.message,
-						severity: group.status.severity
+						message: status.message,
+						severity: status.severity
 					}
 				});
 			}
@@ -543,7 +555,7 @@ export class ChatModelsViewModel extends Disposable {
 				const sourcePresentation = metadata.modelGroup?.sourceId
 					? languageModelSourcePresentationRegistry.get(metadata.vendor, metadata.modelGroup.sourceId)
 					: undefined;
-				const provider = metadata.modelGroup ? {
+				const provider = !group.source && metadata.modelGroup ? {
 					vendor,
 					group: {
 						vendor: metadata.modelGroup.id,
@@ -598,11 +610,11 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	private getModelId(modelEntry: ILanguageModel): string {
-		return `${modelEntry.provider.group.name}.${modelEntry.identifier}.${modelEntry.metadata.version}`;
+		return modelEntry.provider.modelSource ? `${modelEntry.identifier}.${modelEntry.metadata.version}` : `${modelEntry.provider.group.name}.${modelEntry.identifier}.${modelEntry.metadata.version}`;
 	}
 
 	private getProviderGroupId(provider: ILanguageModelProvider): string {
-		return `${provider.group.vendor}-${provider.group.name}-${provider.sourceId ?? 'configured'}`;
+		return provider.modelSource ? getLanguageModelSourceIdentifier(provider.vendor.vendor, provider.modelSource.id) : `${provider.group.vendor}-${provider.group.name}-${provider.sourceId ?? 'configured'}`;
 	}
 
 	toggleCollapsed(viewModelEntry: IViewModelEntry): void {
