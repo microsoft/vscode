@@ -128,6 +128,13 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.renderRows();
 		}));
 
+		const refreshButton = this.editorDisposables.add(new Button(controls, { ...defaultButtonStyles, secondary: true }));
+		refreshButton.label = localize('sessionWorktreeCleanup.refresh', "Refresh");
+		this.editorDisposables.add(refreshButton.onDidClick(() => {
+			void this.cleanupService.refresh().catch(error => this.notificationService.error(error));
+			void this.load();
+		}));
+
 		const summaryRow = this.summaryRow = dom.append(content, dom.$('.session-worktree-cleanup-summary-row'));
 		this.summary = dom.append(summaryRow, dom.$('.session-worktree-cleanup-summary'));
 		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
@@ -381,7 +388,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			case 'needsInput': return localize('sessionWorktreeCleanup.needsInput', "Waiting for input");
 			case 'pinned': return localize('sessionWorktreeCleanup.pinned', "Pinned");
 			case 'recent': return localize('sessionWorktreeCleanup.recent', "Recently used");
-			case 'archived': return localize('sessionWorktreeCleanup.archived', "Already done");
+			case 'archived': return localize('sessionWorktreeCleanup.archived', "Cleanup pending or blocked");
 			case 'untitled': return localize('sessionWorktreeCleanup.untitledState', "Untitled");
 			case 'error': return localize('sessionWorktreeCleanup.error', "Session error");
 			case 'unavailable': return localize('sessionWorktreeCleanup.unavailable', "Storage unavailable");

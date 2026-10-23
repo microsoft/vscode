@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Limiter, raceCancellationError, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Limiter, raceCancellationError, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -28,7 +28,6 @@ export const CLEANUP_THRESHOLD_WORKTREES = 20;
 const DEFAULT_MINIMUM_SESSION_AGE_DAYS = 15;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SCAN_CACHE_DURATION_MS = 60 * 60 * 1000;
-const WORKTREE_MEASUREMENT_TIMEOUT_MS = 10_000;
 
 export const AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING = 'chat.agentSessions.sessionStorageCleanupSuggestion.enabled';
 export const LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING = 'sessions.chat.experimental.worktreeLimitPrompt';
@@ -79,6 +78,7 @@ export interface ISessionWorktreeCleanupService {
 export class SessionWorktreeCleanupService extends Disposable implements ISessionWorktreeCleanupService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _measurementCancellation = this._register(new CancellationTokenSource());
 	private _lastScanAt = 0;
 	private _lastMeasurementAt = 0;
 	private _lastMeasuredWorktrees: readonly IMeasuredSessionWorktree[] | undefined;
@@ -137,12 +137,18 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}));
 	}
 
+	override dispose(): void {
+		this._measurementCancellation.cancel();
+		super.dispose();
+	}
+
 	activate(): Promise<void> {
 		this._activated = true;
 		return this._refreshIfNeeded();
 	}
 
 	refresh(): Promise<void> {
+		this._lastMeasuredWorktrees = undefined;
 		this._activated = true;
 		this._lastScanAt = 0;
 		return this._refreshIfNeeded();
@@ -233,21 +239,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
 		return Promise.all(worktreeSessions.map(session => limiter.queue(async () => {
 			const worktreeCount = this._countWorktrees(session);
-			const cancellation = new CancellationTokenSource();
 			let sizeBytes: number | undefined;
 			try {
-				sizeBytes = await raceTimeout(
-					getDiskUsage.call(this.sessionsManagementService, session, cancellation.token),
-					WORKTREE_MEASUREMENT_TIMEOUT_MS,
-					() => {
-						cancellation.cancel();
-						this.logService.warn(`[SessionWorktreeCleanupService] Timed out measuring worktree for session ${session.sessionId}`);
-					},
-				);
+				sizeBytes = await getDiskUsage.call(this.sessionsManagementService, session, this._measurementCancellation.token);
 			} catch (error) {
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
-			} finally {
-				cancellation.dispose();
 			}
 			scannedWorktrees += worktreeCount;
 			onProgress({ scannedWorktrees, totalWorktrees });
@@ -454,13 +450,12 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	/**
-	 * Only sessions with a measured worktree are reported. Marking a session without a worktree as
-	 * done reclaims no storage, so it does not belong in a storage manager; the Sessions list owns
-	 * that decluttering.
+	 * Keep failed measurements and archived worktrees visible: archiving schedules removal but does
+	 * not guarantee it succeeds. A successfully measured empty archived worktree needs no attention.
 	 */
 	private async _getWorktrees(minimumAgeDays: number, token = CancellationToken.None, onProgress?: (progress: IWorktreeMeasurementProgress) => void): Promise<readonly ISessionWorktree[]> {
 		return (await this._getMeasuredWorktrees(minimumAgeDays, token, onProgress))
-			.filter(worktree => worktree.sizeBytes !== undefined && worktree.cleanupState !== 'archived');
+			.filter(worktree => !worktree.session.isArchived.get() || (worktree.sizeBytes !== undefined && worktree.sizeBytes > 0));
 	}
 
 	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean> {

@@ -127,6 +127,7 @@ suite('SessionWorktreeCleanupService', () => {
 			{ id: 'pinned', state: 'pinned' },
 			{ id: 'running', state: 'running' },
 			{ id: 'needsInput', state: 'needsInput' },
+			{ id: 'archived', state: 'archived' },
 			{ id: 'untitled', state: 'untitled' },
 			{ id: 'error', state: 'error' },
 		]);
@@ -333,19 +334,20 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('worktree manager excludes unmeasurable worktree paths, archived sessions, and sessions without worktrees', async () => {
+	test('worktree manager retains failed measurements and archived worktrees with remaining storage', async () => {
 		const eligible = createSession('eligible', oldDate());
 		const running = createSession('running', oldDate(), SessionStatus.InProgress);
 		const recent = createSession('recent', new Date());
 		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
 		const unavailable = createSession('unavailable', oldDate());
+		const emptyArchived = createSession('empty-archived', oldDate(), SessionStatus.Completed, true);
 		const withoutWorktree = createSession('without-worktree', oldDate(), SessionStatus.Completed, false, false);
-		const sessions = [eligible, running, recent, archived, unavailable, withoutWorktree];
+		const sessions = [eligible, running, recent, archived, unavailable, emptyArchived, withoutWorktree];
 		const progressTitles: (string | undefined)[] = [];
 		const service = disposables.add(createService(
 			sessions,
 			true,
-			session => session === unavailable ? undefined : session === eligible ? 4 * ByteSize.GB : ByteSize.GB,
+			session => session === unavailable ? undefined : session === emptyArchived ? 0 : session === eligible ? 4 * ByteSize.GB : ByteSize.GB,
 			undefined,
 			title => progressTitles.push(title),
 		));
@@ -365,8 +367,31 @@ suite('SessionWorktreeCleanupService', () => {
 				{ label: 'eligible', sizeBytes: 4 * ByteSize.GB, state: 'eligible' },
 				{ label: 'running', sizeBytes: ByteSize.GB, state: 'running' },
 				{ label: 'recent', sizeBytes: ByteSize.GB, state: 'recent' },
+				{ label: 'archived', sizeBytes: ByteSize.GB, state: 'archived' },
+				{ label: 'unavailable', sizeBytes: undefined, state: 'unavailable' },
 			],
 		});
+	});
+
+	test('refresh retries failed measurements and drops archived worktrees after storage is removed', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const unavailable = createSession('unavailable', oldDate());
+		let refreshed = false;
+		const service = disposables.add(createService(
+			[archived, unavailable],
+			true,
+			session => refreshed ? (session === archived ? undefined : ByteSize.GB) : (session === archived ? ByteSize.GB : undefined),
+		));
+
+		await service.getWorktrees(14);
+		refreshed = true;
+		await service.refresh();
+
+		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => ({
+			label: worktree.session.title.get(),
+			sizeBytes: worktree.sizeBytes,
+			state: worktree.cleanupState,
+		})), [{ label: 'unavailable', sizeBytes: ByteSize.GB, state: 'eligible' }]);
 	});
 
 	test('active, pinned, running, and recent sessions are not eligible', async () => {
@@ -632,7 +657,7 @@ suite('SessionWorktreeCleanupService', () => {
 		}, {
 			scanCount: 2,
 			measurementProgressCount: 1,
-			sessionIds: ['remaining'],
+			sessionIds: ['selected', 'remaining'],
 		});
 	});
 
@@ -688,45 +713,53 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => worktree.session.sessionId), ['eligible']);
 	});
 
-	test('times out a stalled disk measurement without blocking other sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const stalledMeasurement = new DeferredPromise<number | undefined>();
-		const stalled = createSession('stalled', oldDate());
-		const measured = createSession('measured', oldDate());
+	test('allows disk measurements to complete after more than ten seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const service = disposables.add(createService(
-			[stalled, measured],
+			[createSession('slow', oldDate()), createSession('fast', oldDate())],
 			true,
-			session => session === stalled ? stalledMeasurement.p : ByteSize.GB,
+			async session => {
+				if (session.title.get() === 'slow') {
+					await new Promise<void>(resolve => setTimeout(resolve, 30_000));
+				}
+				return ByteSize.GB;
+			},
 		));
 
-		const startedAt = Date.now();
 		const worktrees = await service.getWorktrees(14);
-		stalledMeasurement.complete(ByteSize.GB);
 
-		assert.deepStrictEqual({
-			elapsed: Date.now() - startedAt,
-			sessionIds: worktrees.map(worktree => worktree.session.sessionId),
-		}, {
-			elapsed: 10_000,
-			sessionIds: ['measured'],
-		});
+		assert.deepStrictEqual(worktrees.map(worktree => ({
+			label: worktree.session.title.get(),
+			sizeBytes: worktree.sizeBytes,
+			state: worktree.cleanupState,
+		})), [
+			{ label: 'slow', sizeBytes: ByteSize.GB, state: 'eligible' },
+			{ label: 'fast', sizeBytes: ByteSize.GB, state: 'eligible' },
+		]);
 	}));
 
-	test('cancels disk measurement when it times out', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('cancels disk measurement when disposed', async () => {
 		let canceled = false;
+		const measurementStarted = new DeferredPromise<void>();
 		const stalledMeasurement = new DeferredPromise<number | undefined>();
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
 			true,
-			(_session, token) => raceCancellationError(stalledMeasurement.p, token ?? CancellationToken.None).catch(error => {
-				canceled = isCancellationError(error);
-				throw error;
-			}),
+			(_session, token) => {
+				measurementStarted.complete();
+				return raceCancellationError(stalledMeasurement.p, token ?? CancellationToken.None).catch(error => {
+					canceled = isCancellationError(error);
+					throw error;
+				});
+			},
 		));
 
-		await service.getWorktrees(14);
+		const measurement = service.getWorktrees(14);
+		await measurementStarted.p;
+		service.dispose();
+		await measurement;
 
 		assert.strictEqual(canceled, true);
-	}));
+	});
 
 	test('retries when the worktree session set changes during measurement', async () => {
 		const firstMeasurement = new DeferredPromise<number | undefined>();
