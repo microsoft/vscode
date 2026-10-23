@@ -44,6 +44,20 @@ export function createCloudSandboxSessionConfig(configurationService: IConfigura
 					type: 'string',
 					title: localize('cloudSandbox.approvals', "Approvals"),
 					enum: approvals,
+					enumLabels: [
+						localize('cloudSandbox.manualPermissions', "Manual permissions"),
+						...restricted ? [] : [
+							localize('cloudSandbox.assistedPermissions', "Assisted permissions"),
+							localize('cloudSandbox.allowAll', "Allow all"),
+						],
+					],
+					enumDescriptions: [
+						localize('cloudSandbox.manualPermissionsDescription', "Asks when approval settings don't apply"),
+						...restricted ? [] : [
+							localize('cloudSandbox.assistedPermissionsDescription', "Evaluates risk before running tools"),
+							localize('cloudSandbox.allowAllDescription', "Runs tool calls without asking"),
+						],
+					],
 					default: restricted ? 'manual' : 'assisted',
 				},
 			},
@@ -90,8 +104,7 @@ function cloudSandboxConfigIcon(key: string, value: string): ThemeIcon {
 }
 
 /**
- * Presents the draft vocabulary as chat session option groups, for surfaces that render
- * generic option pickers rather than Agent Host configuration chips.
+ * Stores draft selections as session options while the shared Agent Host pickers render them.
  */
 export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfigResult): IChatSessionProviderOptionGroup[] {
 	const groups: IChatSessionProviderOptionGroup[] = [];
@@ -111,6 +124,7 @@ export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfig
 		groups.push({
 			id: key,
 			name: property.title ?? key,
+			when: 'false',
 			description: property.description,
 			icon: items.find(item => item.default)?.icon,
 			items,
@@ -119,9 +133,9 @@ export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfig
 	return groups;
 }
 
-/** The draft's picks for the vocabulary in `config`, ignoring stale or foreign values. */
+/** Resolves draft picks against current defaults, ignoring stale or foreign values. */
 export function readCloudSandboxDraftConfig(options: ReadonlyMap<string, string | IChatSessionProviderOptionItem> | undefined, config: ResolveSessionConfigResult): Record<string, unknown> {
-	const values: Record<string, unknown> = {};
+	const values: Record<string, unknown> = { ...config.values };
 	for (const [key, property] of Object.entries(config.schema.properties)) {
 		const selected = options?.get(key);
 		const value = typeof selected === 'string' ? selected : selected?.id;

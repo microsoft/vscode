@@ -1,0 +1,10 @@
+{
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"scripts": {
+		"test": "node --test lib/profileCopy.test.ts lib/settings.test.ts lib/runDirs.test.ts waitForCdp.test.ts managed.test.ts"
+	}
+}
