@@ -3464,6 +3464,51 @@ export interface ExtHostWindowShape {
 	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
 }
 
+/** Public error category of the proposed GitHub API; cancellation is reported separately. */
+export type GitHubErrorCodeDto = 'authentication' | 'authorization' | 'notFound' | 'validation' | 'rateLimit' | 'network' | 'timeout' | 'server' | 'invalidResponse' | 'disposed' | 'unknown';
+
+export interface IGitHubErrorDto {
+	readonly code: GitHubErrorCodeDto;
+	readonly message: string;
+	readonly status?: number;
+}
+
+/** Operation result; failures are values so their code and status survive RPC without response bodies. */
+export type GitHubResultDto<T> =
+	| { readonly kind: 'ok'; readonly value: T }
+	| { readonly kind: 'error'; readonly error: IGitHubErrorDto }
+	| { readonly kind: 'canceled' };
+
+export interface IGitHubGistFileDto {
+	readonly content: string;
+	readonly isBinary: boolean;
+	readonly truncated: boolean;
+}
+
+export interface IGitHubGistDto {
+	readonly id: string;
+	readonly htmlUrl: string;
+	readonly files: readonly IGitHubGistFileDto[];
+}
+
+export interface IGitHubCreateGistDto {
+	readonly public?: boolean;
+	readonly files: { readonly [fileName: string]: { readonly content: string } };
+}
+
+/**
+ * Client leases are identified by extension-host-generated handles so that a release can be sent for an
+ * acquisition whose reply was lost or cancelled. Releasing an unknown or already released handle is a no-op.
+ */
+export interface MainThreadGitHubShape extends IDisposable {
+	/** Binds a session of the `github` authentication provider (GitHub.com). */
+	$getClient(handle: number, extensionId: string, sessionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$getAnonymousClient(handle: number, extensionId: string, token: CancellationToken): Promise<GitHubResultDto<void>>;
+	$releaseClient(handle: number): void;
+	$getGist(handle: number, gistId: string, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+	$createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+}
+
 export type PowerSystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
 export type PowerThermalState = 'unknown' | 'nominal' | 'fair' | 'serious' | 'critical';
 export type PowerSaveBlockerType = 'prevent-app-suspension' | 'prevent-display-sleep';
@@ -4219,6 +4264,7 @@ export const MainContext = {
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadPower: createProxyIdentifier<MainThreadPowerShape>('MainThreadPower'),
+	MainThreadGitHub: createProxyIdentifier<MainThreadGitHubShape>('MainThreadGitHub'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadNotebook: createProxyIdentifier<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadNotebookDocuments: createProxyIdentifier<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),

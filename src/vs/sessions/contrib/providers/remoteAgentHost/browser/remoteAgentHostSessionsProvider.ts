@@ -688,7 +688,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override _onNewSessionAbandoned(sessionId: string, reason: 'discarded' | 'sendFailed' | 'providerDisposed'): void {
-		if (reason === 'sendFailed') {
+		if (reason === 'sendFailed' || this._getNewSession(sessionId)?.hasBeenUsed) {
 			return;
 		}
 		const handle = this._getDetachedWorktreeHandle(sessionId);
@@ -784,12 +784,13 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return !this._unpublished;
 	}
 
-	protected _adapterOptions() {
+	protected _adapterOptions(agentProvider: string) {
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
 			allowOfflineDrafts: this._allowOfflineDrafts,
 			defaultChangesetKind: this._defaultChangesetKind,
+			useSessionTitleForDefaultChat: agentProvider === 'copilot',
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
 				const uriForDescription = project?.uri ?? primary;

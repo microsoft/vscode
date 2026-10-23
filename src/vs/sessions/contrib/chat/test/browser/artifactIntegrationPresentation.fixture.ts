@@ -750,9 +750,9 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 		title.classList.add('hovered');
 	}
 	if (scenario === 'tabFocus') {
-		const tab = context.container.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+		const tab = context.container.querySelector<HTMLElement>('[role="tab"][tabindex="0"]');
 		if (!tab) {
-			throw new Error('Expected a selected list tab.');
+			throw new Error('Expected a keyboard-reachable list tab.');
 		}
 		tab.classList.add('synthetic-focus');
 		context.focus(tab);

@@ -120,7 +120,7 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
+import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
@@ -5775,7 +5775,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				break;
 			case CUSTOMIZATIONS_SECTION_ID:
-				await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID);
+				if (this.options.customizationMigrationsAvailable?.get()) {
+					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID, {
+						migration: true,
+					} satisfies IOpenAICustomizationsCommandOptions);
+				} else {
+					await this.commandService.executeCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID);
+				}
 				break;
 		}
 	}

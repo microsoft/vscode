@@ -699,6 +699,75 @@ suite('WorkspacePicker - Environment', () => {
 		});
 	}
 
+	for (const remote of [false, true]) {
+		test(`uses the same folder browse label, icon and ordering for ${remote ? 'remote' : 'local'} environments`, async () => {
+			const providerId = remote ? 'agenthost-remote-1' : 'local-agent-host';
+			const group = remote ? SESSION_WORKSPACE_GROUP_REMOTE : SESSION_WORKSPACE_GROUP_LOCAL;
+			const folderUri = remote ? URI.parse('vscode-agent-host://benbox1/remote/project') : URI.file('/agent-host/project');
+			const calls: string[] = [];
+			const providers = disposables.add(new MockSessionsProvidersService());
+			const base = createMockProvider(providerId, {
+				group,
+				connectionStatus: remote ? observableValue('connection', RemoteAgentHostConnectionStatus.connected) : undefined,
+				browseActions: remote ? [{
+					...makeBrowseAction(providerId, group, 'Folders'),
+					icon: Codicon.remote,
+					run: async () => { calls.push('folder'); return undefined; },
+				}] : [],
+			});
+			providers.setProviders([
+				{
+					...createMockProvider('default-copilot', {
+						browseActions: [{
+							...makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Work in Repository...'),
+							run: async () => { calls.push('repository'); return undefined; },
+						}],
+					}),
+					supportsLocalWorkspaces: true,
+				},
+				{
+					...base,
+					supportsLocalWorkspaces: !remote,
+					resolveWorkspace: uri => {
+						const workspace = base.resolveWorkspace(uri);
+						return workspace && { ...workspace, icon: remote ? Codicon.remote : Codicon.folder };
+					},
+				},
+			]);
+			const storage = disposables.add(new TestStorageService());
+			seedStorage(storage, [{ uri: folderUri, providerId, checked: false }]);
+			const picker = createTestPicker(disposables, providers, storage, undefined, DispatchingWorkspacePicker, {
+				showOpenDialog: async () => { calls.push('folder'); return undefined; },
+			}, undefined, undefined, {
+				environment: constObservable({
+					id: remote ? providerId : 'local', kind: remote ? 'remote' : 'local',
+					label: remote ? 'benbox1' : 'This Computer', icon: Codicon.remote, providerIds: [providerId],
+				}),
+				restoreFromSessions: false,
+				configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+			});
+			assert.ok(picker instanceof DispatchingWorkspacePicker);
+			const items = picker.getItems();
+			for (const item of items) {
+				if (item.item?.browseActionIndex !== undefined) {
+					await picker.dispatchItem(item.item);
+				}
+			}
+			assert.deepStrictEqual({
+				items: items.map(item => item.kind === ActionListItemKind.Separator ? 'separator' : { label: item.label, icon: item.group?.icon?.id }),
+				calls,
+			}, {
+				items: [
+					{ label: remote ? 'remote/project' : 'agent-host/project', icon: 'folder' },
+					'separator',
+					{ label: 'Open Folder...', icon: 'folder' },
+					{ label: 'Work in Repository', icon: 'folder' },
+				],
+				calls: ['folder', 'repository'],
+			});
+		});
+	}
+
 	function createEnvironmentPicker(environment: ISessionCreationEnvironment, availability?: (uri: URI) => Promise<boolean>, environmentFirst = constObservable(true)) {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		providers.setProviders([
@@ -833,7 +902,7 @@ suite('WorkspacePicker - Environment', () => {
 		}, {
 			workspaceFirst: ['Open Folder...', 'Work in Repository', 'Selected Remote Folder', 'Other Remote Folder'],
 			local: ['Open Folder...', 'Work in Repository'],
-			remote: ['Work in Repository', 'Selected Remote Folder'],
+			remote: ['Open Folder...', 'Work in Repository'],
 			container: ['Open Folder...', 'Work in Repository'],
 			repositorySelected: true,
 			selectedFolder: localUri.toString(),
@@ -849,14 +918,15 @@ suite('WorkspacePicker - Environment', () => {
 			resolveWorkspace: uri => {
 				const workspace = base.resolveWorkspace(uri);
 				return workspace && {
-					...workspace, label: 'workday [benbox1]',
+					...workspace, label: 'workday [benbox1]', icon: Codicon.remote,
 					folders: workspace.folders.map(folder => ({ ...folder, name: 'workday' })),
 				};
 			},
 		}]);
-		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', {
+		const remoteEnvironment: ISessionCreationEnvironment = {
 			id: base.id, kind: 'remote', label: 'benbox1', icon: Codicon.remote, providerIds: [base.id],
-		});
+		};
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
 		const folderUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'benbox1', path: '/remote/workday' });
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [{ uri: folderUri, providerId: base.id, checked: false }]);
@@ -874,15 +944,19 @@ suite('WorkspacePicker - Environment', () => {
 			items: picker.getItems().filter(item => item.item?.folderUri).map(item => item.label),
 			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
 			ariaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
+			icon: container.querySelector('.codicon-folder') ? 'folder' : 'remote',
 		});
+		const workspaceFirst = snapshot();
+		environment.set(remoteEnvironment, undefined);
 		const scoped = snapshot();
 		environment.set(undefined, undefined);
 		const unscoped = snapshot();
 		environment.set(localEnvironment, undefined);
-		assert.deepStrictEqual({ scoped, unscoped, otherEnvironment: snapshot() }, {
-			scoped: { items: ['workday'], label: 'workday', ariaLabel: 'Workspace: workday' },
-			unscoped: { items: ['workday [benbox1]'], label: 'workday [benbox1]', ariaLabel: 'Workspace: workday [benbox1]' },
-			otherEnvironment: { items: [], label: 'workday [benbox1]', ariaLabel: 'Workspace: workday [benbox1]' },
+		assert.deepStrictEqual({ workspaceFirst, scoped, unscoped, otherEnvironment: snapshot() }, {
+			workspaceFirst: { items: ['workday [benbox1]'], label: 'workday [benbox1]', ariaLabel: 'Workspace: workday [benbox1]', icon: 'remote' },
+			scoped: { items: ['workday'], label: 'workday', ariaLabel: 'Workspace: workday', icon: 'folder' },
+			unscoped: { items: ['workday [benbox1]'], label: 'workday [benbox1]', ariaLabel: 'Workspace: workday [benbox1]', icon: 'remote' },
+			otherEnvironment: { items: [], label: 'workday [benbox1]', ariaLabel: 'Workspace: workday [benbox1]', icon: 'remote' },
 		});
 	});
 
@@ -919,8 +993,8 @@ suite('WorkspacePicker - Environment', () => {
 		assert.deepStrictEqual(states, [
 			[{ label: 'Folders', description: 'benbox1' }, { label: 'Other', description: 'Useful description' }],
 			[{ label: 'Folders', description: 'benbox1 · Online' }, { label: 'Other', description: 'Useful description · Online' }],
-			[{ label: 'Folders', description: undefined }, { label: 'Other', description: 'Useful description' }],
-			[{ label: 'Folders', description: 'Online' }, { label: 'Other', description: 'Useful description · Online' }],
+			[{ label: 'Open Folder...', description: undefined }, { label: 'Open Folder...', description: 'Useful description' }],
+			[{ label: 'Open Folder...', description: 'Online' }, { label: 'Open Folder...', description: 'Useful description · Online' }],
 		]);
 	});
 
