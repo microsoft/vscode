@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -358,6 +358,48 @@ suite('AgentService - chats with their own agent', () => {
 			hasOwnSchema: true,
 			listed: [{ kind: 'default', provider: undefined }, { kind: 'peer', provider: 'second' }],
 			materializedIn: [chat.toString()],
+		});
+	});
+
+	suite('a turn\'s model', () => {
+		const modelInfo = (provider: string, id: string) => ({ provider, id, name: id, maxContextWindow: 1000, supportsVision: false });
+
+		/** Starts a turn and resolves once `agent` was sent its message. */
+		function sendTurn(service: AgentService, agent: MockAgent, chat: URI, model: string): Promise<unknown> {
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			service.dispatchAction(chat.toString(), { type: ActionType.ChatTurnStarted, turnId: `turn-${model}`, startedAt: new Date().toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } }, 'test-client', 1);
+			return sent;
+		}
+
+		test('a chat on another agent keeps its model for a model only its session\'s agent offers, and takes one its agent offers', async () => {
+			const { service, copilot, second } = createService(true);
+			copilot.setModels([modelInfo('copilot', 'copilot-model')]);
+			second.setModels([modelInfo('second', 'second-model')]);
+			const { chat } = await createSessionWithSecondChat(service);
+
+			await sendTurn(service, second, chat, 'copilot-model');
+			const ignored = { changed: second.changeModelCalls.map(call => call.model.id), sent: second.sendMessageCalls.length };
+			second.sendMessageCalls.length = 0;
+			getTestAgentStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'turn-copilot-model', duration: 1 });
+			await sendTurn(service, second, chat, 'second-model');
+
+			assert.deepStrictEqual({ ignored, applied: second.changeModelCalls.map(call => call.model.id), copilot: copilot.changeModelCalls.length }, {
+				ignored: { changed: [], sent: 1 },
+				applied: ['second-model'],
+				copilot: 0,
+			});
+		});
+
+		test('a chat on its session\'s agent takes any model, as before', async () => {
+			const { service, copilot } = createService(true);
+			copilot.setModels([modelInfo('copilot', 'copilot-model')]);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			await service.createChat(session, chat);
+
+			await sendTurn(service, copilot, chat, 'unknown-model');
+
+			assert.deepStrictEqual(copilot.changeModelCalls.map(call => call.model.id), ['unknown-model']);
 		});
 	});
 
