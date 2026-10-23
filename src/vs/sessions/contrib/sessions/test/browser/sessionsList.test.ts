@@ -101,6 +101,7 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../browser/customizationsConstants.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
@@ -791,6 +792,40 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('opens migrations from Customizations only while migration attention is active', async () => {
+			const customizationMigrationsAvailable = observableValue(disposables, true);
+			const harness = createListHarness(disposables, []);
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				customizationMigrationsAvailable,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const customizationsRow = navigationContainer.querySelector<HTMLElement>('.session-section-customizations');
+			assert.ok(customizationsRow);
+
+			clickRow(customizationsRow);
+			await Promise.resolve();
+			customizationMigrationsAvailable.set(false, undefined);
+			clickRow(customizationsRow);
+			await Promise.resolve();
+
+			assert.deepStrictEqual(harness.commandService.calls, [{
+				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+				args: [{ migration: true }],
+			}, {
+				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+				args: [],
+			}]);
+		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const commands: string[] = [];
