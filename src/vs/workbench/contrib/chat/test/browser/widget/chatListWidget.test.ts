@@ -1346,7 +1346,7 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('sticky content retention', () => {
-		async function createTranscript() {
+		async function createTranscript(text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3), completeResponse = true) {
 			const context = createWidget({}, configurationService => {
 				configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
 				configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, true);
@@ -1355,8 +1355,6 @@ suite('ChatListWidget', () => {
 			const { model, container, widget, viewModel } = context;
 			container.classList.add('interactive-list');
 			container.style.setProperty('--vscode-spacing-size80', '8px');
-			// Keep the sticky request clamped to two lines at both test widths.
-			const text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3);
 			const request = model.addRequest({
 				text,
 				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
@@ -1365,7 +1363,9 @@ suite('ChatListWidget', () => {
 				kind: 'markdownContent',
 				content: new MarkdownString('```typescript\nconst answer = 42;\n```\n\n' + Array.from({ length: 40 }, (_, index) => `Response paragraph ${index}.`).join('\n\n')),
 			});
-			request.response?.complete();
+			if (completeResponse) {
+				request.response?.complete();
+			}
 			widget.refresh();
 			widget.layout(300, 500);
 			await waitForStableLayout(widget);
@@ -1381,6 +1381,92 @@ suite('ChatListWidget', () => {
 			assert.ok(row && bubble);
 			return { ...context, request, row, bubble };
 		}
+
+		for (const partiallyVisible of [false, true]) {
+			test(`multi-paragraph sticky requests retain their width when rendered (source partially visible: ${partiallyVisible})`, async () => {
+				const { container, widget } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12));
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+				assert.ok(source);
+				const sourceBounds = source.getBoundingClientRect();
+				const scrollTop = partiallyVisible
+					? Math.max(0, sourceBounds.top - container.getBoundingClientRect().top - 8) + 1
+					: sourceBounds.bottom + 200;
+				const measure = () => {
+					const row = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+					const bubble = row?.querySelector<HTMLElement>('.chat-markdown-part');
+					assert.ok(row && bubble);
+					const bounds = bubble.getBoundingClientRect();
+					return {
+						matchesSourceWidth: Math.abs(bounds.width - sourceBounds.width) < 1,
+						matchesSourceLeft: Math.abs(bounds.left - sourceBounds.left) < 1,
+						partiallyVisible: row.classList.contains('source-node-partially-visible'),
+					};
+				};
+
+				widget.scrollTop = scrollTop;
+				const samples = [measure()];
+				await waitForStableLayout(widget);
+				samples.push(measure());
+				for (let render = 0; render < 3; render++) {
+					widget.rerender();
+					samples.push(measure());
+					await nextFrame();
+					samples.push(measure());
+				}
+
+				assert.deepStrictEqual(samples, samples.map(() => ({
+					matchesSourceWidth: true,
+					matchesSourceLeft: true,
+					partiallyVisible,
+				})));
+			});
+		}
+
+		test('streaming and completion preserve the width of an offscreen sticky request', async () => {
+			const { container, widget, model, request } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12), false);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+			assert.ok(source);
+			const sourceWidth = source.getBoundingClientRect().width;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.strictEqual(container.querySelector('.monaco-list-rows .interactive-request'), null);
+			const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+			assert.ok(initialBubble);
+			const widths: number[] = [];
+			const measure = () => {
+				const stickyBubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
+				assert.ok(stickyBubble);
+				widths.push(stickyBubble.getBoundingClientRect().width);
+			};
+			measure();
+
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nNew response content.') });
+			widget.refresh();
+			measure();
+			for (let frame = 0; frame < 3; frame++) {
+				await nextFrame();
+				measure();
+			}
+			request.response?.complete();
+			widget.refresh();
+			measure();
+			for (let frame = 0; frame < 3; frame++) {
+				await nextFrame();
+				measure();
+			}
+
+			assert.deepStrictEqual({
+				replaced: container.querySelector('.monaco-tree-sticky-row .chat-markdown-part') !== initialBubble,
+				widths,
+			}, {
+				replaced: true,
+				widths: widths.map(() => sourceWidth),
+			});
+		});
 
 		test('unchanged and height-only layouts preserve sticky DOM, focus and reading position without measuring', async () => {
 			const { container, widget, model, row, bubble } = await createTranscript();
@@ -2182,7 +2268,7 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('persistent progress collapse anchoring', () => {
-		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false) {
+		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false, text = 'Keep the earlier content in place') {
 			const context = createWidget({ paddingBottom }, configurationService => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
@@ -2194,7 +2280,6 @@ suite('ChatListWidget', () => {
 			}, true);
 			const { model, container, widget } = context;
 			container.classList.add('interactive-list');
-			const text = 'Keep the earlier content in place';
 			const request = model.addRequest({
 				text,
 				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
@@ -2252,6 +2337,52 @@ suite('ChatListWidget', () => {
 			request.response?.complete();
 			widget.refresh();
 			await waitForStableLayout(widget);
+		}
+
+		for (const incrementalRendering of [false, true]) {
+			test(`streaming tool collapse retains the sticky bubble and its source width (incremental: ${incrementalRendering})`, async () => {
+				const { model, request, container, widget } = await createPreview('tools', incrementalRendering, 0, 3, true,
+					'Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12));
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+				assert.ok(source);
+				const sourceWidth = source.getBoundingClientRect().width;
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+				const preview = container.querySelector<HTMLElement>('.chat-thinking-box');
+				assert.ok(initialBubble && preview);
+				const measure = () => {
+					const bubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
+					assert.ok(bubble);
+					return {
+						sameBubble: bubble === initialBubble,
+						width: bubble.getBoundingClientRect().width,
+					};
+				};
+				const samples = [measure()];
+				const previewHeight = preview.getBoundingClientRect().height;
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The next response.') });
+				widget.refresh();
+				samples.push(measure());
+				for (let frame = 0; frame < 6; frame++) {
+					await nextFrame();
+					samples.push(measure());
+				}
+				await waitForStableLayout(widget);
+				samples.push(measure());
+
+				assert.deepStrictEqual({
+					collapsed: preview.classList.contains('chat-used-context-collapsed'),
+					shrank: preview.getBoundingClientRect().height < previewHeight,
+					samples,
+				}, {
+					collapsed: true,
+					shrank: true,
+					samples: samples.map(() => ({ sameBubble: true, width: sourceWidth })),
+				});
+			});
 		}
 
 		for (const kind of ['thinking', 'tools'] as const) {

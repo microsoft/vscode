@@ -17,7 +17,6 @@ import './getNotebookCellOutputTool';
 import './githubRepoSemanticSearchTool.tsx';
 import './githubTextSearchTool';
 import './insertEditTool';
-import './installExtensionTool';
 import './listDirTool';
 import './skillTool';
 import './manageTodoListTool';
@@ -38,5 +37,4 @@ import './sessionStoreSqlTool';
 import './toolSearchTool';
 import './viewImageTool';
 import './vscodeAPITool';
-import './vscodeCmdTool';
 

@@ -138,7 +138,7 @@ suite('Marker Service', () => {
 		assert.strictEqual(service.read({ owner: 'far' }).length, 2);
 	});
 
-	test('changeAll must not break integrety, issue #12635', () => {
+	test('changeAll must not break integrity, issue #12635', () => {
 		service = new markerService.MarkerService();
 
 		service.changeAll('far', [{

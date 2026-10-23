@@ -6900,9 +6900,41 @@ suite('VoiceSessionController', () => {
 
 		handleFatalDisconnect.call(controller, { code: 0, reason: '', kind: 'fatal', clientSide: true });
 
-		assert.strictEqual(notificationService.prompts.length, 1);
-		assert.strictEqual(notificationService.prompts[0].choices.length, 0);
+		assert.deepStrictEqual({
+			status: controller.statusText.get(),
+			prompts: notificationService.prompts,
+		}, {
+			status: 'Voice Mode has no backend URL configured.',
+			prompts: [{ severity: Severity.Error, message: 'Voice Mode has no backend URL configured.', choices: [] }],
+		});
 	});
+
+	for (const reason of [
+		'OpenAI GPT-Live session creation failed with status 429: You exceeded your current quota, please check your plan and billing details.',
+		'The OpenAI GPT-Live connection was lost.',
+	]) {
+		test(`shows the specific GPT-Live failure and offers retry: ${reason}`, () => {
+			const notificationService = new VoiceTestNotificationService();
+			const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, notificationService);
+			const handleFatalDisconnect = Reflect.get(controller, '_handleFatalDisconnect') as (event: IVoiceFatalDisconnect) => void;
+
+			handleFatalDisconnect.call(controller, { code: 0, reason, kind: 'fatal' });
+
+			assert.deepStrictEqual({
+				status: controller.statusText.get(),
+				state: controller.voiceState.get(),
+				prompts: notificationService.prompts.map(prompt => ({
+					severity: prompt.severity,
+					message: prompt.message,
+					choices: prompt.choices.map(choice => choice.label),
+				})),
+			}, {
+				status: reason,
+				state: 'error',
+				prompts: [{ severity: Severity.Error, message: reason, choices: ['Retry'] }],
+			});
+		});
+	}
 
 	test('an immediate fatal close after open does not activate the microphone', () => {
 		// Auto-listen goes through pttDown, so a startCapture counter would pass

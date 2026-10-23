@@ -1402,6 +1402,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.widgetViewStates.set(getComparisonKey(oldModelResource), this._widget.getViewState());
 		}
 		this.modelRef.value = undefined;
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next session before acting on the view.
+		this.setBoundChatResource(undefined);
 
 		// Baseline draft for preserving text typed during loading. `loadSession`
 		// opens its load window before calling us, so it passes its own baseline;
@@ -1453,6 +1456,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		} else {
 			this._widget.setModel(model);
 		}
+		this.setBoundChatResource(model?.sessionResource);
 
 		// Update title control
 		this.titleControl?.update(model);
@@ -1475,6 +1479,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		return model;
+	}
+
+	/**
+	 * Expose the chat session the widget is bound to on the DOM so test
+	 * automation can synchronize with session swaps without polling timeouts.
+	 * Mirrors the signal exposed by `ChatEditor` and the Agents Window's
+	 * `ChatView`.
+	 */
+	private setBoundChatResource(sessionResource: URI | undefined): void {
+		if (!this.viewPaneContainer) {
+			return;
+		}
+		if (sessionResource) {
+			this.viewPaneContainer.dataset.boundChatResource = sessionResource.toString();
+		} else {
+			delete this.viewPaneContainer.dataset.boundChatResource;
+		}
 	}
 
 	private async updateWidgetLockState(sessionType: string): Promise<void> {

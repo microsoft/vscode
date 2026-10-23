@@ -90,3 +90,25 @@
 	min-width: 0;
 	line-height: 1.4;
 }
+
+/* New Nested Session: folder, isolation and branch pickers above the input, like New Session. */
+.new-chat-in-session .new-chat-in-session-workspace {
+	width: 100%;
+	max-width: 950px;
+	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size40);
+	box-sizing: border-box;
+}
+.new-chat-in-session .nested-chat-workspace-controls {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+.new-chat-in-session .new-chat-in-session-workspace.hidden,
+.new-chat-in-session .nested-chat-workspace-controls.hidden,
+.new-chat-in-session .nested-chat-branch-picker.hidden {
+	display: none;
+}
+.new-chat-in-session .nested-chat-folder-picker.disabled .action-label {
+	cursor: default;
+}

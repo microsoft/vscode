@@ -41,6 +41,7 @@ import {
 	type SessionConfigState,
 	type URI as ProtocolURI,
 	readSessionGitState,
+	readSessionWorkspaceless,
 	isAhpChatChannel,
 	isHostNoticeTurn,
 	lastAttributableTurnId,
@@ -48,6 +49,7 @@ import {
 	withSessionGitState,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { isChatWorkspaceless } from './agentChatContext.js';
 import { IAgentConfigurationService, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -380,9 +382,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			: state;
 		const sessionUri = this._containingSessionUri(session);
+		const sessionWorkspaceless = readSessionWorkspaceless(state._meta);
+		const workspaceless = chatOwned ? isChatWorkspaceless(this._stateManager, session, this._sessionStateStore.peek(URI.parse(sessionUri)), sessionWorkspaceless) : sessionWorkspaceless;
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, branchChangesetOwner)?.sourceUri ?? session;
 		const baseBranch = this._getBranchBaseBranch(source, this._sessionStateStore.peek(URI.parse(sessionUri)));
-		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, this._chatOwnership.isRegisteredDefaultChat(session), catalogState, branchChangesetOwner,
+		this._stateManager.setChangesets(session, buildDefaultChangesetCatalog(session, this._chatOwnership.isRegisteredDefaultChat(session), workspaceless, catalogState, branchChangesetOwner,
 			(folderKey, recordedChat) => resolveAgentMergeOwningChat(this._stateManager, sessionUri, folderKey, recordedChat), baseBranch));
 	}
 
