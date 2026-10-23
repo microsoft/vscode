@@ -24,7 +24,7 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { EditorProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
 import { localize } from '../../../../nls.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DeferredPromise, Promises, RunOnceWorker } from '../../../../base/common/async.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
@@ -949,14 +949,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.titleHidden ? { total: 0, offset: 0 } : this.titleControl.getHeight();
 	}
 
-	private titleHidden = false;
+	private titleHiddenCount = 0;
+	private get titleHidden(): boolean { return this.titleHiddenCount > 0; }
 
-	setTitleHidden(hidden: boolean): void {
-		if (this.titleHidden === hidden) {
-			return;
+	hideTitle(): IDisposable {
+		this.titleHiddenCount++;
+		if (this.titleHiddenCount === 1) {
+			this.updateTitleHidden();
 		}
-		this.titleHidden = hidden;
-		this.titleContainer.classList.toggle('hidden-title', hidden);
+
+		let disposed = false;
+		return toDisposable(() => {
+			if (disposed || this.disposed) {
+				return;
+			}
+			disposed = true;
+			this.titleHiddenCount--;
+			if (this.titleHiddenCount === 0) {
+				this.updateTitleHidden();
+			}
+		});
+	}
+
+	private updateTitleHidden(): void {
+		this.titleContainer.classList.toggle('hidden-title', this.titleHidden);
 		this.relayout();
 	}
 
