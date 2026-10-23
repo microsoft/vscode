@@ -202,11 +202,29 @@ suite('SessionChatInputToolbar', () => {
 		const before = lookups;
 		const counts: number[] = [];
 		for (let i = 0; i < 10; i++) {
-			artifacts.set(artifacts.get().map(entry => ({ ...entry, label: `Updated title ${i}` })), undefined);
+			artifacts.set(artifacts.get().map(entry => ({ ...entry, label: `Updated title ${i}`, link: entry.link && URI.parse(entry.link.toString()) })), undefined);
 			counts.push(toolbar.activityBarActions.get().length);
 			await timeout(0);
 		}
 		assert.deepStrictEqual({ counts, lookups: lookups - before }, { counts: Array(10).fill(1), lookups: 0 });
+	});
+
+	test('activity bar preserves pending opener checks when refreshed PR URLs are reconstructed', async () => {
+		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
+		const { toolbar, artifacts } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID,
+			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
+		for (let i = 0; i < 10; i++) {
+			artifacts.set(artifacts.get().map(entry => ({ ...entry, label: `Updated title ${i}`, link: entry.link && URI.parse(entry.link.toString()) })), undefined);
+			toolbar.activityBarActions.get();
+			await timeout(0);
+		}
+		const checks = pending.length;
+		const cancelled = pending.filter(check => check.token.isCancellationRequested).length;
+		for (const check of pending) {
+			check.resolve(upcastPartial<IExternalUriOpener>({ id: 'supported' }));
+		}
+		await timeout(0);
+		assert.deepStrictEqual({ checks, cancelled, actions: toolbar.activityBarActions.get().length }, { checks: 1, cancelled: 0, actions: 1 });
 	});
 
 	test('activity bar retains supported PRs while opener revalidation is pending', async () => {

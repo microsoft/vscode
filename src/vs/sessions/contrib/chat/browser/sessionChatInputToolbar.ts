@@ -9,7 +9,7 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
+import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -609,7 +609,10 @@ export class SessionChatInputToolbar extends Disposable {
 			extensionService.onDidChangeExtensions,
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(externalUriOpenersSettingId)),
 		));
-		const activityBarOpenerRefs = derivedOpts<readonly { id: string; uri: URI }[]>({ owner: this, equalsFn: structuralEquals }, reader =>
+		const activityBarOpenerRefs = derivedOpts<readonly { id: string; uri: URI }[]>({
+			owner: this,
+			equalsFn: (a, b) => arrayEquals(a, b, (a, b) => a.id === b.id && isEqual(a.uri, b.uri)),
+		}, reader =>
 			pullRequestRefs.read(reader).map(ref => ({ id: ref.recordedReferenceId ?? ref.uri.toString(), uri: ref.uri })));
 		let supportedOpenerUris = new Set<string>();
 		const activityBarOpeners = derived(this, reader => {
