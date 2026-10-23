@@ -204,8 +204,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private normalizeTrustUri(uri: URI): URI {
-		// Match the drive-letter casing used by serialized remote session URIs.
-		return uri.scheme === AGENT_HOST_SCHEME ? URI.parse(uri.toString()) : uri;
+		// Match the drive-letter casing used by serialized remote resource URIs.
+		return uri.scheme === AGENT_HOST_SCHEME || uri.scheme === Schemas.vscodeRemote ? URI.parse(uri.toString()) : uri;
 	}
 
 	private async getCanonicalUri(uri: URI): Promise<URI> {

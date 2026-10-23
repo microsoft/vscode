@@ -170,6 +170,44 @@ suite('Workspace Trust', () => {
 			});
 		});
 
+		for (const canonicalDrive of ['C', 'c']) {
+			test(`remote Windows workspace recognizes persisted trust with canonical drive ${canonicalDrive}:`, async () => {
+				await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+				const folder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+windows-host', path: '/C:/repos/vscode' });
+				const canonicalFolder = folder.with({ path: `/${canonicalDrive}:/repos/vscode` });
+				const savedFolder = folder.with({ path: canonicalDrive === 'C' ? '/c:/repos/vscode' : '/C:/repos/vscode' });
+				environmentService.remoteAuthority = folder.authority;
+				store.add(instantiationService.get(IFileService).registerProvider(Schemas.vscodeRemote, store.add(new InMemoryFileSystemProvider())));
+				instantiationService.stub(IRemoteAuthorityResolverService, {
+					getCanonicalURI: async uri => uri.with({ path: uri.path.replace(/^\/[Cc]:/, `/${canonicalDrive}:`) }),
+					resolveAuthority: async authority => ({
+						authority: { authority, connectTo: new WebSocketRemoteConnection('localhost', 0), connectionToken: undefined }
+					}),
+				});
+				workspaceService.setWorkspace(new Workspace('remote-workspace', [toWorkspaceFolder(folder)]));
+				const trustInfo: IWorkspaceTrustInfo = { uriTrustInfo: [{ uri: savedFolder, trusted: true }] };
+				storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+				const testObject = await initializeTestObject();
+				await testObject.workspaceResolved;
+				const uris = [
+					folder,
+					canonicalFolder,
+					URI.joinPath(canonicalFolder, 'src'),
+					canonicalFolder.with({ authority: 'ssh-remote+other-host' }),
+					canonicalFolder.with({ path: `/${canonicalDrive}:/repos/vscode-other` }),
+					canonicalFolder.with({ path: `/${canonicalDrive}:/repos/VSCode` }),
+				];
+
+				assert.deepStrictEqual({
+					workspaceTrusted: testObject.isWorkspaceTrusted(),
+					uriTrust: await Promise.all(uris.map(async uri => (await testObject.getUriTrustInfo(uri)).trusted)),
+				}, {
+					workspaceTrusted: true,
+					uriTrust: [true, true, true, false, false, false],
+				});
+			});
+		}
+
 		test('agent host folder is not auto-trusted as a virtual resource', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
