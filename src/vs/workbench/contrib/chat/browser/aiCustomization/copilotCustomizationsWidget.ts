@@ -20,7 +20,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { dirname } from '../../../../../base/common/resources.js';
+import { dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -38,8 +38,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { extensionIcon, pluginIcon, userIcon, workspaceIcon } from './aiCustomizationIcons.js';
 import { IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
 import { setVirtualizedRowActionsTabbable } from './customizationCardList.js';
@@ -431,7 +431,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		@ICopilotExtensionsService private readonly extensionsService: ICopilotExtensionsService,
 		@ICanvasContextService private readonly canvasContextService: ICanvasContextService,
 		@ICanvasService private readonly canvasService: ICanvasService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
@@ -524,7 +524,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
-				openOnSingleClick: true,
+				openOnSingleClick: false,
 				identityProvider: { getId: entry => this.getTreeEntryId(entry) },
 				accessibilityProvider: {
 					getWidgetAriaLabel: () => localize('copilotCanvases.listLabel', "Available Canvases"),
@@ -1216,16 +1216,27 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (isOpenableExtensionCanvasDefinition(currentItem.canvas)) {
 			void this.openCanvas(currentItem);
 		} else {
-			this.openExtensionProvider(this.getExtensionForCanvas(currentItem));
+			void this.openExtensionProvider(this.getExtensionForCanvas(currentItem));
 		}
 	}
 
-	private openExtensionProvider(item: ICopilotCanvasExtensionItem): void {
-		if (item.extensionSource === 'plugin') {
-			void this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-				section: AICustomizationManagementSection.Plugins,
-				sessionResource: this.canvasContextService.getFrontendSessionResource(item.context.owner) ?? this.harnessService.activeSessionResource.get(),
-			});
+	private async openExtensionProvider(item: ICopilotCanvasExtensionItem): Promise<void> {
+		if (item.extensionSource !== 'plugin') {
+			return;
+		}
+		const currentItem = this.extensions.find(candidate => this.getExtensionItemKey(candidate) === this.getExtensionItemKey(item));
+		const resource = currentItem?.extension?.resource;
+		const plugin = resource && this.agentPluginService.plugins.get()
+			.filter(candidate => isEqualOrParent(resource, candidate.uri))
+			.sort((a, b) => b.uri.path.length - a.uri.path.length)[0];
+		if (!plugin) {
+			this.notificationService.info(localize('copilotCanvases.pluginUnavailable', "Plugin details for {0} are not available in this window.", item.extension?.pluginName ?? item.extensionName));
+			return;
+		}
+		try {
+			await this.commandService.executeCommand(AICustomizationManagementCommands.ShowPlugin, { pluginUri: plugin.uri });
+		} catch (error) {
+			this.notificationService.error(localize('copilotCanvases.showPluginFailed', "Unable to show plugin {0}. {1}", plugin.label, getErrorMessage(error)));
 		}
 	}
 

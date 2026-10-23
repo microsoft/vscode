@@ -65,6 +65,7 @@ export interface IAICustomizationMarketplaceOpenTarget {
 /** Command IDs for the AI Customizations Management Editor. */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	ShowPlugin: 'aiCustomizationManagement.showPlugin',
 	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',

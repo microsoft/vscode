@@ -19,11 +19,12 @@ import { IAgentExtensionInventory } from '../../../../../../platform/agentHost/c
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { CopilotCanvasesWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
 import { ICopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
 
@@ -56,7 +57,7 @@ suite('CopilotCanvasesWidget', () => {
 				source: canvas.extensionSource === 'unknown' ? 'user' : canvas.extensionSource,
 				status,
 				...(canvas.extensionSource === 'user' ? { resource: URI.file(`/extensions/${canvas.extensionName ?? canvas.extensionId}/extension.mjs`) } : {}),
-				...(canvas.extensionSource === 'plugin' ? { pluginName: canvas.extensionName } : {}),
+				...(canvas.extensionSource === 'plugin' ? { pluginName: canvas.extensionName, resource: URI.file(`/plugins/${canvas.extensionName}/extension.mjs`) } : {}),
 			});
 		}
 		return { mode: 'load_and_augment', extensions: [...extensions.values()] };
@@ -72,6 +73,7 @@ suite('CopilotCanvasesWidget', () => {
 		readonly contextAvailable?: boolean;
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
+		readonly plugins?: readonly IAgentPlugin[];
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test'));
 		store.add({ dispose: () => container.remove() });
@@ -141,6 +143,8 @@ suite('CopilotCanvasesWidget', () => {
 		}();
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const openedLinks: string[] = [];
+		const notifications: string[] = [];
+		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', options?.plugins ?? []);
 		const menuActions: IAction[] = [];
 		let hideMenu = () => { };
 		const instantiationService = workbenchInstantiationService({}, store);
@@ -156,8 +160,11 @@ suite('CopilotCanvasesWidget', () => {
 		if (options?.storageService) {
 			instantiationService.stub(IStorageService, options.storageService);
 		}
-		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-			override readonly activeSessionResource = constObservable(URI.parse('agent-host-copilotcli:/unrelated-active'));
+		instantiationService.stub(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+			override readonly plugins = plugins;
+		}());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override info(message: string): void { notifications.push(message); }
 		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
@@ -187,6 +194,8 @@ suite('CopilotCanvasesWidget', () => {
 			container,
 			commands,
 			openedLinks,
+			notifications,
+			plugins,
 			menuActions,
 			hideMenu: () => hideMenu(),
 			context,
@@ -635,6 +644,21 @@ suite('CopilotCanvasesWidget', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
+			selected: open.getAttribute('aria-selected'),
+			reveals: harness.reveals,
+			openCalls: harness.openCalls,
+			closeCalls: harness.closeCalls,
+		}, {
+			selected: 'true',
+			reveals: [],
+			openCalls: 0,
+			closeCalls: 0,
+		});
+
+		open.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
 			reveals: harness.reveals,
 			openCalls: harness.openCalls,
 			closeCalls: harness.closeCalls,
@@ -662,8 +686,19 @@ suite('CopilotCanvasesWidget', () => {
 		assert.strictEqual(harness.openCalls, 0);
 	});
 
-	test('routes input-requiring plugin Canvases to Plugins', async () => {
+	test('opens the owning plugin details rather than a same-named plugin', async () => {
+		const pluginUri = URI.file('/plugins/Diagram Plugin');
 		const harness = createHarness({
+			plugins: [
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = URI.file('/plugins/other');
+					override readonly label = 'Diagram Plugin';
+				}(),
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = pluginUri;
+					override readonly label = 'Diagram Plugin';
+				}(),
+			],
 			definitions: [definition({
 				canvasId: 'diagram',
 				extensionId: 'plugin:diagram:canvas',
@@ -681,15 +716,51 @@ suite('CopilotCanvasesWidget', () => {
 		await timeout(0);
 		const row = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Diagram."]');
 		assert.ok(row);
-		row.click();
+		row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
 
-		assert.deepStrictEqual(harness.commands, [{
-			id: AICustomizationManagementCommands.OpenEditor,
-			args: [{
-				section: AICustomizationManagementSection.Plugins,
-				sessionResource: harness.frontendSessionResource,
-			}],
-		}]);
+		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Extension Diagram Plugin"]');
+		assert.ok(more);
+		more.click();
+		const show = harness.menuActions.find(action => action.id === 'canvas.showPlugin');
+		assert.ok(show);
+		await show.run();
+		harness.plugins.set([], undefined);
+		await show.run();
+		harness.hideMenu();
+
+		const command = {
+			id: AICustomizationManagementCommands.ShowPlugin,
+			args: [{ pluginUri }],
+		};
+		assert.deepStrictEqual({ commands: harness.commands, notifications: harness.notifications }, {
+			commands: [command, command],
+			notifications: ['Plugin details for Diagram Plugin are not available in this window.'],
+		});
+	});
+
+	test('does not guess a plugin from its name or another host', async () => {
+		const harness = createHarness({
+			definitions: [definition({ extensionId: 'plugin:diagram', extensionSource: 'plugin', extensionName: 'Diagram Plugin' })],
+			plugins: [
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = URI.from({ scheme: 'vscode-remote', authority: 'other-host', path: '/plugins/Diagram Plugin' });
+					override readonly label = 'Diagram Plugin';
+				}(),
+			],
+		});
+		await timeout(0);
+		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Extension Diagram Plugin"]');
+		assert.ok(more);
+		more.click();
+		const show = harness.menuActions.find(action => action.id === 'canvas.showPlugin');
+		assert.ok(show);
+		await show.run();
+		harness.hideMenu();
+
+		assert.deepStrictEqual({ commands: harness.commands, notifications: harness.notifications }, {
+			commands: [],
+			notifications: ['Plugin details for Diagram Plugin are not available in this window.'],
+		});
 	});
 
 	test('ignores a retired Canvas listing for a reactivated owner', async () => {
