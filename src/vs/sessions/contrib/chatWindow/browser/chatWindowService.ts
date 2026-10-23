@@ -10,6 +10,8 @@ import { autorun, derived, IObservable, ISettableObservable, observableFromEvent
 import { timeout } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorGroupView } from '../../../../workbench/browser/parts/editor/editor.js';
+import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -347,6 +349,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 					});
 				}
 			}));
+			// Its empty editor area offers the same Add Tab actions as the main window's. The terminal row, which holds terminals only, does not.
+			windowDisposables.add(this._instantiationService.createInstance(EmptyEditorGroupAddTab, editorGroup as IEditorGroupView, Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab));
 			// What the Session Activity Bar of the chat window shows as checked, and offers, as it does for the main window.
 			const editorAreaEditorContext = ChatWindowEditorAreaEditorContext.bindTo(windowContextKeyService);
 			const activeEditor = observableFromEvent(this, editorGroup.onDidActiveEditorChange, () => editorGroup.activeEditorPane?.getId() ?? '');

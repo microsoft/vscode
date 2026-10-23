@@ -96,6 +96,15 @@ for (const entry of chatWindowTabEntries) {
 	// Checked while the editor area shows its tab; clicking it then hides the editor area.
 	const shown = ContextKeyExpr.and(ChatWindowEditorAreaEditorContext.isEqualTo(entry.editorId), ChatWindowLayoutContext.notEqualsTo(ChatWindowLayout.ChatOnly));
 	const when = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, entry.when);
+	// The same entries as the Add Tab actions of the main window, in its menus, for the empty editor area of a chat window.
+	for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab]) {
+		MenuRegistry.appendMenuItem(menu, {
+			command: { id: entry.id, title: entry.title, icon: entry.icon },
+			group: 'navigation',
+			order: entry.order - 1,
+			when,
+		});
+	}
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -158,4 +167,37 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	group: SessionActivityBarGroup.Panel,
 	order: 0,
 	when: ChatWindowHasEditorAreaContext,
+});
+
+const CHAT_WINDOW_ADD_TERMINAL_COMMAND_ID = 'sessions.chatWindow.addTerminal';
+
+// The Add Tab entry for a terminal: it shows in the terminal row, which holds terminals only, and not in the editor area.
+registerAction2(class AddChatWindowTerminalAction extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_WINDOW_ADD_TERMINAL_COMMAND_ID,
+			title: localize2('chatWindowAddTerminal', "Terminal"),
+			icon: Codicon.terminal,
+			precondition: ChatWindowHasEditorAreaContext,
+			menu: [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab].map(id => ({
+				id,
+				group: 'navigation',
+				order: 3,
+				when: ChatWindowHasEditorAreaContext,
+			})),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const window = accessor.get(IChatWindowService).getActiveWindow();
+		if (!window) {
+			return;
+		}
+		const row = window.terminalGroup.get();
+		if (row && !row.isEmpty) {
+			await accessor.get(ICommandService).executeCommand('sessions.chatWindow.newTerminal', { groupId: row.id });
+		} else {
+			await window.setTerminalShown(true, { focus: true });
+		}
+	}
 });
