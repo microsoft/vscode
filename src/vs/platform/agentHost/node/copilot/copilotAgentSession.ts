@@ -4395,10 +4395,16 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
-		if (!this._wrapper.canvasRuntimeEnabled) {
+		const wrapper = this._wrapper;
+		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		await this._awaitControlPlaneRpc('rpc.canvas.open', this._wrapper.session.rpc.canvas.open(request));
+		const canvas = await this._awaitControlPlaneRpc('rpc.canvas.open', wrapper.session.rpc.canvas.open(request));
+		if (this._wrapper === wrapper && !this._store.isDisposed && this._canvasPhase === 'live'
+			&& this._ignoredRestoredCanvasInstanceIds.delete(canvas.instanceId)) {
+			// The opened event may already have been suppressed before the RPC returned its live snapshot.
+			this._projectOpenedCanvas(canvas);
+		}
 	}
 
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
