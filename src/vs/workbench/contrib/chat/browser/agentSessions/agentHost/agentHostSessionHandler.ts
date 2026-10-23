@@ -1668,7 +1668,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (completionMeta?.kind === 'skill') {
 					return this._createCompletionItem(raw, text, {
 						kind: 'skill',
-						uri: URI.parse(completionMeta.uri),
+						uri: this._config.connection.resourceUris.fromAgentHost(URI.parse(completionMeta.uri)),
 						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
 						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
@@ -1680,7 +1680,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const uri = typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri);
 				return this._createCompletionItem(raw, text, {
 					kind: 'resource',
-					uri,
+					uri: this._config.connection.resourceUris.fromAgentHost(uri),
 					displayName: attachment.label,
 					isDirectory: attachment.displayKind === 'directory',
 					...(attachment._meta !== undefined && { _meta: attachment._meta }),
@@ -8213,15 +8213,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * Rebase a `file:`-scheme attachment URI from the session's requested
-	 * working directory onto the server-resolved working directory. This
+	 * Unwrap attachments owned by this connection, then rebase a `file:`-scheme URI
+	 * from the session's requested working directory onto the server-resolved working directory. This
 	 * matters on the first turn of a worktree-isolated session, where the
 	 * provider creates a worktree under a different path than the workspace
-	 * folder the workbench attached the file from. Returns the URI unchanged
+	 * folder the workbench attached the file from. Leaves the unwrapped URI unchanged
 	 * if the requested and resolved directories match, the URI is not under
 	 * the requested directory, or either side is unavailable.
 	 */
 	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
+		const hostUri = this._config.connection.resourceUris.toAgentHost(uri);
+		// Other connections' resources must still be fetched from the client, not treated as files on this host.
+		if (hostUri !== uri && this._config.connection.resourceUris.fromAgentHost(hostUri).toString() === uri.toString()) {
+			uri = hostUri;
+		}
 		const requestedDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedDir = requestedDirectories?.[0];
 		if (!requestedDir || requestedDir.scheme !== 'file') {

@@ -2765,6 +2765,38 @@ suite('AgentHostChatContribution', () => {
 
 	suite('request attachments', () => {
 
+		test('unwraps resource attachments only when they belong to the owning connection', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const authority = agentHostAuthority('vscode-remote://wsl+Ubuntu');
+			agentHostService.resourceUris = createAgentHostResourceUriMapper(authority);
+			const file = URI.parse('file:///home/user/project/file.ts?ref=1#selection');
+			const mapped = agentHostService.resourceUris.fromAgentHost(file);
+			const otherHost = toAgentHostUri(file, 'other-host');
+			const clientFile = URI.parse('file:///c:/client/file.ts');
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				variables: {
+					variables: [
+						{ kind: 'file', id: 'file', name: 'file', value: mapped },
+						{ kind: 'directory', id: 'folder', name: 'folder', value: mapped },
+						{ kind: 'file', id: 'selection', name: 'selection', value: { uri: mapped, range: new Range(1, 2, 3, 4) } },
+						{ kind: 'file', id: 'other-host', name: 'other-host', value: otherHost },
+						{ kind: 'file', id: 'client', name: 'client', value: clientFile },
+					],
+				},
+			});
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			const action = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(action.message.attachments, [
+				{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'file', displayKind: 'document' },
+				{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'folder', displayKind: 'directory' },
+				{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'selection', displayKind: 'selection', selection: { range: { start: { line: 0, character: 1 }, end: { line: 2, character: 3 } } } },
+				{ type: MessageAttachmentKind.Resource, uri: otherHost.toString(), label: 'other-host', displayKind: 'document' },
+				{ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' },
+			]);
+		});
+
 		test('sends accepted agent-host skill and command completions as ranged simple attachments', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const message = 'use /author-contributions\n/rename Title';
@@ -23338,6 +23370,52 @@ suite('AgentHostChatContribution', () => {
 	// ---- Chat input completions delegation -----------------------------
 
 	suite('provideChatInputCompletions', () => {
+
+		for (const authority of ['local', agentHostAuthority('vscode-remote://wsl+Ubuntu'), 'remote-host']) {
+			test(`maps resource and skill completions through the owning ${authority} connection`, async () => {
+				const { sessionHandler, agentHostService } = createContribution(disposables);
+				agentHostService.resourceUris = authority === 'local' ? identityAgentHostResourceUriMapper : createAgentHostResourceUriMapper(authority);
+				const file = URI.parse('file:///home/user/project/file.ts?ref=1#L2');
+				const folder = URI.parse('file:///home/user/project/folder');
+				const skill = URI.parse('file:///home/user/.copilot/skills/test/SKILL.md?ref=1#instructions');
+				const providerResource = URI.parse('provider-content://host/workspace/file.ts?revision=1#L2');
+				const chat = 'third-party-chat://server/opaque?id=123';
+				const skillMeta = { uri: skill.toString(), displayName: 'Test', description: 'Test skill', argumentHint: 'argument', providerData: file.toString() };
+				const raw: CompletionsResult = {
+					items: [
+						{ insertText: '@file.ts', rangeStart: 0, rangeEnd: 1, attachment: { type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'file.ts', displayKind: 'document', _meta: { uri: file.toString() } } },
+						{ insertText: '@folder/', attachment: { type: MessageAttachmentKind.Resource, uri: folder.toString(), label: 'folder', displayKind: 'directory' } },
+						{ insertText: '@provider', attachment: { type: MessageAttachmentKind.Resource, uri: providerResource.toString(), label: 'provider', displayKind: 'document' } },
+						{ insertText: '/test ', attachment: { type: MessageAttachmentKind.Simple, label: '/test', _meta: skillMeta } },
+						{ insertText: '@chat', attachment: { type: MessageAttachmentKind.Chat, resource: chat, endTurn: 'opaque-turn', label: 'Chat' } },
+						{ insertText: '/command ', attachment: { type: MessageAttachmentKind.Simple, label: '/command', _meta: { command: 'command', uri: file.toString() } } },
+					],
+				};
+				const original = structuredClone(raw);
+				agentHostService.completions = async () => raw;
+
+				const result = await sessionHandler.provideChatInputCompletions(
+					URI.parse('agent-host-copilot:/abc'),
+					{ text: '@', offset: 1 },
+					CancellationToken.None,
+				);
+
+				assert.deepStrictEqual({ items: result?.items.map(item => ({
+					...item,
+					attachment: item.attachment && hasKey(item.attachment, { uri: true }) ? { ...item.attachment, uri: item.attachment.uri.toString() } : item.attachment,
+				})), original: raw }, {
+					items: [
+						{ insertText: '@file.ts', start: { lineNumber: 1, column: 1 }, end: { lineNumber: 1, column: 2 }, attachment: { kind: 'resource', uri: toAgentHostUri(file, authority).toString(), displayName: 'file.ts', isDirectory: false, _meta: { uri: file.toString() } } },
+						{ insertText: '@folder/', attachment: { kind: 'resource', uri: toAgentHostUri(folder, authority).toString(), displayName: 'folder', isDirectory: true } },
+						{ insertText: '@provider', attachment: { kind: 'resource', uri: authority === 'local' ? providerResource.toString() : toAgentHostUri(providerResource, authority).toString(), displayName: 'provider', isDirectory: false } },
+						{ insertText: '/test ', attachment: { kind: 'skill', uri: toAgentHostUri(skill, authority).toString(), displayName: 'Test', description: 'Test skill', _meta: skillMeta } },
+						{ insertText: '@chat', attachment: { kind: 'chat', uri: URI.parse(chat).toString(), endTurn: 'opaque-turn', title: 'Chat', displayName: 'Chat' } },
+						{ insertText: '/command ', label: '/command', attachment: { kind: 'command', command: 'command', description: '', _meta: { command: 'command', uri: file.toString() } } },
+					],
+					original,
+				});
+			});
+		}
 
 		test('forwards text/offset to the agent host and maps file attachments back to chat input items', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);

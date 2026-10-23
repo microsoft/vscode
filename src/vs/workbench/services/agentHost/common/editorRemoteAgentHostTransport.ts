@@ -11,14 +11,14 @@ import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createURITransformer } from '../../../../base/common/uriTransformer.js';
 import { ActionType, type StateAction } from '../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type SessionActiveClient, type Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, MessageAttachmentKind, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type Message, type SessionActiveClient, type Snapshot } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ReconnectResultType, type CommandMap, type ProtocolMessage } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { readSessionFolderPickerDecision, withSessionFolderPickerDecision } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { IClientTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
 
 type CustomizationWithClientEnablement = (Customization | ChildCustomization) & Pick<Partial<ClientPluginCustomization>, 'childEnablement'>;
 
-/** Maps working-directory identities at the editor's remote connection, leaving opaque protocol content untouched. */
+/** Maps directory, customization, selected-agent, and outgoing attachment identities at the editor's remote connection, leaving opaque protocol content untouched. */
 export class EditorRemoteAgentHostTransport extends Disposable implements IClientTransport {
 
 	private readonly _requests = new Map<number, string>();
@@ -55,7 +55,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 	}
 
 	/**
-	 * Maps outgoing working directories to host-local URIs before forwarding the message.
+	 * Maps outgoing directory, customization, selected-agent, and resource attachment URIs to host-local URIs.
 	 * Records request methods when their responses may contain directories that need reverse mapping.
 	 */
 	send(message: ProtocolMessage): void {
@@ -77,7 +77,13 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 					};
 					break;
 				case 'createChat':
-					message = { ...message, params: this._mapDirectories(message.params, value => this._toHostDirectory(value)) };
+					message = {
+						...message,
+						params: {
+							...this._mapDirectories(message.params, value => this._toHostDirectory(value)),
+							...(message.params.initialMessage ? { initialMessage: this._mapMessage(message.params.initialMessage, value => this._toHostDirectory(value), true) } : {}),
+						}
+					};
 					break;
 				case 'resolveSessionConfig':
 					if (message.params.workingDirectory) {
@@ -96,7 +102,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 					break;
 			}
 		} else if (isJsonRpcNotification(message) && message.method === 'dispatchAction') {
-			message = { ...message, params: { ...message.params, action: this._mapAction(message.params.action, value => this._toHostDirectory(value)) } };
+			message = { ...message, params: { ...message.params, action: this._mapAction(message.params.action, value => this._toHostDirectory(value), true) } };
 		}
 		this._transport.send(message);
 	}
@@ -127,8 +133,8 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 		};
 	}
 
-	/** Maps directory-bearing action fields in either direction, leaving other action types untouched. */
-	private _mapAction(action: StateAction, map: (uri: string) => string): StateAction {
+	/** Maps directory, customization, and selected-agent action fields in either direction. */
+	private _mapAction(action: StateAction, map: (uri: string) => string, mapAttachments = false): StateAction {
 		switch (action.type) {
 			case ActionType.SessionWorkingDirectorySet:
 			case ActionType.SessionWorkingDirectoryRemoved:
@@ -151,9 +157,29 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 				return { ...action, customization: this._mapCustomization(action.customization, map) };
 			case ActionType.SessionCustomizationToggled:
 				return { ...action, enablement: this._mapCustomizationEnablement(action.enablement, map) };
+			case ActionType.ChatTurnStarted:
+			case ActionType.ChatPendingMessageSet:
+				return { ...action, message: this._mapMessage(action.message, map, mapAttachments) };
+			case ActionType.ChatDraftChanged:
+				return action.draft ? { ...action, draft: this._mapMessage(action.draft, map, mapAttachments) } : action;
+			case ActionType.ChatTurnsLoaded:
+				return { ...action, turns: action.turns.map(turn => ({ ...turn, message: this._mapMessage(turn.message, map, mapAttachments) })) };
 			default:
 				return action;
 		}
+	}
+
+	private _mapMessage(message: Message, map: (uri: string) => string, mapAttachments = false): Message {
+		// Attachments may still belong to the client when echoed by the host, so only map their URIs on send.
+		return {
+			...message,
+			...(message.agent ? { agent: { ...message.agent, uri: map(message.agent.uri) } } : {}),
+			...(mapAttachments && message.attachments ? {
+				attachments: message.attachments.map(attachment => attachment.type === MessageAttachmentKind.Resource
+					? { ...attachment, uri: map(attachment.uri) }
+					: attachment),
+			} : {}),
+		};
 	}
 
 	private _mapActiveClient(activeClient: SessionActiveClient, map: (uri: string) => string): SessionActiveClient {
@@ -195,7 +221,7 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 		};
 	}
 
-	/** Restores workbench directory identities in session and chat snapshots, including nested chat summaries. */
+	/** Restores workbench directory, customization, and selected-agent identities in session and chat snapshots. */
 	private _mapSnapshot(snapshot: Snapshot): Snapshot {
 		const map = (value: string) => this._fromHostDirectory(value);
 		const state = snapshot.state;
@@ -207,6 +233,19 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 					chats: state.chats.map(chat => this._mapDirectories(chat, map)),
 					activeClients: state.activeClients.map(activeClient => this._mapActiveClient(activeClient, map)),
 					...(state.customizations ? { customizations: state.customizations.map(customization => this._mapCustomization(customization, map)) } : {}),
+				}
+			};
+		}
+		if (hasKey(state, { turns: true })) {
+			return {
+				...snapshot,
+				state: {
+					...this._mapDirectories(state, map),
+					turns: state.turns.map(turn => ({ ...turn, message: this._mapMessage(turn.message, map) })),
+					...(state.activeTurn ? { activeTurn: { ...state.activeTurn, message: this._mapMessage(state.activeTurn.message, map) } } : {}),
+					...(state.draft ? { draft: this._mapMessage(state.draft, map) } : {}),
+					...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: this._mapMessage(pending.message, map) })) } : {}),
+					...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: this._mapMessage(state.steeringMessage.message, map) } } : {}),
 				}
 			};
 		}
