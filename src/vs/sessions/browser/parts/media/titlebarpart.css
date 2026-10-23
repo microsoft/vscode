@@ -162,7 +162,8 @@
 	margin-left: 4px;
 }
 
-/* The chat window actions continue the right layout actions, spaced as within a toolbar. */
+/* The chat window actions continue into its layout actions and the right layout actions, spaced as within a toolbar. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-chat-window-actions-container:not(.has-no-actions) + .titlebar-chat-window-actions-container:not(.has-no-actions),
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-chat-window-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
 	margin-left: 1px;
 }

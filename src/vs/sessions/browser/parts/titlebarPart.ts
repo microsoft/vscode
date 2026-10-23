@@ -287,11 +287,20 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Chat window actions toolbar (before right toolbar), whose buttons the user can show or hide
+		// Chat window layout actions toolbar (before right toolbar), whose buttons the user can show or hide
+		const chatWindowLayoutContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
+		const chatWindowLayoutToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowLayoutContainer, Menus.ChatWindowTitleBarLayout, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			telemetrySource: 'titlePart.chatWindowLayout',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		// Chat window actions toolbar (before its layout actions)
 		const chatWindowActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
 		const chatWindowActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowActionsContainer, Menus.ChatWindowTitleBar, {
 			contextMenu: Menus.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.chatWindow',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
@@ -323,6 +332,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
 		this.registerOverflowManagedToolBar(chatWindowActionsContainer, chatWindowActionsToolBar);
+		this.registerOverflowManagedToolBar(chatWindowLayoutContainer, chatWindowLayoutToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
 
 		// Context menu on the titlebar

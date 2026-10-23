@@ -17,7 +17,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowMenuOrder, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
 import { ChatWindowService } from './chatWindowService.js';
 import './openChatInWindow.js';
@@ -99,13 +99,15 @@ const ChatWindowLayoutMenuGroup = {
 
 const chatWindowLayoutMenu = { submenu: Menus.ChatWindowLayout, title: localize2('chatWindowLayout', "Layout"), icon: Codicon.layout, group: 'navigation' };
 const ChatWindowHasLayoutMenuContext = ContextKeyExpr.or(ChatWindowHasEditorContext, ChatWindowDockableContext);
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.layout, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate(), ChatWindowHasLayoutMenuContext) });
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, { ...chatWindowLayoutMenu, order: ChatWindowMenuOrder.layout, when: ContextKeyExpr.and(ChatWindowDockedContext, ChatWindowHasLayoutMenuContext) });
+// The Layout menu ends the layout actions, after the buttons the user chose to show.
+const CHAT_WINDOW_LAYOUT_MENU_ORDER = 100;
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, { ...chatWindowLayoutMenu, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate(), ChatWindowHasLayoutMenuContext) });
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleLayout, { ...chatWindowLayoutMenu, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ContextKeyExpr.and(ChatWindowDockedContext, ChatWindowHasLayoutMenuContext) });
 
 /** Where the button of a layout action shows: in the title bar of a chat window of its own, or the header of a docked one. */
 const chatWindowLayoutButtonMenus = [
-	{ menu: Menus.ChatWindowTitleBar, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate())! },
-	{ menu: Menus.ChatWindowTitle, when: ChatWindowDockedContext },
+	{ menu: Menus.ChatWindowTitleBarLayout, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate())! },
+	{ menu: Menus.ChatWindowTitleLayout, when: ChatWindowDockedContext },
 ] as const;
 
 /** A pane of a chat window that can be shown or hidden: the chat, or the editor. One of them always shows. */
@@ -179,7 +181,7 @@ for (const toggle of chatWindowPaneToggles) {
 				precondition,
 			},
 			group: 'navigation',
-			order: ChatWindowMenuOrder.layoutActions + toggle.order,
+			order: toggle.order,
 			when: ContextKeyExpr.and(when, ChatWindowHasEditorContext),
 			isHiddenByDefault: true,
 		});
@@ -193,7 +195,7 @@ const chatWindowArrangements = [
 	{ layout: ChatWindowLayout.EditorAboveChat, title: localize2('chatWindowEditorAboveChat', "Editor Above Chat") },
 	{ layout: ChatWindowLayout.SideBySide, title: localize2('chatWindowSideBySide', "Chat and Editor Side by Side") },
 ] as const;
-const chatWindowArrangementButtonsOrder = ChatWindowMenuOrder.layoutActions + chatWindowPaneToggles.length + 1;
+const chatWindowArrangementButtonsOrder = chatWindowPaneToggles.length + 1;
 for (const [index, arrangement] of chatWindowArrangements.entries()) {
 	const choice = chatWindowLayoutChoices.find(candidate => candidate.layout === arrangement.layout)!;
 	MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
@@ -203,7 +205,7 @@ for (const [index, arrangement] of chatWindowArrangements.entries()) {
 		when: ContextKeyExpr.and(ChatWindowHasEditorContext, ChatWindowDockedContext.negate()),
 	});
 	// Its button is disabled while the chat and the editor show as it arranges them.
-	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, {
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, {
 		command: { id: choice.id, title: arrangement.title, icon: choice.icon, precondition: ContextKeyExpr.and(ChatWindowBothShownContext, ChatWindowLayoutContext.notEqualsTo(arrangement.layout)) },
 		group: 'navigation',
 		order: chatWindowArrangementButtonsOrder + index,
@@ -244,14 +246,14 @@ MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
 	when: ChatWindowDockedContext,
 });
 const chatWindowDockButtonOrder = chatWindowArrangementButtonsOrder + chatWindowArrangements.length;
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, {
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock in Main Window"), icon: Codicon.layoutSidebarRightDock },
 	group: 'navigation',
 	order: chatWindowDockButtonOrder,
 	when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext.negate()),
 	isHiddenByDefault: true,
 });
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, {
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to a Separate Window"), icon: Codicon.openInWindow },
 	group: 'navigation',
 	order: chatWindowDockButtonOrder,

@@ -21,7 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowEditorViewTypeContext, ChatWindowMenuOrder, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowEditorViewTypeContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider, ISessionsProviderChatpad } from '../../../services/sessions/common/sessionsProvider.js';
@@ -55,11 +55,11 @@ function notifyUnavailable(notificationService: INotificationService): void {
 	notificationService.info(localize('chatpad.unavailable', "The Chatpad is not available. It requires an agent host that provides one."));
 }
 
-/** Where the Clear action shows: first among the chat window's actions. */
-const CHATPAD_CLEAR_ORDER = ChatWindowMenuOrder.kind;
+/** Where the Clear action shows in the chat window's title bar and docked header, before its layout actions. */
+const CHATPAD_CLEAR_ORDER = 0;
 
-/** Where the action that switches the editor of the note shows: after Clear, before the chat window's layout actions. */
-const CHATPAD_NOTE_EDITOR_ORDER = ChatWindowMenuOrder.kind + 1;
+/** Where the action that switches the editor of the note shows: after Clear. */
+const CHATPAD_NOTE_EDITOR_ORDER = 1;
 
 registerAction2(class OpenChatpadAction extends Action2 {
 	constructor() {

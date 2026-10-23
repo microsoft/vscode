@@ -187,18 +187,6 @@ export interface IChatWindowService {
 	moveToMainWindow(window: IChatWindow): Promise<void>;
 }
 
-/**
- * Where the actions of chat windows show, in the `navigation` group: in the title bar of a chat window of its own
- * (`Menus.ChatWindowTitleBar`), before Toggle Always on Top, and in the header of a docked one (`Menus.ChatWindowTitle`),
- * before its Close button. The actions of a kind of chat window come first, then the buttons of the layout actions the
- * user chose to show, then the Layout menu.
- */
-export const ChatWindowMenuOrder = {
-	kind: 0,
-	layoutActions: 10,
-	layout: 20,
-} as const;
-
 /** The kind of the chat window, by its {@link IChatWindowKind.id}, or empty outside chat windows. */
 export const ChatWindowContext = new RawContextKey<string>('sessions.chatWindow', '', localize('chatWindow', "The kind of the chat window, such as chatpad, or empty outside chat windows."));
 
