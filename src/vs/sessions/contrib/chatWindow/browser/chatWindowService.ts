@@ -496,12 +496,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				return;
 			}
 			const row = window.part.addGroup(window.chatGroup, GroupDirection.DOWN);
-			// Only its terminal shows there, as the panel shows it, without tabs.
+			// Only terminals show there, in tabs.
 			row.lock(true);
 			const store = new DisposableStore();
 			this._terminalRows.set(window, store);
-			store.add(window.part.hideGroupTitle(row));
-			// Its terminal exited.
+			// Its last terminal exited or closed.
 			store.add(row.onDidCloseEditor(() => {
 				if (row.isEmpty && !this._emptyingTerminalRows.has(window)) {
 					void this.setTerminalShown(window, false, false);

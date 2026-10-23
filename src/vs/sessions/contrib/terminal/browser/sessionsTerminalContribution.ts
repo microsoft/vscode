@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -21,6 +21,8 @@ import { IAgentHostTerminalService } from '../../../../workbench/contrib/termina
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
+import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { IChatWindow, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
@@ -957,7 +959,8 @@ registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminal
  */
 class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 
-	private readonly _terminals = new Map<IChatWindow, ITerminalInstance>();
+	private readonly _terminals = new Map<IChatWindow, Set<ITerminalInstance>>();
+	private readonly _rowListeners = new Map<IChatWindow, IDisposable>();
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -972,37 +975,51 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 		if (!session) {
 			return;
 		}
-		let instance = this._terminals.get(window);
-		if (!instance || instance.isDisposed) {
-			instance = await this._contribution.getChatWindowTerminal(session);
+		const terminals = this._getTerminals(window);
+		for (const instance of [...terminals]) {
+			if (instance.isDisposed) {
+				terminals.delete(instance);
+			}
 		}
-		// Hidden meanwhile, or the terminal could not start.
-		if (!instance || instance.isDisposed || window.terminalGroup.get() !== group) {
-			return;
+		if (!terminals.size) {
+			const instance = await this._contribution.getChatWindowTerminal(session);
+			// Hidden meanwhile, or the terminal could not start.
+			if (!instance || instance.isDisposed || window.terminalGroup.get() !== group) {
+				return;
+			}
+			terminals.add(instance);
 		}
-		this._terminals.set(window, instance);
-		this._contribution.setShownInChatWindow(instance, true);
-		if (instance.target === TerminalLocation.Editor && this._terminalService.foregroundInstances.includes(instance)) {
-			// Shown in an editor elsewhere: from the panel, it moves to the row.
-			await this._terminalService.moveToTerminalView(instance);
-		}
-		if (!this._terminalService.foregroundInstances.includes(instance)) {
-			await this._terminalService.showBackgroundTerminal(instance, true);
-		}
-		this._terminalService.moveToEditor(instance, group.id);
-		if (focus) {
-			await instance.focusWhenReady(true);
+		this._trackRow(window, group);
+		let first = true;
+		for (const instance of [...terminals]) {
+			this._contribution.setShownInChatWindow(instance, true);
+			if (instance.target === TerminalLocation.Editor && this._terminalService.foregroundInstances.includes(instance)) {
+				// Shown in an editor elsewhere: from the panel, it moves to the row.
+				await this._terminalService.moveToTerminalView(instance);
+			}
+			if (!this._terminalService.foregroundInstances.includes(instance)) {
+				await this._terminalService.showBackgroundTerminal(instance, true);
+			}
+			this._terminalService.moveToEditor(instance, group.id);
+			if (first && focus) {
+				await instance.focusWhenReady(true);
+			}
+			first = false;
 		}
 	}
 
 	hide(window: IChatWindow): void {
-		const instance = this._terminals.get(window);
-		if (instance && !instance.isDisposed && instance.target === TerminalLocation.Editor) {
-			// Into the background of the panel, rather than of the editors, which would reveal it in an editor.
-			this._terminalService.moveToBackground(instance);
-			instance.target = TerminalLocation.Panel;
-		}
-		if (instance && !instance.isDisposed) {
+		this._rowListeners.get(window)?.dispose();
+		this._rowListeners.delete(window);
+		for (const instance of this._terminals.get(window) ?? []) {
+			if (instance.isDisposed) {
+				continue;
+			}
+			if (instance.target === TerminalLocation.Editor) {
+				// Into the background of the panel, rather than of the editors, which would reveal it in an editor.
+				this._terminalService.moveToBackground(instance);
+				instance.target = TerminalLocation.Panel;
+			}
 			// With the row hidden, the terminal is the panel's again.
 			this._contribution.setShownInChatWindow(instance, false);
 		}
@@ -1010,11 +1027,35 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 
 	release(window: IChatWindow): void {
 		this.hide(window);
-		const instance = this._terminals.get(window);
 		this._terminals.delete(window);
-		if (instance && !instance.isDisposed) {
-			this._contribution.setShownInChatWindow(instance, false);
+	}
+
+	private _getTerminals(window: IChatWindow): Set<ITerminalInstance> {
+		let terminals = this._terminals.get(window);
+		if (!terminals) {
+			terminals = new Set();
+			this._terminals.set(window, terminals);
 		}
+		return terminals;
+	}
+
+	/** Takes the terminals opened in the row, such as by its New Terminal action, to be those of the window. */
+	private _trackRow(window: IChatWindow, group: IEditorGroup): void {
+		this._rowListeners.get(window)?.dispose();
+		const terminals = this._getTerminals(window);
+		const track = (editor: unknown) => {
+			const instance = editor instanceof TerminalEditorInput ? editor.terminalInstance : undefined;
+			if (instance && !terminals.has(instance)) {
+				terminals.add(instance);
+				this._contribution.setShownInChatWindow(instance, true);
+			}
+		};
+		group.editors.forEach(track);
+		this._rowListeners.set(window, group.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
+				track(e.editor);
+			}
+		}));
 	}
 }
 
