@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { IAction } from '../../../../../../base/common/actions.js';
+import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -424,6 +424,11 @@ suite('CopilotCanvasesWidget', () => {
 		await timeout(0);
 		harness.widget.fireItemCount();
 		const enabledDetail = harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-detail')?.textContent;
+		const enabledDetailParts = {
+			plugin: harness.container.querySelector('.copilot-customization-tree-source-link')?.textContent,
+			separator: harness.container.querySelector('.copilot-customization-tree-detail-separator')?.textContent,
+			status: harness.container.querySelector('.copilot-customization-tree-detail-text')?.textContent,
+		};
 		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'microsoft-foundry\'"]');
 		assert.ok(disable);
 		disable.click();
@@ -433,13 +438,19 @@ suite('CopilotCanvasesWidget', () => {
 			accessible: harness.widget.getAccessibilityContent().includes('microsoft-foundry'),
 			label: harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-label')?.textContent,
 			enabledDetail,
+			enabledDetailParts,
 			disabledDetail: harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-detail')?.textContent,
 			canvasRows: harness.container.querySelectorAll('.copilot-canvas-tree-item').length,
 			itemCounts: harness.itemCounts,
 		}, {
 			accessible: true,
 			label: 'microsoft-foundry',
-			enabledDetail: 'No Canvases Reported',
+			enabledDetail: 'Plugin: microsoft-foundry·No Canvases Reported',
+			enabledDetailParts: {
+				plugin: 'Plugin: microsoft-foundry',
+				separator: '·',
+				status: 'No Canvases Reported',
+			},
 			disabledDetail: 'Plugin: microsoft-foundry',
 			canvasRows: 0,
 			itemCounts: [0],
@@ -754,6 +765,7 @@ suite('CopilotCanvasesWidget', () => {
 		more.click();
 		const show = harness.menuActions.find(action => action.id === 'canvas.showPlugin');
 		assert.ok(show);
+		const menuOrder = harness.menuActions.filter(action => action.id !== Separator.ID).map(action => action.label);
 		await show.run();
 		harness.plugins.set([], undefined);
 		await show.run();
@@ -771,6 +783,7 @@ suite('CopilotCanvasesWidget', () => {
 				tabIndexBeforeFocus: pluginLinkTabIndexBeforeFocus,
 				tabIndexAfterFocus: pluginLinkTabIndexAfterFocus,
 			},
+			menuOrder,
 			commands: harness.commands,
 			notifications: harness.notifications,
 		}, {
@@ -781,6 +794,7 @@ suite('CopilotCanvasesWidget', () => {
 				tabIndexBeforeFocus: -1,
 				tabIndexAfterFocus: 0,
 			},
+			menuOrder: ['Disable Canvas Extension', 'Show Plugin'],
 			commands: [command, command, command],
 			notifications: ['Plugin details for Diagram Plugin are not available in this window.'],
 		});
