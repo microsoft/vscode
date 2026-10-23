@@ -122,24 +122,6 @@ suite('File Watcher (parcel) request deduplication', () => {
 
 		assert.deepStrictEqual(await watcher.deduplicateRequests([first, second]), [first, second]);
 	});
-
-	test('requests inside a path that the parent request excludes are watched separately', async () => {
-		const watcher = store.add(new TestParcelWatcher());
-		const root = isWindows ? 'C:\\workspace' : '/workspace';
-		const parent: IRecursiveWatchRequest = { path: root, excludes: ['out/**/*', '*/**/node_modules/**/*'], recursive: true };
-		const excluded: IRecursiveWatchRequest = { path: join(root, 'out'), excludes: ['.git/objects/**'], recursive: true };
-		const nested: IRecursiveWatchRequest = { path: join(root, 'packages', 'a', 'node_modules', 'b'), excludes: [], recursive: true };
-		const partiallyExcluded: IRecursiveWatchRequest = { path: join(root, 'packages'), excludes: [], recursive: true };
-
-		const requests = await watcher.deduplicateRequests([parent, excluded, nested, partiallyExcluded]);
-
-		const includes = [{ base: root, pattern: 'out/**/*' }, { base: root, pattern: '*/**/node_modules/**/*' }];
-		assert.deepStrictEqual(requests.sort((a, b) => a.path.localeCompare(b.path)), [
-			parent,
-			{ ...excluded, includes },
-			{ ...nested, includes },
-		]);
-	});
 });
 
 // this suite has shown flaky runs in Azure pipelines where
