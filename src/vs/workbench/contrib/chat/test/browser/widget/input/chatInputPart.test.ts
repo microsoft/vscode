@@ -341,6 +341,17 @@ suite('ChatInputPart', () => {
 				});
 			}
 
+			test('an exact advertised model id wins over alias parsing of a configuration suffix', () => {
+				const base = createAgentHostModel('provider/custom', 'Custom');
+				const variant = createAgentHostModel('provider/custom:variant=fast', 'Custom (fast)');
+				const result = createInputPart({
+					mode: { id: 'pinned', pin: ['provider/custom:variant=fast'] },
+					models: () => [hostPickerModel, base, variant],
+					selected: hostPickerModel,
+				});
+				assert.strictEqual(result.selectedModel, variant);
+			});
+
 			test('overlays the agent reasoning effort on the selected harness model', () => {
 				const result = createHostInputPart(['Claude Sonnet 4.5 (copilot)'], 'high');
 				assert.deepStrictEqual([result.selectedModel, result.presented], [hostPinnedModel, [hostPinnedModel.identifier, { reasoningEffort: 'high' }]]);

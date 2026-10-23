@@ -6510,6 +6510,30 @@ suite('ChatService', () => {
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
 		});
 
+		test('custom agent pin overrides survive reloading a remote session from a transferred draft', async () => {
+			const { resource, provided } = setupRemoteProvider({ history: [] });
+			const testService = createChatService();
+			const overrides = { modeId: 'custom-agent-uri', model: true, configKeys: ['reasoningEffort'] };
+
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({ inputText: 'unsent draft', mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, agentPinOverrides: overrides });
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			// The agent host transfers its draft, which carries the mode and model but not the overrides.
+			provided.transferredState = {
+				editingSession: undefined,
+				inputState: { attachments: [], mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, selectedModel: undefined, inputText: 'from host', selections: [], contrib: {} },
+			};
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+
+			assert.deepStrictEqual({ inputText: restored?.inputText, agentPinOverrides: restored?.agentPinOverrides }, { inputText: 'from host', agentPinOverrides: overrides });
+		});
+
 		test('restored draft uses the session history model, not the persisted (stale) one', async () => {
 			const historyModelId = 'history-model';
 			const historyMetadata: ILanguageModelChatMetadata = {
@@ -6927,6 +6951,23 @@ suite('backfillRestoredPickerState', () => {
 	test('returns the chosen state unchanged when there is no stored state', () => {
 		const chosen = state(AGENT, undefined);
 		assert.strictEqual(backfillRestoredPickerState(chosen, undefined, AGENT), chosen);
+	});
+
+	test('recovers saved custom agent pin overrides only for the restored agent, never replacing the transferred ones', () => {
+		const saved = { ...state('custom-uri', model('agent-host-claude:haiku')), agentPinOverrides: { modeId: 'custom-uri', model: true, configKeys: ['reasoningEffort'] } };
+		const transferredOverrides = { modeId: 'custom-uri', configKeys: ['thinkingLevel'] };
+		const transferred = backfillRestoredPickerState(state(AGENT, model('agent-host-claude:opus')), saved, AGENT);
+		assert.deepStrictEqual({
+			recovered: transferred?.agentPinOverrides,
+			keptModel: transferred?.selectedModel?.identifier,
+			otherAgent: backfillRestoredPickerState(state('other-uri', undefined), saved, AGENT)?.agentPinOverrides,
+			newer: backfillRestoredPickerState({ ...state('custom-uri', undefined), agentPinOverrides: transferredOverrides }, saved, AGENT)?.agentPinOverrides,
+		}, {
+			recovered: saved.agentPinOverrides,
+			keptModel: 'agent-host-claude:opus',
+			otherAgent: undefined,
+			newer: transferredOverrides,
+		});
 	});
 });
 

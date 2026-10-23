@@ -1578,7 +1578,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 		for (const qualifiedModelName of qualifiedModelNames) {
-			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
+			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata))
+				// An exact advertised id (e.g. a host's `agent.model`) wins over alias parsing, which reads `:key=value` as a configuration suffix.
+				?? models.find(m => m.metadata.targetChatSessionType && m.metadata.id === qualifiedModelName);
 			if (model) {
 				return model;
 			}
@@ -2076,6 +2078,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._isSyncingToOrFromInputModel = true;
 
 			// Before the mode sync, so pins applied by the mode switch already respect this conversation's overrides.
+			// Drafts from other clients get theirs derived by the agent host session handler.
 			this._agentPinOverrides.set(state?.agentPinOverrides, undefined);
 
 			// Sync mode

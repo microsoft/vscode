@@ -25,6 +25,20 @@ import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.
  */
 export const PresentedConfigurationSource = 'agent';
 
+/** Carries a conversation's own value for a key underneath a presented overlay through captured state. */
+export function presentedUnderlyingValueKey(key: string): string {
+	return `vscode.modelConfiguration.${key}.underlying`;
+}
+
+/** The provenance of {@link presentedUnderlyingValueKey}, when the underlying value had one. */
+export function presentedUnderlyingSourceKey(key: string): string {
+	return `vscode.modelConfiguration.${key}.underlyingSource`;
+}
+
+function isPrimitive(value: unknown): value is string | number | boolean {
+	return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
 /**
  * Per-editor store for model configuration (e.g. context size, thinking effort).
  *
@@ -126,17 +140,18 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
 		const effective = this._getStoredConfiguration(modelId);
-		const presented = this._effectivePresented(modelId);
+		const presented = this._effectivePresented(modelId, effective);
 		const result = presented ? { ...effective, ...presented } : effective;
 		return Object.keys(result).length > 0 ? result : undefined;
 	}
 
 	/**
 	 * The overlay values the model currently accepts, each tagged with the {@link PresentedConfigurationSource}
-	 * provenance. Validated on every read against the effective (session-scoped) schema, so host locks and
-	 * narrowed choices always win, including when they change after the overlay was set.
+	 * provenance and carrying the conversation's own value underneath, so captured state can be restored to it.
+	 * Validated on every read against the effective (session-scoped) schema, so host locks and narrowed
+	 * choices always win, including when they change after the overlay was set.
 	 */
-	private _effectivePresented(modelId: string): IStringDictionary<unknown> | undefined {
+	private _effectivePresented(modelId: string, underlying: IStringDictionary<unknown>): IStringDictionary<unknown> | undefined {
 		if (this._presented?.modelId !== modelId) {
 			return undefined;
 		}
@@ -150,6 +165,13 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			}
 			result[key] = value;
 			result[modelConfigurationSourceKey(key)] = PresentedConfigurationSource;
+			if (isPrimitive(underlying[key])) {
+				result[presentedUnderlyingValueKey(key)] = underlying[key];
+				const underlyingSource = underlying[modelConfigurationSourceKey(key)];
+				if (isPrimitive(underlyingSource)) {
+					result[presentedUnderlyingSourceKey(key)] = underlyingSource;
+				}
+			}
 		}
 		return Object.keys(result).length > 0 ? result : undefined;
 	}
@@ -190,12 +212,26 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private _withoutPresented(modelId: string, values: IStringDictionary<unknown>, supersede: boolean): IStringDictionary<unknown> {
 		if (!supersede) {
 			// Provenance travels with captured state, so this holds even after the store was cleared or recreated.
+			// The conversation's own value underneath the overlay is restored in its place.
 			const result = { ...values };
 			for (const key of Object.keys(values)) {
+				const underlyingValueKey = presentedUnderlyingValueKey(key);
+				const underlyingSourceKey = presentedUnderlyingSourceKey(key);
 				if (values[modelConfigurationSourceKey(key)] === PresentedConfigurationSource) {
-					delete result[key];
-					delete result[modelConfigurationSourceKey(key)];
+					if (Object.hasOwn(values, underlyingValueKey)) {
+						result[key] = values[underlyingValueKey];
+						if (Object.hasOwn(values, underlyingSourceKey)) {
+							result[modelConfigurationSourceKey(key)] = values[underlyingSourceKey];
+						} else {
+							delete result[modelConfigurationSourceKey(key)];
+						}
+					} else {
+						delete result[key];
+						delete result[modelConfigurationSourceKey(key)];
+					}
 				}
+				delete result[underlyingValueKey];
+				delete result[underlyingSourceKey];
 			}
 			return result;
 		}

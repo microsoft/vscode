@@ -17,7 +17,7 @@ import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsServic
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { extractSchemaDefaults, filterConfigurationToSchema } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
-import { ChatModelConfigurationStore, PresentedConfigurationSource } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
+import { ChatModelConfigurationStore, PresentedConfigurationSource, presentedUnderlyingValueKey } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
 import { renderModelConfigurationButton } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -1418,7 +1418,7 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editorC.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 200_000 });
 	});
 
-	const presentedSource = { [modelConfigurationSourceKey('thinkingEffort')]: PresentedConfigurationSource };
+	const presentedSource = { [modelConfigurationSourceKey('thinkingEffort')]: PresentedConfigurationSource, [presentedUnderlyingValueKey('thinkingEffort')]: 'low' };
 
 	test('a presented value overlays the configuration without becoming a durable preference', () => {
 		const storage = store.add(new InMemoryStorageService());
@@ -1462,6 +1462,26 @@ suite('ChatModelConfigurationStore', () => {
 			restored: { thinkingEffort: 'low', contextSize: 200_000 },
 			fresh: { thinkingEffort: 'low', contextSize: 200_000 },
 			newEditor: { thinkingEffort: 'low', contextSize: 1_000_000 },
+		});
+	});
+
+	test('restoring captured state recovers the conversation\'s own value underneath the overlay', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const conversationA = createStore(storage, createMultiKeyService());
+		conversationA.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		conversationA.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+		const captured = conversationA.getModelConfiguration(MODEL)!;
+
+		// Conversation B chooses Medium for the same model, updating the shared bucket.
+		createStore(storage, createMultiKeyService()).setModelConfiguration(MODEL, { thinkingEffort: 'medium' });
+		// Returning to A clears the store and restores its captured state; then the pin is removed.
+		conversationA.clear();
+		conversationA.restoreModelConfiguration(MODEL, captured);
+		conversationA.setPresentedConfiguration(undefined);
+
+		assert.deepStrictEqual({ captured: captured[presentedUnderlyingValueKey('thinkingEffort')], restored: conversationA.getModelConfiguration(MODEL)?.thinkingEffort }, {
+			captured: 'low',
+			restored: 'low',
 		});
 	});
 

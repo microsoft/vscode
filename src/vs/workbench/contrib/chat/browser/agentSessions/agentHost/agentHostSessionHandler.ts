@@ -115,7 +115,7 @@ import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
-import { readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { modelConfigurationSourceKey, readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { ChatSessionForkError, getChatSessionInitialMessageVariables, IChatSession, IChatSessionContentProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionInitialMessage, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -7177,6 +7177,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (state.selectedModel) {
 			partialState.selectedModel = state.selectedModel;
 			partialState.modelConfiguration = state.modelConfiguration;
+			// The draft doesn't carry the peer's custom agent pin overrides, but an explicitly sourced
+			// effort in its own configuration is the peer's choice over the agent's pin (the peer's
+			// overlay values carry the `agent` source instead). Derived here, where the configuration
+			// is known to be the peer's rather than this client's merged state.
+			const explicitKeys = ['reasoningEffort', 'thinkingLevel'].filter(key => state.modelConfiguration?.[key] !== undefined && state.modelConfiguration[modelConfigurationSourceKey(key)] === 'explicit');
+			if (explicitKeys.length > 0) {
+				const current = inputModel.state.get()?.agentPinOverrides;
+				const base = current?.modeId === state.mode.id ? current : undefined;
+				partialState.agentPinOverrides = {
+					modeId: state.mode.id,
+					...(base?.model ? { model: true } : {}),
+					configKeys: [...new Set([...(base?.configKeys ?? []), ...explicitKeys])],
+				};
+			}
 		}
 		inputModel.setState(partialState);
 	}

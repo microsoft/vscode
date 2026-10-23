@@ -160,8 +160,11 @@ const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEna
  * `stateToApply` is the input state about to be applied to the session being restored (an
  * agent-host transferred draft, or the saved draft as a fallback). Its `selectedModel` is the
  * authoritative model selection.
- * `savedState` is only used for `mode`: prefer its custom agent over the plain default Agent, but
- * never override a different explicit mode already present in `stateToApply`.
+ * `savedState` is only used for `mode` and for the user's custom agent pin overrides: prefer its
+ * custom agent over the plain default Agent, but never override a different explicit mode already
+ * present in `stateToApply`. Transferred drafts don't carry the overrides, so they are recovered when
+ * they were made against the restored agent. An override only stops that agent's pins from being
+ * re-applied; it never replaces the model or configuration in `stateToApply`.
  */
 export function backfillRestoredPickerState(
 	stateToApply: ISerializableChatModelInputState | undefined,
@@ -174,10 +177,12 @@ export function backfillRestoredPickerState(
 	const mode = (stateToApply.mode.id === defaultAgentModeId && savedState.mode.id !== defaultAgentModeId)
 		? savedState.mode
 		: stateToApply.mode;
-	if (mode === stateToApply.mode) {
+	const agentPinOverrides = stateToApply.agentPinOverrides
+		?? (savedState.agentPinOverrides?.modeId === mode.id ? savedState.agentPinOverrides : undefined);
+	if (mode === stateToApply.mode && agentPinOverrides === stateToApply.agentPinOverrides) {
 		return stateToApply;
 	}
-	return { ...stateToApply, mode };
+	return { ...stateToApply, mode, ...(agentPinOverrides ? { agentPinOverrides } : {}) };
 }
 
 /**
