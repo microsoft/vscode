@@ -66,6 +66,7 @@ import { AgentHostSubscriptionService } from './agentHostSubscriptionService.js'
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { AgentHostSessionOpenTelemetry, IAgentHostSessionOpenTelemetry } from './agentHostSessionOpenTelemetry.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
+import { AgentHostChatpadService, IAgentHostChatpadService } from './agentHostChatpadService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from './agentHostToolCallTracker.js';
@@ -90,6 +91,8 @@ import { AgentHostStartupMarks, AgentHostStartupPerformance, IAgentHostStartupPe
 
 export interface IAgentHostCoreServiceInputs {
 	readonly storageResource: URI | undefined;
+	/** The user home of the host, which holds the scratch folders of chats without a workspace. */
+	readonly userHome: URI;
 	readonly rootConfigResource?: URI;
 	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly fetchFn: typeof globalThis.fetch;
@@ -115,6 +118,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
 	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
 	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
+	services.set(IAgentHostChatpadService, new SyncDescriptor(AgentHostChatpadService, [inputs.userHome]));
 	services.set(IAgentHostGitHubService, new SyncDescriptor(AgentHostGitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));

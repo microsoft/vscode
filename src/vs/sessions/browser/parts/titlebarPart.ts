@@ -86,6 +86,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private leftContent!: HTMLElement;
 	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
+	private windowTitleLabel!: HTMLElement;
+	private fixedTitle: string | undefined;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
@@ -140,6 +142,26 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	updateProperties(_properties: ITitleProperties): void {
 		// No window title to update in simplified titlebar
+	}
+
+	/**
+	 * Shows a fixed title in the center of the title bar and uses it as the window title. Meant for windows
+	 * that do not show the command center, such as auxiliary windows; `undefined` removes it.
+	 */
+	setTitle(title: string | undefined): void {
+		this.fixedTitle = title;
+		this.renderFixedTitle();
+		if (title) {
+			getWindow(this.element).document.title = title;
+		}
+	}
+
+	private renderFixedTitle(): void {
+		if (!this.windowTitleLabel) {
+			return;
+		}
+		this.windowTitleLabel.textContent = this.fixedTitle ?? '';
+		this.windowTitleLabel.parentElement?.classList.toggle('has-fixed-title', !!this.fixedTitle);
 	}
 
 	registerVariables(_variables: ITitleVariable[]): void {
@@ -232,6 +254,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Center toolbar - command center (renders session picker via IActionViewItemService)
 		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
 		const windowTitle = append(this.centerContent, $('div.window-title'));
+		this.windowTitleLabel = append(windowTitle, $('span.window-title-text'));
+		this.renderFixedTitle();
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
 		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			contextMenu: Menus.TitleBarContext,

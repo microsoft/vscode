@@ -10,6 +10,7 @@ import { IProgressIndicator } from '../../../../platform/progress/common/progres
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export interface ISessionGridPlacement {
 	readonly reference: string;
@@ -22,6 +23,12 @@ export interface ISessionGridSlot {
 }
 
 export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
+
+/** The window of a session view registered with {@link ISessionsPartService.registerWindowSessionView}. */
+export interface IWindowSessionViewHost {
+	/** Brings the window to the front, and focuses the view in it. */
+	focus(): void;
+}
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -80,6 +87,16 @@ export interface ISessionsPartService {
 	 * (e.g. the session was not visible or fewer than two views were present).
 	 */
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent>;
+
+	/**
+	 * Registers a session view that shows a window session (see `ISessionsService.showSessionInWindow`) outside the
+	 * grid, in a window of its own. While registered, looking up, focusing and finding the focused session view cover
+	 * it.
+	 */
+	registerWindowSessionView(view: SessionView, host: IWindowSessionViewHost): IDisposable;
+
+	/** Fires with the session of a registered window session view when the view gets focus or is clicked. */
+	readonly onDidFocusWindowSession: Event<IActiveSession>;
 
 	/**
 	 * Moves keyboard focus into the chat input of the session view hosting the

@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-window-editor {
+	position: relative;
+	height: 100%;
+	overflow: hidden;
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.chat-window-editor > .chat-view {
+	position: relative;
+}

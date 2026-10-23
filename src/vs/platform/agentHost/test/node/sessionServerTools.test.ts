@@ -86,6 +86,7 @@ suite('SessionServerTools', () => {
 			getCredentialSource: overrides?.getCredentialSource ?? (() => undefined),
 			getAutomaticTitleGenerationStrategy: overrides?.getAutomaticTitleGenerationStrategy ?? (() => 'deferred'),
 			isWorkspaceless: overrides?.isWorkspaceless ?? (() => true),
+			canHostNestedChats: overrides?.canHostNestedChats,
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			supportsChatWorkingDirectories: overrides?.supportsChatWorkingDirectories ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
@@ -2207,6 +2208,43 @@ suite('SessionServerTools', () => {
 			omittedDisplay: 'Create Chat in Current Session',
 			independentDisplay: 'Create New Session',
 			unknownDisplay: 'Create Session',
+		});
+	});
+
+	test('a session that cannot host chats, such as the Chatpad, creates independent sessions and no chats in itself', async () => {
+		const createdSessions: (string | undefined)[] = [];
+		const createdChatSessions: string[] = [];
+		const accessor = createAccessor({
+			canHostNestedChats: session => session.toString() !== 'copilot:/s1',
+			onCreate: config => { createdSessions.push(config.session?.toString()); },
+			onCreateChat: session => { createdChatSessions.push(session.toString()); },
+		});
+		const group = createSessionServerToolGroup(accessor);
+		const definition = sessionServerToolDefinitions.find(candidate => candidate.name === SessionServerToolName.CreateSession)!;
+		const offered = group.getDefinitionForSession?.(definition, 'copilot:/s1');
+		const source = URI.parse('copilot:/s1');
+
+		const omitted = await applyCreateSessionTool(accessor, { prompt: 'do it', title: 'Task' }, source);
+		const independent = await applyCreateSessionTool(accessor, { relationship: 'independent', prompt: 'do it', title: 'Task' }, source);
+		const reject = async (run: () => Promise<unknown>) => run().then(() => 'created', (error: Error) => error.message);
+
+		assert.deepStrictEqual({
+			offered: { relationship: offered?.inputSchema?.properties?.relationship, required: offered?.inputSchema?.required },
+			relationships: [omitted.relationship, independent.relationship],
+			createdSessions: createdSessions.length,
+			createdChatSessions,
+			currentSession: await reject(() => applyCreateSessionTool(accessor, { relationship: 'currentSession', prompt: 'do it', title: 'Task' }, source)),
+			legacyChat: await reject(() => applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'do it' }, URI.parse(buildDefaultChatUri('copilot:/s1')), 'turn-1')),
+		}, {
+			offered: {
+				relationship: { type: 'string', enum: ['independent'], description: 'Always `independent`: this chat creates sessions of their own.' },
+				required: ['relationship', 'prompt', 'title'],
+			},
+			relationships: ['independent', 'independent'],
+			createdSessions: 2,
+			createdChatSessions: [],
+			currentSession: 'Invalid create_session input: this chat cannot create chats in its own session; omit relationship to create an independent session.',
+			legacyChat: 'Invalid create_chat input: chats cannot be created in this session; use create_session to start an independent session.',
 		});
 	});
 

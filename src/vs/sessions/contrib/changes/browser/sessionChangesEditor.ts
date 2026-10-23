@@ -353,7 +353,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const sessionResource = this.sessionChangesService.getSessionResource(input.multiDiffSource);
 		this._inputSessionResource.set(sessionResource, undefined);
 		this._pendingResolve.clear();
-		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		// Only the main editor part hides with the main window's layout; other editor parts, such as of chat windows, show.
+		const inMainEditorPart = this.editorGroupService.getPart(this.group) === this.editorGroupService.mainPart;
+		if (inMainEditorPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			this._logger.log('changes editor set input deferred, editor part hidden', { session: sessionResource });
 			// The operation token is cancelled once setInput returns, so the deferred resolve owns its own.
 			// It is cancelled only when the input is cleared or replaced, not when the resolve fires.

@@ -22,6 +22,7 @@ import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceConti
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript } from '../meta/agentMessageMeta.js';
+import { readChatpadSessionMeta, withChatpadSessionMeta } from '../meta/agentHostChatpadMeta.js';
 export { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
 export { getInlineToolInput } from '../partialToolInput.js';
 export { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../meta/agentMessageMeta.js';
@@ -2061,21 +2062,40 @@ export function isSessionChatArchived(chat: SessionChatSummary & { readonly arch
 
 /**
  * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
- * `true` only when the well-known key is present and set to boolean `true`.
+ * `true` only when the well-known key is present and set to boolean `true`,
+ * or when the session is typed as the Chatpad chat (see {@link withSessionChatpad}).
  */
 export function readSessionWorkspaceless(meta: SessionSummaryMeta | undefined): boolean {
-	return meta?.[SESSION_META_WORKSPACELESS_KEY] === true;
+	return meta?.[SESSION_META_WORKSPACELESS_KEY] === true || readSessionChatpad(meta);
+}
+
+/** Whether the session is typed as the host's Chatpad chat. */
+export function readSessionChatpad(meta: SessionSummaryMeta | undefined): boolean {
+	return readChatpadSessionMeta(meta);
+}
+
+/**
+ * Types the session as the host's Chatpad chat in place of a session without a workspace. The Chatpad chat
+ * still works without a workspace: {@link readSessionWorkspaceless} is `true` for it.
+ */
+export function withSessionChatpad(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
+	const next: { [key: string]: unknown } = withChatpadSessionMeta(meta);
+	delete next[SESSION_META_WORKSPACELESS_KEY];
+	return next;
 }
 
 /**
  * Returns a new {@link SessionSummaryMeta} with the workspace-less marker set,
  * or with the slot removed when `workspaceless` is `false`. Returns `undefined`
- * if the result would be empty.
+ * if the result would be empty. A session typed as the Chatpad chat already
+ * works without a workspace, so it gets no marker.
  */
 export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, workspaceless: boolean): SessionSummaryMeta | undefined {
 	const next: { [key: string]: unknown } = { ...meta };
 	if (workspaceless) {
-		next[SESSION_META_WORKSPACELESS_KEY] = true;
+		if (!readSessionChatpad(meta)) {
+			next[SESSION_META_WORKSPACELESS_KEY] = true;
+		}
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}

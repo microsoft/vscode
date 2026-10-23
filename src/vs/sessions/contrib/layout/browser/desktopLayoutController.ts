@@ -119,7 +119,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 				completeChangesEditorTransition: () => {
 					if (that._changesEditorTransitionPhase === 'reconciling') {
-						const session = that._sessionsService.activeSession.get();
+						const session = that._sessionsService.mainWindowActiveSession.get();
 						// An uncreated workspace-less composer has no Changes editor to await.
 						if (session?.isCreated.get() && session.isQuickChat?.get() !== true && !session.workspace.get()) {
 							return;
@@ -230,7 +230,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	protected override _onWillApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): void {
 		this._managedTabs?.prepareWorkingSetRestore(workingSet !== 'empty');
 		if ((this._changesEditorTransitionPhase ?? 'idle') !== 'idle'
-			|| this._shouldPreserveChangesEditor(this._sessionsService.activeSession.get())) {
+			|| this._shouldPreserveChangesEditor(this._sessionsService.mainWindowActiveSession.get())) {
 			this._setChangesEditorTransitionPhase('restoringWorkingSet');
 		}
 	}

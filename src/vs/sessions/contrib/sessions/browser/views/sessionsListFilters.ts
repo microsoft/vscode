@@ -67,7 +67,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	for (const [index, environment] of ordered.entries()) {
 		const applications = new Map<string, string>();
 		for (const session of sessions) {
-			if (session.environment === environment.id && !session.isAutomation?.read(reader)) {
+			if (session.environment === environment.id && !session.isAutomation?.read(reader) && !session.isChatpad?.read(reader)) {
 				const application = session.application.read(reader);
 				applications.set(application.id, application.label);
 			}

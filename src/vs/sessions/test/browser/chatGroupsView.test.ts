@@ -335,7 +335,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
 
-	const view = store.add(instantiationService.createInstance(ChatGroupsView));
+	const view = store.add(instantiationService.createInstance(ChatGroupsView, undefined));
 	view.setSingleGroupTabsReplaceHeader(tabsReplaceHeader);
 	mainWindow.document.body.appendChild(view.element);
 	store.add(toDisposable(() => view.element.remove()));

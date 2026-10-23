@@ -946,7 +946,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get titleHeight(): IEditorGroupTitleHeight {
-		return this.titleControl.getHeight();
+		return this.titleHidden ? { total: 0, offset: 0 } : this.titleControl.getHeight();
+	}
+
+	private titleHidden = false;
+
+	setTitleHidden(hidden: boolean): void {
+		if (this.titleHidden === hidden) {
+			return;
+		}
+		this.titleHidden = hidden;
+		this.titleContainer.classList.toggle('hidden-title', hidden);
+		this.relayout();
 	}
 
 	notifyIndexChanged(newIndex: number): void {
@@ -2238,7 +2249,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
-		const titleControlSize = this.titleControl.layout({
+		const titleControlSize = this.titleHidden ? Dimension.None : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		}, contentWidth);

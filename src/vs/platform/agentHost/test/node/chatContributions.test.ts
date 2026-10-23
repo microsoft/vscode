@@ -61,6 +61,9 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostChatpadService } from '../../node/agentHostChatpadService.js';
+import { createTestChatpadService } from './chatpadTestUtils.js';
+import { createChatpadInstruction } from '../../node/chatContributions/chatpad/chatpadContribution.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -891,7 +894,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false, surface?: IChatSurfaceMeta, copilotWorkspace?: URI) {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false, surface?: IChatSurfaceMeta, copilotWorkspace?: URI, chatpadSession?: string) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const fileService = disposables.add(new FileService(logService));
@@ -992,6 +995,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
+	services.set(IAgentHostChatpadService, createTestChatpadService(chatpadSession));
 	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
 	services.set(IAgentHostAuthenticationService, authenticationService);
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
@@ -2780,7 +2784,7 @@ suite('AgentHostChatContributions', () => {
 	});
 
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
-		const contributions = createBuiltInContributions(disposables, undefined, true);
+		const contributions = createBuiltInContributions(disposables, undefined, true, undefined, undefined, undefined, undefined, 'agent-host-session://test');
 		configureRemoteSessionReply(contributions.stateManager, contributions.session);
 		const sideChat = buildChatUri(contributions.session, 'side');
 		contributions.stateManager.addChat(contributions.session, sideChat, creationTimeChatStorageResource(contributions.session, sideChat, buildDefaultChatUri(contributions.session)), {
@@ -2801,6 +2805,9 @@ suite('AgentHostChatContributions', () => {
 			if (instruction.includes('<terminal_chat>')) {
 				return 'chatSurface';
 			}
+			if (instruction.includes('<chatpad>')) {
+				return 'chatpad';
+			}
 			if (instruction.includes('<remote_session_origin>')) {
 				return 'remoteSessionOrigin';
 			}
@@ -2808,8 +2815,29 @@ suite('AgentHostChatContributions', () => {
 				return 'sessionTitle';
 			}
 			return undefined;
-		}), ['markdownPlanRichLinks', 'chatSurface', 'remoteSessionOrigin', 'sessionTitle']);
+		}), ['markdownPlanRichLinks', 'chatSurface', 'chatpad', 'remoteSessionOrigin', 'sessionTitle']);
 		assert.deepStrictEqual(result.message, { text: injectSideChatContext('built-in-send-order'), origin: { kind: MessageKind.User } });
+	});
+
+	test('adds Chatpad instructions only to the Chatpad chat', async () => {
+		const send = async (chatpadSession: string | undefined) => {
+			const contributions = createBuiltInContributions(disposables, undefined, false, undefined, undefined, undefined, undefined, chatpadSession);
+			const result = await contributions.service.outgoingTurn({
+				session: contributions.session,
+				chat: buildDefaultChatUri(contributions.session),
+				message: { text: 'note: buy milk', origin: { kind: MessageKind.User } },
+				turnId: 'chatpad',
+			});
+			return (result.instructions ?? []).filter(instruction => instruction.includes('<chatpad>'));
+		};
+
+		assert.deepStrictEqual({
+			chatpad: await send('agent-host-session://test'),
+			otherChat: await send('agent-host-session://other'),
+		}, {
+			chatpad: [createChatpadInstruction(URI.file('/home/.copilot/chats/chatpad/chatpad.md'))],
+			otherChat: [],
+		});
 	});
 
 	test('supplies stable remote reply instructions on every turn without changing the task text', async () => {

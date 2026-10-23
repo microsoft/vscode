@@ -82,7 +82,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		if (!this._ctx.chatLayoutActive()) {
 			return undefined;
 		}
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		return activeSession && !activeSession.isCreated.get() && !activeSession.isQuickChat?.get()
 			? this._ctx.ownerKeyFor(activeSession)
 			: undefined;
@@ -215,7 +215,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._register(
 			autorun((reader) => {
 				editorSetChanged.read(reader);
-				const session = this._sessionsService.activeSession.read(reader);
+				const session = this._sessionsService.mainWindowActiveSession.read(reader);
 				const draftKey = session && !session.isCreated.read(reader) ? session.resource.toString() : undefined;
 				if (draftKey !== previousDraftKey) {
 					this._replacementDraftKey = previousDraftKey ? draftKey : undefined;
@@ -243,7 +243,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 	private _registerQuickChatVisibility(): void {
 		this._register(autorun(reader => {
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (!activeSession || !(activeSession.isQuickChat?.read(reader) ?? false)) {
 				this._activeQuickChatKey = undefined;
 				this._pendingEditorRestoreKey = undefined;
@@ -273,7 +273,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}));
 
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
-			const activeSession = this._sessionsService.activeSession.get();
+			const activeSession = this._sessionsService.mainWindowActiveSession.get();
 			const sessionKey = activeSession?.resource.toString();
 			if (!activeSession
 				|| !(activeSession.isQuickChat?.get() ?? false)
@@ -304,7 +304,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._register(this._layoutService.onWillToggleSidePane(() => this._togglingQuickChatSidePane = true));
 		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
 			try {
-				const activeSession = this._sessionsService.activeSession.get();
+				const activeSession = this._sessionsService.mainWindowActiveSession.get();
 				const opened = !before.editor && !before.auxiliaryBar && (after.editor || after.auxiliaryBar);
 				if (opened
 					&& activeSession?.isQuickChat?.get()
@@ -331,7 +331,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			return;
 		}
 
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		if (!activeSession || !(activeSession.isQuickChat?.get() ?? false)) {
 			return;
 		}
@@ -461,7 +461,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				if (!this._editorGroupsService.mainPart.getGroup(event.groupId)) {
 					return;
 				}
-				const session = this._sessionsService.activeSession.get();
+				const session = this._sessionsService.mainWindowActiveSession.get();
 				const isQuickChat = session?.isQuickChat?.get() ?? false;
 				if (
 					(!this._getActiveNewSessionKey() && !isQuickChat) ||
@@ -486,7 +486,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _getActiveNewSessionKey(): string | undefined {
-		const session = this._sessionsService.activeSession.get();
+		const session = this._sessionsService.mainWindowActiveSession.get();
 		if (
 			!session ||
 			session.isCreated.get() ||
@@ -500,7 +500,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _readActiveNewSessionKey(reader: IReader): string | undefined {
-		const session = this._sessionsService.activeSession.read(reader);
+		const session = this._sessionsService.mainWindowActiveSession.read(reader);
 		if (
 			!session ||
 			session.isCreated.read(reader) ||
@@ -537,7 +537,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 		this._register(
 			autorun((reader) => {
-				const activeSession = this._sessionsService.activeSession.read(reader);
+				const activeSession = this._sessionsService.mainWindowActiveSession.read(reader);
 				if (!activeSession) {
 					previousActiveEditor = undefined;
 					previousEditorPartVisible = false;

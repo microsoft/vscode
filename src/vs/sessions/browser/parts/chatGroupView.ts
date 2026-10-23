@@ -26,7 +26,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, ISessionViewHostOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ChatHeader } from './chatHeader.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from './gridGap.js';
@@ -147,7 +147,15 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	/** Whether this group is the active (focused) group within the session. */
 	private _groupActive = false;
-	private readonly _sessionActivityBar: ChatViewSessionActivityBar;
+	private readonly _sessionActivityBar: ChatViewSessionActivityBar | undefined;
+
+	private readonly _chatView = observableValue<AbstractChatView | undefined>(this, undefined);
+	/** The chat view of this group, while it shows a chat rather than a composer. */
+	readonly chatView: IObservable<AbstractChatView | undefined> = this._chatView;
+
+	private readonly _chatViewTop = observableValue<number>(this, 0);
+	/** The top of {@link chatView} within this group: below its header, tabs and banner. */
+	readonly chatViewTop: IObservable<number> = this._chatViewTop;
 	/** Whether this group's session is the active session in the sessions part. */
 	private _sessionActive = true;
 	/** Whether this group's session is currently visible in the sessions part. */
@@ -160,6 +168,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private _serializationIndex = 0;
 
 	constructor(
+		private readonly _hostOptions: ISessionViewHostOptions | undefined,
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -210,9 +219,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
 		append(this._contentContainer, this._remoteHostUnavailableEmptyState.domNode);
 
-		this._sessionActivityBar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionActivityBar, this.element));
-		this._updateSessionActivityBarActive();
-		this._register(runOnChange(this._sessionActivityBar.reservedWidth, () => this._layoutChildren()));
+		if (_hostOptions?.showActivityBar ?? true) {
+			this._sessionActivityBar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionActivityBar, this.element));
+			this._updateSessionActivityBarActive();
+			this._register(runOnChange(this._sessionActivityBar.reservedWidth, () => this._layoutChildren()));
+		}
 
 		this._register(this._chatHeader.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._chatHeader.onDidChangeHeight(() => this._layoutChildren()));
@@ -272,6 +283,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			this._chatHeader.setChat(undefined);
 			this._compositeBar.setGroup(undefined);
 			this._currentView.clear();
+			this._chatView.set(undefined, undefined);
 			this._setRemoteHostUnavailableEmptyState(undefined);
 			this._contentContainer.replaceChildren(this._remoteHostUnavailableEmptyState.domNode);
 			return;
@@ -404,11 +416,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService)
+					? this._chatViewFactory.createChatView(this._scopedInstantiationService, this._hostOptions?.input)
 					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;
 				currentView.set(view, undefined);
+				this._chatView.set(desiredKind === 'chat' ? view : undefined, undefined);
 				view.setPrimary(this._primary, this._split);
 				view.setActive(this._sessionActive && this._groupActive);
 				view.setVisible(this._sessionVisible);
@@ -452,7 +465,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	/** Only the active group of the active, visible session shows the session activity bar. */
 	private _updateSessionActivityBarActive(): void {
-		this._sessionActivityBar.setActive(this._groupActive && this._sessionActive && this._sessionVisible);
+		this._sessionActivityBar?.setActive(this._groupActive && this._sessionActive && this._sessionVisible);
 	}
 
 	get groupActive(): boolean {
@@ -555,11 +568,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;
 		const barHeight = headerHeight + tabsHeight + bannerHeight;
-		const contentInset = this._sessionActivityBar.reservedWidth.get();
+		const contentInset = this._sessionActivityBar?.reservedWidth.get() ?? 0;
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
-		this._sessionActivityBar.setScrollDownButton(this._currentView.value?.scrollDownButtonDomNode);
-		this._sessionActivityBar.layout(barHeight, height - barHeight);
+		this._chatViewTop.set(barHeight, undefined);
+		this._sessionActivityBar?.setScrollDownButton(this._currentView.value?.scrollDownButtonDomNode);
+		this._sessionActivityBar?.layout(barHeight, height - barHeight);
 		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentInset);
 	}
 

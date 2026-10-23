@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The layouts of a chat window as a column of icons, below its Layout button. */
+.chat-window-layout-picker {
+	padding: var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-menu-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-menu-background);
+	color: var(--vscode-menu-foreground);
+	box-shadow: var(--vscode-shadow-lg);
+
+	.actions-container {
+		gap: var(--vscode-spacing-size40);
+	}
+}
+
+/* Focused by the mouse, the picker shows no focus; its layouts do when they are focused from the keyboard. Overrides the
+ * workbench's focus outline of focusable elements. */
+.monaco-workbench .chat-window-layout-picker[tabindex="-1"]:focus {
+	outline: none;
+}
+
+/* Hovered layouts, as the title bar's actions show them: the workbench shows that only for horizontal action bars. */
+.chat-window-layout-picker .monaco-action-bar .action-label:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* The current layout, as toggled actions in the title bar show. */
+/* Overrides the highlight of toggled actions. */
+.chat-window-layout-picker .monaco-action-bar .actions-container .action-label.checked {
+	background: var(--vscode-toolbar-activeBackground) !important;
+	color: var(--vscode-foreground);
+}
