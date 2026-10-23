@@ -17,7 +17,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionWorkspace, sessionFileChangesEqual, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
@@ -200,7 +200,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionIsVirtualWorkspaceObs = active.isVirtualWorkspaceObs;
 		this.activeSessionHasGitRepositoryObs = active.hasGitRepositoryObs;
 		this.activeSessionReviewCommentCountByFileObs = active.reviewCommentCountByFileObs;
-		this.activeSessionAgentFeedbackCountByFileObs = this._getActiveSessionAgentFeedback();
+		this.activeSessionAgentFeedbackCountByFileObs = active.agentFeedbackCountByFileObs;
 		this.activeSessionChangesetsLoadingObs = active.changesetsLoadingObs;
 		this.activeSessionChangesetsObs = active.changesetsObs;
 		this.activeSessionChangesetObs = active.changesetObs;
@@ -284,6 +284,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 
 		const reviewCommentCountByFileObs = this._getReviewComments(resourceObs);
+		const feedbackResourceObs = derived(reader => {
+			const session = sessionObs.read(reader);
+			return !session || !session.isCreated.read(reader) ? AGENT_FEEDBACK_NEW_SESSION_RESOURCE : session.resource;
+		});
+		const agentFeedbackCountByFileObs = this._getAgentFeedback(feedbackResourceObs);
 
 		// Changesets
 		const currentChangesetsObs = derived(reader => {
@@ -479,6 +484,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			isVirtualWorkspaceObs,
 			hasGitRepositoryObs,
 			reviewCommentCountByFileObs,
+			agentFeedbackCountByFileObs,
 			changesetsLoadingObs,
 			changesetsObs,
 			changesetObs,
@@ -735,11 +741,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 	}
 
-	private _getActiveSessionAgentFeedback(): IObservable<Map<string, number>> {
+	private _getAgentFeedback(resourceObs: IObservable<URI>): IObservable<Map<string, number>> {
 		const didChangeFeedbackSignal = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
 
 		return derived(reader => {
-			const sessionResource = this.agentFeedbackService.activeFeedbackSessionResource.read(reader);
+			const sessionResource = resourceObs.read(reader);
 
 			didChangeFeedbackSignal.read(reader);
 

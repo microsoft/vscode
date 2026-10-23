@@ -63,6 +63,7 @@ export interface IChangesSessionObservables {
 	readonly isVirtualWorkspaceObs: IObservable<boolean>;
 	readonly hasGitRepositoryObs: IObservable<boolean>;
 	readonly reviewCommentCountByFileObs: IObservable<Map<string, number>>;
+	readonly agentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly changesetsLoadingObs: IObservable<boolean>;
 	readonly changesetsObs: IObservable<readonly ISessionChangeset[] | undefined>;
 	readonly changesetObs: IObservable<ISessionChangeset | undefined>;
@@ -75,6 +76,12 @@ export interface IChangesSessionObservables {
 	readonly stateObs: IObservable<ActiveSessionState | undefined>;
 }
 
+/** The session a changes view or actions bar acts on, with that session's changes observables. */
+export interface IChangesSessionScope {
+	readonly session: IObservable<IActiveSession | undefined>;
+	readonly changes: IChangesSessionObservables;
+}
+
 /** The changes observables of the active session, assembled from the service's `activeSession*` observables. */
 export function getActiveSessionChanges(service: IChangesViewService): IChangesSessionObservables {
 	return {
@@ -83,6 +90,7 @@ export function getActiveSessionChanges(service: IChangesViewService): IChangesS
 		isVirtualWorkspaceObs: service.activeSessionIsVirtualWorkspaceObs,
 		hasGitRepositoryObs: service.activeSessionHasGitRepositoryObs,
 		reviewCommentCountByFileObs: service.activeSessionReviewCommentCountByFileObs,
+		agentFeedbackCountByFileObs: service.activeSessionAgentFeedbackCountByFileObs,
 		changesetsLoadingObs: service.activeSessionChangesetsLoadingObs,
 		changesetsObs: service.activeSessionChangesetsObs,
 		changesetObs: service.activeSessionChangesetObs,

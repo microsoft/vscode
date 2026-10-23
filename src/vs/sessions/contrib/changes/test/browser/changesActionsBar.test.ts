@@ -29,8 +29,9 @@ import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/c
 import { Menus } from '../../../../browser/menus.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IChangesSessionObservables } from '../../common/changesViewService.js';
-import { ChangesActionsBar, IChangesActionsSource } from '../../browser/changesView.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
+import { ChangesActionsBar, createChangesSessionScope } from '../../browser/changesView.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
 suite('ChangesActionsBar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,7 +59,7 @@ suite('ChangesActionsBar', () => {
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => ({ folders: [] }) as never }));
 
-		const source: IChangesActionsSource = {
+		const source: IChangesSessionScope = {
 			session: constObservable(upcastPartial<IActiveSession>({ providerId, status: constObservable(SessionStatus.Completed), isCreated: constObservable(false) })),
 			changes: upcastPartial<IChangesSessionObservables>({
 				stateObs: constObservable(undefined),
@@ -78,5 +79,27 @@ suite('ChangesActionsBar', () => {
 
 	test('renders the agent host variant for an agent host source session', () => {
 		assert.deepStrictEqual(createBar('local-agent-host'), [MenuId.AgentsChangesToolbar, Menus.ChangesOperationsDropdown]);
+	});
+
+	test('creates the scope from the active session observables only for the active session', () => {
+		const active = constObservable<IActiveSession | undefined>(undefined);
+		const other = constObservable<IActiveSession | undefined>(undefined);
+		const activeChanges = upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable(undefined) });
+		const otherChanges = upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable(undefined) });
+		const changesViewService = upcastPartial<IChangesViewService>({
+			activeSessionResourceObs: activeChanges.resourceObs,
+			getSessionChanges: () => otherChanges,
+		});
+		const sessionsService = upcastPartial<ISessionsService>({ activeSession: active });
+
+		const activeScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: active });
+		const otherScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: other });
+
+		assert.deepStrictEqual({
+			activeSession: activeScope.session === active,
+			activeResource: activeScope.changes.resourceObs === activeChanges.resourceObs,
+			otherSession: otherScope.session === other,
+			otherChanges: otherScope.changes === otherChanges,
+		}, { activeSession: true, activeResource: true, otherSession: true, otherChanges: true });
 	});
 });
