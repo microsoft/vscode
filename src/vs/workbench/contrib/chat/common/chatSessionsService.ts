@@ -172,8 +172,10 @@ export interface IChatSessionProviderOptionGroup {
 	 *   may use this kind; if multiple are declared, the first one (in declaration order)
 	 *   wins. The group has no UI of its own — it is invisible when the permission
 	 *   picker is hidden by its own `when` clauses.
+	 * - `'composer'`: the group is rendered inside the chat composer toolbar,
+	 *   next to the built-in Agent / Model / reasoning controls.
 	 */
-	readonly kind?: 'permissions';
+	readonly kind?: 'permissions' | 'composer';
 }
 
 export interface IChatSessionsExtensionPoint {

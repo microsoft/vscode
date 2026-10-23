@@ -1757,10 +1757,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return [];
 		}
 
+		// Composer-kind groups render in the primary chat input toolbar (inside the
+		// composer). Non-composer groups keep the secondary toolbar / picker container.
+		const isPrimaryPicker = action.id === ChatSessionPrimaryPickerAction.ID;
+		const optionGroups = isPrimaryPicker
+			? visibleOptionGroups.filter(group => group.kind === 'composer' || effectiveSessionType === AgentSessionProviders.Cloud)
+			: visibleOptionGroups.filter(group => group.kind !== 'composer');
+		if (!optionGroups.length) {
+			return [];
+		}
+
 		this.chatSessionPickerWidgets.clearAndDisposeAll();
 
 		const widgets: ChatSessionPickerActionItem[] = [];
-		for (const optionGroup of visibleOptionGroups) {
+		for (const optionGroup of optionGroups) {
 			const initialItem = this.getCurrentOptionForGroup(optionGroup.id);
 			const initialState = { group: optionGroup, item: initialItem };
 
@@ -3047,6 +3057,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.chatSessionPickerContainer) {
 			this.chatSessionPickerContainer.style.display = '';
 		}
+
+		// Composer-kind option groups live on the primary input toolbar; refresh it
+		// so added/removed groups are picked up.
+		this.inputActionsToolbar?.refresh();
 
 		// Fire option change events for existing widgets to sync their state
 		// (only if we have a session context - in welcome view, options aren't persisted yet)

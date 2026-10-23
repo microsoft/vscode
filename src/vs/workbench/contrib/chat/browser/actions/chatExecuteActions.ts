@@ -680,6 +680,25 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 						)
 				},
 				{
+					// Non-cloud agent sessions: composer-kind option groups render on the
+					// primary toolbar (inside the composer). Hidden when no such groups exist.
+					id: MenuId.ChatInput,
+					order: 5,
+					group: 'navigation',
+					when:
+						ContextKeyExpr.and(
+							ChatContextKeys.chatSessionHasModels,
+							ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent,
+								ContextKeyExpr.and(
+									ChatContextKeys.inAgentSessionsWelcome,
+									ChatContextKeys.chatSessionType.notEqualsTo('local')
+								)
+							)
+						)
+				},
+				{
 					// All other coding agents (Claude, etc.): show in the secondary toolbar.
 					// In the Agents window only, hide the worktree/branch pickers for Copilot
 					// CLI sessions because their option groups are surfaced through the CLI

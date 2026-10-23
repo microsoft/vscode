@@ -798,9 +798,12 @@ declare module 'vscode' {
 		 *   declared, the first one (in declaration order) is used. The group is invisible
 		 *   if the chat permission picker itself is hidden by other `when` clauses.
 		 *
+		 * - `'composer'`: The group is rendered inside the chat composer toolbar,
+		 *   next to the built-in Agent / Model / reasoning controls.
+		 *
 		 * When omitted, the group is rendered as a standalone picker as usual.
 		 */
-		readonly kind?: 'permissions';
+		readonly kind?: 'permissions' | 'composer';
 	}
 
 	export interface ChatSessionProviderOptions {
