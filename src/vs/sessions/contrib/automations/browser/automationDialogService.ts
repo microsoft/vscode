@@ -119,6 +119,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			name: initial?.name ?? '',
 			ownership: initial?.ownership ?? 'user',
 			interval: initialSchedule?.interval ?? 'daily',
+			cronExpression: initialSchedule?.cronExpression ?? '',
+			cronTimeZone: initialSchedule?.cronTimeZone,
 			hour: initialSchedule?.scheduleHour ?? 9,
 			minute: initialSchedule?.scheduleMinute ?? 0,
 			day: initialSchedule?.scheduleDay ?? 1,
@@ -178,6 +180,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				scheduleHour: state.hour,
 				scheduleMinute: state.minute,
 				scheduleDay: state.day,
+				...(state.interval === 'cron' ? { cronExpression: state.cronExpression?.trim(), cronTimeZone: state.cronTimeZone } : {}),
 			};
 			const schedule = state.timeZone === 'UTC' ? automationScheduleToUTC(localSchedule, timezoneOffset) : localSchedule;
 			const prompt = getPrompt();
@@ -242,7 +245,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (state.targetPending) {
 				return;
 			}
-			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.scheduleError) {
+			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.scheduleError || validation.cronError
+				|| (state.interval === 'cron' && !state.cronExpression?.trim())) {
 				dialogTelemetry.validationFailed();
 				return;
 			}

@@ -64,7 +64,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SES
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { automationScheduleToUTC, DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationScheduleToUTC, DAYS_OF_WEEK, getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { automationTriggerFamily, AutomationTriggerFamily } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -82,6 +82,7 @@ import { IAutomationSessionConfiguration } from '../../../services/sessions/comm
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
 import { AutomationTriggerEditor, IAutomationTriggerFormState } from './automationTriggerEditor.js';
+import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
@@ -105,6 +106,7 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
 	{ value: 'weekdays', label: localize('automation.interval.weekdays', "Weekdays") },
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
+	{ value: 'cron', label: localize('automation.interval.cron', "Cron") },
 ];
 
 // Picker popups mount outside the dialog, so allow their focus targets through its focus trap.
@@ -233,6 +235,8 @@ export interface IFormState extends IAutomationTriggerFormState {
 	name: string;
 	ownership?: 'user' | 'repository';
 	interval: AutomationInterval;
+	cronExpression?: string;
+	cronTimeZone?: string;
 	hour: number;
 	minute: number;
 	day: number;
@@ -253,6 +257,7 @@ export interface IFormState extends IAutomationTriggerFormState {
 
 export interface IValidationState {
 	scheduleError?: string;
+	cronError?: string;
 	nameError: string | undefined;
 	promptError: string | undefined;
 	folderError: string | undefined;
@@ -1187,14 +1192,23 @@ export function renderForm(
 		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
 	));
 
+	const cronRow = DOM.append(formContent, $('.automation-form-row.automation-form-cron-row'));
+	DOM.append(cronRow, $('span.automation-form-label', undefined, localize('automation.form.cron', "Cron expression")));
+	const cronTimeZone = state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const cronInput = disposables.add(new AutomationCronInput(cronRow, state.cronExpression ?? '', cronTimeZone, contextViewService));
+	disposables.add(cronInput.onDidChange(value => {
+		state.cronExpression = value;
+		revalidate();
+	}));
 	const applyIntervalVisibility = () => {
 		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
 		dayGroup.style.display = showDay ? '' : 'none';
+		cronRow.style.display = state.interval === 'cron' ? '' : 'none';
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
-		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
+		intervals = INTERVALS.filter(item => !cloud || (item.value !== 'weekdays' && item.value !== 'cron'));
 		if (cloud) {
 			intervals = ['weekly', 'daily', 'hourly'].flatMap(value => INTERVALS.filter(item => item.value === value));
 			const families = triggerEditor.families;
@@ -1216,6 +1230,7 @@ export function renderForm(
 		applyIntervalVisibility();
 	};
 	applyIntervalVisibility();
+	revalidate();
 	disposables.add(intervalSelect.onDidSelect(e => {
 		const value = intervals[e.index].value;
 		if (value === 'issue' || value === 'pullRequest') {
@@ -2463,10 +2478,16 @@ export function updateSaveButtonState(
 			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
 			: utcSchedule && state.interval === 'weekdays'
 				? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
-				: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-					? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-					: undefined;
-	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
+				: utcSchedule && state.interval === 'cron'
+					? localize('automation.form.cloudCron', "Cron is only available for local automations. Choose a supported schedule for Cloud.")
+					: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+						? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+						: undefined;
+	validation.cronError = state.interval === 'cron'
+		? getAutomationCronValidationError(state.cronExpression ?? '', state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+		: undefined;
+	const cronComplete = state.interval !== 'cron' || !!state.cronExpression?.trim();
+	const valid = cronComplete && !validation.cronError && !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
 		saveButton.enabled = valid && !state.targetPending;
 	}

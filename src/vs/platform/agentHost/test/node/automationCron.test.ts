@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { nextAutomationCronOccurrence, validateAutomationCron } from '../../node/automationCron.js';
+import { nextAutomationCronOccurrence, validateAutomationCron } from '../../common/automationCron.js';
 
 suite('Automation cron', () => {
 

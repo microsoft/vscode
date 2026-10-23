@@ -214,6 +214,8 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		prompt: automation.prompt,
 		schedule: {
 			interval: automation.schedule.interval,
+			cronExpression: automation.schedule.cronExpression,
+			cronTimeZone: automation.schedule.cronTimeZone,
 			scheduleHour: automation.schedule.scheduleHour,
 			scheduleMinute: automation.schedule.scheduleMinute,
 			scheduleDay: automation.schedule.scheduleDay,
