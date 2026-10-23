@@ -3175,9 +3175,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _getSnapshot(channel: string): IStateSnapshot | undefined {
 		const source = this._stateManager.getSnapshot(channel);
-		const snapshot = source && this._projectSnapshot(source);
-		if (snapshot && (this._config.relayRootMeta || this._config.extension) && isAhpRootChannel(channel) && hasKey(snapshot.state, { agents: true })) {
-			return {
+		return source && this._projectSnapshot(source);
+	}
+
+	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+		if ((this._config.relayRootMeta || this._config.extension) && isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
+			snapshot = {
 				...snapshot, state: {
 					...snapshot.state, _meta: {
 						...snapshot.state._meta, ...this._config.relayRootMeta,
@@ -3186,10 +3189,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			};
 		}
-		return snapshot;
-	}
-
-	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
 		if (this._config.sessionConfigAdapter && hasKey(snapshot.state, { chats: true }) && snapshot.state.config) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, config: this._config.sessionConfigAdapter.toClientConfig(snapshot.state.config) } };
 		} else if (this._config.sessionConfigAdapter && isAhpChatChannel(snapshot.resource) && hasKey(snapshot.state, { turns: true }) && snapshot.state.config) {
