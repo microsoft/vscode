@@ -26,13 +26,18 @@ export function serializeChatWindowEditors(group: IEditorGroup): ISerializedChat
 	});
 }
 
-/** Deserializes what {@link serializeChatWindowEditors} serialized, skipping editors whose type is no longer available. */
-export function deserializeChatWindowEditors(instantiationService: IInstantiationService, editors: readonly ISerializedChatWindowEditor[]): { readonly editors: EditorInput[]; readonly activeEditor: EditorInput | undefined } {
+/** Deserializes what {@link serializeChatWindowEditors} serialized, skipping editors whose type is no longer available or that fail to deserialize. */
+export function deserializeChatWindowEditors(instantiationService: IInstantiationService, editors: readonly ISerializedChatWindowEditor[], onError?: (error: unknown) => void): { readonly editors: EditorInput[]; readonly activeEditor: EditorInput | undefined } {
 	const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 	const inputs: EditorInput[] = [];
 	let activeEditor: EditorInput | undefined;
 	for (const { typeId, value, active } of editors) {
-		const input = registry.getEditorSerializer(typeId)?.deserialize(instantiationService, value);
+		let input: EditorInput | undefined;
+		try {
+			input = registry.getEditorSerializer(typeId)?.deserialize(instantiationService, value);
+		} catch (error) {
+			onError?.(error);
+		}
 		if (input) {
 			inputs.push(input);
 			if (active) {
