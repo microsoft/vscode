@@ -741,7 +741,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
+		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall' | 'list'> & {
 			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
 		};
 		readonly extensions: {
@@ -889,6 +889,7 @@ class TestCopilotClient implements ITestCopilotClient {
 			}
 		},
 		plugins: {
+			list: async () => ({ plugins: this.pluginInstallations }),
 			install: async params => {
 				this.pluginInstallRequests.push(params);
 				return {} as Awaited<ReturnType<CopilotPluginsInstall>>;
@@ -939,6 +940,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
+	pluginInstallations: Awaited<ReturnType<CopilotPlugins['list']>>['plugins'] = [];
 	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
 	pluginMarketplaceAddName = 'marketplace';
 	readonly pluginMarketplaceAddRequests: Parameters<CopilotPluginMarketplaces['add']>[0][] = [];
@@ -2491,6 +2493,27 @@ suite('CopilotAgent', () => {
 				removeRequests: [{ name: 'marketplace', force: true }],
 				refreshRequests: [{ name: 'marketplace' }],
 			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('lists persisted SDK plugin installations without session-only or uninstalled managed entries', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ name: 'disabled', marketplace: 'marketplace', enabled: false, version: '1.0' },
+			{ name: 'direct', marketplace: '', enabled: true, directSourceId: 'opaque-source', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, description: 'Verified plugin', iconUrl: 'https://example.test/icon.png' },
+			{ name: 'live', marketplace: 'local', enabled: true, installedFrom: '/marketplaces/local' },
+			{ name: 'missing-managed', marketplace: 'enterprise', enabled: false, managed: true, installed: false },
+			{ name: 'builtin', marketplace: '', enabled: true, source: 'builtin' },
+		];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			assert.deepStrictEqual(await agent.listPluginInstallations(), [
+				{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
+				{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
+				{ name: 'live', marketplace: 'local', directSourceId: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
+			]);
 		} finally {
 			await disposeAgent(agent);
 		}

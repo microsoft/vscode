@@ -96,6 +96,14 @@ Responsible for:
 
 Agents do **not** maintain the chat catalog, persist membership, know whether a chat is the session or a peer, or inject `AgentHostStateManager`. Host facts they genuinely need (subagent origin, session customizations, prompt-cache metadata, session-title changes, active-client chat membership) arrive through typed seams — see §8.
 
+### Marketplace installation inventory
+
+`IAgent.listPluginInstallations` exposes provider-owned persisted plugin records through the local management bridge. The Copilot implementation uses global SDK `plugins.list`, not session-effective `session.plugins.list` or the client's plugin discovery inventory. Disabled installations remain installed; built-ins and managed desired entries with `installed: false` do not become user installations. Session-only/client-provided plugins are not installation records. Mutations retain the selected backend session/chat routing and complete on the SDK transaction, without waiting for client discovery.
+
+The workbench marketplace install provider projects these records into `IRecordedCustomizationMarketplaceResource` and uses their opaque direct-source IDs to disambiguate uninstall. SDK 1.0.25 does not expose installed cache paths or verified plugin roots in `plugins.list`: do not infer either from `installedFrom` (a live marketplace directory) or private cache layouts. Retained catalog selections can be associated with a unique installed name/repository/revision match; ambiguous matches are left unassociated. Catalog association is in-memory, not a reconstructed durable receipt, and plugin targets have no invented filesystem URI.
+
+Uninstall requires exactly one current SDK identity match, and direct installs require a nonempty SDK direct-source ID; repository/revision metadata cannot substitute for the SDK's uninstall discriminator. Optional SDK plugin icons must be valid HTTPS URLs without embedded credentials; invalid icons are omitted with a warning.
+
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
 
 ### Copilot Connector authentication
