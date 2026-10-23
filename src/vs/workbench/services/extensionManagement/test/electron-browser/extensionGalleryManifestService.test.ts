@@ -1528,6 +1528,36 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		});
 	});
 
+	test('account providers without a renewal hint are not polled after transient failures', async () => {
+		const clock = fakeClock();
+		const provider: IExtensionGalleryAccountProvider = {
+			accountStatus: ExtensionGalleryAccountStatus.Unknown,
+			onDidChangeAccount: Event.None,
+			onDidChangeAccountStatus: Event.None,
+			getAccount: async () => undefined,
+			signIn: async () => { },
+		};
+		const service = disposableStore.add(new ExtensionGalleryAccountService());
+		service.setAccountProvider(provider);
+		let changes = 0;
+		disposableStore.add(service.onDidChangeAccount(() => changes++));
+		await service.getAccount(MARKETPLACE_URL);
+		await clock.tickAsync(30_000);
+		const initialChanges = changes;
+		service.setAccountProvider({
+			...provider,
+			accountStatus: ExtensionGalleryAccountStatus.Eligible,
+			getAccount: async () => ({ accessToken: 'resource-token', refreshAfter: 1000 }),
+		});
+		await service.getAccount(MARKETPLACE_URL);
+		service.setAccountProvider(provider);
+		changes = 0;
+		await service.getAccount(MARKETPLACE_URL);
+		await clock.tickAsync(60_000);
+
+		assert.deepStrictEqual({ initialChanges, changes }, { initialChanges: 0, changes: 0 });
+	});
+
 	test('Microsoft — gated index advertising no protected resource → RequiresSignIn without a token', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
