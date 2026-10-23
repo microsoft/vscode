@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import * as glob from '../../../../base/common/glob.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import * as glob from '../../../../base/common/glob.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { prepareQuery } from '../../../../base/common/fuzzyScorer.js';
@@ -21,7 +21,7 @@ import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -34,7 +34,6 @@ import { QueryBuilder } from '../../../../workbench/services/search/common/query
 import { getExcludes, hasSiblingFn, ISearchComplete, ISearchConfiguration, ISearchService } from '../../../../workbench/services/search/common/search.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
-export const EmptyFileEditorSearchFocusedContext = new RawContextKey<boolean>('emptyFileEditorSearchFocused', false, localize('emptyFileEditorSearchFocused', "Whether focus is in the empty Files editor search."));
 export const EmptyFileEditorSearchPickerFocusedContext = new RawContextKey<boolean>('emptyFileEditorSearchPickerFocused', false, localize('emptyFileEditorSearchPickerFocused', "Whether the empty Files editor search picker is active."));
 
 const MAX_SEARCH_RESULTS = 512;
@@ -52,21 +51,20 @@ interface IVirtualFileSearchIndex {
 
 export class EmptyFileEditorSearch extends Disposable {
 
-	private readonly input: InputBox;
-	private readonly inputContainer: HTMLElement;
 	private readonly pickerDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly input: InputBox;
 	private picker: IQuickPick<IQuickPickItem, { useSeparators: true }> | undefined;
+	private pickerAnchored = false;
+	private syncingInputValue = false;
 	private restoreInputFocusOnHide = false;
-	private syncingPickerValue = false;
 	private workspace: ISessionWorkspace | undefined;
 	private accessibilityHelpHintAnnounced = false;
 	private readonly fileQueryBuilder: QueryBuilder;
 
 	constructor(
-		container: HTMLElement,
+		private readonly container: HTMLElement,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -77,81 +75,54 @@ export class EmptyFileEditorSearch extends Disposable {
 	) {
 		super();
 		this.fileQueryBuilder = instantiationService.createInstance(QueryBuilder);
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(container));
-		const focusedContext = EmptyFileEditorSearchFocusedContext.bindTo(scopedContextKeyService);
-		const focusTracker = this._register(dom.trackFocus(container));
-		this._register(focusTracker.onDidFocus(() => focusedContext.set(true)));
-		this._register(focusTracker.onDidBlur(() => focusedContext.set(false)));
-		this._register(toDisposable(() => focusedContext.reset()));
-
-		this.inputContainer = dom.append(container, dom.$('.empty-file-editor-search-input'));
-		this.input = this._register(new InputBox(this.inputContainer, undefined, {
+		this.input = this._register(new InputBox(container, undefined, {
 			ariaLabel: localize('emptyFileEditor.searchAriaLabel', "Search files in the session workspace"),
 			placeholder: localize('emptyFileEditor.searchPlaceholder', "Search files by name"),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
-
-		this._register(this.input.onDidChange(value => this.onDidChangeValue(value)));
-		this._register(dom.addDisposableListener(this.input.inputElement, dom.EventType.FOCUS, () => {
-			this.showPicker();
-			this.announceAccessibilityHelpHint();
+		this._register(this.input.onDidChange(value => {
+			if (!this.syncingInputValue && value.trim()) {
+				this.showPicker(value, this.input.element);
+			}
 		}));
-		this._register(dom.addDisposableListener(dom.getWindow(this.inputContainer), dom.EventType.KEY_DOWN, event => {
-			if (this.picker && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
-				this.restoreInputFocusOnHide = true;
-				this.picker.value = '';
+		this._register(dom.addDisposableListener(this.input.inputElement, dom.EventType.FOCUS, () => {
+			this.announceAccessibilityHelpHint();
+			if (this.input.value.trim()) {
+				this.showPicker(this.input.value, this.input.element);
 			}
-		}, true));
-		this._register(dom.addDisposableListener(dom.getWindow(this.inputContainer), dom.EventType.POINTER_DOWN, event => {
-			if (this.picker && dom.isHTMLElement(event.target) && event.target.closest('.monaco-sash')) {
-				this.picker.hide();
-			}
-		}, true));
+		}));
 		this._register(dom.addDisposableListener(this.input.inputElement, dom.EventType.KEY_DOWN, event => {
-			if (!this.picker && this.input.value && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
+			if (!this.picker && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
 				event.preventDefault();
 				event.stopPropagation();
 				this.input.value = '';
 			}
 		}));
-	}
-
-	/**
-	 * Focuses the search input if it has no text. A non-empty input is left alone because
-	 * focusing it would reopen the search results.
-	 * @returns whether the input was focused.
-	 */
-	focusIfEmpty(): boolean {
-		if (this.input.value) {
-			return false;
-		}
-		this.input.focus();
-		return true;
+		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_DOWN, event => {
+			if (this.pickerAnchored && this.picker && new StandardKeyboardEvent(event).equals(KeyCode.Escape)) {
+				this.restoreInputFocusOnHide = true;
+				this.picker.value = '';
+			}
+		}, true));
+		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.POINTER_DOWN, event => {
+			if (this.pickerAnchored && dom.isHTMLElement(event.target) && event.target.closest('.monaco-sash')) {
+				this.picker?.hide();
+			}
+		}, true));
 	}
 
 	setWorkspace(workspace: ISessionWorkspace | undefined): void {
 		this.workspace = workspace;
-		if (this.picker?.value) {
-			this.restoreInputFocusOnHide = true;
-			this.picker.hide();
-		}
+		this.setInputValue('');
+		this.picker?.hide();
 	}
 
-	private onDidChangeValue(value: string): void {
-		if (this.syncingPickerValue) {
-			return;
-		}
-		if (!value.trim()) {
-			this.restoreInputFocusOnHide = !!this.picker;
-			this.picker?.hide();
-			return;
-		}
-
-		this.showPicker();
+	show(): void {
+		this.showPicker('');
 	}
 
-	private showPicker(): void {
-		if (this.picker || !this.input.value.trim()) {
+	private showPicker(value: string, anchor?: HTMLElement): void {
+		if (this.picker || this._store.isDisposed) {
 			return;
 		}
 
@@ -169,11 +140,11 @@ export class EmptyFileEditorSearch extends Disposable {
 		disposables.add(toDisposable(() => {
 			void this.searchService.clearCache(cacheKey);
 		}));
-		this.quickInputService.quickAccess.show(this.input.value, {
+		this.quickInputService.quickAccess.show(value, {
 			providerPrefix: '',
-			anchor: this.input.element,
-			anchorPosition: 'overlay',
-			preserveValue: true,
+			anchor,
+			anchorPosition: anchor ? 'overlay' : undefined,
+			preserveValue: false,
 			placeholder: localize('emptyFileEditor.searchPlaceholder', "Search files by name"),
 			providerOptions,
 		});
@@ -184,6 +155,7 @@ export class EmptyFileEditorSearch extends Disposable {
 		}
 		const picker = currentQuickInput as IQuickPick<IQuickPickItem, { useSeparators: true }>;
 		this.picker = picker;
+		this.pickerAnchored = !!anchor;
 		// The picker renders outside the editor group, so its context key must be set by the quick input service
 		// (window-wide while visible) to be visible to keybindings and accessibility help evaluated from the picker.
 		picker.contextKey = EmptyFileEditorSearchPickerFocusedContext.key;
@@ -194,9 +166,11 @@ export class EmptyFileEditorSearch extends Disposable {
 			}
 			const restoreInputFocus = this.restoreInputFocusOnHide;
 			this.restoreInputFocusOnHide = false;
-			this.setInputValue(picker.value);
-			this.inputContainer.style.visibility = '';
+			if (anchor) {
+				this.container.style.visibility = '';
+			}
 			this.picker = undefined;
+			this.pickerAnchored = false;
 			this.pickerDisposables.clear();
 			if (restoreInputFocus) {
 				this.input.focus();
@@ -207,14 +181,26 @@ export class EmptyFileEditorSearch extends Disposable {
 		picker.ignoreFocusOut = false;
 		picker.valueSelection = [picker.value.length, picker.value.length];
 
-		disposables.add(picker.onDidChangeValue(value => {
-			this.setInputValue(value);
-			if (!value.trim()) {
-				this.restoreInputFocusOnHide = true;
-				picker.hide();
-			}
-		}));
-		this.inputContainer.style.visibility = 'hidden';
+		if (anchor) {
+			disposables.add(picker.onDidChangeValue(value => {
+				this.setInputValue(value);
+				if (!value.trim()) {
+					this.restoreInputFocusOnHide = true;
+					picker.hide();
+				}
+			}));
+			this.container.style.visibility = 'hidden';
+		}
+		this.announceAccessibilityHelpHint();
+	}
+
+	private setInputValue(value: string): void {
+		this.syncingInputValue = true;
+		try {
+			this.input.value = value;
+		} finally {
+			this.syncingInputValue = false;
+		}
 	}
 
 	private announceAccessibilityHelpHint(): void {
@@ -226,15 +212,6 @@ export class EmptyFileEditorSearch extends Disposable {
 		if (hint) {
 			this.accessibilityHelpHintAnnounced = true;
 			this.accessibilityService.status(hint);
-		}
-	}
-
-	private setInputValue(value: string): void {
-		this.syncingPickerValue = true;
-		try {
-			this.input.value = value;
-		} finally {
-			this.syncingPickerValue = false;
 		}
 	}
 

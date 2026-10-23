@@ -88,6 +88,7 @@ jobs:
           path: .build/node_modules_cache
           cacheHitVar: NODE_MODULES_RESTORED
         displayName: Restore node_modules cache
+        retryCountOnTaskFailure: 2
 
       - script: tar -xzf .build/node_modules_cache/cache.tgz
         condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))

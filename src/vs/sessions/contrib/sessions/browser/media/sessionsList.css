@@ -1138,6 +1138,7 @@
 		border-radius: var(--vscode-cornerRadius-small);
 
 		&:is(:hover, .hovered) {
+			background-color: var(--vscode-list-hoverBackground);
 			outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
 			outline-offset: calc(-1 * var(--vscode-strokeThickness));
 		}
@@ -1350,6 +1351,7 @@
 .session-item,
 .session-chat-item,
 .session-group,
+.session-section,
 .session-show-more,
 .session-placeholder {
 	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));

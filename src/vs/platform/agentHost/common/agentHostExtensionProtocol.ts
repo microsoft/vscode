@@ -6,6 +6,7 @@
 import { ValidatorBase, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
+import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { McpServerAuthenticateTarget } from './state/sessionProtocol.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
@@ -30,6 +31,7 @@ import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNotice
 import { AgentHostChatpadCapabilityMetaKey } from './meta/agentHostChatpadMeta.js';
 import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
+import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -111,7 +113,8 @@ export const RegisterClientArtifactIntegrationsExtensionMethod = 'vscode/clientA
 export const ClientArtifactIntegrationUpdateExtensionMethod = 'vscode/clientArtifactIntegrations/update';
 /** Host → client: a request against the client's own integrations. */
 export const ClientArtifactIntegrationExtensionMethod = 'vscode/clientArtifactIntegrations';
-
+export const ListAgentExtensionsExtensionMethod = 'vscode/listAgentExtensions';
+export const SetAgentExtensionEnabledExtensionMethod = 'vscode/setAgentExtensionEnabled';
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
@@ -138,6 +141,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
+	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 	/** Present when the host owns a Chatpad; see {@link GetChatpadExtensionMethod}. */
@@ -149,7 +153,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false, chatpad = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false, copilotExtensions = false, chatpad = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
@@ -169,6 +173,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
+		[AgentHostCopilotExtensionsCapabilityMetaKey]: copilotExtensions ? true : undefined,
 		...(chatpad ? { [AgentHostChatpadCapabilityMetaKey]: true as const } : {}),
 	};
 }
@@ -248,6 +253,28 @@ export interface IAgentHostChatpadDto {
 }
 export const readSavedChatParamsValidator = vObj({ session: vString(), chat: vOptionalProp(vString()) });
 export const completeSavedChatContinuationParamsValidator = vObj({ session: vString(), chat: vString(), identity: vString(), destination: vString() });
+export const listAgentExtensionsParamsValidator = vObj({
+	session: vOptionalProp(vString()),
+	chat: vOptionalProp(vString()),
+});
+export const setAgentExtensionEnabledParamsValidator = vObj({
+	extensionId: vString(),
+	enabled: vBoolean(),
+	session: vOptionalProp(vString()),
+	chat: vOptionalProp(vString()),
+});
+
+export interface IAgentHostAgentExtensionInventoryResult {
+	readonly mode: AgentExtensionMode;
+	readonly extensions: readonly {
+		readonly id: string;
+		readonly name: string;
+		readonly resource?: string;
+		readonly source: AgentExtensionSource;
+		readonly status: AgentExtensionStatus;
+		readonly pluginName?: string;
+	}[];
+}
 
 export interface IAgentHostExtensionCommandMap {
 	[MeasureWorktreeDiskUsageExtensionMethod]: {
@@ -275,6 +302,8 @@ export interface IAgentHostExtensionCommandMap {
 	[ArtifactIntegrationExtensionMethod]: { params: ArtifactIntegrationRequest; result: ArtifactIntegrationResponse };
 	[RegisterClientArtifactIntegrationsExtensionMethod]: { params: { readonly integrations: readonly ArtifactIntegrationDescriptor[] }; result: void };
 	[ClientArtifactIntegrationUpdateExtensionMethod]: { params: ArtifactIntegrationUpdate; result: void };
+	[ListAgentExtensionsExtensionMethod]: { params: ValidatorType<typeof listAgentExtensionsParamsValidator> | undefined; result: IAgentHostAgentExtensionInventoryResult };
+	[SetAgentExtensionEnabledExtensionMethod]: { params: ValidatorType<typeof setAgentExtensionEnabledParamsValidator>; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };

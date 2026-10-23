@@ -321,6 +321,24 @@ flakySuite('PFS', function () {
 		assert.ok(result.indexOf('somefolder3') !== -1);
 	});
 
+	test('getFreeDiskSpace - existing directory', async () => {
+		const available = await Promises.getFreeDiskSpace(testDir);
+		assert.ok(Number.isSafeInteger(available) && available >= 0);
+	});
+
+	test('getFreeDiskSpace - deleted worktree with missing parents', async () => {
+		const worktree = join(testDir, 'deleted', 'worktree');
+		await fs.promises.mkdir(worktree, { recursive: true });
+		await Promises.rm(join(testDir, 'deleted'));
+
+		const available = await Promises.getFreeDiskSpace(worktree);
+		assert.ok(Number.isSafeInteger(available) && available >= 0);
+	});
+
+	test('getFreeDiskSpace - propagates invalid path errors', async () => {
+		await assert.rejects(Promises.getFreeDiskSpace(join(testDir, 'invalid\0path')), { code: 'ERR_INVALID_ARG_VALUE' });
+	});
+
 	test('stat link', async () => {
 		const directory = randomPath(testDir);
 		const symbolicLink = randomPath(testDir);

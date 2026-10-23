@@ -11,7 +11,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
-import { COMPUTER_USE_REQUEST_KEY, COMPUTER_USE_STATUS_KEY, computerUsePermissions, isComputerUseRequest, type ComputerUseAction, type ComputerUsePermission, type ComputerUsePermissionState, type ComputerUseSetupState, type IComputerUseErrorV1, type IComputerUseSetupActionV1, type IComputerUseStatusV1 } from '../../common/computerUse.js';
+import { COMPUTER_USE_REQUEST_KEY, COMPUTER_USE_STATUS_KEY, computerUsePermissions, isComputerUseRequest, type ComputerUsePermission, type ComputerUsePermissionState, type ComputerUseSetupState, type IComputerUseErrorV1, type IComputerUseSetupActionV1, type IComputerUseStatusV1 } from '../../common/computerUse.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { withComputerUseSetupCard } from '../../common/meta/computerUse.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../common/state/sessionState.js';
@@ -23,7 +23,7 @@ import { IAgentHostMacAccessibilityTrustService } from '../agentHostMacAccessibi
 /*
  * While Accessibility or Screen Recording is missing, the plugin's readiness check asks the MCP client, in a loop, to
  * choose one value of a single required `choice` enum: `request_<slug>` for each missing permission (the native macOS
- * prompt), `settings_<slug>` for each one whose native prompt did not grant it (its System Settings pane), and
+ * prompt), `settings_<slug>` for each one whose native prompt in this loop did not grant it (its System Settings pane), and
  * `try_again` (restart the helper and verify again). It re-asks after every choice until both are granted, which lets
  * the waiting tool call continue; declining stops the loop and fails the tool call. Every other prompt of the plugin
  * comes after this check. See `elicit_macos_permissions` in github/computer-use `src/mcp/src/server.rs`.
@@ -44,22 +44,27 @@ export interface IComputerUsePermissionPrompt {
 	readonly settings: ReadonlySet<ComputerUsePermission>;
 }
 
-function choiceFor(action: ComputerUseAction, permission: ComputerUsePermission | undefined): string | undefined {
-	switch (action) {
-		case 'request': return permission && `request_${PERMISSION_SLUGS[permission]}`;
-		case 'openSettings': return permission && `settings_${PERMISSION_SLUGS[permission]}`;
+/** One choice of the plugin's permission prompt: `request_<slug>`, `settings_<slug>` or `try_again`. */
+type PluginAction =
+	| { readonly kind: 'request' | 'openSettings'; readonly permission: ComputerUsePermission }
+	| { readonly kind: 'recheck' };
+
+function choiceFor(action: PluginAction): string {
+	switch (action.kind) {
+		case 'request': return `request_${PERMISSION_SLUGS[action.permission]}`;
+		case 'openSettings': return `settings_${PERMISSION_SLUGS[action.permission]}`;
 		case 'recheck': return TRY_AGAIN_CHOICE;
 	}
 }
 
-function actionForChoice(choice: string | undefined): IComputerUseSetupActionV1 | undefined {
+function pluginActionForChoice(choice: string | undefined): PluginAction | undefined {
 	if (choice === TRY_AGAIN_CHOICE) {
-		return { action: 'recheck' };
+		return { kind: 'recheck' };
 	}
 	for (const permission of computerUsePermissions) {
-		for (const action of ['request', 'openSettings'] as const) {
-			if (choice === choiceFor(action, permission)) {
-				return { action, permission };
+		for (const kind of ['request', 'openSettings'] as const) {
+			if (choice === choiceFor({ kind, permission })) {
+				return { kind, permission };
 			}
 		}
 	}
@@ -83,14 +88,14 @@ export function parseComputerUsePermissionPrompt(schema: ElicitationSchema | und
 	const settings = new Set<ComputerUsePermission>();
 	let canRecheck = false;
 	for (const choice of field.enum) {
-		const offered = actionForChoice(typeof choice === 'string' ? choice : undefined);
+		const offered = pluginActionForChoice(typeof choice === 'string' ? choice : undefined);
 		if (!offered) {
 			return undefined;
 		}
-		if (offered.action === 'recheck') {
+		if (offered.kind === 'recheck') {
 			canRecheck = true;
-		} else if (offered.permission) {
-			(offered.action === 'request' ? missing : settings).add(offered.permission);
+		} else {
+			(offered.kind === 'request' ? missing : settings).add(offered.permission);
 		}
 	}
 	if (!canRecheck || missing.size === 0 || [...settings].some(permission => !missing.has(permission))) {
@@ -148,26 +153,25 @@ export function classifyComputerUsePrompt(schema: ElicitationSchema | undefined)
 	return fields.some(field => choiceValues(field).some(isPermissionChoice)) ? { kind: 'unrecognizedPermissions' } : { kind: 'other' };
 }
 
+/** What a setup accepts while `prompt` waits: `allow` for each missing permission, and `recheck`. */
 function offeredActions(prompt: IComputerUsePermissionPrompt): IComputerUseSetupActionV1[] {
-	const actions: IComputerUseSetupActionV1[] = [];
-	for (const permission of computerUsePermissions) {
-		if (prompt.missing.has(permission)) {
-			actions.push({ action: 'request', permission });
-		}
-		if (prompt.settings.has(permission)) {
-			actions.push({ action: 'openSettings', permission });
-		}
-	}
-	actions.push({ action: 'recheck' });
-	return actions;
+	return [
+		...computerUsePermissions.filter(permission => prompt.missing.has(permission)).map((permission): IComputerUseSetupActionV1 => ({ action: 'allow', permission })),
+		{ action: 'recheck' },
+	];
 }
 
-function isOffered(prompt: IComputerUsePermissionPrompt, { action, permission }: IComputerUseSetupActionV1): boolean {
-	switch (action) {
-		case 'request': return !!permission && prompt.missing.has(permission);
-		case 'openSettings': return !!permission && prompt.settings.has(permission);
+function isOffered(prompt: IComputerUsePermissionPrompt, action: PluginAction): boolean {
+	switch (action.kind) {
+		case 'request': return prompt.missing.has(action.permission);
+		case 'openSettings': return prompt.settings.has(action.permission);
 		case 'recheck': return true;
 	}
+}
+
+/** How clients see a plugin action in flight: asking macOS and opening System Settings both carry out `allow`. */
+function operationAction(action: PluginAction): IComputerUseSetupActionV1 {
+	return action.kind === 'recheck' ? { action: 'recheck' } : { action: 'allow', permission: action.permission };
 }
 
 function selectedChoice(answer: ChatInputAnswer | undefined): string | undefined {
@@ -197,18 +201,6 @@ function stillNotGrantedError(missing: ReadonlySet<ComputerUsePermission>): ICom
 			? localize('computerUse.error.stillNotGranted.one', "macOS still reports {0} as off.", permissions[0])
 			: localize('computerUse.error.stillNotGranted.both', "macOS still reports {0} and {1} as off.", permissions[0], permissions[1]),
 	};
-}
-
-function notWaitingError(): IComputerUseErrorV1 {
-	return { code: 'notWaiting', message: localize('computerUse.error.notWaiting', "Copilot is no longer waiting for this setup. Ask Copilot to try again when you're ready.") };
-}
-
-function unconfirmedError(): IComputerUseErrorV1 {
-	return { code: 'unconfirmed', message: localize('computerUse.error.unconfirmed', "Copilot Computer Use stopped before confirming the permissions. If Copilot still can't use apps, ask it to try again.") };
-}
-
-function unsupportedPromptError(): IComputerUseErrorV1 {
-	return { code: 'unsupportedPrompt', message: localize('computerUse.error.unsupportedPrompt', "Copilot Computer Use asked for permissions in a way this setup doesn't support. Answer its request in the chat instead.") };
 }
 
 // #endregion
@@ -246,19 +238,35 @@ interface ISetup {
 	/** The open chat input request; `undefined` once a client or the host completed it. */
 	cardId: string | undefined;
 	prompt: IPendingPrompt | undefined;
-	/** The action sent for the previous prompt. Its outcome is the next prompt, or the plugin moving past its check. */
-	sent: IComputerUseSetupActionV1 | undefined;
+	/** The plugin action sent for the previous prompt. Its outcome is the next prompt, or the plugin moving past its check. */
+	sent: PluginAction | undefined;
 	/** Whether the host sent {@link sent} on its own, not for the user. */
 	sentAutomatically: boolean;
+	/** The permission whose System Settings pane opens on the next prompt: a new loop of the plugin offers the pane only after the native request that `allow` repeated, which macOS keeps silent. */
+	openSettingsNext: ComputerUsePermission | undefined;
 	error: IComputerUseErrorV1 | undefined;
 }
 
-interface IQueuedAction extends IComputerUseSetupActionV1 {
+/** What a queued action asks for: the setup UI's `allow`, which becomes a plugin action only when it is sent, or an exact plugin action. */
+type SetupAction = { readonly kind: 'allow'; readonly permission: ComputerUsePermission } | PluginAction;
+
+function setupActionForRequest({ action, permission }: IComputerUseSetupActionV1): SetupAction | undefined {
+	switch (action) {
+		case 'allow': return permission && { kind: 'allow', permission };
+		case 'recheck': return { kind: 'recheck' };
+	}
+}
+
+interface IQueuedAction {
 	readonly setupId: string;
 	readonly round: number;
+	readonly action: SetupAction;
 	/** Sent by the host on its own, so an outcome that changed nothing is no error. */
 	readonly automatic?: boolean;
 }
+
+/** Why a setup ended without becoming ready. Only logged: ended setups carry no error. */
+type SetupEndReason = 'decline' | 'cancel' | 'notWaiting' | 'unconfirmed' | 'unsupportedPrompt';
 
 const MAX_REMEMBERED_NONCES = 128;
 const MAX_QUEUED_ACTIONS = 16;
@@ -278,7 +286,8 @@ const ACCESSIBILITY_PROMPT_SETTLE_MS = 2000;
  * run one at a time across all setups, so native prompts never overlap; a request for an older round is dropped.
  *
  * When macOS reports an Accessibility change, every setup that waits for Accessibility checks again on its own, so a
- * grant in System Settings shows up without the user asking.
+ * grant in System Settings shows up without the user asking. Likewise, once one setup is ready, every other setup that
+ * waits checks again on its own.
  */
 export class CopilotComputerUsePermissionSetup extends Disposable {
 
@@ -287,6 +296,8 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 	private readonly _seenNonces = new Set<string>();
 	/** Chats whose user declined setup in their current turn. */
 	private readonly _declinedChats = new Set<ICopilotComputerUseSetupChat>();
+	/** Permissions the plugin asked macOS for natively in this process. macOS shows each prompt only once per app. */
+	private readonly _askedNatively = new Set<ComputerUsePermission>();
 	private readonly _permissions: Record<ComputerUsePermission, ComputerUsePermissionState> = { accessibility: 'unknown', screenRecording: 'unknown' };
 	private _verifiedAt: number | undefined;
 	/** The setup whose action is in flight. */
@@ -343,21 +354,23 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		// still open in the chat was abandoned; the new prompt replaces it in the same setup.
 		let setup = this._working?.chat === chat ? this._working : this._activeSetups(chat)[0];
 		if (!setup) {
-			setup = { id: generateUuid(), chat, state: 'needsPermissions', round: 0, cardId: undefined, prompt: undefined, sent: undefined, sentAutomatically: false, error: undefined };
+			setup = { id: generateUuid(), chat, state: 'needsPermissions', round: 0, cardId: undefined, prompt: undefined, sent: undefined, sentAutomatically: false, openSettingsNext: undefined, error: undefined };
 			this._setups.set(setup.id, setup);
 		}
 		setup.prompt?.result.complete({ action: 'cancel' });
-		if (setup.sent?.action === 'request' && setup.sent.permission === 'accessibility') {
+		if (setup.sent?.kind === 'request' && setup.sent.permission === 'accessibility') {
 			this._accessibilityRequestedAt = Date.now();
 		}
 		// The plugin installed its helper app before it could find permissions missing.
 		this._readHelperAppIcon();
 		this._recordVerified(offered.missing);
 		// Only a check the user asked for reports that it changed nothing.
-		setup.error = setup.sent?.action === 'recheck' && !setup.sentAutomatically ? stillNotGrantedError(offered.missing) : undefined;
+		setup.error = setup.sent?.kind === 'recheck' && !setup.sentAutomatically ? stillNotGrantedError(offered.missing) : undefined;
+		const openSettings = setup.openSettingsNext;
 		setup.round++;
 		setup.sent = undefined;
 		setup.sentAutomatically = false;
+		setup.openSettingsNext = undefined;
 		setup.state = 'needsPermissions';
 		setup.prompt = { offered, input, result: new DeferredPromise<ElicitationResult>() };
 		if (this._working === setup) {
@@ -365,16 +378,22 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		}
 		this._logService.info(`[ComputerUse] Setup ${setup.id} round ${setup.round}: missing ${[...offered.missing].join(', ')}`);
 		this._showInput(setup);
-		this._publish();
 		const result = setup.prompt.result.p;
-		this._drain();
+		if (openSettings && isOffered(offered, { kind: 'openSettings', permission: openSettings })) {
+			// Finishes the user's `allow` before anything else runs.
+			this._queue.unshift({ setupId: setup.id, round: setup.round, action: { kind: 'openSettings', permission: openSettings } });
+		}
+		// Sending publishes, so clients don't see the setup wait between two steps of one action.
+		if (!this._drain()) {
+			this._publish();
+		}
 		return result;
 	}
 
 	/**
 	 * Handles a client's answer to a setup's chat input request; `false` when `requestId` is not one. Declining or
-	 * cancelling ends the setup. Accepting submits the chosen action like a request, which clients without the setup UI
-	 * do by answering the request's ordinary questions; like the plugin, an answer without a choice checks again.
+	 * cancelling ends the setup. Accepting sends the plugin's choice that the user picked in the request's ordinary
+	 * questions, which clients without the setup UI answer; like the plugin, an answer without a choice checks again.
 	 */
 	respondToInput(chat: ICopilotComputerUseSetupChat, requestId: string, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer> | undefined): boolean {
 		const setup = [...this._setups.values()].find(candidate => candidate.chat === chat && candidate.cardId === requestId);
@@ -386,16 +405,16 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 			if (response === ChatInputResponseKind.Decline) {
 				this._declinedChats.add(chat);
 			}
-			this._end(setup, undefined, response === ChatInputResponseKind.Decline ? 'decline' : 'cancel');
+			this._end(setup, response === ChatInputResponseKind.Decline ? 'decline' : 'cancel');
 			return true;
 		}
 		const choice = selectedChoice(answers?.[CHOICE_FIELD]);
-		const action = choice === undefined ? { action: 'recheck' as const } : actionForChoice(choice);
+		const action: PluginAction | undefined = choice === undefined ? { kind: 'recheck' } : pluginActionForChoice(choice);
 		if (action) {
-			this._enqueue({ ...action, setupId: setup.id, round: setup.round });
+			this._enqueue({ setupId: setup.id, round: setup.round, action });
 		} else {
 			// The plugin stops asking when it gets a choice it doesn't know.
-			this._end(setup, undefined, 'cancel');
+			this._end(setup, 'cancel');
 		}
 		return true;
 	}
@@ -411,7 +430,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 			if (setup.state === 'working' && success) {
 				this._ready(setup);
 			} else {
-				this._end(setup, setup.state === 'working' ? unconfirmedError() : notWaitingError(), 'cancel');
+				this._end(setup, setup.state === 'working' ? 'unconfirmed' : 'notWaiting');
 			}
 		}
 	}
@@ -431,7 +450,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 	 */
 	onUnrecognizedPrompt(chat: ICopilotComputerUseSetupChat): void {
 		for (const setup of this._activeSetups(chat)) {
-			this._end(setup, unsupportedPromptError(), 'cancel');
+			this._end(setup, 'unsupportedPrompt');
 		}
 	}
 
@@ -441,7 +460,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		for (const setup of this._activeSetups(chat)) {
 			// The chat's turn is over, so its request is left as the turn left it.
 			setup.cardId = undefined;
-			this._end(setup, notWaitingError(), 'cancel');
+			this._end(setup, 'notWaiting');
 		}
 	}
 
@@ -457,19 +476,20 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		for (const setup of this._setups.values()) {
 			if (setup.state === 'needsPermissions' && setup.prompt?.offered.missing.has('accessibility')) {
 				this._logService.info(`[ComputerUse] Setup ${setup.id} round ${setup.round}: macOS changed Accessibility, checking again`);
-				this._enqueue({ setupId: setup.id, round: setup.round, action: 'recheck', automatic: true });
+				this._enqueue({ setupId: setup.id, round: setup.round, action: { kind: 'recheck' }, automatic: true });
 			}
 		}
 	}
 
 	/**
-	 * Whether macOS may be asking for Accessibility. Asking adds the app to macOS's list, a change of its own, and shows
-	 * a prompt that the helper holds open; an automatic check restarts the helper, which would close that prompt.
+	 * Whether macOS may be asking for Accessibility, including through a waiting `allow`. Asking adds the app to macOS's
+	 * list, a change of its own, and shows a prompt that the helper holds open; an automatic check restarts the helper,
+	 * which would close that prompt.
 	 */
 	private _isAskingForAccessibility(): boolean {
-		const asks = (action: IComputerUseSetupActionV1 | undefined) => action?.action === 'request' && action.permission === 'accessibility';
+		const asks = (action: SetupAction | undefined) => (action?.kind === 'request' || action?.kind === 'allow') && action.permission === 'accessibility';
 		return asks(this._working?.sent)
-			|| this._queue.some(asks)
+			|| this._queue.some(queued => asks(queued.action))
 			|| (this._accessibilityRequestedAt !== undefined && Date.now() - this._accessibilityRequestedAt < ACCESSIBILITY_PROMPT_SETTLE_MS);
 	}
 
@@ -515,22 +535,32 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		this._recordVerified(new Set());
 		setup.state = 'ready';
 		setup.sent = undefined;
+		setup.openSettingsNext = undefined;
 		setup.error = undefined;
 		this._finish(setup, ChatInputResponseKind.Accept);
+		// The permissions are machine-wide, so the setups that still wait can continue too.
+		for (const other of this._setups.values()) {
+			if (other.state === 'needsPermissions') {
+				this._logService.info(`[ComputerUse] Setup ${other.id} round ${other.round}: another setup is ready, checking again`);
+				this._enqueue({ setupId: other.id, round: other.round, action: { kind: 'recheck' }, automatic: true });
+			}
+		}
 	}
 
-	private _end(setup: ISetup, error: IComputerUseErrorV1 | undefined, elicitation: 'decline' | 'cancel'): void {
+	private _end(setup: ISetup, reason: SetupEndReason): void {
 		if (setup.state === 'ready' || setup.state === 'ended') {
 			return;
 		}
-		this._logService.info(`[ComputerUse] Setup ${setup.id} ended (${error?.code ?? elicitation})`);
+		this._logService.info(`[ComputerUse] Setup ${setup.id} ended (${reason})`);
 		const prompt = setup.prompt;
+		const declined = reason === 'decline';
 		setup.state = 'ended';
 		setup.prompt = undefined;
 		setup.sent = undefined;
-		setup.error = error;
-		this._finish(setup, elicitation === 'decline' ? ChatInputResponseKind.Decline : ChatInputResponseKind.Cancel);
-		prompt?.result.complete({ action: elicitation });
+		setup.openSettingsNext = undefined;
+		setup.error = undefined;
+		this._finish(setup, declined ? ChatInputResponseKind.Decline : ChatInputResponseKind.Cancel);
+		prompt?.result.complete({ action: declined ? 'decline' : 'cancel' });
 	}
 
 	private _finish(setup: ISetup, response: ChatInputResponseKind): void {
@@ -549,6 +579,10 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 	private _recordVerified(missing: ReadonlySet<ComputerUsePermission>): void {
 		for (const permission of computerUsePermissions) {
 			this._permissions[permission] = missing.has(permission) ? 'notGranted' : 'granted';
+		}
+		if (!missing.has('accessibility')) {
+			// macOS asks for nothing the helper has, so automatic checks needn't wait for a prompt to settle.
+			this._accessibilityRequestedAt = undefined;
 		}
 		this._verifiedAt = Date.now();
 	}
@@ -585,42 +619,48 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 			return;
 		}
 		if (isNew) {
-			this._enqueue({ setupId: request.setupId, round: request.round, action: request.action, ...(request.permission ? { permission: request.permission } : {}) });
+			const action = setupActionForRequest(request);
+			if (action) {
+				this._enqueue({ setupId: request.setupId, round: request.round, action });
+			}
 		}
 	}
 
-	private _enqueue(action: IQueuedAction): void {
+	private _enqueue(entry: IQueuedAction): void {
 		// Every action makes the plugin verify again, so an automatic check adds nothing to a setup with an action
 		// waiting, and running one first would make the user's action stale.
-		if (action.automatic && this._queue.some(queued => queued.setupId === action.setupId)) {
+		if (entry.automatic && this._queue.some(queued => queued.setupId === entry.setupId)) {
 			return;
 		}
-		if (!action.automatic) {
-			const waiting = this._queue.findIndex(queued => queued.setupId === action.setupId && queued.automatic);
+		if (!entry.automatic) {
+			const waiting = this._queue.findIndex(queued => queued.setupId === entry.setupId && queued.automatic);
 			if (waiting !== -1) {
 				this._queue.splice(waiting, 1);
 			}
 		}
 		if (this._queue.length >= MAX_QUEUED_ACTIONS) {
-			this._logService.warn(`[ComputerUse] Dropping a '${action.action}' request: too many requests are waiting`);
+			this._logService.warn(`[ComputerUse] Dropping a '${entry.action.kind}' request: too many requests are waiting`);
 			return;
 		}
-		this._queue.push(action);
+		this._queue.push(entry);
 		this._drain();
 	}
 
-	/** Sends queued actions while none is in flight; one that no longer matches its setup's prompt is dropped. */
-	private _drain(): void {
+	/**
+	 * Sends the next queued action unless one is in flight, dropping those that no longer match their setup's prompt.
+	 * Returns whether it sent one, which it publishes.
+	 */
+	private _drain(): boolean {
 		while (!this._working && !this._store.isDisposed) {
 			const next = this._queue.shift();
 			if (!next) {
-				return;
+				return false;
 			}
 			const setup = this._setups.get(next.setupId);
 			const prompt = setup?.state === 'needsPermissions' && setup.round === next.round ? setup.prompt : undefined;
-			const choice = prompt && isOffered(prompt.offered, next) ? choiceFor(next.action, next.permission) : undefined;
-			if (!setup || !prompt || !choice) {
-				this._logService.info(`[ComputerUse] Dropping a '${next.action}' request for an older or unavailable step`);
+			const step = prompt && this._resolve(next.action, prompt.offered);
+			if (!setup || !prompt || !step || !isOffered(prompt.offered, step.action)) {
+				this._logService.info(`[ComputerUse] Dropping a '${next.action.kind}' request for an older or unavailable step`);
 				// A client may have completed the request to send it; keep the prompt answerable.
 				if (setup && !setup.cardId) {
 					this._showInput(setup);
@@ -631,16 +671,42 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 				this._logService.info(`[ComputerUse] Setup ${setup.id}: not checking again on its own while macOS asks for Accessibility`);
 				continue;
 			}
+			const choice = choiceFor(step.action);
 			this._logService.info(`[ComputerUse] Setup ${setup.id} round ${setup.round}: sending '${choice}'${next.automatic ? ' on its own' : ''}`);
+			if (step.action.kind === 'request') {
+				this._askedNatively.add(step.action.permission);
+			}
 			setup.prompt = undefined;
 			setup.state = 'working';
-			setup.sent = next.permission ? { action: next.action, permission: next.permission } : { action: next.action };
+			setup.sent = step.action;
 			setup.sentAutomatically = !!next.automatic;
+			setup.openSettingsNext = step.openSettingsNext;
 			setup.error = undefined;
 			this._working = setup;
 			this._publish();
 			prompt.result.complete({ action: 'accept', content: { [CHOICE_FIELD]: choice } });
+			return true;
 		}
+		return false;
+	}
+
+	/**
+	 * The plugin action that carries out `action` for `prompt`. `allow` has macOS ask natively the first time, and opens
+	 * System Settings after that. The plugin offers the pane only once a native request in its current loop didn't
+	 * grant the permission, so a new loop gets the silent request first and opens the pane on its next prompt.
+	 */
+	private _resolve(action: SetupAction, prompt: IComputerUsePermissionPrompt): { readonly action: PluginAction; readonly openSettingsNext?: ComputerUsePermission } {
+		if (action.kind !== 'allow') {
+			return { action };
+		}
+		const permission = action.permission;
+		if (!this._askedNatively.has(permission)) {
+			return { action: { kind: 'request', permission } };
+		}
+		if (prompt.settings.has(permission)) {
+			return { action: { kind: 'openSettings', permission } };
+		}
+		return { action: { kind: 'request', permission }, openSettingsNext: permission };
 	}
 
 	// #endregion
@@ -654,7 +720,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 			schemaVersion: 1,
 			permissions: computerUsePermissions.map(permission => ({ permission, state: this._permissions[permission] })),
 			...(this._verifiedAt !== undefined ? { verifiedAt: this._verifiedAt } : {}),
-			...(working?.sent ? { operation: { setupId: working.id, ...working.sent } } : {}),
+			...(working?.sent ? { operation: { setupId: working.id, ...operationAction(working.sent) } } : {}),
 			setups: [...this._setups.values()].map(setup => ({
 				id: setup.id,
 				chat: setup.chat.chatUri,

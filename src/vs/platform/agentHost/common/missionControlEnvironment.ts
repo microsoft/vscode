@@ -7,9 +7,22 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
 export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
+export const AgentHostDefaultCloneDirectorySettingId = 'chat.agentHost.defaultCloneDirectory';
+export const GitHubEnvironmentsEnabledSettingId = 'chat.agentHost.githubEnvironments.enabled';
+export const GitHubEnvironmentsAvailabilityTreatment = 'githubEnvironmentsAvailable';
+export const GitHubEnvironmentsAvailableContext = new RawContextKey<boolean>('githubEnvironmentsAvailable', false);
+
+export const IMissionControlAvailabilityService = createDecorator<IMissionControlAvailabilityService>('missionControlAvailabilityService');
+
+/** Experiment availability is independent of, and takes precedence over, user configuration. */
+export interface IMissionControlAvailabilityService {
+	readonly _serviceBrand: undefined;
+	readonly available: IObservable<boolean | undefined>;
+}
 export const MissionControlUseLocalCredentialsSettingId = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 /** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
 export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
@@ -25,6 +38,9 @@ export const IMissionControlSharingService = createDecorator<IMissionControlShar
 export interface IMissionControlSharingService {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<'disabled' | 'connecting' | 'enabled'>;
+	/** Machine-local name override used when registering this environment. */
+	readonly environmentName: IObservable<string | undefined>;
+	setEnvironmentName(name: string): Promise<void>;
 	setEnabled(enabled: boolean): Promise<void>;
 	/** Supplies the local folder catalogue from the window's workspace-selection surface. */
 	setProjectFolders(folders: readonly URI[]): void;

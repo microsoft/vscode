@@ -1238,11 +1238,6 @@ class AdditionalChat extends Disposable {
 		return this._workingDirectories.get();
 	}
 
-	/** {@link ownWorkingDirectories}, tracked by `reader`. */
-	readOwnWorkingDirectories(reader: IReader | undefined): readonly string[] | undefined {
-		return this._workingDirectories.read(reader);
-	}
-
 	toMetadata(): IAgentSessionChatMetadata {
 		const changes = this._changesSummary.get();
 		const workingDirectories = this._workingDirectories.get();
@@ -2316,38 +2311,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
-	 * The folders a new nested chat may work in: the session folder (the default chat's first folder that is not a
-	 * host scratch folder; `undefined` in a workspace-less session) and the non-scratch folders of all its chats,
-	 * session folder first, deduped. Reads cached summaries only, tracked by `reader`.
+	 * The session folder a new nested chat works in by default: the default chat's first folder that is not a host
+	 * scratch folder; `undefined` in a workspace-less session. Reads cached summaries only, tracked by `reader`.
 	 */
-	getNestedChatFolders(reader: IReader | undefined): { readonly sessionFolder: URI | undefined; readonly folders: readonly URI[] } {
-		// The chat catalog and the session workspace change with the chats and session folders read below.
-		this._chatsObs.read(reader);
+	getNestedChatSessionFolder(reader: IReader | undefined): URI | undefined {
+		// The session workspace changes with the session folders read below.
 		this.workspace.read(reader);
-		const scratch = this._scratchFolders.read(reader);
-		const isQuickChat = this.isQuickChat.read(reader);
-		const defaultChatWorkingDirectories = this._defaultChatWorkingDirectories.read(reader);
-		// A chat without folders of its own works in its session's: only the scratch primary of a quick chat.
-		const foldersOf = (directories: readonly string[] | undefined): readonly URI[] => directories
-			? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory)))
-			: isQuickChat ? this.workingDirectories.slice(0, 1) : this.workingDirectories;
-		// A quick chat's primary folder is the host's scratch folder for it, published or not: it is
-		// never offered, so a chat can only get a scratch folder of its own through "No Workspace".
-		const quickChatPrimary = isQuickChat ? this.workingDirectories[0] : undefined;
-		const isScratch = (folder: URI) => !!scratch?.has(folder) || (!!quickChatPrimary && isEqual(folder, quickChatPrimary));
-		const folders = new ResourceSet();
-		for (const directories of [defaultChatWorkingDirectories, ...[...this._additionalChats.values()].map(chat => chat.readOwnWorkingDirectories(reader))]) {
-			for (const folder of foldersOf(directories)) {
-				if (!isScratch(folder)) {
-					folders.add(folder);
-				}
-			}
+		if (this.isQuickChat.read(reader)) {
+			return undefined;
 		}
-		const sessionFolder = isQuickChat ? undefined : foldersOf(defaultChatWorkingDirectories).find(folder => !scratch?.has(folder));
-		return {
-			sessionFolder,
-			folders: sessionFolder ? [sessionFolder, ...[...folders].filter(folder => !isEqual(folder, sessionFolder))] : [...folders],
-		};
+		const scratch = this._scratchFolders.read(reader);
+		const directories = this._defaultChatWorkingDirectories.read(reader);
+		const folders = directories ? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory))) : this.workingDirectories;
+		return folders.find(folder => !scratch?.has(folder));
 	}
 
 	/** Whether `chat` is one of the backend chats this session's catalog lists. */
@@ -7655,10 +7631,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return undefined;
 		}
-		const { sessionFolder, folders } = cached.getNestedChatFolders(reader);
 		return {
-			sessionFolder,
-			sessionFolders: folders,
+			sessionFolder: cached.getNestedChatSessionFolder(reader),
 			multipleFolders: !!this._agentCapabilities.read(reader)?.get(cached.agentProvider)?.multipleWorkingDirectories,
 			browseActions: this.browseActions,
 		};
@@ -8843,15 +8817,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
-		const previousChats = cached.chats.get();
 		cached.applyChatCatalog(state);
 		this._cacheDirty = true;
-		// Session lists read `chats` when sessions change. Added and removed chats reach them with the root summary
-		// change, but a reorder of a subscribed session's chats leaves the root summary as it was.
-		const chats = cached.chats.get();
-		if (!arrayEquals(previousChats, chats) && previousChats.length === chats.length && chats.every(chat => previousChats.includes(chat))) {
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		}
+		// Chat order reaches consumers through the `chats` observable, not `onDidChangeSessions`: this runs
+		// while session lists observe chat details during rendering, and a session change would re-enter them.
 	}
 
 	/**

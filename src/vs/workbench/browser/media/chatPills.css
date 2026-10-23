@@ -70,7 +70,7 @@
 	gap: var(--vscode-spacing-size60);
 }
 
-.chat-pill-item,
+.chat-pills .monaco-action-bar .chat-pill-item,
 .chat-pills .monaco-action-bar .chat-pill-segmented {
 	display: inline-flex;
 	align-items: center;
@@ -222,6 +222,7 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-spacing-size160);
 	cursor: pointer;
 }
 

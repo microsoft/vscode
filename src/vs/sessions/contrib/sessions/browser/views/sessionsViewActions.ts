@@ -32,7 +32,7 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { getNewSessionSources, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemIsArchivedContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
+import { getNewSessionSources, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -133,17 +133,18 @@ CommandsRegistry.registerCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, (accesso
 ));
 
 /**
- * Deletes a custom group and its subgroups. Deleting several groups at once
- * offers Undo, which restores the groups, their order, and their sessions.
+ * Deletes a custom group and offers Undo when subgroups or nested sections are affected.
  */
 function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, viewsService: IViewsService): void {
 	const deleted = groupsService.deleteGroup(groupId);
-	if (!deleted || deleted.groups.length < 2) {
+	if (!deleted || (deleted.groups.length < 2 && deleted.sectionMembership.size === 0)) {
 		return;
 	}
 	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
-		message: localize('sessionGroupsDeleted', "{0} groups deleted", deleted.groups.length),
-		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting a group that contains subgroups. Undo restores the groups, their order, and their sessions, except sessions that were marked done or moved to another group since."),
+		message: deleted.groups.length === 1
+			? localize('sessionGroupDeleted', "Group deleted")
+			: localize('sessionGroupsDeleted', "{0} groups deleted", deleted.groups.length),
+		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting a group that contains subgroups or nested sections. Undo restores the groups, their order, and their sessions and sections, except sessions that were marked done or items moved to another group since."),
 		undo: async () => {
 			groupsService.restoreGroups(deleted);
 			status(localize('sessionGroupsRestored', "Groups restored."));
@@ -396,16 +397,17 @@ MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	order: 1,
 });
 
-/** Grouping by workspace or repository caps their sections, which Show switches between Recent and All. */
-const GroupedByWorkspaceOrRepositoryContext = ContextKeyExpr.or(
+/** Non-date grouping caps its sections, which Show switches between Recent and All. */
+const GroupedBySectionContext = ContextKeyExpr.or(
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Repository),
+	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
 );
 
 MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	submenu: Menus.SessionsViewShow,
 	title: localize2('showSessions', "Show"),
-	when: GroupedByWorkspaceOrRepositoryContext,
+	when: GroupedBySectionContext,
 	group: '1_presentation',
 	order: 2,
 });
@@ -544,6 +546,22 @@ registerAction2(class GroupByTimeAction extends Action2 {
 	}
 });
 
+registerAction2(class GroupByEnvironmentAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.groupByEnvironment',
+			title: localize2('groupByEnvironment', "Environment"),
+			category: SessionsCategories.Sessions,
+			toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
+			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3 }],
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+		view?.setGrouping(SessionsGrouping.Environment);
+	}
+});
+
 registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 	constructor() {
 		super({
@@ -579,7 +597,7 @@ registerAction2(class ShowRecentWorkspaceSessionsAction extends Action2 {
 				id: Menus.SessionsViewShow,
 				group: '1_show',
 				order: 0,
-				when: GroupedByWorkspaceOrRepositoryContext,
+				when: GroupedBySectionContext,
 			}]
 		});
 	}
@@ -602,7 +620,7 @@ registerAction2(class ShowAllWorkspaceSessionsAction extends Action2 {
 				id: Menus.SessionsViewShow,
 				group: '1_show',
 				order: 1,
-				when: GroupedByWorkspaceOrRepositoryContext,
+				when: GroupedBySectionContext,
 			}]
 		});
 	}
@@ -669,10 +687,11 @@ registerAction2(class FindSessionAction extends Action2 {
 
 //  Section Actions
 
-/** Workspace and repository sections, whose New Session starts in a workspace that their sessions work in. */
-const WorkspaceOrRepositorySectionContext = ContextKeyExpr.or(
+/** Grouping sections whose New Session starts in a workspace that their sessions work in. */
+const SessionGroupingSectionContext = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'repository'),
+	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'environment'),
 );
 
 /** Opens a new session that starts in the workspace and environment of `session`. */
@@ -714,14 +733,14 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						SessionSectionHasNonCloudRepositoryContext,
-						WorkspaceOrRepositorySectionContext)
+						SessionGroupingSectionContext)
 				},
 				{
 					id: SessionSectionToolbarMenuId,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
-						WorkspaceOrRepositorySectionContext,
+						SessionGroupingSectionContext,
 						ContextKeyExpr.or(
 							ChatContextKeys.enabled.negate(),
 							SessionSectionHasNonCloudRepositoryContext.negate()),
@@ -734,8 +753,8 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
-		// A repository section spans environments, so it starts like its most recently created session.
-		const session = context.repository
+		// Sections spanning workspaces start like their most recently created available session.
+		const session = context.repository || context.environment
 			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService))
 				.reduce<ISession | undefined>((latest, { session }) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined)
 			: undefined;
@@ -1018,7 +1037,7 @@ registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
 		}
 		const sessionGroupsService = accessor.get(ISessionGroupsService);
 		const hasSubgroups = sessionGroupsService.getTree().getSubgroups(context.group.id).length > 0;
-		if (!hasSubgroups && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
+		if (!hasSubgroups && sessionGroupsService.getSectionIdsInGroup(context.group.id).length === 0 && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
 			sessionGroupsService.deleteGroup(context.group.id);
 		}
 	}
@@ -1600,17 +1619,24 @@ registerAction2(class DeleteSessionAction extends Action2 {
 CommandsRegistry.registerCommandAlias('sessionsViewPane.markRead', MARK_SESSION_READ_COMMAND_ID);
 CommandsRegistry.registerCommandAlias('sessionsViewPane.markUnread', MARK_SESSION_UNREAD_COMMAND_ID);
 
-async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | undefined, isRead: boolean): Promise<void> {
+function setSessionListChatReadState(sessionsManagementService: ISessionsManagementService, { session, chat }: ISessionChatItem, isRead: boolean): Promise<boolean | void> {
+	if (isEqual(chat.resource, session.mainChat.get().resource)) {
+		return isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session);
+	}
+	return isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat);
+}
+
+async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | ISessionChatItem | undefined, isRead: boolean): Promise<void> {
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	if (context && !Array.isArray(context) && hasKey(context, { session: true, chat: true })) {
+		await setSessionListChatReadState(sessionsManagementService, context, isRead);
+		return;
+	}
 	if (!context) {
 		const chats = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.getFocusedChatItems() ?? [];
 		if (chats.length > 0) {
-			for (const { session, chat } of chats) {
-				if (isEqual(chat.resource, session.mainChat.get().resource)) {
-					await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
-				} else {
-					await (isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat));
-				}
+			for (const chat of chats) {
+				await setSessionListChatReadState(sessionsManagementService, chat, isRead);
 			}
 			return;
 		}
@@ -1639,6 +1665,15 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 					SessionIsReadContext.negate(),
 					SessionIsArchivedContext.negate(),
 				),
+			}, {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 2.5,
+				when: ContextKeyExpr.and(
+					SessionChatItemCanSetReadStateContext,
+					SessionChatItemIsReadContext.negate(),
+					SessionChatItemIsArchivedContext.negate(),
+				),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/5_read',
@@ -1651,7 +1686,7 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			}))]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
 		return markSessionListTargetsRead(accessor, context, true);
 	}
 });
@@ -1674,6 +1709,15 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 					SessionIsReadContext,
 					SessionIsArchivedContext.negate(),
 				),
+			}, {
+				id: Menus.SessionChatItemContext,
+				group: '1_chat',
+				order: 2.5,
+				when: ContextKeyExpr.and(
+					SessionChatItemCanSetReadStateContext,
+					SessionChatItemIsReadContext,
+					SessionChatItemIsArchivedContext.negate(),
+				),
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				group: 'secondary/5_read',
@@ -1686,7 +1730,7 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			}))]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
 		return markSessionListTargetsRead(accessor, context, false);
 	}
 });

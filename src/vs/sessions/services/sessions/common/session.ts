@@ -331,7 +331,7 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Last host-observed pull request state. */
 		readonly state?: 'open' | 'closed' | 'merged';
-		/** State from the live workbench pull request model, when resolved. */
+		/** Last workbench-observed state, restored from cache until the live model resolves. */
 		readonly liveState?: 'open' | 'closed' | 'merged';
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
@@ -363,7 +363,7 @@ export interface IGitHubPullRequestRef {
 	readonly icon?: ThemeIcon;
 	/** Last host-observed pull request state. */
 	readonly state?: 'open' | 'closed' | 'merged';
-	/** State from the live workbench pull request model, when resolved. */
+	/** Last workbench-observed state, restored from cache until the live model resolves. */
 	readonly liveState?: 'open' | 'closed' | 'merged';
 	/**
 	 * Pull request title, when the session recorded one. Absent for pull requests
