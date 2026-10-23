@@ -44,8 +44,9 @@ import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKin
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar } from './changesView.js';
+import { ChangesActionsBar, createActiveChangesActionsSource } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -233,6 +234,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ILogService logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -349,7 +351,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}));
 
 		// Create Pull Request (and related) actions render on the right of the header row.
-		store.add(instantiationService.createInstance(ChangesActionsBar, right, new Set<string>()));
+		store.add(instantiationService.createInstance(ChangesActionsBar, right, createActiveChangesActionsSource(this.changesViewService, this.sessionsService), new Set<string>()));
 
 		return store;
 	}

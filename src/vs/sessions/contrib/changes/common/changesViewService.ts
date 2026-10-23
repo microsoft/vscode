@@ -75,6 +75,27 @@ export interface IChangesSessionObservables {
 	readonly stateObs: IObservable<ActiveSessionState | undefined>;
 }
 
+/** The changes observables of the active session, assembled from the service's `activeSession*` observables. */
+export function getActiveSessionChanges(service: IChangesViewService): IChangesSessionObservables {
+	return {
+		resourceObs: service.activeSessionResourceObs,
+		typeObs: service.activeSessionTypeObs,
+		isVirtualWorkspaceObs: service.activeSessionIsVirtualWorkspaceObs,
+		hasGitRepositoryObs: service.activeSessionHasGitRepositoryObs,
+		reviewCommentCountByFileObs: service.activeSessionReviewCommentCountByFileObs,
+		changesetsLoadingObs: service.activeSessionChangesetsLoadingObs,
+		changesetsObs: service.activeSessionChangesetsObs,
+		changesetObs: service.activeSessionChangesetObs,
+		changesetLoadingObs: service.activeSessionChangesetLoadingObs,
+		changesetOperationsObs: service.activeSessionChangesetOperationsObs,
+		changesObs: service.activeSessionChangesObs,
+		loadingObs: service.activeSessionLoadingObs,
+		changesSummaryObs: service.activeSessionChangesSummaryObs,
+		sectionCollapseStateObs: service.activeSessionSectionCollapseStateObs,
+		stateObs: service.activeSessionStateObs,
+	};
+}
+
 export interface IChangesViewService {
 	readonly _serviceBrand: undefined;
 

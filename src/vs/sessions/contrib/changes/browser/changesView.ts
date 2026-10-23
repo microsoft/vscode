@@ -94,7 +94,7 @@ import { compareFileNames, comparePaths } from '../../../../base/common/comparer
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewService, getActiveSessionChanges } from '../common/changesViewService.js';
 import { ChangesSummaryWidget } from './changesSummaryWidget.js';
 import { ChangesStatsWidget, IChangesStats } from '../../../../workbench/browser/changesStatsWidget.js';
 import { Menus } from '../../../browser/menus.js';
@@ -148,6 +148,17 @@ interface IChangesButtonBarWidget extends IDisposable {
 	readonly hasActions: boolean;
 }
 
+/** The session a changes actions bar acts on, with that session's changes observables. */
+export interface IChangesActionsSource {
+	readonly session: IObservable<IActiveSession | undefined>;
+	readonly changes: IChangesSessionObservables;
+}
+
+/** The source acting on the active session. */
+export function createActiveChangesActionsSource(changesViewService: IChangesViewService, sessionsService: ISessionsService): IChangesActionsSource {
+	return { session: sessionsService.activeSession, changes: getActiveSessionChanges(changesViewService) };
+}
+
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _onDidChangeActions = this._register(new Emitter<void>());
@@ -158,9 +169,9 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 
 	constructor(
 		container: HTMLElement,
+		changes: IChangesSessionObservables,
 		hasGitOperationInProgressObs: IObservable<boolean>,
 		@IMenuService menuService: IMenuService,
-		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -171,7 +182,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		super();
 
 		const outgoingChangesObs = derivedObservableWithCache<number | undefined>(this, (reader, lastValue) => {
-			const activeSessionState = changesViewService.activeSessionStateObs.read(reader);
+			const activeSessionState = changes.stateObs.read(reader);
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
 			if (hasGitOperationInProgress) {
 				return lastValue;
@@ -193,7 +204,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		this._register(autorun(reader => {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
 			sessionIsActiveObs.read(reader);
-			const sessionResource = changesViewService.activeSessionResourceObs.read(reader);
+			const sessionResource = changes.resourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 
 			const buttonBar = new MenuWorkbenchButtonBar(
@@ -324,24 +335,24 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 
 	constructor(
 		container: HTMLElement,
+		source: IChangesActionsSource,
 		excludedOperationIds: ReadonlySet<string>,
 		@IMenuService menuService: IMenuService,
-		@IChangesViewService changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
+		const { session: sessionObs, changes } = source;
 		const menu = this._register(menuService.createMenu(MenuId.AgentsChangesToolbar, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const dropdownMenu = this._register(menuService.createMenu(Menus.ChangesOperationsDropdown, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		const createPullRequestContextView = this._register(instantiationService.createInstance(CreatePullRequestContextView));
 		const createPullRequestChatRequest = instantiationService.createInstance(CreatePullRequestChatRequest);
 		this._register(autorun(reader => {
-			changesViewService.activeSessionResourceObs.read(reader);
+			changes.resourceObs.read(reader);
 			createPullRequestContextView.close();
 		}));
 
@@ -365,7 +376,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			}
 		));
 		this._register(buttonBar.onWillRun(e => {
-			const operation = changesViewService.activeSessionChangesetOperationsObs.get().find(operation => operation.id === e.action.id);
+			const operation = changes.changesetOperationsObs.get().find(operation => operation.id === e.action.id);
 			if (!operation || !isSessionPullRequestOperation(operation)) {
 				unlockChatPetCreatePullRequestAchievement(e.action.id, chatPetService);
 			}
@@ -414,7 +425,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		});
 
 		const operationActionGroupsObs = derived<{ readonly groups: IAction[][]; readonly hasRunning: boolean }>(reader => {
-			const changeset = changesViewService.activeSessionChangesetObs.read(reader);
+			const changeset = changes.changesetObs.read(reader);
 			if (!changeset) {
 				return { groups: [], hasRunning: false };
 			}
@@ -424,7 +435,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			// by the host because the Agent Merge menu keys off them to know it
 			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
 			// Merge is unavailable this state simply offers no button.
-			const operations = changesViewService.activeSessionChangesetOperationsObs.read(reader);
+			const operations = changes.changesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
 				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
@@ -440,8 +451,8 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				enabled: op.status !== SessionChangesetOperationStatus.Disabled && op.status !== SessionChangesetOperationStatus.Running,
 				run: () => {
 					if (isSessionPullRequestOperation(op)) {
-						const state = changesViewService.activeSessionStateObs.read(undefined);
-						const session = sessionsService.activeSession.read(undefined);
+						const state = changes.stateObs.read(undefined);
+						const session = sessionObs.read(undefined);
 						// The chat whose changes the form was opened from, even if the user switches chats meanwhile.
 						const chat = session?.activeChat.read(undefined);
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
@@ -499,13 +510,13 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		});
 
 		this._register(autorun(reader => {
-			const isLoading = changesViewService.activeSessionLoadingObs.read(reader);
+			const isLoading = changes.loadingObs.read(reader);
 			if (changesEditorTransitionObs.read(reader) || isLoading) {
 				return;
 			}
 
 			// Resource-scoped Git settings can change the advertised operations once the new chat's folders are mounted.
-			if (!isChangesActionsWorkspaceReady(sessionsService.activeSession.read(reader), workspaceFoldersObs.read(reader), reader)) {
+			if (!isChangesActionsWorkspaceReady(sessionObs.read(reader), workspaceFoldersObs.read(reader), reader)) {
 				if (buttonBar.buttons.length > 0) {
 					buttonBar.update([], []);
 				}
@@ -607,16 +618,15 @@ const TITLE_BAR_EXCLUDED_OPERATION_IDS: ReadonlySet<string> = new Set([AGENT_HOS
 
 /**
  * Renders the session changes action button-bar (e.g. "Create Pull Request") into
- * a container, choosing the agent-host or git variant based on the active session.
+ * a container, choosing the agent-host or git variant based on the session of its source.
  * Used to host the actions in the desktop Changes editor header.
  */
 export class ChangesActionsBar extends Disposable {
 	constructor(
 		container: HTMLElement,
+		source: IChangesActionsSource,
 		excludedOperationIds: ReadonlySet<string>,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IChangesViewService changesViewService: IChangesViewService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -630,11 +640,11 @@ export class ChangesActionsBar extends Disposable {
 			if (hasGitOperationInProgressGlobalObs.read(reader)) {
 				return true;
 			}
-			return changesViewService.activeSessionStateObs.read(reader)?.hasGitOperationInProgress === true;
+			return source.changes.stateObs.read(reader)?.hasGitOperationInProgress === true;
 		});
 
 		const isAgentHostSessionObs = derived(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
+			const activeSession = source.session.read(reader);
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
@@ -648,8 +658,8 @@ export class ChangesActionsBar extends Disposable {
 			dom.clearNode(container);
 
 			const widget = isAgentHostSessionObs.read(reader)
-				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, excludedOperationIds)
-				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, hasGitOperationInProgressObs);
+				? instantiationService.createInstance(ChangesWorkbenchButtonBarWidget, container, source, excludedOperationIds)
+				: instantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, container, source.changes, hasGitOperationInProgressObs);
 			reader.store.add(widget);
 			currentWidget = widget;
 			reader.store.add(widget.onDidChangeActions(() => updateVisibility()));
@@ -657,7 +667,7 @@ export class ChangesActionsBar extends Disposable {
 		}));
 
 		this._register(autorun(reader => {
-			sessionsService.activeSession.read(reader)?.status.read(reader);
+			source.session.read(reader)?.status.read(reader);
 			updateVisibility();
 		}));
 	}
@@ -675,13 +685,15 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		options: IActionViewItemOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChangesViewService private readonly changesViewService: IChangesViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super(undefined, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(this.instantiationService.createInstance(ChangesActionsBar, container, TITLE_BAR_EXCLUDED_OPERATION_IDS));
+		this._register(this.instantiationService.createInstance(ChangesActionsBar, container, createActiveChangesActionsSource(this.changesViewService, this.sessionsService), TITLE_BAR_EXCLUDED_OPERATION_IDS));
 	}
 }
 
@@ -1736,14 +1748,15 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession ? isAgentHostProviderId(activeSession.providerId) : false;
 		});
 
+		const source = createActiveChangesActionsSource(this.changesViewService, this.sessionsService);
 		this.renderDisposables.add(autorun(reader => {
 			dom.clearNode(this.actionsContainer!);
 
 			const isAgentHostSession = isAgentHostSessionObs.read(reader);
 
 			const widget = isAgentHostSession
-				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, new Set<string>())
-				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, this.hasGitOperationInProgressObs);
+				? this.scopedInstantiationService.createInstance(ChangesWorkbenchButtonBarWidget, this.actionsContainer!, source, new Set<string>())
+				: this.scopedInstantiationService.createInstance(ChangesMenuWorkbenchButtonBarWidget, this.actionsContainer!, source.changes, this.hasGitOperationInProgressObs);
 			reader.store.add(widget);
 		}));
 	}
