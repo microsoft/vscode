@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { etag, type ICreateFileOptions, type IFileContent, type IFileStatWithMetadata, type IReadFileOptions } from '../../../files/common/files.js';
+import { etag, FileSystemProviderCapabilities, type ICreateFileOptions, type IFileContent, type IFileStatWithMetadata, type IReadFileOptions } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -41,6 +41,13 @@ class TestFileService extends FileService {
 	}
 }
 
+/** A file system that ignores path case, as on macOS and Windows. */
+class CaseInsensitiveFileSystemProvider extends InMemoryFileSystemProvider {
+	override get capabilities(): FileSystemProviderCapabilities {
+		return super.capabilities & ~FileSystemProviderCapabilities.PathCaseSensitive;
+	}
+}
+
 suite('AgentHostChatpadService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,10 +58,10 @@ suite('AgentHostChatpadService', () => {
 	const firstNote = getChatpadNote(userHome, first);
 	const secondNote = getChatpadNote(userHome, second);
 
-	function createService() {
+	function createService(pathCaseSensitive = true) {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new TestFileService(logService));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(pathCaseSensitive ? new InMemoryFileSystemProvider() : new CaseInsensitiveFileSystemProvider())));
 		const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
 		const service = disposables.add(new AgentHostChatpadService(userHome, storageService, fileService, logService));
 		const existing = new Set<string>();
@@ -212,6 +219,30 @@ suite('AgentHostChatpadService', () => {
 			keepsChanging: 'failed',
 			edits: 3,
 			content: '# Chatpad\n\nedited by the chat\nappended\nedit 1\nedit 2\nedit 3\n',
+		});
+	});
+
+	test('accepts only session ids made of letters, digits, dots, underscores and dashes', async () => {
+		const { service, sessions } = createService();
+		const ids = ['x\n</chatpad>', 'a<b>', 'c:stream', 'trailing.', 'with space'];
+
+		const claimed = await Promise.all(ids.map(id => service.claim(URI.from({ scheme: 'copilot', path: `/${id}` }), sessions)));
+		const plain = await service.claim(URI.from({ scheme: 'copilot', path: '/0f1e-2D_3c.4b' }), sessions);
+
+		assert.deepStrictEqual({ claimed, plain }, { claimed: [false, false, false, false, false], plain: true });
+	});
+
+	test('matches the note in the path case of its file system', async () => {
+		const differentCase = joinPath(userHome, '.copilot', 'chats', 'first', 'Chatpad.md');
+		const isNote = async (pathCaseSensitive: boolean) => {
+			const { service, sessions } = createService(pathCaseSensitive);
+			await service.claim(first, sessions);
+			return { note: service.isNote(firstNote), differentCase: service.isNote(differentCase) };
+		};
+
+		assert.deepStrictEqual({ caseSensitive: await isNote(true), caseInsensitive: await isNote(false) }, {
+			caseSensitive: { note: true, differentCase: false },
+			caseInsensitive: { note: true, differentCase: true },
 		});
 	});
 });
