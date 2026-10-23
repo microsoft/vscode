@@ -113,7 +113,7 @@ import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelPro
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
+import { CopilotGitHubTelemetryForwarder, isHydraFusionTelemetryKind, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, getCopilotHydraFusionConfig, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
@@ -921,6 +921,16 @@ function isExtensionHostCliMarker(marker: IExtensionHostCliMarker | undefined): 
 }
 
 /**
+ * Title of a legacy extension-host Copilot CLI chat, mirroring the extension's
+ * `getSessionTitleImpl`: the CLI `name` (set by a rename), then the custom title
+ * the extension staged in the marker, then the SDK summary.
+ */
+function extensionHostCliTitle(sdkName: unknown, customTitle: unknown, sdkSummary: unknown): string | undefined {
+	const trimmed = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : undefined;
+	return trimmed(sdkName) ?? (typeof customTitle === 'string' && customTitle.trim() ? customTitle : undefined) ?? trimmed(sdkSummary);
+}
+
+/**
  * Working directory candidates the extension host recorded for a chat, in
  * precedence order, used when the SDK reports none. A worktree session ran in
  * its checkout, not the repository root — but that checkout may since have been
@@ -1156,6 +1166,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _connectorRefreshTasks = new WeakMap<CopilotAgentSession, Promise<void>>();
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
+	/** Selections awaiting replay survive a failed replacement or model update. */
+	private readonly _pendingModelSelections = new Map<string, ModelSelection>();
 	/** Canvases a configuration refresh is handing from a chat's previous runtime to its replacement. */
 	private readonly _canvasHandoffs = new ResourceMap<ICopilotCanvasHandoff>();
 	/**
@@ -3501,7 +3513,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} else {
 			const modelCallId = this._modelCallIdForTelemetry(notification);
 			const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
-			this._gitHubTelemetryForwarder.forward(notification, undefined, undefined, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined);
+			const fusionId = isHydraFusionTelemetryKind(notification.event.kind) ? notification.event.properties.fusion_id : undefined;
+			// A route row can arrive before the session links its workflow to a turn; it still joins through fusion_id.
+			const fusionTurnId = typeof fusionId === 'string' && fusionId ? session?.getFusionTurnId(fusionId) : undefined;
+			this._gitHubTelemetryForwarder.forward(notification, fusionTurnId, undefined, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined);
 		}
 	}
 
@@ -4877,7 +4892,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 							await this._resolveSessionProject({ ...s.context, cwd: workingDirectory.fsPath }, projectLimiter, projectByContext),
 							adoptable ? s.sessionId : undefined,
 						),
-					summary: s.summary,
+					summary: adoptable ? extensionHostCliTitle(s.name, marker?.customTitle, s.summary) : s.summary,
 					...(archivedLegacy ? { status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, true) } : {}),
 					workingDirectories: [workingDirectory],
 					_meta: withSessionInitiator(
@@ -5172,7 +5187,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
 			modifiedTime: sessionMetadata?.modifiedTime.getTime() ?? Date.now(),
 			project,
-			summary: sessionMetadata?.summary,
+			summary: adoptable
+				// The SDK's typed metadata omits `name`; it is present at runtime as the `workspace.yaml` title.
+				? extensionHostCliTitle((sessionMetadata as { readonly name?: string }).name, marker?.customTitle, sessionMetadata.summary)
+				: sessionMetadata?.summary,
 			...(adoptable && marker?.archived === true ? { status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, true) } : {}),
 			workingDirectories,
 			_meta: withSessionWorkspaceless(adoptable ? withSessionEhcliAdoptable(undefined) : undefined, workspaceless),
@@ -5674,6 +5692,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// operation that follows it fails (e.g. `_resumeSession` records one
 		// unconditionally before resuming) — drop any such ghost entry.
 		this._chatBackings.delete(chatKey);
+		this._pendingModelSelections.delete(chatKey);
 		this._persistedChatHistory.delete(chatKey);
 		this._credentialSources.delete(chatKey);
 		this._credentialPins.delete(chatKey);
@@ -6309,8 +6328,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The SDK's typed metadata omits `name`; it is present at runtime as the `workspace.yaml` title.
 			const sdkName = (sdkMetadata as { readonly name?: string } | undefined)?.name;
 			const cliName = typeof sdkName === 'string' && sdkName.trim() ? sdkName.trim() : undefined;
-			const cliSummary = typeof sdkMetadata?.summary === 'string' && sdkMetadata.summary.trim() ? sdkMetadata.summary.trim() : undefined;
-			const adoptedTitle = cliName ?? customTitle ?? cliSummary;
+			const adoptedTitle = extensionHostCliTitle(sdkName, customTitle, sdkMetadata?.summary);
 			const { archived, diagnostics } = await this._readExtensionHostCliArchiveState(sessionId);
 			if (archived === undefined) {
 				// Adoption commits the archived state, and the extension host stops listing
@@ -7160,6 +7178,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (entry.hasPendingConnectorRefresh) {
 				await entry.refreshConnectors(options.token);
 			}
+			await this._applyPendingModelSelection(context, entry, options.token ?? CancellationToken.None);
 			return entry;
 		}
 		if (options.token?.isCancellationRequested) {
@@ -7181,18 +7200,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._canvasHandoffs.set(entry.chatChannelUri, canvasHandoff);
 		}
 		let replacement: CopilotAgentSession | undefined;
+		const modelSelection = this._pendingModelSelections.get(context.chatKey) ?? entry.appliedModelSelection;
+		if (modelSelection) {
+			this._pendingModelSelections.set(context.chatKey, modelSelection);
+		}
 		try {
 			// Finish a started restart so queued control operations can target the replacement runtime.
 			await this._destroyLiveSession(entry, true);
 			const token = operation === 'startMcpServer' ? CancellationToken.None : options.token;
 			if (entry.sessionId === context.sessionBackedId) {
 				replacement = await this._resumeSession(entry.sessionId, context.chat, context.workspaceless, workingDirectories, undefined, token);
-				return replacement;
+			} else {
+				replacement = await this._ensureResolvedChatSession(context, workingDirectories, undefined, token);
+				if (!replacement) {
+					throw new Error(`Cannot refresh Copilot session configuration for chat: ${context.chat.toString()}`);
+				}
 			}
-			replacement = await this._ensureResolvedChatSession(context, workingDirectories, undefined, token);
-			if (!replacement) {
-				throw new Error(`Cannot refresh Copilot session configuration for chat: ${context.chat.toString()}`);
-			}
+			await this._applyPendingModelSelection(context, replacement, token ?? CancellationToken.None);
 			return replacement;
 		} finally {
 			if (canvasHandoff) {
@@ -7265,6 +7289,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				entry.assertScopedCredential(credential);
 			}
 
+			await this._applyPendingModelSelection(current, entry, token);
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 			}
@@ -7931,6 +7956,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._canvasHandoffs.delete(chat);
 			this._chatBackings.delete(chatKey);
+			this._pendingModelSelections.delete(chatKey);
 			this._persistedChatHistory.delete(chatKey);
 			this._chatOwners.delete(chatKey);
 			this._chatStorageScopes.delete(chatKey);
@@ -8506,29 +8532,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const credentials = context.credentials ?? this._credentialSources.get(context.chatKey);
 			await raceCancellationError(this._validateModelSelection(model, credentials), token);
 			let current = this._resolveChatContext(chat, operationContext);
-			const catalog = this._getScopedModelCatalog(credentials);
-			const longContextWindow = this._longContextWindowFor(model.id, credentials ? catalog?.models ?? [] : undefined);
-			const freeLongContext = catalog ? catalog.freeLongContextModels.has(model.id) : !credentials && this._isFreeLongContext(model.id);
-			// A `family` alias routes the host's prompt and tool profile only. The
-			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.provisionalKey);
 			if (provisional) {
 				provisional.model = model;
+				this._pendingModelSelections.delete(current.chatKey);
 			} else {
 				await this._applyChatCredentialBoundary(current, this._captureChatCredential(current));
 				current = this._resolveChatContext(chat, operationContext);
 				const entry = current.target ?? await this._ensureResolvedChatSession(current, undefined, undefined, token);
 				const previousModelId = this._chatBackings.get(current.chatKey)?.model?.id;
-				const policy = entry
-					? await this._managedSettingsResolver.resolve((await this._ensureClientForChat(chat)).rpc.managedSettings, this._getGitHubSessionCredentials(chat).token, entry.workingDirectory?.fsPath, token)
-					: undefined;
-				const requestedModel = policy ? omitCopilotManagedModelDefaults(model, policy) : model;
-				const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
-				// Clear stale SDK preferences when a selection or an override is removed.
-				const autoTier = isAutoModel(model.id)
-					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && hasCopilotManagedAutoPreference(policy) ? undefined : null)
-					: undefined;
-				await entry?.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, current.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
+				if (entry) {
+					await this._applyModelSelection(current, entry, model, token);
+				}
 				if (entry && previousModelId !== model.id && (isCopilotHydraFusionModelId(previousModelId) || isCopilotHydraFusionModelId(model.id))) {
 					entry.markModelChangeRequiresRestart();
 				}
@@ -8545,6 +8560,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._onDidChangeChatData.fire({ chat, providerData: encodeProviderData(updated) });
 			}
 		});
+	}
+
+	private async _applyPendingModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, token: CancellationToken): Promise<void> {
+		const model = this._pendingModelSelections.get(context.chatKey);
+		if (model) {
+			await this._applyModelSelection(context, entry, model, token);
+		}
+	}
+
+	private async _applyModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, model: ModelSelection, token: CancellationToken): Promise<void> {
+		const policy = await this._managedSettingsResolver.resolve((await this._ensureClientForChat(context.chat)).rpc.managedSettings, this._getGitHubSessionCredentials(context.chat).token, entry.workingDirectory?.fsPath, token);
+		const credentials = context.credentials ?? this._credentialSources.get(context.chatKey);
+		const catalog = this._getScopedModelCatalog(credentials);
+		const longContextWindow = this._longContextWindowFor(model.id, credentials ? catalog?.models ?? [] : undefined);
+		const freeLongContext = catalog ? catalog.freeLongContextModels.has(model.id) : !credentials && this._isFreeLongContext(model.id);
+		const requestedModel = omitCopilotManagedModelDefaults(model, policy);
+		const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
+		// Clear stale SDK preferences when a selection or an override is removed.
+		const autoTier = isAutoModel(model.id)
+			? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, context.ownerSessionId) ?? (hasCopilotManagedAutoPreference(policy) ? undefined : null)
+			: undefined;
+		await entry.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, context.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
+		this._pendingModelSelections.delete(context.chatKey);
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -9622,6 +9660,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	override dispose(): void {
+		this._pendingModelSelections.clear();
 		for (const ac of this._activeClients.values()) {
 			ac.dispose();
 		}

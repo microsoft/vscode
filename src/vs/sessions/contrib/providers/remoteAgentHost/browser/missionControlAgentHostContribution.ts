@@ -12,13 +12,12 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { isWeb } from '../../../../../base/common/platform.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IMissionControlEnvironmentService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -281,7 +280,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
 	command: { id: RemoteAgentHostCommandIds.connectViaMissionControl, title: localize('connectMissionControlHost', "Environments"), icon: Codicon.remote },
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ProductQualityContext.notEqualsTo('stable')),
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ContextKeyExpr.equals(`config.${GitHubEnvironmentsEnabledSettingId}`, true), GitHubEnvironmentsAvailableContext),
 	group: '1_add',
 	order: 5,
 });

@@ -86,7 +86,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -6667,7 +6667,11 @@ suite('Sessions - SessionsList', () => {
 			quickChat.capabilities.set({ supportsMultipleChats: true }, undefined);
 			const archived = createTestSession('Archived', { isArchived: true });
 			archived.capabilities.set({ supportsMultipleChats: true }, undefined);
-			const sessions = [supported.session, unsupported.session, quickChat.session, archived.session];
+			const cloud = createTestSession('Cloud', { environment: 'cloud' });
+			cloud.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const remote = createTestSession('Remote', { environment: 'remote-host' });
+			remote.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const sessions = [supported.session, unsupported.session, quickChat.session, archived.session, cloud.session, remote.session];
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				const action = instantiationService.createInstance(MenuItemAction, {
 					id: 'sessions.test.newChatInSession',
@@ -6683,6 +6687,7 @@ suite('Sessions - SessionsList', () => {
 							getActions: () => menuId === Menus.SessionItemToolbar
 								&& contextKeyService.getContextKeyValue<boolean>(SessionSupportsMultipleChatsContext.key)
 								&& !contextKeyService.getContextKeyValue<boolean>(SessionIsArchivedContext.key)
+								&& !contextKeyService.getContextKeyValue<boolean>(SessionItemIsCloudContext.key)
 								? [['navigation', [action]]]
 								: [],
 							dispose: () => menuStore.dispose(),
@@ -6704,7 +6709,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.setSessions(sessions);
-			list.layout(300, 400);
+			list.layout(600, 400);
 
 			const hasNewChatAction = (title: string) => !![...container.querySelectorAll<HTMLElement>('.session-item')]
 				.find(item => item.querySelector('.session-title')?.textContent === title)
@@ -6717,19 +6722,24 @@ suite('Sessions - SessionsList', () => {
 
 			list.setSessions([unsupported.session]);
 			const renderedBeforeRecycle = container.querySelector<HTMLElement>('.session-item');
+			list.setSessions([cloud.session]);
+			const renderedCloud = container.querySelector<HTMLElement>('.session-item');
+			const recycledCloudAction = hasNewChatAction('Cloud');
 			list.setSessions([quickChat.session]);
 			const renderedAfterRecycle = container.querySelector<HTMLElement>('.session-item');
 
 			assert.deepStrictEqual({
 				initial,
 				afterCapabilityChange,
-				recycledTemplate: renderedBeforeRecycle === renderedAfterRecycle,
+				recycledTemplate: renderedBeforeRecycle === renderedCloud && renderedCloud === renderedAfterRecycle,
+				recycledCloudAction,
 				recycledTitle: renderedAfterRecycle?.querySelector('.session-title')?.textContent,
 				recycledAction: renderedAfterRecycle?.querySelector('.codicon-add') !== null,
 			}, {
-				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', true], ['Archived', false]],
-				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', true], ['Archived', false]],
+				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', true], ['Archived', false], ['Cloud', false], ['Remote', true]],
+				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', true], ['Archived', false], ['Cloud', false], ['Remote', true]],
 				recycledTemplate: true,
+				recycledCloudAction: false,
 				recycledTitle: 'Quick chat',
 				recycledAction: true,
 			});
