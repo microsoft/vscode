@@ -18,7 +18,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService, WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
@@ -195,6 +195,108 @@ suite('Workspace Trust', () => {
 			// The same folder with a different _ah payload resolves to the same trust entry.
 			const sameFolderDifferentMeta = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=other' });
 			assert.strictEqual(true, (await testObject.getUriTrustInfo(sameFolderDifferentMeta)).trusted);
+		});
+
+		test('agent host folder trust does not prompt again after Windows URI serialization', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+			instantiationService.stub(IWorkspaceTrustManagementService, testObject);
+			const requests = store.add(instantiationService.createInstance(WorkspaceTrustRequestService));
+			const prompts: URI[] = [];
+			const completions: Promise<void>[] = [];
+			store.add(requests.onDidInitiateResourcesTrustRequest(options => {
+				prompts.push(options.uri);
+				completions.push(requests.completeResourcesTrustRequest(options.uri, WorkspaceTrustUriResponse.Open));
+			}));
+
+			const pickedFolder = toAgentHostUri(URI.from({ scheme: Schemas.file, path: '/C:/repos/vscode' }), 'windows-host');
+			const restoredFolder = URI.parse(pickedFolder.toString());
+			const results = [
+				await requests.requestResourcesTrust({ uri: pickedFolder }),
+				await requests.requestResourcesTrust({ uri: restoredFolder }),
+				await requests.requestResourcesTrust({ uri: restoredFolder }),
+			];
+			await Promise.all(completions);
+			testObject.dispose();
+			const restored = await initializeTestObject();
+
+			assert.deepStrictEqual({
+				results,
+				promptCount: prompts.length,
+				trustedAfterReload: (await restored.getUriTrustInfo(restoredFolder)).trusted,
+			}, {
+				results: [true, true, true],
+				promptCount: 1,
+				trustedAfterReload: true,
+			});
+		});
+
+		test('persisted agent host trust recognizes serialized Windows drive letters', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const folder = toAgentHostUri(URI.from({ scheme: Schemas.file, path: '/C:/repos/vscode' }), 'windows-host').with({ query: null });
+			const trustInfo: IWorkspaceTrustInfo = { uriTrustInfo: [{ uri: folder, trusted: true }] };
+			storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+			const testObject = await initializeTestObject();
+			const uris = [
+				folder,
+				folder.with({ path: '/c:/repos/vscode' }),
+				folder.with({ path: '/c:/repos/vscode/src' }),
+				folder.with({ authority: 'other-host', path: '/c:/repos/vscode' }),
+				folder.with({ scheme: Schemas.file, authority: '', path: '/c:/repos/vscode' }),
+				folder.with({ path: '/c:/repos/vscode-other' }),
+				folder.with({ path: '/d:/repos/vscode' }),
+				folder.with({ path: '/c:/repos/vscode/../other' }),
+				folder.with({ path: '/c:/repos/vscode/..\\other' }),
+			];
+
+			assert.deepStrictEqual(
+				await Promise.all(uris.map(async uri => (await testObject.getUriTrustInfo(uri)).trusted)),
+				[true, true, true, false, false, false, false, false, false],
+			);
+		});
+
+		test('agent host Windows trust can be deduplicated and revoked using serialized URIs', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+			const folder = toAgentHostUri(URI.from({ scheme: Schemas.file, path: '/C:/repos/vscode' }), 'windows-host');
+			const serializedFolder = URI.parse(folder.toString());
+			await testObject.setTrustedUris([folder, serializedFolder]);
+			const trusted = (await testObject.getUriTrustInfo(serializedFolder)).trusted;
+			const savedPaths = testObject.getTrustedUris().map(uri => uri.path);
+			await testObject.setUrisTrust([serializedFolder], false);
+
+			assert.deepStrictEqual({
+				trusted,
+				savedPaths,
+				trustedAfterRevocation: (await testObject.getUriTrustInfo(folder)).trusted,
+				remainingTrust: testObject.getTrustedUris(),
+			}, {
+				trusted: true,
+				savedPaths: ['/c:/repos/vscode'],
+				trustedAfterRevocation: false,
+				remainingTrust: [],
+			});
+		});
+
+		test('agent host trust preserves case-sensitive folder paths', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			const testObject = await initializeTestObject();
+			const folder = toAgentHostUri(URI.from({ scheme: Schemas.file, path: '/home/user/Repo' }), 'linux-host');
+			await testObject.setUrisTrust([folder], true);
+
+			assert.deepStrictEqual(
+				await Promise.all([
+					folder,
+					URI.joinPath(folder, 'src'),
+					folder.with({ path: '/home/user/repo' }),
+					folder.with({ path: '/home/user/repo/src' }),
+				].map(async uri => (await testObject.getUriTrustInfo(uri)).trusted)),
+				[true, true, false, false],
+			);
 		});
 
 		for (const authority of ['managed-host', 'host_with_underscore', 'Host42']) {
