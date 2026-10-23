@@ -18,6 +18,12 @@ export const OPEN_CHATPAD_COMMAND_ID = 'sessions.openChatpad';
 /** Where the Chatpad can be used: in the Agents window, with AI features and the agent host enabled. */
 export const ChatpadEnabledContext = ContextKeyExpr.and(ChatContextKeys.enabled, AGENT_HOST_ENABLED_CONTEXT_KEY, IsSessionsWindowContext);
 
+/** The experimental setting that gates the Chatpad entry points: the commands, the launcher and restoring it at startup. */
+export const CHATPAD_ENABLED_SETTING = 'sessions.chatpad.enabled';
+
+/** Where the Chatpad can be opened or appended to: where it can be used, and the experimental setting is on. */
+export const ChatpadAvailableContext = ContextKeyExpr.and(ChatpadEnabledContext, ContextKeyExpr.has(`config.${CHATPAD_ENABLED_SETTING}`))!;
+
 /** The Chatpad: a chat window that shows its note above its chat, docked in the main window by default. */
 export const CHATPAD_CHAT_WINDOW_KIND: IChatWindowKind = {
 	id: 'chatpad',
