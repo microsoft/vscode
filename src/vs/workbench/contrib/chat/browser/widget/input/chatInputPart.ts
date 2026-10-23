@@ -76,6 +76,7 @@ import { WorkbenchList } from '../../../../../../platform/list/browser/listServi
 import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { inheritAutoTierConfiguration } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { modelConfigurationSourceKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { bindContextKey, observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
@@ -108,7 +109,7 @@ import { IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, Modifie
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
 import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from './chatSessionWorkingSet.js';
-import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
+import { ChatModelConfigurationStore, PresentedConfigurationSource } from './chatModelConfigurationStore.js';
 import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostAutoTierScope.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
@@ -195,6 +196,9 @@ import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../chatOptions.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
+
+/** Model configuration keys carrying a custom agent's `reasoning-effort`, in the order the picker and runtime prefer them. */
+const EffortConfigurationKeys = ['thinkingLevel', 'reasoningEffort'];
 const INPUT_EDITOR_LINE_HEIGHT = 20;
 const INPUT_EDITOR_PADDING = { compact: { top: 2, bottom: 2 }, default: { top: 12, bottom: 12 } };
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
@@ -1392,8 +1396,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (reconcileSelection) {
 				this._modelSelectionController.reconcileModelListChange(models);
 			}
-			// Only retry an unresolved pin so a later catalogue refresh doesn't undo a deliberate picker change.
-			if (this._modePreferredModelPending) {
+			// Only retry an unresolved pin so a later catalogue refresh doesn't undo a deliberate picker change, and not
+			// while an authored request (a handoff's or prompt file's model) is still waiting: applying the pin would cancel
+			// it. Mode switches and restores still apply the pin, replacing a stale request.
+			if (this._modePreferredModelPending && !this._modelSelectionController.hasPendingProgrammaticSelection()) {
 				this.applyModePreferredModel();
 			}
 			// The available-model set changed: re-evaluate whether sending is
@@ -1603,7 +1609,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _reconcileModeReasoningEffort(reasoningEffort = this._currentModeObservable.get().reasoningEffort?.get(), model = this._currentLanguageModel.get()): void {
 		const applies = !this.options.suppressModePreferredModel && !this.options.hostModelSelection && !!reasoningEffort && !!model?.metadata.targetChatSessionType;
 		const properties = applies ? model?.metadata.configurationSchema?.properties : undefined;
-		const key = ['reasoningEffort', 'thinkingLevel'].find(key => properties?.[key]?.enum?.includes(reasoningEffort));
+		// `thinkingLevel` first: hosts may advertise both, and the picker and runtime read it in preference.
+		const key = EffortConfigurationKeys.find(key => properties?.[key]?.enum?.includes(reasoningEffort));
 		if (model && key && !this._isAgentPinOverridden(key)) {
 			this._modelConfigStore.setPresentedConfiguration(model.identifier, { [key]: reasoningEffort });
 		} else {
@@ -1612,6 +1619,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
+		// An earlier request's explicitly chosen effort (e.g. when editing it) outranks the agent's effort pin for
+		// this conversation, so the overlay doesn't hide the restored value. Not a durable preference.
+		if (this._currentModeObservable.get().reasoningEffort?.get()) {
+			const explicitKeys = EffortConfigurationKeys.filter(key => {
+				const source = configuration?.[modelConfigurationSourceKey(key)];
+				return configuration?.[key] !== undefined && source !== PresentedConfigurationSource && source !== 'default' && source !== 'managed';
+			});
+			if (explicitKeys.length > 0) {
+				this._recordAgentPinOverride({ configKeys: explicitKeys });
+			}
+		}
 		this.restoreModelConfiguration(identifier, configuration, false);
 		return this._requestProgrammaticLanguageModel(() => this.getModels().find(model => model.identifier === identifier));
 	}

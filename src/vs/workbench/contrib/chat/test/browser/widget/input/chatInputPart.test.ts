@@ -45,6 +45,8 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { IChatAgentPinOverrides, IChatModelInputState } from '../../../../common/model/chatModel.js';
 import { ModelSelectionReason } from '../../../../common/modelSelection.js';
+import { PresentedConfigurationSource } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
+import { modelConfigurationSourceKey } from '../../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
@@ -96,6 +98,7 @@ suite('ChatInputPart', () => {
 			getCurrentInputState(): IChatModelInputState;
 			setChatMode(id: string, storeSelection?: boolean, isUserInitiated?: boolean): void;
 			requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean>;
+			requestModelByIdentifier(identifier: string, configuration?: object): Promise<boolean>;
 			_recordAgentPinOverride(update: { readonly model?: true; readonly configKeys?: readonly string[] }): void;
 			_reconcileModeReasoningEffort(): void;
 			readonly _modePreferredModelPending: boolean;
@@ -130,7 +133,17 @@ suite('ChatInputPart', () => {
 				inputPart: undefined as unknown as ITestInputPart,
 				select: (model: ILanguageModelChatMetadataAndIdentifier | undefined) => currentLanguageModel.set(model, undefined),
 				reconcileProgrammaticSelection: () => { },
+				hasPendingProgrammaticSelection: () => pendingProgrammatic,
+				/** Mirrors a model-list event: the controller reconciles a pending request, then the input part retries a pending pin. */
+				modelListChanged: () => {
+					result.reconcileProgrammaticSelection();
+					if (result.inputPart._modePreferredModelPending && !pendingProgrammatic) {
+						result.inputPart.applyModePreferredModel();
+					}
+				},
+				restored: [] as [string, object][],
 			};
+			let pendingProgrammatic = false;
 			const currentMode = observableValue('mode', toMode(options.mode));
 			const currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('model', options.selected);
 			const select = (model: ILanguageModelChatMetadataAndIdentifier) => currentLanguageModel.set(model, undefined);
@@ -161,8 +174,9 @@ suite('ChatInputPart', () => {
 				},
 				_modelSelectionController: {
 					syncFromConversationState: select,
-					applyProgrammaticSelection: select,
-					applySelection: select,
+					// Like the real controller, applying a selection replaces a pending programmatic request.
+					applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => { pendingProgrammatic = false; select(model); },
+					applySelection: (model: ILanguageModelChatMetadataAndIdentifier) => { pendingProgrammatic = false; select(model); },
 					// Like the real controller: an unresolved request stays pending until the model list changes.
 					requestProgrammaticSelection: (resolve: () => ILanguageModelChatMetadataAndIdentifier | undefined) => new Promise<boolean>(complete => {
 						const reconcile = () => {
@@ -170,20 +184,24 @@ suite('ChatInputPart', () => {
 							if (!model) {
 								return false;
 							}
+							pendingProgrammatic = false;
 							complete(true);
 							select(model);
 							return true;
 						};
 						if (!reconcile()) {
+							pendingProgrammatic = true;
 							result.reconcileProgrammaticSelection = () => { reconcile(); };
 						}
 					}),
+					hasPendingProgrammaticSelection: () => pendingProgrammatic,
 				},
 				_updateInputContentContextKeys: () => { },
 				_syncInputStateToModel: () => { },
 				_modelConfigStore: {
 					getModelConfiguration: () => undefined,
 					setPresentedConfiguration: (identifier: string | undefined, values?: object) => { result.presented = identifier && values ? [identifier, values] : undefined; },
+					restoreModelConfiguration: (identifier: string, values: object) => { result.restored.push([identifier, values]); },
 				},
 			}) as ITestInputPart;
 			store.add(autorun(r => {
@@ -292,6 +310,44 @@ suite('ChatInputPart', () => {
 			});
 		});
 
+		test('the pin waits while an authored model request is pending, so models registering in separate events keep the authored choice', async () => {
+			let models = [pickerModel];
+			const result = createInputPart({
+				mode: { id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] },
+				models: () => models,
+				selected: pickerModel,
+			});
+			const requested = result.inputPart.requestModelByQualifiedName(['Other (copilot)']);
+
+			models = [pickerModel, pinnedModel];
+			result.modelListChanged();
+			const afterPin = result.selectedModel;
+			models = [pickerModel, pinnedModel, otherModel];
+			result.modelListChanged();
+
+			assert.deepStrictEqual({ afterPin, applied: await requested, selected: result.selectedModel, overrides: result.inputPart._agentPinOverrides.get() }, {
+				afterPin: pickerModel,
+				applied: true,
+				selected: otherModel,
+				overrides: { modeId: 'reviewer', model: true },
+			});
+		});
+
+		test('switching to a pinned agent replaces a stale authored request that never resolves', async () => {
+			const result = createInputPart({
+				mode: { id: 'agent' },
+				modes: [{ id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] }, { id: 'agent' }],
+				models: () => [pickerModel, pinnedModel],
+				selected: pickerModel,
+			});
+			// E.g. a prompt file named a model the user doesn't have.
+			void result.inputPart.requestModelByQualifiedName(['Missing (copilot)']);
+
+			result.inputPart.setChatMode('reviewer', true, true);
+
+			assert.deepStrictEqual({ selected: result.selectedModel, pendingRequest: result.hasPendingProgrammaticSelection() }, { selected: pinnedModel, pendingRequest: false });
+		});
+
 		test('an authored model registering in the same event as the pending pin wins and is recorded', async () => {
 			let models = [pickerModel];
 			const result = createInputPart({
@@ -303,10 +359,7 @@ suite('ChatInputPart', () => {
 
 			// One model-list event publishes both: the controller reconciles the request first, then the input part retries a pending pin.
 			models = [pickerModel, pinnedModel, otherModel];
-			result.reconcileProgrammaticSelection();
-			if (result.inputPart._modePreferredModelPending) {
-				result.inputPart.applyModePreferredModel();
-			}
+			result.modelListChanged();
 
 			assert.deepStrictEqual({ applied: await requested, selected: result.selectedModel, overrides: result.inputPart._agentPinOverrides.get() }, {
 				applied: true,
@@ -467,6 +520,43 @@ suite('ChatInputPart', () => {
 					captured: { modeId: 'pinned', configKeys: ['reasoningEffort'] },
 					otherConversation: undefined,
 					restored: undefined,
+				});
+			});
+
+			test('prefers thinkingLevel when a model advertises both effort keys', () => {
+				const dualKeyModel = createAgentHostModel('gpt-6-sol', 'GPT-6 Sol');
+				const dualKey: ILanguageModelChatMetadataAndIdentifier = {
+					...dualKeyModel,
+					metadata: {
+						...dualKeyModel.metadata,
+						configurationSchema: { properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] }, thinkingLevel: { type: 'string', enum: ['low', 'high'] } } },
+					},
+				};
+				const result = createInputPart({ mode: { id: 'pinned', reasoningEffort: 'high' }, models: () => [dualKey], selected: dualKey });
+				assert.deepStrictEqual(result.presented, [dualKey.identifier, { thinkingLevel: 'high' }]);
+			});
+
+			test('editing an earlier request restores its explicitly chosen effort over the agent\'s effort pin', async () => {
+				const source = modelConfigurationSourceKey('reasoningEffort');
+				const result = createHostInputPart(undefined, 'high');
+				const overlaid = result.presented;
+
+				// The request was sent with an explicit Low; since then the agent's pin was re-armed (no overrides).
+				const explicit = { reasoningEffort: 'low', [source]: 'explicit' };
+				await result.inputPart.requestModelByIdentifier(hostPickerModel.identifier, explicit);
+
+				// A request sent under the pin carries the agent-sourced value and doesn't override it.
+				const underPin = createHostInputPart(undefined, 'high');
+				await underPin.inputPart.requestModelByIdentifier(hostPickerModel.identifier, { reasoningEffort: 'high', [source]: PresentedConfigurationSource });
+
+				assert.deepStrictEqual({
+					overlaid,
+					edited: { presented: result.presented, overrides: result.inputPart._agentPinOverrides.get(), restored: result.restored },
+					underPin: { presented: underPin.presented, overrides: underPin.inputPart._agentPinOverrides.get() },
+				}, {
+					overlaid: [hostPickerModel.identifier, { reasoningEffort: 'high' }],
+					edited: { presented: undefined, overrides: { modeId: 'pinned', configKeys: ['reasoningEffort'] }, restored: [[hostPickerModel.identifier, explicit]] },
+					underPin: { presented: [hostPickerModel.identifier, { reasoningEffort: 'high' }], overrides: undefined },
 				});
 			});
 
