@@ -1319,6 +1319,25 @@ suite('ActionListWidget', () => {
 		assert.ok(widget.domNode.textContent?.includes('server-ranked-result'));
 	}));
 
+	test('matches nonvisual filter text without rendering it', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{ ...action('shared'), filterText: 'owner-one/shared' },
+				{ ...action('shared'), filterText: 'owner-two/shared' },
+			],
+		});
+
+		typeFilter(widget, 'owner-one/shared');
+
+		assert.deepStrictEqual({
+			rows: getVisibleRowText(widget),
+			nonvisualTextRendered: widget.domNode.textContent?.includes('owner-one/shared'),
+		}, {
+			rows: ['shared'],
+			nonvisualTextRendered: false,
+		});
+	});
+
 	test('ignores stale dynamic filter results', async () => {
 		const firstResult = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();
 		const secondResult = new DeferredPromise<readonly IActionListItem<ITestActionItem>[]>();

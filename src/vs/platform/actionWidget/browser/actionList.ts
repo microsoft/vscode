@@ -162,6 +162,8 @@ export interface IActionListItem<T> {
 	 */
 	readonly standaloneToggle?: IActionListItemInlineToggle;
 	readonly description?: string | IMarkdownString;
+	/** Additional nonvisual text matched by the built-in filter. */
+	readonly filterText?: string;
 	/**
 	 * Optional accessible description used in place of {@link description} for
 	 * screen reader labels. Useful when the visual description contains icons
@@ -1660,8 +1662,10 @@ export class ActionListWidget<T> extends Disposable {
 			const matchesFilter = (item: IActionListItem<T>) => {
 				const label = (item.label ?? '').toLowerCase();
 				const descValue = typeof item.description === 'string' ? item.description : (item.description?.value ?? '');
+				const filterText = item.filterText?.toLowerCase() ?? '';
 				return label.includes(filterLower)
 					|| descValue.toLowerCase().includes(filterLower)
+					|| filterText.includes(filterLower)
 					|| (!!item.toolbarLabels && (item.toolbarActions?.some(action => action.label.toLowerCase().includes(filterLower)) ?? false));
 			};
 

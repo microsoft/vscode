@@ -1106,10 +1106,15 @@ suite('Automation dialog creation', () => {
 				checked: toggle.getAttribute('aria-checked'),
 				focused: DOM.getActiveElement() === toggle,
 				message: dialog.container.querySelector('.automation-dialog-notification-center')?.textContent,
+				role: dialog.container.querySelector('.automation-dialog-notification-center')?.getAttribute('role'),
 			},
 		}, {
 			connecting: { disabled: true, busy: 'true' },
-			after: { disabled: false, checked: 'false', focused: true, message: 'Unable to load cloud automations. Please try again in a few moments.' },
+			after: {
+				disabled: false, checked: 'false', focused: true,
+				message: 'Unable to load cloud automations. Please try again in a few moments.',
+				role: 'alert',
+			},
 		});
 		dialog.cancelButton.click();
 		await dialog.result;

@@ -5,7 +5,6 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -1660,7 +1659,6 @@ export function renderForm(
 	};
 	const showConnectFailure = () => {
 		const message = localize('automation.form.runInCloudUnavailable', "Unable to load cloud automations. Please try again in a few moments.");
-		status(message);
 		setDialogMessage('operationError', { severity: 'error', text: message });
 	};
 	disposables.add(cloudSwitch.onChange(async checked => {
@@ -2720,6 +2718,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					iconClasses: undefined,
 					disabled: reason !== undefined,
 					description: undefined,
+					filterText: repositoryLabel ?? location,
 					ariaDescription: availabilityDescription,
 					tooltip: availabilityDescription,
 					hover: availabilityDescription ? { content: availabilityDescription, panelClassName: 'automation-cloud-repository-hover' } : undefined,

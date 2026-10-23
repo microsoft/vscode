@@ -5521,6 +5521,7 @@ suite('AutomationsWorkspacePicker', () => {
 		const desktop = picker.getItems().filter(row => row.kind === ActionListItemKind.Action && row.label === 'shared').map(row => ({
 			label: row.label,
 			description: typeof row.description === 'string' ? row.description : row.description?.value,
+			filterText: row.filterText,
 			tooltip: row.tooltip,
 			ariaDescription: row.ariaDescription,
 		}));
@@ -5528,9 +5529,9 @@ suite('AutomationsWorkspacePicker', () => {
 			.map(row => ({ label: row.sheetItem.label, description: row.sheetItem.description, disabled: row.sheetItem.disabled }));
 		assert.deepStrictEqual({ desktop, mobile }, {
 			desktop: [
-				{ label: 'shared', description: undefined, tooltip: 'owner-one/shared', ariaDescription: 'owner-one/shared' },
+				{ label: 'shared', description: undefined, filterText: 'owner-one/shared', tooltip: 'owner-one/shared', ariaDescription: 'owner-one/shared' },
 				{
-					label: 'shared', description: undefined, tooltip: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
+					label: 'shared', description: undefined, filterText: 'owner-two/shared', tooltip: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
 					ariaDescription: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
 				},
 			],
