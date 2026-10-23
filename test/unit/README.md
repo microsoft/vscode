@@ -13,8 +13,6 @@ All unit tests are run inside a Electron renderer environment which access to DO
 
 For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all tests from `extHost`-files and enables you to debug them.
 
-See the [workspace transition lifecycle](../../src/vs/workbench/services/workspaces/README.md) for the native workspace editing regression suite and its Remote-SSH integration checks.
-
 ## Run (inside browser)
 
     npm run test-browser -- --browser webkit --browser chromium
