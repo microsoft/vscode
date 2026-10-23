@@ -6,13 +6,15 @@
 import { localize } from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
 import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
 import { AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
@@ -45,10 +47,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE]: {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('extensions.experimental.agentsWindowAutoEnable', "When enabled, installed extensions that haven't declared support for the Agents window are enabled there automatically when they could be useful, such as extensions that add tools, MCP servers, or syntax highlighting, and don't rely on views, debugging, or other features that the Agents window doesn't have. You can still disable them from the Extensions section of Agent Customizations. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			default: product.quality !== 'stable',
+			tags: ['experimental'],
+			// Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
+			experiment: { mode: 'startup' },
+		},
 	},
 });
 
 registerSingleton(IAgentsWindowExtensionSuggestionsService, AgentsWindowExtensionSuggestionsService, InstantiationType.Delayed);
+registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementTelemetry.ID, AgentsWindowExtensionAutoEnablementTelemetry, WorkbenchPhase.AfterRestored);
 
 aiCustomizationManagementSectionRegistry.register({
 	id: AICustomizationManagementSection.Extensions,

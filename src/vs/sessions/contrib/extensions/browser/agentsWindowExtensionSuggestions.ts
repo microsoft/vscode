@@ -8,7 +8,7 @@ import { derived, IObservable, ISettableObservable, observableSignalFromEvent, o
 import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -16,36 +16,13 @@ import { logSettingExperimentTrigger } from '../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../workbench/contrib/extensions/common/extensions.js';
 import { EnablementState } from '../../../../workbench/services/extensionManagement/common/extensionManagement.js';
-import { IExtensionManifestPropertiesService } from '../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
+import { getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesService } from '../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 
 /**
  * Suggests installed extensions that could be useful in the Agents window: entry points to the Extensions section of
  * Agent Customizations show a badge, and the section lists the extensions in a Suggested group.
  */
 export const AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING = 'extensions.experimental.agentsWindowSuggestions';
-
-/**
- * Contribution points that make an extension worth enabling in the Agents window.
- */
-const SUGGESTED_CONTRIBUTION_POINTS: ReadonlySet<string> = new Set([
-	// Agent capabilities and customizations, which the Agents window forwards to its agents.
-	'languageModelTools',
-	'languageModelToolSets',
-	'mcpServerDefinitionProviders',
-	'chatSkills',
-	'chatAgents',
-	'chatInstructions',
-	'chatPromptFiles',
-	'chatPlugins',
-	// Reviewing the files and changes that agents produce.
-	'grammars',
-	'customEditors',
-	'notebooks',
-	'notebookRenderer',
-	'markdown.markdownItPlugins',
-	'markdown.previewScripts',
-	'markdown.previewStyles'
-]);
 
 const BADGE_DISMISSED_STORAGE_KEY = 'agentsWindow.extensionSuggestions.badgeDismissed';
 
@@ -56,10 +33,6 @@ export function getExtensionSuggestionsBadgeDescription(): string {
 	return localize('agentsWindowExtensionSuggestions.badge', "Some installed extensions can be enabled in the Agents window.");
 }
 
-function contributesSuggestedPoint(manifest: IExtensionManifest): boolean {
-	return Object.entries(manifest.contributes ?? {}).some(([point, value]) => SUGGESTED_CONTRIBUTION_POINTS.has(point) && (Array.isArray(value) ? value.length > 0 : !!value));
-}
-
 /**
  * Whether to suggest an installed extension in the Agents window: it contributes something that is useful there, but
  * hasn't declared support for the Agents window, so users choose whether it runs there.
@@ -68,12 +41,14 @@ export function isAgentsWindowExtensionSuggestion(extension: IExtension, support
 	if (extension.isBuiltin || !extension.local || extension.state !== ExtensionState.Installed) {
 		return false;
 	}
-	// Enabled suggestions stay suggested, so they keep their place when users enable them. Other states cannot be changed for the Agents window.
-	if ((extension.enablementState !== EnablementState.DisabledWorkspace && extension.enablementState !== EnablementState.EnabledWorkspace) || supportsAgentsWindow(extension)) {
+	// Enabled suggestions stay suggested, so they keep their place when users enable them, or when they are enabled
+	// automatically, which leaves their global state. Other states cannot be changed for the Agents window.
+	const changeableStates = [EnablementState.DisabledWorkspace, EnablementState.EnabledWorkspace, EnablementState.EnabledGlobally];
+	if (!changeableStates.includes(extension.enablementState) || supportsAgentsWindow(extension)) {
 		return false;
 	}
 	const manifest = extension.local.manifest;
-	return manifest.capabilities?.agentsWindow?.supported !== false && contributesSuggestedPoint(manifest);
+	return manifest.capabilities?.agentsWindow?.supported !== false && getSessionsWindowSuggestedContributions(manifest).length > 0;
 }
 
 export const IAgentsWindowExtensionSuggestionsService = createDecorator<IAgentsWindowExtensionSuggestionsService>('agentsWindowExtensionSuggestionsService');
