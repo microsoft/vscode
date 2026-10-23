@@ -314,6 +314,7 @@ export class MissionControlHost extends Disposable {
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
 			getProjectRoots: () => this._projectRoots(),
+			getCloneRoot: () => this.environment.cloneRoot,
 		}));
 		this.environment = this._register(this._instantiationService.createInstance(MissionControlEnvironment, {
 			userDataPath: environmentService.userDataPath,
@@ -468,7 +469,7 @@ export class MissionControlHost extends Disposable {
 		const mirror = this._instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
 		const sources = new DisposableStore();
 		try {
-			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled));
+			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled, () => this.environment.isRepositoryMetadataEnabled));
 			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled, session => publisher.registerSession(session)));
 			const attachPlanHints = (provider: IAgent) => {
 				if (provider.getSessionPlan && provider.onDidChatSessionEvent) {
