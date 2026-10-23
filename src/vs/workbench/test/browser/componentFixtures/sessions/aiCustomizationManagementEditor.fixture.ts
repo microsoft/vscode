@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -1310,6 +1310,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 	let customizationMarketplaceQueryCount = 0;
+	let customizationMarketplacePrimaryQueryCount = 0;
+	const browseHomeReady = new DeferredPromise<void>();
 	let marketplaceConfiguration: TestConfigurationService | undefined;
 	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
 	const getFixtureInstallationTarget = (resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallationTarget => resource.installation?.kind === 'copilotConnector'
@@ -1402,18 +1404,33 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
-				override async getBrowseSections(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>) {
+				override getBrowseSections(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, _token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void) {
 					if (!options.curatedFeedsEnabled || query.sourceIds && !query.sourceIds.includes('testSource')) {
-						return undefined;
+						return Promise.resolve(undefined);
 					}
-					return {
+					const result = {
 						sourceId: 'testSource',
 						sections: curatedMarketplaceSections,
 					};
+					onProgress?.({
+						result,
+						completedSectionCount: curatedMarketplaceSections.length,
+						cachedSectionCount: 0,
+						totalSectionCount: curatedMarketplaceSections.length,
+					});
+					return Promise.resolve(result);
 				}
-				override async query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
+				override query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
+					const isSourcePreviewQuery = query.pageSize === 4 && query.sourceIds?.length === 1 && !query.query && !query.mediaType && !query.cursor;
+					const queryCountBeforeRequest = customizationMarketplaceQueryCount;
 					customizationMarketplaceQueryCount++;
-					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
+					if (!isSourcePreviewQuery) {
+						customizationMarketplacePrimaryQueryCount++;
+					}
+					if (!sourceEnabled()) {
+						assert(options.toggleMarketplaceVisibility === true && queryCountBeforeRequest > 0 && isSourcePreviewQuery, 'A fixture with no enabled sources must not query the catalog.');
+						return Promise.resolve({ items: [], total: 0 });
+					}
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
@@ -1434,10 +1451,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 								: marketplaceResources;
 							return query.cursor
 								? new DeferredPromise<ICustomizationMarketplacePage>().p
-								: { items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) };
+								: Promise.resolve({ items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) });
 						}
-						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
-						case 'empty': return { items: [], total: 0 };
+						case 'error': return isSourcePreviewQuery
+							? Promise.resolve({ items: [], total: 0 })
+							: Promise.reject(new Error('The catalog is temporarily unavailable. Try again later.'));
+						case 'empty': return Promise.resolve({ items: [], total: 0 });
 					}
 					const text = query.query?.toLowerCase() ?? '';
 					const resources = marketplaceResources.filter(resource =>
@@ -1445,11 +1464,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
 					const offset = Number(query.cursor?.token ?? 0);
-					return {
+					const page = {
 						items: resources.slice(offset, offset + pageSize),
 						total: resources.length,
 						nextCursor: offset + pageSize < resources.length ? createCursor(offset + pageSize) : undefined,
 					};
+					onProgress?.({
+						page,
+						completedSourceIds: this.sources.map(source => source.id),
+						cachedSourceIds: [],
+						totalSourceCount: this.sources.length,
+					});
+					const response = Promise.resolve(page);
+					if (query.pageSize === 4 && query.sourceIds?.[0] === 'otherSource') {
+						// Signal after the query consumer's promise continuation has rendered the final source shelf.
+						void response.then(() => queueMicrotask(() => browseHomeReady.complete()));
+					}
+					return response;
 				}
 			}());
 			if (options.useRealConnectorInstallService) {
@@ -2016,17 +2047,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
-	if (options.curatedFeedsEnabled) {
-		await waitForFixtureCondition(
-			() => ctx.container.querySelectorAll('.customization-discovery-section').length === curatedMarketplaceSections.length,
-			'Curated Browse sections did not render.',
-		);
-	}
-	if (options.clearDiscoveryQuery) {
-		await waitForFixtureCondition(
-			() => ctx.container.querySelector('.customization-discovery-section.featured') !== null,
-			'Featured Browse items did not render before searching.',
-		);
+	if (options.curatedFeedsEnabled || options.clearDiscoveryQuery) {
+		await browseHomeReady.p;
 	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
@@ -2044,10 +2066,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(overview.querySelector('.welcome-prompts-content-container') !== null, 'Disabled Marketplace must render the original Overview cards.');
 		assert(overview.querySelector('.customization-discovery') === null, 'Disabled Marketplace must not construct Discover.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes('Overview') === true, 'Disabled Marketplace must label the home page Overview.');
-		assert(customizationMarketplaceQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
+		assert(customizationMarketplacePrimaryQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
 	} else if (!options.selectedSection) {
 		await Promise.resolve();
-		assert(customizationMarketplaceQueryCount === 1, 'Visible Discover must query the catalog once for browse mode.');
+		assert(customizationMarketplacePrimaryQueryCount === 1, 'Visible Discover must issue one primary catalog query for browse mode.');
 		assert(ctx.container.querySelector('.welcome-prompts-content-container') === null, 'Enabled Marketplace must hide the original Overview.');
 		assert(ctx.container.querySelector('.customization-discovery') !== null, 'The customization overview must render Discover.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
@@ -2091,13 +2113,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must retain the existing compact marketplace icon size.');
 		if (options.curatedFeedsEnabled) {
 			const renderedSections = [...ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-section')];
-			const actualOrder = renderedSections.flatMap(section => [
+			const curatedRenderedSections = renderedSections.slice(0, curatedMarketplaceSections.length);
+			const actualOrder = curatedRenderedSections.flatMap(section => [
 				section.querySelector('.customization-discovery-section-title')?.textContent ?? '',
 				...[...section.querySelectorAll<HTMLElement>('.customization-discovery-card-name')].map(element => element.textContent ?? ''),
 			]);
 			const expectedOrder = curatedMarketplaceSections.flatMap(section => [section.title, ...section.items.map(item => item.displayName)]);
 			assert(actualOrder.join('\n') === expectedOrder.join('\n'), 'Discover must preserve the saved feed section and item order.');
 			assert(renderedSections[0]?.classList.contains('featured') && renderedSections.slice(1).every(section => !section.classList.contains('featured')), 'Curated feeds must retain the existing Browse card styling.');
+			if (options.copilotConnectorsEnabled) {
+				const connectorSection = renderedSections[curatedMarketplaceSections.length];
+				assert(
+					connectorSection?.querySelector('.customization-discovery-section-title')?.textContent === 'Copilot Connectors'
+					&& connectorSection.querySelector('.customization-discovery-card-name')?.textContent === 'Work IQ Mail'
+					&& connectorSection.querySelector<HTMLButtonElement>('.customization-discovery-show-all')?.ariaLabel === 'View all customizations from Copilot Connectors',
+					'Curated Browse must append the Copilot Connectors source shelf with its View All action.',
+				);
+			}
 		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
@@ -2131,7 +2163,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
 		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
-		const queryCountBeforeToggle = customizationMarketplaceQueryCount;
+		const queryCountBeforeToggle = customizationMarketplacePrimaryQueryCount;
 		await configuration.setUserConfiguration(setting, !marketplaceVisibilityEnabled);
 		await Promise.resolve();
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -2145,7 +2177,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Browse' : 'Overview') === true, 'Home navigation must match the selected surface.');
 		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
 		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
-		assert(customizationMarketplaceQueryCount === expectedQueryCount, `Toggling Marketplace visibility must query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplaceQueryCount}.`);
+		assert(customizationMarketplacePrimaryQueryCount === expectedQueryCount, `Toggling Marketplace visibility must issue a primary query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplacePrimaryQueryCount}.`);
 		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing Marketplace visibility must not show a catalog error.');
 	}
 
@@ -2290,7 +2322,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 		}
 		if (options.discoveryQuery.includes('@installed')) {
-			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
+			assert(customizationMarketplacePrimaryQueryCount === 1, 'The Installed filter must not issue another primary catalog query.');
 			const resultActions = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')];
 			assert(resultActions.every(action => action.textContent !== 'Install'), 'The Installed filter must hide available catalog actions.');
 		}
@@ -2303,7 +2335,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			assert(list instanceof WorkbenchList, 'Discover results must register their list for keyboard navigation.');
 			list.scrollTop = list.scrollHeight;
 			await new Promise(resolve => setTimeout(resolve, 0));
-			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
+			assert(customizationMarketplacePrimaryQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
 			list.scrollTop = list.scrollHeight;
 			assert(resultList.querySelector('.customization-discovery-result-content.loading') !== null, 'Continuation must render a trailing Marketplace loading placeholder.');
 			assert(ctx.container.querySelector('.monaco-progress-container.active') === null, 'Continuation must not show the initial-loading progress bar.');
@@ -2312,7 +2344,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			editor.getWelcomePage()?.setSearchQuery('');
 			await Promise.resolve();
 			assert(resultList.hidden, 'Clearing Discover search must hide the results list.');
-			assert(ctx.container.querySelector('.customization-discovery-section.featured') !== null, 'Clearing Discover search must restore featured items immediately.');
+			assert(ctx.container.querySelector('.customization-discovery-section') !== null, 'Clearing Discover search must restore Browse sections immediately.');
 		}
 	}
 
@@ -4008,12 +4040,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	BrowseCuratedFeeds: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: [
-			'Browse uses the existing customization card layout unchanged while replacing its content with the three curated feed sections in feed order. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
+			'Browse leads with the three GitHub editorial sections in feed order, followed by a Copilot Connectors shelf with four or fewer items and a View All action. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
 		],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			marketplaceVisibilityEnabled: true,
 			curatedFeedsEnabled: true,
+			copilotConnectorsEnabled: true,
 			width: 1200,
 			height: 760,
 		}),
@@ -4046,7 +4079,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the Browse source sections immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,

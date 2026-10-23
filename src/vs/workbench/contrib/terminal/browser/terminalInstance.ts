@@ -578,6 +578,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.setShellType(guessShellTypeFromExecutable(os, this.shellLaunchConfig.executable));
 			}
 
+			// Starts the window handle lookup early; createProcess waits for it before starting the shell
+			this._processManager.setParentWindow(dom.getWindow(this._container).vscodeWindowId);
+
 			await this._createProcess();
 
 			// Re-establish the title after reconnect
@@ -1084,6 +1087,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+		this._processManager.setParentWindow(dom.getWindow(container).vscodeWindowId);
 
 		// If xterm is already attached, call open again to pick up any changes to the window.
 		if (this.xterm?.raw.element) {
