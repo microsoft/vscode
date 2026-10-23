@@ -1576,8 +1576,8 @@ suite('ChangesetSessionCoordinator', () => {
 		await environment.monitor.waitForAcquisitions(2);
 
 		assert.deepStrictEqual(environment.monitor.acquiredExcludes, [
-			{ root: rootA.toString(), excludes: [...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target', 'target/**', '**/.local', '**/.local/**'] },
-			{ root: rootB.toString(), excludes: [...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, '**/node_modules', '**/node_modules/**'] },
+			{ root: rootA.toString(), excludes: [...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target/**/*', '.local/**/*', '*/**/.local/**/*'] },
+			{ root: rootB.toString(), excludes: [...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'node_modules', 'node_modules/**', '*/**/node_modules', '*/**/node_modules/**'] },
 		]);
 	});
 
@@ -1607,8 +1607,8 @@ suite('ChangesetSessionCoordinator', () => {
 			gitStateRefreshes: environment.gitStateService.refreshed,
 		}, {
 			acquiredExcludes: [
-				[...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target', 'target/**'],
-				[...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target', 'target/**', '**/node_modules', '**/node_modules/**'],
+				[...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target/**/*'],
+				[...DEFAULT_AGENT_HOST_WATCH_EXCLUDES, 'target/**/*', 'node_modules', 'node_modules/**', '*/**/node_modules', '*/**/node_modules/**'],
 			],
 			disposals: [root.toString()],
 			gitStateRefreshes: [session],
