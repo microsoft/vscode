@@ -17,6 +17,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -156,7 +157,7 @@ class CopilotCanvasTreeDelegate implements IListVirtualDelegate<CopilotCanvasTre
 interface ICopilotCanvasExtensionTemplateData {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
-	readonly detail: HTMLElement;
+	readonly detail: HTMLAnchorElement;
 	readonly actions: HTMLElement;
 	readonly toggle: CustomizationToggle;
 	readonly moreButton: Button;
@@ -179,6 +180,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		private readonly isMutationPending: (item: ICopilotCanvasExtensionItem) => boolean,
 		private readonly hasMenuActions: (item: ICopilotCanvasExtensionItem) => boolean,
 		private readonly onToggle: (item: ICopilotCanvasExtensionItem, enabled: boolean) => void,
+		private readonly onOpenPlugin: (item: ICopilotCanvasExtensionItem) => void,
 		private readonly onShowMenu: (item: ICopilotCanvasExtensionItem, anchor: HTMLElement) => void,
 		private readonly hoverService: IHoverService,
 	) { }
@@ -189,7 +191,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		container.classList.add('copilot-customization-tree-item', 'copilot-canvas-extension-tree-item');
 		const text = DOM.append(container, $('.copilot-customization-tree-text'));
 		const label = DOM.append(text, $('.copilot-customization-tree-label'));
-		const detail = DOM.append(text, $('.copilot-customization-tree-detail'));
+		const detail = DOM.append(text, $<HTMLAnchorElement>('a.copilot-customization-tree-detail'));
 		const actions = DOM.append(container, $('.copilot-customization-tree-actions'));
 		const toggle = templateDisposables.add(new CustomizationToggle({ ariaLabel: '' }));
 		actions.appendChild(toggle.domNode);
@@ -226,6 +228,27 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		templateData.label.textContent = item.extensionName;
 		const detail = this.getDetail(item);
 		templateData.detail.textContent = detail;
+		const isPlugin = item.extensionSource === 'plugin';
+		templateData.detail.classList.toggle('source-link', isPlugin);
+		if (isPlugin) {
+			const openPluginLabel = localize('copilotCanvases.openPluginDetails', "Open plugin details for {0}", item.extension?.pluginName ?? item.extensionName);
+			templateData.detail.setAttribute('href', '#');
+			templateData.detail.setAttribute('aria-label', openPluginLabel);
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.detail, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
+			templateData.elementDisposables.add(DOM.addStandardDisposableListener(templateData.detail, DOM.EventType.KEY_DOWN, event => {
+				if (event.keyCode === KeyCode.Enter) {
+					event.stopPropagation();
+				}
+			}));
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.detail, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.onOpenPlugin(item);
+			}));
+		} else {
+			templateData.detail.removeAttribute('href');
+			templateData.detail.removeAttribute('aria-label');
+		}
 		templateData.toggle.domNode.style.display = item.extensionSource === 'project' ? 'none' : '';
 		templateData.toggle.checked = enabled;
 		templateData.toggle.disabled = !canToggle || mutationPending;
@@ -273,7 +296,9 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 	}
 
 	private updateActionsTabbability(templateData: ICopilotCanvasExtensionTemplateData): void {
-		setVirtualizedRowActionsTabbable(templateData.actions, templateData.currentItemKey === this.focusedItemKey);
+		const focused = templateData.currentItemKey === this.focusedItemKey;
+		setVirtualizedRowActionsTabbable(templateData.actions, focused);
+		templateData.detail.tabIndex = focused && templateData.detail.classList.contains('source-link') ? 0 : -1;
 	}
 
 	disposeTemplate(templateData: ICopilotCanvasExtensionTemplateData): void {
@@ -480,6 +505,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			item => this.pendingExtensionMutations.has(this.getExtensionScopeKey(item)),
 			item => this.hasExtensionActions(item),
 			(item, enabled) => void this.setExtensionEnabled(item, enabled),
+			item => void this.openExtensionProvider(item),
 			(item, anchor) => this.showExtensionMenu(item, anchor),
 			hoverService,
 		);

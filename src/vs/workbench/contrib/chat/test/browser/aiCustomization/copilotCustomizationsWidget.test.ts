@@ -75,7 +75,9 @@ suite('CopilotCanvasesWidget', () => {
 		readonly mutationGate?: Promise<void>;
 		readonly plugins?: readonly IAgentPlugin[];
 	}) {
-		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test'));
+		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test.ai-customization-management-editor'));
+		container.style.width = '900px';
+		container.style.height = '900px';
 		store.add({ dispose: () => container.remove() });
 		const ownerSuffix = options?.ownerSuffix ?? 'owner';
 		const frontendSessionResource = URI.parse(`agent-host-copilotcli:/frontend-${ownerSuffix}`);
@@ -179,8 +181,6 @@ suite('CopilotCanvasesWidget', () => {
 			}
 		}());
 		const widget = store.add(instantiationService.createInstance(CopilotCanvasesWidget, container));
-		widget.element.style.width = '900px';
-		widget.element.style.height = '900px';
 		let closeCalls = 0;
 		widget.setCloseCustomizationEditor(async () => {
 			closeCalls++;
@@ -742,6 +742,13 @@ suite('CopilotCanvasesWidget', () => {
 		assert.ok(row);
 		row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
 
+		const pluginLink = harness.container.querySelector<HTMLAnchorElement>('[aria-label="Open plugin details for Diagram Plugin"]');
+		assert.ok(pluginLink);
+		const pluginLinkTabIndexBeforeFocus = pluginLink.tabIndex;
+		pluginLink.closest<HTMLElement>('.monaco-list-row')?.click();
+		const pluginLinkTabIndexAfterFocus = pluginLink.tabIndex;
+		pluginLink.click();
+
 		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Canvas Extension \'Diagram Plugin\'"]');
 		assert.ok(more);
 		more.click();
@@ -756,8 +763,25 @@ suite('CopilotCanvasesWidget', () => {
 			id: AICustomizationManagementCommands.ShowPlugin,
 			args: [{ pluginUri }],
 		};
-		assert.deepStrictEqual({ commands: harness.commands, notifications: harness.notifications }, {
-			commands: [command, command],
+		assert.deepStrictEqual({
+			pluginLink: {
+				label: pluginLink.textContent,
+				href: pluginLink.getAttribute('href'),
+				sourceLink: pluginLink.classList.contains('source-link'),
+				tabIndexBeforeFocus: pluginLinkTabIndexBeforeFocus,
+				tabIndexAfterFocus: pluginLinkTabIndexAfterFocus,
+			},
+			commands: harness.commands,
+			notifications: harness.notifications,
+		}, {
+			pluginLink: {
+				label: 'Plugin: Diagram Plugin',
+				href: '#',
+				sourceLink: true,
+				tabIndexBeforeFocus: -1,
+				tabIndexAfterFocus: 0,
+			},
+			commands: [command, command, command],
 			notifications: ['Plugin details for Diagram Plugin are not available in this window.'],
 		});
 	});
@@ -773,15 +797,12 @@ suite('CopilotCanvasesWidget', () => {
 			],
 		});
 		await timeout(0);
-		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Canvas Extension \'Diagram Plugin\'"]');
-		assert.ok(more);
-		more.click();
-		const show = harness.menuActions.find(action => action.id === 'canvas.showPlugin');
-		assert.ok(show);
-		await show.run();
-		harness.hideMenu();
+		const pluginLink = harness.container.querySelector<HTMLAnchorElement>('[aria-label="Open plugin details for Diagram Plugin"]');
+		assert.ok(pluginLink);
+		pluginLink.click();
 
-		assert.deepStrictEqual({ commands: harness.commands, notifications: harness.notifications }, {
+		assert.deepStrictEqual({ link: pluginLink.textContent, commands: harness.commands, notifications: harness.notifications }, {
+			link: 'Plugin: Diagram Plugin',
 			commands: [],
 			notifications: ['Plugin details for Diagram Plugin are not available in this window.'],
 		});
