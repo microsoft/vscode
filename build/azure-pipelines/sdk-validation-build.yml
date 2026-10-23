@@ -1,0 +1,339 @@
+# SDK validation pipeline.
+#
+# Validates a Copilot SDK update (see microsoft/vscode-engineering#4296): builds
+# the product on every desktop platform and architecture, and runs the Agent
+# Host E2E tests on Windows x64, Linux x64 and macOS arm64. It never signs or
+# publishes anything.
+#
+# It reuses the job templates of the product build (product-build.yml), but its
+# expanded YAML must not reference any of the privileged service connections:
+# `vscode`, `vscode-esrp`, `vscode-cdn`, `vscode-apiscan` and
+# `VS Code Development WIF`. Its definition is only authorized for the
+# connections it needs, so automation that queues it never gets access to the
+# signing, publishing or release credentials. The shared templates drop every
+# step and job that references one of those connections when their
+# VSCODE_PRIVILEGED_CONNECTIONS parameter is false, which only this pipeline
+# passes:
+#
+#   git grep VSCODE_PRIVILEGED_CONNECTIONS -- build/azure-pipelines
+#
+# A template that adds a new privileged reference without that gate makes this
+# pipeline stop at authorization rather than gain access.
+#
+# Not covered here: Alpine, whose build image is pulled through the `vscode`
+# connection, and testing the product-compiled macOS build, which needs the
+# macOS developer certificate behind the `vscode` connection. The macOS arm64
+# Agent Host E2E tests run in a CI-mode job instead, which builds the product
+# itself without a certificate.
+
+pr: none
+trigger: none
+
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    displayName: "Build Title Prefix"
+    type: string
+    default: none
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    displayName: "Custom Cargo Registry"
+    type: string
+    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+  # SDK -> VS Code integration: override Copilot dependencies with versions
+  # already published to the private feed. 'none' = use the OSS SDK version.
+  # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
+  - name: VSCODE_SDK_CANARY_VERSION
+    displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
+    type: string
+    default: none
+  - name: VSCODE_CLI_CANARY_VERSION
+    displayName: "Expected SDK-bundled runtime version ('auto' = infer from SDK)"
+    type: string
+    default: auto
+
+variables:
+  - name: VSCODE_BUILD_TITLE_PREFIX
+    ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_BUILD_TITLE_PREFIX }}
+  - name: VSCODE_PRIVATE_BUILD
+    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  # Normalize sentinels back to empty so the override script can distinguish
+  # the normal SDK and inferred runtime paths.
+  - name: VSCODE_SDK_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_SDK_CANARY_VERSION, 'none') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_SDK_CANARY_VERSION }}
+  - name: VSCODE_CLI_CANARY_VERSION
+    ${{ if eq(parameters.VSCODE_CLI_CANARY_VERSION, 'auto') }}:
+      value: ""
+    ${{ else }}:
+      value: ${{ parameters.VSCODE_CLI_CANARY_VERSION }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_CIBUILD
+    value: false
+  - name: VSCODE_PUBLISH
+    value: false
+  - name: VSCODE_STEP_ON_IT
+    value: false
+  # Keep the legacy notice: there is no Quality stage producing the CG notice.
+  - name: VSCODE_OVERWRITE_TPN
+    value: 'false'
+  # The Copilot extension build needs a per-build counter for its pre-release
+  # version, see product-build.yml.
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
+
+name: "$(VSCODE_BUILD_TITLE_PREFIX)$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }} SDK validation)"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
+
+# Validation builds never ship, so they use the unofficial 1ES template, like
+# product-build-ado-ci.yml.
+extends:
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
+      tsa:
+        enabled: false
+      codeql:
+        compiled:
+          enabled: false
+          justificationForDisabling: SDK validation only, not a shipping build
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: false
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    settings:
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
+    stages:
+      # Every compile job waits for the copilot_vsix artifact of this stage.
+      - stage: Copilot
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_PUBLISH: false
+              VSCODE_RELEASE: false
+              VSCODE_UPLOAD_SOURCEMAPS: false
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+
+      - stage: Windows
+        displayName: Windows X64
+        dependsOn: []
+        pool:
+          name: 1es-windows-2022-x64
+          os: windows
+        jobs:
+          - template: build/azure-pipelines/win32/product-build-win32.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+              VSCODE_CIBUILD: false
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_TESTS: true
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+          - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+              VSCODE_CIBUILD: false
+              VSCODE_JOB_NAME: AgentHostE2E
+              VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+              VSCODE_TEST_IDS:
+                - integration-agent-host-e2e
+
+      - stage: WindowsARM64
+        displayName: Windows ARM64
+        dependsOn: []
+        pool:
+          name: 1es-windows-2022-x64
+          os: windows
+        jobs:
+          - template: build/azure-pipelines/win32/product-build-win32.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+              VSCODE_CIBUILD: false
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+
+      - stage: LinuxX64
+        displayName: Linux X64
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/linux/product-build-linux.yml@self
+            parameters:
+              NPM_ARCH: x64
+              VSCODE_ARCH: x64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_RUN_TESTS: true
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+          - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
+            parameters:
+              NPM_ARCH: x64
+              VSCODE_ARCH: x64
+              VSCODE_JOB_NAME: AgentHostE2E
+              VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+              VSCODE_TEST_IDS:
+                - integration-agent-host-e2e
+
+      - stage: LinuxARM64
+        displayName: Linux ARM64
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/linux/product-build-linux.yml@self
+            parameters:
+              NPM_ARCH: arm64
+              VSCODE_ARCH: arm64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+
+      - stage: LinuxARMHF
+        displayName: Linux ARMHF
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/linux/product-build-linux.yml@self
+            parameters:
+              NPM_ARCH: arm
+              VSCODE_ARCH: armhf
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+
+      # The macOS compile jobs mix in the unsigned CLI and Copilot shim built by
+      # the CLI jobs, and verify the architecture of every Mach-O binary.
+      - stage: macOSX64
+        displayName: macOS X64
+        dependsOn: []
+        pool:
+          name: AcesShared
+          os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+        variables:
+          BUILDSECMON_OPT_IN: true
+        jobs:
+          - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+          - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
+            parameters:
+              VSCODE_ARCH: x64
+              VSCODE_CIBUILD: false
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+
+      - stage: macOSARM64
+        displayName: macOS ARM64
+        dependsOn: []
+        pool:
+          name: AcesShared
+          os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+        variables:
+          BUILDSECMON_OPT_IN: true
+        jobs:
+          - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+              VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+          - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
+            parameters:
+              VSCODE_ARCH: arm64
+              VSCODE_CIBUILD: false
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+          # Testing the product-compiled build needs the macOS developer
+          # certificate, so this job builds and tests in CI mode instead.
+          - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+            parameters:
+              VSCODE_CIBUILD: true
+              VSCODE_JOB_NAME: AgentHostE2E
+              VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+              VSCODE_TEST_IDS:
+                - integration-agent-host-e2e
+              VSCODE_PRIVILEGED_CONNECTIONS: false
