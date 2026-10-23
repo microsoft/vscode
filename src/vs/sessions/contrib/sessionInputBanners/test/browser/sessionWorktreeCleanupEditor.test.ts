@@ -85,6 +85,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const first = createWorktree('first', '/repos/app');
 		const second = createWorktree('second', '/repos/app');
 		const pending = { ...second, sizeBytes: undefined, cleanupState: 'unavailable' as const, isMeasuring: true };
+		const measuredSecond = { ...second, sizeBytes: 200 };
 		const { editor, container } = createEditor({
 			getWorktrees: async (_age, onUpdate) => {
 				publish = onUpdate;
@@ -103,12 +104,23 @@ suite('SessionWorktreeCleanupEditor', () => {
 				{ storage: '100B', disabled: null },
 				{ storage: 'Calculating…', disabled: 'true' },
 			]);
-			rows()[0].querySelector<HTMLElement>('[role="checkbox"]')!.click();
-			publish?.([first, second]);
+			const initialRows = rows();
+			initialRows[0].querySelector<HTMLElement>('[role="checkbox"]')!.click();
+			publish?.([first, measuredSecond]);
 			await timeout(100);
-			assert.deepStrictEqual(rows().map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')), ['false', 'true']);
+			assert.deepStrictEqual({
+				sameRows: rows().map(row => initialRows.includes(row)),
+				reordered: rows().map(row => row === initialRows[1] ? 'second' : 'first'),
+				storage: rows().map(row => row.lastElementChild?.textContent),
+				checked: rows().map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')),
+			}, {
+				sameRows: [true, true],
+				reordered: ['second', 'first'],
+				storage: ['200B', '100B'],
+				checked: ['true', 'false'],
+			});
 		} finally {
-			await finished.complete([first, second]);
+			await finished.complete([first, measuredSecond]);
 		}
 	}));
 

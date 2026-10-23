@@ -42,17 +42,34 @@ import './media/sessionWorktreeCleanupEditor.css';
 
 const MINIMUM_AGE_OPTIONS = [0, 1, 3, 7, 15, 30, 60, 90];
 
+interface IRenderedWorktreeRow {
+	readonly element: HTMLElement;
+	readonly disposables: DisposableStore;
+	readonly dynamicDisposables: DisposableStore;
+	readonly checkbox: Checkbox;
+	readonly titleLink: HTMLAnchorElement;
+	readonly titleCell: HTMLElement;
+	readonly workspaceCell: HTMLElement;
+	readonly lastUsedCell: HTMLElement;
+	readonly storageCell: HTMLElement;
+	worktree: ISessionWorktree;
+	signature: string;
+	reason: HTMLElement | undefined;
+}
+
 export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	static readonly ID = 'sessions.editor.sessionWorktreeCleanup';
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private readonly loadDisposables = this._register(new DisposableStore());
-	private readonly rowDisposables = this._register(new DisposableStore());
+	private readonly tableDisposables = this._register(new DisposableStore());
+	private readonly renderedRows = new Map<string, IRenderedWorktreeRow>();
 	private container: HTMLElement | undefined;
 	private list: HTMLElement | undefined;
 	private summary: HTMLElement | undefined;
 	private summaryRow: HTMLElement | undefined;
+	private tableHeader: HTMLElement | undefined;
 	private emptyState: HTMLElement | undefined;
 	private emptyStateMessage: HTMLElement | undefined;
 	private cleanupButton: Button | undefined;
@@ -85,6 +102,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super(SessionWorktreeCleanupEditor.ID, group, telemetryService, themeService, storageService);
+		this._register(toDisposable(() => this.clearRenderedRows()));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -196,6 +214,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.pendingCleanupScheduler.cancel();
 		this.updateMeasuredWorktrees = undefined;
 		this.loadDisposables.clear();
+		this.clearRenderedRows();
+		this.tableDisposables.clear();
+		this.tableHeader?.remove();
+		this.tableHeader = undefined;
 		super.clearInput();
 	}
 
@@ -265,7 +287,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		this.summaryRow?.classList.remove('hidden');
 		this.list?.classList.remove('hidden');
-		this.rowDisposables.clear();
+		this.clearRenderedRows();
+		this.tableDisposables.clear();
+		this.tableHeader = undefined;
 		if (this.list) {
 			dom.clearNode(this.list);
 		}
@@ -383,8 +407,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		if (!this.list || !this.summary) {
 			return;
 		}
-		this.rowDisposables.clear();
-		dom.clearNode(this.list);
+		this.tableDisposables.clear();
 		const visible = this.getVisibleWorktrees();
 		const eligible = visible.filter(worktree => worktree.cleanupState === 'eligible');
 		const reclaimableBytes = eligible.reduce((total, worktree) => total + (worktree.sizeBytes ?? 0), 0);
@@ -413,11 +436,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			'aria-label': localize('sessionWorktreeCleanup.eligibilityInfo', "Show cleanup eligibility details"),
 		}));
 		eligibilityInfo.appendChild(renderIcon(Codicon.info));
-		const eligibilityHover = this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, eligibilityDescription));
-		this.rowDisposables.add(dom.addDisposableListener(eligibilityInfo, dom.EventType.CLICK, () => eligibilityHover.show(true)));
+		const eligibilityHover = this.tableDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), eligibilityInfo, eligibilityDescription));
+		this.tableDisposables.add(dom.addDisposableListener(eligibilityInfo, dom.EventType.CLICK, () => eligibilityHover.show(true)));
 
-		const header = dom.append(this.list, dom.$('.session-worktree-cleanup-row.header', { role: 'row' }));
-		const selectAll = this.rowDisposables.add(new Checkbox(
+		this.tableHeader?.remove();
+		const header = this.tableHeader = dom.append(this.list, dom.$('.session-worktree-cleanup-row.header', { role: 'row' }));
+		const selectAll = this.tableDisposables.add(new Checkbox(
 			localize('sessionWorktreeCleanup.selectAll', "Select all eligible sessions"),
 			eligible.length > 0 && eligible.every(worktree => this.selectedSessionIds.has(worktree.session.sessionId)),
 			defaultCheckboxStyles,
@@ -426,7 +450,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		if (eligible.length === 0) {
 			selectAll.disable();
 		}
-		this.rowDisposables.add(selectAll.onChange(() => {
+		this.tableDisposables.add(selectAll.onChange(() => {
 			this.selectedSessionIds = selectAll.checked ? new Set(eligible.map(worktree => worktree.session.sessionId)) : new Set();
 			this.renderRows();
 		}));
@@ -435,66 +459,145 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.lastUsedColumn', "Last Used")));
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.storageColumn', "Storage")));
 
-		for (const worktree of [...visible].sort((a, b) => (b.sizeBytes ?? -1) - (a.sizeBytes ?? -1))) {
-			const row = dom.append(this.list, dom.$('.session-worktree-cleanup-row', { role: 'row' }));
-			const title = worktree.session.title.get() || localize('sessionWorktreeCleanup.untitled', "Untitled session");
-			const checkbox = this.rowDisposables.add(new Checkbox(
-				localize('sessionWorktreeCleanup.selectSession', "Select {0}", title),
-				this.selectedSessionIds.has(worktree.session.sessionId),
-				defaultCheckboxStyles,
-			));
-			row.appendChild(checkbox.domNode);
-			if (worktree.cleanupState !== 'eligible') {
-				checkbox.disable();
+		const sortedVisible = [...visible].sort((a, b) => (b.sizeBytes ?? -1) - (a.sizeBytes ?? -1));
+		const visibleIds = new Set(sortedVisible.map(worktree => worktree.session.sessionId));
+		for (const [sessionId, rendered] of this.renderedRows) {
+			if (!visibleIds.has(sessionId)) {
+				rendered.disposables.dispose();
+				rendered.element.remove();
+				this.renderedRows.delete(sessionId);
 			}
-			this.rowDisposables.add(checkbox.onChange(() => {
-				if (checkbox.checked) {
-					this.selectedSessionIds.add(worktree.session.sessionId);
-				} else {
-					this.selectedSessionIds.delete(worktree.session.sessionId);
-				}
-				this.updateCleanupButton();
-				this.updateScrollDimensions();
-			}));
-			const titleCell = dom.append(row, dom.$('span.title', { role: 'cell' }));
-			const openSession = () => void this.sessionsService.openSession(worktree.session.resource).catch(error => this.notificationService.error(error));
-			const titleLink = dom.append(titleCell, dom.$('a.session-worktree-cleanup-session-link', {
-				role: 'link',
-				tabIndex: 0,
-				title: localize('sessionWorktreeCleanup.openSession', "Open {0}", title),
-			}, title));
-			this.rowDisposables.add(dom.addDisposableListener(titleLink, dom.EventType.CLICK, () => openSession()));
-			this.rowDisposables.add(dom.addDisposableListener(titleLink, dom.EventType.KEY_DOWN, event => {
-				const keyboardEvent = new StandardKeyboardEvent(event);
-				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-					keyboardEvent.preventDefault();
-					openSession();
-				}
-			}));
-			if (worktree.cleanupState !== 'eligible') {
-				const cleaning = worktree.cleanupState === 'archived' && this.isCleaning(worktree.session.sessionId);
-				const label = cleaning
-					? localize('sessionWorktreeCleanup.cleaning', "Cleaning up…")
-					: worktree.isMeasuring
-						? localize('sessionWorktreeCleanup.calculating', "Calculating storage…")
-						: this.getCleanupStateLabel(worktree.cleanupState);
-				const reason = dom.append(titleCell, dom.$('span.session-worktree-cleanup-reason'));
-				if (cleaning) {
-					row.setAttribute('aria-busy', 'true');
-				}
-				reason.appendChild(titleCell.ownerDocument.createTextNode(label));
-				this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), reason, label));
+		}
+		for (const worktree of sortedVisible) {
+			const sessionId = worktree.session.sessionId;
+			let rendered = this.renderedRows.get(sessionId);
+			if (!rendered) {
+				rendered = this.createRenderedRow(worktree);
+				this.renderedRows.set(sessionId, rendered);
 			}
-			const workspace = worktree.session.workspace.get();
-			const workspaceCell = dom.append(row, dom.$('span.workspace', { role: 'cell' }, workspace?.label ?? localize('sessionWorktreeCleanup.unknownWorkspace', "Unknown workspace")));
-			if (workspace) {
-				this.rowDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), workspaceCell, workspace.description ? `${workspace.label}\n${workspace.description}\n${workspace.uri.toString(true)}` : workspace.uri.toString(true)));
+			const signature = this.getRenderedRowSignature(worktree);
+			if (rendered.signature !== signature) {
+				this.updateRenderedRow(rendered, worktree);
+				rendered.signature = signature;
 			}
-			dom.append(row, dom.$('span', { role: 'cell', title: worktree.session.updatedAt.get().toLocaleString() }, fromNow(worktree.session.updatedAt.get(), true, true)));
-			dom.append(row, dom.$('span', { role: 'cell' }, worktree.isMeasuring ? localize('sessionWorktreeCleanup.calculatingStorage', "Calculating…") : worktree.sizeBytes === undefined ? localize('sessionWorktreeCleanup.unknownStorage', "Unknown") : ByteSize.formatSize(worktree.sizeBytes)));
+			this.list.appendChild(rendered.element);
 		}
 		this.updateCleanupButton();
 		this.updateScrollDimensions();
+	}
+
+	private createRenderedRow(worktree: ISessionWorktree): IRenderedWorktreeRow {
+		const disposables = new DisposableStore();
+		const dynamicDisposables = disposables.add(new DisposableStore());
+		const element = dom.$('.session-worktree-cleanup-row', { role: 'row' });
+		const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
+		element.appendChild(checkbox.domNode);
+		const titleCell = dom.append(element, dom.$('span.title', { role: 'cell' }));
+		const titleLink = dom.append(titleCell, dom.$('a.session-worktree-cleanup-session-link', { role: 'link', tabIndex: 0 })) as HTMLAnchorElement;
+		const workspaceCell = dom.append(element, dom.$('span.workspace', { role: 'cell' }));
+		const lastUsedCell = dom.append(element, dom.$('span', { role: 'cell' }));
+		const storageCell = dom.append(element, dom.$('span', { role: 'cell' }));
+		const rendered: IRenderedWorktreeRow = {
+			element,
+			disposables,
+			dynamicDisposables,
+			checkbox,
+			titleLink,
+			titleCell,
+			workspaceCell,
+			lastUsedCell,
+			storageCell,
+			worktree,
+			signature: '',
+			reason: undefined,
+		};
+		disposables.add(checkbox.onChange(() => {
+			const sessionId = rendered.worktree.session.sessionId;
+			if (checkbox.checked) {
+				this.selectedSessionIds.add(sessionId);
+			} else {
+				this.selectedSessionIds.delete(sessionId);
+			}
+			this.updateCleanupButton();
+			this.updateScrollDimensions();
+		}));
+		const openSession = () => void this.sessionsService.openSession(rendered.worktree.session.resource).catch(error => this.notificationService.error(error));
+		disposables.add(dom.addDisposableListener(titleLink, dom.EventType.CLICK, () => openSession()));
+		disposables.add(dom.addDisposableListener(titleLink, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+				keyboardEvent.preventDefault();
+				openSession();
+			}
+		}));
+		return rendered;
+	}
+
+	private updateRenderedRow(rendered: IRenderedWorktreeRow, worktree: ISessionWorktree): void {
+		rendered.worktree = worktree;
+		rendered.dynamicDisposables.clear();
+		const title = worktree.session.title.get() || localize('sessionWorktreeCleanup.untitled', "Untitled session");
+		rendered.checkbox.setTitle(localize('sessionWorktreeCleanup.selectSession', "Select {0}", title));
+		rendered.checkbox.checked = this.selectedSessionIds.has(worktree.session.sessionId);
+		if (worktree.cleanupState === 'eligible') {
+			rendered.checkbox.enable();
+			rendered.checkbox.domNode.removeAttribute('aria-disabled');
+		} else {
+			rendered.checkbox.disable();
+		}
+		rendered.titleLink.textContent = title;
+		rendered.titleLink.title = localize('sessionWorktreeCleanup.openSession', "Open {0}", title);
+		rendered.reason?.remove();
+		rendered.reason = undefined;
+		const cleaning = worktree.cleanupState === 'archived' && this.isCleaning(worktree.session.sessionId);
+		rendered.element.toggleAttribute('aria-busy', cleaning);
+		if (worktree.cleanupState !== 'eligible') {
+			const label = cleaning
+				? localize('sessionWorktreeCleanup.cleaning', "Cleaning up…")
+				: worktree.isMeasuring
+					? localize('sessionWorktreeCleanup.calculating', "Calculating storage…")
+					: this.getCleanupStateLabel(worktree.cleanupState);
+			const reason = rendered.reason = dom.append(rendered.titleCell, dom.$('span.session-worktree-cleanup-reason', undefined, label));
+			rendered.dynamicDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), reason, label));
+		}
+		const workspace = worktree.session.workspace.get();
+		rendered.workspaceCell.textContent = workspace?.label ?? localize('sessionWorktreeCleanup.unknownWorkspace', "Unknown workspace");
+		if (workspace) {
+			rendered.dynamicDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), rendered.workspaceCell, workspace.description ? `${workspace.label}\n${workspace.description}\n${workspace.uri.toString(true)}` : workspace.uri.toString(true)));
+		}
+		const updatedAt = worktree.session.updatedAt.get();
+		rendered.lastUsedCell.title = updatedAt.toLocaleString();
+		rendered.lastUsedCell.textContent = fromNow(updatedAt, true, true);
+		rendered.storageCell.textContent = worktree.isMeasuring
+			? localize('sessionWorktreeCleanup.calculatingStorage', "Calculating…")
+			: worktree.sizeBytes === undefined
+				? localize('sessionWorktreeCleanup.unknownStorage', "Unknown")
+				: ByteSize.formatSize(worktree.sizeBytes);
+	}
+
+	private getRenderedRowSignature(worktree: ISessionWorktree): string {
+		const workspace = worktree.session.workspace.get();
+		return [
+			worktree.session.title.get(),
+			worktree.session.updatedAt.get().getTime(),
+			workspace?.label,
+			workspace?.description,
+			workspace?.uri.toString(),
+			worktree.sizeBytes,
+			worktree.worktreeCount,
+			worktree.cleanupState,
+			worktree.isMeasuring,
+			this.selectedSessionIds.has(worktree.session.sessionId),
+			worktree.cleanupState === 'archived' && this.isCleaning(worktree.session.sessionId),
+		].join('\0');
+	}
+
+	private clearRenderedRows(): void {
+		for (const rendered of this.renderedRows.values()) {
+			rendered.disposables.dispose();
+			rendered.element.remove();
+		}
+		this.renderedRows.clear();
 	}
 
 	private getCleanupStateLabel(state: Exclude<SessionWorktreeCleanupState, 'eligible'>): string {
