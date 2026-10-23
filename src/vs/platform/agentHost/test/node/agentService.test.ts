@@ -12114,6 +12114,7 @@ suite('AgentService (node dispatcher)', () => {
 			const git: IAgentHostGitService = {
 				...createNoopGitService(),
 				branchExists: async () => true,
+				isWorktreeRegistered: async () => false,
 				removeWorktree: async (_root, worktree) => rmSync(worktree.fsPath, { recursive: true, force: true }),
 			};
 			const gitService = new Proxy(git, {
@@ -22870,6 +22871,7 @@ suite('AgentService (node dispatcher)', () => {
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
+				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
@@ -22987,6 +22989,7 @@ suite('AgentService (node dispatcher)', () => {
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
+				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },

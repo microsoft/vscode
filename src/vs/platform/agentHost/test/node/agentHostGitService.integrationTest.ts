@@ -1959,6 +1959,60 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('forced removal preserves dirty non-ignored work in a recovery ref', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, 'checkout');
+		await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/preserve', track: false });
+		writeFileSync(join(wtPath, 'untracked.txt'), 'recover this work');
+		const head = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wtPath, env, encoding: 'utf8' }).trim();
+
+		await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+
+		const refs = cp.execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/vscode-preserved-worktrees/'], { cwd: dir, env, encoding: 'utf8' }).trim().split('\n');
+		assert.deepStrictEqual({
+			exists: existsSync(wtPath),
+			refs: refs.length,
+			preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
+			branchHead: cp.execFileSync('git', ['rev-parse', 'agents/preserve'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+		}, { exists: false, refs: 1, preserved: 'recover this work', branchHead: head });
+	});
+
+	(hasGit ? test : test.skip)('forced removal aborts when preservation cannot capture the worktree', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, 'checkout');
+		await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/preserve-failure', track: false });
+		writeFileSync(join(wtPath, 'untracked.txt'), 'keep this work');
+		const capture = svc!.captureWorkingTreeAsTree;
+		svc!.captureWorkingTreeAsTree = async () => undefined;
+		try {
+			await assert.rejects(svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }), /Cannot preserve worktree/);
+			assert.deepStrictEqual({ exists: existsSync(wtPath), registered: await svc!.isWorktreeRegistered(URI.file(dir), URI.file(wtPath)) }, { exists: true, registered: true });
+		} finally {
+			svc!.captureWorkingTreeAsTree = capture;
+		}
+	});
+
+	(hasGit ? test : test.skip)('forced removal keeps registered leftover files when missing metadata prevents preservation', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, 'checkout');
+		await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/partial', track: false });
+		rmSync(join(wtPath, '.git'));
+		writeFileSync(join(wtPath, 'leftover.txt'), 'partial deletion');
+		await assert.rejects(svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }), /its .git file is missing/);
+		assert.deepStrictEqual({ exists: existsSync(wtPath), registered: await svc!.isWorktreeRegistered(URI.file(dir), URI.file(wtPath)) }, { exists: true, registered: true });
+	});
+
+	(hasGit ? test : test.skip)('forced residue cleanup rejects a replacement symlink', async () => {
+		const dir = initRepo();
+		const outside = join(dir, 'keep');
+		mkdirSync(outside);
+		writeFileSync(join(outside, 'keep.txt'), 'keep');
+		const residue = join(dir, 'residue');
+		await (await import('fs/promises')).symlink(outside, residue, 'dir');
+		await assert.rejects(svc!.removeWorktree(URI.file(dir), URI.file(residue), { force: true }), /unsafe worktree residue/);
+		assert.strictEqual(existsSync(join(outside, 'keep.txt')), true);
+	});
+
 	// Residual case of #329982: git can de-register a worktree while leaving its directory behind.
 	(hasGit ? test : test.skip)('removeWorktree deletes a de-registered residual directory only when forced', async () => {
 		const dir = initRepo();
@@ -2013,13 +2067,13 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 	// Fail-closed guard: when git cannot confirm the worktree is unregistered (e.g.
 	// the repository is gone), a failed removal must propagate rather than be
 	// silently reported as success.
-	(hasGit ? test : test.skip)('removeWorktree rethrows when git cannot confirm removal', async () => {
+	(hasGit ? test : test.skip)('removeWorktree refuses deletion when git cannot confirm registration', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-nonrepo-'));
 		const wtPath = join(tmpRoot, 'wt');
 		mkdirSync(wtPath); // exists -> deterministic `git worktree remove` branch
 		await assert.rejects(
 			svc!.removeWorktree(URI.file(tmpRoot), URI.file(wtPath), { force: true }),
-			/exited with code 128/,
+			/Cannot preserve registered worktree/,
 		);
 	});
 
