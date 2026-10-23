@@ -15,7 +15,7 @@ import { IRequestContext, IRequestOptions } from '../../../../base/parts/request
 import { IRequestService } from '../../../request/common/request.js';
 import { IGalleryMcpServer, IMcpServerInput, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../common/mcpGalleryManifest.js';
-import { McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
+import { McpGalleryInvalidCursorError, McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
 import { CustomizationMarketplaceService } from '../../../customizationMarketplace/common/customizationMarketplaceService.js';
 import { McpGalleryMarketplaceProvider } from '../../../customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -108,12 +108,16 @@ class StatusRequestService implements IRequestService {
 	readonly onDidCompleteRequest = Event.None;
 	readonly requests: IRequestOptions[] = [];
 
-	constructor(private readonly statusCode: number, private readonly body: string | ((options: IRequestOptions) => string) = '') { }
+	constructor(
+		private readonly statusCode: number,
+		private readonly body: string | ((options: IRequestOptions) => string) = '',
+		private readonly headers: IRequestContext['res']['headers'] = {},
+	) { }
 
 	async request(options: IRequestOptions): Promise<IRequestContext> {
 		this.requests.push(options);
 		return {
-			res: { statusCode: this.statusCode, headers: {} },
+			res: { statusCode: this.statusCode, headers: this.headers },
 			stream: bufferToStream(VSBuffer.fromString(typeof this.body === 'string' ? this.body : this.body(options))),
 		};
 	}
@@ -167,10 +171,10 @@ suite('McpGalleryService - marketplace pages', () => {
 	});
 
 	for (const total of [undefined, 491]) {
-		test(`composes 100-item browse pages from 99-item registry pages with ${total === undefined ? 'unknown' : 'explicit'} totals`, async () => {
+		test(`preserves 100-item registry pages with ${total === undefined ? 'unknown' : 'explicit'} totals`, async () => {
 			const requests = new StatusRequestService(200, options => JSON.stringify({
-				servers: Array.from({ length: 99 }, (_, index) => serverDocumentData(`io.github.owner/server-${index}`, ['npm'])),
-				metadata: { count: 99, total, nextCursor: options.url?.includes('cursor=') ? undefined : 'next-page' },
+				servers: Array.from({ length: 100 }, (_, index) => serverDocumentData(`io.github.owner/server-${options.url?.includes('cursor=') ? index + 100 : index}`, ['npm'])),
+				metadata: { count: 100, total, nextCursor: options.url?.includes('cursor=') ? undefined : 'next-page' },
 			}));
 			const manifests = createManifestService(manifest);
 			const gallery = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), manifests));
@@ -193,12 +197,12 @@ suite('McpGalleryService - marketplace pages', () => {
 				sourceErrors: page.sourceErrors,
 				next: { items: next.items.length, total: next.total, cursor: next.nextCursor },
 			}, {
-				requests: [`${SERVERS_URL}?limit=99&version=latest`, `${SERVERS_URL}?limit=99&version=latest&cursor=next-page`],
+				requests: [`${SERVERS_URL}?limit=100&version=latest`, `${SERVERS_URL}?limit=100&version=latest&cursor=next-page`],
 				items: 100,
 				total,
 				hasNextCursor: true,
 				sourceErrors: undefined,
-				next: { items: 98, total, cursor: undefined },
+				next: { items: 100, total, cursor: undefined },
 			});
 		});
 	}
@@ -250,6 +254,26 @@ suite('McpGalleryService - marketplace pages', () => {
 		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /HTTP 503/);
 		const legacy = await service.query(undefined, CancellationToken.None);
 		assert.deepStrictEqual(legacy.firstPage, { items: [], hasMore: false });
+	});
+
+	test('classifies a registry-issued invalid continuation cursor', async () => {
+		const requests = new StatusRequestService(400, 'Invalid cursor parameter');
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+
+		await assert.rejects(
+			service.queryPage({ pageSize: 30, cursor: 'registry-cursor' }, CancellationToken.None),
+			error => error instanceof McpGalleryInvalidCursorError,
+		);
+	});
+
+	test('reports rate limits with a bounded retry delay and suppresses requests during the cooldown', async () => {
+		const requests = new StatusRequestService(429, '', { 'retry-after': '7200' });
+		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 3600 seconds/);
+		await assert.rejects(service.queryPage({ pageSize: 30 }, CancellationToken.None), /Try again in 3600 seconds/);
+
+		assert.strictEqual(requests.requests.length, 1);
 	});
 
 	test('does not invent a zero total when older registry responses omit count', async () => {

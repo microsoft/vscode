@@ -1310,6 +1310,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const modelServiceRef: { value: IModelService | undefined } = { value: undefined };
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 	let customizationMarketplaceQueryCount = 0;
+	let customizationMarketplacePrimaryQueryCount = 0;
 	let marketplaceConfiguration: TestConfigurationService | undefined;
 	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
 	const getFixtureInstallationTarget = (resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallationTarget => resource.installation?.kind === 'copilotConnector'
@@ -1413,6 +1414,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}
 				override async query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
+					if (query.pageSize !== 4 || query.sourceIds?.length !== 1 || query.query || query.mediaType || query.cursor) {
+						customizationMarketplacePrimaryQueryCount++;
+					}
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({ token: String(offset) });
@@ -2017,8 +2021,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	}
 	editor.setVisible(true);
 	if (options.curatedFeedsEnabled) {
+		const expectedSectionCount = curatedMarketplaceSections.length + (options.copilotConnectorsEnabled ? 1 : 0);
 		await waitForFixtureCondition(
-			() => ctx.container.querySelectorAll('.customization-discovery-section').length === curatedMarketplaceSections.length,
+			() => ctx.container.querySelectorAll('.customization-discovery-section').length >= expectedSectionCount,
 			'Curated Browse sections did not render.',
 		);
 	}
@@ -2044,10 +2049,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(overview.querySelector('.welcome-prompts-content-container') !== null, 'Disabled Marketplace must render the original Overview cards.');
 		assert(overview.querySelector('.customization-discovery') === null, 'Disabled Marketplace must not construct Discover.');
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes('Overview') === true, 'Disabled Marketplace must label the home page Overview.');
-		assert(customizationMarketplaceQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
+		assert(customizationMarketplacePrimaryQueryCount === 0, 'Disabled Marketplace must not query the catalog.');
 	} else if (!options.selectedSection) {
 		await Promise.resolve();
-		assert(customizationMarketplaceQueryCount === 1, 'Visible Discover must query the catalog once for browse mode.');
+		assert(customizationMarketplacePrimaryQueryCount === 1, 'Visible Discover must issue one primary catalog query for browse mode.');
 		assert(ctx.container.querySelector('.welcome-prompts-content-container') === null, 'Enabled Marketplace must hide the original Overview.');
 		assert(ctx.container.querySelector('.customization-discovery') !== null, 'The customization overview must render Discover.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
@@ -2091,13 +2096,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must retain the existing compact marketplace icon size.');
 		if (options.curatedFeedsEnabled) {
 			const renderedSections = [...ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-section')];
-			const actualOrder = renderedSections.flatMap(section => [
+			const curatedRenderedSections = renderedSections.slice(0, curatedMarketplaceSections.length);
+			const actualOrder = curatedRenderedSections.flatMap(section => [
 				section.querySelector('.customization-discovery-section-title')?.textContent ?? '',
 				...[...section.querySelectorAll<HTMLElement>('.customization-discovery-card-name')].map(element => element.textContent ?? ''),
 			]);
 			const expectedOrder = curatedMarketplaceSections.flatMap(section => [section.title, ...section.items.map(item => item.displayName)]);
 			assert(actualOrder.join('\n') === expectedOrder.join('\n'), 'Discover must preserve the saved feed section and item order.');
 			assert(renderedSections[0]?.classList.contains('featured') && renderedSections.slice(1).every(section => !section.classList.contains('featured')), 'Curated feeds must retain the existing Browse card styling.');
+			if (options.copilotConnectorsEnabled) {
+				const connectorSection = renderedSections[curatedMarketplaceSections.length];
+				assert(
+					connectorSection?.querySelector('.customization-discovery-section-title')?.textContent === 'Copilot Connectors'
+					&& connectorSection.querySelector('.customization-discovery-card-name')?.textContent === 'Work IQ Mail'
+					&& connectorSection.querySelector<HTMLButtonElement>('.customization-discovery-show-all')?.ariaLabel === 'View all customizations from Copilot Connectors',
+					'Curated Browse must append the Copilot Connectors source shelf with its View All action.',
+				);
+			}
 		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
@@ -2131,7 +2146,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
 		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
-		const queryCountBeforeToggle = customizationMarketplaceQueryCount;
+		const queryCountBeforeToggle = customizationMarketplacePrimaryQueryCount;
 		await configuration.setUserConfiguration(setting, !marketplaceVisibilityEnabled);
 		await Promise.resolve();
 		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -2145,7 +2160,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Browse' : 'Overview') === true, 'Home navigation must match the selected surface.');
 		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
 		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
-		assert(customizationMarketplaceQueryCount === expectedQueryCount, `Toggling Marketplace visibility must query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplaceQueryCount}.`);
+		assert(customizationMarketplacePrimaryQueryCount === expectedQueryCount, `Toggling Marketplace visibility must issue a primary query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplacePrimaryQueryCount}.`);
 		assert(!home?.textContent?.includes('Could not load available customizations.'), 'Changing Marketplace visibility must not show a catalog error.');
 	}
 
@@ -2290,7 +2305,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 		}
 		if (options.discoveryQuery.includes('@installed')) {
-			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
+			assert(customizationMarketplacePrimaryQueryCount === 1, 'The Installed filter must not issue another primary catalog query.');
 			const resultActions = [...resultList.querySelectorAll<HTMLElement>('.customization-discovery-result-actions .monaco-button')];
 			assert(resultActions.every(action => action.textContent !== 'Install'), 'The Installed filter must hide available catalog actions.');
 		}
@@ -2303,7 +2318,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			assert(list instanceof WorkbenchList, 'Discover results must register their list for keyboard navigation.');
 			list.scrollTop = list.scrollHeight;
 			await new Promise(resolve => setTimeout(resolve, 0));
-			assert(customizationMarketplaceQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
+			assert(customizationMarketplacePrimaryQueryCount >= 3, 'Scrolling near the end of Discover results must request the next catalog page.');
 			list.scrollTop = list.scrollHeight;
 			assert(resultList.querySelector('.customization-discovery-result-content.loading') !== null, 'Continuation must render a trailing Marketplace loading placeholder.');
 			assert(ctx.container.querySelector('.monaco-progress-container.active') === null, 'Continuation must not show the initial-loading progress bar.');
@@ -4008,12 +4023,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	BrowseCuratedFeeds: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: [
-			'Browse uses the existing customization card layout unchanged while replacing its content with the three curated feed sections in feed order. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
+			'Browse leads with the three GitHub editorial sections in feed order, followed by a Copilot Connectors shelf with four or fewer items and a View All action. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
 		],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			marketplaceVisibilityEnabled: true,
 			curatedFeedsEnabled: true,
+			copilotConnectorsEnabled: true,
 			width: 1200,
 			height: 760,
 		}),
