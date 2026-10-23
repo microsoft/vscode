@@ -38,7 +38,7 @@ Archived
     > Pinned
     > Custom group
     > External (when dedicated sectioning is enabled)
-    > Quick chat
+    > Quick chat (workspace and repository grouping only)
     > Workspace, repository, environment, or date group
 ```
 
@@ -46,7 +46,7 @@ Archived
 - Pinned sessions appear in the pinned section.
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
 - When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
-- Remaining unpinned quick chats appear in the dedicated chats section.
+- Under workspace or repository grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace.
 - Remaining sessions follow the selected workspace, repository, environment, or date grouping.
 - A regular session created by another regular session is initially placed
   immediately after its creator. While it has neither custom-group membership
@@ -57,7 +57,7 @@ Archived
 
 The active session remains visible even when a filter would otherwise exclude it.
 
-A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
+A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
 ## Grouping
 
@@ -73,7 +73,7 @@ Repository sections otherwise behave like workspace sections: they share the use
 
 ### Date grouping
 
-User-created groups remain a contiguous user-managed block. Ungrouped sessions follow in fixed date sections.
+User-created groups and the date sections share a user-managed order below the fixed sections. The date sections keep their fixed relative order and cannot be dragged, while groups default above them and can move between and below them. Ungrouped sessions follow in the date sections.
 
 ### Environment grouping
 
@@ -89,7 +89,7 @@ A workspace, repository, or environment section can belong to one custom group a
 
 Quick chats are identified through `ISession.isQuickChat`, not by checking for an absent workspace. They remain session rows; the list never exposes `IChat` objects as top-level rows.
 
-A quick chat can have nested chats like any session whose provider supports multiple chats, and chats move into and out of quick chats; the provider's per-chat movability decides, never the quick-chat flag. A quick chat stays in the chats section even when it holds chats that brought a folder of their own: those chat rows show their folder, and its scratch-folder chats show none.
+A quick chat can have nested chats like any session whose provider supports multiple chats, and chats move into and out of quick chats; the provider's per-chat movability decides, never the quick-chat flag. Where the grouping has a chats section, a quick chat stays in it even when it holds chats that brought a folder of their own: those chat rows show their folder, and its scratch-folder chats show none.
 
 New Nested Session opens the New Session composer for a nested chat of any session, without the agent (harness) and environment pickers: the nested chat uses the session's agent, provider and host. The folder picker lists folders like the New Session workspace picker (folder name, then its parent folder): it preselects the session's folder, or No Workspace in a session without one, and offers the session's folder, recent folders of the provider, No Workspace, then the provider's browse actions and Open Folder… for a provider on this computer. Folders of the session's other chats are not offered. When the session's folder no longer exists, No Workspace is preselected and the trigger says why; only a definite "not found" counts (a host that can't tell keeps the session folder), and a send waits for that check. Scratch folders, including a quick chat's own, are never offered as folders; the host refuses one. A picked folder joins the session's folders for that chat; No Workspace gives the chat its own scratch folder, also in a workspace session, where it shows no folder. For a Git folder, New Worktree and the branch picker give the chat its own worktree from the picked branch. An agent without multiple working directories offers only the session's folder (No Workspace in a session without one). The choice applies when the first request is sent, to the untitled chat the composer opened with, so the nested session stays one chat: an unchanged default leaves it as it is; otherwise the host gives it the chosen workspace before the request, and refuses (leaving the chat as it was) once the chat has a turn. Hosts that don't advertise `vscode.createChatWorkspace` keep the composer without workspace pickers.
 
@@ -149,7 +149,7 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section and custom group, pins, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 
