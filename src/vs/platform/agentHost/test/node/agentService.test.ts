@@ -12130,6 +12130,7 @@ suite('AgentService (node dispatcher)', () => {
 			const git: IAgentHostGitService = {
 				...createNoopGitService(),
 				branchExists: async () => true,
+				isWorktreeRegistered: async () => false,
 				removeWorktree: async (_root, worktree) => rmSync(worktree.fsPath, { recursive: true, force: true }),
 			};
 			const gitService = new Proxy(git, {
