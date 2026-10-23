@@ -902,6 +902,11 @@ export interface ISessionCreationReference {
 }
 
 /** Returns whether any chat or the session summary reports file changes. */
+/** Whether a session is the provider's Chatpad chat, which aggregates over sessions leave out. */
+export function isChatpadSession(session: ISession, reader: IReader | undefined): boolean {
+	return session.isChatpad?.read(reader) ?? false;
+}
+
 export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
 	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
 		return true;

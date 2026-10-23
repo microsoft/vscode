@@ -19,7 +19,7 @@ import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/bro
 import { getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IDynamicVariable } from '../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
 import { createSessionReferenceVariableEntry } from '../../../services/sessions/browser/sessionReference.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, isChatpadSession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 const VARIABLE_LEADER = '#';
@@ -93,7 +93,7 @@ export class SessionReferenceCompletions extends Disposable {
 		// event logs on the host it runs on.
 		const sessions = this._sessionsManagementService.getSessions()
 			.map(session => ({ session, rawId: getCopilotCliSessionRawId(session.resource) }))
-			.filter((entry): entry is { session: ISession; rawId: string } => entry.rawId !== undefined && entry.session.resource.scheme === currentResource.scheme)
+			.filter((entry): entry is { session: ISession; rawId: string } => entry.rawId !== undefined && !isChatpadSession(entry.session, undefined) && entry.session.resource.scheme === currentResource.scheme)
 			.sort((a, b) => b.session.updatedAt.get().getTime() - a.session.updatedAt.get().getTime());
 
 		return sessions.map(({ session, rawId }, index): CompletionItem => {

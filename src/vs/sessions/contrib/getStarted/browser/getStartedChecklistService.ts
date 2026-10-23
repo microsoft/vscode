@@ -21,7 +21,7 @@ import { IOnboardingScenarioService, isOnboardingDeveloperModeEnabled, ONBOARDIN
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
+import { isChatpadSession, SessionChangesetOperationStatus, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 import { GET_STARTED_CHECKLIST_SETTING, GET_STARTED_DEVELOPER_MODE_ID, GetStartedChecklistMode, GetStartedChecklistModel, GetStartedItemId, IGetStartedItemState, IGetStartedSignals, toGetStartedChecklistMode } from '../common/getStartedChecklist.js';
@@ -167,7 +167,7 @@ export class GetStartedChecklistService extends Disposable implements IGetStarte
 			// repository share its label, even when each works in its own worktree.
 			const projects = new Set<string>();
 			for (const session of sessions.read(reader)) {
-				if (session.isAutomation?.read(reader)) {
+				if (session.isAutomation?.read(reader) || isChatpadSession(session, reader)) {
 					continue;
 				}
 				const status = session.status.read(reader);
