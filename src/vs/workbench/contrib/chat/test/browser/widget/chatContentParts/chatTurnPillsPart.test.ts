@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
+import { ChangesSummaryFileListPool } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatTurnPillsContentPart } from '../../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
@@ -41,6 +43,7 @@ suite('ChatTurnPillsContentPart', () => {
 			ChatTurnPillsContentPart,
 			content,
 			{} as IChatContentPartRenderContext,
+			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
 		));
 
 		const readState = () => ({
@@ -96,6 +99,7 @@ suite('ChatTurnPillsContentPart', () => {
 				isLastTurn: true,
 			},
 			{} as IChatContentPartRenderContext,
+			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
 		));
 
 		const readState = () => ({
@@ -156,6 +160,7 @@ suite('ChatTurnPillsContentPart', () => {
 				isLastTurn: true,
 			},
 			{} as IChatContentPartRenderContext,
+			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
 		));
 
 		let toggleCount = 0;
@@ -189,9 +194,126 @@ suite('ChatTurnPillsContentPart', () => {
 		counts.click();
 
 		assert.deepStrictEqual({ collapsed, expanded, afterCountsClick: readState() }, {
-			collapsed: { open: false, expandedChevron: false, ariaExpanded: 'false', rows: 2, toggleCount: 0, openChangesCount: 0 },
+			collapsed: { open: false, expandedChevron: false, ariaExpanded: 'false', rows: 0, toggleCount: 0, openChangesCount: 0 },
 			expanded: { open: true, expandedChevron: true, ariaExpanded: 'true', rows: 2, toggleCount: 1, openChangesCount: 0 },
 			afterCountsClick: { open: true, expandedChevron: true, ariaExpanded: 'true', rows: 2, toggleCount: 1, openChangesCount: 1 },
+		});
+	});
+
+	function setUpTurnChanges() {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatResponseFileChangesService, {
+			_serviceBrand: undefined,
+			registerProvider: () => Disposable.None,
+			getChangesForRequest: () => observableValue<readonly IEditSessionEntryDiff[]>('turnChanges', [
+				{ ...emptySessionEntryDiff(URI.file('/file1.ts'), URI.file('/file1.ts')), added: 5, removed: 2 },
+				{ ...emptySessionEntryDiff(URI.file('/file2.ts'), URI.file('/file2.ts')), added: 3, removed: 1 },
+			]),
+			getFileEditsForRequest: () => undefined,
+			getChangeStatsForRequest: () => undefined,
+			openChangesForRequest: () => { },
+		});
+
+		const modelService = instantiationService.get(IModelService);
+		const modelAddedListeners = new Set<IDisposable>();
+		const onModelAdded: IModelService['onModelAdded'] = (listener, thisArgs, disposables) => {
+			const subscription = modelService.onModelAdded(listener, thisArgs);
+			const tracked = toDisposable(() => {
+				modelAddedListeners.delete(tracked);
+				subscription.dispose();
+			});
+			modelAddedListeners.add(tracked);
+			if (Array.isArray(disposables)) {
+				disposables.push(tracked);
+			} else {
+				disposables?.add(tracked);
+			}
+			return tracked;
+		};
+		instantiationService.set(IModelService, new Proxy(modelService, {
+			get: (target, property) => property === 'onModelAdded' ? onModelAdded : Reflect.get(target, property),
+		}));
+
+		const listPool = store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined));
+		let requestCount = 0;
+		const createPart = () => instantiationService.createInstance(
+			ChatTurnPillsContentPart,
+			{
+				kind: 'turnPills',
+				requestId: `request${requestCount++}`,
+				sessionResource: URI.parse('vscode-chat-session://agent-host/session'),
+				isLastTurn: false,
+			},
+			{} as IChatContentPartRenderContext,
+			listPool,
+		);
+		return { listPool, createPart, modelAddedListenerCount: () => modelAddedListeners.size };
+	}
+
+	function expand(part: ChatTurnPillsContentPart, open = true): void {
+		const details = part.domNode.querySelector<HTMLDetailsElement>('details')!;
+		details.open = open;
+		details.dispatchEvent(new Event('toggle'));
+	}
+
+	const fileList = (part: ChatTurnPillsContentPart) => part.domNode.querySelector('.chat-summary-list');
+
+	test('renders collapsed parts without changed-file lists or global model listeners', () => {
+		const { createPart, modelAddedListenerCount } = setUpTurnChanges();
+		const parts = [store.add(createPart())];
+		const readState = () => ({
+			lists: parts.filter(fileList).length,
+			modelAddedListeners: modelAddedListenerCount(),
+		});
+		const afterOne = readState();
+		while (parts.length < 300) {
+			parts.push(store.add(createPart()));
+		}
+
+		assert.deepStrictEqual({ afterOne, afterMany: readState() }, {
+			afterOne: { lists: 0, modelAddedListeners: 0 },
+			afterMany: { lists: 0, modelAddedListeners: 0 },
+		});
+	});
+
+	test('renders the changed-file list once on first expand, shares global model listeners, and reuses released lists', () => {
+		const { listPool, createPart, modelAddedListenerCount } = setUpTurnChanges();
+		const first = createPart();
+		const second = store.add(createPart());
+		const readState = (part: ChatTurnPillsContentPart) => ({
+			rows: part.domNode.querySelectorAll('.monaco-list-row').length,
+			modelAddedListeners: modelAddedListenerCount(),
+		});
+
+		expand(first);
+		const firstList = fileList(first);
+		const firstExpanded = readState(first);
+		expand(first, false);
+		expand(first);
+		const reexpandedSameList = fileList(first) === firstList;
+		expand(second);
+		const secondExpanded = readState(second);
+		first.dispose();
+		const firstDisposed = { list: fileList(first), modelAddedListeners: modelAddedListenerCount() };
+		const third = store.add(createPart());
+		expand(third);
+		const thirdReusesFirstList = fileList(third) === firstList;
+		listPool.dispose();
+
+		assert.deepStrictEqual({
+			firstExpanded,
+			reexpandedSameList,
+			secondExpanded,
+			firstDisposed,
+			thirdReusesFirstList,
+			afterPoolDisposed: modelAddedListenerCount(),
+		}, {
+			firstExpanded: { rows: 2, modelAddedListeners: 1 },
+			reexpandedSameList: true,
+			secondExpanded: { rows: 2, modelAddedListeners: 1 },
+			firstDisposed: { list: null, modelAddedListeners: 1 },
+			thirdReusesFirstList: true,
+			afterPoolDisposed: 0,
 		});
 	});
 });
