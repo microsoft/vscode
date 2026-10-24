@@ -242,10 +242,10 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			}
 		}
 		if (element instanceof Folder) {
-			return element.packages;
+			return this.sortTaskTree(element.packages);
 		}
 		if (element instanceof PackageJSON) {
-			return element.scripts;
+			return this.sortTaskTree(element.scripts);
 		}
 		if (element instanceof NpmScript) {
 			return [];
