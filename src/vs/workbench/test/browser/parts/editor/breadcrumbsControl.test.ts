@@ -249,6 +249,12 @@ suite('BreadcrumbsControl', () => {
 		}, { hidden: false, items: ['symbol'] });
 	});
 
+	test('does not show a placeholder when there are no elements and showPlaceholder is false', async () => {
+		await createControl(false, false, URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }));
+
+		assert.deepStrictEqual(Array.from(control.domNode.querySelectorAll('.monaco-breadcrumb-item'), item => item.textContent), []);
+	});
+
 	test('outline picker activates its group without focusing the editor', async () => {
 		await createControl(true);
 		widget.setSelection(widget.getItems().at(-1), BreadcrumbsControl.Payload_Pick);

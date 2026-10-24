@@ -40,6 +40,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { createEditorTypeActions, getAvailableEditorTypes } from './editorTypePicker.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { hash } from '../../../../base/common/hash.js';
 import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
@@ -311,14 +312,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 						groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 					}));
 
-					// The editors available for an untitled resource depend on its language
+					// The editors available for an untitled resource depend on the language of its text model
 					if (activeEditor.resource?.scheme === Schemas.untitled) {
 						const resource = activeEditor.resource;
-						listeners.add(this.modelService.onModelLanguageChanged(e => {
-							if (isEqual(e.model.uri, resource)) {
+						const updateIfUntitledModel = (model: ITextModel) => {
+							if (isEqual(model.uri, resource)) {
 								applyAvailableEditorIds(groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService, this.modelService);
 							}
-						}));
+						};
+						listeners.add(this.modelService.onModelAdded(updateIfUntitledModel));
+						listeners.add(this.modelService.onModelLanguageChanged(e => updateIfUntitledModel(e.model)));
 					}
 				} else {
 					groupActiveEditorCanSplitInGroupContext.set(false);

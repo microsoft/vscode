@@ -23,6 +23,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DocumentSymbol } from '../../../../editor/common/languages.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { OutlineElement } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -471,7 +472,10 @@ export class BreadcrumbsControl {
 			const items = elements.map(element => element instanceof FileElement
 				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
 				: this._instantiationService.createInstance(OutlineItem, model, element, options));
-			if (items.length === 0) {
+			if (items.length === 0 && !this._options.showPlaceholder) {
+				this._widget.setEnabled(false);
+				this._widget.setItems([]);
+			} else if (items.length === 0) {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
 					render(container: HTMLElement): void {
@@ -499,13 +503,15 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.add(configListener);
 		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
 
-		// The editors available for an untitled resource depend on its language
+		// The editors available for an untitled resource depend on the language of its text model
 		if (uri.scheme === Schemas.untitled) {
-			this._breadcrumbsDisposables.add(this._modelService.onModelLanguageChanged(e => {
-				if (isEqual(e.model.uri, uri)) {
+			const updateIfUntitledModel = (model: ITextModel) => {
+				if (isEqual(model.uri, uri)) {
 					this._updateEditorTypeControl();
 				}
-			}));
+			};
+			this._breadcrumbsDisposables.add(this._modelService.onModelAdded(updateIfUntitledModel));
+			this._breadcrumbsDisposables.add(this._modelService.onModelLanguageChanged(e => updateIfUntitledModel(e.model)));
 		}
 
 		const updateScrollbarSizing = () => {
