@@ -27,6 +27,12 @@ export type SessionsChatBackgroundPreset = typeof AGENT_SESSIONS_CHAT_BACKGROUND
 const RECENT_BACKGROUND_IMAGES_STORAGE_KEY = 'chat.agentSessions.recentBackgroundImages';
 const MAX_RECENT_BACKGROUND_IMAGES = 5;
 
+/** File extensions of the image formats a chat background can display. */
+export const chatBackgroundImageExtensions: readonly string[] = ['avif', 'bmp', 'gif', 'ico', 'jpeg', 'jpg', 'png', 'svg', 'webp'];
+
+/** The background the user configured for the active color scheme, whether or not the theme shows it. */
+export type ISessionsChatConfiguredBackground = { readonly kind: 'codicons' } | { readonly kind: 'image'; readonly image: URI };
+
 export interface ISessionsChatImageBackground {
 	readonly kind: 'image';
 	readonly backgroundImage: string;
@@ -65,9 +71,14 @@ export interface ISessionsChatBackgroundService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeBackground: Event<void>;
+	/** The background to render, or `undefined` when none is configured or the theme hides backgrounds. */
 	getBackground(): ISessionsChatBackground | undefined;
+	/** The background configured for the active color scheme, including while a high contrast theme hides it. */
+	getConfiguredBackground(): ISessionsChatConfiguredBackground | undefined;
 	getConfiguredBackgroundImage(): URI | undefined;
 	getRecentBackgroundImages(): readonly URI[];
+	/** Every image a preference or the recently used list refers to, across both color schemes. */
+	getReferencedBackgroundImages(): readonly URI[];
 	getBackgroundImageLayout(): ChatBackgroundImageLayout;
 	setBackground(background: URI | SessionsChatBackgroundPreset): Promise<void>;
 	clearBackground(): Promise<void>;
@@ -156,6 +167,17 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 		return images.slice(0, MAX_RECENT_BACKGROUND_IMAGES);
 	}
 
+	getReferencedBackgroundImages(): readonly URI[] {
+		const images = this.getStoredRecentBackgroundImages();
+		for (const setting of [AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING]) {
+			const background = this.readConfiguredBackground(setting);
+			if (background?.kind === 'image' && !images.some(image => isEqual(image, background.image))) {
+				images.push(background.image);
+			}
+		}
+		return images;
+	}
+
 	async setBackground(background: URI | SessionsChatBackgroundPreset): Promise<void> {
 		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
 		await this.configurationService.updateValue(setting, URI.isUri(background) ? background.fsPath : background, ConfigurationTarget.USER);
@@ -213,8 +235,11 @@ export class SessionsChatBackgroundService extends Disposable implements ISessio
 			: AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING;
 	}
 
-	private getConfiguredBackground(): { readonly kind: 'codicons' } | { readonly kind: 'image'; readonly image: URI } | undefined {
-		const setting = this.getBackgroundImageSetting(this.themeService.getColorTheme().type);
+	getConfiguredBackground(): ISessionsChatConfiguredBackground | undefined {
+		return this.readConfiguredBackground(this.getBackgroundImageSetting(this.themeService.getColorTheme().type));
+	}
+
+	private readConfiguredBackground(setting: string): ISessionsChatConfiguredBackground | undefined {
 		const value = this.configurationService.getValue<string>(setting);
 		if (value?.trim() === AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET) {
 			return { kind: 'codicons' };
