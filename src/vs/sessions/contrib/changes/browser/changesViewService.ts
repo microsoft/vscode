@@ -21,7 +21,7 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackState, IAgentFeedback
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
-import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService, getChangesOfSession } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
@@ -631,12 +631,12 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.storageService.store(SESSION_VIEW_STATE_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
+	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean, session?: IActiveSession): void {
 		if (resources.length === 0) {
 			return;
 		}
 
-		const changeset = this.activeSessionChangesetObs.get();
+		const changeset = getChangesOfSession(this, this.sessionsService.activeSession.get(), session).changesetObs.get();
 		if (!changeset || !changeset.setReviewState) {
 			return;
 		}

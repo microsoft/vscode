@@ -32,7 +32,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
@@ -118,8 +118,10 @@ class OpenChangedFileAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
+		const session = resolveSessionActionTarget(accessor, args[1]);
+		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).activeSession.get(), session);
 		await accessor.get(IEditorService).openEditor({
-			resource: getWorkspaceResource(resource, changesViewService.activeSessionChangesObs.get()),
+			resource: getWorkspaceResource(resource, changes.changesObs.get()),
 		});
 	}
 }

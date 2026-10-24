@@ -54,6 +54,10 @@ suite('Changes Actions', () => {
 				deletions: 1,
 			}]);
 		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const input = args[0] as { readonly resource: URI };

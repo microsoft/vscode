@@ -19,6 +19,8 @@ import { IEditorService, PreferredGroup } from '../../../../workbench/services/e
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
 import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
@@ -47,6 +49,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IDecorationsService decorationsService: IDecorationsService,
 	) {
 		super();
@@ -122,10 +125,12 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 
 	async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions, group?: PreferredGroup): Promise<IEditorGroup | undefined> {
 		if (options?.changesetSelection) {
+			// Select the changeset of the session the editor is opened for, which may not be the active one.
+			const session = findSessionByResource(this.sessionsService, sessionResource);
 			if (options.changesetSelection.kind === 'transient') {
-				this.changesViewService.showChangeset(options.changesetSelection.changeset);
+				this.changesViewService.showChangeset(options.changesetSelection.changeset, session);
 			} else {
-				this.changesViewService.setChangesetId(options.changesetSelection.id);
+				this.changesViewService.setChangesetId(options.changesetSelection.id, session);
 			}
 		}
 		let editorOptions: IMultiDiffEditorOptions | undefined;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { constObservable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -104,6 +104,11 @@ export function getActiveSessionChanges(service: IChangesViewService): IChangesS
 	};
 }
 
+/** The changes observables of `session`, using the cheaper active-session ones when it is the active session. */
+export function getChangesOfSession(service: IChangesViewService, activeSession: IActiveSession | undefined, session: IActiveSession | undefined): IChangesSessionObservables {
+	return !session || session === activeSession ? getActiveSessionChanges(service) : service.getSessionChanges(constObservable(session));
+}
+
 export interface IChangesViewService {
 	readonly _serviceBrand: undefined;
 
@@ -139,5 +144,6 @@ export interface IChangesViewService {
 	getDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode): IChangesDetailsViewState | undefined;
 	setDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode, state: IChangesDetailsViewState): void;
 
-	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void;
+	/** Sets the review state of files of the selected changeset of `session`, which defaults to the active session. */
+	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean, session?: IActiveSession): void;
 }

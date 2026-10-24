@@ -7,6 +7,8 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -26,6 +28,13 @@ import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOM
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
+
+function noSessions(): ISessionsService {
+	return new class extends mock<ISessionsService>() {
+		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+	}();
+}
 
 suite('SessionChangesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -102,6 +111,7 @@ suite('SessionChangesService', () => {
 				instantiationService,
 				layoutService,
 				changesViewService,
+				noSessions(),
 				emptyDecorationsService,
 			));
 			instantiationService.stub(ISessionChangesService, service);
@@ -110,6 +120,34 @@ suite('SessionChangesService', () => {
 		}
 
 		assert.deepStrictEqual(expandedItems.map(item => item === targetItem ? 'target' : 'other'), ['target', 'target']);
+	});
+
+	test('selects the changeset of the visible non-active session the editor opens for', async () => {
+		const selections: { readonly changesetId: string | undefined; readonly session: IActiveSession | undefined }[] = [];
+		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other-session') });
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session') }));
+			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([otherSession]);
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesObs = noChanges;
+			override setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+				selections.push({ changesetId, session });
+			}
+		}();
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() { override async openEditor(): Promise<undefined> { return undefined; } }(),
+			disposables.add(new TestInstantiationService()),
+			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
+			changesViewService,
+			sessionsService,
+			emptyDecorationsService,
+		));
+
+		await service.openChangesEditor(otherSession.resource, { changesetSelection: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID } });
+
+		assert.deepStrictEqual(selections, [{ changesetId: TURN_CHANGES_CHANGESET_ID, session: otherSession }]);
 	});
 
 	test('selects the requested changeset before opening the editor', async () => {
@@ -145,6 +183,7 @@ suite('SessionChangesService', () => {
 			disposables.add(new TestInstantiationService()),
 			layoutService,
 			changesViewService,
+			noSessions(),
 			emptyDecorationsService,
 		));
 		const sessionResource = URI.parse('agent-host:test-session');
@@ -216,7 +255,7 @@ suite('SessionChangesService', () => {
 		}();
 		instantiationService.stub(IWorkbenchLayoutService, layoutService);
 		instantiationService.stub(IChangesViewService, changesViewService);
-		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, emptyDecorationsService));
+		const service = disposables.add(new SessionChangesService(editorService, instantiationService, layoutService, changesViewService, noSessions(), emptyDecorationsService));
 		instantiationService.stub(ISessionChangesService, service);
 
 		await service.openChangesEditor(URI.parse('agent-host:test-session'), {
@@ -269,6 +308,7 @@ suite('SessionChangesService', () => {
 			instantiationService,
 			layoutService,
 			changesViewService,
+			noSessions(),
 			decorationsService,
 		));
 		instantiationService.stub(ISessionChangesService, service);

@@ -18,7 +18,7 @@ function isSession(value: unknown): value is IActiveSession {
  * Finds the session shown for `resource`: the active session first, then the
  * other visible sessions. The one place to extend when more hosts show sessions.
  */
-function findSessionByResource(sessionsService: ISessionsService, resource: URI): IActiveSession | undefined {
+export function findSessionByResource(sessionsService: ISessionsService, resource: URI): IActiveSession | undefined {
 	const key = resource.toString();
 	return [sessionsService.activeSession.get(), ...sessionsService.visibleSessions.get()].find(session => session?.resource.toString() === key);
 }
