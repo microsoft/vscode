@@ -32,7 +32,7 @@ import { createWorkbenchDialogOptions } from '../../../../workbench/browser/part
 import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
-import { IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -146,6 +146,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let getBranch: () => string | undefined = () => initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined;
 		let waitForAutomationSessionSync: (token: CancellationToken) => Promise<void> = async () => { };
 		let setSaving: (saving: boolean, committing?: boolean) => void = () => { };
+		let setOwnership: (ownership: IFormState['ownership']) => void = () => { };
 		let getCustomizationIds: () => readonly string[] | undefined = () => undefined;
 		let waitForCustomizationChoices: (token: CancellationToken) => Promise<void> = async () => { };
 		let progressBar: ProgressBar | undefined;
@@ -224,7 +225,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		const cancelButtonLabel = localize('automation.dialog.cancel', "Cancel");
 		const savingButtonLabel = localize('automation.dialog.saving', "Saving…");
 		const captureErrorMessage = localize('automation.dialog.captureError', "The automation wasn't saved because its session configuration couldn't be captured. Check the provider connection and try again.");
-
 		const buildResult = (sessionConfigurationCapture: Exclude<AutomationSessionConfigurationCapture, { readonly kind: 'failed' }>): IAutomationDialogResult | undefined => {
 			const localSchedule: IAutomationSchedule = {
 				interval: state.interval,
@@ -355,7 +355,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 					if (!commitInProgress) {
 						dialogTelemetry.captureFailed();
 					}
-					showSaveError(commitInProgress ? getErrorMessage(error) : captureErrorMessage);
+					const message = commitInProgress ? getErrorMessage(error) : captureErrorMessage;
+					if (!isEdit && state.ownership === 'repository' && error instanceof AutomationRepositoryOwnershipUnavailableError) {
+						setOwnership('user');
+					}
+					showSaveError(message);
 					shouldFocusError = true;
 				}
 			} finally {
@@ -463,6 +467,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					getBranch = handle.getBranch;
 					waitForAutomationSessionSync = handle.waitForAutomationSessionSync;
 					setSaving = handle.setSaving;
+					setOwnership = handle.setOwnership;
 					getCustomizationIds = handle.getCustomizationIds;
 					waitForCustomizationChoices = handle.waitForCustomizationChoices;
 					showSaveError = handle.showSaveError;

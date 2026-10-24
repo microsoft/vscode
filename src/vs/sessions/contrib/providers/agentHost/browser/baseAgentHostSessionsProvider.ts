@@ -85,7 +85,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { getAgentHostApprovalDefault, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { getAgentHostApprovalDefault, getChatDefaultConfiguration, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -5722,15 +5722,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// `chat.defaultConfiguration` controls both axes. Per axis the
 		// precedence is: enterprise policy > remembered pick > effective
-		// configured value (`inspect().value`, which is the user's setting or
-		// the schema default). `inspect().value` is used instead of
-		// `getValue()` only so the policy layer can be lifted above the
-		// remembered pick.
-		const inspected = this._baseConfigurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const policyDefaults = inspected.policyValue;
-		const effectiveDefaults = inspected.value;
+		// configured value (the user's setting or the schema default). Policy
+		// is read separately only so it can be lifted above the remembered pick.
+		const policyDefaults = this._baseConfigurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration).policyValue;
+		const effectiveDefaults = getChatDefaultConfiguration(this._baseConfigurationService);
 
-		// Approval axis: policy > remembered > effective.
+		// Approval axis: policy > remembered > effective. A remembered
+		// host-native `approvalMode` would otherwise win over the policy seed
+		// when discovery maps it onto that binding.
+		if (normalizeAutoApproveValue(policyDefaults?.approvals)) {
+			delete remembered.approvalMode;
+		}
 		const resolvedAutoApprove =
 			normalizeAutoApproveValue(policyDefaults?.approvals)
 			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove])
@@ -7194,6 +7196,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async unarchiveSession(sessionId: string): Promise<void> {
 		this._setSessionArchived(sessionId, false);
+	}
+
+	async sessionWorktreeCleanup(sessionId: string, retry: boolean) {
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (retry && (!session || !connection?.sessionWorktreeCleanup)) {
+			throw new Error(localize('worktreeCleanupUnavailable', "Connect to this session's host to retry worktree cleanup."));
+		}
+		return session && connection?.sessionWorktreeCleanup?.(session.backendUri, retry);
 	}
 
 	async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
