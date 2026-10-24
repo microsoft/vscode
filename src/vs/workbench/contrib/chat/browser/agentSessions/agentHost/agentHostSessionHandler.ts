@@ -18,8 +18,9 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, Dispos
 import { LRUCache, ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { posix } from '../../../../../../base/common/path.js';
 import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, isEqual, isEqualAuthority } from '../../../../../../base/common/resources.js';
+import { extUri, extUriBiasedIgnorePathCase, isEqual, isEqualAuthority } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
 import { AgentHostSteeringMessageHandoff } from './agentHostSteeringMessageHandoff.js';
@@ -60,6 +61,7 @@ import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../pl
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { withClientResourceAttachment } from '../../../../../../platform/agentHost/common/meta/agentClientResourceAttachmentMeta.js';
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -1817,6 +1819,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							turn => this._getTurnErrorDetails(turn, allowTurnResume),
 							readAgentContextUsage(sessionState, sessionState.turns.at(-1)?.usage),
 							this._managedPluginRetryTarget(resolvedSession, chatURI),
+							this._config.connection.clientId,
 						));
 						this._logService.trace(`[AgentHost] provideChatSessionContent: converted ${sessionState.turns.length} turn(s) into ${history.length} history item(s) for ${resolvedSession.toString()}`);
 
@@ -1849,7 +1852,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								modelId: lookup.toLanguageModelId(sessionState.activeTurn.message.model?.id ?? activeRawModelId),
 								...(sessionState.activeTurn.message.model?.config ? { modelConfiguration: sessionState.activeTurn.message.model.config } : {}),
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
-								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
+								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority, this._config.connection.clientId),
 								...(isMessageHiddenFromTranscript(sessionState.activeTurn.message) ? { isHidden: true } : {}),
 								...(isMessageRequestHiddenFromTranscript(sessionState.activeTurn.message) ? { isRequestHidden: true } : {}),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
@@ -2597,7 +2600,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			id: pending.id,
 			kind,
 			message: pending.message.text,
-			variableData: messageToVariableData(pending.message, this._config.connectionAuthority),
+			variableData: messageToVariableData(pending.message, this._config.connectionAuthority, this._config.connection.clientId),
 			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
 			modelConfiguration: pending.message.model?.config,
 			agentHostMessageOrigin: pending.message.origin,
@@ -2878,7 +2881,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
 				lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
 				this._config.connection.resourceUris, turn => this._getTurnErrorDetails(turn, allowTurnResume),
-				readAgentContextUsage(state, state.turns.at(-1)?.usage), this._managedPluginRetryTarget(backendSession, chatURI)));
+				readAgentContextUsage(state, state.turns.at(-1)?.usage), this._managedPluginRetryTarget(backendSession, chatURI), this._config.connection.clientId));
 		};
 		let previousContextUsage = currentState ? readAgentContextUsage(currentState, currentState.turns.at(-1)?.usage) : undefined;
 		disposables.add(sessionSub.onDidChange(() => {
@@ -2973,7 +2976,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			chatSession.startServerRequest(
 				activeTurn.id,
 				activeTurn.message.text,
-				messageToVariableData(activeTurn.message, this._config.connectionAuthority),
+				messageToVariableData(activeTurn.message, this._config.connectionAuthority, this._config.connection.clientId),
 				{
 					modelId: this._toLanguageModelId(sessionResource, activeTurn.message.model?.id),
 					metadata: readAgentMessageRoundTripMetadata(activeTurn.message),
@@ -7301,7 +7304,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const modelId = this._toLanguageModelId(sessionResource, draft.model?.id);
 		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
-		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text);
+		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text, this._config.connection.clientId);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		const agent = draft.agent && this._customizationService.getCustomAgents(sessionResource).find(agent => agent.uri === draft.agent?.uri);
 		return {
@@ -8043,7 +8046,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (_meta) {
 			attachment._meta = _meta;
 		}
-		return attachment;
+		return uri.scheme === Schemas.file && this._config.connection.resourceUris.fromAgentHost(uri) !== uri
+			? withClientResourceAttachment(attachment, this._config.connection.clientId)
+			: attachment;
 	}
 
 	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
@@ -8061,10 +8066,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (_meta) {
 			attachment._meta = _meta;
 		}
-		if (!readAttachmentDetail(attachment)) {
+		const resourceAttachment = location.uri.scheme === Schemas.file && this._config.connection.resourceUris.fromAgentHost(location.uri) !== location.uri
+			? withClientResourceAttachment(attachment, this._config.connection.clientId)
+			: attachment;
+		if (!readAttachmentDetail(resourceAttachment)) {
 			const model = this._modelService.getModel(location.uri);
 			if (model && attachmentUri.scheme === Schemas.file) {
-				return withAttachmentDetail(attachment, {
+				return withAttachmentDetail(resourceAttachment, {
 					type: 'selection',
 					filePath: attachmentUri.fsPath,
 					text: model.getValueInRange(location.range),
@@ -8076,7 +8084,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				});
 			}
 		}
-		return attachment;
+		return resourceAttachment;
 	}
 
 	private _toImageAttachment(v: IImageVariableEntry, sessionResource: URI, range?: MessageAttachment['range']): MessageAttachment | undefined {
@@ -8239,8 +8247,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!requestedDir || requestedDir.scheme !== 'file') {
 			return uri;
 		}
-		const owningRequestedDirectory = findDeepestContainingWorkingDirectory(uri, requestedDirectories);
-		if (!owningRequestedDirectory || !extUriBiasedIgnorePathCase.isEqual(owningRequestedDirectory, requestedDir)) {
+		// Project host files back to their filesystem namespace before applying path semantics.
+		const resource = this._config.connection.resourceUris.fromAgentHost(uri);
+		const requestedResources = requestedDirectories.map(directory => this._config.connection.resourceUris.fromAgentHost(directory));
+		const requestedResource = requestedResources[0];
+		const resourceExtUri = resource.scheme === Schemas.file ? extUriBiasedIgnorePathCase : extUri;
+		const owningRequestedDirectory = findDeepestContainingWorkingDirectory(resource, requestedResources, resourceExtUri);
+		if (!owningRequestedDirectory || !resourceExtUri.isEqual(owningRequestedDirectory, requestedResource)) {
 			return uri;
 		}
 		const backendSession = this._resolveSessionUri(sessionResource);
@@ -8249,17 +8262,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!resolvedDir || resolvedDir.scheme !== 'file') {
 			return uri;
 		}
-		if (extUriBiasedIgnorePathCase.isEqual(requestedDir, resolvedDir)) {
+		if (resourceExtUri.isEqual(requestedResource, this._config.connection.resourceUris.fromAgentHost(resolvedDir))) {
 			return uri;
 		}
-		const rel = extUriBiasedIgnorePathCase.relativePath(requestedDir, uri);
+		const rel = resourceExtUri.relativePath(requestedResource, resource);
 		if (rel === undefined) {
 			return uri;
 		}
 		if (rel === '') {
 			return resolvedDir;
 		}
-		return URI.joinPath(resolvedDir, ...rel.split('/'));
+		return resolvedDir.with({ path: posix.join(resolvedDir.path, rel) });
 	}
 
 	// ---- Lifecycle ----------------------------------------------------------

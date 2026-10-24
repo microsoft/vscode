@@ -51,6 +51,7 @@ import { ICanvas } from '../../../../canvases/common/canvas.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { withClientResourceAttachment } from '../../../../../../platform/agentHost/common/meta/agentClientResourceAttachmentMeta.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -2410,7 +2411,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 		test('selection attachments retain native VS Code ranges and add captured Copilot detail on the wire', async () => {
-			const { startRequest, modelService } = await openWireSession();
+			const { startRequest, modelService, client } = await openWireSession();
 			const uri = URI.file('/workspace/file.ts');
 			modelService.setModelContent(uri, 'first\ncaptured\nlast');
 			const { sent, finish } = await startRequest({
@@ -2418,7 +2419,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			assert.ok(sent.action.type === ActionType.ChatTurnStarted);
 			await finish();
-			assert.deepStrictEqual(sent.action.message.attachments, [{
+			assert.deepStrictEqual(sent.action.message.attachments, [withClientResourceAttachment({
 				type: MessageAttachmentKind.Resource, label: 'file.ts', uri: uri.toString(), displayKind: 'selection',
 				selection: { range: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } } },
 				_meta: {
@@ -2427,7 +2428,7 @@ suite('AgentHostChatContribution', () => {
 						selection: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } },
 					}
 				},
-			}]);
+			}, client.clientId)]);
 		});
 		for (const style of ['VS Code', 'Copilot D'] as const) {
 			test(`${style} restored message and attachments survive edit and resend through the handler`, async () => {
@@ -2765,6 +2766,60 @@ suite('AgentHostChatContribution', () => {
 
 	suite('request attachments', () => {
 
+		for (const restoredFrom of ['history', 'draft'] as const) {
+			test(`preserves client-local ownership when editing and resending ${restoredFrom} in a remote worktree`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mapper = createAgentHostResourceUriMapper('remote-host');
+				const requestedDir = mapper.fromAgentHost(URI.file('/source'));
+				const resolvedDir = mapper.fromAgentHost(URI.file('/worktree'));
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					workingDirectoryResolver: { resolve: () => requestedDir },
+				});
+				agentHostService.resourceUris = mapper;
+				agentHostService.nextResolvedWorkingDirectory = resolvedDir;
+				const clientFile = URI.file('/source/a.ts');
+				const first = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					variables: { variables: [{ kind: 'file', id: 'client-file', name: 'client', value: clientFile }] },
+				});
+				first.fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: first.session, turnId: first.turnId } as ChatAction);
+				await first.turnPromise;
+				const firstAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+				const restoredMessage = structuredClone(firstAction.message);
+				const backendSession = AgentSession.uri('copilot', 'restored-client');
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(), provider: 'copilot', title: 'Restored',
+						status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+						workingDirectories: [resolvedDir.toString()],
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					...(restoredFrom === 'draft'
+						? { draft: restoredMessage }
+						: { turns: [{ id: 'restored-turn', state: TurnState.Complete, message: restoredMessage, responseParts: [], usage: undefined }] }),
+				});
+				const restored = disposables.add(await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/restored-client'), CancellationToken.None));
+				const request = restored.history.find(item => item.type === 'request');
+				const variables = restoredFrom === 'draft' ? restored.transferredState?.inputState?.attachments : request?.variableData?.variables;
+				assert.ok(variables?.length);
+				agentHostService.nextResolvedWorkingDirectory = resolvedDir;
+				const resend = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					sessionResource: URI.parse('agent-host-copilot:/new-resend'),
+					variables: { variables },
+				});
+				resend.fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: resend.session, turnId: resend.turnId } as ChatAction);
+				await resend.turnPromise;
+				const resentAction = agentHostService.turnActions.at(-1)?.action as ITurnStartedAction;
+				assert.deepStrictEqual({
+					first: firstAction.message.attachments?.map(attachment => attachment.type === MessageAttachmentKind.Resource ? attachment.uri : undefined),
+					restored: URI.isUri(variables[0].value) ? variables[0].value.toString() : undefined,
+					resent: resentAction.message.attachments,
+				}, {
+					first: [clientFile.toString()],
+					restored: clientFile.toString(),
+					resent: firstAction.message.attachments,
+				});
+			}));
+		}
+
 		test('unwraps resource attachments only when they belong to the owning connection', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const authority = agentHostAuthority('vscode-remote://wsl+Ubuntu');
@@ -2793,7 +2848,7 @@ suite('AgentHostChatContribution', () => {
 				{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'folder', displayKind: 'directory' },
 				{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'selection', displayKind: 'selection', selection: { range: { start: { line: 0, character: 1 }, end: { line: 2, character: 3 } } } },
 				{ type: MessageAttachmentKind.Resource, uri: otherHost.toString(), label: 'other-host', displayKind: 'document' },
-				{ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' },
+				withClientResourceAttachment({ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' }, agentHostService.clientId),
 			]);
 		});
 
@@ -16300,7 +16355,7 @@ suite('AgentHostChatContribution', () => {
 
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.message.attachments, [
-				{ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' },
+				withClientResourceAttachment({ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' }, agentHostService.clientId),
 				{ type: MessageAttachmentKind.Resource, uri: otherHostFile.toString(), label: 'other-host', displayKind: 'document' },
 			]);
 		}));
@@ -16434,6 +16489,8 @@ suite('AgentHostChatContribution', () => {
 								{ kind: 'file', id: 'selection', name: 'selection', value: { uri: remoteUri('/source/sub/foo.ts'), range: new Range(2, 3, 4, 5) } },
 								{ kind: 'file', id: 'client-file', name: 'client', value: clientFile },
 								{ kind: 'file', id: 'other-remote-file', name: 'other', value: otherRemoteFile },
+								{ kind: 'file', id: 'different-case', name: 'case', value: remoteUri('/SOURCE/outside.ts') },
+								{ kind: 'file', id: 'backslash', name: 'backslash', value: remoteUri('/source/a\\b.ts') },
 							],
 						},
 					});
@@ -16445,8 +16502,10 @@ suite('AgentHostChatContribution', () => {
 						{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
 						{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/lib').toString(), label: 'lib', displayKind: 'directory' },
 						{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/sub/foo.ts').toString(), label: 'selection', displayKind: 'selection', selection: { range: { start: { line: 1, character: 2 }, end: { line: 3, character: 4 } } } },
-						{ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' },
+						withClientResourceAttachment({ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' }, agentHostService.clientId),
 						{ type: MessageAttachmentKind.Resource, uri: otherRemoteFile.toString(), label: 'other', displayKind: 'document' },
+						{ type: MessageAttachmentKind.Resource, uri: remoteUri('/SOURCE/outside.ts').with({ scheme: Schemas.file, authority: '' }).toString(), label: 'case', displayKind: 'document' },
+						{ type: MessageAttachmentKind.Resource, uri: URI.from({ scheme: Schemas.file, path: '/worktree/a\\b.ts' }).toString(), label: 'backslash', displayKind: 'document' },
 					]);
 				}));
 			}
