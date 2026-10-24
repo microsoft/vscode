@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { dirs } from '../../npm/dirs.ts';
+import { dirs, separateRoots, distroRoots } from '../../npm/dirs.ts';
 import { getCurrentExtensionTarget } from '../../lib/extensionTarget.ts';
 
 const ROOT = path.join(import.meta.dirname, '../../../');
@@ -21,18 +21,19 @@ function readRepositoryFile(relativePath: string): Buffer {
 }
 
 /**
- * Computes the node_modules cache key from the npm configuration, the dependency sections of
- * every `package.json`, every `package-lock.json` and the given arguments.
+ * Computes the node_modules cache key from the native module build configuration (`.npmrc` and
+ * pnpmfiles), the dependency sections of every `package.json`, the `pnpm-lock.yaml` and
+ * `pnpm-workspace.yaml` of every install root, and the given arguments.
  */
 export function computeNodeModulesCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile): string {
 	const shasum = crypto.createHash('sha256');
 
 	shasum.update(readFile('build/.cachesalt'));
-	shasum.update(readFile('.npmrc'));
-	shasum.update(readFile('build/.npmrc'));
-	shasum.update(readFile('remote/.npmrc'));
+	for (const file of ['.npmrc', 'build/.npmrc', 'remote/.npmrc', '.pnpmfile.mts', 'build/.pnpmfile.mts', 'remote/.pnpmfile.mts', 'build/npm/pnpm/nativeBuildEnv.ts']) {
+		shasum.update(readFile(file));
+	}
 
-	// Add `package.json` and `package-lock.json` files
+	// Add `package.json` files
 	for (const dir of dirs) {
 		const packageJson = JSON.parse(readFile(path.posix.join(dir, 'package.json')).toString());
 		const relevantPackageJsonSections = {
@@ -40,11 +41,16 @@ export function computeNodeModulesCacheKey(args: readonly string[], readFile: Re
 			devDependencies: packageJson.devDependencies,
 			optionalDependencies: packageJson.optionalDependencies,
 			resolutions: packageJson.resolutions,
-			distro: packageJson.distro
+			distro: packageJson.distro,
+			packageManager: packageJson.packageManager
 		};
 		shasum.update(JSON.stringify(relevantPackageJsonSections));
+	}
 
-		shasum.update(readFile(path.posix.join(dir, 'package-lock.json')));
+	// Add the lockfile and settings of every install root
+	for (const dir of ['', ...separateRoots, ...distroRoots]) {
+		shasum.update(readFile(path.posix.join(dir, 'pnpm-lock.yaml')));
+		shasum.update(readFile(path.posix.join(dir, 'pnpm-workspace.yaml')));
 	}
 
 	for (const arg of args) {

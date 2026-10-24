@@ -66,7 +66,7 @@ export function checkApiProposalNames(repoRoot: string): void {
 	}
 
 	const registryPath = path.join(repoRoot, 'src', 'vs', 'platform', 'extensions', 'common', 'extensionsApiProposals.ts');
-	const updateMessage = 'Run "npm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.';
+	const updateMessage = 'Run "pnpm run gulp compile-api-proposal-names" from the repository root and include the updated registry with your change.';
 	let existing: string;
 	try {
 		existing = fs.readFileSync(registryPath, 'utf8');

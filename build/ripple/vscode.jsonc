@@ -73,17 +73,26 @@
 			"!build/next/devTunnelsWebEntry.js",
 			"!build/next/devTunnelsShims/**",
 			"build/package.json",
-			"build/package-lock.json"
+			"build/pnpm-lock.yaml",
+			"build/pnpm-workspace.yaml"
 		],
 		"compiler options": [
 			"src/tsconfig*"
 		],
 		// How the test jobs install dependencies, and the key of their node_modules cache (see
-		// .github/actions/restore-node-modules).
+		// .github/actions/restore-node-modules). ripple maps changes of package.json and
+		// package-lock.json to the npm packages they affect, but doesn't read pnpm-lock.yaml or the
+		// settings in pnpm-workspace.yaml (overrides, allowBuilds, patchedDependencies), so a change
+		// to them runs every unit test.
 		"dependency installation": [
+			"pnpm-lock.yaml",
+			"pnpm-workspace.yaml",
+			".pnpmfile.mts",
+			"remote/.pnpmfile.mts",
 			"build/npm/**",
 			"build/azure-pipelines/win32/exec.ps1",
 			"build/.npmrc",
+			"build/.pnpmfile.mts",
 			"build/.cachesalt",
 			"build/azure-pipelines/common/computeNodeModulesCacheKey.ts",
 			"build/azure-pipelines/common/cacheKeys.ts"
@@ -95,6 +104,7 @@
 			".github/workflows/pr-win32-test.yml",
 			".github/workflows/node_modules_cache/**",
 			".github/actions/setup-electron/**",
+			".github/actions/setup-pnpm/**",
 			".github/actions/restore-node-modules/**"
 		],
 		// ripple and this file decide what runs.

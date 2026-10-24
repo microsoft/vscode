@@ -104,7 +104,7 @@ async function checkDistroCommit(): Promise<void> {
 		console.log(`   package.json distro: ${distroCommit}`);
 		console.log(`   ${branch} HEAD:      ${distroBranchHead}`);
 		console.log('');
-		console.log('   To update, run: npm run update-distro');
+		console.log('   To update, run: pnpm run update-distro');
 	}
 }
 
