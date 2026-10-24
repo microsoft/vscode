@@ -9,6 +9,9 @@ runs:
       with:
         node-version-file: extensions/copilot/.nvmrc
 
+    - name: Setup pnpm
+      uses: ./.github/actions/setup-pnpm
+
     # Reuse a node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on `main`:
     # the Copilot cache on Linux and Windows, and the full cache (which includes extensions/copilot)
     # on macOS. Never save: PR-scoped caches are not shared with other PRs and only evict the
@@ -20,11 +23,12 @@ runs:
         key-prefix: ${{ runner.os == 'macOS' && 'node_modules-macos' || runner.os == 'Windows' && 'copilot-node_modules-windows' || 'copilot-node_modules-linux' }}
         key-args: ${{ runner.os == 'macOS' && 'darwin $(node -p process.arch) $(node -p process.arch)' || '$(node -p process.platform) $(node -p process.arch)' }}
 
+    # extensions/copilot is a separate install root.
     - name: Install Copilot dependencies
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       shell: bash
       working-directory: extensions/copilot
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     # Remove the node_modules of every ancestor folder (some are restored from the cache) so that
     # chat-lib only resolves its own dependencies.
@@ -32,20 +36,21 @@ runs:
       shell: bash
       working-directory: extensions/copilot
       run: |
-        npm run extract-chat-lib
+        pnpm run extract-chat-lib
         rm -rf node_modules ../node_modules ../../node_modules
 
+    # chat-lib is a separate install root with its own lockfile.
     - name: Install chat-lib dependencies
       shell: bash
       working-directory: extensions/copilot/chat-lib
-      run: npm ci
+      run: pnpm install --frozen-lockfile
 
     - name: Build chat-lib
       shell: bash
       working-directory: extensions/copilot/chat-lib
-      run: npm run build
+      run: pnpm run build
 
     - name: Test chat-lib
       shell: bash
       working-directory: extensions/copilot/chat-lib
-      run: npm test
+      run: pnpm test

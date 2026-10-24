@@ -84,8 +84,11 @@ const rules: readonly IChangeRule[] = [
 			'.eslint-plugin-local/',
 			// The jobs install the root dependencies and restore cached node_modules.
 			'package.json',
-			'package-lock.json',
+			'pnpm-lock.yaml',
+			'pnpm-workspace.yaml',
+			'.pnpmfile.mts',
 			'.npmrc',
+			'.github/actions/setup-pnpm/',
 			'.github/actions/restore-node-modules/',
 			'.github/workflows/node_modules_cache/',
 			'build/azure-pipelines/common/computeNodeModulesCacheKey.ts',
@@ -155,7 +158,7 @@ export function shouldSkipTestJobs(path: string): boolean {
 
 /**
  * Whether a change only updates the microsoft/vscode-distro commit in the `distro` field of package.json, as
- * `npm run update-distro` does. Only the product builds read the commit: they download the distro and mix it into the
+ * `pnpm run update-distro` does. Only the product builds read the commit: they download the distro and mix it into the
  * build (see build/azure-pipelines/distro/). No pull request check downloads it, so such a change runs only Compile &
  * Hygiene, whose node_modules cache key includes the field. A change without a patch, which GitHub omits for large
  * diffs, counts as any other change to package.json.
