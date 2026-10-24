@@ -754,13 +754,20 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 			closeKeys: [KeyCode.RightArrow],
 			// Opens toward the chat, matching the arrow keys, even when there is room to the right.
 			anchorAlignment: AnchorAlignment.RIGHT,
+			// A dropdown of the strip: it opens on click or by keyboard, not on hover.
+			openOnHover: false,
 		}));
 	}
 
 	override onClick(event: EventLike): void {
 		if (this.submenuFlyout) {
 			EventHelper.stop(event, true);
-			this.submenuFlyout.show(true);
+			// Clicking it again closes it, as a dropdown does.
+			if (this.submenuFlyout.isOpen) {
+				this.submenuFlyout.hide();
+			} else {
+				this.submenuFlyout.show(true);
+			}
 			return;
 		}
 		super.onClick(event);

@@ -919,7 +919,7 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('opens the Canvas submenu to the left on click and keyboard only, keeps it open as the pointer leaves, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { label, ran, contextViewService } = createActivityBar(store, [browser, canvas]);
 		const canvasLabel = label('Canvas');
 		const state = () => ({ shown: contextViewService.openSubmenu, expanded: canvasLabel.getAttribute('aria-expanded'), highlighted: canvasLabel.classList.contains('submenu-open') });
@@ -927,11 +927,16 @@ suite('Sessions - Session Activity Bar', () => {
 		canvasLabel.dispatchEvent(new MouseEvent('mouseenter'));
 		await timeout(300);
 		const afterHover = state();
-		const preferredSide = contextViewService.delegate?.anchorAlignment === AnchorAlignment.RIGHT ? 'left' : 'right';
-		contextViewService.hideContextView();
 
 		canvasLabel.click();
 		const afterClick = state();
+		const preferredSide = contextViewService.delegate?.anchorAlignment === AnchorAlignment.RIGHT ? 'left' : 'right';
+		canvasLabel.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(400);
+		const afterPointerLeave = state();
+		canvasLabel.click();
+		const afterSecondClick = state();
+		canvasLabel.click();
 
 		key(getActiveElement()!, 39, 'ArrowRight');
 		const afterRightArrow = { ...state(), anchorFocused: getActiveElement() === canvasLabel };
@@ -943,10 +948,12 @@ suite('Sessions - Session Activity Bar', () => {
 		await timeout(0);
 		const afterRun = { ...state(), ran };
 
-		assert.deepStrictEqual({ afterHover, preferredSide, afterClick, afterRightArrow, afterLeftArrow, afterRun }, {
-			afterHover: { shown: { items: ['Kusto'], focused: false }, expanded: 'true', highlighted: true },
-			preferredSide: 'left',
+		assert.deepStrictEqual({ afterHover, afterClick, preferredSide, afterPointerLeave, afterSecondClick, afterRightArrow, afterLeftArrow, afterRun }, {
+			afterHover: { shown: undefined, expanded: 'false', highlighted: false },
 			afterClick: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
+			preferredSide: 'left',
+			afterPointerLeave: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
+			afterSecondClick: { shown: undefined, expanded: 'false', highlighted: false },
 			afterRightArrow: { shown: undefined, expanded: 'false', highlighted: false, anchorFocused: true },
 			afterLeftArrow: { shown: { items: ['Kusto'], focused: true }, expanded: 'true', highlighted: true },
 			afterRun: { shown: undefined, expanded: 'false', highlighted: false, ran: ['test.canvas.kusto'] },

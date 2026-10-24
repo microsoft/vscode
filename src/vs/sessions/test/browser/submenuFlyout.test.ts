@@ -21,7 +21,7 @@ import { TestContextViewService } from './testContextViewService.js';
 suite('Sessions - Submenu flyout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFlyout(disposables: Pick<DisposableStore, 'add'>, anchorAlignment?: AnchorAlignment) {
+	function createFlyout(disposables: Pick<DisposableStore, 'add'>, anchorAlignment?: AnchorAlignment, openOnHover?: boolean) {
 		const root = append(mainWindow.document.body, $('.monaco-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		const anchor = append(root, $('a.anchor'));
@@ -42,6 +42,7 @@ suite('Sessions - Submenu flyout', () => {
 			openKeys: [KeyCode.Enter],
 			closeKeys: [KeyCode.LeftArrow],
 			anchorAlignment,
+			openOnHover,
 		}));
 		const state = () => ({ open: flyout.isOpen, expanded: anchor.getAttribute('aria-expanded'), highlighted: anchor.classList.contains('submenu-open'), shown: contextViewService.openSubmenu });
 		return { anchor, outside, flyout, contextViewService, ran, state };
@@ -134,6 +135,38 @@ suite('Sessions - Submenu flyout', () => {
 			hoverOpened: { open: true, expanded: 'true', highlighted: true, shown: { items: ['Kusto'], focused: false }, anchorFocused: true },
 			afterEnter: { items: ['Kusto'], focused: true },
 			afterRun: { open: false, ran: ['test.kusto'], anchorFocused: true },
+		});
+	}));
+
+	test('opens on hover and closes as the pointer leaves by default, and only when asked otherwise, staying open as a dropdown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const disposables = store.add(new DisposableStore());
+		const hover = async (anchor: HTMLElement, type: 'mouseenter' | 'mouseleave') => {
+			anchor.dispatchEvent(new MouseEvent(type));
+			await timeout(400);
+		};
+		const byDefault = createFlyout(disposables);
+		await hover(byDefault.anchor, 'mouseenter');
+		const defaultHovered = byDefault.state().open;
+		await hover(byDefault.anchor, 'mouseleave');
+		const defaultLeft = byDefault.state().open;
+		byDefault.flyout.dispose();
+
+		const dropdown = createFlyout(disposables, undefined, false);
+		await hover(dropdown.anchor, 'mouseenter');
+		const dropdownHovered = dropdown.state().open;
+		dropdown.flyout.show(true);
+		await hover(dropdown.anchor, 'mouseleave');
+		const dropdownLeft = { ...dropdown.state(), shown: undefined };
+		dropdown.flyout.hide();
+
+		assert.deepStrictEqual({ defaultHovered, defaultLeft, dropdownHovered, dropdownLeft, dropdownHidden: dropdown.state().open, popup: dropdown.anchor.getAttribute('aria-haspopup'), expandedAfterHide: dropdown.anchor.getAttribute('aria-expanded') }, {
+			defaultHovered: true,
+			defaultLeft: false,
+			dropdownHovered: false,
+			dropdownLeft: { open: true, expanded: 'true', highlighted: true, shown: undefined },
+			dropdownHidden: false,
+			popup: 'menu',
+			expandedAfterHide: 'false',
 		});
 	}));
 });
