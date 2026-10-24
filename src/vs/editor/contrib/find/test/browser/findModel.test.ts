@@ -1445,6 +1445,70 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('issue #248209: replace with a multiline replace string moves to the next match', (editor) => {
+		const findState = disposables.add(new FindReplaceState());
+		findState.change({ searchString: 'bla', replaceString: '\nbla1' }, false);
+		const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+		// the cursor does not sit on a match yet, so this only selects the first match
+		findModel.replace();
+		assertFindState(
+			editor,
+			[11, 4, 11, 7],
+			[11, 4, 11, 7],
+			[
+				[11, 4, 11, 7],
+				[11, 7, 11, 10],
+				[11, 10, 11, 13]
+			]
+		);
+
+		// the replacement spans two lines, so the next match must be the one that
+		// follows the inserted text, not the `bla` that is part of the inserted `bla1`
+		findModel.replace();
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ');
+		assert.strictEqual(editor.getModel()!.getLineContent(12), 'bla1blablaciao');
+		assertFindState(
+			editor,
+			[12, 5, 12, 8],
+			[12, 5, 12, 8],
+			[
+				[12, 1, 12, 4],
+				[12, 5, 12, 8],
+				[12, 8, 12, 11]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('issue #248209: replace with a multiline regex replace string moves to the next match', (editor) => {
+		const findState = disposables.add(new FindReplaceState());
+		findState.change({ searchString: 'bla', replaceString: '\\nbla1', isRegex: true }, false);
+		const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+		// the first call only selects the first match, the second one replaces it
+		findModel.replace();
+		findModel.replace();
+
+		assert.strictEqual(editor.getModel()!.getLineContent(11), '// ');
+		assert.strictEqual(editor.getModel()!.getLineContent(12), 'bla1blablaciao');
+		assertFindState(
+			editor,
+			[12, 5, 12, 8],
+			[12, 5, 12, 8],
+			[
+				[12, 1, 12, 4],
+				[12, 5, 12, 8],
+				[12, 8, 12, 11]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('replaceAll hello', (editor) => {
 		const findState = disposables.add(new FindReplaceState());
 		findState.change({ searchString: 'hello', replaceString: 'hi', wholeWord: true }, false);
