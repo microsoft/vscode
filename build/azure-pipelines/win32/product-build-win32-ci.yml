@@ -51,3 +51,6 @@ jobs:
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+          # In CI the agent SDK is only built to catch Windows build breaks, so among
+          # the test jobs only the one running integration-electron builds it.
+          VSCODE_BUILD_AGENT_SDK: ${{ or(eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron')) }}
