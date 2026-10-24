@@ -49,6 +49,11 @@ import { DefaultConfiguration } from '../../../../../workbench/services/configur
 import { ISetting } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { INotificationHandle, INotificationService, IPromptChoice, NotificationMessage, Severity } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../../workbench/services/configuration/common/configurationEditing.js';
 import '../../../../../workbench/browser/workbench.contribution.js';
 import '../../../../../workbench/browser/actions/layoutDensityActions.js';
 
@@ -729,6 +734,47 @@ suite('Sessions ConfigurationService', () => {
 
 		const userContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
 		assert.ok(!userContent.includes('sessionsConfigurationService.testSetting'));
+	}));
+
+	test('updateValue reports invalid user settings unless the caller handles the error', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const settingsResource = userDataProfileService.currentProfile.settingsResource;
+		const invalidContent = '{ "sessionsConfigurationService.testSetting": ';
+		await fileService.writeFile(settingsResource, VSBuffer.fromString(invalidContent));
+		const prompts: { severity: Severity; message: NotificationMessage; choices: string[] }[] = [];
+		const choices: IPromptChoice[] = [];
+		const opened: { resource: string; pinned: boolean | undefined }[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override prompt(severity: Severity, message: NotificationMessage, promptChoices: IPromptChoice[]): INotificationHandle {
+				prompts.push({ severity, message, choices: promptChoices.map(choice => choice.label) });
+				choices.push(...promptChoices);
+				return super.prompt(severity, message, promptChoices);
+			}
+		}());
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const editor = args[0] as IResourceEditorInput;
+				opened.push({ resource: editor.resource.toString(), pinned: editor.options?.pinned });
+				return undefined;
+			}
+		}());
+		testObject.acquireInstantiationService(instantiationService);
+
+		await testObject.updateValue('sessionsConfigurationService.testSetting', 'notifiedValue', ConfigurationTarget.USER_LOCAL);
+		choices[0]?.run();
+		const handledError = await testObject.updateValue('sessionsConfigurationService.testSetting', 'handledValue', {}, ConfigurationTarget.USER_LOCAL, { donotNotifyError: true }).then(() => undefined, error => error);
+
+		assert.deepStrictEqual({
+			prompts,
+			opened,
+			handledError: handledError instanceof ConfigurationEditingError ? handledError.code : handledError,
+			content: (await fileService.readFile(settingsResource)).value.toString(),
+		}, {
+			prompts: [{ severity: Severity.Error, message: 'Unable to write into the settings file. Please open the file to correct errors/warnings in the file and try again.', choices: ['Open Settings'] }],
+			opened: [{ resource: settingsResource.toString(), pinned: true }],
+			handledError: ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION,
+			content: invalidContent,
+		});
 	}));
 
 	// #endregion
