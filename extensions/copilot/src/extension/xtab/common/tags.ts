@@ -39,6 +39,7 @@ export namespace PromptTags {
 
 export namespace ResponseTags {
 	export const NO_EDIT = '<NO_EDIT>';
+	export const NO_EDIT_SENTINEL = '<no_edit/>';
 
 	export const NO_CHANGE = {
 		start: '<NO_CHANGE>'
@@ -52,4 +53,3 @@ export namespace ResponseTags {
 		end: '</INSERT>'
 	};
 }
-
