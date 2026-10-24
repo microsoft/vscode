@@ -30,7 +30,7 @@ export const enum ChatWindowTerminalPosition {
 }
 
 /**
- * A kind of chat window. Chat windows of a kind share their title and their defaults: the
+ * A kind of chat window, such as the Chatpad's. Chat windows of a kind share their title and their defaults: the
  * layout, docking and docked size a new one of the kind opens with are those last used in one of the kind.
  */
 export interface IChatWindowKind {
