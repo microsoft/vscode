@@ -1227,6 +1227,37 @@ extends:
                   container: ubuntu-24
                   arch: arm64
 
+            # Installers: install the packages and change system state, so they run in their own jobs.
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: installer_macos_arm64
+                  displayName: Installer macOS arm64
+                  poolName: AcesShared
+                  os: macOS
+                  args: --installer --fgrep "installer-darwin-arm64"
+
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: installer_ubuntu_24_04_amd64
+                  displayName: Installer Ubuntu 24.04 amd64 (DEB)
+                  poolName: 1es-ubuntu-22.04-x64
+                  container: ubuntu-24
+                  arch: amd64
+                  setuidSandbox: false
+                  args: --installer --fgrep "installer-linux-deb-x64"
+
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: installer_fedora_43_amd64
+                  displayName: Installer Fedora 43 amd64 (RPM)
+                  poolName: 1es-ubuntu-22.04-x64
+                  container: fedora-43
+                  arch: amd64
+                  setuidSandbox: false
+                  args: --installer --fgrep "installer-linux-rpm-x64"
+
       # Artifact backed sanity coverage can run with or without publishing. Unpublished validation
       # builds cannot use the SanityTests stage above, which resolves builds through the update
       # service. Each artifact job's grep is scoped to exactly the
@@ -1281,6 +1312,17 @@ extends:
                     - vscode_client_darwin_arm64_dmg
                     - vscode_server_darwin_arm64_archive
                     - vscode_web_darwin_arm64_archive
+
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_installer_macos_arm64
+                  displayName: Installer macOS arm64
+                  poolName: AcesShared
+                  os: macOS
+                  continueOnError: false
+                  args: --installer --fgrep "installer-darwin-arm64"
+                  artifacts:
+                    - vscode_client_darwin_arm64_archive
 
             - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
               - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -1442,6 +1484,30 @@ extends:
                   container: fedora-43
                   continueOnError: false
                   args: --fgrep "desktop-linux-rpm-x64"
+                  artifacts:
+                    - vscode_client_linux_x64_rpm-package
+
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_installer_ubuntu_deb_x64
+                  displayName: Installer Ubuntu 24.04 x64 DEB
+                  poolName: 1es-ubuntu-22.04-x64
+                  container: ubuntu-24
+                  continueOnError: false
+                  setuidSandbox: false
+                  args: --installer --fgrep "installer-linux-deb-x64"
+                  artifacts:
+                    - vscode_client_linux_x64_deb-package
+
+              - template: build/azure-pipelines/common/sanity-tests.yml@self
+                parameters:
+                  name: artifact_installer_fedora_rpm_x64
+                  displayName: Installer Fedora 43 x64 RPM
+                  poolName: 1es-ubuntu-22.04-x64
+                  container: fedora-43
+                  continueOnError: false
+                  setuidSandbox: false
+                  args: --installer --fgrep "installer-linux-rpm-x64"
                   artifacts:
                     - vscode_client_linux_x64_rpm-package
 

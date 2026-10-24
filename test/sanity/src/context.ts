@@ -138,7 +138,9 @@ export class TestContext {
 		crashDumpsDir: string | undefined;
 		artifactsDir: string | undefined;
 		setuidSandbox: boolean;
+		installer: boolean;
 	}>) {
+		this.capabilities = detectCapabilities(options.installer);
 	}
 
 	/**
@@ -149,7 +151,7 @@ export class TestContext {
 	/**
 	 * Returns the detected capabilities of the current system.
 	 */
-	public readonly capabilities = detectCapabilities();
+	public readonly capabilities: ReadonlySet<Capability>;
 
 	/**
 	 * Returns the OS temp directory with expanded long names on Windows.
@@ -173,6 +175,11 @@ export class TestContext {
 	 * @returns The Mocha test object or void if the test is skipped.
 	 */
 	public test(name: string, require: Capability[], fn: () => Promise<void>): Mocha.Test | void {
+		// Installer tests change system state, so even download-only runs include them only on request.
+		if (require.includes('installer') && !this.options.installer) {
+			return;
+		}
+
 		if (!this.options.downloadOnly && require.some(o => !this.capabilities.has(o))) {
 			return;
 		}
@@ -1173,7 +1180,7 @@ export class TestContext {
 	/**
 	 * Returns the Linux binary name based on quality.
 	 */
-	private getLinuxBinaryName(): string {
+	public getLinuxBinaryName(): string {
 		switch (this.options.quality) {
 			case 'stable':
 				return 'code';
