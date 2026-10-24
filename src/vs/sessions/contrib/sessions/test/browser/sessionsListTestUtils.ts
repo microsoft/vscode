@@ -20,7 +20,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IDeletedSessionGroups, ISessionGroup, ISessionGroupPlacement, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -249,6 +249,7 @@ export interface IListHarness {
 	readonly createdGroups: Array<{ readonly name: string; readonly sessionIds: readonly string[]; readonly parentId: string | undefined }>;
 	/** Groups nested in another group, or made top-level (`parentId: undefined`), with where they land among the new parent's subgroups, in call order. */
 	readonly movedGroups: Array<{ readonly groupId: string; readonly parentId: string | undefined; readonly placement: ISessionGroupPlacement | undefined }>;
+	readonly movedSections: Array<{ readonly sectionId: string; readonly parentId: string | undefined; readonly placement: ISessionGroupPlacement | undefined }>;
 	/** Pin state changes applied through the sessions list model service. */
 	readonly pinChanges: Array<{ readonly sessionId: string; readonly pinned: boolean }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
@@ -266,6 +267,8 @@ export interface ISortChangeRecord {
 export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
+	readonly sectionMemberships?: ReadonlyMap<string, string>;
+	readonly sectionAppearances?: ReadonlyMap<string, ISessionGroupAppearance>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
@@ -285,6 +288,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const options: IListHarnessOptions = typeof optionsOrConfigure === 'function' ? {} : optionsOrConfigure;
 	const groups = options.groups ?? [];
 	const memberships = options.memberships ?? new Map();
+	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
@@ -294,6 +298,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const removedFromGroups: string[] = [];
 	const createdGroups: IListHarness['createdGroups'] = [];
 	const movedGroups: IListHarness['movedGroups'] = [];
+	const movedSections: IListHarness['movedSections'] = [];
 	const pinChanges: IListHarness['pinChanges'] = [];
 	const sortChanges: ISortChangeRecord[] = [];
 	const sortOverrides = new Map<SessionSortMode, Map<string, number>>();
@@ -347,12 +352,36 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
 		}
 	});
+	const appearanceChanges = store.add(new Emitter<ISessionGroupsChangeEvent>());
+	const sectionAppearances = new Map(options.sectionAppearances);
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
-		override readonly onDidChange = Event.None;
+		override readonly onDidChange = appearanceChanges.event;
+		override getSectionAppearance(sectionId: string) { return sectionAppearances.get(sectionId); }
+		override setSectionIcon(sectionId: string, icon: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), icon });
+		}
+		override setSectionColor(sectionId: string, color: string | undefined) {
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), color });
+		}
+		private setSectionAppearance(sectionId: string, appearance: ISessionGroupAppearance): void {
+			const previous = sectionAppearances.get(sectionId);
+			if (previous?.icon === appearance.icon && previous?.color === appearance.color) {
+				return;
+			}
+			if (appearance.icon === undefined && appearance.color === undefined) {
+				sectionAppearances.delete(sectionId);
+			} else {
+				sectionAppearances.set(sectionId, appearance);
+			}
+			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
+		}
 		override getGroups() { return [...groups]; }
 		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
+		override getGroupOfSection(sectionId: string) { return sectionMemberships.get(sectionId); }
+		override getSectionIdsInGroup(groupId: string) { return [...sectionMemberships].filter(([, parentId]) => parentId === groupId).map(([sectionId]) => sectionId); }
+		override getChildIds(groupId: string) { return [...this.getTree().getSubgroups(groupId).map(group => group.id), ...this.getSectionIdsInGroup(groupId)]; }
 		override getSessionIdsInGroup(groupId: string) {
 			return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
 		}
@@ -366,6 +395,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		}
 		override moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
 			movedGroups.push({ groupId, parentId, placement });
+		}
+		override moveSection(sectionId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
+			movedSections.push({ sectionId, parentId, placement });
 		}
 		override addToGroup(sessionId: string, groupId: string): void;
 		override addToGroup(sessionIds: Iterable<string>, groupId: string): void;
@@ -446,5 +478,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, createdGroups, movedGroups, pinChanges, sortChanges, sectionReorders, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, createdGroups, movedGroups, movedSections, pinChanges, sortChanges, sectionReorders, createContainer };
 }

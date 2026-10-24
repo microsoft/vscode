@@ -1200,10 +1200,28 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				}
 			}
 
+			let commitish = selectedBranch;
+			if (!branch) {
+				const [head, currentBranch] = await Promise.all([
+					this._gitService.getHEAD(repositoryRoot),
+					this._gitService.getCurrentBranch(repositoryRoot),
+				]);
+				if (!head && currentBranch === selectedBranch) {
+					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRoot);
+					const snapshotCommit = tree
+						? await this._gitService.commitTree(repositoryRoot, tree, undefined, 'Initialize isolated worktree', { useInternalIdentity: true })
+						: undefined;
+					if (!snapshotCommit) {
+						throw new Error(localize('agentHost.worktree.unbornSnapshotFailed', "Couldn't capture the workspace files for the isolated worktree."));
+					}
+					commitish = snapshotCommit;
+				}
+			}
+
 			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
 				this._gitService.addWorktree(repositoryRoot, {
 					path: worktreePath,
-					commitish: selectedBranch,
+					commitish,
 					newBranchName,
 					track: false,
 					onProgress: progress,
@@ -1752,11 +1770,24 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return 'removed';
 		}
 		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(worktree, recorded.repositoryRoot);
+		if (!await this._gitService.isWorktreeRegistered(repositoryRoot, worktree)) {
+			// A previous removal released the checkout. Do not run status/commit in residue:
+			// Git could discover a containing repository instead of the original worktree.
+			if (canRemove && !await canRemove()) {
+				return 'inUse';
+			}
+			await this._gitService.removeWorktree(repositoryRoot, worktree, { force: true });
+			this._forgetRemovedWorktree(key);
+			return 'removed';
+		}
 		if (mode === 'delete') {
-			// A deleted owner cannot recreate it: force-remove.
+			// A deleted owner cannot recreate it: force-remove after the Git service preserves dirty work.
 			this._creationErrors.delete(key);
 			this.clearPending(key);
 		} else {
+			if (!await fileExists(URI.joinPath(worktree, '.git').fsPath)) {
+				throw new Error(`Cannot preserve registered worktree '${worktree.fsPath}': its .git file is missing`);
+			}
 			// Without the branch the folder could not be recreated on unarchive, so leave it intact.
 			if (!await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false)) {
 				this._logService.info(`[${this._logLabel}:${key}] Skipping worktree cleanup: branch '${branchName}' is missing`);

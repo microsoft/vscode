@@ -6,9 +6,11 @@
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import {
@@ -25,8 +27,15 @@ suite('CustomizationMigrationDashboard', () => {
 		const parent = DOM.append(document.body, DOM.$('div'));
 		const telemetryActions: string[] = [];
 		const hoverContents = new Map<HTMLElement, string>();
+		const openedLinks: string[] = [];
 		store.add(toDisposable(() => parent.remove()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(resource: Parameters<IOpenerService['open']>[0]) {
+				openedLinks.push(resource.toString());
+				return true;
+			}
+		});
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
 			override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>) {
 				const options = typeof args[1] === 'function' ? args[1]() : args[1];
@@ -49,10 +58,11 @@ suite('CustomizationMigrationDashboard', () => {
 			deleteAgentMigrationRecovery: () => { },
 			retryCategory: () => { },
 			openCustomization: () => { },
+			openGuidanceSource: () => { },
 			...callbacks,
 		}));
 		dashboard.layout(1000);
-		return { parent, dashboard, hoverContents, telemetryActions };
+		return { parent, dashboard, hoverContents, telemetryActions, openedLinks };
 	}
 
 	function button(parent: HTMLElement, label: string): HTMLElement {
@@ -85,7 +95,7 @@ suite('CustomizationMigrationDashboard', () => {
 						},
 						{
 							id: CustomizationMigrationCategoryId.PluginMarketplaces, label: 'Plugin Marketplaces', description: 'Move marketplaces to Copilot settings.', count: 1, selectedCount: 1, countLabel: '1 marketplace',
-							actionLabel: 'Migrate',
+							actionLabel: 'Migrate...',
 							destinationLabel: '~/.copilot/settings.json',
 							items: [
 								{ id: 'user-marketplace', label: 'vscode-team-kit', scopeLabel: 'User', sourceLabel: 'Configured in VS Code settings' },
@@ -124,6 +134,125 @@ suite('CustomizationMigrationDashboard', () => {
 		};
 	}
 
+	test('guidance groups are read-only and open item-specific review details', () => {
+		const actions: string[] = [];
+		const { parent, dashboard, openedLinks } = createDashboard({
+			setItemSelected: () => actions.push('select'),
+			openCustomization: () => actions.push('open'),
+			migrateCategory: () => actions.push('migrate'),
+			ignoreCategory: (id, storage) => actions.push(`ignore:${id}:${storage}`),
+			openGuidanceSource: item => actions.push(`source:${item.id}`),
+		});
+		const participantUrl = 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants';
+		const toolSetUrl = 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets';
+		const guidanceOverview: ICustomizationMigrationDashboardOverview = {
+			scopes: [
+				{
+					storage: PromptsStorage.user,
+					label: 'Your profile',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						id: CustomizationMigrationCategoryId.ToolSets,
+						label: 'Tool Sets',
+						learnMoreUrl: toolSetUrl,
+						description: 'Automatic migration is unavailable.',
+						count: 1,
+						countLabel: '1 customization',
+						items: [{ id: 'tool-set', label: 'review-tools', scopeLabel: 'User', sourceLabel: 'review.toolsets.jsonc', resource: URI.file('/profile/review.toolsets.jsonc') }],
+					}],
+				},
+				{
+					storage: PromptsStorage.extension,
+					label: 'Extensions',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						id: CustomizationMigrationCategoryId.ChatParticipants,
+						label: 'Chat Participants',
+						learnMoreUrl: participantUrl,
+						description: 'Automatic migration is unavailable.',
+						count: 1,
+						countLabel: '1 customization',
+						items: [{ id: 'participant', label: '@review', scopeLabel: 'Extension', sourceLabel: 'Review Extension', extensionId: 'example.review' }],
+					}],
+				},
+			],
+		};
+		dashboard.showOverview(guidanceOverview);
+		dashboard.focus();
+		const links = [...parent.querySelectorAll<HTMLElement>('.migration-tree [role="link"]')];
+		const focusedLabel = DOM.getActiveElement()?.getAttribute('aria-label');
+		const nativeNavigationAllowed = links[0].dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const guidanceRows = [...parent.querySelectorAll<HTMLElement>('.migration-tree-item')];
+		const checkboxesHidden = guidanceRows.every(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-hidden') === 'true');
+		const rowActionsHidden = guidanceRows.every(row => row.querySelector<HTMLElement>('.migration-tree-item-more')?.style.display === 'none');
+		const reviewActionsVisible = guidanceRows.every(row => row.querySelector<HTMLElement>('.migration-tree-item-review')?.style.display !== 'none');
+		button(parent, 'Review @review').click();
+		const detailFocus = DOM.getActiveElement()?.textContent;
+		const detailAccessibilityContent = dashboard.getGuidanceDetailAccessibilityContent();
+		const detail = parent.querySelector<HTMLElement>('.migration-guidance-detail');
+		const detailStructure = {
+			header: [...detail?.querySelector('.editor-header')?.children ?? []].map(child => child.className),
+			name: detail?.querySelector('.editor-item-name')?.textContent,
+			source: detail?.querySelector('.editor-item-path')?.textContent,
+			card: detail?.querySelector('.mcp-detail-diagnostic-card')?.className,
+			summary: detail?.querySelector('.mcp-detail-diagnostic-summary')?.textContent,
+		};
+		const sourceNavigationAllowed = parent.querySelector<HTMLElement>('[aria-label="View the extension that contributes @review"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		[...parent.querySelectorAll<HTMLElement>('.migration-guidance-card a')].find(link => link.textContent === 'Learn how to replace chat participants')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		dashboard.showOverview(guidanceOverview);
+		const detailPreservedOnRefresh = parent.querySelector('.migration-guidance-detail .editor-item-name')?.textContent;
+		(DOM.getActiveElement() as HTMLElement | null)?.blur();
+		dashboard.focus();
+		const refocusedDetail = DOM.getActiveElement()?.textContent;
+		parent.querySelector<HTMLElement>('button.editor-back-button[aria-label="Back to migrations"]')!.click();
+		const restoredRow = parent.querySelector('.monaco-list-row.focused')?.getAttribute('aria-label');
+		const restoredFocusInTree = parent.querySelector('.migration-tree')?.contains(DOM.getActiveElement()) ?? false;
+		assert.deepStrictEqual({
+			urls: links.map(link => link.getAttribute('href')),
+			opened: openedLinks,
+			nativeNavigationAllowed,
+			focusedLabel,
+			actions,
+			checkboxesHidden,
+			rowActionsHidden,
+			reviewActionsVisible,
+			migrateActions: [...parent.querySelectorAll('[role="button"]')].filter(button => button.textContent?.startsWith('Migrate')).length,
+			detailFocus,
+			detailStructure,
+			sourceNavigationAllowed,
+			detailPreservedOnRefresh,
+			refocusedDetail,
+			restoredRow,
+			restoredFocusInTree,
+			detailAccessibilityContent,
+		}, {
+			urls: [participantUrl, toolSetUrl],
+			opened: [participantUrl, participantUrl],
+			nativeNavigationAllowed: false,
+			focusedLabel: 'Learn how to migrate Chat Participants (Extensions)',
+			actions: ['source:participant'],
+			checkboxesHidden: true,
+			rowActionsHidden: true,
+			reviewActionsVisible: true,
+			migrateActions: 0,
+			detailFocus: 'Learn how to replace chat participants',
+			detailStructure: {
+				header: ['editor-back-button', 'editor-item-info'],
+				name: '@review',
+				source: 'Review Extension',
+				card: 'mcp-detail-diagnostic-card migration warning migration-guidance-card',
+				summary: 'Replace Chat Participant',
+			},
+			sourceNavigationAllowed: false,
+			detailPreservedOnRefresh: '@review',
+			refocusedDetail: 'Learn how to replace chat participants',
+			restoredRow: '@review, Extension, source Review Extension',
+			restoredFocusInTree: true,
+			detailAccessibilityContent: '@review\n\nSource: Review Extension\n\nReplace Chat Participant\n\nChat participants are deprecated and are not supported by the Copilot harness.\n\nAsk the extension publisher whether it provides an agent plugin, MCP server, or extension tools. Use a custom agent when the integration needs an ongoing specialist role.\n\nLearn how to replace chat participants: https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants',
+		});
+	});
 	test('renders migration groups with destination paths and sends scoped actions', () => {
 		const actions: string[] = [];
 		const { parent, dashboard, hoverContents, telemetryActions } = createDashboard({
@@ -135,14 +264,14 @@ suite('CustomizationMigrationDashboard', () => {
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
 		const agentMigrationButton = button(parent, 'Start a guided migration of all customization files that need migration');
-		const migrateButton = button(parent, 'Migrate: Convert Prompt to Skills (Workspace)');
+		const migrateButton = button(parent, 'Migrate...: Convert Prompt to Skills (Workspace)');
 		agentMigrationButton.click();
 		migrateButton.click();
-		button(parent, 'Migrate: Convert Prompt to Skills (User)').click();
-		button(parent, 'Migrate: MCP Servers (Workspace)').click();
-		button(parent, 'Migrate: Plugin Marketplaces (User)').click();
-		button(parent, 'Migrate: User Data (User)').click();
-		button(parent, 'Migrate: Custom location settings (Workspace)').click();
+		button(parent, 'Migrate...: Convert Prompt to Skills (User)').click();
+		button(parent, 'Migrate...: MCP Servers (Workspace)').click();
+		button(parent, 'Migrate...: Plugin Marketplaces (User)').click();
+		button(parent, 'Migrate...: User Data (User)').click();
+		button(parent, 'Migrate...: Custom location settings (Workspace)').click();
 		button(parent, 'Change destination for user prompt migrations').click();
 		dashboard.focusDestination(PromptsStorage.user);
 		assert.deepStrictEqual({
@@ -157,6 +286,8 @@ suite('CustomizationMigrationDashboard', () => {
 			intro: parent.querySelector('.migration-intro')?.textContent,
 			agentButtonInTitleRow: agentMigrationButton.parentElement?.classList.contains('migration-page-title-actions'),
 			agentButtonIsSecondary: agentMigrationButton.classList.contains('migration-secondary-button'),
+			agentTooltip: hoverContents.get(agentMigrationButton),
+			agentDescription: agentMigrationButton.getAttribute('aria-description'),
 			migrateButtonIsSecondary: migrateButton.classList.contains('migration-secondary-button'),
 			migrateTooltips: [...parent.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
 				.filter(element => element.textContent?.startsWith('Migrate'))
@@ -166,7 +297,7 @@ suite('CustomizationMigrationDashboard', () => {
 			actions,
 			telemetryActions,
 		}, {
-			title: 'Migrations',
+			title: 'Keep your customizations working',
 			groups: ['Convert Prompt to Skills (Workspace)', 'Convert Prompt to Skills (User)', 'MCP Servers (Workspace)', 'Plugin Marketplaces (User)', 'User Data (User)', 'Custom location settings (Workspace)'],
 			counts: ['1', '2', '1', '1', '2', '1'],
 			items: ['Build', 'Release', 'Triage', 'Postgres', 'vscode-team-kit', 'Planner', 'Review', 'Team rules'],
@@ -176,9 +307,11 @@ suite('CustomizationMigrationDashboard', () => {
 			],
 			warning: 'Prompt-to-skill conversion changesConvert prompts to skills.',
 			checklistCopy: false,
-			intro: 'Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.',
+			intro: 'Copilot\'s new agent runtime uses different formats and locations for some customizations. Review and migrate the affected items below.',
 			agentButtonInTitleRow: true,
 			agentButtonIsSecondary: true,
+			agentTooltip: 'Open a new chat with an agent to review and migrate your customizations. This uses Copilot credits.',
+			agentDescription: 'Open a new chat with an agent to review and migrate your customizations. This uses Copilot credits.',
 			migrateButtonIsSecondary: true,
 			migrateTooltips: [
 				'Convert prompt files to skills (Workspace)',
@@ -188,18 +321,56 @@ suite('CustomizationMigrationDashboard', () => {
 				'Migrate user data customizations to the active harness (User)',
 				'Migrate customizations from VS Code-configured locations (Workspace)',
 			],
-			initialFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
+			initialFocus: 'Migrate...: Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',
 			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
 			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
 	});
 
-	test('hides agent migration for unsupported harnesses', () => {
+	test('hides agent migration for unsupported harnesses while retaining the migration introduction', () => {
 		const { parent, dashboard } = createDashboard();
 		dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
 
-		assert.strictEqual(parent.querySelector('[aria-label="Start a guided migration of all customization files that need migration"]'), null);
+		assert.deepStrictEqual({
+			agentButton: parent.querySelector('[aria-label="Start a guided migration of all customization files that need migration"]'),
+			title: parent.querySelector('h1')?.textContent,
+			intro: parent.querySelector('.migration-intro')?.textContent,
+			learnMore: parent.querySelector('.monaco-link')?.textContent,
+		}, {
+			agentButton: null,
+			title: 'Keep your customizations working',
+			intro: 'Copilot\'s new agent runtime uses different formats and locations for some customizations. Review and migrate the affected items below.',
+			learnMore: 'Learn About Migrations',
+		});
+	});
+
+	test('opens migration documentation by mouse and keyboard and restores link focus after refresh', () => {
+		const { parent, dashboard, openedLinks } = createDashboard();
+		dashboard.showOverview(overview());
+		const link = parent.querySelector<HTMLAnchorElement>('.monaco-link');
+		assert.ok(link);
+		link.click();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		link.focus();
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.showOverview(overview());
+
+		assert.deepStrictEqual({
+			label: link.textContent,
+			href: link.getAttribute('href'),
+			role: link.getAttribute('role'),
+			tabIndex: link.tabIndex,
+			openedLinks,
+			focusedLink: document.activeElement === parent.querySelector('.monaco-link'),
+		}, {
+			label: 'Learn About Migrations',
+			href: 'https://aka.ms/vscode-migrate-customizations',
+			role: 'link',
+			tabIndex: 0,
+			openedLinks: ['https://aka.ms/vscode-migrate-customizations', 'https://aka.ms/vscode-migrate-customizations'],
+			focusedLink: true,
+		});
 	});
 
 	test('moves initial loading focus to the first migrate action when the overview loads', () => {
@@ -213,7 +384,7 @@ suite('CustomizationMigrationDashboard', () => {
 			overviewFocus: document.activeElement?.getAttribute('aria-label'),
 		}, {
 			loadingFocus: 'Migrations',
-			overviewFocus: 'Migrate: Convert Prompt to Skills (Workspace)',
+			overviewFocus: 'Migrate...: Convert Prompt to Skills (Workspace)',
 		});
 	});
 
@@ -236,13 +407,13 @@ suite('CustomizationMigrationDashboard', () => {
 		button(parent, 'Show and restore ignored migrations').click();
 
 		assert.deepStrictEqual({
-			migrateLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').textContent,
-			migrateAriaLabel: button(parent, 'Migrate 1: Convert Prompt to Skills (User)').getAttribute('aria-label'),
-			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1: Convert Prompt to Skills (User)')),
+			migrateLabel: button(parent, 'Migrate 1...: Convert Prompt to Skills (User)').textContent,
+			migrateAriaLabel: button(parent, 'Migrate 1...: Convert Prompt to Skills (User)').getAttribute('aria-label'),
+			migrateTooltip: hoverContents.get(button(parent, 'Migrate 1...: Convert Prompt to Skills (User)')),
 			actions,
 		}, {
-			migrateLabel: 'Migrate 1',
-			migrateAriaLabel: 'Migrate 1: Convert Prompt to Skills (User)',
+			migrateLabel: 'Migrate 1...',
+			migrateAriaLabel: 'Migrate 1...: Convert Prompt to Skills (User)',
 			migrateTooltip: 'Convert prompt files to skills (User)',
 			actions: [
 				'selected:user-prompt-1:false',
@@ -255,7 +426,7 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('opens customization rows and manual review rows through the same details callback', () => {
 		const opened: string[] = [];
-		const { parent, dashboard } = createDashboard({
+		const { parent, dashboard, hoverContents } = createDashboard({
 			openCustomization: (item, storage) => opened.push(`${item.id}:${storage}`),
 		});
 		const model = overview();
@@ -279,10 +450,14 @@ suite('CustomizationMigrationDashboard', () => {
 			`workspace-mcp:${PromptsStorage.local}`,
 			`workspace-mcp-manual:${PromptsStorage.local}`,
 		]);
+		const manualReviewGroup = [...parent.querySelectorAll<HTMLElement>('.group-label')]
+			.find(element => element.textContent === 'Needs manual review');
 		assert.deepStrictEqual({
+			manualReviewGuidance: manualReviewGroup && hoverContents.get(manualReviewGroup),
 			manualReviewCheckboxDisplay: DOM.getWindow(parent).getComputedStyle(parent.querySelector<HTMLElement>('.migration-tree-item.manual-review .migration-tree-item-checkbox')!).display,
 			reviewButtons: [...parent.querySelectorAll('.migration-tree-item-review')].filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.textContent),
 		}, {
+			manualReviewGuidance: 'These customizations cannot be migrated automatically. Select Review to see what needs to change.',
 			manualReviewCheckboxDisplay: 'none',
 			reviewButtons: ['Review'],
 		});
@@ -297,6 +472,26 @@ suite('CustomizationMigrationDashboard', () => {
 
 		const height = parseInt(treeContainer.style.height, 10);
 		assert.ok(height > 0 && height <= 400, `Unexpected tree height: ${treeContainer.style.height}`);
+	});
+
+	test('restores documentation link focus when refreshing a completed overview', () => {
+		const { parent, dashboard } = createDashboard();
+		dashboard.showOverview({ scopes: [] });
+		const link = parent.querySelector<HTMLAnchorElement>('.monaco-link');
+		assert.ok(link);
+		link.focus();
+		dashboard.showOverview({ scopes: [] });
+		const focusedAfterRefresh = document.activeElement === parent.querySelector('.monaco-link');
+
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.showOverview({ scopes: [] });
+		assert.deepStrictEqual({
+			focusedAfterRefresh,
+			focusedAfterLoading: document.activeElement === parent.querySelector('.monaco-link'),
+		}, {
+			focusedAfterRefresh: true,
+			focusedAfterLoading: true,
+		});
 	});
 
 	test('does not move focus into a completed overview', () => {
@@ -343,7 +538,7 @@ suite('CustomizationMigrationDashboard', () => {
 			buttons: parent.querySelectorAll('[role="button"]').length,
 			focus: document.activeElement?.tagName,
 		}, {
-			description: 'Your customizations use supported formats and locations.',
+			description: 'Your customizations are ready.',
 			empty: 'No migrations are needed.',
 			buttons: 0,
 			focus: 'BODY',
@@ -395,6 +590,35 @@ suite('CustomizationMigrationDashboard', () => {
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
 	});
 
+	test('marks the dashboard busy and labels the active migration group', () => {
+		const { parent, dashboard } = createDashboard();
+		const model = overview();
+		dashboard.showOverview({
+			...model,
+			migrationInProgress: true,
+			scopes: model.scopes.map(scope => ({
+				...scope,
+				categories: scope.categories.map(category => category.id === CustomizationMigrationCategoryId.PluginMarketplaces ? {
+					...category,
+					actionLabel: 'Migrating...',
+					migrationInProgress: true,
+					migrateDisabled: true,
+				} : { ...category, migrateDisabled: true }),
+			})),
+		});
+
+		const migrating = button(parent, 'Migrating...: Plugin Marketplaces (User)');
+		assert.deepStrictEqual({
+			busy: parent.querySelector('.migration-page')?.getAttribute('aria-busy'),
+			label: migrating.textContent,
+			disabled: migrating.getAttribute('aria-disabled'),
+		}, {
+			busy: 'true',
+			label: 'Migrating...',
+			disabled: 'true',
+		});
+	});
+
 	test('keeps category discovery errors scoped and retryable alongside valid migrations', () => {
 		const retried: string[] = [];
 		const { parent, dashboard, telemetryActions } = createDashboard({
@@ -404,20 +628,26 @@ suite('CustomizationMigrationDashboard', () => {
 			...overview(),
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		});
 
-		button(parent, 'Retry loading Plugin marketplaces could not be checked').click();
+		button(parent, 'Retry loading Couldn\'t load Copilot\'s plugin marketplaces').click();
 
+		const error = parent.querySelector('.migration-category-error');
+		const retryParent = error?.querySelector('[aria-label="Retry loading Couldn\'t load Copilot\'s plugin marketplaces"]')?.parentElement;
 		assert.deepStrictEqual({
-			error: parent.querySelector('.migration-category-error')?.textContent,
+			title: error?.querySelector('h2')?.textContent?.trim(),
+			description: error?.querySelector('p')?.textContent?.trim(),
+			hasRetryActionsContainer: retryParent?.classList.contains('migration-category-error-actions'),
 			hasPromptMigration: parent.textContent?.includes('Convert Prompt to Skills (Workspace)'),
 			retried,
 			telemetryActions,
 		}, {
-			error: 'Plugin marketplaces could not be checkedCheck the active agent connection, then try again.Retry',
+			title: 'Couldn\'t load Copilot\'s plugin marketplaces',
+			description: 'Check the Copilot connection, then try again.',
+			hasRetryActionsContainer: true,
 			hasPromptMigration: true,
 			retried: [CustomizationMigrationCategoryId.PluginMarketplaces],
 			telemetryActions: ['retryClicked:pluginMarketplaces'],

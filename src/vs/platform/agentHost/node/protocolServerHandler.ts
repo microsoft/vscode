@@ -41,7 +41,9 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
+import { AgentHostWorktreeCleanupCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -1095,8 +1097,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostChatUrisCapabilityMetaKey]: true,
 						...transport.relayHandshakeMeta,
 					} : {
-						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true, !!client.artifactIntegrations),
+						...getAgentHostExtensionInitializeResultMeta(
+							!!this._agentService.removeSessionArtifact,
+							!!client.devContainers,
+							this._otelService?.diagnosticsEnabled,
+							!!this._agentService.importSession,
+							!!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive,
+							!!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive,
+							true,
+							!!client.artifactIntegrations,
+							this._config.allowExtensionMethods !== false
+							&& !!this._agentService.listAgentExtensions
+							&& !!this._agentService.setAgentExtensionEnabled
+							&& transport.relayClientId === undefined
+							&& !transport.relayPassive,
+						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
+						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -1105,7 +1122,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							? { [sandboxCertificateRemovalCapability]: true } : {}),
 						...transport.relayHandshakeMeta,
 					}),
-					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
+					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory),
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
@@ -3161,9 +3178,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _getSnapshot(channel: string): IStateSnapshot | undefined {
 		const source = this._stateManager.getSnapshot(channel);
-		const snapshot = source && this._projectSnapshot(source);
-		if (snapshot && (this._config.relayRootMeta || this._config.extension) && isAhpRootChannel(channel) && hasKey(snapshot.state, { agents: true })) {
-			return {
+		return source && this._projectSnapshot(source);
+	}
+
+	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+		if ((this._config.relayRootMeta || this._config.extension) && isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
+			snapshot = {
 				...snapshot, state: {
 					...snapshot.state, _meta: {
 						...snapshot.state._meta, ...this._config.relayRootMeta,
@@ -3172,10 +3192,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			};
 		}
-		return snapshot;
-	}
-
-	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
 		if (this._config.sessionConfigAdapter && hasKey(snapshot.state, { chats: true }) && snapshot.state.config) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, config: this._config.sessionConfigAdapter.toClientConfig(snapshot.state.config) } };
 		} else if (this._config.sessionConfigAdapter && isAhpChatChannel(snapshot.resource) && hasKey(snapshot.state, { turns: true }) && snapshot.state.config) {
@@ -3473,6 +3489,35 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return session;
 	}
 
+	private _parseChatUri(chatParam: string): URI {
+		let chat: URI;
+		try {
+			chat = URI.parse(chatParam, true);
+		} catch {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string');
+		}
+		if (!chat.scheme) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an absolute URI');
+		}
+		return chat;
+	}
+
+	private _parseAgentExtensionScope(params: { readonly session?: string; readonly chat?: string }): { readonly session?: URI; readonly chat?: URI } {
+		if (params.session !== undefined && params.session.length === 0) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a non-empty URI string');
+		}
+		if (params.chat !== undefined && params.chat.length === 0) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a non-empty URI string');
+		}
+		if (params.chat !== undefined && params.session === undefined) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat requires session');
+		}
+		return {
+			...(params.session !== undefined ? { session: this._parseSessionUri(params.session) } : {}),
+			...(params.chat !== undefined ? { chat: this._parseChatUri(params.chat) } : {}),
+		};
+	}
+
 	/**
 	 * Handle VS Code extension methods that are not yet part of the typed
 	 * protocol. Returns a Promise if the method was recognized, undefined
@@ -3562,7 +3607,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const cancellation = disposables.add(new CancellationTokenSource());
 		measurements.set(requestId, cancellation);
 		const cancelOnDisconnect = client.disposables.add(toDisposable(() => cancellation.cancel()));
-		disposables.add(disposableTimeout(() => cancellation.cancel(), 10_000));
 		try {
 			const sizeBytes = await raceCancellationError(
 				this._agentService.measureWorktreeDiskUsage(root, cancellation.token),
@@ -3580,6 +3624,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === SessionWorktreeCleanupExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta
+			&& client.transport.relayClientId === undefined && !client.transport.relayPassive && this._agentService.sessionWorktreeCleanup) {
+			const validated = sessionWorktreeCleanupParamsValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			if (!this._isChannelVisible(client, validated.content.session)) {
+				return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'Session is outside the host workspace grants'));
+			}
+			return this._agentService.sessionWorktreeCleanup(URI.parse(validated.content.session), validated.content.retry);
+		}
 		if ((method === MeasureWorktreeDiskUsageExtensionMethod || method === CancelWorktreeDiskUsageExtensionMethod)
 			&& !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
 			if (method === MeasureWorktreeDiskUsageExtensionMethod) {
@@ -3702,6 +3757,53 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return this._agentService.getManagedSettingsDiagnostics();
 			case 'diagnosticsFetch':
 				return this._agentService.diagnosticsFetch((params as { url: string }).url);
+			case ListAgentExtensionsExtensionMethod: {
+				if (!this._agentService.listAgentExtensions) {
+					return undefined;
+				}
+				const validated = listAgentExtensionsParamsValidator.validate(params ?? {});
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				let session: URI | undefined;
+				let chat: URI | undefined;
+				try {
+					({ session, chat } = this._parseAgentExtensionScope(validated.content));
+				} catch (error) {
+					return Promise.reject(error);
+				}
+				return this._agentService.listAgentExtensions(session, chat).then(inventory => ({
+					mode: inventory.mode,
+					extensions: inventory.extensions.map(extension => ({
+						id: extension.id,
+						name: extension.name,
+						...(extension.resource ? { resource: extension.resource.toString() } : {}),
+						source: extension.source,
+						status: extension.status,
+						...(extension.pluginName ? { pluginName: extension.pluginName } : {}),
+					})),
+				}));
+			}
+			case SetAgentExtensionEnabledExtensionMethod: {
+				if (client.transport.relayClientId !== undefined || client.transport.relayPassive || this._config.relayRoots || this._config.relayRootMeta) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage));
+				}
+				if (!this._agentService.setAgentExtensionEnabled) {
+					return undefined;
+				}
+				const validated = setAgentExtensionEnabledParamsValidator.validate(params);
+				if (validated.error || !validated.content.extensionId) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error?.message ?? 'extensionId must be a non-empty string'));
+				}
+				let session: URI | undefined;
+				let chat: URI | undefined;
+				try {
+					({ session, chat } = this._parseAgentExtensionScope(validated.content));
+				} catch (error) {
+					return Promise.reject(error);
+				}
+				return this._agentService.setAgentExtensionEnabled(validated.content.extensionId, validated.content.enabled, session, chat);
+			}
 			case GetAgentHostSessionStateFileExtensionMethod: {
 				if (!this._agentService.getSessionStateFile) {
 					return undefined;

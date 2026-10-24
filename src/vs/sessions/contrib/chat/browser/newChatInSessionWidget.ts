@@ -29,6 +29,9 @@ import { IChat, SessionStatus } from '../../../services/sessions/common/session.
 import { INestedChatFolderSources, isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
+import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
@@ -45,6 +48,8 @@ import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '
 
 const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
 const STORAGE_KEY_SESSION_OPTIONS_EXPANDED = 'sessions.nestedSession.sessionOptionsExpanded';
+/** How long a send waits for a check of the session folder before keeping it, e.g. while a remote host reconnects. */
+const FOLDER_EXISTS_TIMEOUT_MS = 2000;
 
 /**
  * A widget for composing a secondary chat within an existing session.
@@ -97,6 +102,7 @@ export class NewChatInSessionWidget extends Disposable {
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -140,6 +146,12 @@ export class NewChatInSessionWidget extends Disposable {
 			resolveFolder: (folder, token) => this._requireProvider().resolveNestedChatFolder(this._requireSession().sessionId, folder, token),
 			getBranches: (folder, token) => this._requireProvider().getNestedChatBranches(this._requireSession().sessionId, folder, '', token),
 			getFolderSources: () => this._getFolderSources(),
+			describeFolder: folder => {
+				const session = this._session.get();
+				const workspace = session && this.sessionsProvidersService.getProvider(session.providerId)?.resolveWorkspace(folder);
+				return workspace && { label: workspace.label, description: workspace.description };
+			},
+			folderExists: (folder, token) => this._folderExists(folder, token),
 			openLocalFolder: async () => (await this.fileDialogService.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false }))?.[0],
 		}));
 		// Another session starts over from its own default. The first session's default is selected by
@@ -173,7 +185,7 @@ export class NewChatInSessionWidget extends Disposable {
 			petHostPreferred: _options.petHostPreferred,
 			getChatPetPlatformElements: () => this._workspaceControls.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspaceControls.onDidChangeChatPetPlatform,
-			renderRepositoryControls: container => this._workspaceControls.renderRepositoryControls(container),
+			renderRepositoryControls: (container, hoverDelegate) => this._workspaceControls.renderRepositoryControls(container, hoverDelegate),
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
@@ -196,9 +208,10 @@ export class NewChatInSessionWidget extends Disposable {
 		// host can't give a nested chat its own workspace: then the composer is unchanged.
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		const row = dom.append(workspacePickerContainer, dom.$('.sessions-workspace-category-picker'));
-		this._workspaceControls.renderFolderPicker(row);
+		this._workspaceControls.renderFolderPicker(row, this._newChatInput.pickerHoverDelegate);
 		const sessionOptionsRow = this._register(new SessionOptionsRow(row, workspacePickerContainer, {
 			user: 'NewChatInSessionWidget.sessionOptions',
+			hoverDelegate: this._newChatInput.pickerHoverDelegate,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
 			screenReaderOptimized: this._screenReaderOptimized,
 			expanded: this._sessionOptionsExpanded,
@@ -329,6 +342,12 @@ export class NewChatInSessionWidget extends Disposable {
 		return { recentFolders, canOpenLocalFolder: provider.supportsLocalWorkspaces === true };
 	}
 
+	/** `false` only when the folder is definitely gone; `undefined` when that can't be told in time. */
+	private async _folderExists(folder: URI, token: CancellationToken): Promise<boolean | undefined> {
+		const stat = this.fileService.stat(folder).then(() => true, error => toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound ? false : undefined);
+		return raceCancellation(raceTimeout(stat, FOLDER_EXISTS_TIMEOUT_MS), token);
+	}
+
 	private _requireSession(): IActiveSession {
 		const session = this._session.get();
 		if (!session) {
@@ -353,7 +372,12 @@ export class NewChatInSessionWidget extends Disposable {
 			return false;
 		}
 		const activeChat = this._chat.get() ?? activeSession.activeChat.get();
-		const workspace = this._workspaceSupport.get() ? this._workspaceControls.getWorkspace() : undefined;
+		const workspace = this._workspaceSupport.get() ? await this._workspaceControls.resolveWorkspace() : undefined;
+		if (this._session.get()?.sessionId !== activeSession.sessionId) {
+			// Another session was opened while the folder was checked: the choice is now that session's.
+			userInteraction?.cancel('cancelled');
+			return false;
+		}
 		// A chosen workspace is applied to the chat the composer opened with before its first request,
 		// so the nested session stays one chat. Refused or failed, the chat is left as it was and the
 		// composer keeps the draft.

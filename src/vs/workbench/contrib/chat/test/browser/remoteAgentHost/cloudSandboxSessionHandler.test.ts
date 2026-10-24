@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { getMarks } from '../../../../../../base/common/performance.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,13 +20,14 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { CloudSandboxRequestError, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { createActiveTurn, createChatState, createDefaultChatSummary, createSessionState, MessageKind, ResponsePartKind, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createActiveTurn, createChatState, createDefaultChatSummary, createSessionState, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxSessionHandler.js';
+import { CloudSandboxReadOnlySessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
 import { CloudSandboxHistoryCache } from '../../../browser/remoteAgentHost/cloudSandboxHistoryCache.js';
 import { IChatProgress, IChatRequestSubmittedEvent, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
@@ -914,7 +916,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await assert.rejects(handler.provideChatSessionContent(resource, CancellationToken.None), isCancellationError);
 	});
 
-	test('a failed live load retains history and a retry promotes the original session', async () => {
+	test('a failed live load retains history and stays blocked through retries until the original session becomes live', async () => {
 		let prompts = 0;
 		const notificationService = new class extends TestNotificationService {
 			override prompt(...args: Parameters<INotificationService['prompt']>) {
@@ -922,26 +924,48 @@ suite('CloudSandboxSessionHandler', () => {
 				return super.prompt(...args);
 			}
 		}();
-		const handler = createHandler(undefined, notificationService);
+		let historyReads = 0;
+		const handler = createHandler(async () => { historyReads++; return recordedHistory(); }, notificationService);
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		const initialHistory = session.history;
 		const live = store.add(new LiveSession());
 		let attempts = 0;
+		let pending = new DeferredPromise<IChatSession>();
 		handler.setLiveProvider({
-			provideChatSessionContent: async () => {
-				if (++attempts === 1) {
-					throw new Error('Live history unavailable');
-				}
-				return live;
+			provideChatSessionContent: () => {
+				attempts++;
+				return pending.p;
 			},
 		});
-		const status = await waitForState(session.historyStatus!, status => status?.kind === 'live');
-		const afterFailure = { retained: session.history === initialHistory, readOnly: session.isReadOnly?.get(), kind: status?.kind };
-		await status!.action!.run();
+		const initialStatus = session.historyStatus?.get();
+		await pending.error(new Error('Live history unavailable'));
+		const status = await waitForState(session.historyStatus!, status => status?.kind === 'live' && !status.isLoading);
+		const inputState = () => ({
+			retained: session.history === initialHistory, readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(),
+			message: session.historyStatus?.get()?.message, action: session.historyStatus?.get()?.action?.label,
+		});
+		const afterFailure = inputState();
+		pending = new DeferredPromise<IChatSession>();
+		const retry = status!.action!.run();
+		const retrying = inputState();
+		await pending.error(new Error('Live history still unavailable'));
+		await retry;
+		const afterRetryFailure = inputState();
+		pending = new DeferredPromise<IChatSession>();
+		const retryAgain = session.historyStatus!.get()!.action!.run();
+		await pending.complete(live);
+		await retryAgain;
 		assert.deepStrictEqual({
-			afterFailure, attempts, prompts, readOnly: session.isReadOnly?.get(),
+			initialStatus, afterFailure, retrying, afterRetryFailure, attempts, historyReads, prompts,
+			readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), status: session.historyStatus?.get(),
 			same: await sharesContent(handler, session),
-		}, { afterFailure: { retained: true, readOnly: true, kind: 'live' }, attempts: 2, prompts: 0, readOnly: false, same: true });
+		}, {
+			initialStatus: undefined,
+			afterFailure: { retained: true, readOnly: true, blocked: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			retrying: { retained: true, readOnly: true, blocked: true, message: 'Reopening conversation...', action: undefined },
+			afterRetryFailure: { retained: true, readOnly: true, blocked: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			attempts: 3, historyReads: 1, prompts: 0, readOnly: false, blocked: false, status: undefined, same: true,
+		});
 	});
 
 	test('disposal releases the live session and completes an active turn', async () => {
@@ -1019,6 +1043,23 @@ suite('CloudSandboxSessionHandler', () => {
 		}, { triggers: ['@', '/'], uri: 'resolved:file.txt' });
 	});
 
+	for (const [kind, resolved] of [['link', 'resolved:file.txt'], ['image', 'data:image/png;base64,aW1hZ2U=']] as const) {
+		test(`skips recorded URI resolution when live resolves a ${kind}`, () => {
+			const handler = createHandler();
+			handler.setLiveProvider({
+				provideChatSessionContent: async () => store.add(new LiveSession()),
+				resolveChatResponseUri: () => resolved,
+			});
+			const recorded = spy(CloudSandboxReadOnlySessionHandler.prototype, 'resolveChatResponseUri');
+			store.add(toDisposable(() => recorded.restore()));
+
+			assert.deepStrictEqual({
+				resolved: handler.resolveChatResponseUri(resource, 'file.txt', kind),
+				recordedCalls: recorded.callCount,
+			}, { resolved, recordedCalls: 0 });
+		});
+	}
+
 	test('keeps recorded file links and images scoped to the sandbox before connecting', async () => {
 		const history = recordedHistory();
 		history.sessions[0].state.workingDirectories = ['file:///sandbox/project'];
@@ -1042,6 +1083,40 @@ suite('CloudSandboxSessionHandler', () => {
 			peer: toAgentHostUri(URI.file('/sandbox/peer/images/robot.png'), 'test').toString(),
 			external: 'https://github.com/image.png',
 			relativeLink: 'images/robot.png',
+		});
+	});
+
+	test('restores tool-result image bytes without connecting and releases them with the session', async () => {
+		const history = recordedHistory();
+		history.sessions[0].chats.get(history.sessions[0].defaultChat)!.turns[0].responseParts.push({
+			kind: ResponsePartKind.ToolCall, toolCall: {
+				toolCallId: 'view', toolName: 'view', displayName: 'View', invocationMessage: 'View', pastTenseMessage: 'Viewed',
+				status: ToolCallStatus.Completed, success: true, confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"path":"/tmp/result.png"}',
+				content: [{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'aW1hZ2U=' }],
+			},
+		});
+		const handler = createHandler(async () => history);
+		const first = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const replacement = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		first.dispose();
+		const restored = handler.resolveChatResponseUri(resource, '/tmp/result.png', 'image');
+		const peer = handler.resolveChatResponseUri(resource.with({ fragment: peerChat }), '/tmp/result.png', 'image');
+		const live = new DeferredPromise<IChatSession>();
+		handler.setLiveProvider({
+			provideChatSessionContent: () => live.p,
+			resolveChatResponseUri: (_resource, href) => toAgentHostUri(URI.file(href), 'test').toString(),
+		});
+		const connecting = handler.resolveChatResponseUri(resource, '/tmp/result.png', 'image');
+		replacement.dispose();
+		await live.complete(store.add(new LiveSession()));
+		assert.deepStrictEqual({
+			restored, connecting, peer, released: handler.resolveChatResponseUri(resource, '/tmp/result.png', 'image'),
+		}, {
+			restored: 'data:image/png;base64,aW1hZ2U=',
+			connecting: 'data:image/png;base64,aW1hZ2U=',
+			peer: toAgentHostUri(URI.file('/tmp/result.png'), 'test').toString(),
+			released: toAgentHostUri(URI.file('/tmp/result.png'), 'test').toString(),
 		});
 	});
 });

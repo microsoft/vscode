@@ -165,6 +165,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly contributionLoadDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private current: IAgentPluginItem | undefined;
+	private primaryActionButton: Button | undefined;
 	private narrowLayout = false;
 	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
 	private updateEnablementAction: (() => void) | undefined;
@@ -265,6 +266,11 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
+	/** The header's primary (non-secondary) action, if one is shown. */
+	get primaryAction(): Button | undefined {
+		return this.primaryActionButton;
+	}
+
 	setInput(item: IAgentPluginItem): void {
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
@@ -314,6 +320,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.textContent = '';
 			this.statusBadgeEl.style.display = 'none';
 			DOM.clearNode(this.titleActionsEl);
+			this.primaryActionButton = undefined;
 			this.descriptionEl.textContent = '';
 			DOM.clearNode(this.factsEl);
 			this.sourceFactsEl.style.display = 'none';
@@ -334,6 +341,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 		}
 		DOM.clearNode(this.titleActionsEl);
+		this.primaryActionButton = undefined;
 		DOM.clearNode(this.factsEl);
 		DOM.clearNode(this.contributionsListEl);
 
@@ -364,6 +372,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private renderTitleActions(item: IAgentPluginItem): void {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			const installButton = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+			this.primaryActionButton = installButton;
 			installButton.label = localize('install', "Install");
 			this.renderDisposables.add(installButton.onDidClick(async () => {
 				installButton.label = localize('installing', "Installing...");

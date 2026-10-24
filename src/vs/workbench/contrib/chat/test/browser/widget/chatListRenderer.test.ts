@@ -3693,6 +3693,109 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	for (const { toolId, imageCount } of ['image_generation', 'image_gen.imagegen'].flatMap(toolId => [1, 3].map(imageCount => ({ toolId, imageCount })))) {
+		for (const width of [760, 320.5]) {
+			test(`${toolId} keeps every handoff frame painted and stationary until expansion (${imageCount} calls, width=${width})`, async () => {
+				const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, 13);
+				container.style.width = `${width}px`;
+				container.classList.remove('monaco-reduce-motion');
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced() { return false; }
+				}());
+				const imageBytes = new DeferredPromise<VSBuffer>();
+				const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 });
+				const context = canvas.getContext('2d')!;
+				context.fillStyle = '#4682b4';
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				const bytes = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				disposables.add(toDisposable(() => { void imageBytes.complete(bytes); }));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						return { ...await super.readFile(resource), value: await imageBytes.p };
+					}
+				}()));
+				const backendSession = URI.parse('remote-provider:/image-handoff');
+				const toolCall: ToolCallRunningState = {
+					toolCallId: 'image-handoff',
+					toolName: toolId,
+					displayName: 'Generate Image',
+					invocationMessage: 'Generating image',
+					status: ToolCallStatus.Running,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					toolInput: '{"prompt":"Draw a landscape"}',
+				};
+				const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+				model.acceptResponseProgress(request, tool);
+				for (let index = 1; index < imageCount; index++) {
+					model.acceptResponseProgress(request, toolCallStateToInvocation({ ...toolCall, toolCallId: `image-handoff-${index}` }, undefined, backendSession, 'remote'));
+				}
+				renderer.renderElement(node, 0, template);
+				const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				const geometry = () => {
+					const bounds = template.value.querySelector('.chat-image-generation-line')!.getBoundingClientRect();
+					const origin = container.getBoundingClientRect();
+					return {
+						left: bounds.left - origin.left,
+						top: bounds.top - origin.top,
+						width: bounds.width,
+						height: bounds.height,
+						footerTop: template.value.querySelector('.chat-working-progress')!.getBoundingClientRect().top - origin.top,
+					};
+				};
+				const painted = () => {
+					const field = template.value.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs');
+					return !!field?.width && !!field.height && field.getContext('2d')!.getImageData(0, 0, field.width, field.height).data
+						.some((value, index) => index % 4 === 3 && value > 0);
+				};
+				await nextFrame();
+				await nextFrame();
+				const running = geometry();
+				const loadingSurface = template.value.querySelector('.chat-image-loading-glyphs');
+				assert.ok(painted());
+				finalizeToolInvocation(tool, {
+					...toolCall,
+					status: ToolCallStatus.Completed,
+					success: true,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/handoff.png', contentType: 'image/png' }],
+				}, backendSession, 'remote');
+				const handoff = [{ painted: painted(), geometry: geometry() }];
+				for (let frame = 0; frame < 3; frame++) {
+					await nextFrame();
+					handoff.push({ painted: painted(), geometry: geometry() });
+				}
+				await imageBytes.complete(bytes);
+				await retry(async () => assert.ok(template.value.querySelector('.chat-image-reveal.revealing')), 10, 50);
+				const field = template.value.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+				const clock = field.getAnimations()[0];
+				assert.ok(clock);
+				clock.pause();
+				clock.currentTime = 0;
+				await nextFrame();
+				const expansionStart = { painted: painted(), geometry: geometry() };
+				clock.currentTime = Number(clock.effect?.getTiming().duration) / 2;
+				await nextFrame();
+				const expanded = geometry();
+				assert.deepStrictEqual({
+					sameSurface: field === loadingSurface,
+					handoff,
+					expansionStart,
+					expands: expanded.width > running.width && expanded.height >= running.height,
+					anchored: Math.abs(expanded.top - running.top) <= 1 / 64 && Math.abs(expanded.left - running.left) <= 1 / 64,
+					footerFollowsExpansion: Math.abs(expanded.footerTop - running.footerTop - (expanded.height - running.height)) <= 1 / 64,
+				}, {
+					sameSurface: true,
+					handoff: Array.from({ length: 4 }, () => ({ painted: true, geometry: running })),
+					expansionStart: { painted: true, geometry: running },
+					expands: true,
+					anchored: true,
+					footerFollowsExpansion: true,
+				});
+			});
+		}
+	}
+
 	for (const [toolId, width] of ['image_generation', 'image_gen.imagegen'].flatMap(toolId => [760, 320.5, 280].map(width => [toolId, width] as const))) {
 		test(`image tool icon alignment survives the reveal and restore (${toolId}, width=${width})`, async () => {
 			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
@@ -4241,8 +4344,8 @@ suite('ChatListRenderer', () => {
 				const imageBounds = image.getBoundingClientRect();
 				const previewBounds = preview.getBoundingClientRect();
 				return {
-					onlyImageAndMargin: Math.abs(previewBounds.height - imageBounds.height - 8) < 1,
-					thumbnailsFollowImage: Math.abs(thumbnails[0].getBoundingClientRect().top - imageBounds.bottom - 24) < 1,
+					onlyImage: Math.abs(previewBounds.height - imageBounds.height) < 1,
+					thumbnailsFollowImage: Math.abs(thumbnails[0].getBoundingClientRect().top - imageBounds.bottom - 16) < 1,
 					aspectRatio: Math.abs(imageBounds.width / imageBounds.height - image.naturalWidth / image.naturalHeight) < 0.01,
 					widthBounded: imageBounds.width <= Math.min(512, previewBounds.width),
 					heightBounded: imageBounds.height <= Math.min(400, mainWindow.innerHeight * 0.6) + 1,
@@ -4289,7 +4392,7 @@ suite('ChatListRenderer', () => {
 			await tools[4].didExecuteTool({ content: [], toolResultError: 'Image provider failed', toolResultMessage: 'Generated image failed' });
 			const failed = emptyLayout();
 			thumbnails[0].click();
-			const knownImageSizeRestored = Math.abs(preview.getBoundingClientRect().height - heights[0] - 8) < 1;
+			const knownImageSizeRestored = Math.abs(preview.getBoundingClientRect().height - heights[0]) < 1;
 			layouts.push(imageLayout(await settledImage()));
 			thumbnails[1].click();
 			const wideImage = await settledImage();
@@ -4310,7 +4413,7 @@ suite('ChatListRenderer', () => {
 				growsWithWidth: Math.abs(wideImage.getBoundingClientRect().height - wideHeight) < 1,
 				selected: thumbnails.map(thumbnail => thumbnail.getAttribute('aria-pressed')),
 			}, {
-				layouts: Array.from({ length: 6 }, () => ({ onlyImageAndMargin: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
+				layouts: Array.from({ length: 6 }, () => ({ onlyImage: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
 				pending: { previewHeight: 200, thumbnailGap: 16, glyphs: 1, images: 0 },
 				cancelled: { height: 0, text: '', thumbnailGap: 16, statusCount: 1 },
 				waiting: { height: 0, text: '', thumbnailGap: 24 },

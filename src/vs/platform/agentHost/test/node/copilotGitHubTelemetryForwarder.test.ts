@@ -297,6 +297,23 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		]);
 	});
 
+	test('stamps the owning host turn on HydraFusion workflow events, and drops it when unattributed', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const forward = (kind: string, turnId: string | undefined) => forwarder.forward({
+			sessionId: 'fusion-session',
+			restricted: false,
+			event: { kind, properties: { fusion_id: 'fusion-1', turnId: 'sdk-turn' }, metrics: {} },
+		}, turnId);
+		forward('hydrafusion_route', 'host-turn');
+		forward('hydrafusion_turn', undefined);
+
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({ eventName, turnId: data?.turnId })), [
+			{ eventName: 'copilotSdk/hydrafusion_route', turnId: 'host-turn' },
+			{ eventName: 'copilotSdk/hydrafusion_turn', turnId: undefined },
+		]);
+	});
+
 	test('gates restricted events on the restricted telemetry option', () => {
 		const telemetryService = new TestTelemetryService();
 		let restrictedTelemetryEnabled = false;

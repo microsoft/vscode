@@ -210,10 +210,10 @@
 
 			.agent-session-harness-icon {
 				/* muted, details-row scale, so it never competes with the status icon */
+				color: inherit;
 				display: flex;
 				align-items: center;
-				/* top-align so the glyph centers on the text's cap height rather than the line box */
-				align-self: flex-start;
+				align-self: center;
 				flex-shrink: 0;
 				font-size: var(--vscode-codiconFontSize-compact);
 				line-height: 1;

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -38,6 +38,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { SessionGroupAppearancePicker } from '../../browser/views/sessionGroupAppearancePicker.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -73,6 +74,7 @@ import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_W
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -81,10 +83,10 @@ import { ISessionSectionOrderService, SessionSectionOrderService } from '../../.
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -99,12 +101,19 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../browser/customizationsConstants.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from './testSessionsList.js';
+import { getSessionEnvironments } from '../../browser/views/sessionsListFilters.js';
+
+function clickRow(row: HTMLElement): void {
+	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+	row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+}
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -165,6 +174,169 @@ suite('Sessions - SessionsList', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
+
+	suite('catalogue refresh scheduling', () => {
+		async function nextFrame(): Promise<void> {
+			await new Promise<void>(resolve => {
+				disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve(), -1000));
+			});
+		}
+
+		async function createFixture() {
+			const original = createTestSession('Original').session;
+			const changes = disposables.add(new Emitter<ISessionChangeEvent>());
+			const providers = disposables.add(new Emitter<ISessionsProvidersChangeEvent>());
+			const hosts = disposables.add(new Emitter<void>());
+			let reads = 0;
+			const management = new class extends TestSessionsManagementService {
+				override readonly onDidChangeSessions = changes.event;
+				override getSessions(): ISession[] {
+					reads++;
+					return super.getSessions();
+				}
+			}([original]);
+			const harness = createListHarness(disposables, [original], instantiationService => {
+				instantiationService.stub(ISessionsManagementService, management);
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override readonly onDidChangeProviders = providers.event;
+					override getProviders(): ISessionsProvider[] { return []; }
+				});
+				instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+					override readonly onDidChange = hosts.event;
+					override readonly selectedHost = undefined;
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(400, 400);
+			await nextFrame();
+			reads = 0;
+			let updates = 0;
+			harness.store.add(list.onDidUpdate(() => updates++));
+			const invalidateCatalogue = () => {
+				hosts.fire();
+				changes.fire({ added: [], removed: [], changed: [] });
+				providers.fire({ added: [], removed: [] });
+			};
+			return {
+				harness, list, management, original, changes, invalidateCatalogue,
+				counts: () => ({ reads, updates }),
+				titles: () => [...container.querySelectorAll('.session-title')].map(element => element.textContent),
+			};
+		}
+
+		test('coalesces provider, catalogue and host invalidations while preserving focus and selection', async () => {
+			const fixture = await createFixture();
+			fixture.list.setFocusedItem({ session: fixture.original.resource });
+			fixture.list.setSelectedItems([{ session: fixture.original.resource }]);
+			fixture.list.focus();
+			const added = createTestSession('Added').session;
+			fixture.management.sessions = [fixture.original, added];
+			for (let index = 0; index < 125; index++) {
+				fixture.invalidateCatalogue();
+			}
+			const before = fixture.counts();
+			await nextFrame();
+
+			assert.deepStrictEqual({
+				before, after: fixture.counts(),
+				titles: fixture.titles().sort(),
+				focused: fixture.list.getFocusedSessions()?.map(session => session.sessionId),
+				selected: fixture.list.getItemRow({ session: fixture.original.resource })?.getAttribute('aria-selected'),
+			}, {
+				before: { reads: 0, updates: 0 }, after: { reads: 1, updates: 1 },
+				titles: ['Added', 'Original'], focused: [fixture.original.sessionId], selected: 'true',
+			});
+		});
+
+		for (const operation of ['added', 'removed', 'changed'] as const) {
+			test(`keeps concrete session ${operation} synchronous and cancels a redundant queued refresh`, async () => {
+				const fixture = await createFixture();
+				fixture.invalidateCatalogue();
+				const replacement = createTestSession('Replacement').session;
+				fixture.management.sessions = operation === 'removed' ? [] : [replacement];
+				fixture.changes.fire({
+					added: operation === 'added' ? [replacement] : [],
+					removed: operation === 'removed' ? [fixture.original] : [],
+					changed: operation === 'changed' ? [replacement] : [],
+				});
+				const immediate = { ...fixture.counts(), titles: fixture.titles() };
+				await nextFrame();
+
+				assert.deepStrictEqual({ immediate, after: fixture.counts() }, {
+					immediate: { reads: operation === 'removed' ? 2 : 1, updates: 1, titles: operation === 'removed' ? [] : ['Replacement'] },
+					after: { reads: operation === 'removed' ? 2 : 1, updates: 1 },
+				});
+			});
+		}
+
+		for (const explicit of ['refresh', 'update'] as const) {
+			test(`an explicit ${explicit} reads the latest pending catalogue synchronously`, async () => {
+				const fixture = await createFixture();
+				fixture.management.sessions = [createTestSession('Latest').session];
+				fixture.invalidateCatalogue();
+				if (explicit === 'update') {
+					fixture.list.update(true);
+				} else {
+					fixture.list.refresh();
+				}
+				const beforeFrame = fixture.counts();
+				await nextFrame();
+
+				assert.deepStrictEqual({
+					beforeFrame, afterFrame: fixture.counts(),
+					titles: fixture.titles(),
+				}, {
+					beforeFrame: { reads: 1, updates: 1 }, afterFrame: { reads: 1, updates: 1 },
+					titles: ['Latest'],
+				});
+			});
+		}
+
+		test('does not render a hidden list and refreshes its latest catalogue when shown', async () => {
+			const fixture = await createFixture();
+			fixture.invalidateCatalogue();
+			fixture.list.setVisible(false);
+			fixture.management.sessions = [createTestSession('Latest').session];
+			fixture.invalidateCatalogue();
+			await nextFrame();
+			const hidden = fixture.counts();
+			fixture.list.setVisible(true);
+			const shown = { ...fixture.counts(), titles: fixture.titles() };
+			await nextFrame();
+
+			assert.deepStrictEqual({ hidden, shown, settled: fixture.counts() }, {
+				hidden: { reads: 0, updates: 0 }, shown: { reads: 1, updates: 1, titles: ['Latest'] },
+				settled: { reads: 1, updates: 1 },
+			});
+		});
+
+		test('cancels pending work when the list is disposed', async () => {
+			const fixture = await createFixture();
+			fixture.invalidateCatalogue();
+			fixture.list.dispose();
+			await nextFrame();
+			assert.deepStrictEqual(fixture.counts(), { reads: 0, updates: 0 });
+		});
+
+		test('does not lose catalogue changes raised while rendering', async () => {
+			const fixture = await createFixture();
+			fixture.harness.store.add(Event.once(fixture.list.onDidUpdate)(() => {
+				fixture.management.sessions = [createTestSession('Latest').session];
+				fixture.invalidateCatalogue();
+			}));
+			fixture.invalidateCatalogue();
+			await nextFrame();
+			await nextFrame();
+			assert.deepStrictEqual({ ...fixture.counts(), titles: fixture.titles() }, {
+				reads: 2, updates: 2, titles: ['Latest'],
+			});
+		});
+	});
 
 	test('uses the large radius token for list hovers even when pointer styles load later', () => {
 		const pointerStyle = $('style');
@@ -304,6 +476,88 @@ suite('Sessions - SessionsList', () => {
 					appearance: { showPointer: true },
 					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 					persistence: { hideOnHover: false },
+				},
+			});
+		});
+
+		test('signals extension suggestions on the Customizations entry unless migrations need attention', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			const hoverService = new class extends mock<IHoverService>() {
+				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
+					hoverOptions = args[1];
+					return NullHoverService.setupDelayedHover(...args);
+				}
+			};
+			const customizationMigrationsAvailable = observableValue(disposables, false);
+			const customizationExtensionSuggestionsAvailable = observableValue(disposables, true);
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				instantiationService,
+				hoverService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+				customizationMigrationsAvailable,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				customizationExtensionSuggestionsAvailable,
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'customizations', label: 'Customizations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const readState = () => ({
+				hover: (typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions)?.content,
+				hasDot: template.icon.classList.contains('codicon-circle-filled'),
+				iconColor: template.icon.style.color,
+			});
+			const withSuggestions = readState();
+			customizationMigrationsAvailable.set(true, undefined);
+			const withMigrations = readState();
+			customizationMigrationsAvailable.set(false, undefined);
+			customizationExtensionSuggestionsAvailable.set(false, undefined);
+
+			assert.deepStrictEqual({ withSuggestions, withMigrations, withoutSignals: readState() }, {
+				withSuggestions: {
+					hover: 'Some installed extensions can be enabled in the Agents window.',
+					hasDot: true,
+					iconColor: 'var(--vscode-activityBarBadge-background)',
+				},
+				withMigrations: {
+					hover: 'Some customizations need an update to keep working.',
+					hasDot: true,
+					iconColor: 'var(--vscode-activityWarningBadge-background)',
+				},
+				withoutSignals: {
+					hover: 'Customizations',
+					hasDot: false,
+					iconColor: '',
 				},
 			});
 		});
@@ -538,6 +792,40 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('opens migrations from Customizations only while migration attention is active', async () => {
+			const customizationMigrationsAvailable = observableValue(disposables, true);
+			const harness = createListHarness(disposables, []);
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				customizationMigrationsAvailable,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const customizationsRow = navigationContainer.querySelector<HTMLElement>('.session-section-customizations');
+			assert.ok(customizationsRow);
+
+			clickRow(customizationsRow);
+			await Promise.resolve();
+			customizationMigrationsAvailable.set(false, undefined);
+			clickRow(customizationsRow);
+			await Promise.resolve();
+
+			assert.deepStrictEqual(harness.commandService.calls, [{
+				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+				args: [{ migration: true }],
+			}, {
+				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+				args: [],
+			}]);
+		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const commands: string[] = [];
@@ -1382,6 +1670,49 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('custom group appearance yields to unread status and returns when read', () => {
+			const customGroup = { ...group, icon: 'rocket', color: 'charts.blue' };
+			const { session, isRead } = createTestSession('Unread', { isRead: false });
+			const { list, container } = renderList([session], {
+				groups: [customGroup],
+				memberships: new Map([[session.sessionId, group.id]]),
+			});
+			const snapshot = () => {
+				const icon = getHeader(container, group.name).querySelector<HTMLElement>('.session-section-icon')!;
+				return { rocket: icon.classList.contains('codicon-rocket'), color: icon.style.color, unread: !!icon.querySelector('.codicon-circle-filled') };
+			};
+			const expanded = snapshot();
+			list.collapseAllSections();
+			const collapsedUnread = snapshot();
+			isRead.set(true, undefined);
+			const collapsedRead = snapshot();
+			assert.deepStrictEqual({ expanded, collapsedUnread, collapsedRead }, {
+				expanded: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false },
+				collapsedUnread: { rocket: false, color: '', unread: true },
+				collapsedRead: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false },
+			});
+		});
+
+		test('workspace appearance yields to unread status and returns when read', () => {
+			const { session, isRead } = createTestSession('Unread', { isRead: false });
+			const { list, container } = renderList([session], {
+				sectionAppearances: new Map([['workspace:Workspace', { icon: 'rocket', color: 'terminal.ansiBlue' }]]),
+			});
+			const snapshot = () => {
+				const icon = getHeader(container, 'Workspace').querySelector<HTMLElement>('.session-section-icon')!;
+				return { rocket: icon.classList.contains('codicon-rocket'), color: icon.style.color, unread: !!icon.querySelector('.codicon-circle-filled') };
+			};
+			const expanded = snapshot();
+			list.collapseAllSections();
+			const collapsedUnread = snapshot();
+			isRead.set(true, undefined);
+			assert.deepStrictEqual({ expanded, collapsedUnread, collapsedRead: snapshot() }, {
+				expanded: { rocket: true, color: 'var(--vscode-terminal-ansiBlue)', unread: false },
+				collapsedUnread: { rocket: false, color: '', unread: true },
+				collapsedRead: { rocket: true, color: 'var(--vscode-terminal-ansiBlue)', unread: false },
+			});
+		});
+
 		test('reports the experiment trigger where a header could show a status, whether or not the setting shows it', () => {
 			const trigger = [`config.${SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING}`];
 			const withPullRequest = (session: ISession): ISession => {
@@ -1900,6 +2231,66 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('application badges', () => {
+		for (const mode of [ExternalSessionApplicationBadgeMode.Off, ExternalSessionApplicationBadgeMode.Title, ExternalSessionApplicationBadgeMode.Details]) {
+			test(`renders ${mode} application badges based on the creating application independently of the external flag`, () => {
+				const testSession = createTestSession('Session', { isExternal: true });
+				const application = observableValue('application', getSessionApplication('vscode'));
+				const session: ISession = { ...testSession.session, application };
+				const harness = createListHarness(disposables, [session], instantiationService => {
+					const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, mode);
+					configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, false);
+				});
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+
+				const snapshot = () => ({
+					titleBadge: container.querySelector('.session-external-application-badge-title.visible')?.textContent,
+					detailsBadge: container.querySelector('.session-external-application-badge-details')?.textContent,
+					ariaIncludesApplication: container.querySelector('.monaco-list-row[role="treeitem"][aria-level="2"]')?.getAttribute('aria-label')?.includes(`created in ${application.get().label}`) ?? false,
+				});
+				const vscode = snapshot();
+				const unknownApplications = ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'].map(name => {
+					application.set(getSessionApplication(name), undefined);
+					return snapshot();
+				});
+				application.set(getSessionApplication('github/cli'), undefined);
+				const external = snapshot();
+				testSession.isExternal.set(false, undefined);
+				const continued = snapshot();
+				application.set(getSessionApplication('vscode-agents-window'), undefined);
+				const vscodeAgentsWindow = snapshot();
+				application.set(getSessionApplication('slack'), undefined);
+				const otherApplication = snapshot();
+
+				const hidden = { titleBadge: undefined, detailsBadge: undefined, ariaIncludesApplication: false };
+				const cliBadge = {
+					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Copilot CLI' : undefined,
+					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Copilot CLI' : undefined,
+					ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
+				};
+				assert.deepStrictEqual({ vscode, unknownApplications, external, continued, vscodeAgentsWindow, otherApplication }, {
+					vscode: hidden,
+					unknownApplications: Array(4).fill(hidden),
+					external: cliBadge,
+					continued: cliBadge,
+					vscodeAgentsWindow: hidden,
+					otherApplication: {
+						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Slack' : undefined,
+						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Slack' : undefined,
+						ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
+					},
+				});
+			});
+		}
+	});
+
 	suite('experiment triggers', () => {
 		function renderList(sessions: ISession[], configure: (instantiationService: TestInstantiationService) => void = () => { }) {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
@@ -1982,13 +2373,13 @@ suite('Sessions - SessionsList', () => {
 					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, showFrom);
 					instantiationService.stub(IHoverService, {
 						...NullHoverService,
-						setupDelayedHover: (...args: Parameters<IHoverService['setupDelayedHover']>) => {
+						setupDelayedHoverAtMouse: (...args: Parameters<IHoverService['setupDelayedHoverAtMouse']>) => {
 							const target = args[0];
 							const options = args[1];
 							if (target.classList.contains('session-external-application-badge') && typeof options !== 'function' && typeof options.content === 'string') {
 								badgeHover = options.content;
 							}
-							return NullHoverService.setupDelayedHover(...args);
+							return NullHoverService.setupDelayedHoverAtMouse(...args);
 						},
 					});
 				});
@@ -2250,6 +2641,53 @@ suite('Sessions - SessionsList', () => {
 				{ id: 'repository:microsoft/vscode-docs', label: 'vscode-docs', sessions: ['docs'] },
 				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['unknown'] },
 			]);
+		});
+	});
+
+	suite('groupByEnvironment', () => {
+		test('groups across agents and workspaces by stable environment identity, including disconnected and unknown hosts', () => {
+			const sessions = [
+				createTestSession('Remote Z', { environment: 'host-z' }).session,
+				createTestSession('Cloud', { environment: 'cloud' }).session,
+				createTestSession('Local Copilot', { harness: 'copilot', workspaceLabel: 'Alpha' }).session,
+				createTestSession('Local Claude', { harness: 'claude', workspaceLabel: 'Beta' }).session,
+				createTestSession('Remote A', { environment: 'host-a' }).session,
+				createTestSession('Unknown host', { environment: 'missing' }).session,
+			];
+			const environments = [
+				{ id: 'host-z', label: 'Host', isConnected: constObservable(false) },
+				{ id: 'host-a', label: 'Host' },
+				{ id: 'local', label: 'This Computer' },
+				{ id: 'local', label: 'This Computer' },
+				{ id: 'empty', label: 'Empty' },
+			];
+
+			assert.deepStrictEqual(groupByEnvironment(sessions, getSessionEnvironments(environments)).map(section => ({
+				id: section.id, label: section.label, sessions: section.sessions.map(session => session.sessionId),
+			})), [
+				{ id: 'environment:local', label: 'This Computer', sessions: ['Local Copilot', 'Local Claude'] },
+				{ id: 'environment:cloud', label: 'Cloud', sessions: ['Cloud'] },
+				{ id: 'environment:host-a', label: 'Host', sessions: ['Remote A'] },
+				{ id: 'environment:host-z', label: 'Host', sessions: ['Remote Z'] },
+				{ id: 'environment:missing', label: 'missing', sessions: ['Unknown host'] },
+			]);
+		});
+
+		test('uses built-in labels without an environment catalog', () => {
+			const sessions = [
+				createTestSession('Cloud', { environment: 'cloud' }).session,
+				createTestSession('Local').session,
+			];
+			const snapshot = (sections: ISessionSection[]) => sections.map(section => ({ id: section.id, label: section.label }));
+			const expected = [
+				{ id: 'environment:local', label: 'This Computer' },
+				{ id: 'environment:cloud', label: 'Cloud' },
+			];
+
+			assert.deepStrictEqual({
+				direct: snapshot(groupByEnvironment(sessions)),
+				list: snapshot(groupSessionsForList(sessions, SessionsGrouping.Environment, SessionsSorting.Created, () => false)),
+			}, { direct: expected, list: expected });
 		});
 	});
 
@@ -2541,8 +2979,7 @@ suite('Sessions - SessionsList', () => {
 					click: (label: string) => {
 						const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
 						assert.ok(row, `Expected a "${label}" row`);
-						row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-						row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+						clickRow(row);
 					},
 				};
 			};
@@ -2575,6 +3012,54 @@ suite('Sessions - SessionsList', () => {
 				storedAfterReset: undefined,
 			});
 		});
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
+			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
+				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>
+					createTestSession(`chat-${index}`, { isQuickChat: true, createdAt: new Date(Date.now() - index * 1000) }).session));
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+				const open = () => {
+					const container = harness.createContainer(400, 1400);
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+						grouping: () => grouping,
+						sorting: () => SessionsSorting.Created,
+						onSessionOpen: () => { },
+					}));
+					list.layout(1400, 400);
+					const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
+					return {
+						list,
+						snapshot: () => ({ chats: list.getVisibleSessions().length, showMore: showMoreLabels().map(label => label.textContent) }),
+						click: (label: string) => {
+							const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
+							assert.ok(row, `Expected a "${label}" row`);
+							clickRow(row);
+						},
+					};
+				};
+
+				const first = open();
+				const defaults = first.snapshot();
+				first.click('+3 more');
+				const expanded = first.snapshot();
+				first.list.dispose();
+
+				const second = open();
+				const reloaded = second.snapshot();
+				second.list.setWorkspaceGroupCapped(false);
+				const showAll = second.snapshot();
+				second.list.setWorkspaceGroupCapped(true);
+				second.click('Show less');
+
+				assert.deepStrictEqual({ defaults, expanded, reloaded, showAll, collapsed: second.snapshot() }, {
+					defaults: { chats: 5, showMore: ['+3 more'] },
+					expanded: { chats: 8, showMore: ['Show less'] },
+					reloaded: { chats: 8, showMore: ['Show less'] },
+					showAll: { chats: 8, showMore: [] },
+					collapsed: { chats: 5, showMore: ['+3 more'] },
+				});
+			});
+		}
 	});
 
 	suite('sticky show more and less', () => {
@@ -2757,6 +3242,44 @@ suite('Sessions - SessionsList', () => {
 		}
 
 		for (const mode of ['more', 'less'] as const) {
+			test(`shows the themed list hover background for sticky ${mode} and clears it on mouse out`, () => {
+				const grouped = sessions(20);
+				const fixture = createList(grouped, {
+					groups: [group],
+					memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: mode === 'more' ? [group.id] : undefined,
+				});
+				fixture.container.style.setProperty('--vscode-list-hoverBackground', 'rgba(10, 20, 30, 0.1)');
+				fixture.container.style.setProperty('--vscode-descriptionForeground', 'rgb(100, 110, 120)');
+				fixture.container.style.setProperty('--vscode-foreground', 'rgb(200, 210, 220)');
+				const appearance = () => {
+					const style = mainWindow.getComputedStyle(fixture.button);
+					return { background: style.backgroundColor, color: style.color };
+				};
+				const resting = appearance();
+				fixture.button.classList.add('hovered');
+				fixture.button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				const hovered = appearance();
+				fixture.container.style.setProperty('--vscode-list-hoverBackground', 'rgb(30, 40, 50)');
+				const changedTheme = appearance();
+				fixture.button.classList.remove('hovered');
+				fixture.button.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+
+				assert.deepStrictEqual({
+					restingColor: resting.color,
+					hoverBackgroundsDifferFromResting: [hovered, changedTheme].every(style => style.background !== resting.background),
+					hovered,
+					changedTheme,
+					restored: appearance(),
+				}, {
+					restingColor: 'rgb(100, 110, 120)',
+					hoverBackgroundsDifferFromResting: true,
+					hovered: { background: 'rgba(10, 20, 30, 0.1)', color: 'rgb(200, 210, 220)' },
+					changedTheme: { background: 'rgb(30, 40, 50)', color: 'rgb(200, 210, 220)' },
+					restored: resting,
+				});
+			});
+
 			test(`uses the original row's markup, typography, separators and insets for ${mode}`, () => {
 				const grouped = sessions(20);
 				const fixture = createList(grouped, {
@@ -3053,8 +3576,7 @@ suite('Sessions - SessionsList', () => {
 			const click = (label: string) => {
 				const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
 				assert.ok(row, `Expected a "${label}" row`);
-				row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-				row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+				clickRow(row);
 			};
 			const state = () => ({
 				sessions: list.getVisibleSessions().map(session => session.sessionId),
@@ -3107,8 +3629,8 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('repository grouping', () => {
-		function render(sessions: ISession[], options: IListHarnessOptions = {}, hostConnected = true) {
+	suite('repository and environment grouping', () => {
+		function render(sessions: ISession[], options: IListHarnessOptions = {}, hostConnected = true, grouping = SessionsGrouping.Repository) {
 			const providers = [
 				{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
 				{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
@@ -3132,7 +3654,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const container = harness.createContainer(400, 800);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Repository,
+				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
@@ -3154,6 +3676,50 @@ suite('Sessions - SessionsList', () => {
 				workspaceLabel: repository.split('/')[1],
 				createdAt: new Date(Date.now() - minutesAgo * 60_000),
 			}).session;
+		}
+
+		test('does not offer an empty Move to Group submenu when no custom groups exist', () => {
+			const { rowOf, contextMenus } = render([repositorySession('Session', 'local', 1)]);
+			rowOf('vscode').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual(contextMenus.at(-1)?.filter(action => action.id === 'sessions.moveSectionToGroup'), []);
+		});
+
+		for (const [grouping, sectionId, label, connected] of [
+			[SessionsGrouping.Workspace, 'workspace:vscode', 'vscode', true],
+			[SessionsGrouping.Repository, 'repository:microsoft/vscode', 'vscode', true],
+			[SessionsGrouping.Environment, 'environment:host', 'My Host', false],
+		] as const) {
+			test(`${grouping} headers support independent appearance and reset while nested`, async () => {
+				const resetPicker = sinon.stub(SessionGroupAppearancePicker.prototype, 'changeIcon').callsFake(async setIcon => setIcon(undefined));
+				disposables.add(toDisposable(() => resetPicker.restore()));
+				const parent: ISessionGroup = { id: 'parent', name: 'Parent', createdAt: 1 };
+				const { rowOf, contextMenus } = render([repositorySession('Session', 'host', 1)], {
+					groups: [parent],
+					sectionMemberships: new Map([[sectionId, parent.id]]),
+					sectionAppearances: new Map([[sectionId, { icon: 'rocket', color: 'terminal.ansiCyan' }]]),
+				}, connected, grouping);
+				const snapshot = () => {
+					const header = rowOf(label).querySelector<HTMLElement>('.session-section-icon')!;
+					return { icon: header.className, color: header.style.color };
+				};
+				const before = snapshot();
+				rowOf(label).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				const actions = contextMenus.at(-1)!;
+				await actions.find(action => action.id === 'sessions.changeGroupIcon')!.run();
+				assert.deepStrictEqual({
+					before,
+					appearanceActions: actions.filter(action => ['sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.resetGroupIcon'].includes(action.id)).map(action => ({ id: action.id, enabled: action.enabled })),
+					after: snapshot(),
+				}, {
+					before: { icon: 'session-section-icon codicon codicon-rocket', color: 'var(--vscode-terminal-ansiCyan)' },
+					appearanceActions: [
+						{ id: 'sessions.changeGroupIcon', enabled: true },
+						{ id: 'sessions.changeGroupColor', enabled: true },
+					],
+					after: { icon: `session-section-icon codicon codicon-${grouping === SessionsGrouping.Workspace ? 'folder' : grouping === SessionsGrouping.Repository ? 'repo' : 'remote'}`, color: 'var(--vscode-terminal-ansiCyan)' },
+				});
+			});
 		}
 
 		/** Drags `source` onto the top quarter of `target`, as the tree's drag and drop reads it. */
@@ -3184,6 +3750,60 @@ suite('Sessions - SessionsList', () => {
 				const badge = row.querySelector('.session-badge')?.textContent;
 				return section ?? `${row.querySelector('.session-title')?.textContent}${badge ? ` (${badge})` : ''}`;
 			}), ['scratch', 'Scratch', 'vscode', 'In the cloud (Cloud)', 'On this computer', 'On my host (My Host)']);
+		});
+
+		test('groups environments across workspaces and shows workspace badges on their rows', () => {
+			const { container } = render([
+				repositorySession('In the cloud', 'cloud', 1),
+				repositorySession('On this computer', 'local', 2, 'microsoft/vscode-docs'),
+				repositorySession('On my host', 'host', 3),
+			], {}, false, SessionsGrouping.Environment);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => {
+				const section = row.querySelector('.session-section-label')?.textContent;
+				const badge = row.querySelector('.session-badge')?.textContent;
+				return section ?? `${row.querySelector('.session-title')?.textContent}${badge ? ` (${badge})` : ''}`;
+			}), ['This Computer', 'On this computer (vscode-docs)', 'Cloud', 'In the cloud (vscode)', 'My Host', 'On my host (vscode)']);
+		});
+
+		test('caps environment sections and their sessions, with environment-specific show more labels', () => {
+			const sessions = Array.from({ length: 8 }, (_, index) => repositorySession(`Local ${index}`, 'local', index));
+			const { list, container } = render([
+				...sessions,
+				repositorySession('Old cloud session', 'cloud', 10 * 24 * 60),
+			], {}, true, SessionsGrouping.Environment);
+			const snapshot = () => ({
+				titles: list.getVisibleSessions().map(session => session.title.get()),
+				more: [...container.querySelectorAll('.monaco-list-rows .session-show-more-label')].map(label => label.textContent),
+			});
+			const recent = snapshot();
+			const more = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.find(row => row.querySelector('.session-show-more-label')?.textContent === '+1 more environment');
+			assert.ok(more);
+			const moreAria = more.getAttribute('aria-label');
+			clickRow(more);
+			const expanded = snapshot();
+			list.setWorkspaceGroupCapped(false);
+
+			assert.deepStrictEqual({ recent, moreAria, expanded, all: snapshot() }, {
+				recent: { titles: sessions.slice(0, 5).map(session => session.title.get()), more: ['+3 more', '+1 more environment'] },
+				moreAria: 'Show 1 more environment',
+				expanded: { titles: [...sessions.slice(0, 5).map(session => session.title.get()), 'Old cloud session'], more: ['+3 more', 'Show fewer environments'] },
+				all: { titles: [...sessions.map(session => session.title.get()), 'Old cloud session'], more: [] },
+			});
+		});
+
+		test('environment filtering removes only that environment section', () => {
+			const { list, container } = render([
+				repositorySession('Local', 'local', 1),
+				repositorySession('Cloud', 'cloud', 2),
+			], {}, true, SessionsGrouping.Environment);
+			list.filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
+
+			assert.deepStrictEqual({
+				sections: [...container.querySelectorAll('.session-section-label')].map(label => label.textContent),
+				sessions: list.getVisibleSessions().map(session => session.title.get()),
+			}, { sections: ['This Computer'], sessions: ['Local'] });
 		});
 
 		for (const hostConnected of [true, false]) {
@@ -3228,32 +3848,38 @@ suite('Sessions - SessionsList', () => {
 			}));
 		}
 
-		test('reorders repository sections and accepts their sessions like workspace sections', () => {
-			const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
-			const grouped = repositorySession('Grouped alpha session', 'local', 3, 'microsoft/alpha');
-			const { harness, rowOf } = render([
-				repositorySession('Alpha session', 'local', 1, 'microsoft/alpha'),
-				repositorySession('Beta session', 'cloud', 2, 'microsoft/beta'),
-				grouped,
-			], { groups: [group], memberships: new Map([[grouped.sessionId, group.id]]) });
+		for (const grouping of [SessionsGrouping.Repository, SessionsGrouping.Environment]) {
+			test(`reorders ${grouping} sections and accepts only their own sessions`, () => {
+				const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+				const grouped = repositorySession('Grouped alpha session', 'local', 3, 'microsoft/alpha');
+				const { harness, rowOf } = render([
+					repositorySession('Alpha session', 'local', 1, 'microsoft/alpha'),
+					repositorySession('Beta session', 'cloud', 2, 'microsoft/beta'),
+					grouped,
+				], { groups: [group], memberships: new Map([[grouped.sessionId, group.id]]) }, true, grouping);
+				const alphaLabel = grouping === SessionsGrouping.Environment ? 'This Computer' : 'alpha';
+				const betaLabel = grouping === SessionsGrouping.Environment ? 'Cloud' : 'beta';
+				const alphaId = grouping === SessionsGrouping.Environment ? 'environment:local' : 'repository:microsoft/alpha';
+				const betaId = grouping === SessionsGrouping.Environment ? 'environment:cloud' : 'repository:microsoft/beta';
 
-			drag(rowOf('beta'), rowOf('alpha'));
-			drag(rowOf('Grouped alpha session'), rowOf('beta'));
-			const ungroupedOutsideItsRepository = [...harness.removedFromGroups];
-			drag(rowOf('Grouped alpha session'), rowOf('alpha'));
+				drag(rowOf(betaLabel), rowOf(alphaLabel));
+				drag(rowOf('Grouped alpha session'), rowOf(betaLabel));
+				const ungroupedOutsideItsSection = [...harness.removedFromGroups];
+				drag(rowOf('Grouped alpha session'), rowOf(alphaLabel));
 
-			assert.deepStrictEqual({ reorders: harness.sectionReorders, ungroupedOutsideItsRepository, ungrouped: harness.removedFromGroups }, {
-				reorders: [{
-					visibleOrder: ['group:group', 'repository:microsoft/alpha', 'repository:microsoft/beta'],
-					draggedId: 'repository:microsoft/beta',
-					targetId: 'repository:microsoft/alpha',
-					position: 'before',
-					promoteId: 'repository:microsoft/beta',
-				}],
-				ungroupedOutsideItsRepository: [],
-				ungrouped: [grouped.sessionId],
+				assert.deepStrictEqual({ reorders: harness.sectionReorders, ungroupedOutsideItsSection, ungrouped: harness.removedFromGroups }, {
+					reorders: [{
+						visibleOrder: ['group:group', alphaId, betaId],
+						draggedId: betaId,
+						targetId: alphaId,
+						position: 'before',
+						promoteId: betaId,
+					}],
+					ungroupedOutsideItsSection: [],
+					ungrouped: [grouped.sessionId],
+				});
 			});
-		});
+		}
 	});
 
 	suite('session hover diff stats', () => {
@@ -3536,15 +4162,23 @@ suite('Sessions - SessionsList', () => {
 		});
 		session.application.set(getSessionApplication('vscode'), undefined);
 		const vscodeApplication = getSessionSummaryHoverData(session, ...services).application;
+		const unknownApplications = ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'].map(name => {
+			session.application.set(getSessionApplication(name), undefined);
+			return [
+				getSessionSummaryHoverData(session, ...services).application,
+				getChatSummaryHoverData(session, chat, ...services).application,
+			];
+		});
 		session.application.set(getSessionApplication('custom_client', 'Custom Client'), undefined);
 		const customApplication = getSessionSummaryHoverData(session, ...services).application?.label;
 		session.isExternal.set(false, undefined);
 		const adoptedApplication = getSessionSummaryHoverData(session, ...services).application?.label;
 
-		assert.deepStrictEqual({ snapshots, opened, vscodeApplication, customApplication, adoptedApplication }, {
+		assert.deepStrictEqual({ snapshots, opened, vscodeApplication, unknownApplications, customApplication, adoptedApplication }, {
 			snapshots: Array(2).fill({ buttonType: 'button', rows: ['Created in · Copilot CLI'] }),
 			opened: Array(2).fill({ uri: `command:${SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID}`, options: { allowCommands: true } }),
 			vscodeApplication: undefined,
+			unknownApplications: Array(4).fill([undefined, undefined]),
 			customApplication: 'Custom Client',
 			adoptedApplication: 'Custom Client',
 		});
@@ -3617,7 +4251,8 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
-		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
+		for (const grouping of Object.values(SessionsGrouping)) {
+			const regularSectionId = grouping === SessionsGrouping.Date ? 'recent' : grouping === SessionsGrouping.Environment ? 'environment:local' : 'workspace:Alpha';
 			test(`groups external sessions before Done while preserving pins (${grouping})`, () => {
 				const sessions: ISession[] = [
 					createSession('pinned', { isExternal: true }),
@@ -3633,7 +4268,7 @@ suite('Sessions - SessionsList', () => {
 
 				assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
 					{ id: 'pinned', sessions: ['pinned'] },
-					{ id: grouping === SessionsGrouping.Workspace ? 'workspace:Alpha' : 'recent', sessions: ['regular'] },
+					{ id: regularSectionId, sessions: ['regular'] },
 					{ id: 'external', sessions: ['external-workspace', 'external-chat'] },
 					{ id: 'archived', sessions: ['archived'] },
 				]);
@@ -3641,13 +4276,15 @@ suite('Sessions - SessionsList', () => {
 
 			for (const groupExternalSessions of [undefined, false]) {
 				test(`preserves ordinary placement when external grouping is ${groupExternalSessions === undefined ? 'unset' : 'disabled'} (${grouping})`, () => {
-					const external = createSession('external', { workspaceLabel: 'Alpha', isExternal: true });
+					const external = createSession('external', { workspaceLabel: 'Alpha', isExternal: true, createdAt: new Date(Date.now() - 60_000) });
 					const quick = createSession('quick', { isExternal: true });
 					const sections = groupSessionsForList([external, quick], grouping, SessionsSorting.Created, () => false, undefined, 'Done', groupExternalSessions);
 
-					assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
+					assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository ? [
 						{ id: 'quickchats', sessions: ['quick'] },
-						{ id: grouping === SessionsGrouping.Workspace ? 'workspace:Alpha' : 'recent', sessions: ['external'] },
+						{ id: regularSectionId, sessions: ['external'] },
+					] : [
+						{ id: regularSectionId, sessions: ['quick', 'external'] },
 					]);
 				});
 			}
@@ -3747,20 +4384,27 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sections.map(section => section.id), ['pinned']);
 		});
 
-		test('Chats section sits directly below Pinned when grouping by date', () => {
+		test('quick chats join the other sessions when grouping by date or environment', () => {
 			const pinned = createSession('pinned', { createdAt: new Date('2024-06-03') });
 			const quick = createSession('quick', { createdAt: new Date('2024-06-02') });
 			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-06-01') });
-			const sections = groupSessionsForList(
+			const result = [SessionsGrouping.Date, SessionsGrouping.Environment].map(grouping => groupSessionsForList(
 				[pinned, quick, regular],
-				SessionsGrouping.Date,
+				grouping,
 				SessionsSorting.Created,
 				session => session.sessionId === pinned.sessionId,
-			);
+			).map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })));
 
-			assert.strictEqual(sections[0].id, 'pinned');
-			assert.strictEqual(sections[1].id, 'quickchats');
-			assert.deepStrictEqual(sections[1].sessions.map(s => s.sessionId), ['quick']);
+			assert.deepStrictEqual(result, [
+				[
+					{ id: 'pinned', sessions: ['pinned'] },
+					{ id: 'older', sessions: ['quick', 'regular'] },
+				],
+				[
+					{ id: 'pinned', sessions: ['pinned'] },
+					{ id: 'environment:local', sessions: ['quick', 'regular'] },
+				],
+			]);
 		});
 
 		test('excludes automation sessions from every section', () => {
@@ -4250,6 +4894,52 @@ suite('Sessions - SessionsList', () => {
 				renderedAfterEditing: true,
 			});
 		});
+
+		test('preserves the group rename draft, focus, and selection across rerenders', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [], { groups: [group] });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.beginRenameGroup(group.id);
+			const input = container.querySelector<HTMLInputElement>('.session-group-input input');
+			assert.ok(input);
+			input.value = 'Group draft';
+			input.setSelectionRange(2, 7, 'forward');
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			list.refresh();
+			const rerenderedInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const rerenderState = {
+				draft: rerenderedInput?.value,
+				inputRecreated: rerenderedInput !== input,
+				focused: mainWindow.document.activeElement === rerenderedInput,
+				selectionStart: rerenderedInput?.selectionStart,
+				selectionEnd: rerenderedInput?.selectionEnd,
+				selectionDirection: rerenderedInput?.selectionDirection,
+			};
+			rerenderedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			list.beginRenameGroup(group.id);
+			const restartedInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const restartedValue = restartedInput?.value;
+			// Close the editor so teardown does not commit it on blur.
+			restartedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({ rerenderState, restartedValue }, {
+				rerenderState: {
+					draft: 'Group draft',
+					inputRecreated: true,
+					focused: true,
+					selectionStart: 2,
+					selectionEnd: 7,
+					selectionDirection: 'forward',
+				},
+				restartedValue: 'Group',
+			});
+		});
 	});
 
 	suite('nested custom groups', () => {
@@ -4288,28 +4978,237 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
-		function render(grouping = SessionsGrouping.Workspace) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false) {
+			let currentGrouping = grouping;
 			const now = Date.now();
-			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', createdAt: new Date(now - minutesAgo * 60_000) }).session;
+			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
 			const sessions = [session('Ship notes', 1), session('Fix login', 2), session('Patch CVE', 3), session('Flaky test', 4), session('Ungrouped', 5)];
+			const groups = [release, hotfixes, docs, urgent, triage];
+			const memberships = new Map([
+				[sessions[0].sessionId, release.id],
+				[sessions[1].sessionId, hotfixes.id],
+				[sessions[2].sessionId, urgent.id],
+				[sessions[3].sessionId, triage.id],
+			]);
 			const harness = createListHarness(disposables, sessions, {
-				groups: [release, hotfixes, docs, urgent, triage],
-				memberships: new Map([
-					[sessions[0].sessionId, release.id],
-					[sessions[1].sessionId, hotfixes.id],
-					[sessions[2].sessionId, urgent.id],
-					[sessions[3].sessionId, triage.id],
-				]),
+				groups,
+				sectionMemberships,
+				memberships,
+			});
+			if (liveGroups) {
+				const storageService = harness.instantiationService.get(IStorageService);
+				storageService.store('sessionsListControl.groups', JSON.stringify({
+					groups, membership: Object.fromEntries(memberships), sectionMembership: Object.fromEntries(sectionMemberships),
+				}), StorageScope.PROFILE, StorageTarget.USER);
+				const orderService = harness.store.add(new SessionSectionOrderService(storageService));
+				harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+				harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+					onDidChangeSessions: Event.None,
+					onDidDeleteSession: Event.None,
+					onDidArchiveSession: Event.None,
+					onWillSendRequest: Event.None,
+					onDidReplaceSession: Event.None,
+					onDidReplaceNewDraftSession: Event.None,
+					onDidStartSession: Event.None,
+					onDidDiscardNewSession: Event.None,
+					onDidMoveChat: Event.None,
+					getSessions: () => harness.managementService.sessions,
+					getInFlightNewSessionRequests: () => [],
+					getSession: resource => harness.managementService.getSession(resource),
+				}), orderService)));
+			}
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
 			});
 			const container = harness.createContainer(400, 800);
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-				grouping: () => grouping,
+				grouping: () => currentGrouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
 			list.layout(800, 400);
-			return { harness, container, list };
+			return { harness, container, list, contextMenus, setGrouping: (value: SessionsGrouping) => { currentGrouping = value; list.resetSectionCollapseState(); list.update(true); } };
 		}
+
+		for (const [grouping, sectionId, sectionLabel] of [
+			[SessionsGrouping.Workspace, 'workspace:vscode', 'vscode'],
+			[SessionsGrouping.Repository, 'repository:microsoft/vscode', 'vscode'],
+			[SessionsGrouping.Environment, 'environment:local', 'This Computer'],
+		] as const) {
+			test(`nests a ${grouping} section with correct totals and depth, only in its grouping mode`, () => {
+				const { harness, list, setGrouping } = render(grouping, new Map([[sectionId, docs.id]]));
+				const snapshot = () => ({
+					sectionLevel: list.getItemRow({ section: sectionId })?.getAttribute('aria-level'),
+					sectionDepth: list.getItemRow({ section: sectionId })?.querySelector<HTMLElement>('.session-section')?.style.getPropertyValue('--session-group-depth'),
+					automaticDepth: list.getItemRow({ session: harness.managementService.sessions[4].resource })?.querySelector<HTMLElement>('.session-item')?.style.getPropertyValue('--session-group-depth'),
+					group: list.getItemRow({ group: docs.id })?.getAttribute('aria-label'),
+				});
+				const nested = snapshot();
+				setGrouping(SessionsGrouping.Date);
+				const inactive = snapshot();
+				setGrouping(grouping);
+
+				assert.deepStrictEqual({ nested, inactive, restored: snapshot() }, {
+					nested: { sectionLevel: '3', sectionDepth: '2', automaticDepth: '2', group: 'Docs, 1' },
+					inactive: { sectionLevel: undefined, sectionDepth: undefined, automaticDepth: '', group: 'Docs, 0' },
+					restored: nested,
+				});
+			});
+
+			test(`drags a ${grouping} section into a custom group and back out, without moving individual sessions`, () => {
+				const { harness, container, list } = render(grouping, new Map(), true);
+				const groupsService = harness.instantiationService.get(ISessionGroupsService);
+				list.setItemCollapsed({ group: docs.id }, true);
+				dragRow(rowOf(container, sectionLabel), rowOf(container, 'Docs'), 0.5);
+				const nested = {
+					parent: groupsService.getGroupOfSection(sectionId),
+					level: list.getItemRow({ section: sectionId })?.getAttribute('aria-level'),
+					parentExpanded: list.getItemRow({ group: docs.id })?.getAttribute('aria-expanded'),
+				};
+				dragRow(rowOf(container, sectionLabel), rowOf(container, 'Triage'), 0.1);
+
+				assert.deepStrictEqual({
+					nested,
+					topLevel: {
+						parent: groupsService.getGroupOfSection(sectionId),
+						level: list.getItemRow({ section: sectionId })?.getAttribute('aria-level'),
+					},
+					sessionMembership: groupsService.getGroupOfSession(harness.managementService.sessions[4].sessionId),
+				}, {
+					nested: { parent: docs.id, level: '3', parentExpanded: 'true' },
+					topLevel: { parent: undefined, level: '1' },
+					sessionMembership: undefined,
+				});
+			});
+		}
+
+		test('remembers workspace fallback nesting independently in Workspace and Repository modes', () => {
+			const { harness, list, setGrouping } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			const level = () => list.getItemRow({ section: 'workspace:vscode' })?.getAttribute('aria-level');
+			const workspace = level();
+			setGrouping(SessionsGrouping.Repository);
+			const fallbackBeforeMove = level();
+			harness.instantiationService.get(ISessionGroupsService).moveSection('repository:workspace:vscode', triage.id);
+			const repository = level();
+			setGrouping(SessionsGrouping.Workspace);
+
+			assert.deepStrictEqual({ workspace, fallbackBeforeMove, repository, restored: level() }, {
+				workspace: '3', fallbackBeforeMove: '1', repository: '2', restored: '3',
+			});
+		});
+
+		test('reorders grouping sections and subgroups together and moves a section between parents', () => {
+			const { harness, list, container } = render(SessionsGrouping.Workspace, new Map(), true);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Hotfixes'), 0.1);
+			const sectionFirst = groupsService.getChildIds(release.id);
+			dragRow(rowOf(container, 'Docs'), rowOf(container, 'vscode'), 0.1);
+			const groupFirst = groupsService.getChildIds(release.id);
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Fix login'), 0.5);
+
+			assert.deepStrictEqual({
+				sectionFirst,
+				groupFirst,
+				newParent: groupsService.getGroupOfSection('workspace:vscode'),
+				children: groupsService.getChildIds(hotfixes.id),
+				level: list.getItemRow({ section: 'workspace:vscode' })?.getAttribute('aria-level'),
+			}, {
+				sectionFirst: ['workspace:vscode', hotfixes.id, docs.id],
+				groupFirst: [docs.id, 'workspace:vscode', hotfixes.id],
+				newParent: hotfixes.id,
+				children: ['workspace:vscode', urgent.id],
+				level: '3',
+			});
+		});
+
+		test('context-menu section moves expand their destination and keep old sections visible when removed', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
+			const menu = (label: string) => {
+				rowOf(container, label).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				return contextMenus.at(-1)!;
+			};
+			list.setItemCollapsed({ group: docs.id }, true);
+			list.setItemCollapsed({ group: release.id }, true);
+			const move = menu('vscode').find(action => action.id === 'sessions.moveSectionToGroup');
+			assert.ok(move instanceof SubmenuAction);
+			await move.actions.find(action => action.id === `sessions.moveSectionToGroup.${docs.id}`)!.run();
+			const nested = {
+				expanded: list.getItemRow({ group: docs.id })?.getAttribute('aria-expanded'),
+				level: list.getItemRow({ section: 'workspace:vscode' })?.getAttribute('aria-level'),
+				focused: list.getItemRow({ section: 'workspace:vscode' })?.classList.contains('focused'),
+			};
+			const old = createTestSession('Old session', { workspaceLabel: 'Old', updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60_000) }).session;
+			harness.managementService.sessions.push(old);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			groupsService.moveSection('workspace:Old', docs.id);
+			list.refresh();
+			await menu('Old').find(action => action.id === 'sessions.removeSectionFromGroup')!.run();
+
+			assert.deepStrictEqual({
+				nested,
+				removed: {
+					parent: groupsService.getGroupOfSection('workspace:Old'),
+					level: list.getItemRow({ section: 'workspace:Old' })?.getAttribute('aria-level'),
+					focused: list.getItemRow({ section: 'workspace:Old' })?.classList.contains('focused'),
+					promoted: harness.instantiationService.get(ISessionSectionOrderService).isPromoted('workspace:Old'),
+				},
+			}, {
+				nested: { expanded: 'true', level: '3', focused: true },
+				removed: { parent: undefined, level: '1', focused: true, promoted: true },
+			});
+		});
+
+		test('a stale section-removal action does not reorder when no top-level headers remain', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			rowOf(container, 'vscode').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const remove = contextMenus.at(-1)!.find(action => action.id === 'sessions.removeSectionFromGroup');
+			assert.ok(remove);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			for (const group of groupsService.getTree().getSubgroups(undefined)) {
+				groupsService.deleteGroup(group.id);
+			}
+			harness.managementService.sessions.length = 0;
+			list.refresh();
+			const reorder = sinon.spy(harness.instantiationService.get(ISessionSectionOrderService), 'reorder');
+			disposables.add(toDisposable(() => reorder.restore()));
+
+			await remove.run();
+
+			assert.deepStrictEqual({
+				parent: groupsService.getGroupOfSection('workspace:vscode'),
+				reorders: reorder.callCount,
+			}, { parent: undefined, reorders: 0 });
+		});
+
+		test('group Mark All as Read includes active nested sections but not another group\'s members', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			const automatic = createTestSession('Automatic unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			const elsewhere = createTestSession('Other group unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			harness.managementService.sessions.push(automatic, elsewhere);
+			harness.instantiationService.get(ISessionGroupsService).addToGroup(elsewhere.sessionId, triage.id);
+			list.refresh();
+			rowOf(container, 'Release work').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+
+			assert.deepStrictEqual(harness.managementService.readSessions.map(session => session.title.get()), ['Automatic unread']);
+		});
+
+		test('new sessions automatically follow a nested workspace while explicit group membership keeps precedence', () => {
+			const { harness, list } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]));
+			const session = createTestSession('New session', { workspaceLabel: 'vscode' }).session;
+			harness.managementService.sessions.push(session);
+			list.refresh();
+
+			assert.deepStrictEqual({
+				automaticLevel: list.getItemRow({ session: session.resource })?.getAttribute('aria-level'),
+				explicitLevel: list.getItemRow({ session: harness.managementService.sessions[0].resource })?.getAttribute('aria-level'),
+				nestedCount: list.getItemRow({ group: docs.id })?.getAttribute('aria-label'),
+				parentCount: list.getItemRow({ group: release.id })?.getAttribute('aria-label'),
+			}, { automaticLevel: '4', explicitLevel: '2', nestedCount: 'Docs, 2', parentCount: 'Release work, 5' });
+		});
 
 		test('lists subgroups above their parent group\'s sessions, stepping in one level per nesting depth', () => {
 			for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
@@ -4497,6 +5396,96 @@ suite('Sessions - SessionsList', () => {
 				afterSubgroupMove: ['Triage', '  Flaky', '  Perf', 'Release work', '  Docs', '  Hotfixes'],
 			});
 		});
+
+		/**
+		 * Renders Release work and Triage, without sessions, with a session in each
+		 * of Recent, Older, and Archived, grouped by date with the real group and order services.
+		 */
+		function renderByDate(sectionOrder?: readonly string[]) {
+			const now = Date.now();
+			const sessions = [
+				createTestSession('Fresh', { createdAt: new Date(now - 60_000) }).session,
+				createTestSession('Stale', { createdAt: new Date(now - 30 * 24 * 60 * 60_000) }).session,
+				createTestSession('Finished', { createdAt: new Date(now - 120_000), isArchived: true }).session,
+			];
+			const harness = createListHarness(disposables, sessions);
+			const storageService = harness.instantiationService.get(IStorageService);
+			storageService.store('sessionsListControl.groups', JSON.stringify({ groups: [release, triage], membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+			if (sectionOrder) {
+				storageService.store('sessionsListControl.sectionOrder', JSON.stringify({ order: sectionOrder, promoted: [] }), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const orderService = harness.store.add(new SessionSectionOrderService(storageService));
+			const groupsService = harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidDeleteSession: Event.None,
+				onDidArchiveSession: Event.None,
+				onWillSendRequest: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
+				onDidReplaceSession: Event.None,
+				onDidStartSession: Event.None,
+				onDidDiscardNewSession: Event.None,
+				onDidMoveChat: Event.None,
+				getSessions: () => sessions,
+				getInFlightNewSessionRequests: () => [],
+				getSession: () => undefined,
+			}), orderService));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			harness.instantiationService.stub(ISessionGroupsService, groupsService);
+			const container = harness.createContainer(400, 800);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 400);
+			list.setExcludeArchived(false);
+			const headers = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+				.filter(row => row.querySelector('.session-group, .session-section'))
+				.map(labelOf);
+			return { container, list, groupsService, headers };
+		}
+
+		test('drops a group between and below the date sections, drawing the line below an expanded section\'s rows', () => {
+			const { container, list, groupsService, headers } = renderByDate();
+			const drag = (source: string, target: string, fraction: number) => {
+				const targetRow = rowOf(container, target);
+				let feedback: string[] = [];
+				dragRow(rowOf(container, source), targetRow, fraction, () => {
+					feedback = [...targetRow.parentElement!.querySelectorAll<HTMLElement>('.monaco-list-row')]
+						.filter(row => /drop-target/.test(row.className))
+						.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
+				});
+				return { drop: `${source} onto ${target} at ${fraction}`, feedback, headers: headers() };
+			};
+
+			const initial = headers();
+			const drops = [
+				drag('Triage', 'Older', 0.1),
+				drag('Release work', 'Older', 0.9),
+				drag('Release work', 'Recent', 0.9),
+			];
+			// Garbage-collecting the order after a group change keeps the date sections in it.
+			groupsService.createGroup('Docs');
+			list.update(true);
+
+			assert.deepStrictEqual({ initial, drops, afterNewGroup: headers() }, {
+				initial: ['Release work', 'Triage', 'Recent', 'Older', 'Archived'],
+				drops: [
+					{ drop: 'Triage onto Older at 0.1', feedback: ['Older: drop-target-before'], headers: ['Release work', 'Recent', 'Triage', 'Older', 'Archived'] },
+					// Older starts collapsed below Recent, so the line after it is drawn above Archived.
+					{ drop: 'Release work onto Older at 0.9', feedback: ['Archived: drop-target-before'], headers: ['Recent', 'Triage', 'Older', 'Release work', 'Archived'] },
+					{ drop: 'Release work onto Recent at 0.9', feedback: ['Triage: drop-target-before'], headers: ['Recent', 'Release work', 'Triage', 'Older', 'Archived'] },
+				],
+				afterNewGroup: ['Docs', 'Recent', 'Release work', 'Triage', 'Older', 'Archived'],
+			});
+		});
+
+		test('keeps Recent above Older when a reorder in another grouping mode swapped them in the stored order', () => {
+			const { headers } = renderByDate(['group:triage', 'older', 'group:release', 'recent']);
+
+			assert.deepStrictEqual(headers(), ['Triage', 'Recent', 'Release work', 'Older', 'Archived']);
+		});
 	});
 
 	suite('section collapse persistence', () => {
@@ -4575,7 +5564,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -4652,7 +5641,18 @@ suite('Sessions - SessionsList', () => {
 			if (includeOrdinaryWorkspace) {
 				sessions.push(createTestSession('Ordinary', { resourceId: 'ordinary', workspaceLabel: 'Zebra' }).session);
 			}
-			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison], pinnedSessionIds });
+			const sectionId = grouping === SessionsGrouping.Environment ? 'environment:local' : 'workspace:Workspace';
+			const harness = createListHarness(disposables, sessions, {
+				groups: sectionParent ? [group, sectionParent] : [group],
+				sectionMemberships: sectionParent ? new Map([[sectionId, sectionParent.id]]) : undefined,
+				memberships, comparisons: [comparison], pinnedSessionIds,
+			});
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
+			});
 			harness.managementService.onDidArchive = archived => [attempt1, attempt2, judge, synthesis]
 				.find(participant => participant.session === archived)?.isArchived.set(true, undefined);
 			const container = harness.createContainer();
@@ -4660,14 +5660,55 @@ suite('Sessions - SessionsList', () => {
 			container.style.setProperty('--vscode-cornerRadius-small', '4px');
 			container.style.setProperty('--vscode-strokeThickness', '1px');
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Workspace,
+				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 			list.layout(400, 400);
-			return { attempt1, attempt2, judge, synthesis, container, harness, list };
+			return { attempt1, attempt2, judge, synthesis, container, harness, list, contextMenus };
 		}
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Environment]) {
+			test(`includes comparison sessions once in a nested ${grouping} section and its parent's bulk actions`, async () => {
+				const parent: ISessionGroup = { id: 'parent', name: 'Work', createdAt: 0 };
+				const { container, harness, list, contextMenus, attempt1, attempt2 } = renderComparison(undefined, 'all', new Set(), false, grouping, parent);
+				harness.managementService.sessions = harness.managementService.sessions.map(session => session === attempt2.session ? {
+					...session, environment: 'cloud',
+				} : session);
+				attempt1.isRead.set(false, undefined);
+				attempt2.isRead.set(false, undefined);
+				list.refresh();
+				const parentRow = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.find(row => row.querySelector('.session-section-label')?.textContent === parent.name)!;
+				parentRow.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+
+				assert.deepStrictEqual({
+					parent: parentRow.getAttribute('aria-label'),
+					comparisonLevel: container.querySelector('.session-comparison-group')?.closest('.monaco-list-row')?.getAttribute('aria-level'),
+					comparisonDepth: container.querySelector<HTMLElement>('.session-comparison-group')?.style.getPropertyValue('--session-group-depth'),
+					sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+					read: harness.managementService.readSessions.map(session => session.sessionId).sort(),
+				}, {
+					parent: 'Work, 4',
+					comparisonLevel: '3',
+					comparisonDepth: '1',
+					sessions: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
+					read: ['attempt-1', 'attempt-2'],
+				});
+			});
+		}
+
+		test('keeps comparison groups visible under their environment without any ungrouped sessions', () => {
+			const { container, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Environment);
+
+			assert.deepStrictEqual({
+				sections: [...container.querySelectorAll('.monaco-list-row[aria-level="1"] .session-section-label')].map(label => label.textContent),
+				comparisonLevel: container.querySelector('.session-comparison-group')?.closest('.monaco-list-row')?.getAttribute('aria-level'),
+				sessionCount: list.getVisibleSessions().length,
+			}, { sections: ['This Computer'], comparisonLevel: '2', sessionCount: 4 });
+		});
 
 		test('uses attention wording for blocked comparison participants', () => {
 			const { attempt1, attempt2, judge, container } = renderComparison();
@@ -5183,6 +6224,10 @@ suite('Sessions - SessionsList', () => {
 						override getTree() { return new SessionGroupTree([group]); }
 						override getGroup(groupId: string) { return groupId === group.id ? group : undefined; }
 						override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
+						override getGroupOfSection() { return undefined; }
+						override getSectionAppearance() { return undefined; }
+						override getSectionIdsInGroup() { return []; }
+						override getChildIds() { return []; }
 						override getSessionIdsInGroup(groupId: string) {
 							return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
 						}
@@ -5325,20 +6370,20 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('returns grouped quick chats to Chats and refuses other sections', () => {
+			test('returns grouped quick chats to Chats and refuses other sections when grouping by workspace', () => {
 				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
 				const grouped = createTestSession('Grouped').session;
 				const chat = createTestSession('Chat', { isQuickChat: true }).session;
 				const regular = createTestSession('Regular').session;
 				const memberships = new Map([[groupedChat.sessionId, group.id], [grouped.sessionId, group.id]]);
-				const { container, removedFromGroup, sortChanges } = renderGroupedList([groupedChat, grouped, chat, regular], memberships, false, SessionsGrouping.Date);
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([groupedChat, grouped, chat, regular], memberships, false, SessionsGrouping.Workspace);
 
-				const chatOntoRecent = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Recent'), container);
+				const chatOntoWorkspace = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Workspace'), container);
 				const sessionOntoChats = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'Chats'), container);
 				const chatOntoChats = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Chats'), container);
 
-				assert.deepStrictEqual({ chatOntoRecent, sessionOntoChats, chatOntoChats, removedFromGroup, reordered: sortChanges.length }, {
-					chatOntoRecent: [],
+				assert.deepStrictEqual({ chatOntoWorkspace, sessionOntoChats, chatOntoChats, removedFromGroup, reordered: sortChanges.length }, {
+					chatOntoWorkspace: [],
 					sessionOntoChats: [],
 					chatOntoChats: ['Chats'],
 					removedFromGroup: ['GroupedChat'],
@@ -5346,11 +6391,30 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('returns the only quick chat to the empty Chats section', () => {
+			test('returns grouped quick chats to the date sections when grouping by date', () => {
 				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
 				const regular = createTestSession('Regular').session;
 				const memberships = new Map([[groupedChat.sessionId, group.id]]);
 				const { container, removedFromGroup } = renderGroupedList([groupedChat, regular], memberships, false, SessionsGrouping.Date, true);
+
+				const chatOntoRecent = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Recent'), container);
+
+				assert.deepStrictEqual({
+					chatOntoRecent,
+					removedFromGroup,
+					hasChatsSection: [...container.querySelectorAll<HTMLElement>('.session-section-label')].some(label => label.textContent === 'Chats'),
+				}, {
+					chatOntoRecent: ['Recent'],
+					removedFromGroup: ['GroupedChat'],
+					hasChatsSection: false,
+				});
+			});
+
+			test('returns the only quick chat to the empty Chats section', () => {
+				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
+				const regular = createTestSession('Regular').session;
+				const memberships = new Map([[groupedChat.sessionId, group.id]]);
+				const { container, removedFromGroup } = renderGroupedList([groupedChat, regular], memberships, false, SessionsGrouping.Workspace, true);
 
 				const chatOntoChats = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Chats'), container);
 
@@ -5850,7 +6914,11 @@ suite('Sessions - SessionsList', () => {
 			quickChat.capabilities.set({ supportsMultipleChats: true }, undefined);
 			const archived = createTestSession('Archived', { isArchived: true });
 			archived.capabilities.set({ supportsMultipleChats: true }, undefined);
-			const sessions = [supported.session, unsupported.session, quickChat.session, archived.session];
+			const cloud = createTestSession('Cloud', { environment: 'cloud' });
+			cloud.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const remote = createTestSession('Remote', { environment: 'remote-host' });
+			remote.capabilities.set({ supportsMultipleChats: true }, undefined);
+			const sessions = [supported.session, unsupported.session, quickChat.session, archived.session, cloud.session, remote.session];
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				const action = instantiationService.createInstance(MenuItemAction, {
 					id: 'sessions.test.newChatInSession',
@@ -5866,6 +6934,7 @@ suite('Sessions - SessionsList', () => {
 							getActions: () => menuId === Menus.SessionItemToolbar
 								&& contextKeyService.getContextKeyValue<boolean>(SessionSupportsMultipleChatsContext.key)
 								&& !contextKeyService.getContextKeyValue<boolean>(SessionIsArchivedContext.key)
+								&& !contextKeyService.getContextKeyValue<boolean>(SessionItemIsCloudContext.key)
 								? [['navigation', [action]]]
 								: [],
 							dispose: () => menuStore.dispose(),
@@ -5887,7 +6956,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.setSessions(sessions);
-			list.layout(300, 400);
+			list.layout(600, 400);
 
 			const hasNewChatAction = (title: string) => !![...container.querySelectorAll<HTMLElement>('.session-item')]
 				.find(item => item.querySelector('.session-title')?.textContent === title)
@@ -5900,19 +6969,24 @@ suite('Sessions - SessionsList', () => {
 
 			list.setSessions([unsupported.session]);
 			const renderedBeforeRecycle = container.querySelector<HTMLElement>('.session-item');
+			list.setSessions([cloud.session]);
+			const renderedCloud = container.querySelector<HTMLElement>('.session-item');
+			const recycledCloudAction = hasNewChatAction('Cloud');
 			list.setSessions([quickChat.session]);
 			const renderedAfterRecycle = container.querySelector<HTMLElement>('.session-item');
 
 			assert.deepStrictEqual({
 				initial,
 				afterCapabilityChange,
-				recycledTemplate: renderedBeforeRecycle === renderedAfterRecycle,
+				recycledTemplate: renderedBeforeRecycle === renderedCloud && renderedCloud === renderedAfterRecycle,
+				recycledCloudAction,
 				recycledTitle: renderedAfterRecycle?.querySelector('.session-title')?.textContent,
 				recycledAction: renderedAfterRecycle?.querySelector('.codicon-add') !== null,
 			}, {
-				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', true], ['Archived', false]],
-				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', true], ['Archived', false]],
+				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', true], ['Archived', false], ['Cloud', false], ['Remote', true]],
+				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', true], ['Archived', false], ['Cloud', false], ['Remote', true]],
 				recycledTemplate: true,
+				recycledCloudAction: false,
 				recycledTitle: 'Quick chat',
 				recycledAction: true,
 			});
@@ -6000,6 +7074,33 @@ suite('Sessions - SessionsList', () => {
 				first: !!findOnboardingTarget(mainWindow, first.targetId),
 				second: !!findOnboardingTarget(mainWindow, second.targetId),
 			}, { first: false, second: true });
+		});
+
+		test('spotlights the workspace section of a session, or its row when the list is grouped by date', () => {
+			const spotlight = (grouping: SessionsGrouping) => {
+				const session = createTestSession('Fix login', { workspaceLabel: 'vscode' }).session;
+				const other = createTestSession('Update docs', { workspaceLabel: 'vscode-docs' }).session;
+				const harness = createListHarness(disposables, [other, session]);
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				list.collapseAllSections();
+				const reveal = harness.store.add(list.revealSessionWorkspaceForOnboarding(session));
+				const target = findOnboardingTarget(mainWindow, reveal.targetId);
+				return {
+					targetId: reveal.targetId,
+					visible: target?.checkVisibility(),
+					label: (target?.querySelector('.session-section-label') ?? target?.querySelector('.session-title'))?.textContent,
+				};
+			};
+			assert.deepStrictEqual({ workspace: spotlight(SessionsGrouping.Workspace), date: spotlight(SessionsGrouping.Date) }, {
+				workspace: { targetId: 'sessions.section.workspace:vscode', visible: true, label: 'vscode' },
+				date: { targetId: 'sessions.session.Fix login', visible: true, label: 'Fix login' },
+			});
 		});
 
 		for (const customGroup of [false, true]) {
@@ -6335,6 +7436,29 @@ suite('Sessions - SessionsList', () => {
 					{ title: 'First chat', last: false },
 					{ title: 'Second chat', last: true },
 				],
+			});
+		});
+
+		test('reorders nested chat rows when the session reorders its chats, without a session change event', async () => {
+			const main = createChat('Main chat');
+			const first = { ...createChat('First chat'), createdAt: new Date('2024-01-01') };
+			const second = { ...createChat('Second chat'), createdAt: new Date('2024-01-01') };
+			const chats = observableValue<readonly IChat[]>('chats', [main, first, second]);
+			const session: ISession = {
+				...createTestSession('Session').session,
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container } = renderSessionChatsList(session);
+			const initial = chatRowTitles(container);
+
+			chats.set([main, second, first], undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({ initial, reordered: chatRowTitles(container) }, {
+				initial: ['First chat', 'Second chat'],
+				reordered: ['Second chat', 'First chat'],
 			});
 		});
 
@@ -6881,9 +8005,7 @@ suite('Sessions - SessionsList', () => {
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
 
-			// The Chats section the quick chat renders in starts collapsed.
-			const expandChatsSection = (instantiationService: TestInstantiationService) => instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
-			const { container } = renderSessionChatsList(session, undefined, false, true, false, expandChatsSection);
+			const { container } = renderSessionChatsList(session, undefined, false, true, false);
 
 			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(row => ({
 				hasFolderLabel: row.classList.contains('has-folder-label'),
@@ -7928,7 +9050,7 @@ suite('Sessions - SessionsList', () => {
 			const { container } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(IHoverService, {
 					...NullHoverService,
-					setupDelayedHover: (target, options) => {
+					setupDelayedHoverAtMouse: (target, options) => {
 						hovers.set(target, typeof options === 'function' ? options : () => options);
 						return toDisposable(() => hovers.delete(target));
 					},
@@ -9824,8 +10946,8 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('shows the details external application badge next to the title of compact quick-chat rows, which have no details row', () => {
-			const results = ([true, false] as const).map(useCompactQuickChatRows => {
-				const quickChat = createTestSession('External chat', { isQuickChat: true, isExternal: true, application: 'github/cli', environment: 'cloud' }).session;
+			const results = ([true, false] as const).flatMap(isExternal => ([true, false] as const).map(useCompactQuickChatRows => {
+				const quickChat = createTestSession('External chat', { isQuickChat: true, isExternal, application: 'github/cli', environment: 'cloud' }).session;
 				const harness = createListHarness(disposables, [quickChat], instantiationService => {
 					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Details);
 				});
@@ -9838,16 +10960,51 @@ suite('Sessions - SessionsList', () => {
 				list.setSessions([quickChat]);
 				list.layout(list.getContentHeight(), 400);
 				return {
+					isExternal,
 					useCompactQuickChatRows,
 					titleBadge: container.querySelector('.session-external-application-badge-title.visible')?.textContent ?? undefined,
 					detailsBadge: container.querySelector('.session-external-application-badge-details')?.textContent ?? undefined,
 				};
-			});
+			}));
 
 			assert.deepStrictEqual(results, [
-				{ useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
+				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
 			]);
+		});
+
+		test('keeps compact quick-chat rows the same height whether or not the title application badge is shown', () => {
+			const quickChat = createTestSession('External chat', { isQuickChat: true, application: 'github/cli', environment: 'cloud' }).session;
+			const harness = createListHarness(disposables, [quickChat], instantiationService => {
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Title);
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				useCompactQuickChatRows: true,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([quickChat]);
+			list.layout(list.getContentHeight(), 400);
+
+			const row = container.querySelector<HTMLElement>('.monaco-list-row');
+			const titleRow = container.querySelector<HTMLElement>('.session-title-row');
+			const badge = container.querySelector<HTMLElement>('.session-external-application-badge-title.visible');
+			assert.ok(row && titleRow && badge);
+			const measure = () => ({
+				badgeShown: mainWindow.getComputedStyle(badge).display !== 'none',
+				titleRowHeight: titleRow.getBoundingClientRect().height,
+			});
+			const atRest = measure();
+			row.classList.add('hovered');
+			const hovered = measure();
+
+			assert.deepStrictEqual({ atRest, hovered }, {
+				atRest: { badgeShown: true, titleRowHeight: 16 },
+				hovered: { badgeShown: false, titleRowHeight: 16 },
+			});
 		});
 
 		function createChat(id: string): IChat {
@@ -10268,13 +11425,6 @@ suite('Sessions - SessionsList', () => {
 			const row = item?.closest<HTMLElement>('.monaco-list-row');
 			assert.ok(row, `expected a rendered row for "${title}"`);
 			return row;
-		}
-
-		// Mirrors the tree's open gesture (see objectTree.test.ts): a plain single
-		// left click opens the row under the list's single-click open mode.
-		function clickRow(row: HTMLElement): void {
-			row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 		}
 
 		// Drains the microtask queue so the asynchronous open gate settles.

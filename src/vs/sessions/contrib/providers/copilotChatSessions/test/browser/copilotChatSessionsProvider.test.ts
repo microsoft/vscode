@@ -262,6 +262,17 @@ class TestPullRequestIconCache implements IPullRequestIconCache {
 		return this._icons.get(prLink);
 	}
 
+	getState(): undefined {
+		return undefined;
+	}
+
+	getEntry(prLink: string) {
+		const icon = this.get(prLink);
+		return icon ? { icon } : undefined;
+	}
+
+	setState(): void { }
+
 	set(prLink: string, icon: ReturnType<typeof computePullRequestIcon>): void {
 		this._icons.set(prLink, icon);
 	}
@@ -2839,7 +2850,8 @@ suite('CopilotChatSessionsProvider', () => {
 		// (untitled → /task/<id>), so _sendFirstChat must wait for the committed
 		// resource, not the untitled one, otherwise it times out and removes the session.
 		const committedResource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${generateUuid()}` });
-		const onDidCommit = disposables.add(new Emitter<{ original: URI; committed: URI }>());
+		const commitSubscribed = new DeferredPromise<void>();
+		const onDidCommit = disposables.add(new Emitter<{ original: URI; committed: URI }>({ onDidAddFirstListener: () => commitSubscribed.complete() }));
 
 		let resolveComplete!: () => void;
 		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
@@ -2883,24 +2895,11 @@ suite('CopilotChatSessionsProvider', () => {
 
 		model.addSession(createMockAgentSession(committedResource, { providerType: AgentSessionProviders.Cloud }));
 
-		// _waitForCommittedSession subscribes to onDidCommitSession only after
-		// sendRequest resolves, so re-fire until the send settles to avoid the race.
-		let sendSettled = false;
-		const fireCommitUntilSettled = async () => {
-			while (!sendSettled) {
-				onDidCommit.fire({ original: untitledResource, committed: committedResource });
-				await timeout(5);
-			}
-		};
-		const commitLoop = fireCommitUntilSettled();
-		let committedSession!: ISession;
-
-		try {
-			committedSession = await sendPromise;
-		} finally {
-			sendSettled = true;
-			await commitLoop;
-		}
+		// _waitForCommittedSession is the only onDidCommitSession listener and
+		// subscribes after sendRequest resolves, so commit once it listens.
+		await commitSubscribed.p;
+		onDidCommit.fire({ original: untitledResource, committed: committedResource });
+		const committedSession = await sendPromise;
 
 		assert.deepStrictEqual({
 			createdBySession: serializeCreationReference(committedSession.createdBySession?.get()),

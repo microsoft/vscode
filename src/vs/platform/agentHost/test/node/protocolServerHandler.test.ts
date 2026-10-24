@@ -20,13 +20,14 @@ import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateCh
 import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
+import { readAgentHostAuthenticationEncryption } from '../../common/meta/agentHostAuthenticationEncryption.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
-import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -42,9 +43,10 @@ import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/common/artifactIntegration.js';
@@ -231,6 +233,7 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
+	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService());
 
 	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
@@ -253,6 +256,9 @@ class MockAgentService extends Disposable implements IAgentService {
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
+	agentExtensionInventory: IAgentExtensionInventory = { mode: 'load_and_augment', extensions: [] };
+	readonly listAgentExtensionsCalls: { session: string | undefined; chat: string | undefined }[] = [];
+	readonly setAgentExtensionEnabledCalls: { extensionId: string; enabled: boolean; session: string | undefined; chat: string | undefined }[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -420,6 +426,13 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session.toString());
+	}
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		this.listAgentExtensionsCalls.push({ session: session?.toString(), chat: chat?.toString() });
+		return this.agentExtensionInventory;
+	}
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		this.setAgentExtensionEnabledCalls.push({ extensionId, enabled, session: session?.toString(), chat: chat?.toString() });
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -676,6 +689,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.devContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
+				'vscode.copilotExtensions': true,
 			},
 		});
 	});
@@ -1678,6 +1692,7 @@ suite('ProtocolServerHandler', () => {
 		const initialize = findResponse(transport.sent, 1);
 		assert.ok(initialize && hasKey(initialize, { result: true }));
 		assert.strictEqual(supportsAgentHostTiming(initialize.result as InitializeResult), true);
+		assert.strictEqual(supportsAgentHostCopilotExtensions(initialize.result as InitializeResult), false);
 		assert.strictEqual(supportsAgentHostTiming(undefined), false);
 		assert.strictEqual(supportsAgentHostTiming({ ...(initialize.result as InitializeResult), _meta: { 'vscode.agentHostTiming': 'true' } }), false);
 		const diagnostic: IAgentHostFirstResponseDiagnostic = {
@@ -2036,6 +2051,165 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('advertises and routes Copilot extension inventory', async () => {
+		agentService.agentExtensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				resource: URI.file('/extensions/preview/extension.mjs'),
+				source: 'user',
+				status: 'running',
+			}],
+		};
+		const transport = connectClient('client-copilot-extensions');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const listExtensions = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, {
+			session: 'copilotcli:/session-1',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+		}));
+		const setExtension = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, SetAgentExtensionEnabledExtensionMethod, {
+			extensionId: 'user:preview',
+			enabled: false,
+			session: 'copilotcli:/session-1',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+		}));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			listExtensions: await listExtensions,
+			listCalls: agentService.listAgentExtensionsCalls,
+			setExtension: await setExtension,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: true,
+			listExtensions: {
+				jsonrpc: '2.0',
+				id: 20,
+				result: {
+					mode: 'load_and_augment',
+					extensions: [{
+						id: 'user:preview',
+						name: 'Preview',
+						resource: 'file:///extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'running',
+					}],
+				},
+			},
+			listCalls: [{ session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
+			setExtension: { jsonrpc: '2.0', id: 21, result: null },
+			setCalls: [{ extensionId: 'user:preview', enabled: false, session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
+		});
+	});
+
+	test('rejects Copilot extension mutation from relay connections', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		const relayHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: true },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-client' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SetAgentExtensionEnabledExtensionMethod, {
+			extensionId: 'user:preview',
+			enabled: false,
+		}));
+		await relayHandler.whenIdle();
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			response: await response,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: false,
+			response: {
+				jsonrpc: '2.0',
+				id: 20,
+				error: {
+					code: JsonRpcErrorCodes.InvalidRequest,
+					message: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				},
+			},
+			setCalls: [],
+		});
+	});
+
+	test('rejects empty Copilot extension scope parameters', async () => {
+		const transport = connectClient('client-copilot-extension-invalid-scope');
+		const requests = [
+			[20, request(20, ListAgentExtensionsExtensionMethod, { session: '' })],
+			[21, request(21, ListAgentExtensionsExtensionMethod, { chat: '' })],
+			[22, request(22, ListAgentExtensionsExtensionMethod, { chat: 'vendor-chat:/peer' })],
+			[23, request(23, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false, session: '' })],
+			[24, request(24, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false, chat: '' })],
+		] as const;
+		const responses = requests.map(([id, message]) => {
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(message);
+			return response;
+		});
+
+		assert.deepStrictEqual({
+			errorCodes: (await Promise.all(responses)).map(message => hasKey(message, { error: true }) ? message.error?.code : undefined),
+			listCalls: agentService.listAgentExtensionsCalls,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			errorCodes: [
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+			],
+			listCalls: [],
+			setCalls: [],
+		});
+	});
+
+	test('does not advertise or route Copilot extension methods when host extension methods are disabled', async () => {
+		const disabledServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, disabledServer,
+			{ allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport());
+		disabledServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'disabled-extension-methods' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const listResponse = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, {}));
+		const setResponse = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false }));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			errorCodes: [await listResponse, await setResponse].map(message => hasKey(message, { error: true }) ? message.error?.code : undefined),
+			listCalls: agentService.listAgentExtensionsCalls,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: false,
+			errorCodes: [JsonRpcErrorCodes.MethodNotFound, JsonRpcErrorCodes.MethodNotFound],
+			listCalls: [],
+			setCalls: [],
+		});
+	});
+
 	test('rejects invalid session import params before routing', async () => {
 		const transport = connectClient('client-import-invalid');
 		for (const [index, params] of [
@@ -2164,6 +2338,30 @@ suite('ProtocolServerHandler', () => {
 			await rm(root, { recursive: true, force: true });
 		});
 
+		test('routes cleanup state and retry requests to the owning host', async () => {
+			const calls: { session: string; retry: boolean }[] = [];
+			agentService.sessionWorktreeCleanup = async (session, retry) => {
+				calls.push({ session: session.toString(), retry });
+				return { state: 'failed', message: 'permission denied' };
+			};
+			const transport = connectClient('worktree-cleanup');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: true }));
+			assert.deepStrictEqual({ response: await response, calls }, {
+				response: { jsonrpc: '2.0', id: 20, result: { state: 'failed', message: 'permission denied' } },
+				calls: [{ session: 'opaque-session://host/session', retry: true }],
+			});
+		});
+
+		test('rejects malformed cleanup requests without scheduling removal', async () => {
+			agentService.sessionWorktreeCleanup = async () => { throw new Error('Must not be called'); };
+			const transport = connectClient('worktree-cleanup-invalid');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: 'true' }));
+			const result = await response;
+			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		});
+
 		test('returns aggregate bytes without routing per-file resource requests', async () => {
 			const transport = connectClient('worktree-measurement');
 			const response = waitForResponse(transport, 20);
@@ -2172,6 +2370,19 @@ suite('ProtocolServerHandler', () => {
 			}));
 			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
 		});
+
+		test('allows a protocol measurement to finish after thirty seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			agentService.measureWorktreeDiskUsage = async (_uri, token) => {
+				await raceCancellationError(timeout(30_000), token);
+				return allocatedBytes;
+			};
+			const transport = connectClient('worktree-slow');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'slow-measurement',
+			}));
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
+		}));
 
 		test('shares the two-scan budget across separate protocol handlers', async () => {
 			const gate = new DeferredPromise<void>();
@@ -5155,7 +5366,7 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	suite('listener extensions', () => {
-		function createExtensionHandler(extension: IProtocolServerExtension, config: IProtocolServerConfig = {}) {
+		function createExtensionHandler(extension: IProtocolServerExtension | undefined, config: IProtocolServerConfig = {}) {
 			const relay = disposables.add(new MockProtocolServer());
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
 				agentService, stateManager, relay, { ...config, allowExtensionMethods: false, extension },
@@ -5171,6 +5382,55 @@ suite('ProtocolServerHandler', () => {
 				return transport;
 			};
 			return { relay, scopedHandler, connect };
+		}
+
+		for (const withExtension of [false, true]) {
+			test(`preserves relay encryption keys after authentication ${withExtension ? 'with' : 'without'} listener extensions`, async () => {
+				const purposes = ['auth-token', 'mcp-auth-token'] as const;
+				const keys = purposes.map(use => ({
+					keyId: `${use}-key`, publicKey: `${use}-public-key`, use, algorithm: 'x25519-sealedbox',
+				}));
+				const relayRootMeta = { 'copilot.encryptionKeys': keys };
+				const hostMeta = stateManager.rootState._meta;
+				const extension: IProtocolServerExtension | undefined = withExtension ? {
+					rootMeta: { 'example.catalogue': { available: true } },
+					rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+					onDidEmitAction: Event.None,
+					initialize: async () => { },
+					requests: new Map(),
+				} : undefined;
+				const { scopedHandler, connect } = createExtensionHandler(extension, { relayRootMeta });
+				const transport = connect('encryption-client', false);
+				const initialized = findResponse(transport.sent, 1);
+				assert.ok(initialized && hasKey(initialized, { result: true }));
+				const initialRoot = (initialized.result as InitializeResult).snapshots?.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state as RootState;
+
+				transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+				await scopedHandler.whenIdle();
+				transport.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+				await scopedHandler.whenIdle();
+				const subscribed = findResponse(transport.sent, 3);
+				assert.ok(subscribed && hasKey(subscribed, { result: true }));
+				const refreshedRoot = (subscribed.result as SubscribeResult).snapshot?.state as RootState;
+
+				assert.deepStrictEqual({
+					initialMeta: initialRoot._meta,
+					refreshedMeta: refreshedRoot._meta,
+					recipients: purposes.map(purpose => readAgentHostAuthenticationEncryption(
+						refreshedRoot,
+						{ _meta: { 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'] } },
+						purpose,
+					)?.key),
+					hostMeta: stateManager.rootState._meta,
+				}, {
+					initialMeta: { ...relayRootMeta, ...extension?.rootMeta },
+					refreshedMeta: { ...hostMeta, ...relayRootMeta, ...extension?.rootMeta },
+					recipients: keys.map(key => ({
+						key_id: key.keyId, public_key: key.publicKey, use: key.use, algorithm: key.algorithm,
+					})),
+					hostMeta,
+				});
+			});
 		}
 
 		test('uses contribution-defined methods, capabilities and passive permissions', async () => {

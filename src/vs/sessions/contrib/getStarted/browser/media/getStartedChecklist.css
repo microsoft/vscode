@@ -1,0 +1,242 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-get-started {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	/* Leaves room for the sessions list in short windows; the items scroll instead. */
+	max-height: 50%;
+	margin: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsCard-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-agentsPanel-background);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.agent-sessions-get-started.below-sessions {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.agent-sessions-get-started .get-started-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size20);
+}
+
+.agent-sessions-get-started .get-started-toggle {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	height: var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.agent-sessions-get-started .get-started-toggle:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-sessions-get-started .get-started-chevron {
+	display: flex;
+	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
+}
+
+.agent-sessions-get-started .get-started-chevron .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.agent-sessions-get-started .get-started-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-sessions-get-started .get-started-progress {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-variant-numeric: tabular-nums;
+}
+
+.agent-sessions-get-started .get-started-actions {
+	flex-shrink: 0;
+}
+
+.agent-sessions-get-started .get-started-body {
+	min-height: 0;
+	overflow-y: auto;
+	padding: 0 var(--vscode-spacing-size40) var(--vscode-spacing-size40);
+}
+
+.agent-sessions-get-started.collapsed:not(.finished) .get-started-body {
+	display: none;
+}
+
+.agent-sessions-get-started .get-started-items {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.agent-sessions-get-started .get-started-item {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* A quiet confirmation: the completed row lights up briefly, then fades back. */
+.agent-sessions-get-started .get-started-item.just-completed {
+	animation: get-started-row-completed 1.6s ease-out;
+}
+
+.agent-sessions-get-started .get-started-item-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.agent-sessions-get-started .get-started-item-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-sessions-get-started .get-started-item-status {
+	display: flex;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-get-started .get-started-item.done .get-started-item-status .codicon,
+.agent-sessions-get-started .get-started-finished-icon .codicon {
+	color: var(--vscode-charts-green);
+}
+
+.agent-sessions-get-started .get-started-item.just-completed .get-started-item-status .codicon {
+	animation: get-started-check-in 0.3s ease-out;
+}
+
+.agent-sessions-get-started .get-started-item-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-sessions-get-started .get-started-item.done .get-started-item-title {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-get-started .get-started-item.active .get-started-item-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-sessions-get-started .get-started-item.done.active .get-started-item-title {
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-get-started .get-started-item-details {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	/* Aligns with the title, past the status icon and its gap. */
+	padding: 0 var(--vscode-spacing-size40) var(--vscode-spacing-size80) calc(var(--vscode-spacing-size40) + var(--vscode-codiconFontSize) + var(--vscode-spacing-size80));
+}
+
+.agent-sessions-get-started .get-started-item-description {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4em;
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+.agent-sessions-get-started .get-started-show-me,
+.agent-sessions-get-started .get-started-dismiss {
+	width: auto;
+}
+
+.agent-sessions-get-started .get-started-footer {
+	display: flex;
+	justify-content: flex-end;
+	padding-top: var(--vscode-spacing-size40);
+}
+
+/* Quiet at rest: the footer action reads as a link until hovered. */
+.agent-sessions-get-started .get-started-footer .monaco-text-button.get-started-dismiss {
+	border-color: transparent;
+}
+
+.agent-sessions-get-started .get-started-finished {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size40);
+	line-height: 1.4em;
+}
+
+.agent-sessions-get-started .get-started-finished-icon {
+	display: flex;
+	flex-shrink: 0;
+	padding-top: var(--vscode-spacing-size20);
+}
+
+.hc-black .agent-sessions-get-started,
+.hc-light .agent-sessions-get-started {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .agent-sessions-get-started .get-started-item.just-completed,
+.hc-light .agent-sessions-get-started .get-started-item.just-completed {
+	animation: none;
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.monaco-reduce-motion .agent-sessions-get-started .get-started-item.just-completed,
+.monaco-reduce-motion .agent-sessions-get-started .get-started-item.just-completed .get-started-item-status .codicon {
+	animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-get-started .get-started-item.just-completed,
+	.agent-sessions-get-started .get-started-item.just-completed .get-started-item-status .codicon {
+		animation: none;
+	}
+}
+
+@keyframes get-started-row-completed {
+	from {
+		background-color: var(--vscode-list-inactiveSelectionBackground);
+	}
+
+	to {
+		background-color: transparent;
+	}
+}
+
+@keyframes get-started-check-in {
+	from {
+		transform: scale(0.6);
+		opacity: 0.4;
+	}
+
+	to {
+		transform: scale(1);
+		opacity: 1;
+	}
+}

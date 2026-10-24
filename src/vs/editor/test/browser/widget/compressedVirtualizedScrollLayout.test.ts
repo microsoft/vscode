@@ -142,6 +142,7 @@ suite('CompressedVirtualizedScrollLayout', () => {
 			edits: edit.edits.map(e => ({ oldRange: e.oldRange.toString(), newRange: e.newRange.toString() })),
 			anchor: edit.anchor,
 			mappedAnchor: mapLogicalPosition(edit.anchor, edit),
+			mappedAnchorWithItemEndAffinity: mapLogicalPosition(edit.anchor, edit, 'itemEnd'),
 			positionAfterAllItems: mapLogicalPosition({ revision: asLayoutRevision(3), offset: 1420 }, edit),
 		}, {
 			edits: [
@@ -151,6 +152,7 @@ suite('CompressedVirtualizedScrollLayout', () => {
 			],
 			anchor: { revision: 3, offset: 750 },
 			mappedAnchor: { revision: 4, offset: 310 },
+			mappedAnchorWithItemEndAffinity: { revision: 4, offset: 350 },
 			positionAfterAllItems: { revision: 4, offset: 860 },
 		});
 	});
@@ -617,6 +619,42 @@ suite('CompressedVirtualizedScrollLayout', () => {
 				itemBOffsetAtViewportTop: -2,
 				anchorKind: 'viewportTop',
 			},
+		});
+	});
+
+	test('keeps a shrunk item in view when it removes the content at a viewport-bottom anchor', () => {
+		// Replays the geometry of a blank Agents window Changes editor: the first diff shrank while
+		// the view was scrolling up, which used to push all content below the viewport.
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const items = [535450, 103396, 500, 24].map(height => new TestCompressedScrollItem(height));
+		const view = disposables.add(new CompressedVirtualizedScrollView(
+			container,
+			constObservable(new Dimension(800, 792)),
+			constObservable(0),
+			() => constObservable(items),
+		));
+		container.appendChild(view.domNode);
+		view.setScrollPosition({ scrollTop: 2400 });
+		view.setScrollPosition({ scrollTop: 2310 });
+
+		transaction(tx => [1074, 2838, 500, 24].forEach((height, index) => items[index].setSize(height, tx)));
+		const layout = view.layout.get();
+
+		assert.deepStrictEqual({
+			anchorKind: view.lastGeometryEdit.get()?.anchorKind,
+			scrollTop: layout.scrollTop,
+			leadingScrollSlack: layout.leadingScrollSlack,
+			contentViewport: layout.contentViewport.toString(),
+			visibility: layout.items.map(item => item.visibility),
+		}, {
+			anchorKind: 'viewportBottom',
+			scrollTop: 282,
+			leadingScrollSlack: 0,
+			contentViewport: '[282, 1074)',
+			visibility: ['visible', 'after', 'after', 'after'],
 		});
 	});
 });

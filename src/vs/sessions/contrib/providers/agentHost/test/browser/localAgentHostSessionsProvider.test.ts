@@ -9236,6 +9236,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession applies a managed default approval over remembered and configured picks while keeping the configured mode', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'default',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.defaultConfiguration') {
+					// Managed settings project only the approval default.
+					return { ...base, policyValue: { approvals: 'assisted' } as unknown as T };
+				}
+				return base;
+			}
+		}({ 'chat.defaultConfiguration': { mode: 'plan', approvals: 'manual' } });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'plan',
+			autoApprove: 'assisted',
+			isolation: 'worktree',
+		});
+	});
+
+	test('createNewSession applies a managed default approval over a remembered host-native approvalMode', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ approvalMode: 'manual' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				return key === 'chat.defaultConfiguration' ? { ...base, policyValue: { approvals: 'assisted' } as unknown as T } : base;
+			}
+		}();
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'manual', sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+				}
+			},
+			values: { approvalMode: 'manual', availableApprovalModes: ['manual', 'assisted', 'allow-all'] },
+		};
+		agentHost.resolveSessionConfigHandler = request => ({
+			...agentHost.resolveSessionConfigResult,
+			values: { ...agentHost.resolveSessionConfigResult.values, approvalMode: request.config?.approvalMode ?? 'manual' },
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session, config => config?.values.approvalMode === 'assisted');
+
+		assert.deepStrictEqual(provider.getCreateSessionConfig(session.sessionId), { approvalMode: 'assisted' });
+	});
+
 	test('getSessionByResource resolves current new session without listing it', () => {
 		const provider = createProvider(disposables, agentHost);
 		const workspaceUri = URI.parse('file:///home/user/my-project');
@@ -10948,6 +11003,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('a chat that moved away with its Agent Merge leaves its folder off for the chats that stay, at once', () => {
+			const provider = createProvider(disposables, agentHost);
+			const directory = URI.file('/workspace-moved-away');
+			const session = setupMultiChatSession(provider, 'agent-merge-moved-away', [directory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'agent-merge-moved-away').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const movedChat = buildChatUri(sessionUri, 'moved');
+			const meta = withWorkingDirectoryKey(undefined, directory.toString(), directory.toString());
+			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('agent-merge-moved-away', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [directory.toString()])], { defaultChat, meta, workingDirectories: [directory.toString()] }),
+				config: { schema: { type: 'object', properties: {} }, values },
+			});
+			const mainChat = session.mainChat.get();
+			const observable = provider.getAgentMergeClientStateObservable(session.sessionId, mainChat.resource);
+			const read = () => ({ state: provider.getAgentMergeSessionState(session.sessionId, mainChat.resource)?.enabled, observable: observable.get()?.enabled });
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: true, chat: movedChat } } });
+			const before = read();
+			// What the host publishes for the source of the move: the folder is off, with nothing of the chat's.
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: false } } });
+			const afterMove = read();
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: true, chat: movedChat } } });
+			// Had the host removed the folder's entry instead, clients would keep showing it on.
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: {} });
+
+			assert.deepStrictEqual({ before, afterMove, afterRemoval: read() }, {
+				before: { state: true, observable: true },
+				afterMove: { state: false, observable: false },
+				afterRemoval: { state: true, observable: true },
+			});
+		});
+
 		test('uses host-published folder keys and scope ids for mixed-case remote paths', () => {
 			const provider = createProvider(disposables, agentHost);
 			const primaryDirectory = URI.file('/work/MyRepo');
@@ -11718,7 +11804,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('tells session lists when a subscribed session reorders its chats, also when its root summary stays the same (Block 5)', async () => {
+		test('a subscribed session reorders its chats through its chats observable, also when its root summary stays the same (Block 5)', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'reorder-notify');
 			const sessionUri = AgentSession.uri('copilotcli', 'reorder-notify').toString();
@@ -11727,15 +11813,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const [first, second] = ['first', 'second'].map(id => buildDefaultChatUri(AgentSession.uri('copilotcli', id).toString()));
 			const peer = (resource: string, title: string): ChatSummary => ({ ...makeChatSummary(resource, title), origin: { kind: ProtocolChatOriginKind.User }, movable: true });
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(first, 'First'), peer(second, 'Second')], { defaultChat }));
-			const changed: string[][] = [];
-			disposables.add(provider.onDidChangeSessions(e => changed.push(e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.chats.get().map(chat => chat.title.get()).join(',')))));
+			// Session lists read `chats` reactively, so a reorder reaches them without a session change event.
+			const observed: string[] = [];
+			disposables.add(autorun(reader => observed.push(session.chats.read(reader).map(chat => chat.title.read(reader)).join(','))));
 
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First')], { defaultChat }));
-			// An added chat reaches session lists with the root summary change, not again from the catalog.
 			const third = buildDefaultChatUri(AgentSession.uri('copilotcli', 'third').toString());
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First'), peer(third, 'Third')], { defaultChat }));
 
-			assert.deepStrictEqual(changed.filter(entry => entry.length > 0), [['Session,Second,First']]);
+			assert.deepStrictEqual(observed, ['Session,First,Second', 'Session,Second,First', 'Session,Second,First,Third']);
+		});
+
+		test('observing chat details applies a cached chat reorder without telling session lists while they observe', async () => {
+			const rawId = 'observe-cached-reorder';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const [first, second] = ['first', 'second'].map(id => buildChatUri(sessionUri, id));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+					{ chat: URI.parse(first), kind: 'peer', summary: 'First' },
+					{ chat: URI.parse(second), kind: 'peer', summary: 'Second' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource.toString()) === rawId);
+			assert.ok(session);
+			// Another client already holds the session's state, which orders its chats differently.
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(defaultChat, 'Default'), makeChatSummary(second, 'Second'), makeChatSummary(first, 'First')], { defaultChat }));
+			const notified: string[] = [];
+			disposables.add(provider.onDidChangeSessions(e => notified.push(...e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.sessionId))));
+
+			// Session list rows observe chat details while the list renders them, and must not be re-entered.
+			disposables.add(autorun(reader => session.chats.read(reader).at(-1)?.title.read(reader)));
+
+			assert.deepStrictEqual({ notified, chats: session.chats.get().map(chat => chat.title.get()) }, { notified: [], chats: ['Default', 'Second', 'First'] });
 		});
 
 		test('explains a workspace-less refusal by whether the chat shares its scratch folder with another chat (Block 9)', async () => {
@@ -13075,7 +13190,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const support = provider.getNestedChatWorkspaceSupport(sessionId, undefined);
 				return support && {
 					sessionFolder: support.sessionFolder?.toString(),
-					sessionFolders: support.sessionFolders.map(folder => folder.toString()),
 					multipleFolders: support.multipleFolders,
 					browseActions: support.browseActions === provider.browseActions,
 				};
@@ -13099,12 +13213,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			}));
 
-			test('re-evaluates the support when the host capability, the agent, or the session folders change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('re-evaluates the support when the host capability, the agent, or the session folder change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost);
 				const session = setupWorkspaceSession(provider, 'nested-reactive');
 				const support = derived(reader => {
 					const value = provider.getNestedChatWorkspaceSupport(session.sessionId, reader);
-					return value && { multipleFolders: value.multipleFolders, sessionFolders: value.sessionFolders.map(folder => folder.toString()) };
+					return value && { multipleFolders: value.multipleFolders, sessionFolder: value.sessionFolder?.toString() };
 				});
 				const observed: unknown[] = [];
 				disposables.add(autorun(reader => { observed.push(support.read(reader)); }));
@@ -13115,18 +13229,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const sessionUri = AgentSession.uri('copilotcli', 'nested-reactive').toString();
 				const defaultChat = buildDefaultChatUri(sessionUri);
 				agentHost.setSessionState('nested-reactive', 'copilotcli', makeState([
-					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
-					makeChatSummary(buildChatUri(sessionUri, 'added'), 'Added', ProtocolSessionStatus.Idle, [added.toString()]),
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [added.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'other'), 'Other', ProtocolSessionStatus.Idle, [other.toString()]),
 				], { defaultChat }));
 
-				assert.deepStrictEqual({ first: observed[0], last: observed.at(-1), sawSingleFolder: observed.some(value => JSON.stringify(value) === JSON.stringify({ multipleFolders: false, sessionFolders: [repo.toString(), other.toString()] })) }, {
+				assert.deepStrictEqual({ first: observed[0], last: observed.at(-1), sawSingleFolder: observed.some(value => JSON.stringify(value) === JSON.stringify({ multipleFolders: false, sessionFolder: repo.toString() })) }, {
 					first: undefined,
-					last: { multipleFolders: true, sessionFolders: [repo.toString(), added.toString()] },
+					last: { multipleFolders: true, sessionFolder: added.toString() },
 					sawSingleFolder: true,
 				});
 			}));
 
-			test('reports the session folder and non-scratch folders of a workspace session and a workspace-less one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('reports the session folder of a workspace session, never another chat\'s folder, and none for a workspace-less one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(true);
 				const provider = createProvider(disposables, agentHost);
 				const workspaceSession = setupWorkspaceSession(provider, 'nested-ws');
@@ -13150,8 +13264,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 					workspace: describeSupport(provider, workspaceSession.sessionId),
 					workspaceless: describeSupport(provider, quickSession.sessionId),
 				}, {
-					workspace: { sessionFolder: repo.toString(), sessionFolders: [repo.toString(), other.toString()], multipleFolders: true, browseActions: true },
-					workspaceless: { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true },
+					workspace: { sessionFolder: repo.toString(), multipleFolders: true, browseActions: true },
+					workspaceless: { sessionFolder: undefined, multipleFolders: true, browseActions: true },
 				});
 			}));
 
@@ -13174,7 +13288,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
 				fireSessionSummaryChanged(agentHost, 'nested-wl-primary', { workingDirectories: quickDirectories, _meta: quickMeta });
 
-				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true });
+				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, multipleFolders: true, browseActions: true });
 			}));
 
 			test('a single-folder agent may only give a nested chat the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

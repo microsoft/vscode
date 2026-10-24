@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -127,6 +127,7 @@ suite('SessionWorktreeCleanupService', () => {
 			{ id: 'pinned', state: 'pinned' },
 			{ id: 'running', state: 'running' },
 			{ id: 'needsInput', state: 'needsInput' },
+			{ id: 'archived', state: 'archived' },
 			{ id: 'untitled', state: 'untitled' },
 			{ id: 'error', state: 'error' },
 		]);
@@ -333,19 +334,20 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('worktree manager data excludes sessions without measurable active worktrees', async () => {
+	test('worktree manager retains failed measurements and archived worktrees with remaining storage', async () => {
 		const eligible = createSession('eligible', oldDate());
 		const running = createSession('running', oldDate(), SessionStatus.InProgress);
 		const recent = createSession('recent', new Date());
 		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
 		const unavailable = createSession('unavailable', oldDate());
+		const emptyArchived = createSession('empty-archived', oldDate(), SessionStatus.Completed, true);
 		const withoutWorktree = createSession('without-worktree', oldDate(), SessionStatus.Completed, false, false);
-		const sessions = [eligible, running, recent, archived, unavailable, withoutWorktree];
+		const sessions = [eligible, running, recent, archived, unavailable, emptyArchived, withoutWorktree];
 		const progressTitles: (string | undefined)[] = [];
 		const service = disposables.add(createService(
 			sessions,
 			true,
-			session => session === unavailable ? undefined : session === eligible ? 4 * ByteSize.GB : ByteSize.GB,
+			session => session === unavailable ? undefined : session === emptyArchived ? 0 : session === eligible ? 4 * ByteSize.GB : ByteSize.GB,
 			undefined,
 			title => progressTitles.push(title),
 		));
@@ -365,8 +367,89 @@ suite('SessionWorktreeCleanupService', () => {
 				{ label: 'eligible', sizeBytes: 4 * ByteSize.GB, state: 'eligible' },
 				{ label: 'running', sizeBytes: ByteSize.GB, state: 'running' },
 				{ label: 'recent', sizeBytes: ByteSize.GB, state: 'recent' },
+				{ label: 'archived', sizeBytes: ByteSize.GB, state: 'archived' },
+				{ label: 'unavailable', sizeBytes: undefined, state: 'unavailable' },
 			],
 		});
+	});
+
+	test('refresh retries failed measurements and drops archived worktrees after storage is removed', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const unavailable = createSession('unavailable', oldDate());
+		let refreshed = false;
+		const service = disposables.add(createService(
+			[archived, unavailable],
+			true,
+			session => refreshed ? (session === archived ? undefined : ByteSize.GB) : (session === archived ? ByteSize.GB : undefined),
+		));
+
+		await service.getWorktrees(14);
+		refreshed = true;
+		await service.refresh();
+
+		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => ({
+			label: worktree.session.title.get(),
+			sizeBytes: worktree.sizeBytes,
+			state: worktree.cleanupState,
+		})), [{ label: 'unavailable', sizeBytes: ByteSize.GB, state: 'eligible' }]);
+	});
+
+	test('retains an archived worktree measurement failure instead of treating it as removed storage', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		let fail = false;
+		const service = disposables.add(createService([archived], true, () => {
+			if (fail) {
+				throw new Error('Permission denied');
+			}
+			return ByteSize.GB;
+		}));
+		await service.getWorktrees(14);
+		fail = true;
+		await service.refresh();
+		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => ({
+			id: worktree.session.sessionId, failed: worktree.measurementFailed, size: worktree.sizeBytes,
+		})), [{ id: 'archived', failed: true, size: undefined }]);
+	});
+
+	test('rechecks requested cleanup without rescanning unrelated worktrees', async () => {
+		const pending = createSession('pending', oldDate(), SessionStatus.Completed, true);
+		const existing = createSession('existing', oldDate(), SessionStatus.Completed, true);
+		const eligible = createSession('eligible', oldDate());
+		const scans: string[] = [];
+		let removed = false;
+		const service = disposables.add(createService([pending, existing, eligible], true, session => {
+			scans.push(session.sessionId);
+			return removed && session === pending ? undefined : ByteSize.GB;
+		}));
+		await service.getWorktrees(14);
+		removed = true;
+		const worktrees = await service.refreshPendingCleanup(['pending'], 14);
+		assert.deepStrictEqual({ scans, ids: worktrees.map(worktree => worktree.session.sessionId) }, {
+			scans: ['pending', 'existing', 'eligible', 'pending'], ids: ['existing', 'eligible'],
+		});
+	});
+
+	test('publishes completed cleanup before another pending recheck finishes', async () => {
+		const slow = new DeferredPromise<number | undefined>();
+		const published = new DeferredPromise<readonly string[]>();
+		let checking = false;
+		const service = disposables.add(createService([
+			createSession('fast', oldDate(), SessionStatus.Completed, true),
+			createSession('slow', oldDate(), SessionStatus.Completed, true),
+		], true, session => checking ? session.sessionId === 'slow' ? slow.p : undefined : ByteSize.GB));
+		await service.getWorktrees(14);
+		checking = true;
+		const refresh = service.refreshPendingCleanup(['fast', 'slow'], 14, worktrees => {
+			if (!published.isSettled) {
+				published.complete(worktrees.map(worktree => worktree.session.sessionId));
+			}
+		});
+		try {
+			assert.deepStrictEqual(await published.p, ['slow']);
+		} finally {
+			await slow.complete(undefined);
+			await refresh;
+		}
 	});
 
 	test('active, pinned, running, and recent sessions are not eligible', async () => {
@@ -421,6 +504,40 @@ suite('SessionWorktreeCleanupService', () => {
 		}, {
 			fourteenDays: 'recent',
 			sevenDays: 'eligible',
+		});
+	});
+
+	test('any-time cleanup allows recent sessions while preserving protection and suggestion thresholds', async () => {
+		const recent = new Date();
+		const pinned = createSession('pinned', recent);
+		const service = disposables.add(createService(
+			[
+				createSession('recent', recent),
+				pinned,
+				createSession('running', recent, SessionStatus.InProgress),
+				createSession('needs-input', recent, SessionStatus.NeedsInput),
+				createSession('untitled', recent, SessionStatus.Untitled),
+				createSession('error', recent, SessionStatus.Error),
+			],
+			true,
+			() => 6 * ByteSize.GB,
+			undefined, undefined, undefined, undefined, pinned,
+		));
+		await service.activate();
+		const worktrees = await service.getWorktrees(0);
+		assert.deepStrictEqual({
+			states: worktrees.map(worktree => [worktree.session.sessionId, worktree.cleanupState]),
+			suggestion: service.suggestion.get(),
+		}, {
+			states: [
+				['recent', 'eligible'],
+				['pinned', 'pinned'],
+				['running', 'running'],
+				['needs-input', 'needsInput'],
+				['untitled', 'untitled'],
+				['error', 'error'],
+			],
+			suggestion: undefined,
 		});
 	});
 
@@ -499,6 +616,96 @@ suite('SessionWorktreeCleanupService', () => {
 			'Scanned 2 of 3 worktrees',
 			'Scanned 3 of 3 worktrees',
 		]);
+	});
+
+	test('retries leftover worktrees without archiving or restoring their sessions', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const calls: boolean[] = [];
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			onArchive: async () => { throw new Error('Must not archive again'); },
+			onCleanup: async (_session, retry) => { calls.push(retry); return { state: retry ? 'pending' : 'failed', message: retry ? undefined : 'permission denied' }; },
+		}));
+		const before = (await service.getWorktrees(0))[0].cleanupStatus;
+		await service.cleanupWorktrees([{ session: archived, sizeBytes: 100, worktreeCount: 1 }]);
+		const after = (await service.getWorktrees(0))[0].cleanupStatus;
+		assert.deepStrictEqual({ before, after, calls, archived: archived.isArchived.get() }, {
+			before: { state: 'failed', message: 'permission denied' },
+			after: { state: 'pending', message: undefined },
+			calls: [false, true],
+			archived: true,
+		});
+	});
+
+	test('reports unsupported cleanup retry rather than pretending cleanup started', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		await assert.rejects(service.cleanupWorktrees([{ session: archived, sizeBytes: 100, worktreeCount: 1 }]), /unavailable/);
+	});
+
+	test('does not confuse a cleanup status request error with an unsupported host or removal failure', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			onCleanup: async () => { throw new Error('host disconnected'); },
+		}));
+		const worktree = (await service.getWorktrees(0))[0];
+		assert.deepStrictEqual({ status: worktree.cleanupStatus, error: worktree.cleanupStatusError, size: worktree.sizeBytes }, {
+			status: undefined, error: 'host disconnected', size: 100,
+		});
+	});
+
+	for (const state of ['pending', 'running'] as const) {
+		test(`preserves ${state} cleanup through transient status errors and recovers on polling`, async () => {
+			const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+			let disconnected = false;
+			let complete = false;
+			const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+				onCleanup: async () => {
+					if (disconnected) {
+						throw new Error('host disconnected');
+					}
+					return { state: complete ? 'failed' : state };
+				},
+			}));
+			await service.getWorktrees(0);
+			disconnected = true;
+			const refreshed = (await service.refreshPendingCleanup(['archived'], 0))[0];
+			const forced = (await service.getWorktrees(0, undefined, CancellationToken.None, true))[0];
+			disconnected = false;
+			complete = true;
+			const recovered = (await service.refreshPendingCleanup(['archived'], 0))[0];
+			assert.deepStrictEqual([refreshed, forced, recovered].map(worktree => ({
+				status: worktree.cleanupStatus,
+				error: worktree.cleanupStatusError,
+			})), [
+				{ status: { state }, error: 'host disconnected' },
+				{ status: { state }, error: 'host disconnected' },
+				{ status: { state: 'failed' }, error: undefined },
+			]);
+		});
+	}
+
+	test('clears a cached status-request error when retry starts cleanup', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const calls: boolean[] = [];
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			onCleanup: async (_session, retry) => {
+				calls.push(retry);
+				if (!retry) {
+					throw new Error('host disconnected');
+				}
+				return { state: 'pending' };
+			},
+		}));
+		await service.getWorktrees(0);
+		await service.cleanupWorktrees([{ session: archived, sizeBytes: 100, worktreeCount: 1 }]);
+		const worktree = (await service.getWorktrees(0))[0];
+		assert.deepStrictEqual({ calls, status: worktree.cleanupStatus, error: worktree.cleanupStatusError }, {
+			calls: [false, true], status: { state: 'pending' }, error: undefined,
+		});
 	});
 
 	test('reports cleanup scheduling progress after each archived session', async () => {
@@ -598,7 +805,7 @@ suite('SessionWorktreeCleanupService', () => {
 		}, {
 			scanCount: 2,
 			measurementProgressCount: 1,
-			sessionIds: ['remaining'],
+			sessionIds: ['selected', 'remaining'],
 		});
 	});
 
@@ -624,6 +831,46 @@ suite('SessionWorktreeCleanupService', () => {
 
 		await assert.rejects(measurement, error => isCancellationError(error));
 		diskUsage.complete(ByteSize.GB);
+	});
+
+	test('cancels the underlying scan and skips queued sessions when the last caller cancels', async () => {
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const scanned: string[] = [];
+		const tokens: CancellationToken[] = [];
+		const stalled = new DeferredPromise<number | undefined>();
+		const service = disposables.add(createService(
+			['first', 'second', 'queued'].map(id => createSession(id, oldDate())), true,
+			(session, token = CancellationToken.None) => {
+				scanned.push(session.sessionId);
+				tokens.push(token);
+				return raceCancellationError(stalled.p, token);
+			},
+		));
+		const measurement = service.getWorktrees(14, () => { }, cancellation.token);
+		cancellation.cancel();
+		await assert.rejects(measurement, error => isCancellationError(error));
+		assert.deepStrictEqual({ scanned, canceled: tokens.every(token => token.isCancellationRequested) }, {
+			scanned: ['first', 'second'], canceled: true,
+		});
+	});
+
+	test('keeps a shared scan until both progressive callers cancel', async () => {
+		const first = disposables.add(new CancellationTokenSource());
+		const second = disposables.add(new CancellationTokenSource());
+		let scanToken = CancellationToken.None;
+		const stalled = new DeferredPromise<number | undefined>();
+		const service = disposables.add(createService([createSession('shared', oldDate())], true, (_session, token = CancellationToken.None) => {
+			scanToken = token;
+			return raceCancellationError(stalled.p, token);
+		}));
+		const firstMeasurement = service.getWorktrees(14, () => { }, first.token);
+		const secondMeasurement = service.getWorktrees(14, () => { }, second.token);
+		first.cancel();
+		await assert.rejects(firstMeasurement, error => isCancellationError(error));
+		assert.strictEqual(scanToken.isCancellationRequested, false);
+		second.cancel();
+		await assert.rejects(secondMeasurement, error => isCancellationError(error));
+		assert.strictEqual(scanToken.isCancellationRequested, true);
 	});
 
 	test('canceling a foreground wait does not cancel a shared background measurement', async () => {
@@ -654,45 +901,82 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => worktree.session.sessionId), ['eligible']);
 	});
 
-	test('times out a stalled disk measurement without blocking other sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const stalledMeasurement = new DeferredPromise<number | undefined>();
-		const stalled = createSession('stalled', oldDate());
-		const measured = createSession('measured', oldDate());
+	test('publishes initial worktrees and completed sizes while another scan is pending', async () => {
+		const slow = new DeferredPromise<number | undefined>();
+		const fastPublished = new DeferredPromise<void>();
+		const snapshots: { id: string; calculating: boolean; size: number | undefined }[][] = [];
 		const service = disposables.add(createService(
-			[stalled, measured],
+			[createSession('slow', oldDate()), createSession('fast', oldDate())],
 			true,
-			session => session === stalled ? stalledMeasurement.p : ByteSize.GB,
+			session => session.title.get() === 'slow' ? slow.p : ByteSize.GB,
+		));
+		const measurement = service.getWorktrees(14, worktrees => {
+			snapshots.push(worktrees.map(worktree => ({ id: worktree.session.sessionId, calculating: !!worktree.isMeasuring, size: worktree.sizeBytes })));
+			if (worktrees.some(worktree => worktree.session.sessionId === 'fast' && worktree.sizeBytes !== undefined)) {
+				if (!fastPublished.isSettled) {
+					fastPublished.complete();
+				}
+			}
+		});
+		try {
+			await fastPublished.p;
+			assert.deepStrictEqual(snapshots, [
+				[{ id: 'slow', calculating: true, size: undefined }, { id: 'fast', calculating: true, size: undefined }],
+				[{ id: 'slow', calculating: true, size: undefined }, { id: 'fast', calculating: false, size: ByteSize.GB }],
+			]);
+		} finally {
+			await slow.complete(ByteSize.GB);
+			await measurement;
+		}
+	});
+
+	test('allows disk measurements to complete after more than ten seconds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const service = disposables.add(createService(
+			[createSession('slow', oldDate()), createSession('fast', oldDate())],
+			true,
+			async session => {
+				if (session.title.get() === 'slow') {
+					await new Promise<void>(resolve => setTimeout(resolve, 30_000));
+				}
+				return ByteSize.GB;
+			},
 		));
 
-		const startedAt = Date.now();
 		const worktrees = await service.getWorktrees(14);
-		stalledMeasurement.complete(ByteSize.GB);
 
-		assert.deepStrictEqual({
-			elapsed: Date.now() - startedAt,
-			sessionIds: worktrees.map(worktree => worktree.session.sessionId),
-		}, {
-			elapsed: 10_000,
-			sessionIds: ['measured'],
-		});
+		assert.deepStrictEqual(worktrees.map(worktree => ({
+			label: worktree.session.title.get(),
+			sizeBytes: worktree.sizeBytes,
+			state: worktree.cleanupState,
+		})), [
+			{ label: 'slow', sizeBytes: ByteSize.GB, state: 'eligible' },
+			{ label: 'fast', sizeBytes: ByteSize.GB, state: 'eligible' },
+		]);
 	}));
 
-	test('cancels disk measurement when it times out', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('cancels disk measurement when disposed', async () => {
 		let canceled = false;
+		const measurementStarted = new DeferredPromise<void>();
 		const stalledMeasurement = new DeferredPromise<number | undefined>();
 		const service = disposables.add(createService(
 			[createSession('eligible', oldDate())],
 			true,
-			(_session, token) => raceCancellationError(stalledMeasurement.p, token ?? CancellationToken.None).catch(error => {
-				canceled = isCancellationError(error);
-				throw error;
-			}),
+			(_session, token) => {
+				measurementStarted.complete();
+				return raceCancellationError(stalledMeasurement.p, token ?? CancellationToken.None).catch(error => {
+					canceled = isCancellationError(error);
+					throw error;
+				});
+			},
 		));
 
-		await service.getWorktrees(14);
+		const measurement = service.getWorktrees(14);
+		await measurementStarted.p;
+		service.dispose();
+		await assert.rejects(measurement, error => isCancellationError(error));
 
 		assert.strictEqual(canceled, true);
-	}));
+	});
 
 	test('retries when the worktree session set changes during measurement', async () => {
 		const firstMeasurement = new DeferredPromise<number | undefined>();
@@ -746,6 +1030,7 @@ function createService(
 		readonly progressService?: IProgressService;
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
+		readonly onCleanup?: ISessionsManagementService['sessionWorktreeCleanup'];
 		readonly onDidArchiveSession?: Event<ISession>;
 	} = {},
 ): SessionWorktreeCleanupService {
@@ -754,6 +1039,7 @@ function createService(
 			getSessions: () => sessions,
 			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
+			sessionWorktreeCleanup: overrides.onCleanup,
 			onDidArchiveSession: overrides.onDidArchiveSession ?? Event.None,
 			onDidChangeSessions,
 		}),

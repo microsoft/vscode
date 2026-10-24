@@ -63,9 +63,18 @@ jobs:
   compile:
     name: Compile & Hygiene
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    env:
+      # Hygiene and ESLint check only the files that changed since this commit, unless
+      # a change can affect other files (see build/lib/changedFiles.ts). The full checks
+      # run in the product build.
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Without the base commit, hygiene and ESLint check every file.
+      - name: Fetch pull request base
+        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and ESLint will check every file."
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -136,14 +145,17 @@ jobs:
           npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
           npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
 
-      - name: Compile & Hygiene
-        run: npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
+      # before the compilation checks start. --continue-on-error reports both when both fail.
+      # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
+      - name: Hygiene & ESLint
+        run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
+
+      # core-ci-pr skips the minified bundles that only the product build uses.
+      - name: Compile
+        run: npm exec -- npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Avoid overlapping ESLint's worker memory with the parallel compilation checks.
-      - name: ESLint
-        run: npm run eslint
 
       - name: Check Codex protocol client is in sync
         run: |
@@ -355,8 +367,9 @@ jobs:
 
   # On Windows, Agent Host E2E is the slowest part of the Electron job, so it runs in parallel
   # with the integration tests on its own machine; reports as part of "Windows / Electron".
+  # A skipped caller shows only its own name, so the name says what it runs.
   windows-agent-host-e2e-tests:
-    name: Windows (run)
+    name: Windows (agent host)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
