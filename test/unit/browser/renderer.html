@@ -186,6 +186,12 @@
 				speed: runnable.speed,
 				duration: runnable.duration,
 				currentRetry: runnable.currentRetry(),
+				// the test file (module) for the runner to rerun. Root-level hooks have none,
+				// because their failure stops the whole run
+				file: runnable.file,
+				// a failed test is rerun by itself, a failed hook with the rest of its suite
+				type: runnable.type,
+				parentTitle: runnable.parent?.fullTitle()
 			};
 		}
 		function serializeError(err) {

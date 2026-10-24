@@ -35,6 +35,7 @@ const { execFile } = require('node:child_process');
  * 'reporter-options': string;
  * tfs: string;
  * 'stall-timeout': string;
+ * 'rerun-failed-files': string;
  * build: boolean;
  * debug: boolean;
  * sequential: boolean;
@@ -43,7 +44,7 @@ const { execFile } = require('node:child_process');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'runList', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout'],
+	string: ['run', 'runList', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'rerun-failed-files'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
@@ -69,6 +70,7 @@ const args = minimist(process.argv.slice(2), {
 		'reporter-options': 'the mocha reporter options',
 		tfs: 'tfs',
 		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
+		'rerun-failed-files': 'rerun the failed tests in a freshly launched browser up to <count> more times',
 		help: 'show the help'
 	}
 });
@@ -88,6 +90,7 @@ Options:
 --reporter-options <reporter-options> the mocha reporter options
 --tfs <tfs>          tfs
 --stall-timeout <seconds> abort with diagnostics when no test progress is reported for <seconds> (default 300, 0 disables)
+--rerun-failed-files <count> rerun the failed tests (the suite of a failed hook) in a freshly launched browser up to <count> more times, or their whole test files when there are too many failures
 --help, -h           show the help`);
 	process.exit(0);
 }
@@ -98,16 +101,24 @@ const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').spl
 const isDebug = !!args.debug;
 const stallTimeoutMs = isDebug ? 0 : Math.max(0, Number(args['stall-timeout']) || 0) * 1000;
 
+/**
+ * With more failed tests and suites than this, a rerun repeats whole test files
+ * instead of selecting the failures by title.
+ */
+const MAX_RERUN_TARGETS = 50;
+
 const withReporter = (function () {
 	if (args.tfs) {
 		{
 			const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
-			return (browserType, runner) => {
+			return (browserType, runner, attempt) => {
+				// every attempt writes its own results file, so that reruns do not overwrite earlier failures
+				const attemptSuffix = attempt > 1 ? `-attempt-${attempt}` : '';
 				new mocha.reporters.Dot(runner);
 				new MochaJUnitReporter(runner, {
 					reporterOptions: {
-						testsuitesTitle: `${args.tfs} ${process.platform}`,
-						mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+						testsuitesTitle: `${args.tfs} ${process.platform}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
+						mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${attemptSuffix}-results.xml`) : undefined
 					}
 				});
 			};
@@ -252,7 +263,17 @@ async function createServer() {
 	});
 }
 
-async function runTestsInBrowser(testModules, browserType, browserChannel) {
+/**
+ * Runs the test modules once in a newly launched browser. Returns the failure message
+ * for the console, if any test failed, and which tests passed and failed.
+ * @param {string[]} testModules
+ * @param browserType the Playwright browser: chromium, firefox or webkit
+ * @param {string | undefined} browserChannel
+ * @param {string | undefined} grep
+ * @param {number} attempt
+ * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
+ */
+async function runTestsInBrowser(testModules, browserType, browserChannel, grep, attempt) {
 	const server = await createServer();
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
@@ -296,7 +317,22 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()), attempt);
+
+	/** @type {IFailure[]} failed tests and hooks that belong to a test file */
+	const failures = [];
+	/** @type {IPassed[]} */
+	const passed = [];
+	/** @type {string[]} failures that do not belong to a test file, such as root-level hooks */
+	const unattributedFailures = [];
+	emitter.on('pass', test => passed.push({ title: test.fullTitle, file: test.file }));
+	emitter.on('fail', test => {
+		if (test.file) {
+			failures.push({ title: test.fullTitle, file: test.file, type: test.type, parentTitle: test.parentTitle });
+		} else {
+			unattributedFailures.push(test.fullTitle);
+		}
+	});
 
 	// collection failures for console printing
 	const failingModuleIds = [];
@@ -321,7 +357,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 		// @ts-expect-error
 		await page.evaluate(opts => loadAndRun(opts), {
 			modules: testModules,
-			grep: args.grep,
+			grep,
 		});
 	} finally {
 		await stallWatchdog.dispose();
@@ -332,6 +368,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 		}
 	}
 
+	let failureMessage;
 	if (failingTests.length > 0) {
 		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
 
@@ -339,8 +376,10 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
 		}
 
-		return `${res}\n`;
+		failureMessage = `${res}\n`;
 	}
+
+	return { message: failureMessage, failures, passed, unattributedFailures };
 }
 
 /**
@@ -561,6 +600,234 @@ class EchoRunner extends events.EventEmitter {
 	}
 }
 
+/**
+ * A failed test or hook of a test file.
+ * @typedef {{ title: string; file: string; type: string; parentTitle?: string }} IFailure
+ */
+
+/**
+ * A test that passed.
+ * @typedef {{ title: string; file: string }} IPassed
+ */
+
+/**
+ * What a rerun runs to establish that a failure was flaky: a failed test by its full
+ * title, the suite of a failed hook, or the test file of a failed hook outside any suite.
+ * @typedef {{ kind: 'test' | 'suite' | 'file'; file: string; title: string; label: string }} IRerunTarget
+ */
+
+/**
+ * The test files that a rerun loads, and the grep that selects their tests.
+ * @typedef {{ byTitle: boolean; files: string[]; grep: string | undefined }} IRerunPlan
+ */
+
+/**
+ * When a rerun target did not pass, and when it passed.
+ * @typedef {{ target: IRerunTarget; firstAttempt: number; lastAttempt: number; passedInAttempt?: number }} IRerunRecord
+ */
+
+/**
+ * Runs the tests in a browser, and reruns the failed ones, each time in a freshly launched
+ * browser, up to `--rerun-failed-files` more times. Returns the failure message of the last
+ * attempt when failures remain.
+ * @param {string[]} modules
+ * @param {string} browserType
+ * @param {string | undefined} browserChannel
+ * @returns {Promise<string | undefined>}
+ */
+async function runTestsWithReruns(modules, browserType, browserChannel) {
+	// the browser stays open for debugging
+	const maxReruns = isDebug ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
+	const browserName = browserChannel ? `${browserType}-${browserChannel}` : browserType;
+
+	/** @type {Map<string, IRerunRecord>} every failure that was a rerun target, by key */
+	const records = new Map();
+	/** @type {Map<string, IRerunTarget>} the failures that did not pass since they failed */
+	let targets = new Map();
+	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
+	let plan;
+	let attemptModules = modules;
+	/** @type {string | undefined} */
+	let grep = args.grep;
+
+	for (let attempt = 1; ; attempt++) {
+		const result = await runTestsInBrowser(attemptModules, browserType, browserChannel, grep, attempt);
+		if (!plan && result.failures.length === 0 && result.unattributedFailures.length === 0) {
+			return undefined;
+		}
+
+		// A failure outside any test file can stop the run early, so the attempt does not establish that anything passed.
+		if (plan && result.unattributedFailures.length === 0) {
+			for (const key of findPassedTargets(targets, result)) {
+				targets.delete(key);
+				const record = records.get(key);
+				if (record) {
+					record.passedInAttempt = attempt;
+				}
+			}
+		}
+		targets = new Map([...targets, ...targetsFromFailures(result.failures)]);
+		recordNotPassed(records, targets, attempt);
+
+		if (targets.size === 0 && result.unattributedFailures.length === 0) {
+			reportFlakyTests(records, browserName);
+			return undefined;
+		}
+
+		if (result.unattributedFailures.length > 0 && maxReruns > 0) {
+			console.error(`\n[${browserName}] ${plan ? `Not counting attempt ${attempt}` : 'Not rerunning failed tests'}: ${result.unattributedFailures.length} failure(s) do not belong to a test file:\n${result.unattributedFailures.map(title => `  ${title}`).join('\n')}`);
+		} else if (attempt <= maxReruns) {
+			plan = planRerun(targets);
+			console.log(plan.byTitle
+				? `\n[${browserName}] Rerunning ${targets.size} failed test(s) in a freshly launched browser (attempt ${attempt + 1} of ${maxReruns + 1}):\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}\n`
+				: `\n[${browserName}] Rerunning the test files of ${targets.size} failed test(s) in a freshly launched browser (attempt ${attempt + 1} of ${maxReruns + 1}):\n${plan.files.map(file => `  ${file}`).join('\n')}\n`);
+			attemptModules = plan.files;
+			grep = plan.grep;
+			continue;
+		}
+
+		if (plan) {
+			console.error(`\n[${browserName}] ${targets.size} failed test(s) did not pass in ${attempt} attempts:\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}`);
+		}
+		reportFlakyTests(records, browserName);
+		// the last attempt need not fail any test, for example when it did not run a failed test whose title changed
+		return result.message ?? `[${browserName}] ${targets.size} failed test(s) did not pass in ${attempt} attempts\n`;
+	}
+}
+
+/**
+ * Returns the rerun targets of the failed tests and hooks, by key.
+ * @param {IFailure[]} failures
+ * @returns {Map<string, IRerunTarget>}
+ */
+function targetsFromFailures(failures) {
+	/** @type {Map<string, IRerunTarget>} */
+	const targets = new Map();
+	for (const failure of failures) {
+		/** @type {IRerunTarget} */
+		let target;
+		if (failure.type !== 'hook') {
+			target = { kind: 'test', file: failure.file, title: failure.title, label: failure.title };
+		} else if (failure.parentTitle) {
+			// a failed hook skips the rest of its suite
+			target = { kind: 'suite', file: failure.file, title: failure.parentTitle, label: failure.title };
+		} else {
+			target = { kind: 'file', file: failure.file, title: '', label: failure.title };
+		}
+
+		const key = JSON.stringify([target.kind, target.file, target.title]);
+		if (!targets.has(key)) {
+			targets.set(key, target);
+		}
+	}
+	return targets;
+}
+
+/**
+ * Plans a rerun attempt: only the failed tests and the suites of failed hooks, or their
+ * whole test files when they cannot be selected by title, such as when there are too many.
+ * @param {Map<string, IRerunTarget>} targets
+ * @returns {IRerunPlan}
+ */
+function planRerun(targets) {
+	const files = [...new Set([...targets.values()].map(target => target.file))];
+	// mocha reads a grep of the form /pattern/flags as a regular expression literal, which cannot be combined
+	const byTitle = targets.size <= MAX_RERUN_TARGETS && [...targets.values()].every(target => target.kind !== 'file') && !/^\/.*\/[gimy]{0,4}$/.test(args.grep ?? '');
+	if (!byTitle) {
+		return { byTitle, files, grep: args.grep };
+	}
+
+	// mocha matches the grep against the full title of every test
+	const selection = [...targets.values()].map(target => target.kind === 'test' ? escapeRegExp(target.title) : `${escapeRegExp(target.title)} [\\s\\S]*`).join('|');
+	return { byTitle, files, grep: args.grep ? `^(?=[\\s\\S]*(?:${args.grep}))(?:${selection})$` : `^(?:${selection})$` };
+}
+
+/**
+ * Returns the keys of the targets that passed in the rerun. The rerun must have run and
+ * passed the failed test, or a test of the failed hook's suite, so that a failure that
+ * the rerun did not select does not count as passing. A failed hook outside any suite
+ * passes with its whole test file.
+ * @param {Map<string, IRerunTarget>} targets
+ * @param {{ failures: IFailure[]; passed: IPassed[] }} result
+ * @returns {string[]}
+ */
+function findPassedTargets(targets, result) {
+	return [...targets].filter(([, target]) => {
+		const failedTitles = new Set(result.failures.filter(failure => failure.file === target.file).map(failure => failure.title));
+		// A test that passes and then fails in teardown is reported both ways.
+		const passedTitles = result.passed.filter(test => test.file === target.file && !failedTitles.has(test.title)).map(test => test.title);
+		if (target.kind === 'file') {
+			return failedTitles.size === 0 && passedTitles.length > 0;
+		}
+		if (target.kind === 'test') {
+			return passedTitles.includes(target.title);
+		}
+		const prefix = `${target.title} `;
+		return passedTitles.some(title => title.startsWith(prefix)) && ![...failedTitles].some(title => title.startsWith(prefix));
+	}).map(([key]) => key);
+}
+
+/**
+ * Records that the targets did not pass in the attempt.
+ * @param {Map<string, IRerunRecord>} records
+ * @param {Map<string, IRerunTarget>} targets
+ * @param {number} attempt
+ */
+function recordNotPassed(records, targets, attempt) {
+	for (const [key, target] of targets) {
+		const record = records.get(key);
+		if (record) {
+			record.lastAttempt = attempt;
+			record.passedInAttempt = undefined;
+		} else {
+			records.set(key, { target, firstAttempt: attempt, lastAttempt: attempt });
+		}
+	}
+}
+
+/**
+ * Reports the failed tests that passed when they were rerun, as warnings in CI, so that
+ * flaky tests stay visible whether or not the run passed.
+ * @param {Map<string, IRerunRecord>} records
+ * @param {string} browserName
+ */
+function reportFlakyTests(records, browserName) {
+	const flaky = [...records.values()].filter(record => record.passedInAttempt !== undefined);
+	if (flaky.length === 0) {
+		return;
+	}
+
+	console.log(`\n[${browserName}] ${flaky.length} failed test(s) passed when rerun in a freshly launched browser. They are flaky:`);
+	for (const record of flaky) {
+		const failed = record.firstAttempt === record.lastAttempt ? `failed in attempt ${record.firstAttempt}` : `did not pass in attempts ${record.firstAttempt} to ${record.lastAttempt}`;
+		const message = `${describeTarget(record.target)} ${failed} and ${record.target.kind === 'file' ? 'its test file passed' : 'passed'} in attempt ${record.passedInAttempt}`;
+		console.log(`  ${message}`);
+		if (process.env.GITHUB_ACTIONS) {
+			console.log(`::warning title=Flaky browser unit test (${browserName})::${message}`);
+		} else if (process.env.TF_BUILD) {
+			console.log(`##vso[task.logissue type=warning]Flaky browser unit test (${browserName}): ${message}`);
+		}
+	}
+}
+
+/**
+ * Describes a rerun target on one line, so that a title with line breaks stays in one
+ * list entry and one CI annotation.
+ * @param {IRerunTarget} target
+ */
+function describeTarget(target) {
+	return `${target.label.replace(/\s*[\n\r\u2028\u2029]+\s*/g, ' ')} (${target.file})`;
+}
+
+/**
+ * Escapes a title for a grep. Line terminators are escaped too, because mocha reads a
+ * grep string only up to the first one.
+ * @param {string} value
+ */
+function escapeRegExp(value) {
+	return value.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&').replace(/[\n\r\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
 testModules.then(async modules => {
 
 	if (runList) {
@@ -581,12 +848,12 @@ testModules.then(async modules => {
 		if (args.sequential) {
 			for (const browser of browsers) {
 				const [browserType, browserChannel] = browser.split('-');
-				messages.push(await runTestsInBrowser(modules, browserType, browserChannel));
+				messages.push(await runTestsWithReruns(modules, browserType, browserChannel));
 			}
 		} else {
 			messages = await Promise.all(browsers.map(async browser => {
 				const [browserType, browserChannel] = browser.split('-');
-				return await runTestsInBrowser(modules, browserType, browserChannel);
+				return await runTestsWithReruns(modules, browserType, browserChannel);
 			}));
 		}
 	} catch (err) {
