@@ -260,7 +260,9 @@ abstract class AbstractResourceContextKey {
 
 	set(value: URI | null | undefined) {
 		value = value ?? undefined;
-		if (isEqual(this._value, value)) {
+		// Several instances can share one context key service (e.g. the Explorer and
+		// Open Editors views), so only skip when the shared keys still hold this value
+		if (isEqual(this._value, value) && this._keysHold(value)) {
 			return;
 		}
 		this._value = value;
@@ -275,6 +277,12 @@ abstract class AbstractResourceContextKey {
 			this._hasResource.set(Boolean(value));
 			this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
 		});
+	}
+
+	private _keysHold(value: URI | undefined): boolean {
+		return (this._resourceKey.get() ?? undefined) === value?.toString()
+			&& (this._schemeKey.get() ?? undefined) === value?.scheme
+			&& (this._pathKey.get() ?? undefined) === (value ? this.uriToPath(value) : undefined);
 	}
 
 	protected uriToPath(uri: URI): string {
