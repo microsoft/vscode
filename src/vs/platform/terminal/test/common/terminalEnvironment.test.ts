@@ -41,6 +41,30 @@ suite('terminalEnvironment', () => {
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo', '/'), '~/bar/baz');
 			strictEqual(collapseTildePath('/foo/bar/baz', '/foo/', '/'), '~/bar/baz');
 		});
+		test('should collapse exact user home to ~', () => {
+			strictEqual(collapseTildePath('/foo', '/foo', '/'), '~');
+			strictEqual(collapseTildePath('/foo/', '/foo', '/'), '~');
+			strictEqual(collapseTildePath('/foo', '/foo/', '/'), '~');
+			strictEqual(collapseTildePath('C:\\foo', 'C:\\foo', '\\'), '~');
+			strictEqual(collapseTildePath('C:\\foo\\', 'C:\\foo', '\\'), '~');
+			strictEqual(collapseTildePath('c:\\foo', 'C:\\foo', '\\'), '~');
+		});
+		test('should not collapse when user home is only a substring or prefix match', () => {
+			strictEqual(collapseTildePath('/foo_bar', '/foo', '/'), '/foo_bar');
+			strictEqual(collapseTildePath('/foo_bar/baz', '/foo', '/'), '/foo_bar/baz');
+			strictEqual(collapseTildePath('/var/log/foo/bar', '/foo', '/'), '/var/log/foo/bar');
+			strictEqual(collapseTildePath('C:\\foo_bar', 'C:\\foo', '\\'), 'C:\\foo_bar');
+			strictEqual(collapseTildePath('C:\\foo_bar\\baz', 'C:\\foo', '\\'), 'C:\\foo_bar\\baz');
+			strictEqual(collapseTildePath('D:\\backup\\foo\\bar', 'C:\\foo', '\\'), 'D:\\backup\\foo\\bar');
+		});
+		test('should not collapse when user home is a root or drive root directory', () => {
+			strictEqual(collapseTildePath('/foo/bar', '/', '/'), '/foo/bar');
+			strictEqual(collapseTildePath('/', '/', '/'), '/');
+			strictEqual(collapseTildePath('C:\\Windows', 'C:\\', '\\'), 'C:\\Windows');
+			strictEqual(collapseTildePath('C:\\Windows', 'C:', '\\'), 'C:\\Windows');
+			strictEqual(collapseTildePath('c:\\Windows', 'C:\\', '\\'), 'c:\\Windows');
+			strictEqual(collapseTildePath('C:\\', 'C:\\', '\\'), 'C:\\');
+		});
 	});
 	suite('sanitizeCwd', () => {
 		if (OS === OperatingSystem.Windows) {
