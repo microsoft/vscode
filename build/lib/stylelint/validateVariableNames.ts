@@ -8,11 +8,20 @@ import path from 'path';
 
 const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
 
+/**
+ * Schema definition for known CSS variables loaded from JSON.
+ */
+export interface IKnownVariablesSchema {
+	colors: string[];
+	others: string[];
+	sizes?: string[];
+}
+
 let knownVariables: Set<string> | undefined;
 function getKnownVariableNames() {
 	if (!knownVariables) {
 		const knownVariablesFileContent = readFileSync(path.join(import.meta.dirname, './vscode-known-variables.json'), 'utf8').toString();
-		const knownVariablesInfo = JSON.parse(knownVariablesFileContent);
+		const knownVariablesInfo: IKnownVariablesSchema = JSON.parse(knownVariablesFileContent);
 		knownVariables = new Set([...knownVariablesInfo.colors, ...knownVariablesInfo.others, ...(knownVariablesInfo.sizes || [])] as string[]);
 	}
 	return knownVariables;
@@ -37,4 +46,3 @@ export function getVariableNameValidator(): IValidator {
 		}
 	};
 }
-
