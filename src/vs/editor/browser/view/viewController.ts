@@ -423,7 +423,7 @@ export class ViewController {
 		this.userInputEvents.emitMouseDown(e);
 	}
 
-	public emitMouseDrag(e: IEditorMouseEvent): void {
+	public emitMouseDrag(e: IPartialEditorMouseEvent): void {
 		this.userInputEvents.emitMouseDrag(e);
 	}
 
