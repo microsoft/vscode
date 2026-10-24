@@ -9,7 +9,8 @@ import { win32, posix } from '../../../../../../../base/common/path.js';
 import { extUri, normalizePath } from '../../../../../../../base/common/resources.js';
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
 import { containsCmdDelayedExpansion } from '../../../../../../../platform/terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
@@ -27,6 +28,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
 		private readonly _log: (message: string, ...args: unknown[]) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
@@ -119,7 +121,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			: rawFileWrite;
 	}
 
-	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[]): ICommandLineAnalyzerResult {
+	private async _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[]): Promise<ICommandLineAnalyzerResult> {
 		let isAutoApproveAllowed = true;
 		if (fileWrites.length > 0) {
 			const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
@@ -175,6 +177,13 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								this._log('File write blocked outside workspace', fileUri.toString());
 								break;
 							}
+
+							// The shell follows symlinks, so the real path must also stay inside the workspace
+							if (!await this._isRealPathInsideWorkspace(fileUri, workspaceFolders)) {
+								isAutoApproveAllowed = false;
+								this._log('File write blocked because its real path is outside the workspace', fileUri.toString());
+								break;
+							}
 						}
 					} else {
 						// No workspace folders, allow safe null device paths even without workspace
@@ -206,6 +215,56 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			isAutoApproveAllowed,
 			disclaimers,
 		};
+	}
+
+	/**
+	 * Returns whether `fileUri` still resolves inside a workspace folder once
+	 * symlinks are followed.
+	 */
+	private async _isRealPathInsideWorkspace(fileUri: URI, workspaceFolders: readonly IWorkspaceFolder[]): Promise<boolean> {
+		const realFileUri = await this._realpathOfNearestExisting(fileUri);
+		if (!realFileUri) {
+			return false;
+		}
+		for (const folder of workspaceFolders) {
+			const realFolderUri = await this._realpathOfNearestExisting(folder.uri);
+			if (realFolderUri && extUri.isEqualOrParent(realFileUri, realFolderUri)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves the real path of `uri`, walking up to its nearest existing ancestor
+	 * when it does not exist yet. Returns `undefined` when an entry exists but has
+	 * no real path, such as a dangling symlink, since a write would follow it.
+	 */
+	private async _realpathOfNearestExisting(uri: URI): Promise<URI | undefined> {
+		const missingSegments: string[] = [];
+		let current = uri;
+		while (true) {
+			try {
+				const realUri = await this._fileService.realpath(current);
+				return realUri && extUri.joinPath(realUri, ...missingSegments);
+			} catch {
+				// Check below whether `current` is missing or unresolvable
+			}
+			try {
+				await this._fileService.stat(current);
+				return undefined;
+			} catch (error) {
+				if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					return undefined;
+				}
+			}
+			const parent = extUri.dirname(current);
+			if (extUri.isEqual(parent, current)) {
+				return undefined;
+			}
+			missingSegments.unshift(extUri.basename(current));
+			current = parent;
+		}
 	}
 
 	/**
