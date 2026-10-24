@@ -1262,7 +1262,7 @@
         },
         {
           "command": "git.openFile",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceHasChanges"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && ((resourceScheme == file && scmActiveResourceHasChanges) || resourceScheme == git)"
         },
         {
           "command": "git.openHEADFile",
