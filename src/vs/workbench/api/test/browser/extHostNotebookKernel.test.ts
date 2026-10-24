@@ -274,6 +274,24 @@ suite('NotebookKernel', function () {
 		task.end(false);
 	});
 
+	test('cancelling cells of a notebook that is gone does not throw', async function () {
+
+		// https://github.com/microsoft/vscode/issues/187448 - cancellation can arrive
+		// after the notebook document has been removed (closed notebook, extension
+		// host restart). That must be ignored, not throw.
+		let interruptCallCount = 0;
+		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
+		kernel.interruptHandler = () => { interruptCallCount += 1; };
+		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+
+		const gone = URI.parse('file:///path/to/gone.ipynb');
+		await extHostNotebookKernels.$cancelCells(0, gone, [0]); // must not throw
+		assert.strictEqual(interruptCallCount, 0, 'cancel for an unknown notebook must be ignored');
+
+		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]); // existing doc still works
+		assert.strictEqual(interruptCallCount, 1);
+	});
+
 	test('set outputs on cancel', async function () {
 
 		const kernel = disposables.add(extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo'));
