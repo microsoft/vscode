@@ -14,7 +14,10 @@ import { IEditorWhitespace, IPartialViewLinesViewportData, ILineHeightChangeAcce
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
 import { CustomLineHeightData } from './lineHeights.js';
 
-const SMOOTH_SCROLLING_TIME = 125;
+/**
+ * How long a smooth scroll animates when `editor.smoothScrolling` is enabled, in milliseconds.
+ */
+export const SMOOTH_SCROLLING_TIME = 125;
 
 class EditorScrollDimensions {
 
