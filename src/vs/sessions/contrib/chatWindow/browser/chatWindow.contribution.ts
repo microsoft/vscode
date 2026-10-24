@@ -166,6 +166,8 @@ for (const target of [SessionLayoutMode.SideBySide, SessionLayoutMode.Stacked] a
 // Where the terminal row shows, chosen like a radio group: below the chat and the editor area, below the editor area
 // only, or below the chat only. Stacked, the chat is the bottom of the window, so below the chat is across the bottom.
 // Chosen from the Terminal Position menu in the More Actions menu of the row, as the panel's position is from the panel.
+// Stacked, the row is always across the bottom: the menu and the commands are not available, and the chosen position
+// applies again side by side.
 const chatWindowTerminalPositionChoices: readonly { readonly position: ChatWindowTerminalPosition; readonly id: string; readonly title: ILocalizedString; readonly shortTitle: string }[] = [{
 	position: ChatWindowTerminalPosition.FullWidth,
 	id: 'sessions.chatWindow.terminalPosition.fullWidth',
@@ -182,7 +184,8 @@ const chatWindowTerminalPositionChoices: readonly { readonly position: ChatWindo
 	title: localize2('chatWindowTerminalUnderChat', "Terminal Under Chat"),
 	shortTitle: localize('chatWindowTerminalUnderChatShort', "Under Chat"),
 }];
-const ChatWindowTerminalRowMenuContext = ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowTerminalRowContext, ChatWindowHasEditorAreaContext);
+const ChatWindowTerminalNotStackedContext = SessionSplitLayoutContext.notEqualsTo(SessionLayoutMode.Stacked);
+const ChatWindowTerminalRowMenuContext = ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowTerminalRowContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalNotStackedContext);
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.ChatWindowTerminalPosition,
 	title: localize('chatWindowTerminalPosition', "Terminal Position"),
@@ -198,7 +201,7 @@ chatWindowTerminalPositionChoices.forEach((choice, index) => {
 				title: choice.title,
 				category: SessionsCategories.Sessions,
 				f1: true,
-				precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorAreaContext),
+				precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalNotStackedContext),
 				toggled,
 			});
 		}

@@ -46,6 +46,15 @@ const CHAT_WINDOW_TERMINAL_MIN_HEIGHT = 120;
  * only while the chat shows. Focusing the chat while only the editor shows would activate its hidden group, which shows
  * the chat again; only the user's choice of a layout shows it.
  */
+/**
+ * Where the terminal row of a chat window shows: across the bottom of the window, below the editor only, or below the
+ * chat only. Stacked, it is always across the bottom, below the chat, whatever position is chosen, which applies again
+ * side by side.
+ */
+export function getChatWindowTerminalPlacement(position: ChatWindowTerminalPosition, splitLayout: SessionSplitLayout): ChatWindowTerminalPosition {
+	return splitLayout === SessionLayoutMode.SideBySide ? position : ChatWindowTerminalPosition.FullWidth;
+}
+
 export function createChatWindowSessionViewHost(focusWindow: () => void, focusChat: () => void, isChatVisible: () => boolean): IWindowSessionViewHost {
 	return {
 		focus: () => {
@@ -408,7 +417,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			try {
 				// Side by side, the chat leads and the editor follows it; otherwise the editor sits above the chat. The terminal
 				// row spans the bottom of the window below both by default: below the chat first, then the editor beside or
-				// above the chat. Below only one of them, it is placed after the editor, below the chat or the editor.
+				// above the chat. Below only one of them, side by side, it is placed after the editor, below the chat or the editor.
 				const editor = part.groups.find(group => group !== this.group && group !== terminal);
 				const terminalAdded = !!terminal && (terminal !== arrangedTerminal || terminalPosition !== arrangedTerminalPosition);
 				arrangedTerminal = terminal;
@@ -420,9 +429,10 @@ export class ChatWindowChatEditor extends EditorPane {
 							part.toggleMaximizeGroup();
 							maximized = undefined;
 						}
-						// Stacked, the chat is the bottom of the window: below it is across the bottom, as full width.
-						const underEditor = terminalPosition === ChatWindowTerminalPosition.UnderEditor;
-						const underChatOnly = sideBySide && terminalPosition === ChatWindowTerminalPosition.UnderChat;
+						// Stacked, the terminal row is always across the bottom; the chosen position applies again side by side.
+						const placement = getChatWindowTerminalPlacement(terminalPosition, splitLayout);
+						const underEditor = placement === ChatWindowTerminalPosition.UnderEditor;
+						const underChatOnly = placement === ChatWindowTerminalPosition.UnderChat;
 						if (terminal && !underEditor && !underChatOnly) {
 							part.moveGroup(terminal, this.group, GroupDirection.DOWN);
 						}
