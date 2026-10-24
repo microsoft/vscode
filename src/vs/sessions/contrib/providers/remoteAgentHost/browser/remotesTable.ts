@@ -42,6 +42,7 @@ export type RemoteTableEntry =
 		readonly label: string;
 		readonly count: number;
 		readonly collapsed: boolean;
+		readonly refreshing: boolean;
 		readonly warning?: string;
 		readonly documentation?: IRemoteEmptyEntry['documentation'];
 	}
@@ -67,7 +68,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; link?: Link }
 		| { readonly column: 'connection'; readonly label: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
@@ -109,10 +110,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					...base, column: this.column,
 					label: dom.append(nameRow, dom.$('.remotes-name')),
 					count: dom.append(nameRow, dom.$('.remotes-group-count')),
+					progress: dom.append(nameRow, dom.$('.remotes-group-progress', { 'aria-hidden': 'true' })),
 					warning: dom.append(nameRow, dom.$('.remotes-refresh-warning')),
 					description: dom.append(content, dom.$('.remotes-empty-description')),
 					links: dom.append(content, dom.$('.remotes-empty-actions')),
 				};
+				dom.append(template.progress, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
 				break;
 			}
 			case 'connection': {
@@ -185,11 +188,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				} else {
 					listRow.removeAttribute('aria-expanded');
 				}
-				listRow.setAttribute('aria-busy', String(entry.type === 'remote' && entry.busy));
+				listRow.setAttribute('aria-busy', String(entry.type === 'group' ? entry.refreshing : entry.type === 'remote' && entry.busy));
 				template.label.textContent = entry.type === 'remote' ? entry.remote.name : entry.label;
 				template.label.classList.toggle('remotes-empty-label', entry.type === 'empty');
 				template.count.textContent = entry.type === 'group' ? String(entry.count) : '';
 				template.count.hidden = entry.type !== 'group';
+				template.progress.hidden = entry.type !== 'group' || !entry.refreshing;
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {
 					const icon = dom.append(template.warning, renderIcon(Codicon.warning));

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,8 +20,9 @@ import { IListService, ListService } from '../../../../../../platform/list/brows
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
+import { IProgress } from '../../../../../../platform/progress/common/progress.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ICustomizationRemote, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
+import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 const remotes: ICustomizationRemote[] = [
@@ -35,7 +38,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing = false): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = '640px';
 	container.classList.add('remotes-editor');
@@ -59,10 +62,20 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			}());
 		},
 	});
+	const pendingRefresh = refreshing ? new DeferredPromise<void>() : undefined;
+	if (pendingRefresh) {
+		disposableStore.add(toDisposable(() => pendingRefresh.complete()));
+	}
 	const model = disposableStore.add(new class extends Disposable implements IRemotesModel {
 		readonly environmentsEnabled = observableValue(this, environments);
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
-		async refresh() { return failedKinds; }
+		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
+			if (pendingRefresh) {
+				progress?.report({ kind: 'tunnel', refreshing: true });
+				await pendingRefresh.p;
+			}
+			return failedKinds;
+		}
 		setHidden(id: string, hidden: boolean) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, hidden } : remote), undefined);
 		}
@@ -80,12 +93,15 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	}());
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));
 	widget.setVisible(true);
-	await waitForFixtureCondition(() => content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should finish before capture');
+	await waitForFixtureCondition(() => refreshing
+		? content.querySelectorAll('.remotes-group-progress:not([hidden])').length === 1
+		: content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should reach its fixture state before capture');
 	widget.layout();
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true) }),
+	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, true) }),
 	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
 	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),

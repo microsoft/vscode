@@ -21,6 +21,7 @@ import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../p
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../../common/agentHostSessionsProvider.js';
@@ -52,11 +53,16 @@ export interface ICustomizationRemote {
 	readonly pickerUnavailableReason?: string;
 }
 
+export interface IRemoteRefreshProgress {
+	readonly kind: RemoteKind;
+	readonly refreshing: boolean;
+}
+
 export interface IRemotesModel extends IDisposable {
 	readonly remotes: IObservable<readonly ICustomizationRemote[]>;
 	readonly environmentsEnabled: IObservable<boolean>;
 	/** Returns the kinds that failed to refresh; diagnostic details are written to the log. */
-	refresh(token: CancellationToken): Promise<readonly RemoteKind[]>;
+	refresh(token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>): Promise<readonly RemoteKind[]>;
 	setConnected(id: string, connected: boolean): Promise<void>;
 	rename(id: string): Promise<void>;
 	remove(id: string): Promise<void>;
@@ -127,11 +133,12 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			&& this.configurationService.getValue<boolean>('chat.disableAIFeatures') !== true;
 	}
 
-	async refresh(token: CancellationToken): Promise<readonly RemoteKind[]> {
+	async refresh(token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>): Promise<readonly RemoteKind[]> {
 		if (!this.enabled || token.isCancellationRequested) {
 			return [];
 		}
 		const discover = async (kind: RemoteKind, task: () => Promise<readonly RemoteTarget[]>): Promise<RemoteKind | undefined> => {
+			progress?.report({ kind, refreshing: true });
 			try {
 				const targets = await task();
 				if (!token.isCancellationRequested && !this._store.isDisposed && this.enabled) {
@@ -150,6 +157,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					this.logService.warn(`[Remotes] ${kind} discovery failed`, error);
 					return kind;
 				}
+			} finally {
+				progress?.report({ kind, refreshing: false });
 			}
 			return undefined;
 		};

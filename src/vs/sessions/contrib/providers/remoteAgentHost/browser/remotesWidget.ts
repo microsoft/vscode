@@ -79,6 +79,7 @@ export class RemotesWidget extends Disposable {
 	private readonly searchInput: InputBox;
 	private readonly refreshAction: Action;
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly refreshingKinds = new Set<RemoteKind>();
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedKinds = new Set<RemoteKind>();
@@ -161,6 +162,9 @@ export class RemotesWidget extends Disposable {
 				getWidgetAriaLabel: () => label,
 				getAriaLabel: row => {
 					const entry = row.entry;
+					if (entry.type === 'group' && entry.refreshing) {
+						return localize('remotes.groupRefreshingLabel', "{0}, {1} remotes. Refreshing.", entry.label, entry.count);
+					}
 					return entry.type === 'group'
 						? entry.warning
 							? localize('remotes.groupWarningLabel', "{0}, {1} remotes. Warning: {2}", entry.label, entry.count, entry.warning)
@@ -309,6 +313,10 @@ export class RemotesWidget extends Disposable {
 		this.refreshAction.enabled = true;
 		this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
 		this.tableContainer.setAttribute('aria-busy', 'false');
+		if (this.refreshingKinds.size) {
+			this.refreshingKinds.clear();
+			this.render();
+		}
 	}
 
 	private async refresh(): Promise<void> {
@@ -319,7 +327,19 @@ export class RemotesWidget extends Disposable {
 		this.refreshAction.class = ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin'));
 		this.tableContainer.setAttribute('aria-busy', 'true');
 		try {
-			const failedKinds = await this.model.refresh(request.token);
+			const failedKinds = await this.model.refresh(request.token, {
+				report: ({ kind, refreshing }) => {
+					if (request.token.isCancellationRequested || this._store.isDisposed || this.refreshRequest.value !== request) {
+						return;
+					}
+					if (refreshing) {
+						this.refreshingKinds.add(kind);
+					} else {
+						this.refreshingKinds.delete(kind);
+					}
+					this.render();
+				},
+			});
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
 				this.failedKinds = failedKinds;
 				this.hasRefreshed = true;
@@ -339,6 +359,7 @@ export class RemotesWidget extends Disposable {
 				this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
 				this.refreshRequest.clear();
 				this.tableContainer.setAttribute('aria-busy', 'false');
+				this.refreshingKinds.clear();
 				this.render();
 			}
 		}
@@ -373,7 +394,7 @@ export class RemotesWidget extends Disposable {
 			const collapsed = this.collapsedKinds.has(kind);
 			entries.push({
 				type: 'group', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
-				count: groupRemotes.length, collapsed, warning: this.getRefreshWarning(kind),
+				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
 				documentation: remoteSetup[kind].documentation,
 			});
 			if (!collapsed) {
@@ -475,6 +496,7 @@ export class RemotesWidget extends Disposable {
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],
+				...(this.refreshingKinds.has(kind) ? [localize('remotes.refreshingGroup', "Refreshing.")] : []),
 				...(warning ? [warning] : []),
 				...entries.map(remote => this.getRemoteAriaLabel(remote)),
 				...(empty ? [empty.label, empty.description ?? ''] : []),

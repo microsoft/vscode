@@ -29,7 +29,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { RemotesModel } from '../../browser/remotesModel.js';
+import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 
@@ -299,6 +299,40 @@ suite('RemotesModel', () => {
 			failedKinds: ['ssh'], kinds: ['ssh', 'wsl', 'tunnel'],
 			logEntries: [{ message: '[Remotes] ssh discovery failed', args: [error] }],
 		});
+	});
+
+	test('reports each source finishing independently, including discovery failures', async () => {
+		const { model, setSSHDiscovery, setTunnelDiscovery } = setup();
+		const ssh = new DeferredPromise<string[]>();
+		const tunnel = new DeferredPromise<ITunnelInfo[]>();
+		const sshFinished = new DeferredPromise<void>();
+		setSSHDiscovery(() => ssh.p);
+		setTunnelDiscovery(() => tunnel.p);
+		const updates: IRemoteRefreshProgress[] = [];
+		const refreshing = new Set<string>();
+		const refresh = model.refresh(CancellationToken.None, {
+			report: update => {
+				updates.push(update);
+				if (update.refreshing) {
+					refreshing.add(update.kind);
+				} else {
+					refreshing.delete(update.kind);
+					if (update.kind === 'ssh') {
+						sshFinished.complete();
+					}
+				}
+			},
+		});
+		await ssh.complete([]);
+		await sshFinished.p;
+		const partial = { ssh: refreshing.has('ssh'), tunnel: refreshing.has('tunnel') };
+		await tunnel.error(new Error('Tunnel discovery failed'));
+		const failures = await refresh;
+		assert.deepStrictEqual({
+			partial, failures, remaining: [...refreshing],
+			started: updates.filter(update => update.refreshing).map(update => update.kind).sort(),
+			finished: updates.filter(update => !update.refreshing).map(update => update.kind).sort(),
+		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: [...remoteKinds].sort(), finished: [...remoteKinds].sort() });
 	});
 
 	test('successful refresh replaces discovered rows and removes obsolete connection targets', async () => {

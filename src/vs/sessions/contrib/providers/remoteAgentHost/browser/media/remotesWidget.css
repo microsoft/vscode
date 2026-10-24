@@ -147,6 +147,12 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
+.remotes-widget .remotes-group-progress {
+	display: flex;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
 .remotes-widget .remotes-gutter-column,
 .remotes-widget .remotes-actions-column {
 	padding-inline: var(--vscode-spacing-size40);
@@ -157,18 +163,13 @@
 	justify-content: flex-start;
 }
 
-.remotes-widget .remotes-actions-column .monaco-toolbar,
-.remotes-widget .remotes-visibility-column .monaco-toolbar {
+.remotes-widget .remotes-actions-column .monaco-toolbar {
 	opacity: 0;
 	pointer-events: none;
 }
 
 .remotes-widget .monaco-list-row:is(:hover, .hovered, :focus-within) .remotes-actions-column .monaco-toolbar,
-.remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-actions-column .monaco-toolbar,
-.remotes-widget .monaco-list-row:is(:hover, .hovered, :focus-within) .remotes-visibility-column .monaco-toolbar,
-.remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-visibility-column .monaco-toolbar,
-.remotes-widget .remotes-row-hidden .remotes-visibility-column .monaco-toolbar,
-.remotes-widget .remotes-row-picker-unavailable .remotes-visibility-column .monaco-toolbar {
+.remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-actions-column .monaco-toolbar {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -193,6 +194,7 @@
 }
 
 .remotes-widget .remotes-group-count[hidden],
+.remotes-widget .remotes-group-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
 .remotes-widget .remotes-empty-description[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
