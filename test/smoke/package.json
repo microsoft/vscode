@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "ncp": "^2.0.0",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "vscode-jsonrpc": "^8.2.1"
   },
   "devDependencies": {
     "@types/ncp": "2.0.1",

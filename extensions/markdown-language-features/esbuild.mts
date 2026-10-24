@@ -28,4 +28,9 @@ run({
 	srcDir,
 	outdir: outDir,
 	beforeBuild: () => updateMarkdownEditorManifestFiles('write'),
+	additionalOptions: {
+		// The bundle starts the server copied by copyServerWorkerMain; only the unbundled extension
+		// resolves the package.
+		external: ['vscode', 'vscode-markdown-languageserver'],
+	},
 }, process.argv, copyServerWorkerMain);
