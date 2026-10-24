@@ -925,6 +925,11 @@ suite('RemotesWidget', () => {
 
 	test('section info actions open the same setup links for populated, collapsed, and empty groups', async () => {
 		const { widget, parent, model, documentation } = createWidget(OperatingSystem.Windows);
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([...model.remotes.get(), {
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: false,
+			connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
 		const openInfo = () => {
 			for (const action of parent.querySelectorAll<HTMLElement>('.remotes-group-row .remotes-actions-column .codicon-info')) {
 				action.click();
@@ -946,7 +951,7 @@ suite('RemotesWidget', () => {
 			link.click();
 		}
 		assert.deepStrictEqual(documentation, Array.from({ length: 4 }, () => [
-			'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-remote/wsl/install-wsl',
+			'https://aka.ms/vscode-agent-environments', 'https://aka.ms/vscode-agent-ssh', 'https://aka.ms/vscode-agent-tunnel', 'https://aka.ms/vscode-remote/wsl/install-wsl',
 		]).flat());
 	});
 

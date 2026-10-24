@@ -60,6 +60,7 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	environment: {
 		label: localize('remotes.empty.environments', "No environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
+		documentation: { label: localize('remotes.docs.environments', "Environments Setup Guide"), href: 'https://aka.ms/vscode-agent-environments' },
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
