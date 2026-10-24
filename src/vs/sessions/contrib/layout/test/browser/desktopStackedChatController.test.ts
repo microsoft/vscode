@@ -76,6 +76,10 @@ suite('Sessions - DesktopStackedChatController', () => {
 		override setHeaderHidden(hidden: boolean): void {
 			this.headerHidden = hidden;
 		}
+		sizedByHost = false;
+		override setSizedByHost(sized: boolean): void {
+			this.sizedByHost = sized;
+		}
 	}
 
 	const session = makeSession(URI.parse('test:/a'));
@@ -102,6 +106,7 @@ suite('Sessions - DesktopStackedChatController', () => {
 			enabled: chatView.enabled,
 			inputOnly: chatView.inputOnly.get(),
 			headerHidden: sessionView.headerHidden,
+			sizedByHost: sessionView.sizedByHost,
 			height: harness.partSizes.get(Parts.SESSIONS_PART)?.height,
 			minimum: harness.sessionsPartHeightConstraints?.minimum,
 			remembered: harness.layoutModeService.getMainWindowMode(owner, LayoutModeOwnerKind.Existing)?.inputOnly,
@@ -132,12 +137,13 @@ suite('Sessions - DesktopStackedChatController', () => {
 		const backSideBySide = state(chatView, sessionView);
 
 		assert.deepStrictEqual({ sideBySide, stacked, inputOnly, conversation, backSideBySide }, {
-			sideBySide: { enabled: false, inputOnly: false, headerHidden: false, height: 400, minimum: undefined, remembered: false },
-			stacked: { enabled: true, inputOnly: false, headerHidden: false, height: 400, minimum: collapsed, remembered: false },
-			inputOnly: { enabled: true, inputOnly: true, headerHidden: true, height: collapsed, minimum: collapsed, remembered: true },
+			sideBySide: { enabled: false, inputOnly: false, headerHidden: false, sizedByHost: false, height: 400, minimum: undefined, remembered: false },
+			stacked: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: 400, minimum: collapsed, remembered: false },
+			// Sized to its input, shorter than a session view otherwise is: the session view sets no minimum of its own.
+			inputOnly: { enabled: true, inputOnly: true, headerHidden: true, sizedByHost: true, height: collapsed, minimum: collapsed, remembered: true },
 			// Half of the column of the editor and the chat.
-			conversation: { enabled: true, inputOnly: false, headerHidden: false, height: Math.round((collapsed + 400) / 2), minimum: collapsed, remembered: false },
-			backSideBySide: { enabled: false, inputOnly: false, headerHidden: false, height: Math.round((collapsed + 400) / 2), minimum: undefined, remembered: false },
+			conversation: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: Math.round((collapsed + 400) / 2), minimum: collapsed, remembered: false },
+			backSideBySide: { enabled: false, inputOnly: false, headerHidden: false, sizedByHost: false, height: Math.round((collapsed + 400) / 2), minimum: undefined, remembered: false },
 		});
 	}));
 
@@ -189,11 +195,11 @@ suite('Sessions - DesktopStackedChatController', () => {
 		const releasedUp = state(chatView, sessionView);
 
 		assert.deepStrictEqual({ draggedDown, releasedDown, draggedUp, releasedUp }, {
-			draggedDown: { enabled: true, inputOnly: true, headerHidden: true, height: collapsed + 50, minimum: collapsed, remembered: true },
-			releasedDown: { enabled: true, inputOnly: true, headerHidden: true, height: collapsed, minimum: collapsed, remembered: true },
-			draggedUp: { enabled: true, inputOnly: false, headerHidden: false, height: collapsed + 70, minimum: collapsed, remembered: false },
+			draggedDown: { enabled: true, inputOnly: true, headerHidden: true, sizedByHost: true, height: collapsed + 50, minimum: collapsed, remembered: true },
+			releasedDown: { enabled: true, inputOnly: true, headerHidden: true, sizedByHost: true, height: collapsed, minimum: collapsed, remembered: true },
+			draggedUp: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: collapsed + 70, minimum: collapsed, remembered: false },
 			// Settles at the conversation's least height above the input.
-			releasedUp: { enabled: true, inputOnly: false, headerHidden: false, height: collapsed + 120, minimum: collapsed, remembered: false },
+			releasedUp: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: collapsed + 120, minimum: collapsed, remembered: false },
 		});
 	}));
 
@@ -209,7 +215,7 @@ suite('Sessions - DesktopStackedChatController', () => {
 		mainWindow.dispatchEvent(new PointerEvent('pointercancel'));
 		const cancelled = state(chatView, sessionView);
 
-		assert.deepStrictEqual(cancelled, { enabled: true, inputOnly: true, headerHidden: true, height: collapsed, minimum: collapsed, remembered: true });
+		assert.deepStrictEqual(cancelled, { enabled: true, inputOnly: true, headerHidden: true, sizedByHost: true, height: collapsed, minimum: collapsed, remembered: true });
 	}));
 
 	test('keeps the height of a chat showing only its input as the window resizes, and hands the constraints to the chat shown next', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -258,8 +264,8 @@ suite('Sessions - DesktopStackedChatController', () => {
 		const grown = state(chatView, sessionView);
 
 		assert.deepStrictEqual({ shrunk, grown }, {
-			shrunk: { enabled: true, inputOnly: true, headerHidden: true, height: collapsed, minimum: collapsed, remembered: false },
-			grown: { enabled: true, inputOnly: false, headerHidden: false, height: Math.round((collapsed + 500) / 2), minimum: collapsed, remembered: false },
+			shrunk: { enabled: true, inputOnly: true, headerHidden: true, sizedByHost: true, height: collapsed, minimum: collapsed, remembered: false },
+			grown: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: Math.round((collapsed + 500) / 2), minimum: collapsed, remembered: false },
 		});
 	}));
 });

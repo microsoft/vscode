@@ -156,8 +156,13 @@ export class DesktopStackedChatController extends Disposable {
 			this._forcedByWindow = false;
 			view.setInputOnly(this._layoutMode.getInputOnly());
 		}));
-		// Showing only the input, the chat shows no session header either.
-		store.add(autorun(reader => sessionView.setHeaderHidden(view.inputOnly.read(reader))));
+		// Showing only the input, the chat shows no session header either, and is sized to what it shows: the views around
+		// it keep no minimum height of their own, which would overflow the part and scroll it.
+		store.add(autorun(reader => {
+			const inputOnly = view.inputOnly.read(reader);
+			sessionView.setHeaderHidden(inputOnly);
+			sessionView.setSizedByHost(inputOnly);
+		}));
 
 		// Measured while it shows only the input: with the conversation, the session header shows above the input too.
 		let measured = 0;
@@ -217,6 +222,7 @@ export class DesktopStackedChatController extends Disposable {
 			this._view = undefined;
 			view.disableInputOnly();
 			sessionView.setHeaderHidden(false);
+			sessionView.setSizedByHost(false);
 			this._inputOnlyHeight = constObservable(0);
 			// The chat attached next, such as on a session switch, takes the constraints over rather than laying out twice.
 			queueMicrotask(() => {
