@@ -30,16 +30,11 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionLayoutMode, SessionSplitLayout } from '../../../common/sessionLayoutMode.js';
+import { STACKED_CHAT_CONVERSATION_MIN_HEIGHT, STACKED_CHAT_INPUT_MAX_HEIGHT } from '../../../common/layoutConstants.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly, clampStackedChatOnResize, decideStackedChatInputOnly, shouldDecideStackedChatInputOnly, shouldRestoreStackedChatConversation } from '../../../browser/parts/stackedChatInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
-
-/** The most the chat input, with the progress and approvals above it, grows to. */
-const CHAT_WINDOW_INPUT_MAX_HEIGHT = 400;
-
-/** The least room the conversation gets above the input while it is shown below the editor. */
-const CHAT_WINDOW_CONVERSATION_MIN_HEIGHT = 120;
 
 /** The share of the height of a chat window that its terminal row takes when it shows, and the least it takes. */
 const CHAT_WINDOW_TERMINAL_HEIGHT_RATIO = 0.3;
@@ -327,7 +322,7 @@ export class ChatWindowChatEditor extends EditorPane {
 				view.disableInputOnly();
 			} else if (previous !== false) {
 				// Back to how the chat was last shown below the editor: with or without the conversation.
-				view.enableInputOnly({ maxHeight: CHAT_WINDOW_INPUT_MAX_HEIGHT, inputOnly: state.inputOnly.read(undefined) });
+				view.enableInputOnly({ maxHeight: STACKED_CHAT_INPUT_MAX_HEIGHT, inputOnly: state.inputOnly.read(undefined) });
 			}
 		}));
 
@@ -480,7 +475,7 @@ export class ChatWindowChatEditor extends EditorPane {
 				} else if (previous !== layout || previousInputOnly) {
 					// Shown, or switched to by the chat, rather than dragged to: sized as the user last left it.
 					const conversationHeight = this._conversationHeight ?? Math.round(part.contentDimension.height / 2);
-					part.setSize(this.group, { width, height: Math.max(conversationHeight, collapsedHeight + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT) });
+					part.setSize(this.group, { width, height: Math.max(conversationHeight, collapsedHeight + STACKED_CHAT_CONVERSATION_MIN_HEIGHT) });
 				}
 			} finally {
 				this._sizing = false;
@@ -502,7 +497,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		const mode = this._constraintMode;
 		const input = this._inputOnlyHeight.get() + this._chrome;
 		this._setSizeConstraints(
-			mode?.minimum === undefined ? undefined : mode.minimum === 'input' ? input - 1 : input + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT,
+			mode?.minimum === undefined ? undefined : mode.minimum === 'input' ? input - 1 : input + STACKED_CHAT_CONVERSATION_MIN_HEIGHT,
 			mode?.maximumInput ? input : undefined,
 		);
 	}
@@ -659,7 +654,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			forcedByWindow: true,
 			groupHeight: part.getSize(this.group).height,
 			collapsedHeight: this._inputOnlyHeight.get() + this._chrome + this._insets,
-			conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT,
+			conversationMinHeight: STACKED_CHAT_CONVERSATION_MIN_HEIGHT,
 			editorHeight: part.getSize(editor).height,
 			editorMinimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 		});
@@ -683,14 +678,14 @@ export class ChatWindowChatEditor extends EditorPane {
 		}
 		const { width, height: groupHeight } = part.getSize(this.group);
 		const collapsedHeight = this._inputOnlyHeight.get() + this._chrome + this._insets;
-		const height = view.inputOnly.get() ? undefined : clampStackedChatOnResize({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, inputOnly: false });
+		const height = view.inputOnly.get() ? undefined : clampStackedChatOnResize({ groupHeight, collapsedHeight, conversationMinHeight: STACKED_CHAT_CONVERSATION_MIN_HEIGHT, inputOnly: false });
 		if (height === undefined) {
 			return;
 		}
 		const editor = part.groups.find(group => group !== this.group && group !== this._state?.terminalGroup.get());
 		this._sizing = true;
 		try {
-			if (editor && !stackedChatConversationFits({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, editorHeight: part.getSize(editor).height, editorMinimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height })) {
+			if (editor && !stackedChatConversationFits({ groupHeight, collapsedHeight, conversationMinHeight: STACKED_CHAT_CONVERSATION_MIN_HEIGHT, editorHeight: part.getSize(editor).height, editorMinimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height })) {
 				// The editor gives way first; the terminal row keeps its height, so the chat shows only its input.
 				this._forcedByWindow = true;
 				view.setInputOnly(true);
@@ -714,9 +709,9 @@ export class ChatWindowChatEditor extends EditorPane {
 		const part = this._editorGroupsService.getPart(this.group);
 		const { width, height: groupHeight } = part.getSize(this.group);
 		const collapsedHeight = this._inputOnlyHeight.get() + this._chrome + this._insets;
-		const { inputOnly, settleHeight } = decideStackedChatInputOnly({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, dragging });
+		const { inputOnly, settleHeight } = decideStackedChatInputOnly({ groupHeight, collapsedHeight, conversationMinHeight: STACKED_CHAT_CONVERSATION_MIN_HEIGHT, dragging });
 		// Remembered once it settles, so that the sizes it passes through while dragged down to the input are not.
-		if (!inputOnly && groupHeight >= collapsedHeight + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT) {
+		if (!inputOnly && groupHeight >= collapsedHeight + STACKED_CHAT_CONVERSATION_MIN_HEIGHT) {
 			this._settledConversationHeight = groupHeight;
 			this._rememberConversationHeight.schedule();
 		} else {

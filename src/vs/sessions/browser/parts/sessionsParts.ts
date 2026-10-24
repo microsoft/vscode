@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
-import { addDisposableListener, EventType, getClientArea, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getClientArea, IDimension, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
@@ -14,7 +14,7 @@ import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, IWindowSessionViewHost, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartHeightConstraints, ISessionsPartService, IToggleMaximizeSessionEvent, IWindowSessionViewHost, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 
 /**
@@ -73,6 +73,14 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	setContentVisible(visible: boolean): void {
 		this._mainPart.setContentVisible(visible);
+	}
+
+	get onDidLayout(): Event<IDimension> { return this._mainPart.onDidLayout; }
+
+	get chromeHeight(): number { return this._mainPart.chromeHeight; }
+
+	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
+		this._mainPart.setHeightConstraints(constraints);
 	}
 
 	toggleMaximizeSession(session: IActiveSession | undefined): void {

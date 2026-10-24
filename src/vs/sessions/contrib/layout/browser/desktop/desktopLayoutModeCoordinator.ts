@@ -171,6 +171,20 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		}
 	}
 
+	/** Whether the focused chat, stacked below the editor, shows only its input, as it was last left. */
+	getInputOnly(): boolean {
+		const focused = this._focusedOwner.get();
+		return focused ? this._layoutModeService.getMainWindowMode(focused.owner, focused.kind)?.inputOnly ?? false : false;
+	}
+
+	/** Remembers whether the focused chat, stacked below the editor, shows only its input. */
+	setInputOnly(inputOnly: boolean): void {
+		const focused = this._focusedOwner.get();
+		if (focused && this._isOwnerScoped(undefined)) {
+			this._layoutModeService.setMainWindowMode(focused.owner, focused.kind, { mode: this.mode.get(), splitLayout: this.splitLayout.get(), inputOnly });
+		}
+	}
+
 	/** Shows `mode` in the main window, through the same operations as its other layout actions. */
 	async setMode(mode: SessionLayoutMode, remembered?: IRememberedLayoutMode): Promise<void> {
 		if (this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {

@@ -18,6 +18,7 @@ import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
 import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktop/desktopDockedTabsCoordinator.js';
 import { DesktopLayoutModeCoordinator } from './desktop/desktopLayoutModeCoordinator.js';
+import { DesktopStackedChatController } from './desktop/desktopStackedChatController.js';
 import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrategy.js';
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
 import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
@@ -59,6 +60,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
 	protected _compositionStore: DesktopOwnerCompositionStore | undefined;
 	protected _layoutMode: DesktopLayoutModeCoordinator | undefined;
+	protected _stackedChat: DesktopStackedChatController | undefined;
 	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
 	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
 	private readonly _changesEditorTransitionContextKey = DesktopChangesEditorTransitionContext.bindTo(this._contextKeyService);
@@ -150,6 +152,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
 		// Before the strategies, so that it leaves a maximized editor area before they restore the side pane of a newly focused chat.
 		this._layoutMode = this._register(this._instantiationService.createInstance(DesktopLayoutModeCoordinator, this._ctx));
+		this._stackedChat = this._register(this._instantiationService.createInstance(DesktopStackedChatController, this._ctx, this._layoutMode));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(DesktopExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
 		this._register(this._instantiationService.createInstance(DesktopDraftSessionStrategy, this._ctx, detailPanel, visibilityStore));
