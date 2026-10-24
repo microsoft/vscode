@@ -313,8 +313,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 						displayName: candidate.displayName,
 						description: candidate.description,
 						publisher: candidate.publisher,
-						tags: getCanvasCompatibilityTags(candidate),
-						installCount: candidate.installCount,
+						...(candidate.kind === 'plugin' ? {
+							compatibilityTags: getCanvasCompatibilityTags(candidate),
+							installCount: candidate.installCount,
+						} : {}),
 						installable: false,
 						unavailableMessage: localize('copilot.customizationFeed.installUnavailable', "The SDK cannot install this customization in the selected session."),
 					};
@@ -884,8 +886,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 			path: candidate.kind === 'plugin' ? candidate.source?.path : undefined,
 			itemUrl: candidate.kind !== 'plugin' && candidate.source.kind === 'url' ? candidate.source.url : undefined,
 			connectorIds: candidate.connectorIds,
-			tags: getCanvasCompatibilityTags(candidate),
-			installCount: candidate.installCount,
+			...(candidate.kind === 'plugin' ? {
+				compatibilityTags: getCanvasCompatibilityTags(candidate),
+				installCount: candidate.installCount,
+			} : {}),
 			installable: true,
 		};
 	}
