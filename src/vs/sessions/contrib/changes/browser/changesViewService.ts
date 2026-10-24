@@ -132,8 +132,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	private readonly _changesetSelectionsBySession = new ResourceMap<ISessionChangesetSelections>();
 	private readonly _changesetSelectionChanged = observableSignal('changesView.changesetSelectionChanged');
 
-	setChangesetId(changesetId: string | undefined): void {
-		const activeSession = this.sessionsService.activeSession.get();
+	setChangesetId(changesetId: string | undefined, session?: IActiveSession): void {
+		const activeSession = session ?? this.sessionsService.activeSession.get();
 		const activeChat = activeSession?.activeChat.get();
 		if (!activeSession || !activeChat) {
 			return;
@@ -156,8 +156,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 	}
 
-	showChangeset(changeset: ISessionChangeset): void {
-		const activeSession = this.sessionsService.activeSession.get();
+	showChangeset(changeset: ISessionChangeset, session?: IActiveSession): void {
+		const activeSession = session ?? this.sessionsService.activeSession.get();
 		const activeChat = activeSession?.activeChat.get();
 		if (!activeSession || !activeChat) {
 			return;

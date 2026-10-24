@@ -600,6 +600,19 @@ suite('ChangesViewService', () => {
 		});
 	});
 
+	test('selects a changeset of an explicit session without affecting the active session', () => {
+		const branchChangeset = { ...createChangeset([]), id: 'branch' };
+		const turnChangeset = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID, isDefault: constObservable(false) };
+		const { service } = createHarness(createSession('a', { changesets: [branchChangeset, turnChangeset] }));
+		const other = createSession('b', { changesets: [branchChangeset, turnChangeset] });
+
+		service.setChangesetId(TURN_CHANGES_CHANGESET_ID, other);
+		const otherSelection = service.getSessionChanges(constObservable(other)).changesetObs.get()?.id;
+		const activeSelection = service.activeSessionChangesetObs.get()?.id;
+
+		assert.deepStrictEqual({ otherSelection, activeSelection }, { otherSelection: TURN_CHANGES_CHANGESET_ID, activeSelection: 'branch' });
+	});
+
 	test('confirmed deletion removes only the exact owner when the chat catalogue is incomplete or stale', () => {
 		const branch = { ...createChangeset([]), id: 'branch' };
 		const turn = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID, isDefault: constObservable(false) };

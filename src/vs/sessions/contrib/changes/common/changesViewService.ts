@@ -127,8 +127,10 @@ export interface IChangesViewService {
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
-	setChangesetId(changesetId: string | undefined): void;
-	showChangeset(changeset: ISessionChangeset): void;
+	/** Selects the changeset of the active chat of `session`, which defaults to the active session. */
+	setChangesetId(changesetId: string | undefined, session?: IActiveSession): void;
+	/** Shows a transient changeset in the active chat of `session`, which defaults to the active session. */
+	showChangeset(changeset: ISessionChangeset, session?: IActiveSession): void;
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;

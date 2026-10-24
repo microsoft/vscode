@@ -709,16 +709,16 @@ interface IChangesPickerLabel {
 	readonly isNonDefault: boolean;
 }
 
-function createChangesPickerLabelObservable(owner: object, changesViewService: IChangesViewService): IObservable<IChangesPickerLabel | undefined> {
+function createChangesPickerLabelObservable(owner: object, changes: IChangesSessionObservables): IObservable<IChangesPickerLabel | undefined> {
 	return derivedObservableWithCache<IChangesPickerLabel | undefined>(owner, (reader, lastValue) => {
-		const changeset = changesViewService.activeSessionChangesetObs.read(reader);
-		if (!changeset && changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+		const changeset = changes.changesetObs.read(reader);
+		if (!changeset && changes.changesetsLoadingObs.read(reader)) {
 			return lastValue;
 		}
 		if (!changeset) {
 			return undefined;
 		}
-		const defaultChangeset = findDefaultChangeset(changesViewService.activeSessionChangesetsObs.read(reader) ?? [], reader);
+		const defaultChangeset = findDefaultChangeset(changes.changesetsObs.read(reader) ?? [], reader);
 		return {
 			label: changeset.label,
 			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
@@ -735,19 +735,29 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChangesViewService changesViewService: IChangesViewService,
+		@ISessionsService sessionsService: ISessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const onDidRegister = this._register(new Emitter<void>());
-		const headerLabelObs = createChangesPickerLabelObservable(this, changesViewService);
-		const headerSummary = this._register(instantiationService.createInstance(ChangesPickerSummary));
+		const activeChanges = getActiveSessionChanges(changesViewService);
+		const headerLabelObs = createChangesPickerLabelObservable(this, activeChanges);
+		const headerSummary = this._register(instantiationService.createInstance(ChangesPickerSummary, activeChanges.changesSummaryObs));
 
 		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderPrimary, VERSIONS_PICKER_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs);
+			// The shared summary and label follow the active session; other sessions get their own.
+			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionsService), accessor.get(ISessionScope)));
+			if (scope.session === sessionsService.activeSession) {
+				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
+			}
+			const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);
+			const item = instantiationService.createInstance(ChangesPickerActionItem, action, summary, createChangesPickerLabelObservable(summary, scope.changes), scope);
+			item.own(summary);
+			return item;
 		}, onDidRegister.event));
 
 		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
@@ -1725,7 +1735,7 @@ export class ChangesViewPane extends ViewPane {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, undefined, undefined);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, undefined, undefined, this.scope);
 				}
 				return undefined;
 			},
@@ -1736,7 +1746,7 @@ export class ChangesViewPane extends ViewPane {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChangesDiffStatsAction.ID && action instanceof MenuItemAction) {
-					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, options);
+					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, options, this.scope);
 				}
 				return undefined;
 			},
@@ -2180,7 +2190,7 @@ class ChangesPickerSummaryContent extends Disposable {
 }
 
 /**
- * The active session's changes summary, shared by the Changes picker instances.
+ * A session's changes summary, shared by the Changes picker instances.
  *
  * Editor headers re-create their action view items whenever the active editor
  * changes, which happens several times while switching sessions. Leasing one
@@ -2197,7 +2207,7 @@ export class ChangesPickerSummary extends Disposable {
 	private _leased = false;
 
 	constructor(
-		@IChangesViewService private readonly _changesViewService: IChangesViewService,
+		private readonly _summaryObs: IObservable<ISessionChangesSummary | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -2233,7 +2243,7 @@ export class ChangesPickerSummary extends Disposable {
 	}
 
 	private _createContent(): ChangesPickerSummaryContent {
-		return this._instantiationService.createInstance(ChangesPickerSummaryContent, this._changesViewService.activeSessionChangesSummaryObs);
+		return this._instantiationService.createInstance(ChangesPickerSummaryContent, this._summaryObs);
 	}
 }
 
@@ -2249,18 +2259,22 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		action: MenuItemAction,
 		private readonly _summary: ChangesPickerSummary | undefined,
 		labelObs: IObservable<IChangesPickerLabel | undefined> | undefined,
+		scope: IChangesSessionScope | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
+		// Without an explicit scope the picker follows the active session.
+		const changes = scope?.changes ?? getActiveSessionChanges(changesViewService);
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
-				const changesets = changesViewService.activeSessionChangesetsObs.get() ?? [];
-				const selectedChangeset = changesViewService.activeSessionChangesetObs.get();
-				const sessionResource = changesViewService.activeSessionResourceObs.get();
-				const catalogueLoading = changesViewService.activeSessionChangesetsLoadingObs.get();
+				const changesets = changes.changesetsObs.get() ?? [];
+				const selectedChangeset = changes.changesetObs.get();
+				const sessionResource = changes.resourceObs.get();
+				const catalogueLoading = changes.changesetsLoadingObs.get();
+				const session = scope?.session.get();
 
 				return changesets.map(changeset => ({
 					...action,
@@ -2275,11 +2289,11 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 					},
 					enabled: !catalogueLoading && changeset.isEnabled.get(),
 					run: async () => {
-						if (changesViewService.activeSessionChangesetsLoadingObs.get()
-							|| !isEqual(changesViewService.activeSessionResourceObs.get(), sessionResource)) {
+						if (changes.changesetsLoadingObs.get()
+							|| !isEqual(changes.resourceObs.get(), sessionResource)) {
 							return;
 						}
-						changesViewService.setChangesetId(changeset.id);
+						changesViewService.setChangesetId(changeset.id, session);
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
 					}
 				} satisfies IActionWidgetDropdownAction));
@@ -2288,10 +2302,10 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changesViewService);
+		this._labelObs = labelObs ?? createChangesPickerLabelObservable(this, changes);
 		this._pickerEnabledObs = derived(reader => {
-			const changesets = changesViewService.activeSessionChangesetsObs.read(reader);
-			if (changesViewService.activeSessionChangesetsLoadingObs.read(reader)) {
+			const changesets = changes.changesetsObs.read(reader);
+			if (changes.changesetsLoadingObs.read(reader)) {
 				// Keep the picker stable; its retained entries cannot be selected until the new catalogue arrives.
 				return (changesets?.length ?? 0) > 0;
 			}
@@ -2299,7 +2313,7 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 		});
 
 		this._summaryObs = this._summary
-			? changesViewService.activeSessionChangesSummaryObs
+			? changes.changesSummaryObs
 			: undefined;
 		this._register(autorun(reader => {
 			this._labelObs.read(reader);
@@ -2312,6 +2326,11 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 				this.updateAvailability(pickerEnabled);
 			}
 		}));
+	}
+
+	/** Ties the lifetime of `disposable` to this item. */
+	own<T extends IDisposable>(disposable: T): T {
+		return this._register(disposable);
 	}
 
 	override render(container: HTMLElement): void {
@@ -2468,11 +2487,12 @@ class ChangesDiffStatsActionItem extends ActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
+		scope: IChangesSessionScope,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(null, action, { ...options, icon: false, label: false });
 
-		this._widget = this._register(instantiationService.createInstance(ChangesSummaryWidget));
+		this._widget = this._register(instantiationService.createInstance(ChangesSummaryWidget, scope.changes.changesSummaryObs));
 
 		this._register(autorun(reader => {
 			const changesSummary = this._widget.summary.read(reader);
