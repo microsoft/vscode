@@ -633,6 +633,59 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual(controller.topLevelCustomizations().map(customization => customization.name), ['mail']);
 	});
 
+	function pluginWithServer(root: string, serverName = 'fs'): PluginCustomization {
+		return {
+			type: CustomizationType.Plugin,
+			id: `plugin:${root}`,
+			uri: `file:///plugins/${root}`,
+			name: root,
+			children: [{ type: CustomizationType.McpServer, id: `mcp-child:${root}:${serverName}`, uri: `mcp-child:${root}:${serverName}`, name: serverName, state: stopped() }],
+		};
+	}
+
+	test('moves a live child state to the plugin that replaced its own under another URI', () => {
+		const { controller, actions, setCustomizations } = harness(store, { customizations: [pluginWithServer('demo')] });
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		actions.length = 0;
+
+		// The runtime keeps the server running, so no lifecycle update follows the republish.
+		setCustomizations([pluginWithServer('demo-rescoped')]);
+
+		assert.deepStrictEqual({ actions, runtimeStateIds: [...controller.runtimeStates.get().keys()] }, {
+			actions: [{ type: ActionType.SessionMcpServerStateChanged, id: 'mcp-child:demo-rescoped:fs', state: ready(), channel: MCP_FS_CHANNEL }],
+			runtimeStateIds: ['mcp-child:demo-rescoped:fs'],
+		});
+	});
+
+	test('does not lend a live child state to another plugin declaring the same server name', () => {
+		const { controller, actions, setCustomizations } = harness(store, { customizations: [pluginWithServer('first')] });
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		actions.length = 0;
+
+		setCustomizations([pluginWithServer('first'), pluginWithServer('second')]);
+
+		assert.deepStrictEqual({ actions, runtimeStateIds: [...controller.runtimeStates.get().keys()] }, {
+			actions: [],
+			runtimeStateIds: ['mcp-child:first:fs'],
+		});
+	});
+
+	test('does not move a live child state when its plugin is replaced while another plugin declares the same server name', () => {
+		const { controller, actions, setCustomizations } = harness(store, { customizations: [pluginWithServer('first'), pluginWithServer('other')] });
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		actions.length = 0;
+
+		setCustomizations([pluginWithServer('other'), pluginWithServer('first-rescoped')]);
+
+		assert.deepStrictEqual({ actions, runtimeStateIds: [...controller.runtimeStates.get().keys()] }, {
+			actions: [],
+			runtimeStateIds: ['mcp-child:first:fs'],
+		});
+	});
+
 	test('resolves a published child before the SDK reports it', () => {
 		const { controller } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);
