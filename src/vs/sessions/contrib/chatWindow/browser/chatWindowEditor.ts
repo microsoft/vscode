@@ -26,7 +26,7 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 import { GroupDirection, GroupLayoutPriority, GroupsArrangement, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import type { AbstractChatView } from '../../../browser/parts/chatView.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService, IWindowSessionViewHost } from '../../../services/sessions/browser/sessionsPartService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionLayoutMode, SessionSplitLayout } from '../../../common/sessionLayoutMode.js';
@@ -40,6 +40,22 @@ import './media/chatWindowEditor.css';
 /** The share of the height of a chat window that its terminal row takes when it shows, and the least it takes. */
 const CHAT_WINDOW_TERMINAL_HEIGHT_RATIO = 0.3;
 const CHAT_WINDOW_TERMINAL_MIN_HEIGHT = 120;
+
+/**
+ * How the session of a chat window is focused, such as when it becomes the active session: its window, and its chat
+ * only while the chat shows. Focusing the chat while only the editor shows would activate its hidden group, which shows
+ * the chat again; only the user's choice of a layout shows it.
+ */
+export function createChatWindowSessionViewHost(focusWindow: () => void, focusChat: () => void, isChatVisible: () => boolean): IWindowSessionViewHost {
+	return {
+		focus: () => {
+			focusWindow();
+			if (isChatVisible()) {
+				focusChat();
+			}
+		},
+	};
+}
 
 /** The chat of a chat window: the session it shows, with the state of the chat window. */
 export class ChatWindowChatInput extends EditorInput {
@@ -226,14 +242,16 @@ export class ChatWindowChatEditor extends EditorPane {
 			view.setActive(true);
 			// Hidden with this editor, as when the editor only shows: the Session Activity Bar can still show beside the editor.
 			view.setPartVisible(this._visible);
-			this._register(this._sessionsPartService.registerWindowSessionView(view, {
-				focus: () => {
+			this._register(this._sessionsPartService.registerWindowSessionView(view, createChatWindowSessionViewHost(
+				() => {
 					if (this._container) {
 						this._hostService.focus(dom.getWindow(this._container));
 					}
-					view.focus();
 				},
-			}));
+				() => view.focus(),
+				// By the layout rather than this pane's visibility: a group hidden by maximizing another still counts as visible.
+				() => this._state?.layout.get() !== SessionLayoutMode.EditorOnly,
+			)));
 		}
 		return this._sessionView;
 	}
