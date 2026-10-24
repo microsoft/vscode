@@ -241,9 +241,7 @@
 }
 div.chat-terminal-content-part.progress-step > div.chat-terminal-output-container.expanded > div > div.chat-terminal-output-body > div > div.chat-terminal-output-terminal > div > div.xterm-scrollable-element {
 	margin-left: -12px;
-	margin-right: -12px;
 	padding-left: 12px;
-	padding-right: 12px;
 	box-sizing: border-box;
 	background: inherit;
 }
@@ -291,7 +289,14 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	display: block;
 }
 
-.chat-terminal-output-container .xterm-scrollable-element .xterm-scrollbar {
+/*
+ * The outer scrollable owns horizontal scrolling. xterm's vertical scrollbar shows only while the
+ * output is hovered or focused, and not while it overflows horizontally, where it would scroll
+ * along with the content.
+ */
+.chat-terminal-output-container .xterm-scrollable-element .xterm-scrollbar.xterm-horizontal,
+.chat-terminal-output-container:not(.chat-terminal-output-container-scrollbars-visible) .xterm-scrollable-element .xterm-scrollbar.xterm-vertical,
+.chat-terminal-output-container.chat-terminal-output-container-horizontal-overflow .xterm-scrollable-element .xterm-scrollbar.xterm-vertical {
 	display: none;
 }
 
