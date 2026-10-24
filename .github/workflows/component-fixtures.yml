@@ -69,6 +69,14 @@ jobs:
         run: npm ci
         working-directory: test/componentFixtures/playwright
 
+      # Pushes to main save this cache, so pull requests don't download the browsers.
+      - name: Restore Playwright browsers
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: chromium
+          package-lock: test/componentFixtures/playwright/package-lock.json
+          save-cache: ${{ github.event_name != 'pull_request' }}
+
       - name: Install Playwright Chromium
         run: npx playwright install chromium
         working-directory: test/componentFixtures/playwright
@@ -145,6 +153,13 @@ jobs:
         with:
           name: component-explorer
           path: .build/rspack-serve-out/
+
+      # Pushes to main save this cache, so pull requests don't download the browsers.
+      - name: Restore Playwright browsers
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: chromium
+          save-cache: ${{ github.event_name != 'pull_request' }}
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium

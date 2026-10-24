@@ -203,6 +203,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      # The Linux browser tests install these browsers, see pr-linux-test.yml
+      - name: Cache Playwright browsers
+        continue-on-error: true
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: --only-shell chromium
+          save-cache: 'true'
+
   macOS:
     name: macOS
     needs: caches
@@ -279,6 +287,14 @@ jobs:
           save-cache: 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+
+      # The macOS browser tests install these browsers, see pr-darwin-test.yml
+      - name: Cache Playwright browsers
+        continue-on-error: true
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: --only-shell chromium webkit
+          save-cache: 'true'
 
   windows:
     name: Windows
@@ -362,6 +378,14 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/restore-wsl-installer
         with:
+          save-cache: 'true'
+
+      # The Windows browser tests install these browsers, see pr-win32-test.yml
+      - name: Cache Playwright browsers
+        continue-on-error: true
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: --only-shell chromium
           save-cache: 'true'
 
   copilot-linux:

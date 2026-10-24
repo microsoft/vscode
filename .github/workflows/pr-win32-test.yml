@@ -158,6 +158,13 @@ jobs:
         working-directory: test/integration/browser
         run: npm run compile
 
+      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      - name: Restore Playwright browsers
+        if: ${{ inputs.browser_tests }}
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: --only-shell chromium
+
       - name: Install Playwright Chromium
         if: ${{ inputs.browser_tests }}
         shell: pwsh
