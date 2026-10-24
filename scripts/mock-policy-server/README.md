@@ -7,7 +7,7 @@ the real API. It has no runtime dependencies and is not shipped with VS Code.
 ## Start
 
 ```sh
-npm run mock-policy-server
+pnpm run mock-policy-server
 ```
 
 Open `http://127.0.0.1:3000`. Managed settings is mocked by default. Use the
@@ -99,7 +99,7 @@ Other Copilot clients share that cache. For an isolated run, start both the
 server and Code OSS with the same temporary cache home:
 
 ```sh
-COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" npm run mock-policy-server
+COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" pnpm run mock-policy-server
 COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" ./scripts/code.sh
 ```
 
@@ -248,11 +248,11 @@ is restricted to requests made through a loopback URL because the source can be
 a local file path or remote URL.
 
 ```sh
-npm run mock-policy-server -- --upstream https://api.ghe.example.com
-npm run mock-policy-server -- --schema /path/to/managed-settings-schema.json
-npm run mock-policy-server -- --port 3001
-npm run mock-policy-server -- --state-file /path/to/mock-policy-state.json
-npm run mock-policy-server -- --help
+pnpm run mock-policy-server --upstream https://api.ghe.example.com
+pnpm run mock-policy-server --schema /path/to/managed-settings-schema.json
+pnpm run mock-policy-server --port 3001
+pnpm run mock-policy-server --state-file /path/to/mock-policy-state.json
+pnpm run mock-policy-server --help
 ```
 
 | Flag | Environment variable | Default |

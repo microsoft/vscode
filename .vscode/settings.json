@@ -60,6 +60,7 @@
 		"**/node_modules/**/*.*": true,
 		"**/yarn.lock": true,
 		"**/package-lock.json": true,
+		"**/pnpm-lock.yaml": true,
 		"**/Cargo.lock": true,
 		"out/**": true,
 		"out-build/**": true,
@@ -191,6 +192,7 @@
 	],
 	// --- Tools ---
 	"npm.exclude": "**/extensions/**",
+	"npm.packageManager": "pnpm",
 	"eslint.useFlatConfig": true,
 	"emmet.excludeLanguages": [],
 	"gulp.autoDetect": "off",

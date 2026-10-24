@@ -46,9 +46,9 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		this._disposables = disposables;
 
 		this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10000);
-		this._statusBarItem.name = 'npm Install State';
-		this._statusBarItem.text = '$(warning) node_modules is stale - run npm i';
-		this._statusBarItem.tooltip = 'Dependencies are out of date. Click to run npm install.';
+		this._statusBarItem.name = 'pnpm Install State';
+		this._statusBarItem.text = '$(warning) node_modules is stale - run pnpm install';
+		this._statusBarItem.tooltip = 'Dependencies are out of date. Click to run pnpm install.';
 		this._statusBarItem.command = 'vscode-extras.runNpmInstall';
 		this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
 		this._disposables.push(this._statusBarItem);
@@ -93,15 +93,15 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		}
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
 		if (!workspaceRoot) {
-			void vscode.window.showErrorMessage('npm install requires an open workspace folder');
+			void vscode.window.showErrorMessage('pnpm install requires an open workspace folder');
 			return;
 		}
-		this._terminal = vscode.window.createTerminal({ name: 'npm install', cwd: workspaceRoot });
+		this._terminal = vscode.window.createTerminal({ name: 'pnpm install', cwd: workspaceRoot });
 		this._terminal.sendText('node build/npm/fast-install.ts --force');
 		this._terminal.show();
 
-		this._statusBarItem.text = '$(loading~spin) npm i';
-		this._statusBarItem.tooltip = 'npm install is running...';
+		this._statusBarItem.text = '$(loading~spin) pnpm install';
+		this._statusBarItem.tooltip = 'pnpm install is running...';
 		this._statusBarItem.backgroundColor = undefined;
 		this._statusBarItem.command = 'vscode-extras.runNpmInstall';
 	}
@@ -146,11 +146,11 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		if (changedFiles.length === 0) {
 			this._statusBarItem.hide();
 		} else {
-			this._statusBarItem.text = '$(warning) node_modules is stale - run npm i';
+			this._statusBarItem.text = '$(warning) node_modules is stale - run pnpm install';
 			const tooltip = new vscode.MarkdownString();
 			tooltip.isTrusted = true;
 			tooltip.supportHtml = true;
-			tooltip.appendMarkdown('**Dependencies are out of date.** Click to run npm install.\n\nChanged files:\n\n');
+			tooltip.appendMarkdown('**Dependencies are out of date.** Click to run pnpm install.\n\nChanged files:\n\n');
 			for (const entry of changedFiles) {
 				if (entry.isFile) {
 					const args = encodeURIComponent(JSON.stringify(entry.label));
