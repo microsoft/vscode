@@ -133,8 +133,27 @@
 }
 
 .agents-window-extension-row.disabled .agents-window-extension-icon,
-.agents-window-extension-row.disabled .agents-window-extension-details {
+.agents-window-extension-row.disabled .agents-window-extension-name,
+.agents-window-extension-row.disabled .agents-window-extension-publisher,
+.agents-window-extension-row.disabled .agents-window-extension-description {
 	opacity: 0.6;
+}
+
+/* Marks extensions that contribute things the Agents window doesn't support. Not dimmed with disabled rows, as it matters most before enabling them. Outranks the workbench's generic codicon size and color. */
+.agents-window-extension-row .agents-window-extension-name-row > .agents-window-extension-warning.codicon {
+	flex-shrink: 0;
+	align-self: center;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground));
+}
+
+/* What suggested extensions contribute, which is why users might enable them. Not dimmed with disabled rows either. */
+.agents-window-extension-contributions {
+	display: flex;
+	align-self: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	overflow: hidden;
 }
 
 .agents-window-extensions-empty {
