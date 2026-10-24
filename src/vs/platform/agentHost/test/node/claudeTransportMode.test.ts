@@ -52,9 +52,12 @@ suite('claudeTransportMode', () => {
 			// third-party.
 			['nothing configured, no provider field', { tokenSource: 'none' }, false],
 			['empty report', {}, false],
-			// `claude login` / `CLAUDE_CODE_OAUTH_TOKEN` — the keychain case no
-			// filesystem check could ever see.
+			// `claude setup-token` / `CLAUDE_CODE_OAUTH_TOKEN` — an OAuth token
+			// handed in through the environment names its source.
 			['oauth token', { tokenSource: 'ANTHROPIC_AUTH_TOKEN', apiProvider: 'firstParty' }, true],
+			// `claude login` (keychain): measured `accountInfo()` reports neither `tokenSource` nor `apiKeySource`, only the account itself (#333738).
+			['claude.ai subscription login (keychain)', { email: 'user@example.com', organization: 'Example', subscriptionType: 'Claude Max', apiProvider: 'firstParty' }, true],
+			['claude.ai subscription login, tier only', { subscriptionType: 'Claude Max', apiProvider: 'firstParty' }, true],
 			// An API key reports through `apiKeySource` and leaves `tokenSource`
 			// at its `'none'` sentinel, so testing `tokenSource` alone misses it.
 			['api key', { tokenSource: 'none', apiKeySource: 'ANTHROPIC_API_KEY', apiProvider: 'firstParty' }, true],
