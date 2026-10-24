@@ -25,6 +25,12 @@ jobs:
   # check, which satisfies required status checks. The core test jobs skip in
   # the calling job instead, and required-checks reports their required checks.
   # Jobs also run when change detection fails.
+  #
+  # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
+  # Linux runs every unit test on every push; the macOS and Windows unit test jobs download the
+  # unit-test-plan artifact and run only the listed files. The artifact only exists when the
+  # plan selects files, and without it those jobs run every unit test. A ripple failure only fails
+  # the job for pull requests that change build/ripple.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -44,9 +50,10 @@ jobs:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: |
-            .github/actions/detect-changes
-            .github/actions/detect-agent-host-e2e-changes
+          # The merge commit and its parents: the unit test plan compares the base branch (the
+          # first parent) with the merge result. ripple reads every file of both commits, so this
+          # cannot be a sparse (blobless) checkout.
+          fetch-depth: 2
 
       - name: Detect changes
         id: detect
@@ -59,6 +66,66 @@ jobs:
         uses: ./.github/actions/detect-agent-host-e2e-changes
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Must match the cache key of pr-ripple.yml, which saves the binary on main.
+      - name: Restore ripple
+        id: cache-ripple
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/ripple/target/release/ripple
+          key: "ripple-${{ runner.os }}-${{ hashFiles('build/ripple/Cargo.lock', 'build/ripple/Cargo.toml', 'build/ripple/rust-toolchain.toml', 'build/ripple/src/**') }}"
+
+      - name: Build ripple
+        id: build-ripple
+        if: steps.cache-ripple.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        working-directory: build/ripple
+        run: |
+          set -e
+          rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" --profile minimal
+          cargo test --release --locked
+          cargo build --release --locked
+
+      - name: Save ripple
+        if: steps.build-ripple.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build/ripple/target/release/ripple
+          key: ${{ steps.cache-ripple.outputs.cache-primary-key }}
+
+      - name: Plan unit tests
+        id: plan
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          set -e
+          build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/unit-test-plan > /dev/null
+          echo "Linux runs every unit test; macOS and Windows run the selected files. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload unit test plan
+        if: steps.plan.outputs.select == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unit-test-plan
+          path: .build/unit-test-plan
+          retention-days: 7
+
+      # The ripple steps above never fail the job, so that a broken ripple cannot block unrelated
+      # pull requests: their macOS and Windows unit test jobs run every unit test instead. A pull
+      # request that changes ripple fails here, before the failure reaches main. (A build that times
+      # out leaves no binary to plan with.)
+      - name: Report a ripple failure
+        if: steps.build-ripple.outcome == 'failure' || steps.plan.outcome != 'success'
+        run: |
+          if [ -n "$(git diff --name-only HEAD^1 HEAD -- build/ripple)" ]; then
+            echo "::error::This pull request changes build/ripple, and ripple failed to build, pass its tests or plan the unit tests. See the steps above."
+            exit 1
+          fi
+          echo "::warning::ripple failed to build, pass its tests or plan the unit tests, so macOS and Windows run every unit test. See the steps above."
 
   compile:
     name: Compile & Hygiene
@@ -276,6 +343,7 @@ jobs:
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   macos-electron-tests:
     name: macOS (run)
@@ -320,6 +388,7 @@ jobs:
       browser_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   macos-browser-integration-tests:
     name: macOS (integration & smoke)
@@ -350,6 +419,7 @@ jobs:
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   windows-electron-tests:
     name: Windows (run)
@@ -411,6 +481,7 @@ jobs:
       browser_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   windows-browser-integration-tests:
     name: Windows (integration & smoke)

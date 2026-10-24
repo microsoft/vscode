@@ -22,11 +22,11 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
 
 /**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; }}
+ * @type {{ build: boolean; run: string; runList: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
-	string: ['run', 'coveragePath', 'coverageFormats', 'timeout', 'rerun-failed-files'],
+	string: ['run', 'runList', 'coveragePath', 'coverageFormats', 'timeout', 'rerun-failed-files'],
 	alias: {
 		h: 'help',
 		t: 'timeout'
@@ -39,6 +39,7 @@ const args = minimist(process.argv.slice(2), {
 	description: {
 		build: 'Run from out-build',
 		run: 'Run a single file',
+		runList: 'Only run the tests whose files are listed in a file, one per line',
 		coverage: 'Generate a coverage report',
 		coveragePath: 'Path to coverage report to generate',
 		coverageFormats: 'Coverage formats to generate',
@@ -53,12 +54,16 @@ if (args.help) {
 Options:
 --build          Run from out-build
 --run <file>     Run a single file
+--runList <file> Only run the tests whose files are listed in <file>, one per line
 --coverage       Generate a coverage report
 --timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
 --rerun-failed-files <count>  Rerun the test files that failed, each time in a fresh process, up to <count> more times
 --help           Show help`);
 	process.exit(0);
 }
+
+// --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
+const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js'))) : undefined;
 
 const TEST_GLOB = '**/test/**/*.test.js';
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
@@ -216,9 +221,12 @@ function main() {
 				/** @type {string[]} */
 				const modules = [];
 				for (const file of files) {
-					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob))) {
+					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob)) && (!runList || runList.has(file))) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
+				}
+				if (runList) {
+					console.log(`Running the ${modules.length} node.js test files of the ${runList.size} files listed in ${args.runList}`);
 				}
 				loadModules(modules).then(() => cb(null), cb);
 			});
