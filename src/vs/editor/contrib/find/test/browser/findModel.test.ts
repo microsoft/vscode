@@ -14,6 +14,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { FindModelBoundToEditorModel } from '../../browser/findModel.js';
 import { FindReplaceState } from '../../browser/findState.js';
+import { EndOfLineSequence } from '../../../../common/model.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('FindModel', () => {
@@ -2399,6 +2400,80 @@ suite('FindModel', () => {
 			assert.strictEqual(findState.matchesCount, 1001);
 			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
 			assert.strictEqual(findState.matchesPosition, 900);
+		});
+	});
+
+	test('issue #196884: replace works with lookbehind on line feed', () => {
+		for (const eol of [EndOfLineSequence.LF, EndOfLineSequence.CRLF]) {
+			const textArr = ['a-b-c', 'b-c-d', 'b-c-e'];
+			withTestCodeEditor(textArr, {}, (_editor) => {
+				const editor = _editor as IActiveCodeEditor;
+				editor.getModel().setEOL(eol);
+				editor.setSelection(new Selection(2, 1, 2, 2));
+
+				const findState = disposables.add(new FindReplaceState());
+				findState.change({ searchString: '(?<=\\n)b', replaceString: 'BBB', isRegex: true }, false);
+				const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+				findModel.replace();
+
+				assert.deepStrictEqual(editor.getModel().getLinesContent(), ['a-b-c', 'BBB-c-d', 'b-c-e']);
+			});
+		}
+	});
+
+	test('issue #196884: replacing one by one with lookbehind on line feed', () => {
+		for (const searchString of ['(?<=\\n)b', '(?<=\n)b']) {
+			for (const eol of [EndOfLineSequence.LF, EndOfLineSequence.CRLF]) {
+				const textArr = ['a-b-c', 'a-b-d', 'a-c-d', 'a-d-e', 'b-c-d', 'b-c-e', 'b-d-e', 'c-d-e'];
+				withTestCodeEditor(textArr, {}, (_editor) => {
+					const editor = _editor as IActiveCodeEditor;
+					editor.getModel().setEOL(eol);
+
+					const findState = disposables.add(new FindReplaceState());
+					findState.change({ searchString, replaceString: 'BBB', isRegex: true }, false);
+					const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+					// the first call selects the first match, every following call replaces the selected match
+					for (let i = 0; i < 4; i++) {
+						findModel.replace();
+					}
+
+					assert.deepStrictEqual(editor.getModel().getLinesContent(), ['a-b-c', 'a-b-d', 'a-c-d', 'a-d-e', 'BBB-c-d', 'BBB-c-e', 'BBB-d-e', 'c-d-e']);
+				});
+			}
+		}
+	});
+
+	test('issue #196884: replace with lookbehind captures uses the match on the selection', () => {
+		const textArr = ['a', 'b'];
+		withTestCodeEditor(textArr, {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+			editor.setSelection(new Selection(2, 1, 2, 2));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: '(?<=(.*)\\n)b', replaceString: '$1$1', isRegex: true }, false);
+			const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+			findModel.replace();
+
+			assert.deepStrictEqual(editor.getModel().getLinesContent(), ['a', 'aa']);
+		});
+	});
+
+	test('issue #196884: replace with lookbehind respects the find scope', () => {
+		const textArr = ['a', 'b', 'c'];
+		withTestCodeEditor(textArr, {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+			editor.setSelection(new Selection(2, 1, 2, 2));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: '(?<!\\n)b', replaceString: 'X', isRegex: true, searchScope: [new Range(2, 1, 3, 2)] }, false);
+			const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+			findModel.replace();
+
+			assert.deepStrictEqual(editor.getModel().getLinesContent(), ['a', 'X', 'c']);
 		});
 	});
 
