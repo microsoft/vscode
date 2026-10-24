@@ -269,6 +269,71 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		});
 	});
 
+	test('in the center panel alignment, hiding the chat gives its room to the editor, not the panel, and showing it restores the sizes, also across a session switch', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+		harness.panelAlignment = 'center';
+		const toggleChat = () => harness.instaService.invokeFunction(accessor => CommandsRegistry.getCommand(MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.chat)!.handler(accessor));
+		const sizes = () => ({ editor: harness.partSizes.get(Parts.EDITOR_PART), panel: harness.partSizes.get(Parts.PANEL_PART) });
+		const setSizes = (editor: [number, number], chat: [number, number], panel: [number, number]) => {
+			harness.partSizes.set(Parts.EDITOR_PART, { width: editor[0], height: editor[1] });
+			harness.partSizes.set(Parts.SESSIONS_PART, { width: chat[0], height: chat[1] });
+			harness.partSizes.set(Parts.PANEL_PART, { width: panel[0], height: panel[1] });
+		};
+
+		// Stacked: the column of the editor, the chat and the panel.
+		controller.layoutMode.setMode(SessionLayoutMode.Stacked);
+		setSizes([916, 113], [916, 336], [916, 184]);
+		await toggleChat();
+		const stackedHidden = sizes();
+		await toggleChat();
+		const stackedShown = sizes();
+
+		// Side by side: the column of the chat and the panel, beside the editor.
+		controller.layoutMode.setMode(SessionLayoutMode.SideBySide);
+		setSizes([300, 752], [612, 336], [612, 410]);
+		await toggleChat();
+		const sideBySideHidden = sizes();
+		// Round trip through a chat that shows its chat, and back to the one remembered with it hidden.
+		await focus(controller, sessionB);
+		const otherSession = sizes();
+		await focus(controller, sessionA);
+		const backHidden = { ...sizes(), mode: state(controller).mode };
+		// The session switched back to keeps its panel as it left it.
+		const panelVisible = harness.partVisibility.get(Parts.PANEL_PART);
+		await toggleChat();
+		const sideBySideShown = sizes();
+
+		assert.deepStrictEqual({ stackedHidden, stackedShown, sideBySideHidden, otherSession, backHidden, panelVisible, sideBySideShown }, {
+			// The editor takes the chat's height; the panel keeps its own.
+			stackedHidden: { editor: { width: 916, height: 449 }, panel: { width: 916, height: 184 } },
+			stackedShown: { editor: { width: 916, height: 113 }, panel: { width: 916, height: 184 } },
+			// The panel's column narrows to its least width, and the editor widens by as much.
+			sideBySideHidden: { editor: { width: 592, height: 752 }, panel: { width: 320, height: 410 } },
+			// An unvisited chat keeps what the window shows.
+			otherSession: { editor: { width: 592, height: 752 }, panel: { width: 320, height: 410 } },
+			backHidden: { editor: { width: 592, height: 752 }, panel: { width: 320, height: 410 }, mode: SessionLayoutMode.EditorOnly },
+			panelVisible: false,
+			// The editor's width as before; the hidden panel is left to show as the grid lays it out.
+			sideBySideShown: { editor: { width: 300, height: 752 }, panel: { width: 320, height: 410 } },
+		});
+	});
+
+	test('in the justify panel alignment, hiding the chat leaves the editor and the panel sizes to the grid', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+		harness.partSizes.set(Parts.EDITOR_PART, { width: 300, height: 452 });
+		harness.partSizes.set(Parts.PANEL_PART, { width: 916, height: 297 });
+		await harness.instaService.invokeFunction(accessor => CommandsRegistry.getCommand(MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.chat)!.handler(accessor));
+
+		assert.deepStrictEqual({ editor: harness.partSizes.get(Parts.EDITOR_PART), panel: harness.partSizes.get(Parts.PANEL_PART) }, {
+			editor: { width: 300, height: 452 },
+			panel: { width: 916, height: 297 },
+		});
+	});
+
 	test('shows each mode through the existing side pane operations, editor only hiding only the chat', async () => {
 		const controller = createController('chat', sessionA);
 		await controller.whenRestored();

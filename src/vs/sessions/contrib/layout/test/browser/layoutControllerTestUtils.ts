@@ -258,6 +258,7 @@ export interface ITestLayoutHarness {
 	setEditorMaximizedCalls: boolean[];
 	/** The side pane's arrangement with the Sessions Part, as the layout service reports it. */
 	sidePaneArrangement: SessionSplitLayout;
+	panelAlignment: 'center' | 'justify';
 	onDidChangeSidePaneArrangement: Emitter<SessionSplitLayout>;
 	/** The chat windows the chat window service reports open. */
 	chatWindowsObs: ISettableObservable<readonly IChatWindow[]>;
@@ -401,6 +402,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorMaximized: false,
 		setEditorMaximizedCalls: [],
 		sidePaneArrangement: SessionLayoutMode.SideBySide,
+		panelAlignment: 'justify',
 		onDidChangeSidePaneArrangement: store.add(new Emitter<SessionSplitLayout>()),
 		chatWindowsObs: observableValue<readonly IChatWindow[]>('chatWindows', []),
 		executedCommands: [],
@@ -600,6 +602,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override getSize(part: Parts): IDimension {
 			return harness.partSizes.get(part) ?? { width: 0, height: 0 };
 		}
+		override getPanelAlignment() { return harness.panelAlignment; }
 		suppressEditorPartAutoVisibility(): IDisposable {
 			harness.editorPartAutoVisibilitySuppressionDepth++;
 			return toDisposable(() => harness.editorPartAutoVisibilitySuppressionDepth--);

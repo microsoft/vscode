@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDimension } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
@@ -28,6 +29,10 @@ export const MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS: Readonly<Record<SessionLayoutM
 	[SessionLayoutMode.Stacked]: 'workbench.action.agentSessions.layout.showStacked',
 	[SessionLayoutMode.SideBySide]: 'workbench.action.agentSessions.layout.showSideBySide',
 };
+
+/** Side by side in the center panel alignment, the share of its column the panel keeps alone, and the least it keeps. */
+const PANEL_ONLY_WIDTH_RATIO = 0.4;
+const PANEL_ONLY_MIN_WIDTH = 320;
 
 /** The commands of the toggles of the main window's Layout menu: Show Chat, Show Editor, and Stacked. */
 export const MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS = {
@@ -61,6 +66,10 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 	private readonly _focusedOwner: IObservable<IFocusedOwner | undefined>;
 	/** The chat of the main window that is focused, whose layout mode the window shows and remembers. */
 	readonly focusedOwner: IObservable<IChatLayoutOwner | undefined>;
+	/** The sizes of the editor and the panel before the chat was hidden in the center panel alignment. */
+	private _sizesBeforeChatHidden: { readonly editor: IDimension; readonly panel: IDimension } | undefined;
+	/** The width the panel was left at alone in its column, side by side in the center panel alignment. */
+	private _panelOnlyWidth: number | undefined;
 	/** The chat that just returned from a chat window, to show in its full mode once it is focused. */
 	private _returning: IFocusedOwner | undefined;
 
@@ -193,7 +202,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 		}
-		this._layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+		this._hideChat();
 	}
 
 	/** Whether the chat (the Sessions Part) is hidden, rather than covered by a custom view. */
@@ -201,13 +210,54 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		return !this._layoutService.isVisible(Parts.SESSIONS_PART) && !this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART);
 	}
 
+	/**
+	 * Hides the chat. In the center panel alignment, where the panel shares the chat's column, the editor takes the chat's
+	 * room rather than the panel: stacked, the editor takes its height; side by side, the column of the panel narrows and
+	 * the editor widens. The sizes before are restored as the chat shows again.
+	 */
+	private _hideChat(): void {
+		const center = this._layoutService.getPanelAlignment() === 'center' && this._layoutService.isVisible(Parts.PANEL_PART);
+		const editor = this._layoutService.getSize(Parts.EDITOR_PART);
+		const chat = this._layoutService.getSize(Parts.SESSIONS_PART);
+		const panel = this._layoutService.getSize(Parts.PANEL_PART);
+		this._layoutService.setPartHidden(true, Parts.SESSIONS_PART);
+		if (!center) {
+			this._sizesBeforeChatHidden = undefined;
+			return;
+		}
+		this._sizesBeforeChatHidden = { editor, panel };
+		if (this._layoutService.getSidePaneArrangement() === SessionLayoutMode.Stacked) {
+			this._layoutService.setSize(Parts.PANEL_PART, panel);
+			this._layoutService.setSize(Parts.EDITOR_PART, { width: editor.width, height: editor.height + chat.height });
+		} else {
+			const panelWidth = Math.min(panel.width, this._panelOnlyWidth ?? Math.max(PANEL_ONLY_MIN_WIDTH, Math.round(panel.width * PANEL_ONLY_WIDTH_RATIO)));
+			this._layoutService.setSize(Parts.PANEL_PART, { width: panelWidth, height: this._layoutService.getSize(Parts.PANEL_PART).height });
+			this._layoutService.setSize(Parts.EDITOR_PART, { width: editor.width + panel.width - panelWidth, height: editor.height });
+		}
+	}
+
 	/** Shows the chat: it may be hidden (Editor only), or hidden with the maximized editor area, which is restored. */
 	private _showChat(): void {
 		if (this._layoutService.isEditorMaximized()) {
 			restoreMainEditorPart(this._layoutService);
 		}
-		if (this._isChatHidden()) {
-			this._layoutService.setPartHidden(false, Parts.SESSIONS_PART);
+		if (!this._isChatHidden()) {
+			return;
+		}
+		const sizes = this._sizesBeforeChatHidden;
+		this._sizesBeforeChatHidden = undefined;
+		const centerSideBySide = this._layoutService.getPanelAlignment() === 'center' && this._layoutService.getSidePaneArrangement() === SessionLayoutMode.SideBySide && this._layoutService.isVisible(Parts.PANEL_PART);
+		if (centerSideBySide) {
+			// The width the panel was left at alone in its column, for the next time.
+			this._panelOnlyWidth = this._layoutService.getSize(Parts.PANEL_PART).width;
+		}
+		this._layoutService.setPartHidden(false, Parts.SESSIONS_PART);
+		if (sizes && this._layoutService.getPanelAlignment() === 'center') {
+			this._layoutService.setSize(Parts.EDITOR_PART, sizes.editor);
+			// The panel may have been hidden since, such as by the session switched to.
+			if (this._layoutService.isVisible(Parts.PANEL_PART)) {
+				this._layoutService.setSize(Parts.PANEL_PART, sizes.panel);
+			}
 		}
 	}
 
