@@ -18,6 +18,8 @@ Remote picker visibility combines provider availability with a machine/profile-l
 
 Accepting a remote folder through the Environments, SSH, Tunnel, or WSL subpicker clears that provider's hidden preference before selecting the workspace; cancellation does not. Existing drafts retain their selected environment and validate submission against provider availability and connection state, independently of the hidden preference.
 
+The `sessions.chat.experimental.environmentPickerManageRemotes` setting gates management entry points and application of hidden preferences. When disabled, provider visibility follows its original availability rules and saved preferences are neither applied nor cleared by selection. Changes apply live; re-enabling restores the saved preferences.
+
 ## Registration
 
 Kind-specific contributions create and register one provider for each reusable remote host they own, disposing it when that host is removed. Cloud sandbox environments instead register internal session backends under the logical Cloud creation provider. These backends retain per-environment connections, caches, and routing identities but do not advertise independent workspace or session creation targets. The workbench-owned [RemoteAgentHostContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.ts) observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring. The Agents Window owns host management and its native provider adapters; the Editor Window uses this shared integration for cloud sandboxes.

@@ -26,6 +26,7 @@ import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAge
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -57,6 +58,7 @@ import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/constants.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v5.';
@@ -346,10 +348,15 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.hostDescription = config.hostDescription;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
+		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, false, this._configurationService);
 		this.isAvailableInEnvironmentPicker = config.isVisibleInEnvironmentPicker ?? constObservable(true);
 		this.isVisibleInEnvironmentPicker = derived(this, reader =>
-			!pickerVisibility.isHidden(pickerKey, reader) && this.isAvailableInEnvironmentPicker?.read(reader) !== false);
-		this.showInEnvironmentPicker = () => pickerVisibility.setHidden(pickerKey, false);
+			(!manageRemotes.read(reader) || !pickerVisibility.isHidden(pickerKey, reader)) && this.isAvailableInEnvironmentPicker?.read(reader) !== false);
+		this.showInEnvironmentPicker = () => {
+			if (manageRemotes.get()) {
+				pickerVisibility.setHidden(pickerKey, false);
+			}
+		};
 		this.removeLabel = config.removeLabel;
 		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;

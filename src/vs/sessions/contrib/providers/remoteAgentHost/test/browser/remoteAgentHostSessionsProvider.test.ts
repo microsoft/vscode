@@ -61,6 +61,7 @@ import { IClipboardService } from '../../../../../../platform/clipboard/common/c
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
@@ -323,7 +324,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IFileDialogService, overrides?.fileDialogService ?? {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 300 }));
+	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({
+		[DevContainerIdleTimeoutSettingId]: 300, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
+	}));
 	instantiationService.stub(INotificationService, { error: () => { } });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return overrides?.workspaceTrusted ?? true; }
@@ -539,6 +542,59 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				hidden: { available: true, visible: false, entries: 0 }, shown: { available: true, visible: true, entries: 1 },
 				offline: { available: false, visible: false, entries: 0 }, hiddenAgain: { available: true, visible: false, entries: 0 },
 				final: { available: true, visible: true, entries: 1 }, sessionsUnchanged: true, connectionStatus: 'connected',
+			});
+		});
+	}
+
+	for (const host of [
+		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },
+		{ address: 'tunnel:laptop' },
+		{ address: 'wsl:Ubuntu' },
+		{ address: 'ws://localhost:9000' },
+		{ address: 'cloudsandbox:desktop', pickerVisibilityKey: getRemoteAgentHostPickerKey('cloudsandbox:desktop', 'account-one') },
+	]) {
+		test(`management setting gates hidden preferences live without overriding availability (${host.address})`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const configurationService = new TestConfigurationService();
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+			const key = host.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(host.preferenceKey ?? host.address);
+			preference.setHidden(key, true);
+			const available = observableValue('available', true);
+			const provider = createProvider(disposables, connection, { ...host, storageService, configurationService }, {
+				pickerVisibilityKey: host.pickerVisibilityKey, isVisibleInEnvironmentPicker: available,
+			});
+			const observed: boolean[] = [];
+			disposables.add(autorun(reader => observed.push(provider.isVisibleInEnvironmentPicker!.read(reader))));
+			const snapshot = () => ({ visible: provider.isVisibleInEnvironmentPicker!.get(), entries: getSessionCreationEnvironments([provider]).length, hidden: preference.isHidden(key) });
+			const setEnabled = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER, affectedKeys: new Set([ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]),
+					change: { keys: [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING], overrides: [] },
+					affectsConfiguration: key => key === ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING,
+				});
+			};
+			const defaultOff = snapshot();
+			await setEnabled(true);
+			const enabled = snapshot();
+			await setEnabled(false);
+			provider.showInEnvironmentPicker();
+			const disabled = snapshot();
+			available.set(false, undefined);
+			const offline = snapshot();
+			available.set(true, undefined);
+			await setEnabled(true);
+			const restored = snapshot();
+			provider.showInEnvironmentPicker();
+			assert.deepStrictEqual({ defaultOff, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
+				defaultOff: { visible: true, entries: 1, hidden: true },
+				enabled: { visible: false, entries: 0, hidden: true },
+				disabled: { visible: true, entries: 1, hidden: true },
+				offline: { visible: false, entries: 0, hidden: true },
+				restored: { visible: false, entries: 0, hidden: true },
+				shown: { visible: true, entries: 1, hidden: false },
+				observed: [true, false, true, false, true, false, true],
 			});
 		});
 	}

@@ -27,6 +27,7 @@ import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesEditor, RemotesEditorFocusedContext } from './remotesEditor.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/constants.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(RemotesEditor, RemotesEditor.ID, localize('remotes.editorLabel', "Remote Environments")),
@@ -35,23 +36,31 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 registerAction2(class extends Action2 {
 	constructor() {
+		const enabled = ContextKeyExpr.and(
+			ChatContextKeys.enabled,
+			ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+			ContextKeyExpr.equals(`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`, true),
+		);
 		super({
 			id: OPEN_REMOTES_EDITOR_COMMAND_ID,
 			title: localize2('remotes.openEditor', "Manage Remote Environments"),
 			category: SessionsCategories.Sessions,
 			icon: Codicon.remote,
 			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: enabled,
 			menu: {
 				id: Menus.SidebarSessionsHeader,
 				group: 'manage',
 				order: 0,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(enabled, IsPhoneLayoutContext.negate()),
 			},
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		if (!accessor.get(IConfigurationService).getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
+			throw new Error(localize('remotes.managementDisabled', "Remote Environments management is disabled."));
+		}
 		if (!accessor.get(IConfigurationService).getValue<boolean>(RemoteAgentHostsEnabledSettingId) || accessor.get(IChatEntitlementService).sentiment.hidden) {
 			throw new Error(localize('remotes.editorDisabled', "Remote agent hosts are disabled."));
 		}
