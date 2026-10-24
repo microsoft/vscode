@@ -237,10 +237,13 @@
 		async function loadModules(modules) {
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-				const m = await new Promise((resolve, reject) => import(`../../../${out}/${file}.js`).then(resolve, err => {
-					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
-					resolve({});
-				}));
+				let m;
+				try {
+					m = await import(`../../../${out}/${file}.js`);
+				} catch (err) {
+					console.error(`Failed to load test module '${file}'`, err);
+					throw err;
+				}
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 			}
@@ -248,11 +251,15 @@
 
 		let _resolveTestData;
 		let _resolveTestRun;
+		let _rejectTestRun;
 		globalThis._VSCODE_TEST_RUN = new Promise(resolve => _resolveTestData = resolve)
 
 		window.loadAndRun = async function loadAndRun(data, manual = false) {
-			_resolveTestData({data, manual})
-			return new Promise(resolve => _resolveTestRun = resolve);
+			return new Promise((resolve, reject) => {
+				_resolveTestRun = resolve;
+				_rejectTestRun = reject;
+				_resolveTestData({data, manual});
+			});
 		}
 
 		const modules = new URL(window.location.href).searchParams.getAll('m');
@@ -266,22 +273,26 @@
 	<script type="text" id="bootstrap">
 		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
 
-		// load
-		await loadModules(modules);
+		try {
+			// load
+			await loadModules(modules);
 
-		// run
-		await new Promise((resolve, reject) => {
-			if (grep) {
-				mocha.grep(grep);
-			}
+			// run
+			await new Promise((resolve, reject) => {
+				if (grep) {
+					mocha.grep(grep);
+				}
 
-			if (!manual) {
-				mocha.reporter(PlaywrightReporter);
-			}
-			mocha.run(failCount => resolve(failCount === 0));
-		});
+				if (!manual) {
+					mocha.reporter(PlaywrightReporter);
+				}
+				mocha.run(failCount => resolve(failCount === 0));
+			});
 
-		_resolveTestRun();
+			_resolveTestRun();
+		} catch (err) {
+			_rejectTestRun(err);
+		}
 	</script>
 </body>
 
