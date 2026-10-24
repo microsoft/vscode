@@ -12,6 +12,8 @@ import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/act
 import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
@@ -20,7 +22,7 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowDockedContext, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
@@ -151,6 +153,12 @@ for (const entry of chatWindowTabEntries) {
 	});
 }
 
+/**
+ * When the terminal keys, which toggle the panel of the main window, toggle the terminal row of the chat window instead: in a
+ * chat window with an editor area that stands on its own. A docked one is part of the main window, whose panel they keep toggling.
+ */
+export const CHAT_WINDOW_TERMINAL_KEYBINDING_WHEN = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatWindowDockedContext.negate())!;
+
 // The terminal: shown in the row across the bottom of the window, as the panel of the main window shows it.
 registerAction2(class ToggleChatWindowTerminalAction extends Action2 {
 	constructor() {
@@ -162,6 +170,17 @@ registerAction2(class ToggleChatWindowTerminalAction extends Action2 {
 			f1: true,
 			precondition: ChatWindowHasEditorAreaContext,
 			toggled: ChatWindowTerminalShownContext,
+			// The keys of the panel and of the terminal, above the rules of the workbench for them.
+			keybinding: [{
+				primary: KeyMod.CtrlCmd | KeyCode.KeyJ,
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				when: CHAT_WINDOW_TERMINAL_KEYBINDING_WHEN,
+			}, {
+				primary: KeyMod.CtrlCmd | KeyCode.Backquote,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Backquote },
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				when: CHAT_WINDOW_TERMINAL_KEYBINDING_WHEN,
+			}],
 		});
 	}
 
