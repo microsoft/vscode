@@ -961,6 +961,21 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('search actions are vertically centered inside wide and narrow search fields', () => {
+		const { widget, parent } = createWidget();
+		for (const width of [900, 360]) {
+			parent.style.width = `${width}px`;
+			widget.layout();
+			const search = parent.querySelector<HTMLElement>('.remotes-search-container .monaco-inputbox')!;
+			const inputBounds = search.getBoundingClientRect();
+			for (const action of search.querySelectorAll<HTMLElement>('[role="button"]')) {
+				const bounds = action.getBoundingClientRect();
+				const offset = bounds.top + bounds.height / 2 - inputBounds.top - inputBounds.height / 2;
+				assert.ok(Math.abs(offset) < 0.5, `${action.getAttribute('aria-label')} is offset by ${offset}px at width ${width}`);
+			}
+		}
+	});
+
 	test('search actions clear and collapse without changing connections or clearing the query on collapse', async () => {
 		const { widget, parent, model } = createWidget();
 		const input = parent.querySelector<HTMLInputElement>('input')!;

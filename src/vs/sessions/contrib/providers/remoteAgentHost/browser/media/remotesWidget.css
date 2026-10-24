@@ -41,6 +41,10 @@
 	min-width: 0;
 }
 
+.remotes-widget .remotes-search-container .monaco-action-bar {
+	top: 0;
+}
+
 .remotes-widget .remotes-message {
 	flex-shrink: 0;
 	white-space: pre-wrap;
