@@ -2742,6 +2742,9 @@ export class ChatService extends Disposable implements IChatService {
 				timestamp: remote.timestamp,
 				attachedContext: variableData.variables.slice(),
 				restoredId: remote.id,
+				// The list reuses a rendered row while its dataId (id and version) is unchanged, so a replacement
+				// for a request with the same id must have a higher version to show its new content.
+				version: local ? local.request.version + 1 : undefined,
 				modelId,
 				modelConfiguration,
 				isSystemInitiated,
