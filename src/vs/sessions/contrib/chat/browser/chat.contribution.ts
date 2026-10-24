@@ -776,7 +776,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.environmentPickerManageRemotes', "Controls whether the Environment picker shows a Manage entry to open the Remotes editor. Requires the Environment picker and remote agent hosts to be enabled."),
+			description: localize('sessions.chat.experimental.environmentPickerManageRemotes', "Controls whether the Environment picker shows a Manage entry to open the Remote Environments editor. Requires the Environment picker and remote agent hosts to be enabled."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

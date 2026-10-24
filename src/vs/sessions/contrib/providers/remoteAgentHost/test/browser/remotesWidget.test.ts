@@ -187,7 +187,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('row actions are right aligned and revealed on hover or keyboard focus', () => {
+	test('row actions are left aligned and revealed on hover or keyboard focus', () => {
 		const { parent } = createWidget();
 		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!.closest<HTMLElement>('.monaco-list-row')!;
 		const actions = row.querySelector<HTMLElement>('.remotes-actions-column')!;
@@ -203,7 +203,7 @@ suite('RemotesWidget', () => {
 			idle: { opacity: '0', pointerEvents: 'none' },
 			hovered: { opacity: '1', pointerEvents: 'auto' },
 			focused: { opacity: '1', pointerEvents: 'auto' },
-			alignment: 'flex-end',
+			alignment: 'flex-start',
 		});
 	});
 
