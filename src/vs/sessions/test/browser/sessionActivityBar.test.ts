@@ -29,7 +29,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SessionActivityBar, SessionActivityBarHostOccupancy } from '../../browser/parts/sessionActivityBar.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -695,22 +695,25 @@ suite('Sessions - Session Activity Bar', () => {
 		const { createDocked, setEnabled, root } = createActivityBar(store, [changes]);
 		const hostElement = append(root, $('.external-host'));
 		const active = observableValue('active', false);
-		const occupied: boolean[] = [];
-		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: value => occupied.push(value) }));
+		const occupancy = new SessionActivityBarHostOccupancy();
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: (occupant, value) => occupancy.set(occupant, value) }));
 		const first = createDocked();
 		const second = createDocked();
 		first.setActive(true);
 		second.setActive(false);
+		// Occupied while the shown strip is in it, empty while the strip is disabled.
 		const where = () => ({
 			first: first.element?.parentElement === hostElement ? 'host' : 'chat',
 			second: second.element?.parentElement === hostElement ? 'host' : 'chat',
 			reserved: [first.reservedWidth.get(), second.reservedWidth.get()],
+			occupied: occupancy.occupied.get(),
 		});
 
 		const inactiveHost = where();
 		active.set(true, undefined);
 		const activeHost = where();
 		setEnabled(false);
+		const disabled = occupancy.occupied.get();
 		setEnabled(true);
 		// Focus moves to the second chat.
 		first.setActive(false);
@@ -719,13 +722,41 @@ suite('Sessions - Session Activity Bar', () => {
 		active.set(false, undefined);
 		const hostGone = where();
 
-		assert.deepStrictEqual({ inactiveHost, activeHost, focusMoved, hostGone, occupied }, {
-			inactiveHost: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH] },
-			activeHost: { first: 'host', second: 'chat', reserved: [0, 0] },
-			focusMoved: { first: 'chat', second: 'host', reserved: [0, 0] },
-			hostGone: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH] },
-			// Occupied while the shown strip is in it, empty while the strip is disabled.
-			occupied: [true, false, true, false, true, false],
+		assert.deepStrictEqual({ inactiveHost, activeHost, disabled, focusMoved, hostGone }, {
+			inactiveHost: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: false },
+			activeHost: { first: 'host', second: 'chat', reserved: [0, 0], occupied: true },
+			disabled: false,
+			focusMoved: { first: 'chat', second: 'host', reserved: [0, 0], occupied: true },
+			hostGone: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: false },
+		});
+	});
+
+	test('keeps the external host occupied while any strip is in it, whichever order strips enter and leave in', () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const occupancy = new SessionActivityBarHostOccupancy();
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: constObservable(true), height: constObservable(500), setOccupied: (occupant, value) => occupancy.set(occupant, value) }));
+		const first = createDocked();
+		const second = createDocked();
+		const third = createDocked();
+		const state = () => ({ occupied: occupancy.occupied.get(), inHost: [first, second, third].map(strip => strip.element?.parentElement === hostElement) });
+
+		first.setActive(true);
+		// The next chat is activated before the previous one is deactivated, as when it comes first in the iteration.
+		second.setActive(true);
+		first.setActive(false);
+		const activatedBeforeDeactivated = state();
+		third.setActive(true);
+		// The previous strip is disposed while the next one is already in the host.
+		second.dispose();
+		const disposedWhileOtherOccupies = state();
+		third.setActive(false);
+		const empty = state();
+
+		assert.deepStrictEqual({ activatedBeforeDeactivated, disposedWhileOtherOccupies, empty }, {
+			activatedBeforeDeactivated: { occupied: true, inHost: [false, true, false] },
+			disposedWhileOtherOccupies: { occupied: true, inHost: [false, false, true] },
+			empty: { occupied: false, inHost: [false, false, false] },
 		});
 	});
 

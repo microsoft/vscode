@@ -209,8 +209,28 @@ export interface ISessionActivityBarExternalHost {
 	readonly active: IObservable<boolean>;
 	/** The height of the area the strip moves up and down in, from the top of {@link element}. */
 	readonly height: IObservable<number>;
-	/** Whether a shown strip is in the host, for the host to keep room for it. */
-	setOccupied(occupied: boolean): void;
+	/**
+	 * Whether `occupant`, a shown strip, is in the host, for the host to keep room for it while any strip is. A strip
+	 * can enter before another leaves; see {@link SessionActivityBarHostOccupancy}.
+	 */
+	setOccupied(occupant: object, occupied: boolean): void;
+}
+
+/** Whether any strip is in an {@link ISessionActivityBarExternalHost}, whatever order they enter and leave it in. */
+export class SessionActivityBarHostOccupancy {
+
+	private readonly occupants = new Set<object>();
+	private readonly _occupied = observableValue<boolean>(this, false);
+	readonly occupied: IObservable<boolean> = this._occupied;
+
+	set(occupant: object, occupied: boolean): void {
+		if (occupied) {
+			this.occupants.add(occupant);
+		} else {
+			this.occupants.delete(occupant);
+		}
+		this._occupied.set(this.occupants.size > 0, undefined);
+	}
 }
 
 const externalHosts = new Map<HTMLElement, ISessionActivityBarExternalHost>();
@@ -338,7 +358,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 			this.relocate();
 		}));
 		this._register(toDisposable(() => {
-			this.hostedIn?.setOccupied(false);
+			this.hostedIn?.setOccupied(this, false);
 			this.hostedIn = undefined;
 			activityBar.element.remove();
 		}));
@@ -385,10 +405,10 @@ export class ChatViewSessionActivityBar extends Disposable {
 			hadFocus?.focus();
 		}
 		if (this.hostedIn !== hostedIn) {
-			this.hostedIn?.setOccupied(false);
+			this.hostedIn?.setOccupied(this, false);
 		}
 		this.hostedIn = hostedIn;
-		hostedIn?.setOccupied(activityBar.visible.get());
+		hostedIn?.setOccupied(this, activityBar.visible.get());
 		this.applyPosition();
 	}
 

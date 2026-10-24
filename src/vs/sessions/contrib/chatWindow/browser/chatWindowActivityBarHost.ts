@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { EditorPart } from '../../../../workbench/browser/parts/editor/editorPart.js';
 import { IEditorGroup, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../../browser/parts/sessionActivityBar.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBarHostOccupancy } from '../../../browser/parts/sessionActivityBar.js';
 import { SessionLayoutMode } from '../../../common/sessionLayoutMode.js';
 
 /**
@@ -27,7 +27,7 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 	element.style.setProperty('--session-activity-bar-column-width', `${SESSION_ACTIVITY_BAR_COLUMN_WIDTH}px`);
 	store.add(toDisposable(() => element.remove()));
 
-	const occupied = observableValue('occupied', false);
+	const occupancy = new SessionActivityBarHostOccupancy();
 	const height = observableValue('height', 0);
 	const active = derived(reader => {
 		const current = layout.read(reader);
@@ -37,7 +37,7 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 		element,
 		active,
 		height,
-		setOccupied: value => occupied.set(value, undefined),
+		setOccupied: (occupant, occupied) => occupancy.set(occupant, occupied),
 	}));
 
 	const layoutHost = () => {
@@ -52,7 +52,7 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 	layoutHost();
 
 	store.add(autorun(reader => {
-		const isOccupied = occupied.read(reader);
+		const isOccupied = occupancy.occupied.read(reader);
 		element.classList.toggle('occupied', isOccupied);
 		part.setContentRightInset(isOccupied ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 	}));

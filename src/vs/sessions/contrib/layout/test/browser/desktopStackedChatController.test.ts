@@ -141,6 +141,32 @@ suite('Sessions - DesktopStackedChatController', () => {
 		});
 	}));
 
+	test('shows only the input of each chat as it was last left, in the chat view reused for the next chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { controller, chatView, sessionView } = await createController();
+		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
+		await timeout(0);
+		controller.stackedChat.toggleConversation();
+		await timeout(0);
+		const otherSession = makeSession(URI.parse('test:/b'));
+		const otherOwner = { sessionResource: otherSession.resource, chatResource: otherSession.resource };
+		harness.layoutModeService.setMainWindowMode(otherOwner, LayoutModeOwnerKind.Existing, { mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: false });
+		const focus = async (focused: typeof session) => {
+			harness.activeSessionObs.set(focused, undefined);
+			await controller.whenRestored();
+			await timeout(0);
+			return { inputOnly: chatView.inputOnly.get(), headerHidden: sessionView.headerHidden, height: harness.partSizes.get(Parts.SESSIONS_PART)?.height };
+		};
+
+		const other = await focus(otherSession);
+		const back = await focus(session);
+
+		assert.deepStrictEqual({ other, back, rememberedOther: harness.layoutModeService.getMainWindowMode(otherOwner, LayoutModeOwnerKind.Existing)?.inputOnly }, {
+			other: { inputOnly: false, headerHidden: false, height: Math.round((collapsed + 400) / 2) },
+			back: { inputOnly: true, headerHidden: true, height: collapsed },
+			rememberedOther: false,
+		});
+	}));
+
 	test('snaps between the input and the conversation as the sash is dragged and released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { chatView, sessionView } = await createController();
 		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);

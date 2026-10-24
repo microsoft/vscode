@@ -621,7 +621,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		isEditorMaximized(): boolean { return harness.editorMaximized; }
 		setEditorMaximized(maximized: boolean): void {
 			harness.setEditorMaximizedCalls.push(maximized);
-			harness.editorMaximized = maximized;
+			if (harness.editorMaximized !== maximized) {
+				harness.editorMaximized = maximized;
+				harness.onDidChangeEditorMaximized.fire();
+			}
 		}
 		isSidePaneVisible(): boolean {
 			return (harness.partVisibility.get(Parts.EDITOR_PART) ?? true) || (harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true);
@@ -712,6 +715,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidChangeViewContainerVisibility = harness.onDidChangeViewContainerVisibility.event;
 		override isViewContainerActive(id: string): boolean {
 			return harness.activeAuxViewContainerIds.includes(id);
+		}
+		override isViewVisible(): boolean {
+			return false;
 		}
 		override async openViewContainer(id: string) {
 			harness.openedViewContainers.push(id);
@@ -905,7 +911,6 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			harness.executedCommands.push(id);
 			if (id === MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID || id === RESTORE_MAIN_EDITOR_PART_COMMAND_ID) {
 				layoutService.setEditorMaximized(id === MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID);
-				harness.onDidChangeEditorMaximized.fire();
 			}
 			return undefined;
 		}

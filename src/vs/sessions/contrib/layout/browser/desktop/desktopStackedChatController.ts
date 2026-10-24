@@ -20,6 +20,7 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { clampStackedChatOnResize, decideStackedChatInputOnly, shouldRestoreStackedChatConversation, stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly } from '../../../../browser/parts/stackedChatInputOnly.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { chatLayoutOwnersEqual } from '../../../../common/chatLayout.js';
 import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { STACKED_CHAT_CONVERSATION_MIN_HEIGHT, STACKED_CHAT_INPUT_MAX_HEIGHT } from '../../../../common/layoutConstants.js';
 import { SessionLayoutMode, SessionLayoutModeContext } from '../../../../common/sessionLayoutMode.js';
@@ -143,6 +144,17 @@ export class DesktopStackedChatController extends Disposable {
 		}));
 
 		view.enableInputOnly({ maxHeight: STACKED_CHAT_INPUT_MAX_HEIGHT, inputOnly: this._layoutMode.getInputOnly() });
+		// The chat view is reused for the next chat of its kind, which shows only its input as it was last left.
+		let attachedOwner = this._layoutMode.focusedOwner.get();
+		store.add(autorun(reader => {
+			const owner = this._layoutMode.focusedOwner.read(reader);
+			if (!owner || (attachedOwner && chatLayoutOwnersEqual(owner, attachedOwner))) {
+				return;
+			}
+			attachedOwner = owner;
+			this._forcedByWindow = false;
+			view.setInputOnly(this._layoutMode.getInputOnly());
+		}));
 		// Showing only the input, the chat shows no session header either.
 		store.add(autorun(reader => sessionView.setHeaderHidden(view.inputOnly.read(reader))));
 

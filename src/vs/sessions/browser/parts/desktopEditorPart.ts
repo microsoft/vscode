@@ -29,7 +29,7 @@ import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
 import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
-import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBar.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBarHostOccupancy } from './sessionActivityBar.js';
 
 /**
  * Desktop editor part: owns the docked auxiliary bar so "tab bar + editor
@@ -46,7 +46,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 
 	private _auxiliaryBar: DesktopAuxiliaryBarPart | undefined;
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
-	private readonly _sessionActivityBarOccupied = observableValue(this, false);
+	private readonly _sessionActivityBarOccupancy = new SessionActivityBarHostOccupancy();
 	private readonly _sessionActivityBarHostHeight = observableValue(this, 0);
 	private _sessionActivityBarHost: HTMLElement | undefined;
 	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
@@ -187,7 +187,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
 				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
-				getRightReservedWidth: () => this._sessionActivityBarOccupied.get() ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0,
+				getRightReservedWidth: () => this._sessionActivityBarOccupancy.occupied.get() ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0,
 			},
 		));
 		this._registerSessionActivityBarHost();
@@ -213,10 +213,10 @@ export class DesktopMainEditorPart extends MainEditorPart {
 			element,
 			active,
 			height: this._sessionActivityBarHostHeight,
-			setOccupied: occupied => this._sessionActivityBarOccupied.set(occupied, undefined),
+			setOccupied: (occupant, occupied) => this._sessionActivityBarOccupancy.set(occupant, occupied),
 		}));
 		this._register(autorun(reader => {
-			const occupied = this._sessionActivityBarOccupied.read(reader);
+			const occupied = this._sessionActivityBarOccupancy.occupied.read(reader);
 			element.classList.toggle('occupied', occupied);
 			this._layoutSessionActivityBarHost();
 			this._dockedAuxBar?.layout();

@@ -6,20 +6,20 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { registerSessionLayoutModeActions } from '../../../../browser/sessionLayoutModeActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { chatLayoutOwnersEqual, IChatLayoutOwner } from '../../../../common/chatLayout.js';
 import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../../common/contextkeys.js';
-import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../../common/sessionLayoutMode.js';
-import { ChatWindowContext, ChatWindowHasEditorAreaContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { getLayoutModeOwnerKind, IRememberedLayoutMode, ISessionLayoutModeService, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { maximizeMainEditorPart, restoreMainEditorPart } from '../mainEditorMaximize.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
 /** The commands that show a layout mode in the main window. */
@@ -52,6 +52,8 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 	readonly splitLayout: IObservable<SessionSplitLayout>;
 
 	private readonly _focusedOwner: IObservable<IFocusedOwner | undefined>;
+	/** The chat of the main window that is focused, whose layout mode the window shows and remembers. */
+	readonly focusedOwner: IObservable<IChatLayoutOwner | undefined>;
 	/** The chat that just returned from a chat window, to show in its full mode once it is focused. */
 	private _returning: IFocusedOwner | undefined;
 
@@ -61,7 +63,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionLayoutModeService private readonly _layoutModeService: ISessionLayoutModeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IViewsService private readonly _viewsService: IViewsService,
 		@IChatWindowService chatWindowService: IChatWindowService,
 	) {
 		super();
@@ -88,6 +90,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			const chat = session?.activeChat.read(reader);
 			return session && chat ? { owner: { sessionResource: session.resource, chatResource: chat.resource }, kind: getLayoutModeOwnerKind(session, reader) } : undefined;
 		});
+		this.focusedOwner = derived(this, reader => this._focusedOwner.read(reader)?.owner);
 
 		const modeContext = SessionLayoutModeContext.bindTo(contextKeyService);
 		const splitLayoutContext = SessionSplitLayoutContext.bindTo(contextKeyService);
@@ -131,8 +134,8 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			ids: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS,
 			// The main window's, not a chat window's, which has its own.
 			precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), CustomViewVisibleContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
-			// The Session Activity Bar of a chat window shows the chat window's modes instead.
-			activityBarWhen: ContextKeyExpr.and(SessionActivityBarLayoutActionsContext, ChatWindowHasEditorAreaContext.negate()),
+			// Not in the Session Activity Bar of a chat window, which shows the chat window's modes, if any.
+			activityBarWhen: ContextKeyExpr.and(SessionActivityBarLayoutActionsContext, ContextKeyExpr.has(ChatWindowContext.key).negate()),
 			run: (_accessor, mode) => this.setMode(mode),
 		}));
 	}
@@ -149,7 +152,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		if (returning && chatLayoutOwnersEqual(returning.owner, focused.owner)) {
 			const remembered = this._layoutModeService.returnToMainWindow(focused.owner, focused.kind);
 			if (remembered) {
-				void this.setMode(remembered.mode, remembered);
+				this.setMode(remembered.mode, remembered);
 			}
 			return;
 		}
@@ -158,9 +161,14 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			return;
 		}
 		this._layoutService.setSidePaneArrangement(remembered.splitLayout);
+		// Synchronously, before the layout strategies restore the chat's side pane, which un-maximizing would overwrite.
 		const maximized = this._layoutService.isEditorMaximized();
 		if ((remembered.mode === SessionLayoutMode.EditorOnly) !== maximized) {
-			void this._commandService.executeCommand(maximized ? RESTORE_MAIN_EDITOR_PART_COMMAND_ID : MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID);
+			if (maximized) {
+				restoreMainEditorPart(this._layoutService);
+			} else {
+				maximizeMainEditorPart(this._layoutService, this._viewsService);
+			}
 		}
 	}
 
@@ -179,7 +187,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 	}
 
 	/** Shows `mode` in the main window, through the same operations as its other layout actions. */
-	async setMode(mode: SessionLayoutMode, remembered?: IRememberedLayoutMode): Promise<void> {
+	setMode(mode: SessionLayoutMode, remembered?: IRememberedLayoutMode): void {
 		if (this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
 			return;
 		}
@@ -188,12 +196,12 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 				this._layoutService.setSidePaneArrangement(remembered.splitLayout);
 			}
 			if (!this._layoutService.isEditorMaximized()) {
-				await this._commandService.executeCommand(MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID);
+				maximizeMainEditorPart(this._layoutService, this._viewsService);
 			}
 			return;
 		}
 		if (this._layoutService.isEditorMaximized()) {
-			await this._commandService.executeCommand(RESTORE_MAIN_EDITOR_PART_COMMAND_ID);
+			restoreMainEditorPart(this._layoutService);
 		}
 		if (mode === SessionLayoutMode.ChatOnly) {
 			if (remembered) {
@@ -233,7 +241,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 					// Already focused in the main window: no focus change follows to show it.
 					const remembered = this._layoutModeService.returnToMainWindow(returning.owner, returning.kind);
 					if (remembered && this._isOwnerScoped(undefined)) {
-						void this.setMode(remembered.mode, remembered);
+						this.setMode(remembered.mode, remembered);
 					}
 				} else {
 					this._returning = returning;
