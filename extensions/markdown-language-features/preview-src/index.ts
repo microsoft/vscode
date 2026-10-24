@@ -6,12 +6,13 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getElementsForSourceLineRange, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getElementsForSourceLineRange, getLineElementForFragment, getScrollOffsetForSourceLine, scrollToRevealSourceLine } from './scroll-sync';
 import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
+import { resolvePreviewState, type MarkdownPreviewState } from '../src/preview/previewScrollState';
 import { DiffScrollSyncManager } from './diffScrollSync';
 
 let scrollDisabledCount = 0;
@@ -38,24 +39,15 @@ const diffScrollSyncManager = settings.settings.diffScrollSync
 	? new DiffScrollSyncManager(settings.settings.diffScrollSync, onDiffScroll)
 	: undefined;
 
-interface State {
-	scrollProgress?: number;
-	resource?: string;
-	line?: number;
-	fragment?: string;
-}
-
-const originalState: State = vscode.getState() ?? {};
-const state: State = {
+const originalState: MarkdownPreviewState = vscode.getState() ?? {};
+const currentState: MarkdownPreviewState = {
 	...originalState,
-	...getData<Partial<State>>('data-state')
+	...getData<Partial<MarkdownPreviewState>>('data-state')
 };
-
-const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
-if (typeof originalState.scrollProgress !== 'undefined'
-	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
-	state.scrollProgress = hasStartingLine ? undefined : 0;
-}
+const { position, state } = resolvePreviewState(originalState, currentState, {
+	line: settings.settings.line,
+	fragment: settings.settings.fragment,
+});
 
 // Make sure to sync VS Code state here
 vscode.setState(state);
@@ -101,19 +93,20 @@ onceDocumentLoaded(() => {
 		}
 	}
 
-	// Restore
-	const scrollProgress = state.scrollProgress;
+	// Restore the position that the preview had when it was last shown
 	addImageContexts();
 	addCodeBlockCopyButtons();
 	applyLineChanges(lineChanges);
-	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
+	if (position.kind === 'restored') {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount = 1;
 			if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
 			scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
-			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
-			window.scrollTo(0, scrollToY);
+			const scrollToY = Math.max(1, getScrollOffsetForSourceLine(position.line, documentVersion));
+			window.scroll(window.scrollX, scrollToY);
+			// Let the extension know where the preview is now so that it does not use a stale line
+			messaging.postMessage('revealLine', { line: position.line });
 		});
 		return;
 	}
@@ -121,12 +114,12 @@ onceDocumentLoaded(() => {
 	if (settings.settings.scrollPreviewWithEditor) {
 		doAfterImagesLoaded(() => {
 			// Try to scroll to fragment if available
-			if (settings.settings.fragment) {
+			if (position.kind === 'fragment') {
 				let fragment: string;
 				try {
-					fragment = encodeURIComponent(settings.settings.fragment);
+					fragment = encodeURIComponent(position.fragment);
 				} catch {
-					fragment = settings.settings.fragment;
+					fragment = position.fragment;
 				}
 				state.fragment = undefined;
 				vscode.setState(state);
@@ -138,13 +131,11 @@ onceDocumentLoaded(() => {
 					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
 					scrollToRevealSourceLine(element.line, documentVersion, settings);
 				}
-			} else {
-				if (!isNaN(settings.settings.line!)) {
-					scrollDisabledCount = 1;
-					if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
-					scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
-					scrollToRevealSourceLine(settings.settings.line!, documentVersion, settings);
-				}
+			} else if (position.kind === 'line') {
+				scrollDisabledCount = 1;
+				if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
+				scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
+				scrollToRevealSourceLine(position.line, documentVersion, settings);
 			}
 		});
 	}
@@ -179,7 +170,7 @@ window.addEventListener('resize', () => {
 	scrollDisabledCount = 1;
 	if (scrollDisabledTimer) { clearTimeout(scrollDisabledTimer); }
 	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 200);
-	updateScrollProgress();
+	updateScrollAnchor();
 }, true);
 
 function addImageContexts() {
@@ -414,6 +405,9 @@ window.addEventListener('message', async event => {
 			addImageContexts();
 			addCodeBlockCopyButtons();
 			applyLineChanges(lineChanges);
+
+			// The content changed: the line that is shown at the top of the preview may have changed
+			updateScrollAnchor();
 			break;
 		}
 	}
@@ -768,24 +762,34 @@ document.addEventListener('click', event => {
 }, true);
 
 window.addEventListener('scroll', throttle(() => {
-	updateScrollProgress();
+	const line = updateScrollAnchor();
+	if (line === undefined) {
+		return;
+	}
 
 	if (scrollDisabledCount > 0) {
 		return;
 	}
 
+	messaging.postMessage('revealLine', { line });
+	diffScrollSyncManager?.broadcastScroll(line);
+}, 50));
+
+/**
+ * Persist the line of the document that is shown at the top of the preview.
+ *
+ * The line anchors the scroll position of the preview in the content of the document. The
+ * preview can therefore be shown at the same place again, even when the document has
+ * changed in the meantime.
+ */
+function updateScrollAnchor(): number | undefined {
 	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
 	if (typeof line === 'number' && !isNaN(line)) {
 		state.line = line;
 		vscode.setState(state);
-		messaging.postMessage('revealLine', { line });
-		diffScrollSyncManager?.broadcastScroll(line);
+		return line;
 	}
-}, 50));
-
-function updateScrollProgress() {
-	state.scrollProgress = window.scrollY / document.body.clientHeight;
-	vscode.setState(state);
+	return undefined;
 }
 
 
