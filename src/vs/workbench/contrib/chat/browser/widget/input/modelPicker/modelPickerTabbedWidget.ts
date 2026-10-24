@@ -11,6 +11,7 @@ import type { IModelPickerOpenOptions } from './modelPickerWidget.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { equals } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { isThenable } from '../../../../../../../base/common/async.js';
@@ -368,9 +369,16 @@ export class TabbedModelPicker extends Disposable {
 	refresh(
 		models?: readonly ILanguageModelChatMetadataAndIdentifier[],
 		comparisonModels?: readonly ILanguageModelChatMetadataAndIdentifier[],
+		providerPlaceholders?: readonly IModelPickerProviderPlaceholder[],
 	): void {
 		if (!this.isVisible || !this._context) {
 			return;
+		}
+		const previousTabs = this._buildDestinations(this._getActiveContext(this._context)).map(destination => destination.id);
+		const placeholdersChanged = providerPlaceholders !== undefined && !equals(this._context.providerPlaceholders, providerPlaceholders,
+			(left, right) => left.vendor === right.vendor && left.label === right.label && left.message === right.message && left.icon?.id === right.icon?.id && left.action?.label === right.action?.label);
+		if (providerPlaceholders) {
+			this._context = { ...this._context, providerPlaceholders };
 		}
 		if (models) {
 			this._models = models;
@@ -388,6 +396,10 @@ export class TabbedModelPicker extends Disposable {
 		const destinations = this._buildDestinations(context);
 		if (!destinations.length) {
 			this.hide();
+			return;
+		}
+		if (placeholdersChanged || !equals(previousTabs, destinations.map(destination => destination.id))) {
+			this._showCurrent(this._filterValue);
 			return;
 		}
 		if (models) {
@@ -607,7 +619,8 @@ export class TabbedModelPicker extends Disposable {
 		const models = context.models.filter(model => !isLocalModelDirectRow(model) && !localModels?.getDirectModel(model));
 		const destinations = buildModelPickerDestinations(models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || fusionHydraFusion(model), this._hasBuiltInUpsells(builtInContext));
 		if (this._showsOnDeviceTab(context)) {
-			destinations.splice(destinations[0]?.id === MODEL_PICKER_BUILT_IN_DESTINATION ? 1 : 0, 0, {
+			const copilotFirst = destinations[0]?.supportsCopilotCuration ?? destinations[0]?.id === MODEL_PICKER_BUILT_IN_DESTINATION;
+			destinations.splice(copilotFirst ? 1 : 0, 0, {
 				id: MODEL_PICKER_ON_DEVICE_DESTINATION,
 				label: localize('chat.modelPicker.onDevice', "On This Device"),
 				icon: Codicon.vm,

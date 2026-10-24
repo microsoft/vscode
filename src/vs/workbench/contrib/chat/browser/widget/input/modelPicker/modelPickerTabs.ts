@@ -7,12 +7,12 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, getLanguageModelSourceIdentifier, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon, type ILanguageModelSource } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, getLanguageModelSourceIdentifier, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, LanguageModelProviderIcon, type ILanguageModelSource } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
 import { getKnownProviderIconForIdentity, getProviderIconForIdentity } from './modelProviderIcons.js';
-import { isAutoModel } from './modelPickerPresentation.js';
+import { isAutoModel, isCopilotModel } from './modelPickerPresentation.js';
 import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
 
 /** The built-in provider's models. */
@@ -128,7 +128,7 @@ export function buildModelPickerDestinations(
 		if (hasOwnRow(model)) {
 			continue;
 		}
-		(model.metadata.isCopilotModel === false || isUserProvidedModel(model, languageModelsService) ? providerModels : builtInModels).push(model);
+		(isCopilotModel(model, languageModelsService) ? builtInModels : providerModels).push(model);
 	}
 
 	const builtInVendor = languageModelsService.getVendors().find(vendor => vendor.isDefault);
@@ -151,7 +151,9 @@ export function buildModelPickerDestinations(
 			placeholders: builtInPlaceholders,
 		});
 	}
-	for (const [id, destination] of sourceDestinations) {
+	const orderedSources = [...sourceDestinations].sort(([, left], [, right]) =>
+		Number(right.models.some(model => isCopilotModel(model, languageModelsService))) - Number(left.models.some(model => isCopilotModel(model, languageModelsService))));
+	for (const [id, destination] of orderedSources) {
 		destinations.push({
 			id: `source:${id}`,
 			source: destination.source,

@@ -9,10 +9,12 @@ import { CLAUDE_AGENT_PROVIDER_ID, IAgentModelInfo } from '../../common/agent.js
 import { createAgentModelCatalog } from '../../common/agentModelSource.js';
 import { projectLegacyModelSourceCatalog } from '../../common/agentModelSelection.js';
 import type { ModelSelection } from '../../common/state/sessionState.js';
+import { toAgentModelProviderMeta } from '../../common/meta/agentModelProvider.js';
 import { claudeNativeModelSource, claudeProxyModelSource, claudeTransportForProvider, mergeClaudeModelCatalogs, normalizeClaudeModelSelection, parseClaudeModelSelection, resolveClaudeSessionTransport, toClaudeSdkModelId } from '../../node/claude/claudeModelSelection.js';
 
 suite('claudeModelSelection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+	const copilotMeta = toAgentModelProviderMeta({ id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' });
 
 	test('standard selections keep raw IDs and qualifiers separate without parsing the raw ID', () => {
 		const selections: ModelSelection[] = [
@@ -58,7 +60,7 @@ suite('claudeModelSelection', () => {
 		assert.deepStrictEqual({ catalog, legacyModels: legacy.models, legacySources: legacy.modelSources }, {
 			catalog: {
 				modelSources: [claudeNativeModelSource, claudeProxyModelSource],
-				models: [{ ...native, modelSourceId: 'anthropic' }, { ...proxy, modelSourceId: 'copilot' }],
+				models: [{ ...native, modelSourceId: 'anthropic' }, { ...proxy, modelSourceId: 'copilot', _meta: { ...proxy._meta, ...copilotMeta } }],
 			},
 			legacyModels: [],
 			legacySources: undefined,
@@ -72,7 +74,7 @@ suite('claudeModelSelection', () => {
 			createAgentModelCatalog(mergeClaudeModelCatalogs([model], [])),
 		], [
 			{ models: [{ ...model, modelSourceId: 'anthropic' }], modelSources: [claudeNativeModelSource] },
-			{ models: [{ ...model, modelSourceId: 'copilot' }], modelSources: [claudeProxyModelSource] },
+			{ models: [{ ...model, modelSourceId: 'copilot', _meta: copilotMeta }], modelSources: [claudeProxyModelSource] },
 		]);
 	});
 

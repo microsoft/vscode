@@ -19,7 +19,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { chatSessionSupportsCopilotModels, ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -1543,6 +1543,26 @@ suite('ChatSessionsService - requiresCopilotSignInForSessionType', () => {
 	function register(type: string, extra: Partial<IChatSessionsExtensionPoint>): void {
 		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '', ...extra }));
 	}
+
+	test('optional Copilot model support is separate from mandatory sign-in and stays live', () => {
+		let supportsCopilotModels = true;
+		store.add(service.registerChatSessionContribution({
+			type: 'optional-copilot', name: 'optional-copilot', displayName: 'Example', description: '',
+			requiresCustomModels: true, requiresCopilotSignIn: false,
+			get supportsCopilotModels() { return supportsCopilotModels; },
+		}));
+		register('other-models', { requiresCustomModels: true });
+		register('shared-pool', {});
+		const before = chatSessionSupportsCopilotModels(service.getChatSessionContribution('optional-copilot'));
+		supportsCopilotModels = false;
+		assert.deepStrictEqual({
+			before,
+			after: chatSessionSupportsCopilotModels(service.getChatSessionContribution('optional-copilot')),
+			requiresSignIn: service.requiresCopilotSignInForSessionType('optional-copilot'),
+			otherModels: chatSessionSupportsCopilotModels(service.getChatSessionContribution('other-models')),
+			sharedPool: chatSessionSupportsCopilotModels(service.getChatSessionContribution('shared-pool')),
+		}, { before: true, after: false, requiresSignIn: false, otherModels: false, sharedPool: true });
+	});
 
 	test('evaluates a functional requiresCopilotSignIn, and reads a static flag otherwise', () => {
 		// Declarative (extension) types supply a static boolean, read directly.

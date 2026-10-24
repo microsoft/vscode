@@ -13,6 +13,7 @@ import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentH
 import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import { toAgentModelProviderMeta } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { getSourceQualifiedModelIdentifier, ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -48,6 +49,22 @@ suite('AgentHostLanguageModelProvider', () => {
 			renamed: [{ id: 'b', displayName: 'Renamed' }],
 			retained: first.models[1].identifier,
 		});
+	});
+
+	test('Copilot producer metadata classifies a qualified model without interpreting source identity or label', async () => {
+		const provider = createProvider();
+		const modelSources = [{ id: 'first', displayName: 'GitHub Copilot' }, { id: 'second', displayName: 'Private subscription' }];
+		provider.updateModels([
+			{ ...makeModel('shared'), modelSourceId: 'first' },
+			{ ...makeModel('shared', toAgentModelProviderMeta({ id: 'opaque', kind: 'copilot', label: 'Other label' })), modelSourceId: 'second' },
+		], { modelSources, capabilities: { modelSourceSelection: {} } });
+		const catalog = await provider.provideLanguageModelChatCatalog({ silent: true }, CancellationToken.None);
+		assert.deepStrictEqual(catalog.models.map(model => ({
+			id: model.metadata.id, source: model.metadata.modelSourceId, copilot: model.metadata.isCopilotModel,
+		})), [
+			{ id: 'shared', source: 'first', copilot: false },
+			{ id: 'shared', source: 'second', copilot: true },
+		]);
 	});
 
 	test('a Claude-style harness publishes arbitrary sources without optional producer metadata', async () => {

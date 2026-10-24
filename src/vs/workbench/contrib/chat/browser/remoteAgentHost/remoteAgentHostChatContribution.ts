@@ -35,6 +35,7 @@ import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agent
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { readAgentModelCatalogStatus } from '../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { hasGitHubCopilotResource } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IAgentHostFileSystemService } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -430,6 +431,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
+			get supportsCopilotModels() {
+				const root = connection.rootState.value;
+				return !!root && !(root instanceof Error) && hasGitHubCopilotResource(root.agents.find(candidate => candidate.provider === agent.provider)?.protectedResources ?? []);
+			},
 			agentHostProviderId: agent.provider,
 			supportsDelegation: false,
 			capabilities: {

@@ -22,7 +22,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workben
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { chatSessionSupportsCopilotModels, getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
@@ -105,6 +105,7 @@ export class ModelPicker extends Disposable {
 			getLocalModelConnection: () => this._sessionContext.session.get()?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID ? this._agentHostService : undefined,
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
+				supportsCopilotModels: chatSessionSupportsCopilotModels(this._chatSessionsService.getChatSessionContribution(this._sessionContext.session.get()?.sessionType ?? '')),
 				showModelIcon: true,
 			}),
 			isCacheWarm: () => {

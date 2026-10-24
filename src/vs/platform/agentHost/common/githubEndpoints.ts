@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IGitHubEndpoints } from '../../github/common/githubEndpoints.js';
+import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../github/common/githubEndpoints.js';
 import { ProtectedResourceMetadata } from './state/protocol/state.js';
 
 /**
@@ -29,4 +29,12 @@ export function gitHubRepoResource(endpoints: IGitHubEndpoints): ProtectedResour
 		scopes_supported: ['repo'],
 		required: false,
 	};
+}
+
+/** Whether the harness advertises Copilot model authentication, including optional and enterprise resources. */
+export function hasGitHubCopilotResource(resources: readonly ProtectedResourceMetadata[]): boolean {
+	return resources.some(resource => resource.authorization_servers?.some(server => {
+		const endpoints = deriveGitHubEndpoints(server);
+		return server === endpoints.oauthServer && resource.resource === endpoints.apiBaseUri;
+	}));
 }

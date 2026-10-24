@@ -25,6 +25,8 @@ import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
 
 export interface IModelPickerPresentationOptions {
+	/** Whether this harness can use Copilot models, even when other sources work while signed out. */
+	readonly supportsCopilotModels?: boolean;
 	readonly showManageModelsAction: boolean;
 	readonly showUnavailableFeatured: boolean;
 	readonly showAutoModel: boolean;

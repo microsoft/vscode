@@ -36,8 +36,9 @@ import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from 
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext, IModelsControlManifest } from '../../../../../common/languageModels.js';
+import { getSourceQualifiedModelIdentifier, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsGroup, ILanguageModelsService, IModelPinTelemetryContext, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../../../browser/actions/chatActions.js';
 
 function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> = {}): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -97,7 +98,7 @@ suite('ModelPickerTelemetry', () => {
 		session.close();
 	});
 
-	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true) {
+	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true, sourceOptions?: { supportsCopilotModels: boolean; groups: ILanguageModelsGroup[]; hasByokModels?: boolean }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -107,8 +108,11 @@ suite('ModelPickerTelemetry', () => {
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const savedConfigurations: string[] = [];
 		const pinnedModelIds: string[] = [];
+		const languageModelsChanged = store.add(new Emitter<string>());
 		const delegateSelections: string[] = [];
 		const programmaticDelegateSelections: string[] = [];
+		const commands: string[] = [];
+		let tabLabels: string[] = [];
 		let tabbedShows = 0;
 		let trustRequests = 0;
 		let renderWelcome: () => HTMLElement | undefined = () => assert.fail('Tabbed picker has not opened');
@@ -204,6 +208,7 @@ suite('ModelPickerTelemetry', () => {
 				visible = true;
 				contextViewLayer = options.contextViewLayer;
 				let activeTab = options.initialTab;
+				tabLabels = options.tabs.map(tab => tab.label ?? tab.id);
 				tabBarActionIds = options.tabBarActions?.map(action => action.id) ?? [];
 				renderWelcome = () => {
 					const body = dom.$('div');
@@ -251,7 +256,7 @@ suite('ModelPickerTelemetry', () => {
 			hide: () => hideTabbedPicker(),
 			dispose: () => { },
 		});
-		instantiationService.stub(ICommandService, {});
+		instantiationService.stub(ICommandService, { executeCommand: async id => { commands.push(id); } });
 		instantiationService.stub(IOpenerService, { open: async resource => { openedLinks.push(resource.toString()); return true; } });
 		instantiationService.stub(ITelemetryService, {
 			publicLog2: (name, data) => {
@@ -285,8 +290,11 @@ suite('ModelPickerTelemetry', () => {
 			},
 		});
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+			override readonly onDidChangeLanguageModels = languageModelsChanged.event;
+			override getVendors() { return [{ vendor: 'copilot', displayName: 'Copilot', isDefault: true, configuration: undefined, managementCommand: undefined, when: undefined }]; }
 			override getLanguageModelIds() { return models.map(model => model.identifier); }
 			override getModelsControlManifest() { return controlManifest; }
+			override getLanguageModelGroups() { return sourceOptions?.groups ?? []; }
 			override getRecentlyUsedModelIds() { return [model.identifier]; }
 			override getPinnedModelIds() { return [...pinnedModelIds]; }
 			// The real service reports pin changes; record what the picker passes it instead.
@@ -305,6 +313,9 @@ suite('ModelPickerTelemetry', () => {
 			override readonly onDidChangeEntitlement = entitlementChanged.event;
 		}();
 		entitlementService.entitlement = entitlement;
+		if (sourceOptions?.hasByokModels !== undefined) {
+			Object.defineProperty(entitlementService, 'hasByokModels', { value: sourceOptions.hasByokModels });
+		}
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(IUpdateService, { state: { type: StateType.Uninitialized } });
 		instantiationService.stub(IUriIdentityService, { extUri });
@@ -325,6 +336,7 @@ suite('ModelPickerTelemetry', () => {
 			getAgentSessionId: () => 'owner-1',
 			getProvider: () => 'copilotcli',
 			getPresentationOptions: () => ({
+				supportsCopilotModels: sourceOptions?.supportsCopilotModels,
 				showManageModelsAction: false, showUnavailableFeatured: true,
 				showAutoModel, showModelIcon: false,
 			}),
@@ -334,11 +346,19 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
+			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService, commands,
 			get visible() { return visible; },
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
 			get tabBarActionIds() { return tabBarActionIds; },
+			get tabLabels() { return tabLabels; },
+			setModels: (next: ILanguageModelChatMetadataAndIdentifier[], groups: ILanguageModelsGroup[]) => {
+				models = next;
+				if (sourceOptions) {
+					sourceOptions.groups = groups;
+				}
+				languageModelsChanged.fire('agent-host-example');
+			},
 			get listLabels() { return listLabels; },
 			setTrusted: (trusted: boolean) => workspaceTrustManagementService.setWorkspaceTrust(trusted),
 			/** The welcome shown in place of the active tab's list, as its title, message, and action. */
@@ -365,6 +385,77 @@ suite('ModelPickerTelemetry', () => {
 			},
 		};
 	}
+
+	for (const supportsCopilotModels of [false, true]) {
+		test(`available native models preserve the shared Copilot sign-in entry only for supporting harnesses (${supportsCopilotModels})`, () => {
+			const source = { id: 'opaque-native', displayName: 'Anthropic' };
+			const vendor = 'agent-host-example';
+			const native = {
+				...createModel('shared', { vendor, modelSourceId: source.id, isCopilotModel: false }),
+				identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+			};
+			const result = createPicker(native, undefined, [native], ChatEntitlement.Unknown, true, false, { free: {}, paid: {} }, true, {
+				supportsCopilotModels,
+				groups: [{ source, modelIdentifiers: [native.identifier] }],
+				hasByokModels: true,
+			});
+			if (supportsCopilotModels) {
+				result.selectTab('Copilot');
+				result.welcome()?.runAction();
+			}
+			assert.deepStrictEqual({
+				tabs: result.tabLabels,
+				welcome: result.welcome()?.text,
+				commands: result.commands,
+				selection: result.picker.selectedModel?.identifier,
+				modelChanges: result.delegateSelections,
+				pickerUnavailable: result.picker.isSetupRequired(),
+			}, {
+				tabs: supportsCopilotModels ? ['Copilot', 'Anthropic'] : ['Anthropic'],
+				welcome: supportsCopilotModels ? ['Copilot', 'Sign in to see available models.', 'Sign in'] : undefined,
+				commands: supportsCopilotModels ? [CHAT_SETUP_ACTION_ID] : [],
+				selection: native.identifier,
+				modelChanges: [],
+				pickerUnavailable: false,
+			});
+		});
+	}
+
+	test('the open Copilot entry refreshes across sign-in and sign-out without changing the native selection', () => {
+		const vendor = 'agent-host-example';
+		const sources = [{ id: 'n', displayName: 'Anthropic' }, { id: 'p', displayName: 'GitHub Copilot' }];
+		const models = sources.map((source, index) => ({
+			...createModel('shared', { vendor, modelSourceId: source.id, isCopilotModel: index === 1 }),
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+		}));
+		const groups = sources.map((source, index) => ({ source, modelIdentifiers: [models[index].identifier] }));
+		const result = createPicker(models[0], undefined, [models[0]], ChatEntitlement.Unknown, true, false, { free: {}, paid: {} }, true, {
+			supportsCopilotModels: true, groups: [groups[0]],
+		});
+		result.selectTab('Copilot');
+		const signedOut = result.welcome()?.text;
+		result.setEntitlement(ChatEntitlement.Pro);
+		const awaitingCatalog = result.welcome()?.text;
+		result.setModels(models, groups);
+		result.selectTab('Copilot');
+		const signedIn = { tabs: result.tabLabels, welcome: result.welcome()?.text, rows: result.listLabels };
+		result.setModels([models[0]], [groups[0]]);
+		result.setEntitlement(ChatEntitlement.Unknown);
+		result.selectTab('Copilot');
+		assert.deepStrictEqual({
+			signedOut, awaitingCatalog, signedIn,
+			signedOutAgain: result.welcome()?.text,
+			selected: result.picker.selectedModel?.identifier,
+			changes: result.delegateSelections,
+		}, {
+			signedOut: ['Copilot', 'Sign in to see available models.', 'Sign in'],
+			awaitingCatalog: ['Copilot', 'No models are available.'],
+			signedIn: { tabs: ['Copilot', 'Anthropic'], welcome: undefined, rows: ['shared'] },
+			signedOutAgain: ['Copilot', 'Sign in to see available models.', 'Sign in'],
+			selected: models[0].identifier,
+			changes: [],
+		});
+	});
 
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {

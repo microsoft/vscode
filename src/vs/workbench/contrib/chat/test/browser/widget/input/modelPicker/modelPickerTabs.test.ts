@@ -135,6 +135,32 @@ suite('Model picker destinations', () => {
 		});
 	});
 
+	test('producer-classified Copilot sources lead independently of catalog order or display names', () => {
+		const vendor = 'agent-host-example';
+		const sources = [
+			{ id: 'native', displayName: 'Copilot' },
+			{ id: 'proxy-a', displayName: 'Subscription A' },
+			{ id: 'proxy-b', displayName: 'Subscription B' },
+		];
+		const models = sources.map((source, index) => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+			metadata: { ...createModel('shared', 'Shared', { vendor }).metadata, modelSourceId: source.id, isCopilotModel: index > 0 },
+		}));
+		const sourceService: ILanguageModelsService = {
+			...service,
+			getLanguageModelGroups: () => sources.map((source, index) => ({ source, modelIdentifiers: [models[index].identifier] })),
+		};
+		assert.deepStrictEqual(buildModelPickerDestinations(models, sourceService).map(destination => ({
+			id: destination.id,
+			models: destination.models.map(model => model.identifier),
+			curated: destination.supportsCopilotCuration,
+		})), [1, 2, 0].map(index => ({
+			id: `source:${getLanguageModelSourceIdentifier(vendor, sources[index].id)}`,
+			models: [models[index].identifier],
+			curated: index > 0,
+		})));
+	});
+
 	test('unrecognized source labels stay visible and branding does not change identity or Copilot curation', () => {
 		const vendor = 'agent-host-claude';
 		const sources = [

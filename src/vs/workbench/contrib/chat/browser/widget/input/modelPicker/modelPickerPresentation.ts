@@ -161,6 +161,13 @@ export const enum ModelPickerUnavailableReason {
 	SetupRequired = 'setupRequired',
 }
 
+/** Uses producer classification for qualified sources, never their label or raw model ID. */
+export function isCopilotModel(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): boolean {
+	return model.metadata.modelSourceId !== undefined
+		? model.metadata.isCopilotModel === true
+		: model.metadata.isCopilotModel !== false && !isUserProvidedModel(model, languageModelsService);
+}
+
 export function modelPickerRequiresSetup(context: {
 	readonly entitlement: ChatEntitlement;
 	readonly anonymous: boolean;

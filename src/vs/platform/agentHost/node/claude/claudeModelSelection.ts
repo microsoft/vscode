@@ -9,6 +9,7 @@ import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common
 import { JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import type { ModelSelection, ModelSourceInfo } from '../../common/state/protocol/state.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { toAgentModelProviderMeta } from '../../common/meta/agentModelProvider.js';
 import { toSdkModelId } from './claudeModelId.js';
 import type { ClaudeTransportMode } from './claudeTransportMode.js';
 
@@ -80,13 +81,17 @@ export function resolveClaudeSessionTransport(inputs: {
 	return model?.modelSourceId !== undefined ? claudeTransportForProvider(model.modelSourceId) : inputs.defaultMode;
 }
 
-/**
- * Publish raw model IDs with provider-owned source references. Native precedes
- * proxy to retain the native-first choice formerly produced by vendor grouping.
- */
+/** Publishes raw IDs and source references; the picker owns presentation order. */
 export function mergeClaudeModelCatalogs(proxy: readonly IAgentModelInfo[], native: readonly IAgentModelInfo[]): IAgentModelInfo[] {
 	return [
 		...native.map(model => ({ ...model, modelSource: claudeNativeModelSource })),
-		...proxy.map(model => ({ ...model, modelSource: claudeProxyModelSource })),
+		...proxy.map(model => ({
+			...model,
+			modelSource: claudeProxyModelSource,
+			_meta: {
+				...model._meta,
+				...toAgentModelProviderMeta({ id: CLAUDE_PROVIDER_COPILOT, kind: 'copilot', label: claudeProxyModelSource.displayName }),
+			},
+		})),
 	];
 }

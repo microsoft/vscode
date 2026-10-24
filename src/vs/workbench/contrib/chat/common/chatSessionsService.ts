@@ -222,6 +222,8 @@ export interface IChatSessionsExtensionPoint {
 	 * CLI agent host).
 	 */
 	readonly supportsAutoModel?: boolean;
+	/** Whether Copilot models are supported, independently of whether sign-in is required to use other sources. */
+	readonly supportsCopilotModels?: boolean;
 	/**
 	 * Logical Agent Host provider ID for Agent Host-backed chat sessions.
 	 * For example, both local `agent-host-copilotcli` and remote
@@ -431,6 +433,11 @@ export namespace SessionType {
 	export const AgentHostCopilot = 'agent-host-copilotcli';
 	export const AgentHostClaude = 'agent-host-claude';
 	export const AgentHostCodex = 'agent-host-codex';
+}
+
+/** Custom model pools opt in to the shared Copilot entry; general model pools retain it by default. */
+export function chatSessionSupportsCopilotModels(contribution: Pick<IChatSessionsExtensionPoint, 'supportsCopilotModels' | 'requiresCustomModels'> | undefined): boolean {
+	return contribution?.supportsCopilotModels ?? contribution?.requiresCustomModels !== true;
 }
 
 /**

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { deriveGitHubEndpoints } from '../../../github/common/githubEndpoints.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { gitHubCopilotResource, gitHubRepoResource } from '../../common/githubEndpoints.js';
+import { gitHubCopilotResource, gitHubRepoResource, hasGitHubCopilotResource } from '../../common/githubEndpoints.js';
 
 suite('Agent Host GitHub resources', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,5 +46,17 @@ suite('Agent Host GitHub resources', () => {
 			copilot: GITHUB_COPILOT_PROTECTED_RESOURCE,
 			repo: GITHUB_REPO_PROTECTED_RESOURCE,
 		});
+	});
+
+	test('Copilot model support is advertised independently of mandatory sign-in or source labels', () => {
+		assert.deepStrictEqual([
+			hasGitHubCopilotResource([]),
+			hasGitHubCopilotResource([GITHUB_REPO_PROTECTED_RESOURCE]),
+			hasGitHubCopilotResource([{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false, resource_name: 'Renamed' }]),
+			hasGitHubCopilotResource([gitHubCopilotResource(deriveGitHubEndpoints('https://acme.ghe.com'))]),
+			hasGitHubCopilotResource([gitHubCopilotResource(deriveGitHubEndpoints('https://ghe.acme.com'))]),
+			hasGitHubCopilotResource([{ ...GITHUB_REPO_PROTECTED_RESOURCE, resource_name: 'GitHub Copilot' }]),
+			hasGitHubCopilotResource([{ resource: 'https://example.com/models', authorization_servers: ['https://example.com/login/oauth'], resource_name: 'Copilot' }]),
+		], [false, false, true, true, true, false, false]);
 	});
 });

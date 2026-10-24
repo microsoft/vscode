@@ -1950,8 +1950,8 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startCalls: ['tok'],
 			models: [
-				{ provider: 'claude', id: 'claude-opus-4.6', modelSource: claudeProxyModelSource, name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
-				{ provider: 'claude', id: 'claude-sonnet-4.6', modelSource: claudeProxyModelSource, name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
+				{ provider: 'claude', id: 'claude-opus-4.6', modelSource: claudeProxyModelSource, name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1, 'vscode.modelProvider': { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' } } },
+				{ provider: 'claude', id: 'claude-sonnet-4.6', modelSource: claudeProxyModelSource, name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1, 'vscode.modelProvider': { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' } } },
 			],
 		});
 	});
@@ -1985,6 +1985,7 @@ suite('ClaudeAgent', () => {
 			longContextCacheWriteCost: 7.5,
 			longContextOutputCost: 30,
 			priceCategory: 'medium',
+			'vscode.modelProvider': { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' },
 		});
 	});
 

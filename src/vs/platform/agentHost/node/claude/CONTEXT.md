@@ -6,6 +6,8 @@ The Claude-side of the agent host: a `ClaudeAgent` implementation of `IAgent` th
 
 The Claude harness publishes native and proxy catalogs together using standard AHP `modelSources` descriptors and per-model `modelSourceId` references. Model IDs remain the SDK/catalog's raw IDs; the same raw ID may occur in both sources. Clients group and select by the source fields, not by vendor metadata or a private model-ID syntax.
 
+Proxy rows also carry the existing Copilot producer metadata so the shared picker can put Copilot first without inspecting source names or IDs. The harness's optional Copilot protected resource advertises that Copilot models are supported, independently of native availability or mandatory sign-in. Signed-out users therefore retain the existing Copilot sign-in entry alongside usable native models; account/catalog refresh replaces that entry with exact source-qualified choices without changing the selected native model.
+
 An explicit `(modelSourceId, id)` must identify an available catalog row. The adapter resolves that source to its transport and rejects unknown or removed pairs, including queued sends and steering that attempts to change the active model. A failed SDK model change or configuration replay stops execution rather than sending a prompt to the previously applied model. Genuinely unqualified legacy selections retain the existing host-default transport.
 
 Since AHP `createSession` carries no model, model-less provisioning does not authenticate a guessed transport or start an SDK conversation. Authentication and source validation run when the first selected model is materialized. Explicit proxy selections still require GitHub authentication; native selections use the SDK's existing setup without a GitHub sign-in.

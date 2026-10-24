@@ -55,7 +55,7 @@ import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, whenModelConfigValue
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isCopilotModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -223,11 +223,7 @@ export class ModelPickerWidget extends Disposable {
 				this._clearActivating();
 			}
 			this._renderLabel(models);
-			// While unavailable the picker explains why instead of listing models, so it
-			// only takes on new models once they can be used.
-			if (this._tabbedPicker.value?.isVisible && this._unavailableReason(models) === undefined) {
-				this._tabbedPicker.value.refresh(models, this._delegate.getComparisonModels?.());
-			}
+			this._refreshPicker(models);
 		}));
 
 		// Reflect Restricted Mode immediately when trust changes. When trust is
@@ -265,14 +261,21 @@ export class ModelPickerWidget extends Disposable {
 
 		// The setup-required state derives from entitlement / sentiment / anonymous
 		// access, so refresh the label when any of those change (e.g. after sign-in).
-		this._register(this._entitlementService.onDidChangeEntitlement(() => this.setSelectedModel(this._selectedModel)));
+		this._register(this._entitlementService.onDidChangeEntitlement(() => {
+			this.setSelectedModel(this._selectedModel);
+			this._refreshPicker();
+		}));
 		this._register(this._entitlementService.onDidChangeSentiment(() => {
 			if (this._isChatDisabled()) {
 				this._tabbedPicker.value?.hide();
 			}
 			this._renderLabel();
+			this._refreshPicker();
 		}));
-		this._register(this._entitlementService.onDidChangeAnonymous(() => this._renderLabel()));
+		this._register(this._entitlementService.onDidChangeAnonymous(() => {
+			this._renderLabel();
+			this._refreshPicker();
+		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatAIDisabledSettingId) && this._isChatDisabled()) {
 				this._tabbedPicker.value?.hide();
@@ -588,7 +591,7 @@ export class ModelPickerWidget extends Disposable {
 	 * Providers the user has not set up are reached through "Add Models" rather than
 	 * given a tab.
 	 */
-	private _providerPlaceholders(models: readonly ILanguageModelChatMetadataAndIdentifier[], { reason, activating }: IModelPickerAvailability, onLinkClick: (uri: URI) => void): IModelPickerProviderPlaceholder[] {
+	private _providerPlaceholders(models: readonly ILanguageModelChatMetadataAndIdentifier[], { reason, activating }: IModelPickerAvailability): IModelPickerProviderPlaceholder[] {
 		const vendor = COPILOT_VENDOR_ID;
 		const label = getLanguageModelProviderDisplayName(this._languageModelsService, COPILOT_VENDOR_ID);
 		if (reason === ModelPickerUnavailableReason.Restricted) {
@@ -606,7 +609,12 @@ export class ModelPickerWidget extends Disposable {
 				},
 			}];
 		}
-		if (reason === ModelPickerUnavailableReason.SetupRequired) {
+		const supportsCopilotModels = this._delegate.getPresentationOptions().supportsCopilotModels === true;
+		const hasCopilotModels = models.some(model => isCopilotModel(model, this._languageModelsService));
+		const copilotNeedsSetup = supportsCopilotModels
+			&& !hasCopilotModels
+			&& modelPickerRequiresSetup({ entitlement: this._entitlementService.entitlement, anonymous: this._entitlementService.anonymous, hasByokModels: false });
+		if (reason === ModelPickerUnavailableReason.SetupRequired || copilotNeedsSetup) {
 			return [{
 				vendor,
 				label,
@@ -614,7 +622,7 @@ export class ModelPickerWidget extends Disposable {
 				action: { label: localize('chat.modelPicker.signIn', "Sign in"), run: () => this._requestSetup() },
 			}];
 		}
-		if (models.length > 0) {
+		if (hasCopilotModels || (models.length > 0 && !supportsCopilotModels)) {
 			return [];
 		}
 		if (activating) {
@@ -635,10 +643,32 @@ export class ModelPickerWidget extends Disposable {
 				label: localize('chat.modelPicker.upgrade', "Upgrade"),
 				run: () => {
 					this._tabbedPicker.value?.hide();
-					onLinkClick(URI.parse('command:workbench.action.chat.upgradePlan'));
+					this._openUnavailableLink(URI.parse('command:workbench.action.chat.upgradePlan'));
 				},
 			} : undefined,
 		}];
+	}
+
+	private _refreshPicker(models = this._delegate.getModels()): void {
+		const picker = this._tabbedPicker.value;
+		if (!picker?.isVisible) {
+			return;
+		}
+		const availability = this._availability(models);
+		const available = availability.reason === undefined;
+		const pickerModels = available ? models : [];
+		picker.refresh(pickerModels, available ? this._delegate.getComparisonModels?.() : [], this._providerPlaceholders(pickerModels, availability));
+	}
+
+	private _openUnavailableLink(uri: URI): void {
+		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
+		const interaction = uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan'
+			? 'premiumModelUpgradePlanClicked'
+			: manageSettingsUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(manageSettingsUrl)) ? 'disabledModelContactAdminClicked' : undefined;
+		if (interaction) {
+			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
+		}
+		void this._openerService.open(uri, { allowCommands: true });
 	}
 
 	/** The on-device rows for this picker, only while the setting is on for a local Copilot chat; created on demand so pickers of users who haven't opted in never bind to the service. */
@@ -780,16 +810,7 @@ export class ModelPickerWidget extends Disposable {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
 		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
-		const onLinkClick = (uri: URI) => {
-			if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
-				logModelPickerInteraction('premiumModelUpgradePlanClicked');
-			} else if (manageSettingsUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(manageSettingsUrl))) {
-				logModelPickerInteraction('disabledModelContactAdminClicked');
-			}
-			void this._openerService.open(uri, { allowCommands: true });
-		};
-
-		const placeholders = this._providerPlaceholders(models, availability, onLinkClick);
+		const placeholders = this._providerPlaceholders(models, availability);
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier: IStringDictionary<IModelControlEntry> = unavailable ? {} : getModelPickerControlModels(manifest, this._entitlementService.entitlement, models);
 		const onDidToggleOtherModels = (collapsed: boolean) => {
@@ -827,7 +848,7 @@ export class ModelPickerWidget extends Disposable {
 				manageSettingsUrl,
 				updateStateType: this._updateService.state.type,
 			},
-			onUnavailableLinkClick: onLinkClick,
+			onUnavailableLinkClick: uri => this._openUnavailableLink(uri),
 			onSelect,
 			onTogglePin,
 			onManageModels: () => manageModelsAction?.run(),

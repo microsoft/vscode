@@ -19,6 +19,7 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
+import { hasGitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -316,6 +317,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const agentId = sessionType;
 		const vendor = sessionType;
 		const ahService = this._agentHostService;
+		const protectedResourcesService = this._protectedResourcesService;
 
 		// Chat session contribution.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
@@ -328,6 +330,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
+			get supportsCopilotModels() {
+				return hasGitHubCopilotResource(protectedResourcesService.getProtectedResources(agent.provider) ?? []);
+			},
 			// Derived live from the agent's currently-advertised protected resources
 			// (via the protected-resources service): an agent that marks the GitHub
 			// Copilot resource `required: false` (Claude in native mode, Codex on
@@ -430,10 +435,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// Language model provider.
 		// Order matters: `updateModels` must be called after
 		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
-		// One vendor descriptor for this harness. Claude's `anthropic`/`copilot`
-		// model groups (per-session provider selection) resolve their display names
-		// from the Copilot extension's pre-existing vendors, so registering them
-		// here would add nothing and risk clobbering those shared vendors on dispose.
+		// The harness owns one vendor; its source groups come from the published catalog.
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));

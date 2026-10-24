@@ -257,7 +257,7 @@ suite('TabbedModelPicker', () => {
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'codex', displayName: 'Codex' }),
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'ollama', displayName: 'Ollama' }),
 			],
-			getLanguageModelGroups: () => options.modelGroups ?? [],
+			getLanguageModelGroups: () => [...(options.modelGroups ?? [])],
 			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
 		const changed = disposables.add(new Emitter<string>());
@@ -2248,6 +2248,21 @@ suite('TabbedModelPicker', () => {
 			onDevice: { tabs, active: 'On This Device', rows: ['Example Flash 1.0', 'Qwen Coder', 'Example Vision 7B', 'Example Mini 3B'] },
 			notOptedIn: { tabs: ['Copilot', 'Ollama'], active: 'Copilot', rows: copilotRows },
 		});
+	});
+
+	test('a qualified Copilot source also stays before the on-device destination', () => {
+		const vendor = 'agent-host-example';
+		const sources = [{ id: 'n', displayName: 'Anthropic' }, { id: 'p', displayName: 'GitHub Copilot' }];
+		const sourceModels = sources.map((source, index) => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+			metadata: { ...model('shared').metadata, vendor, modelSourceId: source.id, isCopilotModel: index === 1 },
+		}));
+		const { popup } = createPicker({
+			models: [...sourceModels, exampleFlash],
+			modelGroups: sources.map((source, index) => ({ source, modelIdentifiers: [sourceModels[index].identifier] })),
+			localModels: onDevicePresentation(),
+		});
+		assert.deepStrictEqual(tabState(popup).tabs, ['Copilot', 'On This Device', 'Anthropic']);
 	});
 
 	test('the On This Device tab lists each family once on a single line, and an installed one selects its model', () => {
