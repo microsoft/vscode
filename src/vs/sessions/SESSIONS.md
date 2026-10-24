@@ -78,6 +78,12 @@ Visible-session slots have stable identities independent of list position. The v
 
 Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
 
+### Browser networks
+
+`SessionBrowserNetworkContribution` registers the browser network resolver before editors are restored. A new browser tab captures its network synchronously: the agent host of its owning chat's session (agent tabs), the active session, or the composer's draft (user tabs). It also captures a storage affinity from the host and the session's folder roots, which selects a partition of the Agents window's workspace storage, so a folder's worktrees share persistent storage; workspace-less sessions have per-tab in-memory storage. Sessions on the local (ambient) agent host and sessions not backed by an agent host use the local network. Local dev container and WSL hosts are proxied, so the browser always shares the agent host's network. Drafts resolve through their provider's host until the host knows the session.
+
+A tab's network is fixed for its lifetime. Tabs opened from the composer follow the draft they were opened for: when that draft is replaced with another host or folders, or starts on a different host, the tab is recreated on the new network at the same URL, keeping its storage scope. Tabs of other drafts, such as one still starting in the background, are unaffected. Switching the active session or activating an existing tab never retargets it.
+
 ## Domain model
 
 Provider-neutral interfaces live in `services/sessions/common/session.ts`.

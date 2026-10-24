@@ -39,6 +39,8 @@ interface ISessionNetwork extends IDisposable {
 	readonly network: IBrowserViewNetwork | undefined;
 	/** Settles once the proxy is held and Playwright uses the network. */
 	readonly ready: Promise<void>;
+	/** Whether the pages use the local network because the network's host could not proxy browsers. */
+	readonly usesLocalFallback: boolean;
 }
 
 class BrowserChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -176,12 +178,16 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 	private _updateSessionNetwork(sessionId: string): Promise<void> {
 		const network = this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
 		const current = this._sessionNetworks.get(sessionId);
-		if (current ? current.network?.authority === network?.authority : !network) {
+		// A host that could not proxy browsers may have been updated since.
+		const canLeaveFallback = !!current?.usesLocalFallback && !!network && this.browserViewService.getNetworkStatus(network).proxySupported === true;
+		if (current ? current.network?.authority === network?.authority && !canLeaveFallback : !network) {
 			return current?.ready ?? Promise.resolve();
 		}
 		// Recorded before waiting for the proxy, so a session that ends meanwhile releases it.
 		const store = new DisposableStore();
+		let usesLocalFallback = false;
 		const ready = (async () => {
+			let usedNetwork: IBrowserViewNetwork | undefined;
 			if (network) {
 				const hold = await this.browserViewService.acquireNetwork(network);
 				if (store.isDisposed) {
@@ -189,10 +195,13 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 					throw new CancellationError();
 				}
 				store.add(hold);
+				// A host that cannot proxy browsers leaves the pages on the local network.
+				usedNetwork = hold.object;
+				usesLocalFallback = !usedNetwork;
 			}
-			await this.playwrightService.setSessionNetwork(sessionId, network);
+			await this.playwrightService.setSessionNetwork(sessionId, usedNetwork);
 		})();
-		const sessionNetwork: ISessionNetwork = { network, ready, dispose: () => store.dispose() };
+		const sessionNetwork: ISessionNetwork = { network, ready, get usesLocalFallback() { return usesLocalFallback; }, dispose: () => store.dispose() };
 		this._sessionNetworks.set(sessionId, sessionNetwork);
 		// Let a later call retry a failed update.
 		ready.catch(() => {

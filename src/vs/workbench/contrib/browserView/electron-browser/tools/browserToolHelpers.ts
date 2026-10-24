@@ -303,6 +303,20 @@ export function remoteUrlRewriteNotice(originalUrl: string, rewrittenUrl: string
 }
 
 /**
+ * A notice for pages opened for a remote network that use the user's local
+ * network instead, for example because the agent host cannot proxy browsers.
+ */
+export function localNetworkFallbackNotice(input: BrowserEditorInput): { kind: 'text'; value: string } | undefined {
+	if (!input.network || input.model?.network) {
+		return undefined;
+	}
+	return {
+		kind: 'text',
+		value: 'Note: This page loads from the user\'s local network, not the remote host\'s network, so `localhost` refers to the user\'s machine. Services running on the remote host are not reachable from this page.',
+	};
+}
+
+/**
  * Checks whether a browser editor with the same host (hostname + port) on the
  * same network already exists. Pages keep the network they were opened on, so
  * the same URL on another network is a different destination.
