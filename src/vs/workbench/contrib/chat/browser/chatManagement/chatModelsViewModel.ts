@@ -212,7 +212,10 @@ export class ChatModelsViewModel extends Disposable {
 	private doFilter(): void {
 		const viewModelEntries: IViewModelEntry[] = [];
 		const shouldShowGroupHeaders = this.languageModelGroups.length > 1
-			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && group.group.sourcePresentation !== undefined);
+			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && group.group.sourcePresentation !== undefined)
+			// A single JSON-configured (BYOK) group must keep its header row, which is where
+			// the group's rename/delete actions are rendered.
+			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && !!group.group.vendorEntry.vendor.configuration);
 
 		for (const group of this.languageModelGroups) {
 			if (this.collapsedGroups.has(group.group.id)) {
