@@ -724,6 +724,10 @@
 	border-radius: 0;
 }
 
+.automations-history-group-runs .automations-run-session-list .sessions-list-control .monaco-list-row:is(:hover, .hovered, .focused, :focus-within) .session-external-application-badge-title.visible {
+	display: flex;
+}
+
 .automations-history-group-runs > :not(:first-child),
 .automations-history-group-runs .automations-run-session-list:not(:empty) .monaco-list-row:not(:first-child) {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);

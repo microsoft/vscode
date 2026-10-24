@@ -39,6 +39,7 @@ import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { getRemoteAgentHostPickerKey } from '../../browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
@@ -313,12 +314,14 @@ suite('Mission Control native provider inventory', () => {
 				addresses: created.map(entry => entry.provider.remoteAddress),
 				statuses: created.map(entry => entry.provider.connectionStatus.get().kind),
 				pickerVisibility: created.map(entry => entry.options.isVisibleInEnvironmentPicker?.get()),
+				pickerKeys: created.map(entry => entry.options.pickerVisibilityKey),
 				connects: actions.filter(action => action.startsWith('connect:')),
 				discoveries: actions.filter(action => action === 'discover').length,
 			}, {
 				addresses: ['cloudsandbox:online', 'cloudsandbox:offline'],
 				statuses: [connects ? 'connected' : 'disconnected', 'disconnected'],
 				pickerVisibility: [true, false],
+				pickerKeys: ['online', 'offline'].map(id => getRemoteAgentHostPickerKey(`cloudsandbox:${id}`, 'first')),
 				connects: connects ? ['connect:online'] : [],
 				discoveries: 1,
 			});

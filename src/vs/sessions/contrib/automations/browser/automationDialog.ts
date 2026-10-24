@@ -278,6 +278,7 @@ interface IRenderFormHandle {
 	readonly getBranch: () => string | undefined;
 	readonly waitForAutomationSessionSync: (token: CancellationToken) => Promise<void>;
 	readonly setSaving: (saving: boolean, committing?: boolean) => void;
+	readonly setOwnership: (ownership: IFormState['ownership']) => void;
 	readonly getCustomizationIds: () => readonly string[] | undefined;
 	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
@@ -2041,6 +2042,14 @@ export function renderForm(
 		items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex, disabled: isEdit })),
 	}));
 	DOM.append(ownerControl, ownerRadio.domNode);
+	const setOwnership = (ownership: IFormState['ownership']) => {
+		const index = ownership === 'repository' ? 1 : 0;
+		state.ownership = ownership;
+		ownerRadio.setActiveItem(index);
+		updateOwnerInfo(index);
+		setRepositoryWarningVisible(index === 1);
+		revalidate();
+	};
 	for (const [index, element] of ownerRadio.optionElements.entries()) {
 		const description = isEdit
 			? localize('automation.owner.immutableDescription', "{0} Ownership can't be changed after creation.", ownerDescriptions[index])
@@ -2052,12 +2061,7 @@ export function renderForm(
 	}
 	setRepositoryWarningVisible(ownerIndex === 1);
 	if (!isEdit) {
-		disposables.add(ownerRadio.onDidActivate(index => {
-			state.ownership = index === 1 ? 'repository' : 'user';
-			updateOwnerInfo(index);
-			setRepositoryWarningVisible(index === 1);
-			revalidate();
-		}));
+		disposables.add(ownerRadio.onDidActivate(index => setOwnership(index === 1 ? 'repository' : 'user')));
 		// The modal captures arrow keys before the Radio receives them.
 		disposables.add(DOM.addDisposableListener(DOM.getWindow(form), DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 			const elements = ownerRadio.optionElements;
@@ -2141,6 +2145,7 @@ export function renderForm(
 			};
 		},
 		getBranch: () => isolationModel.persistedBranch,
+		setOwnership,
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
 			setAutomationControlVisible(scheduleError, message !== undefined);

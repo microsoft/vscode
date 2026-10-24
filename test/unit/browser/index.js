@@ -317,14 +317,13 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 			modules: testModules,
 			grep: args.grep,
 		});
-	} catch (err) {
-		console.error(err);
 	} finally {
 		await stallWatchdog.dispose();
-	}
-	if (!isDebug) {
-		server?.dispose();
-		await browser.close();
+		if (!isDebug) {
+			await page.removeAllListeners('console', { behavior: 'wait' });
+			server?.dispose();
+			await browser.close();
+		}
 	}
 
 	if (failingTests.length > 0) {
