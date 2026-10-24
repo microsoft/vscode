@@ -275,11 +275,16 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 		const children: StickyElement[] = [];
 		for (const child of outlineElement.children.values()) {
 			if (child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
-				if (child.symbol.selectionRange.startLineNumber !== previousStartLine) {
-					children.push(this._stickyModelFromOutlineElement(child, child.symbol.selectionRange.startLineNumber));
-				} else {
-					for (const subchild of child.children.values()) {
-						children.push(this._stickyModelFromOutlineElement(subchild, child.symbol.selectionRange.startLineNumber));
+				continue;
+			}
+			const childStartLine = child.symbol.selectionRange.startLineNumber;
+
+			if (childStartLine !== previousStartLine) {
+				children.push(this._stickyModelFromOutlineElement(child, childStartLine));
+			} else if (child.children.size > 0) {
+				for (const subchild of child.children.values()) {
+					if (subchild.symbol.selectionRange.startLineNumber !== subchild.symbol.range.endLineNumber) {
+					children.push(this._stickyModelFromOutlineElement(subchild, subchild.symbol.selectionRange.startLineNumber));
 					}
 				}
 			}
