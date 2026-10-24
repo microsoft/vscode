@@ -111,3 +111,16 @@ export function getRepositoryDefaultRemote(repository: Repository, order: string
 	const fetchUrl = getRepositoryDefaultRemoteUrl(repository, order);
 	return fetchUrl ? getRepositoryFromUrl(fetchUrl) : undefined;
 }
+
+export function getUniqueRemoteName(existingRemoteNames: readonly string[], preferredName: string): string {
+	if (!existingRemoteNames.includes(preferredName)) {
+		return preferredName;
+	}
+
+	let index = 1;
+	while (existingRemoteNames.includes(`${preferredName}-${index}`)) {
+		index++;
+	}
+
+	return `${preferredName}-${index}`;
+}
