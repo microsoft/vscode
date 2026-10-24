@@ -212,6 +212,9 @@ export class AgentHostChatMovability extends Disposable {
 				} else {
 					this.update(action.chat);
 				}
+			} else if (action.type === ActionType.ChatTurnStarted) {
+				this._registrationPass = undefined;
+				this.update(envelope.channel);
 			} else if (action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved) {
 				this._registrationPass = undefined;
 				this.update(envelope.channel);
@@ -310,7 +313,14 @@ export class AgentHostChatMovability extends Disposable {
 			// Asked for another owner, this checks that owner's list, so it may miss D2; `planWorktreeMove` refuses it.
 			worktreeFolder: this._worktreeUsers(context, currentContext).sharedOwnOf(subtree, folders) !== undefined,
 			legacyCatalog: context.legacyCatalog,
+			// A chat whose state isn't loaded was restored, so it has a conversation; a move reads its state and checks again.
+			notStarted: this._isNotStarted(chat),
 		});
+	}
+
+	private _isNotStarted(chat: ProtocolURI): boolean {
+		const state = this._stateManager.getChatState(chat);
+		return !!state && state.turns.length === 0 && state.activeTurn === undefined;
 	}
 
 	/**

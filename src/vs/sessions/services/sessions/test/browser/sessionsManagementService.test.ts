@@ -8174,6 +8174,19 @@ suite('SessionsManagementService', () => {
 			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
 		}
 
+		test('an untitled chat that has not sent a message cannot be moved even when its provider allows it', () => {
+			const main = chat('A', 'main');
+			const unsent: IChat = { ...chat('A', 'unsent'), status: constObservable(SessionStatus.Untitled) };
+			const sent = chat('A', 'sent');
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', chats: constObservable([main, unsent, sent]), mainChat: constObservable(main) });
+			const provider = new class extends TestSessionsProvider {
+				override canMoveChat(): boolean { return true; }
+			}(sessionA);
+			const { service } = createSessionsManagementService(sessionA, disposables, provider);
+
+			assert.deepStrictEqual([main, unsent, sent].map(candidate => service.canMoveChat(sessionA, candidate)), [true, false, true]);
+		});
+
 		test('routes chat and session moves to the owning provider with the provider\'s session ids and chat resources', async () => {
 			const main = chat('A', 'main'), peer = chat('A', 'peer'), mainB = chat('B', 'main');
 			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', chats: constObservable([main, peer]), mainChat: constObservable(main) });

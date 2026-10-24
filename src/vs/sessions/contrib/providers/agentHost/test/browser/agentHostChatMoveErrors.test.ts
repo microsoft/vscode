@@ -31,7 +31,7 @@ suite('Agent Host Chat Move Errors', () => {
 			reasons: [AgentChatMoveRefusal.SessionArchived, AgentChatMoveRefusal.NotStarted, AgentChatMoveRefusal.DifferentCredentialOwner, undefined, undefined],
 			messages: [
 				'Chats can\'t be moved into or out of an archived session.',
-				'Send a message in this chat before moving it to its own session.',
+				'Send a message in this chat before moving it.',
 				'This chat uses a different account\'s credentials than the destination session.',
 				// Anything that is not a refusal passes through unchanged.
 				'Bad params',

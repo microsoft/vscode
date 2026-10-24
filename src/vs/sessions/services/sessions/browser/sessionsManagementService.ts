@@ -1512,7 +1512,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	canMoveChat(session: ISession, chat: IChat): boolean {
-		return this._getProvider(session)?.canMoveChat(session.sessionId, chat.resource) === true;
+		return chat.status.get() !== SessionStatus.Untitled && this._getProvider(session)?.canMoveChat(session.sessionId, chat.resource) === true;
 	}
 
 	async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {

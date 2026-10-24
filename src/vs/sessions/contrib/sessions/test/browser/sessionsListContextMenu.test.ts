@@ -741,7 +741,7 @@ suite('Sessions list context menus', () => {
 		const promote = (chat: IChat) => harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(PROMOTE_CHAT_TO_SESSION_ACTION_ID)!.handler, { session, chat });
 
 		const results = [await promote(peer)];
-		refusal = 'Send a message in this chat before moving it to its own session.';
+		refusal = 'Send a message in this chat before moving it.';
 		results.push(await promote(peer));
 		refusal = undefined;
 		results.push(await promote(main));
@@ -768,7 +768,7 @@ suite('Sessions list context menus', () => {
 			results: [true, false, false, false],
 			events: [
 				'move Peer -> newSession',
-				'warn: Could not move \'Peer\'. Send a message in this chat before moving it to its own session.',
+				'warn: Could not move \'Peer\'. Send a message in this chat before moving it.',
 				// The main chat and a disabled setting don't move.
 			],
 		});

@@ -90,7 +90,7 @@ export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal, chatShar
 		case AgentChatMoveRefusal.NotSingleChat:
 			return localize('chatMoveRefusal.notSingleChat', "Only a session with a single chat can be moved into another session.");
 		case AgentChatMoveRefusal.NotStarted:
-			return localize('chatMoveRefusal.notStarted', "Send a message in this chat before moving it to its own session.");
+			return localize('chatMoveRefusal.notStarted', "Send a message in this chat before moving it.");
 		case AgentChatMoveRefusal.DifferentCredentialOwner:
 			return localize('chatMoveRefusal.differentCredentialOwner', "This chat uses a different account's credentials than the destination session.");
 	}
