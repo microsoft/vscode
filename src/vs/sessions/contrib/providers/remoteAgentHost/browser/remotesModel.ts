@@ -48,7 +48,6 @@ export interface ICustomizationRemote {
 	readonly canRemove: boolean;
 	readonly connectionStatus: RemoteAgentHostConnectionStatus;
 	readonly unavailableReason?: string;
-	readonly removeUnavailableReason?: string;
 	readonly hidden?: boolean;
 	readonly pickerUnavailableReason?: string;
 }
@@ -285,7 +284,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new Error(localize('remotes.cannotRemove', "This remote cannot be removed. Only registered remotes that support removal can be removed."));
 		}
 		const target = this.targets.get(id);
-		if (target?.kind === 'devContainer' && target.workspaceUri) {
+		if (target?.kind === 'environment') {
+			this.checkEnvironment(target);
+			await this.environmentService.delete(target.host.id, CancellationToken.None);
+			return;
+		} else if (target?.kind === 'devContainer' && target.workspaceUri) {
 			await this.devContainerService.removeWorkspace(target.workspaceUri);
 		} else {
 			const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
@@ -459,7 +462,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			let name: string;
 			let detail: string;
 			let unavailableReason: string | undefined;
-			let removeUnavailableReason: string | undefined;
 			switch (target.kind) {
 				case 'ssh':
 					name = target.entry.name;
@@ -478,7 +480,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					detail = target.host.id;
 					unavailableReason = target.host.status !== 'online'
 						? localize('remotes.environmentOffline', "This environment is not online. Start its owning application before connecting.") : undefined;
-					removeUnavailableReason = localize('remotes.environmentRemoveUnavailable', "Removing environments is not supported here. Manage sharing in the application running on that machine.");
 					break;
 				case 'devContainer':
 					name = target.container.name;
@@ -492,10 +493,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			if (target.kind !== 'environment') {
 				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? provider?.label ?? name;
 			}
-			const canRemove = target.kind !== 'environment' && this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
+			const canRemove = target.kind === 'environment' || this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
-				id, kind: target.kind, name, detail, canRemove, unavailableReason, removeUnavailableReason,
+				id, kind: target.kind, name, detail, canRemove, unavailableReason,
 				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
 				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,
 			});

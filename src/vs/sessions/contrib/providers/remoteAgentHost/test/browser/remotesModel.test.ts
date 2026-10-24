@@ -71,6 +71,7 @@ suite('RemotesModel', () => {
 		};
 		const environmentConnections: string[] = [];
 		const environmentNames: { id: string; name: string | undefined }[] = [];
+		const environmentDeletions: string[] = [];
 		const setDisplayName = (address: string, name: string | undefined) => {
 			if (name?.trim()) {
 				displayNames.set(address, name.trim());
@@ -126,6 +127,10 @@ suite('RemotesModel', () => {
 				}
 			},
 			connect: async id => { environmentConnections.push(id); },
+			delete: async id => {
+				environmentDeletions.push(id);
+				environmentHosts.set(environmentHosts.get().filter(host => host.id !== id), undefined);
+			},
 			setDisplayName: (id, name) => {
 				environmentNames.push({ id, name });
 				environmentHosts.set(environmentHosts.get().map(host => host.id === id ? { ...host, displayName: name?.trim() || undefined } : host), undefined);
@@ -231,7 +236,7 @@ suite('RemotesModel', () => {
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames,
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -782,23 +787,29 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('environments include offline hosts but exclude managed sandboxes and cannot be removed', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts } = setup();
+	test('environments include deletable offline hosts but exclude other kinds', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, environmentDeletions, removals } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		environmentHosts.set([
 			{ id: 'online', name: 'A desktop', kind: 'user-local', status: 'online' },
 			{ id: 'offline', name: 'B desktop', kind: 'user-local', status: 'offline' },
-			{ id: 'sandbox', name: 'Task sandbox', kind: 'sandbox', status: 'online' },
+			{ id: 'sandbox', name: 'Task sandbox', kind: 'managed-sandbox', status: 'online' },
+			{ id: 'future', name: 'Future kind', kind: 'future', status: 'online' },
 		], undefined);
 		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => ({
 			id: remote.id, name: remote.name, unavailable: !!remote.unavailableReason, canRemove: remote.canRemove,
 		})), [
-			{ id: cloudSandboxAddress('online'), name: 'A desktop', unavailable: false, canRemove: false },
-			{ id: cloudSandboxAddress('offline'), name: 'B desktop', unavailable: true, canRemove: false },
+			{ id: cloudSandboxAddress('online'), name: 'A desktop', unavailable: false, canRemove: true },
+			{ id: cloudSandboxAddress('offline'), name: 'B desktop', unavailable: true, canRemove: true },
 		]);
 		await assert.rejects(model.setConnected(cloudSandboxAddress('offline'), true), /not online/);
-		await assert.rejects(model.remove(cloudSandboxAddress('online')), /cannot be removed/);
+		await assert.rejects(model.remove(cloudSandboxAddress('sandbox')), /no longer available/);
+		await model.remove(cloudSandboxAddress('online'));
+		await model.remove(cloudSandboxAddress('offline'));
+		assert.deepStrictEqual({
+			environmentDeletions, removals, remaining: model.remotes.get().filter(remote => remote.kind === 'environment'),
+		}, { environmentDeletions: ['online', 'offline'], removals: [], remaining: [] });
 	});
 
 	test('environment connections prefer provider hooks and retain inventory on disconnect', async () => {
@@ -860,6 +871,7 @@ suite('RemotesModel', () => {
 		await setConfiguration('chat.disableAIFeatures', true);
 		await assert.rejects(model.setConnected(cloudSandboxAddress('desktop'), true), /no longer available/);
 		await assert.rejects(model.rename(cloudSandboxAddress('desktop')), /no longer available/);
+		await assert.rejects(model.remove(cloudSandboxAddress('desktop')), /no longer available/);
 		assert.deepStrictEqual({
 			enabled: model.environmentsEnabled.get(), environments: model.remotes.get().filter(remote => remote.kind === 'environment'), environmentNames, environmentConnections,
 		}, { enabled: false, environments: [], environmentNames: [], environmentConnections: [] });
