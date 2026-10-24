@@ -958,31 +958,36 @@ suite('AICustomizationDiscoveryPage', () => {
 		const cursor = { token: 'canvas-next-page' };
 		await fixture.requests[0].result.complete({
 			items: [
-				resource('first-page-canvas', {
+				resource('category-only-canvas', {
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 					tags: ['canvas'],
+				}),
+			],
+		});
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('first-page-canvas', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
 				}),
 				resource('description-only-canvas', {
 					description: 'A canvas workflow without compatibility metadata',
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 				}),
-				resource('category-only-canvas', {
-					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-					tags: ['Canvas'],
-				}),
 			],
 			nextCursor: cursor,
 		});
-		await waitForRequestCount(fixture.requests, 2);
-		await fixture.requests[1].result.complete({
+		await waitForRequestCount(fixture.requests, 3);
+		await fixture.requests[2].result.complete({
 			items: [
 				resource('canvas-plugin', {
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-					tags: ['canvas'],
+					compatibilityTags: ['canvas'],
 				}),
 				resource('canvas-only-plugin', {
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-					tags: ['canvas-only'],
+					compatibilityTags: ['canvas-only'],
 				}),
 			],
 		});
@@ -1000,8 +1005,9 @@ suite('AICustomizationDiscoveryPage', () => {
 			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
 		}, {
 			requests: [
-				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 50, cursor: undefined },
-				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 50, cursor },
+				{ query: undefined, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 50, cursor: undefined },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 50, cursor: undefined },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 50, cursor },
 			],
 			canvas: true,
 			canvasOnly: true,
@@ -1018,7 +1024,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
 			items: [
-				resource('diagram-canvas', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
+				resource('diagram-canvas', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] }),
 				resource('diagram-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
 			],
 		});
@@ -1040,13 +1046,15 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:canvas');
 		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({
+		await fixture.requests[0].result.complete({ items: [] });
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
 			items: [
-				resource('first-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 5 }),
-				resource('missing-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
-				resource('highest-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 12 }),
-				resource('second-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 5 }),
-				resource('zero-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 0 }),
+				resource('first-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 5 }),
+				resource('missing-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] }),
+				resource('highest-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 12 }),
+				resource('second-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 5 }),
+				resource('zero-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 0 }),
 			],
 		});
 		await timeout(0);
@@ -1068,8 +1076,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
 			items: [
-				resource('diagram-semantic-first', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 1 }),
-				resource('diagram-popular-second', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 100 }),
+				resource('diagram-semantic-first', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 1 }),
+				resource('diagram-popular-second', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 100 }),
 			],
 		});
 		await timeout(0);
@@ -1083,24 +1091,58 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setSearchQuery('@type:mcp @type:canvas');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
-			items: [
-				resource('mail-mcp'),
-				resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
-			],
+			items: [resource('mail-mcp')],
+		});
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] })],
 		});
 		await timeout(0);
 		const content = fixture.page.getAccessibilityContent();
 
 		assert.deepStrictEqual({
-			request: fixture.requests[0].options,
+			requests: fixture.requests.map(request => request.options),
 			mcp: content.includes('mail-mcp'),
 			canvas: content.includes('canvas-plugin'),
 			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
 		}, {
-			request: { query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
+			requests: [
+				{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 50, cursor: undefined },
+			],
 			mcp: true,
 			canvas: true,
 			ariaLabel: 'Customization search results',
+		});
+	});
+
+	test('source-specific Canvas search does not query the GitHub Feed fallback', async () => {
+		const fixture = createPage([configuredMarketplaceSourceId]);
+		fixture.page.showMarketplace('@type:canvas', configuredMarketplaceSourceId);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('configured-canvas', {
+					sourceId: configuredMarketplaceSourceId,
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
+				}),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options),
+			visible: fixture.page.getAccessibilityContent().includes('configured-canvas'),
+		}, {
+			requests: [{
+				query: undefined,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				sourceIds: [configuredMarketplaceSourceId],
+				pageSize: 50,
+				cursor: undefined,
+			}],
+			visible: true,
 		});
 	});
 
@@ -1111,8 +1153,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		await fixture.requests[0].result.complete({
 			items: [
 				resource('ordinary-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
-				resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
-				resource('canvas-only-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas-only'] }),
+				resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] }),
+				resource('canvas-only-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas-only'] }),
 			],
 		});
 		await timeout(0);
@@ -1132,7 +1174,7 @@ suite('AICustomizationDiscoveryPage', () => {
 	test('installed canvas-only provider plugins appear only in Canvas results', async () => {
 		const plugin = resource('canvas-only-plugin', {
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-			tags: ['canvas', 'canvas-only'],
+			compatibilityTags: ['canvas', 'canvas-only'],
 		});
 		const fixture = createPage(
 			undefined,
@@ -1170,6 +1212,19 @@ suite('AICustomizationDiscoveryPage', () => {
 			plugin: false,
 			canvas: true,
 		});
+	});
+
+	test('does not associate a URI-backed local plugin with a name-only provider installation', async () => {
+		const plugin = resource('shared-name', {
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			compatibilityTags: ['canvas', 'canvas-only'],
+		});
+		const snapshot = createCustomizationMarketplaceInstallationSnapshot([{
+			resource: plugin,
+			state: { kind: 'installed', target: { kind: 'plugin', name: 'shared-name' } },
+		}]);
+
+		assert.strictEqual(snapshot.findByTarget({ kind: 'plugin', uri: URI.file('/local/shared-name') }), undefined);
 	});
 
 	test('plugin-only search finds a match after the first 24 filtered items', async () => {
