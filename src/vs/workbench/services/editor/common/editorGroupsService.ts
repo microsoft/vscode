@@ -79,7 +79,7 @@ export const enum GroupLayoutPriority {
 	Normal,
 
 	/**
-	 * Gives or takes space first.
+	 * The group absorbs resizes first: it gives or takes space before the others.
 	 */
 	High
 }
@@ -600,10 +600,16 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * other groups beside it keep their sizes. `undefined`, or
 	 * {@link GroupLayoutPriority.Normal}, clears the priority of the group.
 	 *
+	 * {@link GroupLayoutPriority.High} marks the group that absorbs resizes
+	 * first, such as an editor that gives way to the other groups. A group
+	 * that is added beside it only takes as much of its space as it can give
+	 * above its minimum size.
+	 *
 	 * For the feature that owns the part and arranges its groups; the main
 	 * editor part does not use it. Each call replaces the priority of the
 	 * group from the previous one, the priority is not persisted with the
-	 * state of the part, and it is cleared when the group is removed.
+	 * state of the part, so the owner sets it again after restoring a state,
+	 * and it is cleared when the group is removed.
 	 */
 	setGroupLayoutPriority(group: IEditorGroup | GroupIdentifier, priority: GroupLayoutPriority | undefined): void;
 }

@@ -112,16 +112,18 @@ suite('Editor Part Group Layout Priority', () => {
 		// As if the removed group never had a priority: the others resize proportionally again
 		assert.deepStrictEqual(await describe(true), await describe(false));
 	});
-	test('maximizing and restoring a group keeps the priorities, also when set while maximized', async () => {
-		const describe = async (setWhileMaximized: boolean) => {
+	test('maximizing and restoring a group keeps the priorities, also when set or cleared while maximized', async () => {
+		const describe = async (when: 'before' | 'whileMaximized' | 'clearedWhileMaximized') => {
 			const { part, top, middle, bottom } = await createStackedPart();
-			if (!setWhileMaximized) {
+			if (when !== 'whileMaximized') {
 				part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
 			}
 
 			part.toggleMaximizeGroup(middle);
-			if (setWhileMaximized) {
+			if (when === 'whileMaximized') {
 				part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
+			} else if (when === 'clearedWhileMaximized') {
+				part.setGroupLayoutPriority(top, undefined);
 			}
 			const maximized = part.hasMaximizedGroup();
 			part.toggleMaximizeGroup(middle);
@@ -131,8 +133,12 @@ suite('Editor Part Group Layout Priority', () => {
 			return { maximized, restored, shrunk: heights(part, top, middle, bottom) };
 		};
 
-		const expected = { maximized: true, restored: [400, 200, 200], shrunk: [200, 200, 200] };
-		assert.deepStrictEqual({ setBefore: await describe(false), setWhileMaximized: await describe(true) }, { setBefore: expected, setWhileMaximized: expected });
+		assert.deepStrictEqual({ before: await describe('before'), whileMaximized: await describe('whileMaximized'), clearedWhileMaximized: await describe('clearedWhileMaximized') }, {
+			before: { maximized: true, restored: [400, 200, 200], shrunk: [200, 200, 200] },
+			whileMaximized: { maximized: true, restored: [400, 200, 200], shrunk: [200, 200, 200] },
+			// Proportional again
+			clearedWhileMaximized: { maximized: true, restored: [400, 200, 200], shrunk: [300, 150, 150] },
+		});
 	});
 
 	test('restoring the state of the part restores the sizes, and the restored groups have no priority', async () => {
@@ -172,6 +178,26 @@ suite('Editor Part Group Layout Priority', () => {
 			// Split from the middle group, which gets its size back from the high priority group
 			movedIn: { order: [0, 1, 2, 3], heights: [300, 200, 100, 200] },
 			movedOut: [400, 200, 200, 200],
+		});
+	});
+	test('a group with a high priority at its minimum size gives no space, and the others are sized as without priorities', async () => {
+		const { part, top, middle, bottom } = await createStackedPart();
+		const minimum = top.minimumHeight;
+		part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
+		part.layout(1080, 400 + minimum, 0, 0);
+		const before = heights(part, top, middle, bottom);
+
+		const added = part.addGroup(bottom, GroupDirection.DOWN);
+		const afterAdd = heights(part, top, middle, bottom, added);
+		part.removeGroup(added);
+		const afterRemove = heights(part, top, middle, bottom);
+
+		assert.deepStrictEqual({ before, afterAdd, afterRemove }, {
+			before: [minimum, 200, 200],
+			// The middle group keeps its size, and the added group splits the bottom one as usual
+			afterAdd: [minimum, 200, 100, 100],
+			// The space of the removed group goes to the group with the high priority
+			afterRemove: [minimum + 100, 200, 100],
 		});
 	});
 });
