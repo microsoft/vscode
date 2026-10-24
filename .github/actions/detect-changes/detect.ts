@@ -152,10 +152,18 @@ function matchesAny(path: string, patterns: readonly string[]): boolean {
 			return true;
 		}
 		if (pattern.includes('*')) {
-			const regexString = '^' + pattern
-				.replace(/\./g, '\\.')
+			// 1. Tüm regex özel karakterlerini escape ediyoruz (metacharacter güvenliği)
+			const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+
+			// 2. Tek geçişte (one-pass) glob desenlerini güvenli regex parçalarına dönüştürüyoruz:
+			// - **/ -> sıfır veya daha fazla dizini destekler (örn: src/**/test/ -> src/test/ veya src/a/b/test/)
+			// - **  -> herhangi bir karakter dizisi (.*)
+			// - *   -> aynı dizin içindeki karakterler ([^/]*)
+			const regexString = '^' + escaped
+				.replace(/(?:^|\/)\*\*\//g, '(?:/.+)?/')
 				.replace(/\*\*/g, '.*')
 				.replace(/\*/g, '[^/]*') + '$';
+
 			return new RegExp(regexString).test(path);
 		}
 		return false;
