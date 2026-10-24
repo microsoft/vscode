@@ -13,7 +13,13 @@ const enum Constants {
 	 * The _normal_ buffer length threshold at which point resizing starts being debounced.
 	 */
 	StartDebouncingThreshold = 200,
-	DebounceResizeXDelay = 100,
+	/**
+	 * Delay before a horizontal (reflowing) resize is applied. Must be long enough that the
+	 * shell's prompt redraw after the previous resize has been fully processed: shells such as
+	 * zsh compute their prompt redraw from a stale terminal width when resizes arrive back to
+	 * back, which duplicates the prompt line. (microsoft/vscode#329946)
+	 */
+	DebounceResizeXDelay = 300,
 }
 
 export class TerminalResizeDebouncer extends Disposable {
@@ -44,47 +50,72 @@ export class TerminalResizeDebouncer extends Disposable {
 		if (this._store.isDisposed) {
 			return;
 		}
+		const xterm = this._getXterm();
+		if (!xterm) {
+			return;
+		}
 		this._latestX = cols;
 		this._latestY = rows;
 
 		// Resize immediately if requested explicitly or if the buffer is small
-		if (immediate || this._getXterm()!.raw.buffer.normal.length < Constants.StartDebouncingThreshold) {
+		if (immediate || xterm.raw.buffer.normal.length < Constants.StartDebouncingThreshold) {
 			this._resizeXJob.clear();
 			this._resizeYJob.clear();
 			this._debounceResizeXScheduler.cancel();
-			this._resizeBothCallback(cols, rows);
+			if (cols !== xterm.raw.cols || rows !== xterm.raw.rows) {
+				this._resizeBothCallback(cols, rows);
+			}
 			return;
 		}
 
-		// Resize in an idle callback if the terminal is not visible
-		const win = getWindow(this._getXterm()!.raw.element);
+		// Resize in an idle callback if the terminal is not visible.
+		// Only queue callbacks for axes whose dimensions actually changed to avoid
+		// redundant PTY resizes (same reasoning as the visible path below).
+		const win = getWindow(xterm.raw.element);
 		if (win && !this._isVisible()) {
-			if (!this._resizeXJob.value) {
-				this._resizeXJob.value = runWhenWindowIdle(win, async () => {
-					if (this._store.isDisposed) {
-						return;
-					}
-					this._resizeXCallback(this._latestX);
-					this._resizeXJob.clear();
-				});
+			if (rows !== xterm.raw.rows) {
+				if (!this._resizeYJob.value) {
+					this._resizeYJob.value = runWhenWindowIdle(win, async () => {
+						if (this._store.isDisposed) {
+							return;
+						}
+						this._resizeYCallback(this._latestY);
+						this._resizeYJob.clear();
+					});
+				}
+			} else {
+				this._resizeYJob.clear();
 			}
-			if (!this._resizeYJob.value) {
-				this._resizeYJob.value = runWhenWindowIdle(win, async () => {
-					if (this._store.isDisposed) {
-						return;
-					}
-					this._resizeYCallback(this._latestY);
-					this._resizeYJob.clear();
-				});
+			if (cols !== xterm.raw.cols) {
+				if (!this._resizeXJob.value) {
+					this._resizeXJob.value = runWhenWindowIdle(win, async () => {
+						if (this._store.isDisposed) {
+							return;
+						}
+						this._resizeXCallback(this._latestX);
+						this._resizeXJob.clear();
+					});
+				}
+			} else {
+				this._resizeXJob.clear();
 			}
 			return;
 		}
 
 		// Update dimensions independently as vertical resize is cheap and horizontal resize is
-		// expensive due to reflow.
-		this._resizeYCallback(rows);
-		this._latestX = cols;
-		this._debounceResizeXScheduler.schedule();
+		// expensive due to reflow. Skip axes whose dimensions did not change to avoid sending
+		// redundant PTY resizes, which trigger SIGWINCH in the shell and cause the prompt to be
+		// redrawn/duplicated on every layout event while the terminal panel is being resized.
+		if (rows !== xterm.raw.rows) {
+			this._resizeYCallback(rows);
+		}
+		if (cols !== xterm.raw.cols) {
+			this._debounceResizeXScheduler.schedule();
+		} else {
+			// The latest requested width matches the current grid, cancel a pending debounced
+			// resize so it cannot fire a redundant PTY resize afterwards.
+			this._debounceResizeXScheduler.cancel();
+		}
 	}
 
 	flush(): void {
