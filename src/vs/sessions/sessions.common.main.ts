@@ -472,6 +472,7 @@ import './services/sessions/browser/sessionsService.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
 import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
 import './services/customView/browser/customViewService.js';
+import './services/layoutMode/browser/sessionLayoutModeService.js';
 import './services/activity/common/sessionActivityBarActivityService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';

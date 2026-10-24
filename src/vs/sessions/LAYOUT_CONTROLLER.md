@@ -123,6 +123,10 @@ Enabled-mode persistence uses separate version-1 envelopes:
 
 The first three keys belong to `chat`; the latter three belong to `chat-shared`. Its transient visibility profile uses `sessions.sharedChatLayout.sidePaneVisibility` separately from the legacy/per-chat profile. Reloading into another mode does not overwrite the other mode's saved preferences.
 
+### Layout mode
+
+`ISessionLayoutModeService` remembers each chat's layout mode (Chat only, Editor only, Stacked, Side by Side), the split it last showed both in, and whether a stacked chat shows only its input. The main window follows the layout scope like side-pane visibility: `sessions.chatLayout.layoutMode` keeps one entry per chat in `chat`; `sessions.sharedChatLayout.layoutMode` (`chat-shared`) and `sessions.singlePane.layoutMode` (`session-shared`) keep one entry for existing chats, separate from drafts and Quick Chats. Chat windows always remember the mode per chat in `sessions.chatWindow.layoutMode`, whatever the scope. A chat opening in a chat window uses its chat-window entry, else the main window's entry for it; returning to the main window copies its chat-window entry into the main window only in `chat`. All entries are versioned workspace records; per-chat entries follow successful chat deletion, session archive/removal, and draft graduation as other owner state does. The live arrangement, maximization, and geometry remain window state.
+
 No chat record stores geometry or terminal process metadata. Versioned entries are validated before applying the record; malformed or unsupported records are logged and removed without partially applying earlier entries.
 
 If no usable experimental layout record exists, legacy desktop state is copied forward for main chats only, without removing or rewriting the legacy key. Existing experimental state wins. Legacy working-set ids are collected even when the experimental record already exists, so later owner cleanup cannot invalidate the retained disabled-mode state. Peer entries are not pruned merely because their catalogs have not hydrated. The older `sessions.workingSets` migration remains a separate legacy base-controller path.
@@ -152,6 +156,7 @@ Terminal persistence retains the backend's existing capabilities and settings, i
 - Desktop lifecycle strategies: `contrib/layout/test/browser/desktopStrategies.test.ts`
 - Chat ownership and persistence: `contrib/layout/test/browser/chatLayoutOwnership.test.ts`
 - Versioned composition storage: `contrib/layout/test/browser/desktopOwnerCompositionStore.test.ts`
+- Layout mode storage: `contrib/layout/test/browser/sessionLayoutModeService.test.ts`
 - Startup/reload mode: `contrib/layout/test/browser/sessions.layout.contribution.test.ts`
 - Existing terminal behavior and task reuse: `contrib/terminal/test/browser/`
 - Mobile rules: `contrib/layout/test/browser/mobileSessionLayoutController.test.ts`
