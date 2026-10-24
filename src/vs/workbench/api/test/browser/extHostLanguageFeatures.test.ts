@@ -61,6 +61,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -181,6 +182,68 @@ suite('ExtHostLanguageFeatures', function () {
 		} finally {
 			setLanguageConfiguration.restore();
 		}
+	});
+
+	test('FoldingRangeProvider.isSecondary=true requires proposed API before registration', async () => {
+		const register = sinon.spy(mainThread, '$registerFoldingRangeProvider');
+		try {
+			assert.throws(() => extHost.registerFoldingRangeProvider(defaultExtension, defaultSelector, {
+				isSecondary: true, provideFoldingRanges: () => []
+			}), /CANNOT use API proposal: foldingRangeProviderSecondary/);
+			await rpcProtocol.sync();
+			assert.deepStrictEqual({ calls: register.callCount, providers: languageFeaturesService.foldingRangeProvider.all(model).length }, { calls: 0, providers: 0 });
+		} finally {
+			register.restore();
+		}
+	});
+
+	test('A false secondary flag does not require proposed API opt-in', async () => {
+		disposables.add(extHost.registerFoldingRangeProvider(defaultExtension, defaultSelector, {
+			isSecondary: false, provideFoldingRanges: () => []
+		}));
+		await rpcProtocol.sync();
+		assert.strictEqual(languageFeaturesService.foldingRangeProvider.all(model)[0].isSecondary, false);
+	});
+
+	for (const isSecondary of [undefined, false, true]) {
+		test(`Folding range registration transports isSecondary=${isSecondary} and disposes`, async () => {
+			const extension = isSecondary === undefined ? defaultExtension : { ...defaultExtension, enabledApiProposals: ['foldingRangeProviderSecondary'] };
+			const registration = disposables.add(extHost.registerFoldingRangeProvider(extension, defaultSelector, {
+				isSecondary, provideFoldingRanges: () => [new types.FoldingRange(0, 2, types.FoldingRangeKind.Region)]
+			}));
+			await rpcProtocol.sync();
+			const provider = languageFeaturesService.foldingRangeProvider.all(model)[0];
+			const ranges = await provider.provideFoldingRanges(model, {}, CancellationToken.None);
+			registration.dispose();
+			await rpcProtocol.sync();
+			assert.deepStrictEqual({
+				isSecondary: provider.isSecondary,
+				ranges: ranges?.map(range => ({ start: range.start, end: range.end, kind: range.kind?.value })),
+				remaining: languageFeaturesService.foldingRangeProvider.all(model).length
+			}, { isSecondary: isSecondary === true, ranges: [{ start: 1, end: 3, kind: 'region' }], remaining: 0 });
+		});
+	}
+
+	test('Secondary folding registration snapshots its flag and forwards change events', async () => {
+		const emitter = disposables.add(new Emitter<void>());
+		const provider: vscode.FoldingRangeProvider & { isSecondary: boolean } = {
+			isSecondary: true,
+			onDidChangeFoldingRanges: emitter.event,
+			provideFoldingRanges: () => []
+		};
+		const registration = disposables.add(extHost.registerFoldingRangeProvider({ ...defaultExtension, enabledApiProposals: ['foldingRangeProviderSecondary'] }, defaultSelector, provider));
+		provider.isSecondary = false;
+		await rpcProtocol.sync();
+		const registered = languageFeaturesService.foldingRangeProvider.all(model)[0];
+		let events = 0;
+		disposables.add(registered.onDidChange!(() => events++));
+		emitter.fire();
+		await rpcProtocol.sync();
+		registration.dispose();
+		await rpcProtocol.sync();
+		emitter.fire();
+		await rpcProtocol.sync();
+		assert.deepStrictEqual({ isSecondary: registered.isSecondary, events, listeners: emitter.hasListeners() }, { isSecondary: true, events: 1, listeners: false });
 	});
 
 	test('DocumentDropEdits does not cache an empty edit array without release IDs', async () => {
