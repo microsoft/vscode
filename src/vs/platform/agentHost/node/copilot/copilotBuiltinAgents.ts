@@ -148,7 +148,7 @@ export interface ICopilotBuiltinAgentConfig extends CustomAgentConfig {
 
 /** Builds all reserved SDK configurations, including explicitly read-only client tools where requested. */
 export function buildCopilotBuiltinAgents(clientTools: IActiveClientSnapshot['tools']): ICopilotBuiltinAgentConfig[] {
-	const readOnlyClientTools = clientTools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => toSdkClientToolName(tool.name));
+	const readOnlyClientTools = clientTools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => toSdkClientToolName(tool.name)).sort();
 	return COPILOT_BUILTIN_AGENTS.map(agent => ({
 		name: agent.name,
 		displayName: agent.displayName(),

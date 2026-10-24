@@ -78,7 +78,7 @@ import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrim
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AuthenticateTargetKind, AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionScratchFolders, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -7494,7 +7494,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _getSensitiveEditLocationsConfig(sessionResource: URI, existingState: SessionState | undefined): Record<string, readonly IChatSensitiveEditLocation[]> {
-		const desired = mergeChatSensitiveEditLocations(...this._resolveCustomizationScopeRoots(sessionResource).map(resource => {
+		const desired = mergeChatSensitiveEditLocations(...this._resolveSessionWorkingDirectoryRoots(sessionResource).map(resource => {
 			const overrides = { resource };
 			return getChatSensitiveEditLocations(
 				this._configurationService.getValue<unknown>(ChatHookFilesLocationsSettingId, overrides),
@@ -7513,6 +7513,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._hostAddressableWorkingDirectories(
 			computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._getRootState(), this._config.provider)
 		);
+	}
+
+	/** Matches the sessions provider's quick-chat and user-folder customization scopes. */
+	private _resolveCustomizationScopeRoots(sessionResource: URI): readonly URI[] {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getRawSessionState(backendSession.toString());
+		if (readSessionWorkspaceless(state?._meta)) {
+			return [];
+		}
+		const scratchFolders = readSessionScratchFolders(state?._meta).map(folder => this._config.connection.resourceUris.fromAgentHost(URI.parse(folder)));
+		return this._resolveSessionWorkingDirectoryRoots(sessionResource)
+			.filter(folder => !scratchFolders.some(scratch => isEqual(folder, scratch)));
 	}
 
 	/**
@@ -7545,7 +7557,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * state yet, so they fall back to the workspace-derived set they will be
 	 * created with.
 	 */
-	private _resolveCustomizationScopeRoots(sessionResource: URI): readonly URI[] {
+	private _resolveSessionWorkingDirectoryRoots(sessionResource: URI): readonly URI[] {
 		if (!this._isNewSessionResource(sessionResource)) {
 			const own = this._existingSessionWorkingDirectories(sessionResource);
 			// An empty set is meaningful (a workspace-less session), so only a
