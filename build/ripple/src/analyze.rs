@@ -71,6 +71,17 @@ pub enum Ref {
 	Global(Box<str>),
 }
 
+/// What a class extends or implements, when code outside the analysis may call its methods.
+#[derive(Debug, Clone)]
+pub enum Heritage {
+	/// A class or interface that is not analyzed, such as Node.js's `Transform`, the DOM's
+	/// `HTMLElement` or an interface of an npm package. Its code calls the class's methods by
+	/// names that the analyzed code may never use, such as `_flush` or `connectedCallback`.
+	External,
+	/// An analyzed superclass, which may itself have such heritage.
+	Super(Ref),
+}
+
 #[derive(Debug, Clone)]
 pub enum ExportTarget {
 	Local(u32),
@@ -98,6 +109,8 @@ pub struct Decl {
 	pub gate: u64,
 	/// Property names (as name ids) this declaration accesses: `x.name`, `{ name } = x`, 'name'.
 	pub uses: Vec<u64>,
+	/// For classes: what they extend or implement that may call their methods.
+	pub heritage: Option<Heritage>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -770,6 +783,8 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	};
 
 	let mut binding_by_symbol: HashMap<SymbolId, u32> = HashMap::new();
+	// The specifier of every imported symbol, including types, which classes can implement.
+	let mut import_specs: HashMap<SymbolId, u32> = HashMap::new();
 	// Import declarations whose load depends on whether any binding is used as a value.
 	let mut pending_imports: Vec<(u32, Vec<u32>)> = Vec::new();
 	let mut local_exports: Vec<(String, String)> = Vec::new();
@@ -798,6 +813,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 									(Imported::Namespace, &s.local, false)
 								}
 							};
+							if let Some(sym) = local.symbol_id.get() {
+								import_specs.insert(sym, spec);
+							}
 							if type_only || is_type {
 								continue;
 							}
@@ -1896,6 +1914,75 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	}
 	facts.path_segments.sort_unstable();
 	facts.path_segments.dedup();
+
+	// The heritage of each class that code outside the analysis may call (see `Heritage`): a name
+	// in `extends` or `implements` that is a global or comes from an npm package or a Node.js
+	// module, or an analyzed superclass.
+	let outside = |id: &IdentifierReference| match symbol_of(id) {
+		None => true,
+		Some(sym) => import_specs.get(&sym).is_some_and(|&spec| {
+			let specifier = &facts.specs[spec as usize].specifier;
+			!specifier.starts_with('.') && config.resolve_alias(specifier).is_none()
+		}),
+	};
+	let analyzed_class = |id: &IdentifierReference, member: Option<&str>| -> Option<Ref> {
+		let sym = symbol_of(id)?;
+		match binding_by_symbol.get(&sym) {
+			Some(&binding) => Some(Ref::Import {
+				binding,
+				member: member.map(Into::into),
+			}),
+			None => locals_of.get(&sym)?.first().map(|&d| Ref::Local(d)),
+		}
+	};
+	for (i, stmt) in body.iter().enumerate() {
+		let class = match stmt {
+			Statement::ExportDefaultDeclaration(d) => match &d.declaration {
+				ExportDefaultDeclarationKind::ClassDeclaration(c) => c,
+				_ => continue,
+			},
+			Statement::ExportDeclaration(d) => match &d.declaration {
+				Declaration::ClassDeclaration(c) => c,
+				_ => continue,
+			},
+			Statement::ClassDeclaration(c) => c,
+			_ => continue,
+		};
+		let Owner::Decl(idx) = owners[i] else {
+			continue;
+		};
+		let interfaces = class.implements.iter().any(|i| {
+			let mut name = &i.expression;
+			loop {
+				match name {
+					TSTypeName::IdentifierReference(id) => break outside(id),
+					TSTypeName::QualifiedName(q) => name = &q.left,
+					TSTypeName::ThisExpression(_) => break false,
+				}
+			}
+		});
+		let extends = class.heritage.as_ref().map(|h| {
+			let (id, member) = match h.expression.get_inner_expression() {
+				Expression::Identifier(id) => (id, None),
+				Expression::StaticMemberExpression(m) => match m.object.get_inner_expression() {
+					Expression::Identifier(id) => (id, Some(m.property.name.as_str())),
+					_ => return Heritage::External,
+				},
+				// A mixin, or another computed superclass.
+				_ => return Heritage::External,
+			};
+			match analyzed_class(id, member) {
+				Some(r) if !outside(id) => Heritage::Super(r),
+				// A global, a class of an npm package, or a declared class.
+				_ => Heritage::External,
+			}
+		});
+		facts.decls[idx as usize].heritage = if interfaces {
+			Some(Heritage::External)
+		} else {
+			extends
+		};
+	}
 
 	// Content hashes over the tokens of each declaration, skipping TypeScript-only spans. Comments
 	// and whitespace are not tokens, so they never affect a hash.

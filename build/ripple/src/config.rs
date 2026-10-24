@@ -200,6 +200,13 @@ impl Config {
 			.map(|(reason, _)| reason.as_str())
 	}
 
+	/// Whether a `!` pattern of `runEverything` excludes the path from its group.
+	pub fn excluded_from_run_everything(&self, path: &str) -> bool {
+		self.run_everything
+			.iter()
+			.any(|(_, patterns)| patterns.exclude.is_match(path))
+	}
+
 	/// Whether a file is a script that runs the tests.
 	pub fn is_test_runner(&self, path: &str) -> bool {
 		self.test_runners.matches(path)

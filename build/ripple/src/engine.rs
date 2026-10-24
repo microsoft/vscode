@@ -16,7 +16,7 @@ use crate::analyze::{ExportTarget, FileFacts, analyze, name_id};
 use crate::config::Config;
 use crate::deps::DepImpact;
 use crate::git::{BlobReader, Change, ls_tree};
-use crate::graph::{Entry, Graph, Scratch, Snapshot, package_name};
+use crate::graph::{Entry, Graph, Scratch, Snapshot, join, package_name};
 
 /// Reads text blobs of a repository by object id.
 pub type ReadBlob<'r> = dyn FnMut(&str) -> Result<String> + 'r;
@@ -73,28 +73,125 @@ pub fn dependency_impact(
 	Ok(Some(impact))
 }
 
-/// The npm packages that the scripts every unit test depends on (`runEverything`) load, such as
-/// the test runners' web server: a change to one of them runs every unit test. Each package has the
-/// reason to report.
+/// Whether a file is a JavaScript or TypeScript script, as opposed to a declaration file or data.
+fn is_script(path: &str) -> bool {
+	[".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"]
+		.iter()
+		.any(|x| path.ends_with(x))
+		&& !path.ends_with(".d.ts")
+}
+
+/// A script that every unit test depends on.
+struct RunnerScript {
+	path: Arc<str>,
+	/// The group of `runEverything` that it belongs to.
+	group: String,
+	/// The script that loads it, unless `runEverything` lists it.
+	loaded_by: Option<Arc<str>>,
+	facts: FileFacts,
+}
+
+/// The scripts that every unit test depends on: those that `runEverything` lists, and the scripts
+/// they load through relative imports, such as `build/lib/electronVersion.ts` for
+/// `build/lib/electron.ts`. Modules are analyzed with the tests, so only scripts outside the
+/// modules count.
+fn runner_scripts(
+	config: &Config,
+	snap: &Snapshot,
+	read: &mut ReadBlob,
+) -> Result<Vec<RunnerScript>> {
+	let mut scripts: Vec<RunnerScript> = Vec::new();
+	let mut seen: HashSet<u32> = HashSet::new();
+	for (i, e) in snap.entries.iter().enumerate() {
+		if let Some(group) = config
+			.run_everything(&e.path)
+			.filter(|_| is_script(&e.path))
+		{
+			seen.insert(i as u32);
+			scripts.push(RunnerScript {
+				path: e.path.clone(),
+				group: group.to_owned(),
+				loaded_by: None,
+				facts: FileFacts::default(),
+			});
+		}
+	}
+	let mut next = 0;
+	while next < scripts.len() {
+		let i = snap.find(&scripts[next].path).unwrap();
+		let facts = analyze(
+			&scripts[next].path,
+			&read(&snap.entries[i as usize].oid)?,
+			config,
+		);
+		if facts.error {
+			anyhow::bail!("{}: cannot find the files it loads", scripts[next].path);
+		}
+		let dir = scripts[next]
+			.path
+			.rsplit_once('/')
+			.map_or("", |(d, _)| d)
+			.to_owned();
+		for spec in &facts.specs {
+			if spec.type_only
+				|| spec.root || spec.data.is_some()
+				|| !spec.specifier.starts_with('.')
+			{
+				continue;
+			}
+			let Some(t) = join(&dir, &spec.specifier).and_then(|p| snap.resolve_file(&p)) else {
+				continue;
+			};
+			let e = &snap.entries[t as usize];
+			if is_script(&e.path)
+				&& !e.role.is_module()
+				&& !config.excluded_from_run_everything(&e.path)
+				&& seen.insert(t)
+			{
+				scripts.push(RunnerScript {
+					path: e.path.clone(),
+					group: scripts[next].group.clone(),
+					loaded_by: Some(scripts[next].path.clone()),
+					facts: FileFacts::default(),
+				});
+			}
+		}
+		scripts[next].facts = facts;
+		next += 1;
+	}
+	Ok(scripts)
+}
+
+/// The reason to run every unit test when a change touches a script that a `runEverything` script
+/// loads.
+fn runner_script_changed(
+	config: &Config,
+	snap: &Snapshot,
+	read: &mut ReadBlob,
+	paths: &[&str],
+) -> Result<Option<String>> {
+	let loaded =
+		|p: &&str| is_script(p) && !snap.role(p).is_module() && config.run_everything(p).is_none();
+	if !paths.iter().any(loaded) {
+		return Ok(None);
+	}
+	Ok(runner_scripts(config, snap, read)?
+		.into_iter()
+		.find(|s| s.loaded_by.is_some() && paths.contains(&&*s.path))
+		.map(|s| format!("{} ({} loads {})", s.group, s.loaded_by.unwrap(), s.path)))
+}
+
+/// The npm packages that the scripts every unit test depends on load, such as the test runners'
+/// web server: a change to one of them runs every unit test. Each package has the reason to
+/// report.
 fn runner_packages(
 	config: &Config,
 	snap: &Snapshot,
 	read: &mut ReadBlob,
 ) -> Result<HashMap<String, String>> {
 	let mut packages = HashMap::new();
-	for e in &snap.entries {
-		let script = [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"]
-			.iter()
-			.any(|x| e.path.ends_with(x))
-			&& !e.path.ends_with(".d.ts");
-		let Some(reason) = script.then(|| config.run_everything(&e.path)).flatten() else {
-			continue;
-		};
-		let facts = analyze(&e.path, &read(&e.oid)?, config);
-		if facts.error {
-			anyhow::bail!("{}: cannot find the npm packages it loads", e.path);
-		}
-		for spec in &facts.specs {
+	for script in runner_scripts(config, snap, read)? {
+		for spec in &script.facts.specs {
 			if spec.type_only
 				|| spec.root || spec.data.is_some()
 				|| config.resolve_alias(&spec.specifier).is_some()
@@ -102,9 +199,9 @@ fn runner_packages(
 				continue;
 			}
 			if let Some(name) = package_name(&spec.specifier) {
-				packages
-					.entry(name.clone())
-					.or_insert_with(|| format!("{reason} package '{name}' ({})", e.path));
+				packages.entry(name.clone()).or_insert_with(|| {
+					format!("{} package '{name}' ({})", script.group, script.path)
+				});
 			}
 		}
 	}
@@ -521,6 +618,9 @@ pub fn select(
 			.find(|e| e.facts.as_ref().is_some_and(|facts| facts.error))
 			.map(|e| format!("parse error ({})", e.path))
 	});
+	if run_all.is_none() {
+		run_all = runner_script_changed(config, head, read, &paths)?;
+	}
 	let deps = dependency_impact(config, read, head, changes)?;
 	let mut packages = 0;
 	if let Some(deps) = &deps {
@@ -763,6 +863,62 @@ mod tests {
 		assert_eq!(
 			packages,
 			vec![reason("@scope/tool"), reason("dynamic"), reason("server")]
+		);
+	}
+
+	#[test]
+	fn scripts_that_run_everything_scripts_load_run_everything() {
+		// `test/**` runs everything; test/runner.js loads tools/version.js, which loads
+		// tools/deep.js and the npm package semver.
+		let files = [
+			(
+				"test/runner.js",
+				"const { version } = require('../tools/version.js');\nrequire('../src/lib/a.js');\n",
+			),
+			(
+				"tools/version.js",
+				"const semver = require('semver');\nexports.version = require('./deep.js').v;\n",
+			),
+			("tools/deep.js", "exports.v = 1;\n"),
+			("tools/other.js", "exports.o = 1;\n"),
+			("src/lib/a.ts", "export const a = 1;\n"),
+			TEST_A,
+		];
+		let case = |path: &str| -> Option<String> {
+			let head: Vec<(&str, String)> = files
+				.iter()
+				.map(|&(p, c)| {
+					(
+						p,
+						if p == path {
+							format!("{c}// changed\n")
+						} else {
+							c.to_owned()
+						},
+					)
+				})
+				.collect();
+			selection(&files, &refs(&head)).run_all
+		};
+		let contents: HashMap<String, &str> = files
+			.iter()
+			.map(|(_, c)| (format!("{:016x}", xxh3_64(c.as_bytes())), *c))
+			.collect();
+		let mut read = |oid: &str| -> Result<String> { Ok(contents[oid].to_owned()) };
+		let packages = runner_packages(for_tests(), &snapshot(&files), &mut read).unwrap();
+		assert_eq!(
+			(
+				case("tools/version.js"),
+				case("tools/deep.js"),
+				case("tools/other.js"),
+				packages.get("semver").map(String::as_str),
+			),
+			(
+				Some("test runner (test/runner.js loads tools/version.js)".to_owned()),
+				Some("test runner (tools/version.js loads tools/deep.js)".to_owned()),
+				None,
+				Some("test runner package 'semver' (tools/version.js)"),
+			)
 		);
 	}
 
@@ -1443,6 +1599,65 @@ mod tests {
 				"{before}"
 			);
 		}
+	}
+
+	#[test]
+	fn methods_that_unanalyzed_code_calls_are_reached_with_their_class() {
+		// Node.js streams call `_flush`, the DOM calls `connectedCallback` and an npm package calls
+		// the methods of its interfaces: no analyzed code uses their names.
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { C } from '../lib.js';\ntest('a', () => new C());\n",
+		);
+		let others = [
+			test,
+			(
+				"src/app/base.ts",
+				"import { Transform } from 'stream';\nexport class Base extends Transform {}\n",
+			),
+			(
+				"src/app/streams.ts",
+				"export { Transform } from 'stream';\n",
+			),
+			("src/app/plain.ts", "export class Plain {}\n"),
+		];
+		let case = |header: &str, method: &str| -> Vec<String> {
+			let lib = |value: u32| format!("{header} {{ {method}() {{ return {value}; }} }}\n");
+			selected_by_lib(&lib(1), &lib(2), &others)
+		};
+		let a = || vec![test.0.to_owned()];
+		assert_eq!(
+			(
+				case(
+					"import { Transform } from 'stream';\nexport class C extends Transform",
+					"_flush"
+				),
+				case("export class C extends HTMLElement", "connectedCallback"),
+				case(
+					"import type { IAddon } from 'xterm';\nexport class C implements IAddon",
+					"activate"
+				),
+				// Through an analyzed superclass, or a module that re-exports the package's class.
+				case(
+					"import { Base } from './base.js';\nexport class C extends Base",
+					"_flush"
+				),
+				case(
+					"import { Transform } from './streams.js';\nexport class C extends Transform",
+					"_flush"
+				),
+				// Analyzed heritage: only code that uses the name reaches the method.
+				case(
+					"import { Plain } from './plain.js';\nexport class C extends Plain",
+					"_flush"
+				),
+				case(
+					"interface ILocal { activate(): void }\nexport class C implements ILocal",
+					"activate"
+				),
+			),
+			(a(), a(), a(), a(), a(), vec![], vec![])
+		);
 	}
 
 	#[test]

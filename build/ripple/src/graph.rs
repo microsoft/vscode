@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 
-use crate::analyze::{ExportTarget, FileFacts, IMPLICIT_METHODS, Imported, Ref, name_id};
+use crate::analyze::{ExportTarget, FileFacts, Heritage, IMPLICIT_METHODS, Imported, Ref, name_id};
 use crate::config::{Config, Role};
 
 #[derive(Clone)]
@@ -189,7 +189,8 @@ fn test_data_folders(snap: &Snapshot) -> Vec<(&str, Vec<(&str, Vec<u32>)>)> {
 	list
 }
 
-fn join(dir: &str, rel: &str) -> Option<String> {
+/// The path that a relative path names from a directory, unless it leaves the repository.
+pub fn join(dir: &str, rel: &str) -> Option<String> {
 	let mut parts: Vec<&str> = dir.split('/').filter(|s| !s.is_empty()).collect();
 	for seg in rel.split('/') {
 		match seg {
@@ -782,6 +783,72 @@ impl Graph {
 			for v in base[f]..end {
 				node_file[v as usize] = f as u32;
 			}
+		}
+		// Code outside the analysis may call any method of a class that extends or implements it
+		// (see `Heritage`): reaching such a class reaches all of its instance methods.
+		let mut open = vec![false; total];
+		let mut subclasses: Vec<(u32, Vec<u32>)> = Vec::new();
+		// A superclass that is not analyzed, such as a JavaScript file or a package class that a
+		// module re-exports.
+		let unanalyzed = |t: u32| {
+			let file = node_file[t as usize];
+			file == u32::MAX || snap.entries[file as usize].facts.is_none()
+		};
+		for (f, e) in snap.entries.iter().enumerate() {
+			let Some(facts) = &e.facts else { continue };
+			for (d, decl) in facts.decls.iter().enumerate() {
+				let u = base[f] + d as u32;
+				let r = match &decl.heritage {
+					Some(Heritage::External) => {
+						open[u as usize] = true;
+						continue;
+					}
+					Some(Heritage::Super(r)) => r,
+					None => continue,
+				};
+				let targets = match r {
+					Ref::Local(t) => vec![base[f] + t],
+					Ref::Import { binding, member } => {
+						linker.resolve_binding(f as u32, *binding, member.as_deref(), 0)
+					}
+					_ => Vec::new(),
+				};
+				if targets.is_empty() || targets.iter().any(|&t| unanalyzed(t)) {
+					open[u as usize] = true;
+				} else {
+					subclasses.push((u, targets));
+				}
+			}
+		}
+		// The code that calls the methods of a class also calls those of its subclasses.
+		let mut changed = true;
+		while changed {
+			changed = false;
+			for (u, targets) in &subclasses {
+				if !open[*u as usize] && targets.iter().any(|&t| open[t as usize]) {
+					open[*u as usize] = true;
+					changed = true;
+				}
+			}
+		}
+		let mut ungated = 0;
+		for (f, e) in snap.entries.iter().enumerate() {
+			let Some(facts) = &e.facts else { continue };
+			for (d, decl) in facts.decls.iter().enumerate() {
+				if open[(base[f] + d as u32) as usize] {
+					for &child in &decl.children {
+						let g = &mut gate[(base[f] + child) as usize];
+						ungated += usize::from(*g != 0);
+						*g = 0;
+					}
+				}
+			}
+		}
+		if std::env::var_os("RIPPLE_DEBUG").is_some() {
+			let classes = open.iter().filter(|&&o| o).count();
+			eprintln!(
+				"{ungated} methods of {classes} classes that code outside the analysis may call"
+			);
 		}
 		let packages = std::mem::take(&mut linker.packages);
 		let globals = std::mem::take(&mut linker.globals);
