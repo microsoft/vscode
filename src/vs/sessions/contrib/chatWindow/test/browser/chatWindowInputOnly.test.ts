@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { decideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
+import { clampChatWindowOnResize, decideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
 
 suite('decideChatWindowInputOnly', () => {
 
@@ -35,5 +35,28 @@ suite('decideChatWindowInputOnly', () => {
 			[130, 180].map(groupHeight => decideChatWindowInputOnly({ ...base, groupHeight, dragging: true })),
 			[{ inputOnly: true, settleHeight: undefined }, { inputOnly: false, settleHeight: undefined }]
 		);
+	});
+
+	suite('clampChatWindowOnResize', () => {
+
+		const resized = { collapsedHeight: 100, conversationMinHeight: 120 };
+
+		test('a conversation shrunk by the window is clamped to its least height, never to the input', () => {
+			assert.deepStrictEqual(
+				[60, 100, 130, 219, 220, 400].map(groupHeight => clampChatWindowOnResize({ ...resized, groupHeight, inputOnly: false })),
+				[220, 220, 220, 220, undefined, undefined]
+			);
+		});
+
+		test('the input alone stays at its height', () => {
+			assert.deepStrictEqual(
+				[100, 140].map(groupHeight => clampChatWindowOnResize({ ...resized, groupHeight, inputOnly: true })),
+				[undefined, 100]
+			);
+		});
+
+		test('asks for the least height however short the window, for its neighbours to give way', () => {
+			assert.strictEqual(clampChatWindowOnResize({ ...resized, groupHeight: 30, inputOnly: false }), 220);
+		});
 	});
 });

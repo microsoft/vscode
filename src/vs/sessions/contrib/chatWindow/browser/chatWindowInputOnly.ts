@@ -36,3 +36,29 @@ export function decideChatWindowInputOnly(context: IChatWindowInputOnlyContext):
 	}
 	return { inputOnly, settleHeight };
 }
+
+export interface IChatWindowResizeContext {
+	/** The height of the chat's group, as laid out. */
+	readonly groupHeight: number;
+	/** The height of the group when it shows only the chat input. */
+	readonly collapsedHeight: number;
+	/** The least height of the conversation above the input. */
+	readonly conversationMinHeight: number;
+	/** Whether the group shows only the input. */
+	readonly inputOnly: boolean;
+}
+
+/**
+ * Decides the height of a group below the editor, when the window is resized rather than the split dragged. What it
+ * shows stays: the input alone stays at its height, and the conversation never shrinks below its least height, which
+ * would leave it between the two. It returns undefined when the group needs no change. It is the group's neighbours
+ * that give way to the height, the editor down to its own minimum first, and only then does the group fall short.
+ */
+export function clampChatWindowOnResize(context: IChatWindowResizeContext): number | undefined {
+	const { groupHeight, collapsedHeight, conversationMinHeight, inputOnly } = context;
+	if (inputOnly) {
+		return groupHeight !== collapsedHeight ? collapsedHeight : undefined;
+	}
+	const minimum = collapsedHeight + conversationMinHeight;
+	return groupHeight < minimum ? minimum : undefined;
+}

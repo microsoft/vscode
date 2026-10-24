@@ -29,7 +29,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { decideChatWindowInputOnly } from './chatWindowInputOnly.js';
+import { clampChatWindowOnResize, decideChatWindowInputOnly } from './chatWindowInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -505,6 +505,8 @@ export class ChatWindowChatEditor extends EditorPane {
 			this._decisionPending = true;
 		} else if (!windowResized) {
 			this._decide(this._pointerDown);
+		} else {
+			this._clampOnResize();
 		}
 	}
 
@@ -522,6 +524,30 @@ export class ChatWindowChatEditor extends EditorPane {
 			this._measuredInsets = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
 		}
 		return this._measuredInsets;
+	}
+
+	/** The window was resized, with this group below the editor: showing the conversation, it keeps its least height. */
+	private _clampOnResize(): void {
+		const view = this._view;
+		if (!view || this._minimumHeight === undefined || this._constraintMode?.minimum !== 'input' || this._state?.docked) {
+			return;
+		}
+		const part = this._editorGroupsService.getPart(this.group);
+		if (part.hasMaximizedGroup()) {
+			return;
+		}
+		const { width, height: groupHeight } = part.getSize(this.group);
+		const collapsedHeight = this._inputOnlyHeight.get() + this._chrome + this._insets;
+		const height = view.inputOnly.get() ? undefined : clampChatWindowOnResize({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, inputOnly: false });
+		if (height === undefined) {
+			return;
+		}
+		this._sizing = true;
+		try {
+			part.setSize(this.group, { width, height });
+		} finally {
+			this._sizing = false;
+		}
 	}
 
 	/**
