@@ -116,6 +116,80 @@ suite('WordOperations', () => {
 		_deleteInsideWord.run(null!, editor, args);
 	}
 
+	for (const { name, action, expected, locales, reverse } of [
+		{
+			name: 'cursorWordStartRight', action: moveWordStartRight, locales: 'ja', reverse: false,
+			expected: [
+				'|移動|し|なく|なり|ます。|',
+				'|移動|し|ます。|移動|し|なく|なり|ます。|',
+				'|移動|し|ます。,|移動|し|なく|なり|ます。|',
+				'|移動|し|なく|なり|ます。|abc|',
+				'。|移動|し|ます。|',
+				'|移動|し|ます|,。|移動|し|なく|なり|ます。|',
+				'|',
+				'|移動|し|ます。|'
+			].join('\n')
+		},
+		{
+			name: 'cursorWordEndLeft', action: cursorWordEndLeft, locales: 'ja', reverse: true,
+			expected: [
+				'|。移動|し|ます|。',
+				'|。|,|移動|し|なく|なり|ます|。',
+				'|,|。移動|し|なく|なり|ます|。',
+				'|移動|し|ます|。,|移動|し|なく|なり|ます|。',
+				'|移動|し|ます|,|。移動|し|なく|なり|ます|。',
+				'|',
+				'|。移動|し|ます|。|'
+			].join('\n')
+		},
+		{ name: 'cursorWordStartRight - Chinese', action: moveWordStartRight, locales: 'zh', reverse: false, expected: '|我们|正在|移动。|' },
+		{ name: 'cursorWordEndLeft - traditional Chinese', action: cursorWordEndLeft, locales: 'zh-TW', reverse: true, expected: '|。我們|正在|移動|。|' },
+		{ name: 'cursorWordStartRight - curly quote', action: moveWordStartRight, locales: 'en', reverse: false, expected: '|hello”|' }
+	]) {
+		test(`${name} - Intl punctuation`, function () {
+			if (isFirefox) {
+				// https://github.com/microsoft/vscode/issues/219843
+				return this.skip();
+			}
+			const [text, stops] = deserializePipePositions(expected);
+			if (reverse) {
+				stops.reverse();
+			}
+			const anchor = stops[0];
+			for (const inSelectionMode of [false, true]) {
+				withTestCodeEditor(text, { wordSegmenterLocales: locales }, editor => {
+					editor.setPosition(anchor);
+					for (const stop of [...stops.slice(1), stops[stops.length - 1]]) {
+						action(editor, inSelectionMode);
+						assert.deepStrictEqual(editor.getSelection(), Selection.fromPositions(inSelectionMode ? anchor : stop, stop));
+					}
+				});
+			}
+		});
+	}
+
+	for (const [name, action, before, after] of [
+		['deleteWordStartRight', deleteWordStartRight, '移動しなくなり|ます。', '移動しなくなり|'],
+		['deleteWordEndLeft', deleteWordEndLeft, '。移動|します。', '|します。'],
+		['deleteWordStartRight - selection', deleteWordStartRight, '移動|しなくなり|ます。', '移動|ます。'],
+		['deleteWordEndLeft - selection', deleteWordEndLeft, '。|移動し|ます。', '。|ます。']
+	] as const) {
+		test(`${name} - Intl punctuation`, function () {
+			if (isFirefox) {
+				// https://github.com/microsoft/vscode/issues/219843
+				return this.skip();
+			}
+			const [text, selections] = deserializePipePositions(before);
+			const [expectedText, expectedPositions] = deserializePipePositions(after);
+			withTestCodeEditor(text, { wordSegmenterLocales: 'ja' }, editor => {
+				editor.setSelection(Selection.fromPositions(selections[0], selections[selections.length - 1]));
+				action(editor);
+				assert.deepStrictEqual(editor.getValue(), expectedText);
+				assert.deepStrictEqual(editor.getPosition(), expectedPositions[0]);
+			});
+		});
+	}
+
 	test('cursorWordLeft - simple', () => {
 		const EXPECTED = [
 			'|    \t|My |First |Line\t ',
