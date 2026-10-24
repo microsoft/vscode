@@ -33,8 +33,19 @@ export interface ISessionEditorWorkingSetRestoreState {
 	 * editors that a working set cannot serialize close them when it begins and reopen them once it settles.
 	 */
 	readonly restoring: boolean;
-	/** Whether the queued restore is currently replacing the editor working set. */
+	/**
+	 * Whether the most recent restore is currently replacing the editor working set. Each apply
+	 * publishes its own transition to `true`, even when consecutive restores share an owner.
+	 */
 	readonly applying: boolean;
+}
+
+/**
+ * A restore begun by {@link ISessionEditorWorkingSetService.beginRestore}. Its identity, not its
+ * owner, decides whether it may still apply. Disposing it settles the restore.
+ */
+export interface ISessionEditorWorkingSetRestore extends IDisposable {
+	readonly owner: ISessionEditorWorkingSetOwner | undefined;
 }
 
 export const ISessionEditorWorkingSetService = createDecorator<ISessionEditorWorkingSetService>('sessionEditorWorkingSetService');
@@ -48,7 +59,10 @@ export interface ISessionEditorWorkingSetService {
 
 	readonly restoreState: IObservable<ISessionEditorWorkingSetRestoreState>;
 
-	/** Publishes a settled owner when changing to it does not require applying a working set. */
+	/**
+	 * Publishes a settled owner when changing to it does not require applying a working set.
+	 * Restores that have not begun applying can no longer apply.
+	 */
 	setCurrentOwner(owner: ISessionEditorWorkingSetOwner | undefined): void;
 
 	/**
@@ -62,16 +76,18 @@ export interface ISessionEditorWorkingSetService {
 	shouldRetainEditor(input: EditorInput): boolean;
 
 	/**
-	 * Marks the current queued owner as actively applying. Returns `false` when
-	 * the restore was superseded before it reached the sequencer.
+	 * Marks `restore` as actively applying. Returns `false` unless it is the most recent
+	 * restore and has neither applied nor settled, so superseded and duplicate queued
+	 * applies are skipped even when they target the current owner.
 	 */
-	beginApply(owner: ISessionEditorWorkingSetOwner | undefined): boolean;
+	beginApply(restore: ISessionEditorWorkingSetRestore): boolean;
 
 	/**
 	 * Marks a restore of `owner`'s working set until the returned handle is disposed. Restores
-	 * may overlap; the owner of the most recent one is reported once all of them settle.
+	 * may overlap; only the most recent one can begin applying, and its owner is reported once
+	 * all of them settle.
 	 */
-	beginRestore(owner: ISessionEditorWorkingSetOwner | undefined): IDisposable;
+	beginRestore(owner: ISessionEditorWorkingSetOwner | undefined): ISessionEditorWorkingSetRestore;
 }
 
 export class SessionEditorWorkingSetService implements ISessionEditorWorkingSetService {
@@ -82,9 +98,12 @@ export class SessionEditorWorkingSetService implements ISessionEditorWorkingSetS
 	readonly restoreState: IObservable<ISessionEditorWorkingSetRestoreState> = this._restoreState;
 
 	private _pendingRestores = 0;
+	/** The only restore that may still begin applying. */
+	private _applicableRestore: ISessionEditorWorkingSetRestore | undefined;
 	private readonly _editorsToRetain = new Set<EditorInput>();
 
 	setCurrentOwner(owner: ISessionEditorWorkingSetOwner | undefined): void {
+		this._applicableRestore = undefined;
 		this._restoreState.set(Object.freeze({ owner, restoring: this._pendingRestores !== 0, applying: false }), undefined);
 	}
 
@@ -97,33 +116,28 @@ export class SessionEditorWorkingSetService implements ISessionEditorWorkingSetS
 		return this._editorsToRetain.has(input);
 	}
 
-	beginApply(owner: ISessionEditorWorkingSetOwner | undefined): boolean {
-		const state = this._restoreState.get();
-		if (!state.restoring || !editorWorkingSetOwnersEqual(state.owner, owner)) {
+	beginApply(restore: ISessionEditorWorkingSetRestore): boolean {
+		if (restore !== this._applicableRestore) {
 			return false;
 		}
-		if (!state.applying) {
-			this._restoreState.set(Object.freeze({ owner, restoring: true, applying: true }), undefined);
-		}
+		this._applicableRestore = undefined;
+		this._restoreState.set(Object.freeze({ owner: restore.owner, restoring: true, applying: true }), undefined);
 		return true;
 	}
 
-	beginRestore(owner: ISessionEditorWorkingSetOwner | undefined): IDisposable {
+	beginRestore(owner: ISessionEditorWorkingSetOwner | undefined): ISessionEditorWorkingSetRestore {
 		this._pendingRestores++;
-		this._restoreState.set(Object.freeze({ owner, restoring: true, applying: false }), undefined);
-		let settled = false;
-		return toDisposable(() => {
-			if (settled) {
-				return;
+		const settle = toDisposable(() => {
+			if (this._applicableRestore === restore) {
+				this._applicableRestore = undefined;
 			}
-			settled = true;
 			if (--this._pendingRestores === 0) {
 				this._restoreState.set(Object.freeze({ owner: this._restoreState.get().owner, restoring: false, applying: false }), undefined);
 			}
 		});
+		const restore: ISessionEditorWorkingSetRestore = { owner, dispose: () => settle.dispose() };
+		this._applicableRestore = restore;
+		this._restoreState.set(Object.freeze({ owner, restoring: true, applying: false }), undefined);
+		return restore;
 	}
-}
-
-function editorWorkingSetOwnersEqual(a: ISessionEditorWorkingSetOwner | undefined, b: ISessionEditorWorkingSetOwner | undefined): boolean {
-	return isEqual(a?.sessionResource, b?.sessionResource) && isEqual(a?.chatResource, b?.chatResource);
 }
