@@ -147,7 +147,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Cached file locations commands. Caching only happens if the corresponding `fileLocatorEvents` event is used.
 	 */
-	private readonly cachedFileLocations: { [key in PromptsType]?: Promise<readonly IPromptPath[]> } = {};
+	private readonly cachedFileLocations: { [key in PromptsType]?: CachedPromise<readonly IPromptPath[]> } = {};
 
 	/**
 	 * Lazily created events that notify listeners when the file locations for a given prompt type change.
@@ -195,17 +195,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const onDidChangeCustomizationLockdown = Event.filter(this.configurationService.onDidChangeConfiguration,
 			e => e.affectsConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG) || e.affectsConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG));
 		this._register(onDidChangeCustomizationLockdown(() => {
-			this.cachedFileLocations[PromptsType.agent] = undefined;
-			this.cachedFileLocations[PromptsType.skill] = undefined;
-			this.cachedFileLocations[PromptsType.hook] = undefined;
-			this.cachedFileLocations[PromptsType.instructions] = undefined;
+			this.cachedFileLocations[PromptsType.agent]?.refresh();
+			this.cachedFileLocations[PromptsType.skill]?.refresh();
+			this.cachedFileLocations[PromptsType.hook]?.refresh();
+			this.cachedFileLocations[PromptsType.instructions]?.refresh();
 			this._onDidChangeAgentInstructions.fire();
 		}));
 
 		// Invalidate the cached file location list whenever an extension contribution
 		// or provider for the same type changes (or its `when` re-evaluates).
 		this._register(onDidChangeExtensionPromptFiles(e => {
-			this.cachedFileLocations[e.type] = undefined;
+			this.cachedFileLocations[e.type]?.refresh();
 		}));
 
 		const modelChangeEvent = this._register(new ModelChangeTracker(this.modelService)).onDidPromptChange;
@@ -311,7 +311,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 
 			this._pluginPromptFilesByType.set(PromptsType.hook, hookFiles);
-			this.cachedFileLocations[PromptsType.hook] = undefined;
+			this.cachedFileLocations[PromptsType.hook]?.refresh();
 			this._onDidPluginHooksChange.fire();
 		}));
 	}
@@ -342,7 +342,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			nextFiles.sort((a, b) => `${a.name ?? ''}|${a.uri.toString()}`.localeCompare(`${b.name ?? ''}|${b.uri.toString()}`));
 			this._pluginPromptFilesByType.set(type, nextFiles);
-			this.cachedFileLocations[type] = undefined;
+			this.cachedFileLocations[type]?.refresh();
 			this._onDidPluginPromptFilesChange.fire(type);
 		});
 	}
@@ -356,7 +356,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!event) {
 			event = this.fileLocatorEvents[type] = this._register(this.fileLocator.createFilesUpdatedEvent(type)).event;
 			this._register(event(() => {
-				this.cachedFileLocations[type] = undefined;
+				this.cachedFileLocations[type]?.refresh();
 			}));
 		}
 		return event;
@@ -375,23 +375,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		const cached = this.cachedFileLocations[type];
-		if (cached) {
-			return cached;
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
-		// Drop the entry if the computation fails (e.g. it was cancelled), otherwise a
-		// cancelled scan would stay cached as a permanent empty result.
-		const listPromise: Promise<readonly IPromptPath[]> = this.computeListPromptFiles(type, token).catch(err => {
-			if (this.cachedFileLocations[type] === listPromise) {
-				this.cachedFileLocations[type] = undefined;
-			}
-			throw err;
-		});
 		if (!this.fileLocatorEvents[type]) {
-			return listPromise;
+			return this.computeListPromptFiles(type, token);
 		}
-		this.cachedFileLocations[type] = listPromise;
-		return listPromise;
+		let cached = this.cachedFileLocations[type];
+		if (!cached) {
+			cached = this.cachedFileLocations[type] = this._register(new CachedPromise(
+				token => this.computeListPromptFiles(type, token),
+				() => Event.None,
+			));
+		}
+		return cached.get(token);
 	}
 
 	private async computeListPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {

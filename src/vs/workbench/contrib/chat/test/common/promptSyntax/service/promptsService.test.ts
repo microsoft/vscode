@@ -2238,6 +2238,88 @@ suite('PromptsService', () => {
 				['workspace-prompt.prompt.md'],
 			);
 		});
+
+		for (const cancelBeforeJoin of [false, true]) {
+			test(`does not cancel shared prompt discovery when a caller cancels ${cancelBeforeJoin ? 'before' : 'after'} another joins`, async () => {
+				const uri = URI.file('/extension/shared.prompt.md');
+				const extension = {
+					identifier: { value: 'test.my-extension' },
+					enabledApiProposals: ['chatParticipantPrivate']
+				} as IExtensionDescription;
+				const started = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				let providerCalls = 0;
+				disposables.add(service.registerPromptFileProvider(extension, PromptsType.prompt, {
+					providePromptFiles: async (_context, token) => {
+						if (++providerCalls === 1) {
+							await started.complete();
+							await release.p;
+						}
+						if (token.isCancellationRequested) {
+							throw new CancellationError();
+						}
+						return [{ uri }];
+					}
+				}));
+				const cts = disposables.add(new CancellationTokenSource());
+				const first = assert.rejects(service.listPromptFiles(PromptsType.prompt, cts.token), CancellationError);
+				await started.p;
+
+				if (cancelBeforeJoin) {
+					cts.cancel();
+				}
+				const second = service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+				if (!cancelBeforeJoin) {
+					cts.cancel();
+				}
+				await release.complete();
+				await first;
+				const files = await second;
+				const cachedFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+				assert.deepStrictEqual({
+					files: files.map(file => file.uri.path),
+					cachedFiles: cachedFiles.map(file => file.uri.path),
+					providerCalls,
+				}, {
+					files: [uri.path],
+					cachedFiles: [uri.path],
+					providerCalls: cancelBeforeJoin ? 2 : 1,
+				});
+			});
+		}
+
+		test('honors cancellation when prompt discovery is already cached', async () => {
+			await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			const cts = disposables.add(new CancellationTokenSource());
+			cts.cancel();
+
+			await assert.rejects(service.listPromptFiles(PromptsType.prompt, cts.token), CancellationError);
+		});
+
+		test('removes deleted prompts from cached discovery after filesystem invalidation', async () => {
+			const root = URI.file('/prompts-discovery-deletion');
+			const uri = URI.joinPath(root, '.github/prompts/deleted.prompt.md');
+			workspaceContextService.setWorkspace(testWorkspace(root));
+			const created = Event.toPromise(service.onDidChangeSlashCommands);
+			fireConfigChange(testConfigService, PromptsConfig.PROMPT_LOCATIONS_KEY);
+			await mockFiles(fileService, [{ path: uri.path, contents: ['Prompt to delete'] }]);
+			await created;
+			const before = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			const deleted = Event.toPromise(service.onDidChangeSlashCommands);
+			await fileService.del(uri);
+			await deleted;
+			const after = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				before: before.map(file => file.uri.path),
+				after: after.map(file => file.uri.path),
+			}, {
+				before: [uri.path],
+				after: [],
+			});
+		});
 	});
 
 	suite('listPromptFiles - instructions', () => {
