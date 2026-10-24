@@ -8,7 +8,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
-import { describeSessionActivityBarLayout } from '../../../../test/browser/sessionLayoutModeTestUtils.js';
+import { describeMenuGroup, describeSessionActivityBarLayout } from '../../../../test/browser/sessionLayoutModeTestUtils.js';
+import { Menus } from '../../../../browser/menus.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import '../../browser/chatWindow.contribution.js';
 
 suite('Chat window - the Layout menu in the Session Activity Bar', () => {
@@ -52,6 +54,37 @@ suite('Chat window - the Layout menu in the Session Activity Bar', () => {
 			singleEditor: 1,
 			noEditor: [],
 			mainWindow: [],
+		});
+	});
+
+	test('shows the Layout menu in one place: in the Session Activity Bar while it shows its layout actions, in the title bar otherwise', () => {
+		const base: Record<string, ContextKeyValue> = {
+			chatIsEnabled: true,
+			agentSessionsDesktopLayout: true,
+			'sessions.chatWindow': 'test',
+			'sessions.chatWindowHasEditor': true,
+			'sessions.chatWindowHasEditorArea': true,
+			'sessions.layoutMode': SessionLayoutMode.SideBySide,
+			'sessions.splitLayout': SessionLayoutMode.SideBySide,
+		};
+		const docked = { ...base, 'sessions.chatWindowDocked': true, 'sessions.chatWindowDockable': true };
+		const layoutButtons = (menu: MenuId, contextKeys: Record<string, ContextKeyValue>, settings: Record<string, unknown>) =>
+			describeMenuGroup(store, menu, undefined, contextKeys, settings).filter(item => item.entries).map(item => item.label);
+		const where = (layoutActions: boolean, strip = true) => {
+			const settings = { [SESSION_ACTIVITY_BAR_SETTING]: strip, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: layoutActions };
+			return {
+				titleBar: layoutButtons(Menus.ChatWindowTitleBarLayout, base, settings),
+				strip: layoutButtons(Menus.SessionActivityBar, base, settings),
+				dockedHeader: layoutButtons(Menus.ChatWindowTitleLayout, docked, settings),
+				dockedStrip: layoutButtons(Menus.SessionActivityBar, docked, settings),
+			};
+		};
+
+		assert.deepStrictEqual({ on: where(true), off: where(false), stripHidden: where(true, false) }, {
+			on: { titleBar: [], strip: ['Layout'], dockedHeader: [], dockedStrip: ['Layout'] },
+			off: { titleBar: ['Layout'], strip: [], dockedHeader: ['Layout'], dockedStrip: [] },
+			// Without the Session Activity Bar, its layout actions show nowhere: the title bar keeps the menu.
+			stripHidden: { titleBar: ['Layout'], strip: [], dockedHeader: ['Layout'], dockedStrip: [] },
 		});
 	});
 });

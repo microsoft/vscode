@@ -20,6 +20,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { Menus } from '../../../browser/menus.js';
 import { registerSessionLayoutModeActions, SessionLayoutMenuGroup, sessionLayoutModeChoices } from '../../../browser/sessionLayoutModeActions.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
 import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, ChatWindowTerminalRowContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayoutContext } from '../../../common/sessionLayoutMode.js';
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
@@ -84,7 +85,8 @@ registerSessionLayoutModeActions({
 // menu of the window: what it shows (the chat, the editor), how the two are arranged together, and where the window
 // shows. Each of its actions also has a button there, hidden until the user shows it from the context menu of the buttons.
 const chatWindowLayoutMenu = { submenu: Menus.SessionLayout, title: localize2('chatWindowLayout', "Layout"), icon: Codicon.layout, group: 'navigation' };
-const ChatWindowHasLayoutMenuContext = ContextKeyExpr.or(ChatWindowHasEditorContext, ChatWindowDockableContext);
+// One entry point to the Layout menu: in the title bar, or in the Session Activity Bar while it shows its layout actions.
+const ChatWindowHasLayoutMenuContext = ContextKeyExpr.and(ContextKeyExpr.or(ChatWindowHasEditorContext, ChatWindowDockableContext), SessionActivityBarLayoutActionsContext.negate());
 // The Layout menu ends the layout actions, after the buttons the user chose to show.
 const CHAT_WINDOW_LAYOUT_MENU_ORDER = 100;
 MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, { ...chatWindowLayoutMenu, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowDockedContext.negate(), ChatWindowHasLayoutMenuContext) });
