@@ -810,7 +810,7 @@ suite('Sessions - Chat View', () => {
 			_announce: (message: string) => events.push(`announce: ${message}`),
 			_showPills: true,
 			_chatPills: { element: pillsElement, visible: true },
-			_widget: { inputPart: { persistentContentContainerElement: dom.$('div') } },
+			_widget: { inputPart: { persistentContentContainerElement: dom.$('div'), setSingleLine: (singleLine: boolean) => events.push(`singleLine=${singleLine}`) } },
 		});
 		Object.defineProperty(view, 'inputOnly', { value: (view as unknown as { _inputOnly: IObservable<boolean> })._inputOnly });
 		Object.defineProperty(view, 'canShowInputOnly', { value: derived(reader => enabled.read(reader) && !needsConversation.read(reader)) });
@@ -849,15 +849,15 @@ suite('Sessions - Chat View', () => {
 
 		assert.deepStrictEqual(events, [
 			'before enabled: inputOnly=false class=false pills=true status=hidden',
-			'enabled=true', 'inputOnly=true', 'layout', 'empty chat: inputOnly=true class=true pills=false status=hidden',
+			'enabled=true', 'inputOnly=true', 'singleLine=true', 'layout', 'empty chat: inputOnly=true class=true pills=false status=hidden',
 			'layout', `working: inputOnly=true class=true pills=false status=[Working (no icon): Add a bullet] [spinner Reading chatpad.md]`,
-			'inputOnly=false', 'layout', 'layout', 'show conversation: inputOnly=false class=false pills=true status=hidden',
-			'inputOnly=true', 'layout', 'layout', 'announce: Chat is waiting for your input', `waiting: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
+			'inputOnly=false', 'singleLine=false', 'layout', 'layout', 'show conversation: inputOnly=false class=false pills=true status=hidden',
+			'inputOnly=true', 'singleLine=true', 'layout', 'layout', 'announce: Chat is waiting for your input', `waiting: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
 			`waiting, rendered again: inputOnly=true class=true pills=false status=[Waiting for your input (${SessionStatus.NeedsInput}): Add a bullet] [Adding]`,
 			'done: inputOnly=true class=true pills=false status=[Done (no icon): Add a bullet] [Added the bullet.]',
-			'inputOnly=false', 'layout', 'layout', 'needs the conversation: inputOnly=false class=false pills=true status=hidden',
-			'inputOnly=false', 'layout', 'enabled=false', 'disabled: inputOnly=false class=false pills=true status=hidden',
-			'enabled=true', 'inputOnly=false', 'layout', 'enabled with the conversation: inputOnly=false class=false pills=true status=hidden',
+			'inputOnly=false', 'singleLine=false', 'layout', 'layout', 'needs the conversation: inputOnly=false class=false pills=true status=hidden',
+			'inputOnly=false', 'singleLine=false', 'layout', 'enabled=false', 'disabled: inputOnly=false class=false pills=true status=hidden',
+			'enabled=true', 'inputOnly=false', 'singleLine=false', 'layout', 'enabled with the conversation: inputOnly=false class=false pills=true status=hidden',
 		]);
 	});
 

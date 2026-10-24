@@ -32,6 +32,16 @@ export const enum ChatWindowLayout {
 /** The layouts in which a chat window shows its chat and its editor together. */
 export type ChatWindowSplitLayout = ChatWindowLayout.EditorAboveChat | ChatWindowLayout.SideBySide;
 
+/** Where the terminal row of a chat window shows. */
+export const enum ChatWindowTerminalPosition {
+	/** Across the bottom of the window, below the chat and the editor area. */
+	FullWidth = 'fullWidth',
+	/** Below the editor area only. Stacked, between the editor area and the chat. */
+	UnderEditor = 'underEditor',
+	/** Below the chat only. Stacked, across the bottom, as the chat is the bottom of the window. */
+	UnderChat = 'underChat',
+}
+
 /**
  * A kind of chat window. Chat windows of a kind share their title and their defaults: the
  * layout, docking and docked size a new one of the kind opens with are those last used in one of the kind.
@@ -155,6 +165,9 @@ export interface IChatWindow {
 	readonly terminalShown: IObservable<boolean>;
 	/** The group of the terminal row, while it shows. */
 	readonly terminalGroup: IObservable<IEditorGroup | undefined>;
+	/** Where the terminal row shows, which becomes the default of the kind. */
+	readonly terminalPosition: IObservable<ChatWindowTerminalPosition>;
+	setTerminalPosition(position: ChatWindowTerminalPosition): void;
 	/** Shows or hides the terminal row. Hiding it keeps its terminal running, to show again. */
 	setTerminalShown(shown: boolean, options?: { readonly focus?: boolean }): Promise<void>;
 	/** Shows the resource of its one editor with another editor, such as as text; see {@link IChatWindowEditor.viewType}. */
@@ -236,6 +249,9 @@ export const ChatWindowDockedContext = new RawContextKey<boolean>('sessions.chat
 /** The {@link ChatWindowLayout} of the chat window. */
 export const ChatWindowLayoutContext = new RawContextKey<string>('sessions.chatWindowLayout', ChatWindowLayout.ChatOnly, localize('chatWindowLayout', "How the chat window shows its chat and its editor: editorAboveChat, sideBySide, editorOnly or chatOnly."));
 
+/** The {@link ChatWindowTerminalPosition} of the terminal row of the chat window. */
+export const ChatWindowTerminalPositionContext = new RawContextKey<string>('sessions.chatWindowTerminalPosition', ChatWindowTerminalPosition.FullWidth, localize('chatWindowTerminalPosition', "Where the terminal row of the chat window shows: fullWidth, underEditor or underChat."));
+
 /** The {@link ChatWindowSplitLayout} of the chat window: how its chat and its editor show together, or last showed. */
 export const ChatWindowSplitLayoutContext = new RawContextKey<string>('sessions.chatWindowSplitLayout', ChatWindowLayout.EditorAboveChat, localize('chatWindowSplitLayout', "How the chat window arranges its chat and its editor while both show, or as they last showed together: editorAboveChat or sideBySide."));
 
@@ -247,6 +263,9 @@ export const ChatWindowDockedResizedContext = new RawContextKey<boolean>('sessio
 
 /** Whether the chat window shows an editor area beside its chat, which takes the editors opened from it. */
 export const ChatWindowHasEditorAreaContext = new RawContextKey<boolean>('sessions.chatWindowHasEditorArea', false, localize('chatWindowHasEditorArea', "Whether the chat window shows an editor area beside its chat."));
+
+/** The identifier of the editor group of the chat window's editor area, or -1 outside chat windows with one. Scopes menu entries to one window. */
+export const ChatWindowEditorGroupContext = new RawContextKey<number>('sessions.chatWindowEditorGroup', -1, localize('chatWindowEditorGroup', "The identifier of the editor group of the chat window's editor area."));
 
 /** The identifier of the editor that the editor area of the chat window shows, or empty. */
 export const ChatWindowEditorAreaEditorContext = new RawContextKey<string>('sessions.chatWindowEditorAreaEditor', '', localize('chatWindowEditorAreaEditor', "The identifier of the editor that the editor area of the chat window shows."));
@@ -262,6 +281,9 @@ export const CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID = 'sessions.chatWindow.toggl
 
 /** Whether the chat window shows its terminal row. */
 export const ChatWindowTerminalShownContext = new RawContextKey<boolean>('sessions.chatWindowTerminalShown', false, localize('chatWindowTerminalShown', "Whether the chat window shows a terminal across its bottom."));
+
+/** Whether the editor group is the terminal row of a chat window. Set in the scope of that group. */
+export const ChatWindowTerminalRowContext = new RawContextKey<boolean>('sessions.chatWindowTerminalRow', false, localize('chatWindowTerminalRow', "Whether the editor group is the terminal row of a chat window."));
 
 /** Whether the chat window shows an editor, or an editor area, beside its chat. */
 export const ChatWindowHasEditorContext = new RawContextKey<boolean>('sessions.chatWindowHasEditor', false, localize('chatWindowHasEditor', "Whether the chat window shows an editor beside its chat."));

@@ -12,6 +12,7 @@ import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/act
 import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -92,10 +93,35 @@ const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	},
 }];
 
+/** The argument of the Add Tab actions: the group that they were invoked from. */
+interface IChatWindowGroupContext {
+	readonly groupId?: number;
+}
+
+/** The chat window that owns the group, or the active chat window when the action is not invoked from a group. */
+function getChatWindowForGroup(chatWindowService: IChatWindowService, context: IChatWindowGroupContext | undefined): IChatWindow | undefined {
+	if (typeof context?.groupId === 'number') {
+		const window = chatWindowService.windows.get().find(w => w.editorGroup?.id === context.groupId);
+		if (window) {
+			return window;
+		}
+	}
+	return chatWindowService.getActiveWindow();
+}
+
 for (const entry of chatWindowTabEntries) {
 	// Checked while the editor area shows its tab; clicking it then hides the editor area.
 	const shown = ContextKeyExpr.and(ChatWindowEditorAreaEditorContext.isEqualTo(entry.editorId), ChatWindowLayoutContext.notEqualsTo(ChatWindowLayout.ChatOnly));
-	const when = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, entry.when);
+	const when = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatContextKeys.enabled, entry.when);
+	// The same entries as the Add Tab actions of the main window, in its menus, for the empty editor area of a chat window.
+	for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab]) {
+		MenuRegistry.appendMenuItem(menu, {
+			command: { id: entry.id, title: entry.title, icon: entry.icon },
+			group: 'navigation',
+			order: entry.order - 1,
+			when,
+		});
+	}
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -113,8 +139,8 @@ for (const entry of chatWindowTabEntries) {
 			});
 		}
 
-		override async run(accessor: ServicesAccessor): Promise<void> {
-			const window = accessor.get(IChatWindowService).getActiveWindow();
+		override async run(accessor: ServicesAccessor, context?: IChatWindowGroupContext): Promise<void> {
+			const window = getChatWindowForGroup(accessor.get(IChatWindowService), context);
 			if (!window?.editorGroup) {
 				return;
 			}
@@ -158,4 +184,37 @@ MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	group: SessionActivityBarGroup.Panel,
 	order: 0,
 	when: ChatWindowHasEditorAreaContext,
+});
+
+const CHAT_WINDOW_ADD_TERMINAL_COMMAND_ID = 'sessions.chatWindow.addTerminal';
+
+// The Add Tab entry for a terminal: it shows in the terminal row, which holds terminals only, and not in the editor area.
+registerAction2(class AddChatWindowTerminalAction extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_WINDOW_ADD_TERMINAL_COMMAND_ID,
+			title: localize2('chatWindowAddTerminal', "Terminal"),
+			icon: Codicon.terminal,
+			precondition: ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatContextKeys.enabled),
+			menu: [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab].map(id => ({
+				id,
+				group: 'navigation',
+				order: 3,
+				when: ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatContextKeys.enabled),
+			})),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatWindowGroupContext): Promise<void> {
+		const window = getChatWindowForGroup(accessor.get(IChatWindowService), context);
+		if (!window) {
+			return;
+		}
+		const row = window.terminalGroup.get();
+		if (row && !row.isEmpty) {
+			await accessor.get(ICommandService).executeCommand('sessions.chatWindow.newTerminal', { groupId: row.id });
+		} else {
+			await window.setTerminalShown(true, { focus: true });
+		}
+	}
 });

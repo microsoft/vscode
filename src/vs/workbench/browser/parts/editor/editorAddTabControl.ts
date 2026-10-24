@@ -31,6 +31,11 @@ export interface IEditorAddTabControlOptions {
 	 * Resolves keybindings shown in the dropdown. Defaults to a lookup in the given context key service.
 	 */
 	readonly keybindingProvider?: (action: IAction) => ResolvedKeybinding | undefined;
+
+	/**
+	 * Argument that the menu actions receive when they run.
+	 */
+	readonly menuArg?: unknown;
 }
 
 /**
@@ -64,7 +69,7 @@ export class EditorAddTabControl extends Disposable {
 		parent.insertBefore(this.element, options?.before ?? null);
 
 		const menu = this._register(menuService.createMenu(menuId, contextKeyService));
-		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+		const getActions = () => getFlatActionBarActions(menu.getActions({ arg: options?.menuArg, shouldForwardArgs: true }));
 		const addTabAction = toAction({
 			id: 'editor.tabs.addTab',
 			label: localize('addTab', "Add Tab"),

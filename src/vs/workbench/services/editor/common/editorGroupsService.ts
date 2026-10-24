@@ -62,6 +62,28 @@ export interface IFindGroupScope {
 	readonly location?: GroupLocation;
 }
 
+/**
+ * How readily a group of an editor part gives or takes space when the part is
+ * resized or groups are added beside it; see {@link IEditorPart.setGroupLayoutPriority}.
+ */
+export const enum GroupLayoutPriority {
+
+	/**
+	 * Gives or takes space last.
+	 */
+	Low,
+
+	/**
+	 * The default.
+	 */
+	Normal,
+
+	/**
+	 * The group absorbs resizes first: it gives or takes space before the others.
+	 */
+	High
+}
+
 export const enum GroupsArrangement {
 	/**
 	 * Make the current active group consume the entire
@@ -525,7 +547,8 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * For a group whose editor shows its own chrome, while other
 	 * groups of the part show tabs. Shows the title again once the
 	 * returned disposable, and those of other calls for the group,
-	 * are disposed.
+	 * are disposed. For the feature that owns the part; not persisted
+	 * with the state of the part.
 	 */
 	hideGroupTitle(group: IEditorGroup | GroupIdentifier): IDisposable;
 
@@ -545,9 +568,50 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	/**
 	 * Makes numbered view columns open in `group` of the part while it is the
 	 * active part, such as a window with one editor area beside other content.
-	 * Undone when the returned disposable is disposed.
+	 * Undone when the returned disposable is disposed. For the feature that
+	 * owns the part; the last call wins, and it is not persisted with the
+	 * state of the part.
 	 */
 	setViewColumnGroup(group: IEditorGroup): IDisposable;
+
+	/**
+	 * Leaves `gap` pixels between neighbouring groups of the part, such as
+	 * to show its groups as separate cards. Each group is inset by half of
+	 * the gap on its sides that face another group (the left and top halves
+	 * are rounded down, the right and bottom ones up, so neighbours are
+	 * exactly `gap` apart); the outer edges of the part are not inset. The
+	 * group lays out its title and editor within the inset, so nothing is
+	 * clipped.
+	 *
+	 * For the feature that owns the part and arranges its groups; the main
+	 * editor part does not use it. Each call replaces the gap of the previous
+	 * one, and the gap is not persisted with the state of the part. `0`, the
+	 * default, is a no-op: groups lay out next to each other.
+	 */
+	setGroupGap(gap: number): void;
+
+	/**
+	 * Sets how readily `group` gives or takes space. While any group of the
+	 * part has a priority other than {@link GroupLayoutPriority.Normal}, the
+	 * groups of the part no longer resize proportionally: when the part is
+	 * resized, groups with a high priority take the change first, then those
+	 * with a normal priority, and those with a low priority last; and when a
+	 * group is added, removed or moved beside a group with a high priority, the
+	 * other groups beside it keep their sizes. `undefined`, or
+	 * {@link GroupLayoutPriority.Normal}, clears the priority of the group.
+	 *
+	 * {@link GroupLayoutPriority.High} marks the group that absorbs resizes
+	 * first, such as an editor that gives way to the other groups. A group
+	 * that is added beside it only takes as much of its space as it can give
+	 * above its minimum size.
+	 *
+	 * For the feature that owns the part and arranges its groups; the main
+	 * editor part does not use it. Each call replaces the priority of the
+	 * group from the previous one, the priority is not persisted with the
+	 * state of the part, so the owner sets it again after restoring a state,
+	 * and it is cleared when the group is removed.
+	 */
+	setGroupLayoutPriority(group: IEditorGroup | GroupIdentifier, priority: GroupLayoutPriority | undefined): void;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {

@@ -19,10 +19,11 @@ import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowHasEditorAreaContext, ChatWindowSplitLayoutContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
 import { ChatWindowService } from './chatWindowService.js';
 import './chatWindowActivityBar.js';
+import './chatWindowChangesFileList.js';
 import './openChatInWindow.js';
 
 registerSingleton(IChatWindowService, ChatWindowService, InstantiationType.Delayed);
@@ -112,6 +113,7 @@ for (const choice of chatWindowLayoutChoices) {
 const ChatWindowLayoutMenuGroup = {
 	panes: '1_panes',
 	arrangement: '2_arrangement',
+	terminal: '2_terminal',
 	window: '3_window',
 } as const;
 
@@ -238,6 +240,46 @@ for (const target of [ChatWindowLayout.SideBySide, ChatWindowLayout.EditorAboveC
 	MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, { command, group: ChatWindowLayoutMenuGroup.arrangement, when });
 	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, { command, group: 'navigation', order: chatWindowArrangementButtonOrder, when, isHiddenByDefault: true });
 }
+
+// Where the terminal row shows, chosen like a radio group: below the chat and the editor area, below the editor area
+// only, or below the chat only. Stacked, the chat is the bottom of the window, so below the chat is across the bottom.
+const chatWindowTerminalPositionChoices: readonly { readonly position: ChatWindowTerminalPosition; readonly id: string; readonly title: ILocalizedString }[] = [{
+	position: ChatWindowTerminalPosition.FullWidth,
+	id: 'sessions.chatWindow.terminalPosition.fullWidth',
+	title: localize2('chatWindowTerminalFullWidth', "Terminal Across Full Width"),
+}, {
+	position: ChatWindowTerminalPosition.UnderEditor,
+	id: 'sessions.chatWindow.terminalPosition.underEditor',
+	title: localize2('chatWindowTerminalUnderEditor', "Terminal Under Editor"),
+}, {
+	position: ChatWindowTerminalPosition.UnderChat,
+	id: 'sessions.chatWindow.terminalPosition.underChat',
+	title: localize2('chatWindowTerminalUnderChat', "Terminal Under Chat"),
+}];
+chatWindowTerminalPositionChoices.forEach((choice, index) => {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: choice.id,
+				title: choice.title,
+				category: SessionsCategories.Sessions,
+				f1: true,
+				precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorAreaContext),
+				toggled: ChatWindowTerminalPositionContext.isEqualTo(choice.position),
+				menu: {
+					id: Menus.ChatWindowLayout,
+					group: ChatWindowLayoutMenuGroup.terminal,
+					order: index,
+					when: ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowHasEditorAreaContext),
+				},
+			});
+		}
+
+		override run(accessor: ServicesAccessor): void {
+			accessor.get(IChatWindowService).getActiveWindow()?.setTerminalPosition(choice.position);
+		}
+	});
+});
 
 registerAction2(class ToggleChatWindowDockedAction extends Action2 {
 	constructor() {

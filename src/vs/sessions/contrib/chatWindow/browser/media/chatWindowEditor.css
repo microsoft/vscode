@@ -13,3 +13,9 @@
 .chat-window-editor > .chat-view {
 	position: relative;
 }
+
+/* The groups of a standalone chat window are cards, as the main window's content parts are. The gaps between them are in the
+	layout of the window's editor part, so a card has no margin of its own. In compact density, the shared rules keep it flush. */
+.agent-sessions-workbench .chat-window-card.agents-part-card {
+	margin: 0;
+}

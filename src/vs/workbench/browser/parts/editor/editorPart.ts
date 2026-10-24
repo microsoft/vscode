@@ -8,7 +8,7 @@ import { Part } from '../../part.js';
 import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement, computeScreenAwareSize } from '../../../../base/browser/dom.js';
 import { Event, Emitter, Relay, PauseableEmitter } from '../../../../base/common/event.js';
 import { contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorGroup, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorGroup, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent, GroupLayoutPriority } from '../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from '../../../../base/browser/ui/grid/grid.js';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from '../../../common/editor.js';
@@ -274,6 +274,179 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const atRightEdge = this._contentRightInset > 0 && this.gridWidget.getNeighborViews(group, Direction.Right).length === 0;
 			group.setContentRightInset(atRightEdge ? this._contentRightInset : 0);
 		}
+	}
+
+	private _groupGap = 0;
+	private groupGapApplied = false;
+
+	setGroupGap(gap: number): void {
+		const next = Math.max(0, Math.round(gap));
+		if (next === this._groupGap) {
+			return;
+		}
+
+		this._groupGap = next;
+		this.applyGroupGap();
+	}
+
+	private applyGroupGap(): void {
+		if (!this.gridWidget || (this._groupGap === 0 && !this.groupGapApplied)) {
+			return; // nothing to apply or undo
+		}
+
+		this.groupGapApplied = this._groupGap > 0;
+
+		// Inset each group on the sides where its box in the grid does not touch the edge of the
+		// grid, which are those that face another group. Boxes rather than neighbours, because the
+		// groups hidden by maximizing are still neighbours, with a box of no size.
+		const root = this.gridWidget.getViews().box;
+		const leading = Math.floor(this._groupGap / 2);
+		const trailing = this._groupGap - leading;
+		const visit = (node: GridNode<IEditorGroupView>): void => {
+			if (isGridBranchNode(node)) {
+				node.children.forEach(visit);
+				return;
+			}
+
+			const { top, left, width, height } = node.box;
+			node.view.setLayoutInsets({
+				top: top - root.top >= 1 ? leading : 0,
+				left: left - root.left >= 1 ? leading : 0,
+				bottom: (root.top + root.height) - (top + height) >= 1 ? trailing : 0,
+				right: (root.left + root.width) - (left + width) >= 1 ? trailing : 0,
+			});
+		};
+		visit(this.gridWidget.getViews());
+	}
+
+	/** The groups with a layout priority other than the default. */
+	private readonly groupLayoutPriorities = new Map<IEditorGroupView, LayoutPriority>();
+
+	setGroupLayoutPriority(group: IEditorGroupView | GroupIdentifier, priority: GroupLayoutPriority | undefined): void {
+		const groupView = this.assertGroupView(group);
+		const wasActive = this.groupLayoutPriorities.size > 0;
+
+		switch (priority) {
+			case GroupLayoutPriority.High:
+				this.groupLayoutPriorities.set(groupView, LayoutPriority.High);
+				break;
+			case GroupLayoutPriority.Low:
+				this.groupLayoutPriorities.set(groupView, LayoutPriority.Low);
+				break;
+			default:
+				this.groupLayoutPriorities.delete(groupView);
+		}
+
+		this.applyGroupLayoutPriorities(wasActive);
+	}
+
+	private applyGroupLayoutPriorities(wasActive: boolean): void {
+		const active = this.groupLayoutPriorities.size > 0;
+		if (!active && !wasActive) {
+			return; // nothing to apply or undo
+		}
+
+		// While groups have priorities, no group resizes proportionally, so that the
+		// grid distributes size changes by priority instead
+		for (const group of this.groupViews.values()) {
+			group.setLayoutPriority(this.groupLayoutPriorities.get(group), !active);
+		}
+
+		// The grid keeps the proportions of its views from when they last changed:
+		// update them by resizing each group to its size. Not while a group is
+		// maximized, as resizing would undo that: the grid saves the proportions
+		// again when it shows the other groups
+		if (active !== wasActive && this.gridWidget && !this.hasMaximizedGroup()) {
+			for (const group of this.groupViews.values()) {
+				this.gridWidget.resizeView(group, this.gridWidget.getViewSize(group));
+			}
+		}
+	}
+
+	/**
+	 * The sizes of the groups before groups are added, removed or moved, if any group
+	 * has a layout priority; see {@link keepGroupSizesBesideHighPriorityGroups}.
+	 */
+	private getGroupSizesForLayoutPriorities(): Map<IEditorGroupView, IViewSize> | undefined {
+		if (this.groupLayoutPriorities.size === 0 || !this.gridWidget || this.hasMaximizedGroup()) {
+			return undefined;
+		}
+
+		const sizes = new Map<IEditorGroupView, IViewSize>();
+		for (const group of this.groupViews.values()) {
+			sizes.set(group, this.gridWidget.getViewSize(group));
+		}
+
+		return sizes;
+	}
+
+	/**
+	 * After groups were added, removed or moved, gives the groups beside a group with a high
+	 * layout priority back the size they had before, so that the space comes from, or
+	 * goes to, the groups with the high priority. Groups only grow back by as much as those
+	 * can give above their minimum sizes; beyond that, the sizes the grid gave are kept.
+	 */
+	private keepGroupSizesBesideHighPriorityGroups(sizesBefore: Map<IEditorGroupView, IViewSize> | undefined): void {
+		if (!sizesBefore || this.groupLayoutPriorities.size === 0 || this.hasMaximizedGroup()) {
+			return;
+		}
+
+		const isHighPriority = (node: GridNode<IEditorGroupView>): boolean => isGridBranchNode(node) ? node.children.some(isHighPriority) : this.groupLayoutPriorities.get(node.view) === LayoutPriority.High;
+
+		// The least size of a node along an axis, in a branch of the given orientation
+		const minimumSize = (node: GridNode<IEditorGroupView>, vertical: boolean, orientation: Orientation): number => {
+			if (!isGridBranchNode(node)) {
+				return vertical ? node.view.minimumHeight : node.view.minimumWidth;
+			}
+			const childOrientation = orthogonal(orientation);
+			const sizes = node.children.map(child => minimumSize(child, vertical, childOrientation));
+			return (childOrientation === Orientation.VERTICAL) === vertical ? sizes.reduce((total, size) => total + size, 0) : Math.max(0, ...sizes);
+		};
+
+		const visit = (branch: GridBranchNode<IEditorGroupView>, orientation: Orientation): void => {
+			const vertical = orientation === Orientation.VERTICAL;
+			const sizeOf = (node: GridNode<IEditorGroupView>) => vertical ? node.box.height : node.box.width;
+			const highPriorityChildren = branch.children.filter(isHighPriority);
+
+			// The sizes to give back to the groups that are beside the groups with a high priority
+			const targets: { view: IEditorGroupView; size: number; delta: number }[] = [];
+			if (highPriorityChildren.length > 0) {
+				for (const child of branch.children) {
+					const before = !isGridBranchNode(child) && !highPriorityChildren.includes(child) ? sizesBefore.get(child.view) : undefined;
+					if (!isGridBranchNode(child) && before) { // not a new group
+						const size = sizeOf(child);
+						targets.push({ view: child.view, size, delta: (vertical ? before.height : before.width) - size });
+					}
+				}
+			}
+
+			// Shrink first, which gives space to the groups with a high priority, then grow by
+			// no more than those can give
+			let available = highPriorityChildren.reduce((total, child) => total + sizeOf(child) - minimumSize(child, vertical, orientation), 0);
+			for (const target of targets.filter(target => target.delta < 0)) {
+				available -= target.delta;
+				this.resizeGroupAlong(target.view, vertical, target.size + target.delta);
+			}
+			for (const target of targets.filter(target => target.delta > 0)) {
+				const delta = Math.min(target.delta, available);
+				if (delta > 0) {
+					available -= delta;
+					this.resizeGroupAlong(target.view, vertical, target.size + delta);
+				}
+			}
+
+			for (const child of branch.children) {
+				if (isGridBranchNode(child)) {
+					visit(child, orthogonal(orientation));
+				}
+			}
+		};
+		visit(this.gridWidget.getViews(), this.gridWidget.orientation);
+	}
+
+	private resizeGroupAlong(group: IEditorGroupView, vertical: boolean, size: number): void {
+		const current = this.gridWidget.getViewSize(group);
+		this.gridWidget.resizeView(group, vertical ? { width: current.width, height: size } : { width: size, height: current.height });
 	}
 
 	private _activeGroup!: IEditorGroupView;
@@ -654,6 +827,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			const restoreFocus = this.shouldRestoreFocus(locationView.element);
 
 			const shouldExpand = this.groupViews.size > 1 && this.isGroupExpanded(locationView);
+			const sizesBefore = this.getGroupSizesForLayoutPriorities();
 			newGroupView = this.doCreateGroupView(groupToCopy);
 
 			// Add to grid widget
@@ -663,6 +837,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				locationView,
 				this.toGridViewDirection(direction),
 			);
+			this.keepGroupSizesBesideHighPriorityGroups(sizesBefore);
 
 			// Update container
 			this.updateContainer();
@@ -729,6 +904,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Keep in map
 		this.groupViews.set(groupView.id, groupView);
+		if (this.groupLayoutPriorities.size > 0) {
+			groupView.setLayoutPriority(undefined, false);
+		}
 
 		// Track focus
 		const groupDisposables = new DisposableStore();
@@ -890,8 +1068,14 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 
 		// Remove from grid widget & dispose
+		const sizesBefore = this.getGroupSizesForLayoutPriorities();
 		this.gridWidget.removeView(groupView, this.getSplitSizingStyle());
 		groupView.dispose();
+		const hadLayoutPriority = this.groupLayoutPriorities.delete(groupView);
+		if (hadLayoutPriority) {
+			this.applyGroupLayoutPriorities(true);
+		}
+		this.keepGroupSizesBesideHighPriorityGroups(sizesBefore);
 
 		// Restore focus if we had it previously after completing the grid
 		// operation. That operation might cause reparenting of grid views
@@ -923,7 +1107,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Same groups view: move via grid widget API
 		if (sourceView.groupsView === targetView.groupsView) {
+			const sizesBefore = this.getGroupSizesForLayoutPriorities();
+			sizesBefore?.delete(sourceView); // sized where it lands, like a new group
 			this.gridWidget.moveView(sourceView, this.getSplitSizingStyle(), targetView, this.toGridViewDirection(direction));
+			this.keepGroupSizesBesideHighPriorityGroups(sizesBefore);
 			movedView = sourceView;
 		}
 
@@ -1183,20 +1370,24 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			updateContextKeys();
 			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidRemoveGroup(() => {
 			updateContextKeys();
 			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidChangeGroupMaximized(() => {
 			updateContextKeys();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
 		this._register(this.onDidMoveGroup(() => {
 			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
 	}
@@ -1506,6 +1697,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Layout Grid
 		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height, top, left);
+		this.applyGroupGap(); // edges can change with the grid, such as when it is replaced by a state
 
 		// Event
 		this._onDidLayout.fire(dimension);
@@ -1666,6 +1858,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private disposeGroups(): void {
 		for (const group of this.groups) {
 			group.dispose();
+			this.groupLayoutPriorities.delete(group);
 
 			this._onDidRemoveGroup.fire(group);
 		}

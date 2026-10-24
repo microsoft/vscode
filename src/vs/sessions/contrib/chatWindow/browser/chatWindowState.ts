@@ -6,7 +6,7 @@
 import { IObservable, ISettableObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ChatWindowLayout, ChatWindowSplitLayout, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
 
 /**
  * The defaults of a kind of chat window, kept in the profile: what its chat windows were last left as, which a new one
@@ -40,6 +40,16 @@ export class ChatWindowDefaults {
 
 	setInputOnly(inputOnly: boolean): void {
 		this._storageService.store(`${this._prefix}.inputOnly`, inputOnly, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	/** Where the terminal row of its chat windows shows. */
+	getTerminalPosition(): ChatWindowTerminalPosition {
+		const value = this._storageService.get(`${this._prefix}.terminalPosition`, StorageScope.PROFILE);
+		return value === ChatWindowTerminalPosition.UnderEditor || value === ChatWindowTerminalPosition.UnderChat ? value : ChatWindowTerminalPosition.FullWidth;
+	}
+
+	setTerminalPosition(position: ChatWindowTerminalPosition): void {
+		this._storageService.store(`${this._prefix}.terminalPosition`, position, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	/** Whether its chat windows open docked in the main window. */
@@ -82,6 +92,10 @@ export class ChatWindowState {
 	/** How the editor and the chat are arranged while both show, or last showed. */
 	readonly splitLayout: IObservable<ChatWindowSplitLayout>;
 
+	private readonly _terminalPosition: ISettableObservable<ChatWindowTerminalPosition>;
+	/** Where the terminal row shows. */
+	readonly terminalPosition: IObservable<ChatWindowTerminalPosition>;
+
 	/** The layouts it can show; see {@link IChatWindow.layouts}. */
 	readonly layouts: readonly ChatWindowLayout[];
 
@@ -110,6 +124,16 @@ export class ChatWindowState {
 		// Docked, the chat keeps to its input below the editor.
 		this._inputOnly = observableValue(this, docked || _defaults.getInputOnly());
 		this.inputOnly = this._inputOnly;
+		this._terminalPosition = observableValue(this, _defaults.getTerminalPosition());
+		this.terminalPosition = this._terminalPosition;
+	}
+
+	setTerminalPosition(position: ChatWindowTerminalPosition): void {
+		if (this._terminalPosition.get() === position) {
+			return;
+		}
+		this._terminalPosition.set(position, undefined);
+		this._defaults.setTerminalPosition(position);
 	}
 
 	setLayout(layout: ChatWindowLayout): void {
