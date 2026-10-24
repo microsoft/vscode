@@ -456,15 +456,17 @@
 	margin: var(--vscode-spacing-sizeNone);
 }
 
-/* Let the active tab label yield space first without clipping its control surface. */
-.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active {
+/* Text-only tabs retain their labels even while inactive. */
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active,
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-text-only {
 	flex: 0 1 auto;
 	width: auto;
 	gap: var(--vscode-spacing-size40);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
 }
 
-.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active > span:not(.codicon) {
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active > span:not(.codicon),
+.action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.tabbed-action-list-tab-text-only > span:not(.codicon) {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;

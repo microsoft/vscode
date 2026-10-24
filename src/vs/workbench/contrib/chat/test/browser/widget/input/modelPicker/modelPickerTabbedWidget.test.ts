@@ -41,7 +41,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../..
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
+import { getSourceQualifiedModelIdentifier, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsGroup, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import type { IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
@@ -169,6 +169,7 @@ suite('TabbedModelPicker', () => {
 		manageModelsDisabledReason?: string;
 		comparisonKeybinding?: number;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
+		modelGroups?: readonly ILanguageModelsGroup[];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
 		comparison?: IModelPickerComparison;
 		comparisonModels?: ILanguageModelChatMetadataAndIdentifier[];
@@ -256,7 +257,7 @@ suite('TabbedModelPicker', () => {
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'codex', displayName: 'Codex' }),
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'ollama', displayName: 'Ollama' }),
 			],
-			getLanguageModelGroups: () => [],
+			getLanguageModelGroups: () => options.modelGroups ?? [],
 			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
 		const changed = disposables.add(new Emitter<string>());
@@ -811,6 +812,34 @@ suite('TabbedModelPicker', () => {
 				Synthesizer: [claude.identifier],
 			},
 		});
+	});
+
+	test('text-only source tabs keep both labels readable before and after selection', () => {
+		const vendor = 'agent-host-example';
+		const sources = [{ id: 'native', displayName: 'Native' }, { id: 'proxy', displayName: 'Proxied Subscription' }];
+		const models = sources.map(source => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+			metadata: { ...model('shared').metadata, vendor, modelSourceId: source.id },
+		}));
+		const { popup } = createPicker({
+			models,
+			modelGroups: sources.map((source, index) => ({ source, modelIdentifiers: [models[index].identifier] })),
+		});
+		const labels = () => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-tabbar [role="radio"]'), button => {
+			const label = element(button, 'span:not(.codicon)');
+			const bounds = button.getBoundingClientRect();
+			const labelBounds = label.getBoundingClientRect();
+			return {
+				label: button.textContent,
+				ariaLabel: button.getAttribute('aria-label'),
+				fits: label.scrollWidth <= label.clientWidth + 1 && labelBounds.left >= bounds.left && labelBounds.right <= bounds.right,
+				singleLine: dom.getWindow(label).getComputedStyle(label).whiteSpace === 'nowrap',
+			};
+		});
+		const before = labels();
+		element(popup, '.chat-model-picker-tabbar [aria-label="Proxied Subscription"]').click();
+		const expected = sources.map(source => ({ label: source.displayName, ariaLabel: source.displayName, fits: true, singleLine: true }));
+		assert.deepStrictEqual({ before, after: labels() }, { before: expected, after: expected });
 	});
 
 	test('checking a compare-mode model updates the rows in place instead of showing the list again', async () => {

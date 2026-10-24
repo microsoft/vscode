@@ -387,6 +387,7 @@ export class TabbedActionListWidget extends Disposable {
 				tabStrip.appendChild(radio.domNode);
 				options.tabs.forEach((tab, index) => {
 					const element = radio.optionElements[index];
+					element?.classList.toggle('tabbed-action-list-tab-text-only', !tab.icon);
 					if (element && tab.icon && !ThemeIcon.isThemeIcon(tab.icon)) {
 						// A button only styles itself as a text button once it has text, which a tab
 						// showing just its image never gets, so it would lose the other tabs' styling.
