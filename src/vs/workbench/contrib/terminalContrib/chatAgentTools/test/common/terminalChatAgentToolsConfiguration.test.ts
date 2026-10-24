@@ -350,7 +350,7 @@ suite('Terminal chat agent tools configuration', () => {
 	});
 
 	for (const [key, defaultValue] of [
-		[AgentSandboxSettingId.AgentSandboxMcpServers, true],
+		[AgentSandboxSettingId.AgentSandboxMcpServers, false],
 		[AgentSandboxSettingId.AgentSandboxLspServers, true],
 		[AgentSandboxSettingId.AgentSandboxAuthenticateGit, true],
 		[AgentSandboxSettingId.AgentSandboxAuthenticateGh, true],
