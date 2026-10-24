@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { Iterable } from '../../common/iterator.js';
 import { isWeb } from '../../common/platform.js';
-
+import { mitigAndPrevMemoryLeaks } from "../../../mitig-memory-leaks/mitig.js";
 suite('Async', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -2934,5 +2934,18 @@ suite('Async', () => {
 			// Should have called next() only once despite multiple concurrent operations
 			assert.strictEqual(nextCallCount, 1);
 		});
+	});
+});
+
+suite('QMX Memory Mitigation', () => {
+	test('should successfully catch null pointers and validate single-use streams', () => {
+		// 1. Test the NULL Protection
+		const nullResult = mitigAndPrevMemoryLeaks(null, 0, true);
+		assert.strictEqual(nullResult, -102);
+
+		// 2. Test a simulated array (no is necessary clear, is a test)
+		const fakeStream = { _results: [1, 2, 3] };
+		const activeResult = mitigAndPrevMemoryLeaks(fakeStream, 3, false);
+		assert.strictEqual(activeResult.length, 3);
 	});
 });
