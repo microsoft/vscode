@@ -5059,6 +5059,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
 
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label:is(.codicon-mic-compact, .codicon-mic-filled, .codicon-mic-download-compact, .codicon-voice-mode-compact, .codicon-loading-compact, .codicon-debug-disconnect-compact):focus-visible {
+	outline: none;
+	position: relative;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label:is(.codicon-mic-compact, .codicon-mic-filled, .codicon-mic-download-compact, .codicon-voice-mode-compact, .codicon-loading-compact, .codicon-debug-disconnect-compact):focus-visible::after {
+	content: '';
+	position: absolute;
+	inset: -1px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
+	pointer-events: none;
+}
+
 @keyframes chat-voice-icon-glow {
 	0%,
 	100% {
