@@ -38,7 +38,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[CHATPAD_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			description: localize('sessions.chatpad.enabled', "Controls whether the Chatpad of the Agents window can be opened, and whether it is restored at startup when it was open. Turning it off hides the Open Chatpad and Append to Chatpad commands and the Open Chatpad button; a Chatpad that is open stays until closed."),
