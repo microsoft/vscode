@@ -254,8 +254,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.action.label = entry.remote.pickerUnavailableReason
 						? localize('remotes.notInPicker', "{0} is not shown in the Environment picker. {1}", entry.remote.name, entry.remote.pickerUnavailableReason)
 						: entry.remote.hidden
-						? localize('remotes.showInPicker', "Show {0} in Environment Picker", entry.remote.name)
-						: localize('remotes.hideFromPicker', "Hide {0} from Environment Picker", entry.remote.name);
+							? localize('remotes.showInPicker', "Show {0} in Environment Picker", entry.remote.name)
+							: localize('remotes.hideFromPicker', "Hide {0} from Environment Picker", entry.remote.name);
 					template.action.class = ThemeIcon.asClassName(entry.remote.pickerUnavailableReason ? Codicon.circleSlash : entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
 				} else if (showConfig) {
 					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")

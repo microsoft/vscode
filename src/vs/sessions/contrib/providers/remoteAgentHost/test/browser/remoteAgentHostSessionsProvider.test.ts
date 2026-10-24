@@ -523,14 +523,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const beforeSessions = provider.getSessions();
 			const snapshot = () => ({ available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(), entries: getSessionCreationEnvironments([provider]).length });
 			const hidden = snapshot();
-			preference.setHidden(key, false);
+			provider.showInEnvironmentPicker();
 			const shown = snapshot();
 			available.set(false, undefined);
 			const offline = snapshot();
 			preference.setHidden(key, true);
 			available.set(true, undefined);
 			const hiddenAgain = snapshot();
-			preference.setHidden(key, false);
+			provider.showInEnvironmentPicker();
 			assert.deepStrictEqual({
 				hidden, shown, offline, hiddenAgain, final: snapshot(),
 				sessionsUnchanged: provider.getSessions().length === beforeSessions.length && provider.getSessions()[0] === beforeSessions[0],
@@ -542,6 +542,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			});
 		});
 	}
+
+	test('explicit reveal clears only this account preference without overriding offline availability', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'cloudsandbox:desktop';
+		const key = getRemoteAgentHostPickerKey(address, 'account-one');
+		const otherKey = getRemoteAgentHostPickerKey(address, 'account-two');
+		preference.setHidden(key, true);
+		preference.setHidden(otherKey, true);
+		const available = observableValue('available', false);
+		const provider = createProvider(disposables, connection, { address, storageService }, {
+			pickerVisibilityKey: key, isVisibleInEnvironmentPicker: available,
+		});
+		provider.showInEnvironmentPicker();
+		assert.deepStrictEqual({
+			hidden: preference.isHidden(key), otherAccountHidden: preference.isHidden(otherKey),
+			available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(),
+		}, { hidden: false, otherAccountHidden: true, available: false, visible: false });
+	});
+
+	test('a hidden ordinary remote remains available when no availability signal is configured', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'wsl:Ubuntu';
+		preference.setHidden(getRemoteAgentHostPickerKey(address), true);
+		const provider = createProvider(disposables, connection, { address, storageService });
+		assert.deepStrictEqual({
+			available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(),
+		}, { available: true, visible: false });
+	});
 
 	test('account-scoped picker preferences do not hide another account environment', () => {
 		const storageService = disposables.add(new InMemoryStorageService());

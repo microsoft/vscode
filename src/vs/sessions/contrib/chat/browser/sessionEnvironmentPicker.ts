@@ -25,7 +25,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Menus } from '../../../browser/menus.js';
-import { getAgentHostConnectionStatusLabel, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
+import { getAgentHostConnectionStatusLabel, isAgentHostEnvironmentAvailable, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -61,14 +61,23 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
 	}
 	for (const provider of visible) {
-		if (!isRemoteSessionCreationEnvironment(provider)) {
-			continue;
+		const environment = getRemoteSessionCreationEnvironment(provider);
+		if (environment) {
+			environments.push(environment);
 		}
-		const connection = provider.connectionStatus.get();
-		const description = getAgentHostConnectionStatusLabel(connection);
-		environments.push({ id: provider.id, kind: 'remote', label: provider.label, icon: provider.icon, providerIds: [provider.id], description });
 	}
 	return environments;
+}
+
+/** Describes a remote independently of picker visibility so an existing draft can retain its destination. */
+export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider): ISessionCreationEnvironment | undefined {
+	if (!isRemoteSessionCreationEnvironment(provider)) {
+		return undefined;
+	}
+	return {
+		id: provider.id, kind: 'remote', label: provider.label, icon: provider.icon, providerIds: [provider.id],
+		description: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
+	};
 }
 
 export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): ISessionsProvider | undefined {
@@ -79,7 +88,7 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	for (const provider of providers) {
 		if (!environment.providerIds.includes(provider.id)
 			|| provider.supportsWorkspaceSelection === false
-			|| isAgentHostProvider(provider) && provider.isVisibleInEnvironmentPicker?.get() === false) {
+			|| isAgentHostProvider(provider) && !isAgentHostEnvironmentAvailable(provider)) {
 			continue;
 		}
 		const workspace = provider.resolveWorkspace(folderUri);

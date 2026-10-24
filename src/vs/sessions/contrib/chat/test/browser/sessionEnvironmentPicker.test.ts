@@ -31,7 +31,7 @@ import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../servi
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../common/constants.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 
@@ -128,13 +128,28 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
-	test('an explicitly selected host never resolves through another host or a hidden provider', () => {
+	test('an explicitly selected host never resolves through another host or an unavailable provider', () => {
 		const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote-selected'] };
 		const selected = upcastPartial<IAgentHostSessionsProvider>({
 			...provider('agenthost-remote-selected', 'remote'),
 			isVisibleInEnvironmentPicker: constObservable(false),
 		});
 		assert.strictEqual(getEnvironmentWorkspaceProvider(remote, [selected, provider('agenthost-remote-other', 'remote')], folder), undefined);
+	});
+
+	test('a hidden but available remote stays resolvable for a selected draft without returning to the picker', () => {
+		const selected = upcastPartial<IAgentHostSessionsProvider>({
+			...provider('agenthost-selected', 'remote'),
+			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+			isAvailableInEnvironmentPicker: constObservable(true),
+			isVisibleInEnvironmentPicker: constObservable(false),
+		});
+		const environment = getRemoteSessionCreationEnvironment(selected)!;
+		assert.deepStrictEqual({
+			picker: getSessionCreationEnvironments([selected]),
+			selected: environment.id,
+			resolved: getEnvironmentWorkspaceProvider(environment, [selected], folder)?.id,
+		}, { picker: [], selected: selected.id, resolved: selected.id });
 	});
 
 	test('renders before repository controls, updates its accessible name, and selects through the action widget', async () => {

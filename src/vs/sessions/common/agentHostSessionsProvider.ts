@@ -241,6 +241,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
 	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	/** Reveals this host after an explicit picker selection without changing its availability. */
+	showInEnvironmentPicker?(): void;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 
@@ -468,6 +470,11 @@ export function isAgentHostProvider(provider: ISessionsProvider): provider is IA
 /** Whether this provider can appear as an individual remote environment, independent of visibility. */
 export function isRemoteSessionCreationEnvironment(provider: ISessionsProvider): provider is IAgentHostSessionsProvider & { readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> } {
 	return isAgentHostProvider(provider) && provider.supportsWorkspaceSelection !== false && !!provider.connectionStatus && !provider.hostGroup;
+}
+
+/** Legacy providers may express availability through their visibility signal alone. */
+export function isAgentHostEnvironmentAvailable(provider: IAgentHostSessionsProvider, reader?: IReader): boolean {
+	return (provider.isAvailableInEnvironmentPicker ?? provider.isVisibleInEnvironmentPicker)?.read(reader) !== false;
 }
 
 export function getSessionConfigProvider(provider: ISessionsProvider): ISessionConfigProvider | undefined {
