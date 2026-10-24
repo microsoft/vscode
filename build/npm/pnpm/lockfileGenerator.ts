@@ -9,6 +9,7 @@ import path from 'path';
 import cp from 'child_process';
 import { createRequire } from 'module';
 import { collectImporterPackages, getImporterId, parsePackageKey, parsePnpmLockfile, type PnpmLockfile } from '../../lib/pnpmLock.ts';
+import { getPnpmCommand } from '../../lib/pnpm.ts';
 import { dump, load } from 'js-yaml';
 import { getInstalledPackages, isDistTagSpecifier, renderYarnLockPins } from './npmLockfile.ts';
 import { isInUniverse, type Satisfies, type Universe } from './checks.ts';
@@ -74,10 +75,11 @@ export function loadSatisfies(root: string): Satisfies | undefined {
 }
 
 /**
- * Runs pnpm with the given arguments.
+ * Runs pnpm with the given arguments (see {@link getPnpmCommand}).
  */
 export function runPnpm(args: readonly string[], cwd: string): { status: number | null; stdout: string; stderr: string } {
-	const result = cp.spawnSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', args, { cwd, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: 256 * 1024 * 1024 });
+	const pnpm = getPnpmCommand();
+	const result = cp.spawnSync(pnpm.command, [...pnpm.args, ...args], { cwd, encoding: 'utf8', shell: pnpm.shell, maxBuffer: 256 * 1024 * 1024 });
 	if (result.error) {
 		throw result.error;
 	}
