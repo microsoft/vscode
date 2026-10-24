@@ -39,6 +39,7 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/cont
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
+import { IAgentsActivityService } from '../../../../services/activity/browser/agentsActivityService.js';
 import { CustomViewService, ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -356,6 +357,10 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 				override readonly extUri = new ExtUri(() => true);
 			}());
 			reg.defineInstance(IAutomationService, automationService);
+			reg.defineInstance(IAgentsActivityService, new class extends mock<IAgentsActivityService>() {
+				override reportActiveSurface(): void { }
+				override reportSurfaceBlurred(): void { }
+			}());
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
 			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
 			reg.defineInstance(IAgentPluginService, agentPluginService);

@@ -30,6 +30,8 @@ import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { IAgentsActivityService } from '../../../services/activity/browser/agentsActivityService.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 
@@ -80,8 +82,13 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAgentsActivityService private readonly agentsActivityService: IAgentsActivityService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		const surfaceInstanceId = generateUuid();
+		this._register(this.onDidFocus(() => this.agentsActivityService.reportActiveSurface('customization', { surfaceInstanceId })));
+		this._register(this.onDidBlur(() => this.agentsActivityService.reportSurfaceBlurred('customization')));
 
 		// Initialize sections
 		this.sections.push(
