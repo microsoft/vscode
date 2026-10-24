@@ -169,4 +169,37 @@ suite('MainThreadTerminalShellIntegration', () => {
 		assert.deepStrictEqual(events, ['1:start', '2:start', '1:data:first', '2:data:second']);
 		assert.deepStrictEqual([first.data.hasListeners(), second.data.hasListeners()], [false, false]);
 	});
+
+	test('task terminals notify ext host that executeCommand is not supported', () => {
+		const terminal = createTerminal(1);
+		terminal.instance.shellLaunchConfig = { type: 'Task' };
+		const startSupports: boolean[] = [];
+		const proxy = new class extends mock<ExtHostTerminalShellIntegrationShape>() {
+			override $shellIntegrationChange() { }
+			override $shellExecutionStart(_id: number, supports: boolean) { startSupports.push(supports); }
+			override $shellExecutionData() { }
+			override $shellExecutionEnd() { }
+			override $closeTerminal() { }
+		};
+		const disposed = store.add(new Emitter<ITerminalInstance>());
+		const terminalService = new class extends mock<ITerminalService>() {
+			override instances = [terminal.instance];
+			override onDidDisposeInstance = disposed.event;
+			override createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>) {
+				return new DynamicListEventMultiplexer([terminal.instance], Event.None, disposed.event, getEvent);
+			}
+			override createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capability: T, getEvent: (value: ITerminalCapabilityImplMap[T]) => Event<K>) {
+				return createInstanceCapabilityEventMultiplexer([terminal.instance], Event.None, disposed.event, capability, getEvent);
+			}
+		};
+		store.add(new MainThreadTerminalShellIntegration(
+			SingleProxyRPCProtocol(proxy), terminalService,
+			new class extends mock<IWorkbenchEnvironmentService>() { },
+			new class extends mock<IExtensionService>() {
+				override async activateByEvent() { }
+			}
+		));
+		terminal.executed.fire(command());
+		assert.deepStrictEqual(startSupports, [false]);
+	});
 });
