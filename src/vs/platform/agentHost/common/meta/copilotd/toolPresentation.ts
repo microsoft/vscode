@@ -159,6 +159,30 @@ export function readCopilotWritePermissionPresentation(call: ToolCallState): { i
 	};
 }
 
+/**
+ * Temporary compatibility fallback for URL permissions until the host names the URL itself.
+ * TODO: move this fix to the host so it emits "{intention}: {url}" as the confirmation message.
+ */
+export function readCopilotUrlPermissionPresentation(call: ToolCallState): { invocationMessage: StringOrMarkdown; confirmationTitle?: StringOrMarkdown } | undefined {
+	if (call.status !== ToolCallStatus.PendingConfirmation || call.contributor || call._meta?.ui !== undefined) {
+		return undefined;
+	}
+	const request = readPermissionRequestMeta(call);
+	if (request.kind !== AgentPermissionRequestKind.Url || !request.url) {
+		return undefined;
+	}
+	if (typeof call.invocationMessage !== 'string' || call.invocationMessage.includes(request.url)) {
+		return undefined;
+	}
+	const intention = call.invocationMessage.trim();
+	return {
+		invocationMessage: intention && intention !== 'Open URL' && intention !== 'Fetch URL'
+			? localize('copilotd.permission.openUrl', "{0}: {1}", intention, request.url)
+			: request.url,
+		...(typeof call.confirmationTitle === 'string' && call.confirmationTitle.trim() ? { confirmationTitle: call.confirmationTitle } : {}),
+	};
+}
+
 export function readCopilotToolPresentation(call: ToolCallState): IToolPresentation | undefined {
 	if (call.contributor || call._meta?.ui !== undefined) {
 		return undefined;

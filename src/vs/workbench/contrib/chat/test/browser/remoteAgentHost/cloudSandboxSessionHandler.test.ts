@@ -1082,7 +1082,7 @@ suite('CloudSandboxSessionHandler', () => {
 			relative: toAgentHostUri(URI.file('/sandbox/project/images/robot.png'), 'test').toString(),
 			peer: toAgentHostUri(URI.file('/sandbox/peer/images/robot.png'), 'test').toString(),
 			external: 'https://github.com/image.png',
-			relativeLink: 'images/robot.png',
+			relativeLink: toAgentHostUri(URI.file('/sandbox/project/images/robot.png'), 'test').toString(),
 		});
 	});
 
