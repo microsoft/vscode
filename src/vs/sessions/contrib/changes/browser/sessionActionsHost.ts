@@ -9,11 +9,9 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
+import { bindHasWorktreeAndRepositoryContextKey, bindIsAgentHostSessionContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { bindHasWorktreeAndRepositoryContextKey } from '../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-// eslint-disable-next-line local/code-import-patterns -- TODO: move the agent host session context key out of providers
-import { bindIsAgentHostSessionContextKey } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { IChangesSessionScope } from '../common/changesViewService.js';
 import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';
 
