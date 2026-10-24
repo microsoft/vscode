@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getRepositoryNameFromUrl } from '../git';
 import * as assert from 'assert';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
@@ -795,6 +795,47 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+	suite('getRepositoryNameFromUrl', () => {
+		test('scp-like URL with no path separator is stripped down to the repository', () => {
+			// The colon is not a valid character in a Windows path, so the clone
+			// destination used to be an invalid folder name. See #175062.
+			assert.strictEqual(getRepositoryNameFromUrl('git@versions.somedomain.net:climate-project'), 'climate-project');
+		});
+
+		test('scp-like URL with a user and a nested path', () => {
+			assert.strictEqual(getRepositoryNameFromUrl('git@github.com:microsoft/vscode.git'), 'vscode');
+			assert.strictEqual(getRepositoryNameFromUrl('git@host:a/b/repo.git'), 'repo');
+			assert.strictEqual(getRepositoryNameFromUrl('git@host:/srv/git/repo.git'), 'repo');
+		});
+
+		test('scp-like URL without a user', () => {
+			assert.strictEqual(getRepositoryNameFromUrl('host:repo'), 'repo');
+		});
+
+		test('URLs with a scheme are unaffected', () => {
+			assert.strictEqual(getRepositoryNameFromUrl('https://github.com/microsoft/vscode.git'), 'vscode');
+			assert.strictEqual(getRepositoryNameFromUrl('https://github.com/microsoft/vscode'), 'vscode');
+			assert.strictEqual(getRepositoryNameFromUrl('https://github.com/microsoft/vscode/'), 'vscode');
+			assert.strictEqual(getRepositoryNameFromUrl('ssh://git@github.com:22/microsoft/vscode.git'), 'vscode');
+			assert.strictEqual(getRepositoryNameFromUrl('ssh://git@github.com/microsoft/vscode'), 'vscode');
+			assert.strictEqual(getRepositoryNameFromUrl('https://dev.azure.com/org/project/_git/repo'), 'repo');
+			assert.strictEqual(getRepositoryNameFromUrl('file:///tmp/repos/myrepo'), 'myrepo');
+		});
+
+		test('local paths are unaffected', () => {
+			assert.strictEqual(getRepositoryNameFromUrl('/home/user/repos/myrepo'), 'myrepo');
+			assert.strictEqual(getRepositoryNameFromUrl('C:\\repos\\myrepo'), 'myrepo');
+		});
+
+		test('percent-encoded names are decoded', () => {
+			assert.strictEqual(getRepositoryNameFromUrl('https://host/owner/repo%20name.git'), 'repo name');
+		});
+
+		test('falls back to a generic name', () => {
+			assert.strictEqual(getRepositoryNameFromUrl(''), 'repository');
+			assert.strictEqual(getRepositoryNameFromUrl('git@host:'), 'repository');
 		});
 	});
 });
