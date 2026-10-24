@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowTerminalKeysContext, isChatWindowTerminalKeysWindow } from '../../browser/chatWindowActivityBar.js';
+import { CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID, ChatWindowTerminalKeysContext, isChatWindowTerminalKeysWindow } from '../../browser/chatWindowActivityBar.js';
 
 suite('Chat window terminal keybinding', () => {
 
@@ -42,11 +42,11 @@ suite('Chat window terminal keybinding', () => {
 	});
 
 	test('is not sent to the shell while the focus is in the terminal', () => {
-		assert.deepStrictEqual([CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID].map(id => DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(id)), [true, true]);
+		assert.deepStrictEqual([CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID].map(id => DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(id)), [true, true]);
 	});
 
 	test('the key of the side panel toggles the editor area of the focused chat window, above the rule of the main window', () => {
-		const found = KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID);
+		const found = KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID);
 
 		assert.deepStrictEqual(found.map(rule => {
 			const chord = rule.keybinding?.chords[0] as KeyCodeChord | undefined;

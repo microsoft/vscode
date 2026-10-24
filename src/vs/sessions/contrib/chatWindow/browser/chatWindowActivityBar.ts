@@ -200,16 +200,17 @@ class ChatWindowTerminalKeysContribution extends Disposable {
 
 registerWorkbenchContribution2(ChatWindowTerminalKeysContribution.ID, ChatWindowTerminalKeysContribution, WorkbenchPhase.AfterRestored);
 
-export const CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID = 'sessions.chatWindow.toggleEditor';
+// Distinct from the Show Editor action of the Layout menu, which needs the window's own context and carries no key.
+export const CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID = 'sessions.chatWindow.toggleEditorByKey';
 
 // The key of the side panel, which toggles the editor area of the main window, toggles the editor area of the chat window.
 registerAction2(class ToggleChatWindowEditorAction extends Action2 {
 	constructor() {
 		super({
-			id: CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID,
-			title: localize2('chatWindowToggleEditor', "Toggle Editor in Chat Window"),
+			id: CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID,
+			title: localize2('chatWindowToggleEditorByKey', "Toggle Editor in Chat Window"),
 			category: SessionsCategories.Sessions,
-			f1: true,
+			f1: false,
 			precondition: ContextKeyExpr.or(ChatWindowHasEditorAreaContext, ChatWindowTerminalKeysContext),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB,

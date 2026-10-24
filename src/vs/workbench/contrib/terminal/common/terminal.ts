@@ -615,7 +615,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'sessions.goForward',
 	'sessions.focusActiveSession',
 	'sessions.chatWindow.toggleTerminal',
-	'sessions.chatWindow.toggleEditor',
+	'sessions.chatWindow.toggleEditorByKey',
 	'sessions.focusSessionInGrid1',
 	'sessions.focusSessionInGrid2',
 	'sessions.focusSessionInGrid3',
