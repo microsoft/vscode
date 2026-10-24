@@ -8,6 +8,29 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Range } from '../../../common/core/range.js';
 import { MATCHES_LIMIT } from './findModel.js';
 
+function rangeToComparableKey(range: Range): string {
+	return `${range.startLineNumber}:${range.startColumn}:${range.endLineNumber}:${range.endColumn}`;
+}
+
+function searchScopesEqual(a: Range[] | null, b: Range[] | null): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b || a.length !== b.length) {
+		return false;
+	}
+	// Fast path: the ranges usually arrive in the same order they were stored in.
+	if (a.every((rangeA, i) => Range.equalsRange(rangeA, b[i]))) {
+		return true;
+	}
+	// Fallback: order-insensitive multiset comparison that still counts
+	// duplicates. Sorted comparable keys make it O(n log n) and immune to
+	// false positives like [A, A] vs [A, B].
+	const aKeys = a.map(rangeToComparableKey).sort();
+	const bKeys = b.map(rangeToComparableKey).sort();
+	return aKeys.every((key, i) => key === bKeys[i]);
+}
+
 export interface FindReplaceStateChangedEvent {
 	moveCursor: boolean;
 	updateHistory: boolean;
@@ -252,11 +275,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 			this._preserveCase = newState.preserveCase;
 		}
 		if (typeof newState.searchScope !== 'undefined') {
-			if (!newState.searchScope?.every((newSearchScope) => {
-				return this._searchScope?.some(existingSearchScope => {
-					return !Range.equalsRange(existingSearchScope, newSearchScope);
-				});
-			})) {
+			if (!searchScopesEqual(newState.searchScope, this._searchScope)) {
 				this._searchScope = newState.searchScope;
 				changeEvent.searchScope = true;
 				somethingChanged = true;
