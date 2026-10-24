@@ -27,7 +27,7 @@ export function offsetEditToEditOperations(offsetEdit: StringEdit, doc: ITextMod
 
 export function offsetEditFromContentChanges(contentChanges: readonly IModelContentChange[]) {
 	const editsArr = contentChanges.map(c => new StringReplacement(OffsetRange.ofStartAndLength(c.rangeOffset, c.rangeLength), c.text));
-	editsArr.reverse();
+	editsArr.sort((a, b) => a.replaceRange.start - b.replaceRange.start);
 	const edits = new StringEdit(editsArr);
 	return edits;
 }
