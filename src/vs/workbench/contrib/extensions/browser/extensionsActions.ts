@@ -1391,10 +1391,20 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 				this.instantiationService.createInstance(EnableGloballyAction),
 				this.instantiationService.createInstance(EnableForWorkspaceAction)
 			]);
-			groups.push([
-				this.instantiationService.createInstance(DisableGloballyAction),
-				this.instantiationService.createInstance(DisableForWorkspaceAction)
-			]);
+
+			// When extension is enabled for workspace but disabled globally (EnabledWorkspace),
+			// only show "Disable (Workspace)" to avoid confusing dropdown with both options
+			const isEnabledWorkspace = this.extension && this.extension.enablementState === EnablementState.EnabledWorkspace;
+			if (isEnabledWorkspace) {
+				groups.push([
+					this.instantiationService.createInstance(DisableForWorkspaceAction)
+				]);
+			} else {
+				groups.push([
+					this.instantiationService.createInstance(DisableGloballyAction),
+					this.instantiationService.createInstance(DisableForWorkspaceAction)
+				]);
+			}
 		}
 		if (updateActions.length) {
 			groups.push(updateActions);
