@@ -53,6 +53,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { EditorGroupWatermark } from './editorGroupWatermark.js';
 import { EditorTitleControl } from './editorTitleControl.js';
 import { EditorPane } from './editorPane.js';
@@ -2246,7 +2247,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumWidth(): number { return this.editorPane.maximumWidth + this.layoutInsets.left + this.layoutInsets.right; }
 	get maximumHeight(): number { return this.editorPane.maximumHeight + this.layoutInsets.top + this.layoutInsets.bottom; }
 
+	private _priority: LayoutPriority | undefined = undefined;
+	get priority(): LayoutPriority | undefined { return this._priority; }
+
+	private layoutProportionally = true;
+
+	setLayoutPriority(priority: LayoutPriority | undefined, proportionalLayout: boolean): void {
+		this._priority = priority;
+		this.layoutProportionally = proportionalLayout;
+	}
+
 	get proportionalLayout(): boolean {
+		if (!this.layoutProportionally) {
+			return false;
+		}
+
 		if (!this.lastLayout) {
 			return true;
 		}

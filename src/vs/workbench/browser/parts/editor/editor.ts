@@ -12,7 +12,7 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ISerializableView } from '../../../../base/browser/ui/grid/grid.js';
+import { ISerializableView, LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { isObject } from '../../../../base/common/types.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -343,6 +343,12 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	 * the given pixels; see `IEditorPart.setGroupGap`.
 	 */
 	setLayoutInsets(insets: IEditorGroupLayoutInsets): void;
+
+	/**
+	 * Sets the priority the grid lays the group out with, and whether it
+	 * resizes proportionally with the part; see `IEditorPart.setGroupLayoutPriority`.
+	 */
+	setLayoutPriority(priority: LayoutPriority | undefined, proportionalLayout: boolean): void;
 }
 
 export interface IEditorGroupLayoutInsets {

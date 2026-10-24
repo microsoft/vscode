@@ -62,6 +62,28 @@ export interface IFindGroupScope {
 	readonly location?: GroupLocation;
 }
 
+/**
+ * How readily a group of an editor part gives or takes space when the part is
+ * resized or groups are added beside it; see {@link IEditorPart.setGroupLayoutPriority}.
+ */
+export const enum GroupLayoutPriority {
+
+	/**
+	 * Gives or takes space last.
+	 */
+	Low,
+
+	/**
+	 * The default.
+	 */
+	Normal,
+
+	/**
+	 * Gives or takes space first.
+	 */
+	High
+}
+
 export const enum GroupsArrangement {
 	/**
 	 * Make the current active group consume the entire
@@ -567,6 +589,23 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * default, is a no-op: groups lay out next to each other.
 	 */
 	setGroupGap(gap: number): void;
+
+	/**
+	 * Sets how readily `group` gives or takes space. While any group of the
+	 * part has a priority other than {@link GroupLayoutPriority.Normal}, the
+	 * groups of the part no longer resize proportionally: when the part is
+	 * resized, groups with a high priority take the change first, then those
+	 * with a normal priority, and those with a low priority last; and when a
+	 * group is added or removed beside a group with a high priority, the
+	 * other groups beside it keep their sizes. `undefined`, or
+	 * {@link GroupLayoutPriority.Normal}, clears the priority of the group.
+	 *
+	 * For the feature that owns the part and arranges its groups; the main
+	 * editor part does not use it. Each call replaces the priority of the
+	 * group from the previous one, the priority is not persisted with the
+	 * state of the part, and it is cleared when the group is removed.
+	 */
+	setGroupLayoutPriority(group: IEditorGroup | GroupIdentifier, priority: GroupLayoutPriority | undefined): void;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
