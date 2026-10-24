@@ -32,6 +32,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		marketplaceName: 'microsoft-plugins',
 		marketplaceReference: customReference,
 		marketplaceType: MarketplaceType.Claude,
+		keywords: ['canvas', 'review'],
 		readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 	};
 
@@ -79,7 +80,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				displayName: 'Review',
 				description: 'Review code',
 				mediaType: CustomizationMarketplaceMediaType.ClaudePlugin,
-				tags: [],
+				tags: ['canvas', 'review'],
 				capabilities: [],
 				representativeQueries: [],
 				originLabel: customReference.displayLabel,

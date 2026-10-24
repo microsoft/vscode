@@ -145,7 +145,7 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		displayName: plugin.name,
 		description: plugin.description,
 		mediaType: getPluginMediaType(plugin)!,
-		tags: [],
+		tags: plugin.keywords ?? [],
 		capabilities: [],
 		representativeQueries: [],
 		originLabel: plugin.marketplace,

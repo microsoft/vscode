@@ -122,4 +122,27 @@ suite('CustomizationDiscoveryQuery', () => {
 			['@type:mcp ', '@type:plugin '],
 		);
 	});
+
+	test('recognizes Canvas aliases only when enabled', () => {
+		const value = '@type:CANVASES @type:canvas @type:plugins';
+		const enabled = CustomizationDiscoveryQuery.parse(value, true);
+		const disabled = CustomizationDiscoveryQuery.parse(value);
+		assert.deepStrictEqual({
+			enabled: enabled.toString(),
+			roundTrip: CustomizationDiscoveryQuery.parse(enabled.toString(), true).equals(enabled),
+			disabledText: disabled.text,
+			disabledTypes: [...disabled.types],
+			enabledSuggestions: getCustomizationDiscoveryQuerySuggestions('@installed @type:plugin', true),
+			selectedSuggestions: getCustomizationDiscoveryQuerySuggestions('@installed @type:canvases', true),
+			disabledSuggestions: getCustomizationDiscoveryQuerySuggestions('@installed @type:plugin'),
+		}, {
+			enabled: '@type:plugin @type:canvas',
+			roundTrip: true,
+			disabledText: '@type:CANVASES @type:canvas',
+			disabledTypes: ['plugin'],
+			enabledSuggestions: ['@type:skill ', '@type:mcp ', '@type:canvas '],
+			selectedSuggestions: ['@type:skill ', '@type:mcp ', '@type:plugin '],
+			disabledSuggestions: ['@type:skill ', '@type:mcp '],
+		});
+	});
 });

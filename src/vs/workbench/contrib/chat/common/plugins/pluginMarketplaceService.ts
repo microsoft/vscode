@@ -119,6 +119,7 @@ export interface IMarketplacePlugin {
 	readonly marketplaceReference: IMarketplaceReference;
 	/** The type of marketplace this plugin comes from. */
 	readonly marketplaceType: MarketplaceType;
+	readonly keywords?: readonly string[];
 	readonly readmeUri?: URI;
 }
 
@@ -145,6 +146,7 @@ interface IMarketplaceJson {
 		readonly description?: string;
 		readonly version?: string;
 		readonly source?: string | IJsonPluginSource;
+		readonly keywords?: readonly unknown[];
 	}[];
 }
 
@@ -971,6 +973,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					marketplaceName: typeof json.name === 'string' && json.name.trim() ? json.name.trim() : undefined,
 					marketplaceReference: reference,
 					marketplaceType,
+					keywords: p.keywords?.filter((keyword): keyword is string => typeof keyword === 'string'),
 					readmeUri: getMarketplaceReadmeUri(sourceDescriptor, reference, source, repoDir),
 				}];
 			});
