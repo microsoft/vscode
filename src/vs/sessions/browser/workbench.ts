@@ -2385,6 +2385,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			const visible = !this.isSidePaneVisible();
 			if (!visible) {
 				this._restoreSidePaneEditorMaximizedOnShow = editorWasMaximized;
+				// With the chat hidden (Editor only), the chat shows again as the side pane hides, rather than nothing.
+				if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.partVisibility.sessions) {
+					this.setSessionsHidden(false);
+				}
 			}
 			const suppressEditorPartAutoVisibility = this.suppressEditorPartAutoVisibility();
 			try {

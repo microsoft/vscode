@@ -9,11 +9,9 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent } fro
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { registerSessionLayoutModeActions } from '../../../../browser/sessionLayoutModeActions.js';
-import { maximizeMainEditorPart, restoreMainEditorPart } from '../../../../browser/mainEditorMaximize.js';
+import { restoreMainEditorPart } from '../../../../browser/mainEditorMaximize.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { chatLayoutOwnersEqual, IChatLayoutOwner } from '../../../../common/chatLayout.js';
 import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
@@ -71,7 +69,6 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		@ISessionsService sessionsService: ISessionsService,
 		@ISessionLayoutModeService private readonly _layoutModeService: ISessionLayoutModeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IChatWindowService chatWindowService: IChatWindowService,
 	) {
 		super();
@@ -88,7 +85,8 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		});
 		this.mode = derived(this, reader => {
 			layoutChanged.read(reader);
-			if (this._layoutService.isEditorMaximized()) {
+			// Editor only hides the chat; a maximized editor area hides it too.
+			if (this._layoutService.isEditorMaximized() || (this._isChatHidden() && this._layoutService.isSidePaneVisible())) {
 				return SessionLayoutMode.EditorOnly;
 			}
 			return this._layoutService.isSidePaneVisible() ? this._layoutService.getSidePaneArrangement() : SessionLayoutMode.ChatOnly;
@@ -172,13 +170,31 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		}
 		this._layoutService.setSidePaneArrangement(remembered.splitLayout);
 		// Synchronously, before the layout strategies restore the chat's side pane, which un-maximizing would overwrite.
-		const maximized = this._layoutService.isEditorMaximized();
-		if ((remembered.mode === SessionLayoutMode.EditorOnly) !== maximized) {
-			if (maximized) {
-				restoreMainEditorPart(this._layoutService);
-			} else {
-				maximizeMainEditorPart(this._layoutService, this._viewsService.isViewVisible(TERMINAL_VIEW_ID));
+		if (remembered.mode === SessionLayoutMode.EditorOnly) {
+			if (!this._layoutService.isEditorMaximized() && !this._isChatHidden()) {
+				// The strategies restore the chat's side pane next; the editor shows meanwhile.
+				if (!this._layoutService.isSidePaneVisible()) {
+					this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				}
+				this._layoutService.setPartHidden(true, Parts.SESSIONS_PART);
 			}
+			return;
+		}
+		this._showChat();
+	}
+
+	/** Whether the chat (the Sessions Part) is hidden, rather than covered by a custom view. */
+	private _isChatHidden(): boolean {
+		return !this._layoutService.isVisible(Parts.SESSIONS_PART) && !this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART);
+	}
+
+	/** Shows the chat: it may be hidden (Editor only), or hidden with the maximized editor area, which is restored. */
+	private _showChat(): void {
+		if (this._layoutService.isEditorMaximized()) {
+			restoreMainEditorPart(this._layoutService);
+		}
+		if (this._isChatHidden()) {
+			this._layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 		}
 	}
 
@@ -205,14 +221,20 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			if (remembered) {
 				this._layoutService.setSidePaneArrangement(remembered.splitLayout);
 			}
-			if (!this._layoutService.isEditorMaximized()) {
-				maximizeMainEditorPart(this._layoutService, this._viewsService.isViewVisible(TERMINAL_VIEW_ID));
+			// Only the chat hides: the sessions list, the panel and the side pane's composition stay as they are.
+			if (!this._layoutService.isEditorMaximized() && !this._isChatHidden()) {
+				if (!this._layoutService.isSidePaneVisible()) {
+					// Reopens the chat's last side pane, else the editor.
+					this._layoutService.toggleSidePane();
+					if (!this._layoutService.isSidePaneVisible()) {
+						this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+					}
+				}
+				this._layoutService.setPartHidden(true, Parts.SESSIONS_PART);
 			}
 			return;
 		}
-		if (this._layoutService.isEditorMaximized()) {
-			restoreMainEditorPart(this._layoutService);
-		}
+		this._showChat();
 		if (mode === SessionLayoutMode.ChatOnly) {
 			if (remembered) {
 				this._layoutService.setSidePaneArrangement(remembered.splitLayout);

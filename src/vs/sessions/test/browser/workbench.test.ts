@@ -891,6 +891,21 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('desktop side pane toggle shows the hidden chat (editor only) as it closes the side pane, rather than nothing', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false, sessions: false } });
+		const sessionsHidden: boolean[] = [];
+		Object.assign(host, { setSessionsHidden: (hidden: boolean) => { sessionsHidden.push(hidden); host.partVisibility.sessions = !hidden; } });
+
+		const visible = toggleSidePane.call(host);
+
+		assert.deepStrictEqual({ visible, sessions: host.partVisibility.sessions, editor: host.partVisibility.editor, sessionsHidden }, {
+			visible: false,
+			sessions: true,
+			editor: false,
+			sessionsHidden: [false],
+		});
+	});
+
 	test('desktop side pane toggle closes the whole side pane and restores maximization when reopened', () => {
 		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true } });
 		const maximizedStates: boolean[] = [];

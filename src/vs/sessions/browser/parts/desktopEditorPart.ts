@@ -208,7 +208,8 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		const active = this._sessionActivityBarHostActive = derived(this, reader => {
 			layoutChanged.read(reader);
 			const sidePaneVisible = layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-			return sidePaneVisible && (layoutService.getSidePaneArrangement() === SessionLayoutMode.Stacked || layoutService.isEditorMaximized());
+			// Also while the chat is hidden (Editor only), with the editor area maximized or not.
+			return sidePaneVisible && (layoutService.getSidePaneArrangement() === SessionLayoutMode.Stacked || layoutService.isEditorMaximized() || !layoutService.isVisible(Parts.SESSIONS_PART));
 		});
 		this._register(registerSessionActivityBarExternalHost(layoutService.mainContainer, {
 			element,

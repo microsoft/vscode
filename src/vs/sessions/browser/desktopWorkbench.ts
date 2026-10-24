@@ -61,6 +61,26 @@ export class DesktopWorkbench extends Workbench {
 
 	protected override readonly _defaultSidePaneState = { editor: true, auxiliaryBar: false };
 
+	private _showChatScheduled = false;
+
+	/**
+	 * With the chat hidden (Editor only), a side pane that ends up hidden by other means than the side pane toggle,
+	 * such as its last editor closing, would leave nothing showing: the chat shows again. Checked once the visibility
+	 * settles, as a composition changes its parts one at a time.
+	 */
+	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
+		super._fireDidChangePartVisibility(partId, visible, source);
+		if (!visible && (partId === Parts.EDITOR_PART || partId === Parts.AUXILIARYBAR_PART) && !this._showChatScheduled) {
+			this._showChatScheduled = true;
+			queueMicrotask(() => {
+				this._showChatScheduled = false;
+				if (!this.partVisibility.sessions && !this.isSidePaneVisible() && !this.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
+					this.setPartHidden(false, Parts.SESSIONS_PART);
+				}
+			});
+		}
+	}
+
 	/**
 	 * A docked-detail editor (Changes/Files) renders its content in the docked
 	 * detail panel. While that panel is open and the editor area is closed,
