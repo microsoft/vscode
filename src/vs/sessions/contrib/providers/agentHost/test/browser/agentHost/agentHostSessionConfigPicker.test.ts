@@ -487,6 +487,36 @@ suite('Agent Host Session Config Picker', () => {
 	});
 
 	for (const isNew of [true, false]) {
+		test(`hides CLI bootstrap controls without changing ${isNew ? 'draft' : 'running'} session configuration`, () => {
+			const services = setupServices(store);
+			services.provider.isNew = isNew;
+			services.provider.config = {
+				schema: {
+					type: 'object', properties: {
+						remoteSession: { type: 'string', title: 'Remote session', enum: ['off', 'export', 'on'], sessionMutable: false },
+						enableManagedSettings: { type: 'boolean', title: 'Enable managed settings', sessionMutable: false },
+						enableSessionStore: { type: 'boolean', title: 'Enable session store', sessionMutable: false },
+						imageGeneration: { type: 'boolean', title: 'Image generation', default: false, sessionMutable: false },
+						allowTranscriptRecovery: { type: 'boolean', title: 'Allow transcript recovery', default: true, sessionMutable: false },
+						customToggle: { type: 'boolean', title: 'Custom toggle', sessionMutable: true },
+					}
+				},
+				values: { remoteSession: 'on', enableManagedSettings: true, enableSessionStore: false, imageGeneration: false, allowTranscriptRecovery: true, customToggle: true },
+			};
+			const originalConfig = structuredClone(services.provider.config);
+			const { container } = renderPicker(store, services);
+
+			assert.deepStrictEqual({
+				properties: Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty),
+				config: services.provider.config,
+				writes: services.provider.setSessionConfigValueArguments,
+			}, {
+				properties: ['customToggle'],
+				config: originalConfig,
+				writes: [],
+			});
+		});
+
 		test(`hides the input request timeout picker without changing ${isNew ? 'draft' : 'running'} session configuration`, () => {
 			const services = setupServices(store);
 			services.provider.isNew = isNew;

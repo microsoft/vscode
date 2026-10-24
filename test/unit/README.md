@@ -8,7 +8,7 @@ All unit tests are run inside a Electron renderer environment which access to DO
 
 - use the `--dev` to see an electron window with dev tools which allows for debugging
 - to run only a subset of tests use the `--run` or `--glob` options
-- use `--rerun-failed-files <count>` to rerun the test files that failed, each time in a fresh window, up to `<count>` more times. The run passes when every file passes in one of the attempts, and files that only passed on a rerun are reported as flaky. Pull request CI uses `--rerun-failed-files 2`. Failures are not rerun when a failure does not belong to a test file
+- use `--rerun-failed-files <count>` to rerun failures, each time in a fresh window, up to `<count>` more times. Every rerun runs only the tests that did not pass yet, and the suite of a failed hook, by full title. A failure only counts as passed when the rerun ran and passed it, so a test whose title changes from run to run, or that depends on other tests of its file, still fails the run. With more than 50 failures, or a `--grep` of the form `/pattern/flags`, a rerun runs their whole test files instead. The run passes when every failure passes in a later attempt, and those failures are reported as flaky tests. Pull request CI uses `--rerun-failed-files 2`. Failures are not rerun when a failure does not belong to a test file, and a rerun with such a failure does not count
 - use `npm run watch` to automatically compile changes
 
 For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all tests from `extHost`-files and enables you to debug them.
@@ -37,7 +37,9 @@ Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to
 
     npm run test-node -- --timeout 10000 --run src/vs/base/test/common/async.test.ts
 
-Use `--rerun-failed-files <count>` to rerun the test files that failed, each time in a fresh process, up to `<count>` more times, as with the Electron runner. Pull request CI uses `--rerun-failed-files 2`. Failures of the runner's own checks, such as unexpected errors, do not belong to a test file and are not rerun. Full-suite retries retain the Loader check, so stderr written while reloading a failed file also fails the run.
+Use `--grep <pattern>` to run only the tests whose full title matches `<pattern>`. The runner's own loader and unexpected-error checks still run regardless of the filter.
+
+Use `--rerun-failed-files <count>` to rerun failures, each time in a fresh process, up to `<count>` more times, as with the Electron runner: only the failed tests (the suite of a failed hook), or their whole test files when there are too many failures. Pull request CI uses `--rerun-failed-files 2`. Failures of the runner's own checks, such as unexpected errors, do not belong to a test file and are not rerun, but every rerun runs these checks again. Full-suite retries retain the Loader check, so stderr written while reloading a failed file also fails the run.
 
 A rerun must exit normally with an exit code matching its reported results. A startup failure, signal, or inconsistent exit code fails the run, even if the rerun wrote a passing report.
 

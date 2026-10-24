@@ -14937,6 +14937,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktreeDiskUsage.measure(root, token);
 	}
 
+	sessionWorktreeCleanup(session: URI, retry: boolean) {
+		return this._worktreeCleanup.sessionWorktreeCleanup(session, retry);
+	}
+
 	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
 		return this._resourceProviders.mkdir(params);
 	}
