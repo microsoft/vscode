@@ -19,8 +19,12 @@ suite('Chat window part options', () => {
 		});
 	});
 
+	test('showTabs none shows as single, so that the terminal row keeps its title and actions', () => {
+		assert.deepStrictEqual([undefined, 'multiple', 'single', 'none'].map(showTabs => chatWindowPartOptions(true, showTabs).showTabs), [undefined, undefined, undefined, 'single']);
+	});
+
 	test('a window without an editor area shows no tabs', () => {
-		assert.deepStrictEqual(chatWindowPartOptions(false), {
+		assert.deepStrictEqual(chatWindowPartOptions(false, 'multiple'), {
 			showTabs: 'none',
 			showBreadcrumbs: false,
 			editorActionsLocation: 'hidden',
