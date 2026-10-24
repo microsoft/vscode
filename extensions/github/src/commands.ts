@@ -122,7 +122,10 @@ async function createPullRequest(gitAPI: GitAPI, sessionResource: vscode.Uri | u
 	// Format: https://github.com/owner/repo/compare/base...head
 	const prUrl = `https://github.com/${remoteInfo.owner}/${remoteInfo.repo}/compare/${head.name}?expand=1`;
 
-	vscode.env.openExternal(vscode.Uri.parse(prUrl));
+	const openPROnCreate = vscode.workspace.getConfiguration('github').get<boolean>('openPROnCreate', true);
+	if (openPROnCreate) {
+		vscode.env.openExternal(vscode.Uri.parse(prUrl));
+	}
 }
 
 async function openPullRequest(gitAPI: GitAPI, _sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined): Promise<void> {
