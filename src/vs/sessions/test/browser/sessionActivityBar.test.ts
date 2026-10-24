@@ -12,7 +12,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { toAction } from '../../../base/common/actions.js';
-import { derived, observableValue } from '../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
@@ -29,7 +29,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -688,6 +688,44 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual({ desktop, mobile }, {
 			desktop: { created: true, reservedWidth: ChatViewSessionActivityBar.RESERVED_WIDTH },
 			mobile: { created: false, reservedWidth: 0 },
+		});
+	});
+
+	test('shows the strip of the active chat in an active external host, which no chat then reserves room for, and beside the chat otherwise', () => {
+		const { createDocked, setEnabled, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const active = observableValue('active', false);
+		const occupied: boolean[] = [];
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: value => occupied.push(value) }));
+		const first = createDocked();
+		const second = createDocked();
+		first.setActive(true);
+		second.setActive(false);
+		const where = () => ({
+			first: first.element?.parentElement === hostElement ? 'host' : 'chat',
+			second: second.element?.parentElement === hostElement ? 'host' : 'chat',
+			reserved: [first.reservedWidth.get(), second.reservedWidth.get()],
+		});
+
+		const inactiveHost = where();
+		active.set(true, undefined);
+		const activeHost = where();
+		setEnabled(false);
+		setEnabled(true);
+		// Focus moves to the second chat.
+		first.setActive(false);
+		second.setActive(true);
+		const focusMoved = where();
+		active.set(false, undefined);
+		const hostGone = where();
+
+		assert.deepStrictEqual({ inactiveHost, activeHost, focusMoved, hostGone, occupied }, {
+			inactiveHost: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH] },
+			activeHost: { first: 'host', second: 'chat', reserved: [0, 0] },
+			focusMoved: { first: 'chat', second: 'host', reserved: [0, 0] },
+			hostGone: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH] },
+			// Occupied while the shown strip is in it, empty while the strip is disabled.
+			occupied: [true, false, true, false, true, false],
 		});
 	});
 

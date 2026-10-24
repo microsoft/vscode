@@ -10,14 +10,19 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { IMenuItem, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Menus } from '../../../../browser/menus.js';
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
 import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
 import { IChatWindow } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
-import { DesktopLayoutModeCoordinator } from '../../browser/desktop/desktopLayoutModeCoordinator.js';
+import { DesktopLayoutModeCoordinator, MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS } from '../../browser/desktop/desktopLayoutModeCoordinator.js';
 import { createTestHarness, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
 
 suite('Sessions - DesktopLayoutModeCoordinator', () => {
@@ -96,6 +101,40 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			});
 		});
 	}
+
+	test('leads the session activity bar of the main window with the four modes while it shows its layout actions', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem).filter(item => Object.values(MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS).includes(item.command.id));
+		const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
+		const shown = (values: Record<string, ContextKeyValue>) => items.filter(item => item.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false).map(item => item.command.id);
+		const toggled = (item: IMenuItem): ContextKeyExpression | undefined => {
+			const value = item.command.toggled;
+			return isICommandActionToggleInfo(value) ? value.condition : value;
+		};
+		const checked = (mode: SessionLayoutMode) => items.filter(item => toggled(item)?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => (key === 'sessions.layoutMode' ? mode : undefined) as T | undefined } satisfies IContext)).map(item => item.command.id);
+
+		assert.deepStrictEqual({
+			entries: items.map(item => ({ id: item.command.id, group: item.group, order: item.order })),
+			layoutActions: shown(base),
+			layoutActionsOff: shown({ ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false }),
+			chatWindow: shown({ ...base, 'sessions.chatWindowHasEditorArea': true }),
+			editorMaximized: shown({ ...base, editorMaximized: true }),
+			checkedStacked: checked(SessionLayoutMode.Stacked),
+		}, {
+			entries: [
+				{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.ChatOnly], group: '0_layout', order: 0 },
+				{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.EditorOnly], group: '0_layout', order: 1 },
+				{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.Stacked], group: '0_layout', order: 2 },
+				{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.SideBySide], group: '0_layout', order: 3 },
+			],
+			layoutActions: Object.values(MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS),
+			layoutActionsOff: [],
+			chatWindow: [],
+			editorMaximized: Object.values(MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS),
+			checkedStacked: [MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.Stacked]],
+		});
+	});
 
 	test('shows each mode through the existing side pane and maximize operations', async () => {
 		const controller = createController('chat', sessionA);

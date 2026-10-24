@@ -37,7 +37,7 @@ import { Parts } from '../../../../workbench/services/layout/browser/layoutServi
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { Menus } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../common/contextkeys.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
@@ -774,13 +774,6 @@ export abstract class BaseLayoutController extends Disposable {
 							group: 'navigation',
 							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
 							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate())
-						},
-						{
-							// Replaces the title bar entry while the Session Activity Bar shows its layout actions.
-							id: Menus.SessionActivityBar,
-							group: SessionActivityBarGroup.SidePanel,
-							order: 0,
-							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext)
 						},
 						{
 							id: MenuId.MenubarAppearanceMenu,

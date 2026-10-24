@@ -14,10 +14,10 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { registerSessionLayoutModeActions } from '../../../../browser/sessionLayoutModeActions.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { chatLayoutOwnersEqual, IChatLayoutOwner } from '../../../../common/chatLayout.js';
-import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../../common/contextkeys.js';
 import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../../common/sessionLayoutMode.js';
-import { ChatWindowContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowContext, ChatWindowHasEditorAreaContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { IRememberedLayoutMode, ISessionLayoutModeService, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -140,6 +140,8 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			ids: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS,
 			// The main window's, not a chat window's, which has its own.
 			precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), CustomViewVisibleContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
+			// The Session Activity Bar of a chat window shows the chat window's modes instead.
+			activityBarWhen: ContextKeyExpr.and(SessionActivityBarLayoutActionsContext, ChatWindowHasEditorAreaContext.negate()),
 			run: (_accessor, mode) => this.setMode(mode),
 		}));
 	}

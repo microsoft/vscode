@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { Event } from '../../../base/common/event.js';
 import { DisposableMap, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { autorun, derived, observableSignalFromEvent, observableValue } from '../../../base/common/observable.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -19,6 +21,7 @@ import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTarg
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { SessionLayoutMode } from '../../common/sessionLayoutMode.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
@@ -26,6 +29,7 @@ import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
 import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
+import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from './sessionActivityBar.js';
 
 /**
  * Desktop editor part: owns the docked auxiliary bar so "tab bar + editor
@@ -42,6 +46,9 @@ export class DesktopMainEditorPart extends MainEditorPart {
 
 	private _auxiliaryBar: DesktopAuxiliaryBarPart | undefined;
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
+	private readonly _sessionActivityBarOccupied = observableValue(this, false);
+	private readonly _sessionActivityBarHostHeight = observableValue(this, 0);
+	private _sessionActivityBarHost: HTMLElement | undefined;
 	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
 	private readonly _emptyGroupAddTabControls = this._register(new DisposableMap<EditorGroupView>());
 	private readonly _tabsOverride = this._register(new MutableDisposable());
@@ -180,10 +187,52 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
 				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
+				getRightReservedWidth: () => this._sessionActivityBarOccupied.get() ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0,
 			},
 		));
+		this._registerSessionActivityBarHost();
 
 		return container;
+	}
+
+	/**
+	 * While the chat is below the editor or hidden, the Session Activity Bar shows at the right edge of the editor area,
+	 * below its tabs, rather than beside the chat; the editor content and the docked panel make room for it.
+	 */
+	private _registerSessionActivityBarHost(): void {
+		const layoutService = this.agentWorkbenchLayoutService;
+		const element = this._sessionActivityBarHost = append(this.element, $('.session-activity-bar-host.session-activity-bar-editor-host'));
+		element.style.setProperty('--session-activity-bar-column-width', `${SESSION_ACTIVITY_BAR_COLUMN_WIDTH}px`);
+		const layoutChanged = observableSignalFromEvent(this, Event.any<unknown>(layoutService.onDidChangeSidePaneArrangement, layoutService.onDidChangeEditorMaximized, layoutService.onDidChangePartVisibility));
+		const active = derived(this, reader => {
+			layoutChanged.read(reader);
+			const sidePaneVisible = layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+			return sidePaneVisible && (layoutService.getSidePaneArrangement() === SessionLayoutMode.Stacked || layoutService.isEditorMaximized());
+		});
+		this._register(registerSessionActivityBarExternalHost(layoutService.mainContainer, {
+			element,
+			active,
+			height: this._sessionActivityBarHostHeight,
+			setOccupied: occupied => this._sessionActivityBarOccupied.set(occupied, undefined),
+		}));
+		this._register(autorun(reader => {
+			const occupied = this._sessionActivityBarOccupied.read(reader);
+			element.classList.toggle('occupied', occupied);
+			this._layoutSessionActivityBarHost();
+			this._dockedAuxBar?.layout();
+		}));
+	}
+
+	private _layoutSessionActivityBarHost(): void {
+		const element = this._sessionActivityBarHost;
+		if (!element) {
+			return;
+		}
+		const top = (this.activeGroup as EditorGroupView).titleHeight.offset;
+		const height = Math.max(0, this.element.clientHeight - top);
+		element.style.top = `${top}px`;
+		element.style.height = `${height}px`;
+		this._sessionActivityBarHostHeight.set(height, undefined);
 	}
 
 	override addGroup(location: IEditorGroupView | GroupIdentifier, _direction: GroupDirection, _groupToCopy?: IEditorGroupView): IEditorGroupView {
@@ -259,6 +308,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		// while the sash's absolute position goes stale and drifts off the border.
 		// The header lays out with its group (flow), so it needs no repositioning here.
 		this._dockedAuxBar?.layout();
+		this._layoutSessionActivityBarHost();
 	}
 
 	/** Re-layouts the docked auxiliary bar. Called by the workbench on layout changes. */

@@ -200,7 +200,7 @@ suite('Sessions - Layout Actions', () => {
 			layoutActions: base,
 			layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
 			activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
-			// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
+			// The activity bar shows at the edge of the editor while it is maximized; it is hidden in the phone layout.
 			editorMaximized: { ...base, editorMaximized: true },
 			phoneLayout: { ...base, sessionsIsPhoneLayout: true },
 		};
@@ -216,7 +216,7 @@ suite('Sessions - Layout Actions', () => {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],
 				activityBarOff: ['titleBar'],
-				editorMaximized: ['titleBar'],
+				editorMaximized: ['activityBar'],
 				// The phone layout has its own panel controls.
 				phoneLayout: [],
 			},
@@ -275,14 +275,14 @@ suite('Sessions - Layout Actions', () => {
 					icon: Codicon.layoutPanel.id,
 					hasToggledState: false,
 					// Hidden while the Session Activity Bar shows its layout actions.
-					when: 'editorMaximized && panelVisible && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
+					when: 'panelVisible && !agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 				{
 					group: 'navigation',
 					order: 10,
 					icon: Codicon.layoutPanelOff.id,
 					hasToggledState: false,
-					when: 'editorMaximized && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !agentSessionsDesktopLayout && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
+					when: '!agentSessionsDesktopLayout && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 			],
 			terminalActionPresent: false,

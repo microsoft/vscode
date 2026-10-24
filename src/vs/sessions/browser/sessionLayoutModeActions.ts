@@ -13,6 +13,7 @@ import { Action2, registerAction2 } from '../../platform/actions/common/actions.
 import { ContextKeyExpr, ContextKeyExpression } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { SessionsCategories } from '../common/categories.js';
+import { Menus, SessionActivityBarGroup } from './menus.js';
 import { SessionLayoutMode, SessionLayoutModeContext } from '../common/sessionLayoutMode.js';
 
 /** A {@link SessionLayoutMode} as offered to the user. */
@@ -50,6 +51,8 @@ export interface ISessionLayoutModeActionsOptions {
 	readonly precondition: ContextKeyExpression;
 	/** When a mode can be chosen, in addition to {@link precondition}. */
 	readonly available?: (mode: SessionLayoutMode) => ContextKeyExpression | undefined;
+	/** When the modes show in the Session Activity Bar, leading it. */
+	readonly activityBarWhen?: ContextKeyExpression;
 	/** Shows `mode` in the window the action runs in. */
 	run(accessor: ServicesAccessor, mode: SessionLayoutMode): void | Promise<void>;
 }
@@ -71,6 +74,12 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 					f1: true,
 					precondition: ContextKeyExpr.and(options.precondition, options.available?.(choice.mode)),
 					toggled: SessionLayoutModeContext.isEqualTo(choice.mode),
+					menu: options.activityBarWhen ? {
+						id: Menus.SessionActivityBar,
+						group: SessionActivityBarGroup.Layout,
+						order: sessionLayoutModeChoices.indexOf(choice),
+						when: ContextKeyExpr.and(options.activityBarWhen, options.available?.(choice.mode)),
+					} : undefined,
 				});
 			}
 

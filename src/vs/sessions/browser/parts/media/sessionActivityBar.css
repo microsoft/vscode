@@ -8,6 +8,19 @@
 	position: relative;
 }
 
+/* At the right edge of the editor area, below its tabs, while the chat is below the editor or hidden; the editor makes room for it while it is occupied. */
+.monaco-workbench .session-activity-bar-editor-host {
+	position: absolute;
+	right: 0;
+	width: var(--session-activity-bar-column-width);
+	z-index: 17;
+	pointer-events: none;
+}
+
+.monaco-workbench .session-activity-bar-editor-host > .session-activity-bar {
+	pointer-events: auto;
+}
+
 .monaco-workbench .session-activity-bar.docked {
 	position: absolute;
 	/* Just clears the transcript's 10px overlay scrollbar. */
