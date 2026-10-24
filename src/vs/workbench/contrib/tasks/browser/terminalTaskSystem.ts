@@ -454,7 +454,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _fireTaskEvent(event: ITaskEvent) {
-		if (event.kind !== TaskEventKind.Changed && event.kind !== TaskEventKind.ProblemMatcherEnded && event.kind !== TaskEventKind.ProblemMatcherStarted) {
+		if (event.kind !== TaskEventKind.Changed && event.kind !== TaskEventKind.ProblemMatcherEnded && event.kind !== TaskEventKind.ProblemMatcherStarted
+			&& event.kind !== TaskEventKind.CustomExecutionAccepted && event.kind !== TaskEventKind.CustomExecutionFinished) {
 			const activeTask = this._activeTasks[event.__task.getMapKey()];
 			if (activeTask) {
 				activeTask.state = event.kind;
@@ -525,6 +526,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._showTaskLoadErrors(task);
 
 		const mapKey = task.getMapKey();
+		const customExecution = (ContributedTask.is(task) || CustomTask.is(task)) && task.command?.runtime === RuntimeType.CustomExecution;
 
 		// It's important that we add this task's entry to _activeTasks before
 		// any of the code in the then runs (see #180541 and #180578). Wrapping
@@ -603,12 +605,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (this._activeTasks[mapKey] === activeTask) {
 				delete this._activeTasks[mapKey];
 			}
+			if (customExecution) {
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.CustomExecutionFinished, task));
+			}
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };
 		count.count++;
 		const activeTask: IActiveTerminalData = { task, promise, count };
 		this._activeTasks[mapKey] = activeTask;
+		if (customExecution) {
+			this._fireTaskEvent(TaskEvent.general(TaskEventKind.CustomExecutionAccepted, task));
+		}
 		return promise;
 	}
 
