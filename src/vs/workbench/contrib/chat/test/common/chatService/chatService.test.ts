@@ -1626,6 +1626,51 @@ suite('ChatService', () => {
 		});
 	}
 
+	for (const { kind, sendOptions, expectedRequest, expectedInvocation } of [
+		{
+			kind: 'terminal system notification',
+			sendOptions: { queue: ChatRequestQueueKind.Steering, isSystemInitiated: true, systemInitiatedLabel: '`npm run build` completed', terminalExecutionId: 'terminal-1' },
+			expectedRequest: { isSystemInitiated: true, systemInitiatedLabel: '`npm run build` completed', terminalExecutionId: 'terminal-1', isHiddenFromTranscript: false },
+			expectedInvocation: { isSystemInitiated: true, hideFromTranscript: undefined },
+		},
+		{
+			kind: 'request hidden from the transcript',
+			sendOptions: { hideFromTranscript: true },
+			expectedRequest: { isSystemInitiated: undefined, systemInitiatedLabel: undefined, terminalExecutionId: undefined, isHiddenFromTranscript: true },
+			expectedInvocation: { isSystemInitiated: undefined, hideFromTranscript: true },
+		},
+	]) {
+		for (const preserveRequestId of [false, true]) {
+			test(`retrying a ${kind} keeps its provenance with preserveRequestId=${preserveRequestId}`, async () => {
+				const invocations: { isSystemInitiated?: boolean; hideFromTranscript?: boolean }[] = [];
+				const agentId = 'notificationAgent';
+				testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+				testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+					async invoke(request) {
+						invocations.push({ isSystemInitiated: request.isSystemInitiated, hideFromTranscript: request.hideFromTranscript });
+						return {};
+					},
+				}));
+				const service = createChatService();
+				const model = testDisposables.add(startSessionModel(service)).object;
+				const pending = await service.sendRequest(model.sessionResource, '[Terminal terminal-1 notification: command completed.]', { agentIdSilent: agentId, ...sendOptions });
+				const sent = ChatSendResult.isQueued(pending) ? await pending.deferred : pending;
+				ChatSendResult.assertSent(sent);
+				await sent.data.responseCompletePromise;
+
+				const original = model.getRequests()[0];
+				await service.resendRequest(original, { attempt: original.attempt + 1 }, preserveRequestId);
+
+				const retried = model.getRequests()[0];
+				assert.deepStrictEqual({
+					requests: model.getRequests().length,
+					retried: { isSystemInitiated: retried.isSystemInitiated, systemInitiatedLabel: retried.systemInitiatedLabel, terminalExecutionId: retried.terminalExecutionId, isHiddenFromTranscript: retried.isHiddenFromTranscript },
+					invocations,
+				}, { requests: 1, retried: expectedRequest, invocations: [expectedInvocation, expectedInvocation] });
+			});
+		}
+	}
+
 	for (const { name, firstIsSystem, secondIsSystem, expectSystem } of [
 		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectSystem: true },
 		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectSystem: false },

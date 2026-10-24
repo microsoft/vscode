@@ -1472,6 +1472,10 @@ export class ChatService extends Disposable implements IChatService {
 			metadata: options?.metadata ?? request.agentHostMetadata,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
+			isSystemInitiated: options?.isSystemInitiated ?? request.isSystemInitiated,
+			systemInitiatedLabel: options?.systemInitiatedLabel ?? request.systemInitiatedLabel,
+			terminalExecutionId: options?.terminalExecutionId ?? request.terminalExecutionId,
+			hideFromTranscript: options?.hideFromTranscript ?? (request.isHiddenFromTranscript || undefined),
 		};
 		await this._sendRequestAsync(model, model.sessionResource, request.message, attempt, enableCommandDetection, defaultAgent, location, resendOptions, preservedRequest, preserveRequestId ? request.id : undefined).responseCompletePromise;
 	}
