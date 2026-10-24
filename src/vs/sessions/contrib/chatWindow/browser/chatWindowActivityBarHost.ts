@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { EditorPart } from '../../../../workbench/browser/parts/editor/editorPart.js';
 import { IEditorGroup, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBarHostOccupancy } from '../../../browser/parts/sessionActivityBar.js';
@@ -54,6 +55,16 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 		height.set(available, undefined);
 	};
 	store.add(part.onDidLayout(layoutHost));
+	// Below the tabs, whose height is known once the group lays out: a window opening stacked lays the part out first.
+	const groupRelayouts = store.add(new DisposableMap<IEditorGroup>());
+	const trackGroup = (group: IEditorGroup) => {
+		if (group instanceof EditorGroupView) {
+			groupRelayouts.set(group, group.onDidRelayout(layoutHost));
+		}
+	};
+	part.groups.forEach(trackGroup);
+	store.add(part.onDidAddGroup(trackGroup));
+	store.add(part.onDidRemoveGroup(group => groupRelayouts.deleteAndDispose(group)));
 	store.add(autorun(reader => {
 		active.read(reader);
 		occupancy.occupied.read(reader);
