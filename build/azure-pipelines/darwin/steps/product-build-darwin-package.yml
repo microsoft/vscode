@@ -60,14 +60,14 @@ steps:
       echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
     displayName: Find ESRP CLI
 
-  - script: npx deemon --detach --wait node build/azure-pipelines/darwin/codesign.ts
+  - script: pnpm exec deemon --detach --wait node build/azure-pipelines/darwin/codesign.ts
     env:
       EsrpCliDllPath: $(EsrpCliDllPath)
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       BUILD_SOURCESDIRECTORY: $(Build.SourcesDirectory)
     displayName: ✍️ Codesign & Notarize
 
-  - script: npx deemon --attach node build/azure-pipelines/darwin/codesign.ts
+  - script: pnpm exec deemon --attach node build/azure-pipelines/darwin/codesign.ts
     condition: succeededOrFailed()
     displayName: "Post-job: ✍️ Codesign & Notarize"
 

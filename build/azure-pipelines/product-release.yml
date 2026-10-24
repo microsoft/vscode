@@ -40,7 +40,9 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - script: npm ci
+  - template: ./common/install-pnpm.yml@self
+
+  - script: pnpm install --frozen-lockfile
     workingDirectory: build
     # A transient registry error here fails the release after ApproveRelease (477747, 478020).
     retryCountOnTaskFailure: 3

@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { getLockedVersion } from '../../lib/pnpmLock.ts';
+import { ensurePnpm } from './installPnpm.ts';
 
 /**
  * Stage 3 of the Copilot SDK -> VS Code integration pipeline.
@@ -206,6 +207,7 @@ function verifyResolved(dir: string, overrides: Override[]): void {
 }
 
 function main(): void {
+	ensurePnpm();
 	const override = collectOverrides();
 	if (override.dependencies.length === 0) {
 		console.log('[canary-override] No canary versions set — nothing to do.');

@@ -14,14 +14,14 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm run compile --prefix test/smoke }
-      exec { npm run compile --prefix test/integration/browser }
+      exec { pnpm -C test/smoke run compile }
+      exec { pnpm -C test/integration/browser run compile }
     displayName: Compile test suites (non-OSS)
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - template: ../../common/restore-playwright-browsers.yml@self
 
-  - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - powershell: pnpm exec npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
@@ -46,7 +46,7 @@ steps:
         testStep:
           powershell: |
             New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
-            npm run test-node -- --build
+            pnpm run test-node --build
           env:
             NODE_OPTIONS: "--report-on-fatalerror --report-uncaught-exception --report-directory=.build/crashes"
           displayName: 🧪 Run unit tests (node.js)
@@ -57,14 +57,14 @@ steps:
       parameters:
         testId: unit-browser-chromium
         testStep:
-          powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+          powershell: pnpm run test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
           displayName: 🧪 Run unit tests (Browser, Chromium)
           timeoutInMinutes: 30
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm run gulp `
+      exec { pnpm run gulp `
         compile-extension:configuration-editing `
         compile-extension:css-language-features-server `
         compile-extension:emmet `
@@ -217,7 +217,7 @@ steps:
         testId: smoke-electron
         testStep:
           powershell: |
-            npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+            pnpm run smoketest-no-compile --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
           env:
             VSCODE_SMOKE_TEST_POLICY: '1'
             ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
@@ -241,7 +241,7 @@ steps:
       parameters:
         testId: smoke-browser-chromium
         testStep:
-          powershell: npm run smoketest-no-compile -- --web --tracing --headless
+          powershell: pnpm run smoketest-no-compile --web --tracing --headless
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web
           displayName: 🧪 Run smoke tests (Browser, Chromium)
@@ -252,7 +252,7 @@ steps:
       parameters:
         testId: smoke-remote
         testStep:
-          powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+          powershell: pnpm run smoketest-no-compile --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)
           displayName: 🧪 Run smoke tests (Remote)
