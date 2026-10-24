@@ -406,6 +406,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly catalogIdentity?: string;
 	readonly iconUrl?: string;
 	readonly categories?: readonly string[];
+	readonly compatibilityTags?: readonly string[];
 	readonly kind: 'skill' | 'mcp' | 'plugin';
 	readonly displayName: string;
 	readonly description?: string;
@@ -418,6 +419,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly repository?: string;
 	readonly path?: string;
 	readonly connectorIds?: readonly string[];
+	readonly installCount?: number;
 	readonly installable: boolean;
 	readonly unavailableMessage?: string;
 }

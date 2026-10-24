@@ -88,8 +88,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					return {
 						kind: 'page' as const,
 						items: [{
-							selectionId: 'selection', identifier: 'feed-resource', kind: 'mcp' as const, displayName: 'Figma',
-							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/figma.png', categories: ['build'],
+							selectionId: 'selection', identifier: 'feed-resource', kind: 'plugin' as const, displayName: 'Canvas Plugin',
+							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+							categories: ['build'], compatibilityTags: ['canvas', 'canvas-only'], installCount: 42,
 						}],
 					};
 				}
@@ -111,7 +112,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const item = page.items[0];
 		assert.deepStrictEqual({
 			requests,
-			item: { identifier: item.identifier, tags: item.tags, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
+			item: { identifier: item.identifier, tags: item.tags, compatibilityTags: item.compatibilityTags, installCount: item.installCount, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
 			recovery: provider.getRecoveryAction()?.kind,
 		}, {
 			requests: ['feed_auth', 'feed_editorial'].map(feedId => ({
@@ -119,8 +120,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				request: { query: '', mediaType: undefined, limit: 30, cursor: undefined, feedId },
 			})),
 			item: {
-				identifier: 'feed-resource', tags: ['build'], icon: 'https://raw.githubusercontent.com/example/icons/main/figma.png',
-				installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection', itemUrl: undefined, installable: true },
+				identifier: 'feed-resource', tags: ['build'], compatibilityTags: ['canvas', 'canvas-only'], installCount: 42, icon: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection', itemUrl: undefined, installable: true },
 			},
 			recovery: 'signIn',
 		});
