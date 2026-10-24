@@ -3,11 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens } from '../../common/htmlContent.js';
+import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens } from '../../common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('htmlContent', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('appendEscapedMarkdownCodeBlockFence', () => {
+		test('uses a three backtick fence by default', () => {
+			assert.strictEqual(appendEscapedMarkdownCodeBlockFence('a\nb', 'ts'), '```ts\na\nb\n```');
+		});
+
+		test('uses a longer fence than any fence in the code', () => {
+			assert.strictEqual(appendEscapedMarkdownCodeBlockFence('```\nx\n````', 'md'), '`````md\n```\nx\n````\n`````');
+		});
+
+		test('accounts for fences indented by up to three spaces', () => {
+			assert.strictEqual(appendEscapedMarkdownCodeBlockFence('a\n  ```\nb', ''), '````\na\n  ```\nb\n````');
+			assert.strictEqual(appendEscapedMarkdownCodeBlockFence('   ````', ''), '`````\n   ````\n`````');
+			// four spaces is an indented code line, not a fence
+			assert.strictEqual(appendEscapedMarkdownCodeBlockFence('    ```', ''), '```\n    ```\n```');
+		});
+	});
 
 	suite('appendEscapedMarkdownInlineCode', () => {
 		test('wraps plain text in single backticks', () => {

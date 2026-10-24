@@ -173,9 +173,11 @@ export function escapeMarkdownLinkLabel(text: string): string {
  * @see https://github.com/microsoft/vscode/issues/193746
  */
 export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string) {
-	const longestFenceLength =
-		code.match(/^`+/gm)?.reduce((a, b) => (a.length > b.length ? a : b)).length ??
-		0;
+	// A closing fence may be indented by up to three spaces (CommonMark 4.5)
+	let longestFenceLength = 0;
+	for (const [, fence] of code.matchAll(/^ {0,3}(`+)/gm)) {
+		longestFenceLength = Math.max(longestFenceLength, fence.length);
+	}
 	const desiredFenceLength =
 		longestFenceLength >= 3 ? longestFenceLength + 1 : 3;
 
