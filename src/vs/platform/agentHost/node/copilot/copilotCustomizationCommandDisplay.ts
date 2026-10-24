@@ -7,6 +7,7 @@ import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode, e
 import type { CopilotSession } from '@github/copilot-sdk';
 import { localize } from '../../../../nls.js';
 import { SYNCED_CUSTOMIZATION_DISPLAY_NAME } from '../../common/agentHostFileSystemService.js';
+import { getRuntimePluginIdentity } from '../../common/meta/runtimePluginEnablement.js';
 import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
 type CopilotPluginsApi = CopilotSession['rpc']['plugins'];
@@ -57,7 +58,7 @@ export function getCopilotCustomizationCommandHandler(
 				case 'mcp':
 					return formatCopilotMcpOutput(input, result);
 				case 'plugin':
-					return formatCopilotPluginOutput(input, result, getInstalledPlugins ? await getInstalledPlugins() : undefined);
+					return formatCopilotPluginOutput(input, result, () => listCopilotPluginsForDisplay(plugins?.api, getInstalledPlugins));
 				case 'skills':
 					return formatCopilotSkillsOutput(input, result);
 			}
@@ -533,11 +534,53 @@ function formatCopilotMcpServer(line: string, details: readonly string[]): strin
 	];
 }
 
+type CopilotPluginList = Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'];
+
+interface ICopilotPluginDisplayInventory {
+	readonly plugins: CopilotPluginList;
+	/** Identities ({@link getRuntimePluginIdentity}) of plugins the session listed; their `enabled` is the session's current state. */
+	readonly sessionPluginIds: ReadonlySet<string>;
+}
+
+/**
+ * Combines a session's plugin listing with the global installed-plugin
+ * records. The session listing reports each plugin's current enabled state
+ * in that session (for example an enabled team default), while a global
+ * record's `enabled` is only the persisted new-session flag, so global
+ * records only add plugins the session does not list.
+ */
+export function mergeCopilotSessionAndInstalledPlugins(sessionPlugins: CopilotPluginList, installedPlugins: CopilotPluginList): CopilotPluginList {
+	const sessionPluginIds = new Set(sessionPlugins.map(getRuntimePluginIdentity));
+	return [
+		...sessionPlugins,
+		...installedPlugins.filter(plugin => !sessionPluginIds.has(getRuntimePluginIdentity(plugin))),
+	];
+}
+
+async function listCopilotPluginsForDisplay(
+	sessionApi: ICopilotPluginCommandApi | undefined,
+	getInstalledPlugins: (() => Promise<CopilotPluginList>) | undefined,
+): Promise<ICopilotPluginDisplayInventory | undefined> {
+	const installedPlugins = getInstalledPlugins ? await getInstalledPlugins() : undefined;
+	if (!installedPlugins) {
+		return undefined;
+	}
+	let sessionPlugins: CopilotPluginList = [];
+	if (sessionApi) {
+		try {
+			sessionPlugins = (await sessionApi.list()).plugins;
+		} catch {
+			// Fall back to the global records; the runtime's own list output still marks disabled plugins.
+		}
+	}
+	return { plugins: mergeCopilotSessionAndInstalledPlugins(sessionPlugins, installedPlugins), sessionPluginIds: new Set(sessionPlugins.map(getRuntimePluginIdentity)) };
+}
+
 function formatCopilotPluginOutput(
 	input: string,
 	result: CopilotSlashCommandResult,
-	installedPlugins?: Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'],
-): CopilotSlashCommandOutput | undefined {
+	getPlugins: () => Promise<ICopilotPluginDisplayInventory | undefined>,
+): Promise<CopilotSlashCommandOutput | undefined> | undefined {
 	const subcommand = input.trim().toLowerCase();
 	if (!isPlainTextResult(result)) {
 		return undefined;
@@ -550,7 +593,11 @@ function formatCopilotPluginOutput(
 	if (lines[0] !== 'Installed Plugins:' || (lines[1] !== undefined && lines[1] !== '')) {
 		return undefined;
 	}
+	return getPlugins().then(inventory => formatCopilotPluginList(lines, inventory));
+}
 
+function formatCopilotPluginList(lines: readonly string[], inventory: ICopilotPluginDisplayInventory | undefined): CopilotSlashCommandOutput | undefined {
+	const installedPlugins = inventory?.plugins;
 	const output = [`# ${localize('copilotPlugins.installed', "Installed plugins")}`, ''];
 	const listedPluginNames = new Set<string>();
 	for (const line of lines.slice(2)) {
@@ -573,7 +620,11 @@ function formatCopilotPluginOutput(
 			plugin = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
 		}
 		listedPluginNames.add(plugin);
-		const disabled = match.groups.disabled || installedPlugin?.enabled === false
+		// A session record is authoritative; a global record's `enabled` is only the new-session flag.
+		const isDisabled = installedPlugin && inventory?.sessionPluginIds.has(getRuntimePluginIdentity(installedPlugin))
+			? !installedPlugin.enabled
+			: !!match.groups.disabled || installedPlugin?.enabled === false;
+		const disabled = isDisabled
 			? ` (${localize('copilotPlugins.disabled', "disabled")})`
 			: '';
 		output.push(`- ${appendEscapedMarkdownInlineCode(plugin)}${version ? ` — v${escapeCustomizationMarkdownText(version)}` : ''}${disabled}`);
