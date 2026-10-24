@@ -200,4 +200,27 @@ suite('Editor Part Group Layout Priority', () => {
 			afterRemove: [minimum + 100, 200, 100],
 		});
 	});
+	test('groups that get their sizes back share what the group with a high priority can give, in order', async () => {
+		const describe = async (topSlack: number, middleHeight: number) => {
+			const { part, top, middle, bottom } = await createStackedPart();
+			disposables.add(part.enforcePartOptions({ splitSizing: 'distribute' })); // adding a group shrinks all others
+			const minimum = top.minimumHeight;
+			part.setSize(top, { width: 1080, height: minimum + topSlack });
+			part.setSize(middle, { width: 1080, height: middleHeight });
+			part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
+			const before = heights(part, top, middle, bottom);
+
+			const added = part.addGroup(bottom, GroupDirection.DOWN);
+			return { minimum, before, after: heights(part, top, middle, bottom, added) };
+		};
+
+		const minimum = (await createStackedPart()).top.minimumHeight;
+		assert.deepStrictEqual({ lessThanBoth: await describe(30, 250), lessThanTheFirst: await describe(30, 400) }, {
+			// Distributing gives each group 200, so the group with the high priority can give 200 - minimum.
+			// The middle group gets the 50 it needs back, and the bottom group what remains of the 250 it needs
+			lessThanBoth: { minimum, before: [minimum + 30, 250, 450], after: [minimum, 250, 200 + (200 - minimum - 50), 200] },
+			// The middle group needs 200 and takes all there is, so the bottom group keeps what distributing gave it
+			lessThanTheFirst: { minimum, before: [minimum + 30, 400, 300], after: [minimum, 200 + (200 - minimum), 200, 200] },
+		});
+	});
 });
