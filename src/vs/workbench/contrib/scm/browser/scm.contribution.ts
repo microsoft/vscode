@@ -5,8 +5,10 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase, IWorkbenchContribution } from '../../../common/contributions.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity.js';
@@ -50,6 +52,35 @@ ModesRegistry.registerLanguage({
 	aliases: [], // hide from language selector
 	mimetypes: ['text/x-scm-input']
 });
+
+export class SCMInputLanguageContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.scmInputLanguageConfiguration';
+
+	constructor(
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+	) {
+		super();
+		// brackets enables auto-closing for (, [ and {; same as plaintext
+		this._register(languageConfigurationService.register('scminput', {
+			brackets: [
+				['(', ')'],
+				['[', ']'],
+				['{', '}'],
+			],
+			surroundingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '<', close: '>' },
+				{ open: '"', close: '"' },
+				{ open: "'", close: "'" },
+				{ open: '`', close: '`' },
+			],
+			colorizedBracketPairs: [],
+		}));
+	}
+}
 
 const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
 
@@ -159,6 +190,12 @@ registerWorkbenchContribution2(
 registerWorkbenchContribution2(
 	SCMHistoryItemContextContribution.ID,
 	SCMHistoryItemContextContribution,
+	WorkbenchPhase.AfterRestored
+);
+
+registerWorkbenchContribution2(
+	SCMInputLanguageContribution.ID,
+	SCMInputLanguageContribution,
 	WorkbenchPhase.AfterRestored
 );
 
