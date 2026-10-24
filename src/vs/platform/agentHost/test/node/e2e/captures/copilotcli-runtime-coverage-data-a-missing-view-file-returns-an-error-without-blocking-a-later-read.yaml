@@ -1,0 +1,101 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/nonexistent.txt". Do not retry. Reply exactly FILE_MISSING.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/nonexistent.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/nonexistent.txt". Do not retry. Reply exactly FILE_MISSING.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/nonexistent.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Path ${workdir}/nonexistent.txt does not exist. Please provide a valid path.
+    response:
+      content: FILE_MISSING
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/nonexistent.txt". Do not retry. Reply exactly FILE_MISSING.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/nonexistent.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Path ${workdir}/nonexistent.txt does not exist. Please provide a valid path.
+        - role: assistant
+          content: FILE_MISSING
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use another tool. Reply exactly FILE_CHECKED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/recovery.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/nonexistent.txt". Do not retry. Reply exactly FILE_MISSING.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/nonexistent.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Path ${workdir}/nonexistent.txt does not exist. Please provide a valid path.
+        - role: assistant
+          content: FILE_MISSING
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use another tool. Reply exactly FILE_CHECKED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/recovery.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: FILE_RECOVERED
+    response:
+      content: FILE_CHECKED
+      stopReason: end_turn

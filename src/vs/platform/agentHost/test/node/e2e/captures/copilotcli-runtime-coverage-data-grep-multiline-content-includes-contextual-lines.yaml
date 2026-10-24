@@ -1,0 +1,47 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call grep exactly once with pattern "MULTILINE_FIRST\nMULTILINE_SECOND", multiline true, output_mode "content", and -C 1. Do not use other tools. Reply exactly MULTILINE_CHECKED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: grep
+          input:
+            pattern: MULTILINE_FIRST\nMULTILINE_SECOND
+            multiline: true
+            output_mode: content
+            '-C': 1
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call grep exactly once with pattern "MULTILINE_FIRST\nMULTILINE_SECOND", multiline true, output_mode "content", and -C 1. Do not use other tools. Reply exactly MULTILINE_CHECKED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: grep
+              input:
+                pattern: MULTILINE_FIRST\nMULTILINE_SECOND
+                multiline: true
+                output_mode: content
+                '-C': 1
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                .\multiline.txt-CONTEXT_BEFORE
+                .\multiline.txt:MULTILINE_FIRST
+                .\multiline.txt:MULTILINE_SECOND
+                .\multiline.txt-CONTEXT_AFTER
+    response:
+      content: MULTILINE_CHECKED
+      stopReason: end_turn

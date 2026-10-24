@@ -1,0 +1,54 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 500
+      headers:
+        content-type: application/json
+        x-should-retry: 'false'
+      body: '{"type":"error","error":{"type":"api_error","message":"SYNTHETIC_TELEMETRY_PROVIDER_FAILURE"}}'
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply exactly TELEMETRY_FAILURE_PROBE. Do not call any tools.
+            - type: text
+              text: Call view exactly once on "${workdir}/recovery.txt". Do not retry or call other tools. Reply exactly TELEMETRY_READ_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/recovery.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply exactly TELEMETRY_FAILURE_PROBE. Do not call any tools.
+            - type: text
+              text: Call view exactly once on "${workdir}/recovery.txt". Do not retry or call other tools. Reply exactly TELEMETRY_READ_DONE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/recovery.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_TELEMETRY_FILE
+    response:
+      content: TELEMETRY_READ_DONE
+      stopReason: end_turn

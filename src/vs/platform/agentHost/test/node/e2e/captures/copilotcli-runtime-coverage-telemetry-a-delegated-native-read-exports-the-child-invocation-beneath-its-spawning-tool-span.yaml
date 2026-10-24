@@ -1,0 +1,92 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use task exactly once with agent_type "explore" and model "claude-sonnet-5" to delegate reading "${workdir}/recovery.txt". The child must use view exactly once on that file, use no other tools, and return its exact text. Do not read it yourself. After the child finishes, reply exactly CHILD_TELEMETRY_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: task
+          input:
+            name: read-recovery-file
+            agent_type: explore
+            model: claude-sonnet-5
+            description: Read recovery.txt file contents
+            prompt: |-
+              Use the view tool exactly once on this exact absolute path: "${workdir}/recovery.txt"
+
+              Do not use any other tools. After viewing it, return its exact text content verbatim as your final answer, with no additional commentary.
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Use the view tool exactly once on this exact absolute path: "${workdir}/recovery.txt"
+
+            Do not use any other tools. After viewing it, return its exact text content verbatim as your final answer, with no additional commentary.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/recovery.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Use the view tool exactly once on this exact absolute path: "${workdir}/recovery.txt"
+
+            Do not use any other tools. After viewing it, return its exact text content verbatim as your final answer, with no additional commentary.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/recovery.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: SYNTHETIC_TELEMETRY_FILE
+    response:
+      content: SYNTHETIC_TELEMETRY_FILE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use task exactly once with agent_type "explore" and model "claude-sonnet-5" to delegate reading "${workdir}/recovery.txt". The child must use view exactly once on that file, use no other tools, and return its exact text. Do not read it yourself. After the child finishes, reply exactly CHILD_TELEMETRY_DONE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: read-recovery-file
+                agent_type: explore
+                model: claude-sonnet-5
+                description: Read recovery.txt file contents
+                prompt: |-
+                  Use the view tool exactly once on this exact absolute path: "${workdir}/recovery.txt"
+
+                  Do not use any other tools. After viewing it, return its exact text content verbatim as your final answer, with no additional commentary.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_TELEMETRY_FILE
+    response:
+      content: CHILD_TELEMETRY_DONE
+      stopReason: end_turn

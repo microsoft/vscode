@@ -32,7 +32,7 @@ const fs = require('fs');
 
 	function intercept(element, cnt) {
 		originals[element] = fs[element];
-		fs[element] = createSpy(element, cnt);
+		fs[element] = Object.assign(createSpy(element, cnt), originals[element]);
 	}
 
 	[

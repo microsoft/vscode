@@ -1,0 +1,404 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Use view to read the attached read-only snapshot file listed in the attachment reminder. It names the workspace file for my later verification request. Do not read that target yet, edit any file, or use shell tools. Reply exactly READY.
+
+            <tagged_files>
+            * ${workdir}/shared-snapshot.txt (1 lines)
+            </tagged_files>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/shared-snapshot.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Use view to read the attached read-only snapshot file listed in the attachment reminder. It names the workspace file for my later verification request. Do not read that target yet, edit any file, or use shell tools. Reply exactly READY.
+
+            <tagged_files>
+            * ${workdir}/shared-snapshot.txt (1 lines)
+            </tagged_files>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/shared-snapshot.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is snapshot-target.txt.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Use view to read the attached read-only snapshot file listed in the attachment reminder. It names the workspace file for my later verification request. Do not read that target yet, edit any file, or use shell tools. Reply exactly READY.
+
+            <tagged_files>
+            * ${workdir}/shared-snapshot.txt (1 lines)
+            </tagged_files>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/shared-snapshot.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is snapshot-target.txt.
+        - role: assistant
+          content: READY
+        - role: user
+          content: |-
+            Please create a detailed summary of the conversation so far. The history is being compacted so moving forward, all conversation history will be removed and you'll only have this summary to work from. Be sure to make note of the user's explicit requests, your actions, and any key technical details.
+
+            The summary should include the following parts:
+            1. <overview> - high-level summary of goals and approach
+            2. <history> - chronological analysis of the conversation
+            3. <work_done> - changes made, current state, and any issues encountered
+            4. <technical_details> - key concepts, decisions, and quirks discovered
+            5. <important_files> - files central to the work and why they matter
+            6. <next_steps> - pending tasks and planned actions
+            7. <checkpoint_title> - 2-6 word description of the main work done
+
+            ---
+
+            ## Section Guidelines
+
+            ### Overview
+
+            Provide a concise summary (2-3 sentences) capturing the user's goals, intent, and expectations. Describe your overall approach and strategy for addressing their needs, and note any constraints or requirements that were established.
+            This section should give a reader immediate clarity on what this conversation is about and how you're tackling it.
+
+            ### History
+
+            Capture the narrative arc of the conversation—what was asked for, what was done, and how the work evolved. Structure this around the user's requests: each request becomes an entry with the actions you took nested underneath, in chronological order.
+            Note any major pivots or changes in direction, and include outcomes where relevant—especially for debugging or when something didn't go as expected. Focus on meaningful actions, not granular details of every exchange.
+
+            ### Work Done
+
+            Document the concrete work completed during this conversation. This section should enable someone to pick up exactly where you left off. Include:
+
+            - Files created, modified, or deleted
+            - Tasks completed and their outcomes
+            - What you were most recently working on
+            - Current state: what works, what doesn't, what's untested
+
+            ### Technical Details
+
+            Capture the technical knowledge that would be painful to rediscover. Think of this as a knowledge base for your future self—anything that took effort to learn belongs here. This includes:
+
+            - Key concepts and architectural decisions (with rationale)
+            - Issues encountered and how they were resolved
+            - Quirks, gotchas, or non-obvious behaviors
+            - Dependencies, versions, or environment details that matter
+            - Workarounds or constraints you discovered
+
+            Also make note of any questions that remain unanswered or assumptions that you aren't fully confident about.
+
+            ### Important Files
+
+            List the files most central to the task, prioritizing those you've actively worked on over files you merely viewed. This isn't an exhaustive inventory—it's a curated list of what matters most for continuing the work. For each file, include:
+
+            - The file name
+            - Why it's important to the project
+            - Summary of changes made (if any)
+            - Key line numbers or sections to reference
+
+            ### Next Steps
+
+            If there's pending work, describe what you were actively working on when compaction occurred. List remaining tasks, outline your planned approach, and flag any blockers or open questions.
+            If you've finished all requested work, you can simply note that no next steps are needed.
+
+            ### Checkpoint Title
+
+            Provide a concise 2-6 word title capturing the essence of what was accomplished in this work segment. This title will be used to identify this checkpoint when reviewing session history. Examples:
+            - "Implementing user authentication"
+            - "Fixing database connection bugs"
+            - "Refactoring payment module"
+            - "Adding unit tests for API"
+
+            ---
+
+            ## Example
+
+            Here is an example of the structure you should follow:
+            <example>
+            <overview>
+            [2-3 sentences describing the user's goals and your approach]
+            </overview>
+            <history>
+            1. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+
+            2. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+            </history>
+            <work_done>
+            Files updated:
+            - [file]: [what changed]
+
+            Work completed:
+            - [x] [Task]
+            - [x] [Task]
+            - [ ] [Task in progress or incomplete]
+            </work_done>
+            <technical_details>
+            - [Key technical concept or decision]
+            - [Issue encountered and how it was resolved]
+            - [Non-obvious behavior or quirk discovered]
+            - [Unresolved question or uncertain area]
+            </technical_details>
+            <important_files>
+            - [file1]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            - [file2]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            </important_files>
+            <next_steps>
+            Remaining work:
+            - [Task]
+            - [Task]
+
+            Immediate next steps:
+            - [Action to take]
+            - [Action to take]
+            </next_steps>
+
+            <checkpoint_title>Concise 2-6 word description of this checkpoint</checkpoint_title>
+            </example>
+
+            ---
+
+            Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+
+            Tools are unavailable in this step, so do not call any tools, even if other instructions say to call one before responding: respond only with the summary text.
+    response:
+      content: |-
+        <overview>
+        The user shared a read-only snapshot file (shared-snapshot.txt) and instructed me to read only that file to learn the name of another workspace file (snapshot-target.txt) referenced for a later verification request. I was explicitly told not to read, edit, or otherwise act on snapshot-target.txt yet, and not to edit any file or use shell tools during this step.
+        </overview>
+
+        <history>
+        1. The user instructed me to use `view` to read the attached read-only snapshot file, explaining it names a workspace file for later verification, and told me not to read that named target file yet, not to edit any file, and not to use shell tools — then reply exactly "READY".
+           - I viewed `shared-snapshot.txt`, which contained the single line: "The verification target is snapshot-target.txt."
+           - I replied exactly "READY" as instructed, without reading, editing, or otherwise acting on `snapshot-target.txt`.
+
+        2. The user then asked for this detailed conversation summary in preparation for history compaction (the current request).
+        </history>
+
+        <work_done>
+        Files viewed (read-only, no edits made):
+        - `shared-snapshot.txt` — confirmed its sole content identifies `snapshot-target.txt` as the verification target file name.
+
+        No files were created, modified, or deleted. No shell commands were run. The explicit constraint not to read/edit `snapshot-target.txt` or any other file was respected.
+
+        Current state: Task step complete — I identified the target filename and responded "READY" as required. Awaiting the user's actual verification request, which will presumably involve `snapshot-target.txt`.
+        </work_done>
+
+        <technical_details>
+        - The workflow pattern here is a staged "snapshot" check: an attached read-only snapshot file tells the assistant the name of a target file, but the assistant must wait for explicit instruction before reading/acting on that target — this appears designed to test instruction-following discipline (not reading ahead or acting prematurely).
+        - No other technical/architectural details apply yet, since no target file content has been read.
+        - Open question: what the upcoming "verification request" will actually ask me to do with `snapshot-target.txt` — unknown until the user's next message.
+        </technical_details>
+
+        <important_files>
+        - `${workdir}/shared-snapshot.txt`
+          - Read-only snapshot shared by the user; its single line of content names the verification target file (`snapshot-target.txt`).
+          - No changes made (read-only).
+        - `snapshot-target.txt` (exact path not yet known/confirmed; likely in the same workspace directory `${workdir}/`)
+          - This is the file named by the snapshot as the eventual verification target. Not yet read or located — must not be accessed until the user explicitly requests verification.
+        </important_files>
+
+        <next_steps>
+        Remaining work:
+        - Wait for the user's explicit verification request before reading or acting on `snapshot-target.txt`.
+        - When that request comes, locate and read `snapshot-target.txt` (likely via `view`) to perform the requested verification, respecting any further constraints the user specifies at that time.
+
+        Immediate next steps:
+        - No action should be taken proactively; remain idle/responsive until the user issues the verification instruction referencing `snapshot-target.txt`.
+        </next_steps>
+
+        <checkpoint_title>Reading snapshot for verification target</checkpoint_title>
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: |-
+                The conversation history has been summarized to free up context.
+
+                You were originally given instructions from a user over one or more turns. Here were the user messages:
+                <user_message>
+                Use view to read the attached read-only snapshot file listed in the attachment reminder. It names the workspace file for my later verification request. Do not read that target yet, edit any file, or use shell tools. Reply exactly READY.
+                </user_message>
+
+                Here is a summary of the prior context:
+                <summary>
+                <overview>
+                The user shared a read-only snapshot file (shared-snapshot.txt) and instructed me to read only that file to learn the name of another workspace file (snapshot-target.txt) referenced for a later verification request. I was explicitly told not to read, edit, or otherwise act on snapshot-target.txt yet, and not to edit any file or use shell tools during this step.
+                </overview>
+
+                <history>
+                1. The user instructed me to use `view` to read the attached read-only snapshot file, explaining it names a workspace file for later verification, and told me not to read that named target file yet, not to edit any file, and not to use shell tools — then reply exactly "READY".
+                   - I viewed `shared-snapshot.txt`, which contained the single line: "The verification target is snapshot-target.txt."
+                   - I replied exactly "READY" as instructed, without reading, editing, or otherwise acting on `snapshot-target.txt`.
+
+                2. The user then asked for this detailed conversation summary in preparation for history compaction (the current request).
+                </history>
+
+                <work_done>
+                Files viewed (read-only, no edits made):
+                - `shared-snapshot.txt` — confirmed its sole content identifies `snapshot-target.txt` as the verification target file name.
+
+                No files were created, modified, or deleted. No shell commands were run. The explicit constraint not to read/edit `snapshot-target.txt` or any other file was respected.
+
+                Current state: Task step complete — I identified the target filename and responded "READY" as required. Awaiting the user's actual verification request, which will presumably involve `snapshot-target.txt`.
+                </work_done>
+
+                <technical_details>
+                - The workflow pattern here is a staged "snapshot" check: an attached read-only snapshot file tells the assistant the name of a target file, but the assistant must wait for explicit instruction before reading/acting on that target — this appears designed to test instruction-following discipline (not reading ahead or acting prematurely).
+                - No other technical/architectural details apply yet, since no target file content has been read.
+                - Open question: what the upcoming "verification request" will actually ask me to do with `snapshot-target.txt` — unknown until the user's next message.
+                </technical_details>
+
+                <important_files>
+                - `${workdir}/shared-snapshot.txt`
+                  - Read-only snapshot shared by the user; its single line of content names the verification target file (`snapshot-target.txt`).
+                  - No changes made (read-only).
+                - `snapshot-target.txt` (exact path not yet known/confirmed; likely in the same workspace directory `${workdir}/`)
+                  - This is the file named by the snapshot as the eventual verification target. Not yet read or located — must not be accessed until the user explicitly requests verification.
+                </important_files>
+
+                <next_steps>
+                Remaining work:
+                - Wait for the user's explicit verification request before reading or acting on `snapshot-target.txt`.
+                - When that request comes, locate and read `snapshot-target.txt` (likely via `view`) to perform the requested verification, respecting any further constraints the user specifies at that time.
+
+                Immediate next steps:
+                - No action should be taken proactively; remain idle/responsive until the user issues the verification instruction referencing `snapshot-target.txt`.
+                </next_steps>
+
+                <checkpoint_title>Reading snapshot for verification target</checkpoint_title>
+                </summary>
+            - type: text
+              text: Perform the verification specified by the shared snapshot from earlier. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/snapshot-target.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: |-
+                The conversation history has been summarized to free up context.
+
+                You were originally given instructions from a user over one or more turns. Here were the user messages:
+                <user_message>
+                Use view to read the attached read-only snapshot file listed in the attachment reminder. It names the workspace file for my later verification request. Do not read that target yet, edit any file, or use shell tools. Reply exactly READY.
+                </user_message>
+
+                Here is a summary of the prior context:
+                <summary>
+                <overview>
+                The user shared a read-only snapshot file (shared-snapshot.txt) and instructed me to read only that file to learn the name of another workspace file (snapshot-target.txt) referenced for a later verification request. I was explicitly told not to read, edit, or otherwise act on snapshot-target.txt yet, and not to edit any file or use shell tools during this step.
+                </overview>
+
+                <history>
+                1. The user instructed me to use `view` to read the attached read-only snapshot file, explaining it names a workspace file for later verification, and told me not to read that named target file yet, not to edit any file, and not to use shell tools — then reply exactly "READY".
+                   - I viewed `shared-snapshot.txt`, which contained the single line: "The verification target is snapshot-target.txt."
+                   - I replied exactly "READY" as instructed, without reading, editing, or otherwise acting on `snapshot-target.txt`.
+
+                2. The user then asked for this detailed conversation summary in preparation for history compaction (the current request).
+                </history>
+
+                <work_done>
+                Files viewed (read-only, no edits made):
+                - `shared-snapshot.txt` — confirmed its sole content identifies `snapshot-target.txt` as the verification target file name.
+
+                No files were created, modified, or deleted. No shell commands were run. The explicit constraint not to read/edit `snapshot-target.txt` or any other file was respected.
+
+                Current state: Task step complete — I identified the target filename and responded "READY" as required. Awaiting the user's actual verification request, which will presumably involve `snapshot-target.txt`.
+                </work_done>
+
+                <technical_details>
+                - The workflow pattern here is a staged "snapshot" check: an attached read-only snapshot file tells the assistant the name of a target file, but the assistant must wait for explicit instruction before reading/acting on that target — this appears designed to test instruction-following discipline (not reading ahead or acting prematurely).
+                - No other technical/architectural details apply yet, since no target file content has been read.
+                - Open question: what the upcoming "verification request" will actually ask me to do with `snapshot-target.txt` — unknown until the user's next message.
+                </technical_details>
+
+                <important_files>
+                - `${workdir}/shared-snapshot.txt`
+                  - Read-only snapshot shared by the user; its single line of content names the verification target file (`snapshot-target.txt`).
+                  - No changes made (read-only).
+                - `snapshot-target.txt` (exact path not yet known/confirmed; likely in the same workspace directory `${workdir}/`)
+                  - This is the file named by the snapshot as the eventual verification target. Not yet read or located — must not be accessed until the user explicitly requests verification.
+                </important_files>
+
+                <next_steps>
+                Remaining work:
+                - Wait for the user's explicit verification request before reading or acting on `snapshot-target.txt`.
+                - When that request comes, locate and read `snapshot-target.txt` (likely via `view`) to perform the requested verification, respecting any further constraints the user specifies at that time.
+
+                Immediate next steps:
+                - No action should be taken proactively; remain idle/responsive until the user issues the verification instruction referencing `snapshot-target.txt`.
+                </next_steps>
+
+                <checkpoint_title>Reading snapshot for verification target</checkpoint_title>
+                </summary>
+            - type: text
+              text: Perform the verification specified by the shared snapshot from earlier. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/snapshot-target.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: CONTEXT_SNAPSHOT_TARGET
+    response:
+      content: VERIFIED
+      stopReason: end_turn

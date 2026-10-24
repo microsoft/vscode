@@ -1,0 +1,51 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build.cjs` once with the shell tool. Report its build result and the warning category.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node build.cjs
+            description: Run node build script
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build.cjs` once with the shell tool. Report its build result and the warning category.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node build.cjs
+                description: Run node build script
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Shell output was automatically compacted. Compacted output below. Original at ${shell_output_0}; only use if exact omitted lines are needed.
+
+                BUILD_COMPLETE:64
+                (node:52888) [FIXTURE_LOADER] DeprecationWarning: Legacy fixture loader used by the generated module build
+                (Use `node --trace-deprecation ...` to show where the warning was created)
+                [node warnings: omitted 63 repeated warning line(s)]
+
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: |-
+        Build result: **success** — `node build.cjs` completed with `BUILD_COMPLETE:64` and exit code 0.
+
+        Warning category: **`FIXTURE_LOADER` DeprecationWarning** — "Legacy fixture loader used by the generated module build" (repeated 64 times total, 63 of which were omitted/collapsed in the output).
+      stopReason: end_turn

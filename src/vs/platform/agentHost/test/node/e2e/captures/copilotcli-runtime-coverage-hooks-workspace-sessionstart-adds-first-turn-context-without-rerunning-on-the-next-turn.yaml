@@ -1,0 +1,33 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: HOOK_SESSION_CONTEXT
+            - type: text
+              text: Reply exactly HOOK_SESSION_READY. Do not use any tools.
+    response:
+      content: HOOK_SESSION_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: HOOK_SESSION_CONTEXT
+            - type: text
+              text: Reply exactly HOOK_SESSION_READY. Do not use any tools.
+        - role: assistant
+          content: HOOK_SESSION_READY
+        - role: user
+          content: Reply exactly HOOK_SESSION_STILL_READY. Do not use any tools.
+    response:
+      content: HOOK_SESSION_STILL_READY
+      stopReason: end_turn

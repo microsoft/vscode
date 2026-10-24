@@ -1,0 +1,57 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call the capability_read tool from capability-probe exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Do not use capability_blocked or other tools. Then reply CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - channel: ${session_0}
+        action:
+          type: root/configChanged
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call the capability_read tool from capability-probe exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Do not use capability_blocked or other tools. Then reply CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: capability-probe-capability_read
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: CAPABILITY_COMPLETE
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
+      - channel: ${session_0}
+        action:
+          type: root/configChanged

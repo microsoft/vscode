@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/large.txt" using view_range [6001, -1]. Do not use another tool. Reply exactly RANGE_CHECKED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/large.txt
+            view_range:
+              - 6001
+              - -1
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view exactly once on "${workdir}/large.txt" using view_range [6001, -1]. Do not use another tool. Reply exactly RANGE_CHECKED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/large.txt
+                view_range:
+                  - 6001
+                  - -1
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                LARGE_END_ONE
+                LARGE_END_TWO
+    response:
+      content: RANGE_CHECKED
+      stopReason: end_turn

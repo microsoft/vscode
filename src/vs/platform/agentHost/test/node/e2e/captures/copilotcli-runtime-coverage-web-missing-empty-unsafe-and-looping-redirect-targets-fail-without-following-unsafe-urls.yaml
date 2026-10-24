@@ -1,0 +1,319 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: web_fetch
+          input:
+            url: ${url_web}/missing-location
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 302 from ${url_web}/missing-location: redirect response omitted the Location header.'
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 302 from ${url_web}/missing-location: redirect response omitted the Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/empty-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: web_fetch
+          input:
+            url: ${url_web}/empty-location
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 302 from ${url_web}/missing-location: redirect response omitted the Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/empty-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/empty-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/empty-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 301 from ${url_web}/empty-location: redirect response contained an empty Location header.'
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 302 from ${url_web}/missing-location: redirect response omitted the Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/empty-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/empty-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/empty-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 301 from ${url_web}/empty-location: redirect response contained an empty Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unsafe-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: web_fetch
+          input:
+            url: ${url_web}/unsafe-location
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 302 from ${url_web}/missing-location: redirect response omitted the Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/empty-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/empty-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/empty-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 301 from ${url_web}/empty-location: redirect response contained an empty Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unsafe-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unsafe-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: 'Failed to fetch ${url_web}/unsafe-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 307 from ${url_web}/unsafe-location: redirect target uses unsupported scheme: data.'
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 302 from ${url_web}/missing-location: redirect response omitted the Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/empty-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/empty-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/empty-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 301 from ${url_web}/empty-location: redirect response contained an empty Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unsafe-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unsafe-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: 'Failed to fetch ${url_web}/unsafe-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 307 from ${url_web}/unsafe-location: redirect target uses unsupported scheme: data.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/loop"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: web_fetch
+          input:
+            url: ${url_web}/loop
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/missing-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/missing-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Failed to fetch ${url_web}/missing-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 302 from ${url_web}/missing-location: redirect response omitted the Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/empty-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/empty-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'Failed to fetch ${url_web}/empty-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 301 from ${url_web}/empty-location: redirect response contained an empty Location header.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/unsafe-location"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/unsafe-location
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: 'Failed to fetch ${url_web}/unsafe-location: GenericFailure, Error: WebFetchRedirectError: web_fetch could not follow redirect 307 from ${url_web}/unsafe-location: redirect target uses unsupported scheme: data.'
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/loop"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/loop
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: 'Failed to fetch ${url_web}/loop: GenericFailure, Error: WebFetchRedirectError: web_fetch exceeded the redirect limit of 10 while following redirect 308 from ${url_web}/loop.'
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn

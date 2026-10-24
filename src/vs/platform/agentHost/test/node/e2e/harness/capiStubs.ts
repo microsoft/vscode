@@ -167,7 +167,7 @@ export function getAncillaryStub(method: string, path: string, body?: string): I
 	// the configured model exactly as it does today — but served as a stub (not
 	// recorded, not a strict cache miss) so an SDK bump that starts calling these
 	// does not fail the run and no short-lived session token lands in a fixture.
-	if ((path === '/models/session' || path === '/models/session/intent') && method === 'POST') {
+	if ((path === '/auto' || path === '/models/session' || path === '/models/session/intent') && method === 'POST') {
 		return { status: 500, headers: { 'content-type': 'text/plain', 'x-should-retry': 'false' }, body: 'auto-mode not available in replay' };
 	}
 	// Enterprise MCP registry policy — fetched only when the developer has local

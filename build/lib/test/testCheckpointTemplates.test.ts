@@ -97,7 +97,7 @@ suite('Product test checkpoint templates', () => {
 		for (const file of globSync('**/*.yml', { cwd: pipelineRoot }).sort()) {
 			for (const record of records(readTemplate(file))) {
 				if (typeof record.template === 'string' && /\/(restore-test-checkpoints|run-test-with-checkpoint|publish-test-checkpoint)\.yml@self$/.test(record.template)) {
-					users.push(`${file} -> ${path.basename(record.template.replace(/@self$/, ''))}`);
+					users.push(`${file.replaceAll(path.sep, '/')} -> ${path.basename(record.template.replace(/@self$/, ''))}`);
 				}
 			}
 		}

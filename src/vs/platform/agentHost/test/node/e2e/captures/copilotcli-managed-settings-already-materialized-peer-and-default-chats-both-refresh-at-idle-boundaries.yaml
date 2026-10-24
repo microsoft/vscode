@@ -1,0 +1,221 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/public.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/public.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_PUBLIC_FILE
+    response:
+      content: MANAGED_CHECK_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/public.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/public.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: SYNTHETIC_PUBLIC_FILE
+    response:
+      content: MANAGED_CHECK_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/public.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: SYNTHETIC_PUBLIC_FILE
+        - role: assistant
+          content: MANAGED_CHECK_COMPLETE
+        - role: user
+          content: 'Call edit on "protected.txt" in this session''s current working directory. Set path to its full absolute path and use these exact replacement fields: {"old_str":"SYNTHETIC_MANAGED_READ_CANARY\n","new_str":"SYNTHETIC_MANAGED_FILE_CHANGED\n"}. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: edit
+          input:
+            path: ${workdir}/protected.txt
+            old_str: |
+              SYNTHETIC_MANAGED_READ_CANARY
+            new_str: |
+              SYNTHETIC_MANAGED_FILE_CHANGED
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/public.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: SYNTHETIC_PUBLIC_FILE
+        - role: assistant
+          content: MANAGED_CHECK_COMPLETE
+        - role: user
+          content: 'Call edit on "protected.txt" in this session''s current working directory. Set path to its full absolute path and use these exact replacement fields: {"old_str":"SYNTHETIC_MANAGED_READ_CANARY\n","new_str":"SYNTHETIC_MANAGED_FILE_CHANGED\n"}. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/protected.txt
+                old_str: |
+                  SYNTHETIC_MANAGED_READ_CANARY
+                new_str: |
+                  SYNTHETIC_MANAGED_FILE_CHANGED
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+    response:
+      content: |-
+        Access denied: the edit tool was blocked by permission rules (`Write` denied) for protected.txt. No retry attempted.
+
+        MANAGED_CHECK_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/public.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_PUBLIC_FILE
+        - role: assistant
+          content: MANAGED_CHECK_COMPLETE
+        - role: user
+          content: 'Call edit on "protected.txt" in this session''s current working directory. Set path to its full absolute path and use these exact replacement fields: {"old_str":"SYNTHETIC_MANAGED_READ_CANARY\n","new_str":"SYNTHETIC_MANAGED_FILE_CHANGED\n"}. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: edit
+          input:
+            path: ${workdir}/protected.txt
+            old_str: |
+              SYNTHETIC_MANAGED_READ_CANARY
+            new_str: |
+              SYNTHETIC_MANAGED_FILE_CHANGED
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/public.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_PUBLIC_FILE
+        - role: assistant
+          content: MANAGED_CHECK_COMPLETE
+        - role: user
+          content: 'Call edit on "protected.txt" in this session''s current working directory. Set path to its full absolute path and use these exact replacement fields: {"old_str":"SYNTHETIC_MANAGED_READ_CANARY\n","new_str":"SYNTHETIC_MANAGED_FILE_CHANGED\n"}. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: edit
+              input:
+                path: ${workdir}/protected.txt
+                old_str: |
+                  SYNTHETIC_MANAGED_READ_CANARY
+                new_str: |
+                  SYNTHETIC_MANAGED_FILE_CHANGED
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: 'Permission to run this tool was denied due to the following rules: `Write`'
+    response:
+      content: |-
+        Access denied: the edit tool call was blocked by permission rules (Write denied).
+
+        MANAGED_CHECK_COMPLETE
+      stopReason: end_turn

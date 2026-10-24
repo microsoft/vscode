@@ -87,7 +87,10 @@ suite('posixCommandLint', () => {
 			`node -e "console.log(1)" \${workdir}`,
 			`echo \${homedir}`,
 			`node script.js \${temp}`,
+			`node script.js "\${saved_output_0}"`,
+			`node script.js "\${saved_output_12}"`,
 		]), []);
+		assert.deepStrictEqual(check([`node script.js "\${unknown_output}"`]), [`node script.js "\${unknown_output}"`]);
 	});
 
 	test('reports the reason and tool for each finding', () => {

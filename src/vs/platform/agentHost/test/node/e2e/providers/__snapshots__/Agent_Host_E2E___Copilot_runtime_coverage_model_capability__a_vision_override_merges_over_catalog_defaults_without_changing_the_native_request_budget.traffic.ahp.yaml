@@ -1,0 +1,51 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Do not use tools. Acknowledge the attached synthetic image by replying exactly CAPABILITY_IMAGE_ACCEPTED.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - channel: ${session_1}
+        action:
+          type: root/configChanged
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Do not use tools. Acknowledge the attached synthetic image by replying exactly CAPABILITY_IMAGE_ACCEPTED.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: CAPABILITY_IMAGE_ACCEPTED
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
+      - channel: ${session_1}
+        action:
+          type: root/configChanged

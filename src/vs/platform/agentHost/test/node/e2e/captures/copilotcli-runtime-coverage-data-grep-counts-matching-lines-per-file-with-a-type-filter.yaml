@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call grep exactly once with pattern COUNT_NEEDLE, output_mode "count", and glob "*.ts". Do not use other tools. Reply exactly COUNT_CHECKED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: grep
+          input:
+            pattern: COUNT_NEEDLE
+            output_mode: count
+            glob: '*.ts'
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call grep exactly once with pattern COUNT_NEEDLE, output_mode "count", and glob "*.ts". Do not use other tools. Reply exactly COUNT_CHECKED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: grep
+              input:
+                pattern: COUNT_NEEDLE
+                output_mode: count
+                glob: '*.ts'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                .\two.ts:1
+                .\one.ts:2
+    response:
+      content: COUNT_CHECKED
+      stopReason: end_turn

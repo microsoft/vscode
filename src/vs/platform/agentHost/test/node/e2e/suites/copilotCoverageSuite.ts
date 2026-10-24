@@ -636,7 +636,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	test('shell output preserves public GitHub MCP metadata', async function () {
+	fullOnlyTest('shell output preserves public GitHub MCP metadata', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('public-mcp-metadata');
 		const turnId = 'turn-public-mcp-metadata';

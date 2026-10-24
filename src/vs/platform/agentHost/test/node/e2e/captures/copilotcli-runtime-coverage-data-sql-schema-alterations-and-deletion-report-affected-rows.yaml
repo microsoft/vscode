@@ -1,0 +1,67 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            CREATE TABLE disposable (value TEXT); ALTER TABLE disposable ADD COLUMN rank INTEGER DEFAULT 4; INSERT INTO disposable (value) VALUES ('DELETE_ME'); DELETE FROM disposable; SELECT COUNT(*) AS remaining FROM disposable; DROP TABLE disposable;
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: sql
+          input:
+            description: Check runtime data
+            query: CREATE TABLE disposable (value TEXT); ALTER TABLE disposable ADD COLUMN rank INTEGER DEFAULT 4; INSERT INTO disposable (value) VALUES ('DELETE_ME'); DELETE FROM disposable; SELECT COUNT(*) AS remaining FROM disposable; DROP TABLE disposable;
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            CREATE TABLE disposable (value TEXT); ALTER TABLE disposable ADD COLUMN rank INTEGER DEFAULT 4; INSERT INTO disposable (value) VALUES ('DELETE_ME'); DELETE FROM disposable; SELECT COUNT(*) AS remaining FROM disposable; DROP TABLE disposable;
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: sql
+              input:
+                description: Check runtime data
+                query: CREATE TABLE disposable (value TEXT); ALTER TABLE disposable ADD COLUMN rank INTEGER DEFAULT 4; INSERT INTO disposable (value) VALUES ('DELETE_ME'); DELETE FROM disposable; SELECT COUNT(*) AS remaining FROM disposable; DROP TABLE disposable;
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Executed 6 statement(s):
+
+                1. CREATE
+                   Schema operation completed successfully.
+
+                2. ALTER
+                   Schema operation completed successfully.
+
+                3. INSERT
+                   1 row(s) inserted. Last inserted row ID: 1.
+
+                4. DELETE
+                   1 row(s) deleted.
+
+                5. SELECT
+                   1 row(s) returned:
+                   
+                   | remaining |
+                   | --- |
+                   | 0 |
+
+                6. DROP
+                   Schema operation completed successfully.
+    response:
+      content: DATA_CHECKED
+      stopReason: end_turn

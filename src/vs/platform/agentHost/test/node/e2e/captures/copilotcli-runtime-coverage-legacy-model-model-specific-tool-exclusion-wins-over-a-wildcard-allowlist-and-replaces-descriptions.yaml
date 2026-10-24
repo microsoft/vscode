@@ -1,0 +1,32 @@
+version: 1
+exchanges:
+  - method: POST
+    path: /chat/completions
+    response:
+      status: 200
+      headers:
+        content-type: text/event-stream
+      body: |+
+        data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"name":"legacy_visible"},"id":"toolu_0199SJShEq4m98Z5b17gGBKm","index":0,"type":"function"}]}}],"created":1791301904,"id":"msg_011CfmFW5kUYfj4F5RSg6HeU","model":"claude-sonnet-5"}
+
+        data: {"choices":[{"index":0,"delta":{"content":null,"tool_calls":[{"function":{"arguments":""},"index":0}]}}],"created":1791301904,"id":"msg_011CfmFW5kUYfj4F5RSg6HeU","model":"claude-sonnet-5"}
+
+        data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{"content":null}}],"created":1791301904,"id":"msg_011CfmFW5kUYfj4F5RSg6HeU","usage":{"completion_tokens":29,"prompt_tokens":24597,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":24626},"model":"claude-sonnet-5","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":200000000000,"model":"claude-sonnet-5","token_count":2,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":20000000000,"model":"claude-sonnet-5","token_count":0,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":250000000000,"model":"claude-sonnet-5","token_count":24595,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":1000000000000,"model":"claude-sonnet-5","token_count":29,"token_type":"output"}],"total_nano_aiu":6178150000}}
+
+        data: [DONE]
+
+  - method: POST
+    path: /chat/completions
+    response:
+      status: 200
+      headers:
+        content-type: text/event-stream
+      body: |+
+        data: {"choices":[{"index":0,"delta":{"content":"VISIBLE_D","role":"assistant"}}],"created":1791301905,"id":"msg_011CfmFWBYj76AsZQiA4pNK1","model":"claude-sonnet-5"}
+
+        data: {"choices":[{"index":0,"delta":{"content":"ONE","role":"assistant"}}],"created":1791301905,"id":"msg_011CfmFWBYj76AsZQiA4pNK1","model":"claude-sonnet-5"}
+
+        data: {"choices":[{"finish_reason":"stop","index":0,"delta":{"content":null}}],"created":1791301905,"id":"msg_011CfmFWBYj76AsZQiA4pNK1","usage":{"completion_tokens":12,"prompt_tokens":24647,"prompt_tokens_details":{"cached_tokens":24595},"total_tokens":24659},"model":"claude-sonnet-5","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":200000000000,"model":"claude-sonnet-5","token_count":2,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":20000000000,"model":"claude-sonnet-5","token_count":24595,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":250000000000,"model":"claude-sonnet-5","token_count":50,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":1000000000000,"model":"claude-sonnet-5","token_count":12,"token_type":"output"}],"total_nano_aiu":516800000}}
+
+        data: [DONE]
+

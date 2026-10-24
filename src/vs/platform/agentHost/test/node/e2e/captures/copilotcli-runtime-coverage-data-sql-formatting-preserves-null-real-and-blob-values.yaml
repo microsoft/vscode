@@ -1,0 +1,49 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            SELECT NULL AS missing, 12.5 AS fraction, X'414243' AS bytes, 'VALUE_TYPES' AS marker;
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: sql
+          input:
+            description: Check runtime data
+            query: SELECT NULL AS missing, 12.5 AS fraction, X'414243' AS bytes, 'VALUE_TYPES' AS marker;
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            SELECT NULL AS missing, 12.5 AS fraction, X'414243' AS bytes, 'VALUE_TYPES' AS marker;
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: sql
+              input:
+                description: Check runtime data
+                query: SELECT NULL AS missing, 12.5 AS fraction, X'414243' AS bytes, 'VALUE_TYPES' AS marker;
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                1 row(s) returned:
+
+                | missing | fraction | bytes | marker |
+                | --- | --- | --- | --- |
+                | NULL | 12.5 | {"0":65,"1":66,"2":67} | VALUE_TYPES |
+    response:
+      content: DATA_CHECKED
+      stopReason: end_turn

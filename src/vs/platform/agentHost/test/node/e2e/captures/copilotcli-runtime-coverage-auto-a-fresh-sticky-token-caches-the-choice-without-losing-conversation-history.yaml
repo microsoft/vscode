@@ -1,0 +1,25 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word AUTO_STICKY. Do not use tools. Reply exactly READY.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word AUTO_STICKY. Do not use tools. Reply exactly READY.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Do not use tools. Reply with only the exact code word I asked you to remember.
+    response:
+      content: AUTO_STICKY
+      stopReason: end_turn

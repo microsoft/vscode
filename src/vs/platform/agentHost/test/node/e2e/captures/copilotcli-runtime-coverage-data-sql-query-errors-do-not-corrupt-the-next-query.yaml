@@ -1,0 +1,117 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call sql exactly once with query "SELECT * FROM missing_table" and description "Check missing table". Do not retry. Reply exactly QUERY_FAILED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: sql
+          input:
+            query: SELECT * FROM missing_table
+            description: Check missing table
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call sql exactly once with query "SELECT * FROM missing_table" and description "Check missing table". Do not retry. Reply exactly QUERY_FAILED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: sql
+              input:
+                query: SELECT * FROM missing_table
+                description: Check missing table
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'SQL Error: Error: no such table: missing_table'
+    response:
+      content: QUERY_FAILED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call sql exactly once with query "SELECT * FROM missing_table" and description "Check missing table". Do not retry. Reply exactly QUERY_FAILED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: sql
+              input:
+                query: SELECT * FROM missing_table
+                description: Check missing table
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'SQL Error: Error: no such table: missing_table'
+        - role: assistant
+          content: QUERY_FAILED
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            SELECT 'QUERY_RECOVERED' AS marker;
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: sql
+          input:
+            description: Check runtime data
+            query: SELECT 'QUERY_RECOVERED' AS marker;
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call sql exactly once with query "SELECT * FROM missing_table" and description "Check missing table". Do not retry. Reply exactly QUERY_FAILED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: sql
+              input:
+                query: SELECT * FROM missing_table
+                description: Check missing table
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'SQL Error: Error: no such table: missing_table'
+        - role: assistant
+          content: QUERY_FAILED
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            SELECT 'QUERY_RECOVERED' AS marker;
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: sql
+              input:
+                description: Check runtime data
+                query: SELECT 'QUERY_RECOVERED' AS marker;
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                1 row(s) returned:
+
+                | marker |
+                | --- |
+                | QUERY_RECOVERED |
+    response:
+      content: DATA_CHECKED
+      stopReason: end_turn

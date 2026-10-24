@@ -1,0 +1,114 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with the shell tool. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with the shell tool, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node report.cjs
+            description: Run the test report generator script
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with the shell tool. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with the shell tool, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node report.cjs
+                description: Run the test report generator script
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Output too large to read at once (631.7 KB). Saved to: ${saved_output_0}
+                Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.
+
+                Preview (first 500 chars):
+                {"test":"case-0","status":"passed","details":"fixture serialization rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"}
+                {"test":"case-1","status":"passed","details":"fixture serialization rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"}
+                {"test":"case-2","status":"passed","details":"fixture serialization rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"}
+                {"test":"case-3","status":"passed","details":"fixture serialization rrrrrrrrr
+                <shellId: 0 completed with exit code 1>
+    response:
+      content:
+        - type: text
+          text: The report saved its output to `${saved_output_0}`. Now running the filter script against that file.
+        - type: tool_use
+          id: toolcall_1
+          name: ${shell}
+          input:
+            command: node filter.cjs "${saved_output_0}"
+            description: Run filter script on saved report output file
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with the shell tool. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with the shell tool, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node report.cjs
+                description: Run the test report generator script
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Output too large to read at once (631.7 KB). Saved to: ${saved_output_0}
+                Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.
+
+                Preview (first 500 chars):
+                {"test":"case-0","status":"passed","details":"fixture serialization rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"}
+                {"test":"case-1","status":"passed","details":"fixture serialization rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"}
+                {"test":"case-2","status":"passed","details":"fixture serialization rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"}
+                {"test":"case-3","status":"passed","details":"fixture serialization rrrrrrrrr
+                <shellId: 0 completed with exit code 1>
+        - role: assistant
+          content:
+            - type: text
+              text: The report saved its output to `${saved_output_0}`. Now running the filter script against that file.
+            - type: tool_use
+              name: powershell
+              input:
+                command: node filter.cjs "${saved_output_0}"
+                description: Run filter script on saved report output file
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                TEST_REPORT_FILTERED:{"total":4500,"failures":[{"test":"case-2718","details":"REPORT_FAILURE: expected UTF-8 roundtrip"}]}
+                <shellId: 1 completed with exit code 0>
+    response:
+      content: |-
+        Both commands ran successfully:
+
+        1. **`node report.cjs`** — produced a large JSON-lines test report (631.7 KB), auto-saved to `${saved_output_0}`.
+        2. **`node filter.cjs "<that file path>"`** — processed it and returned:
+
+        ```
+        TEST_REPORT_FILTERED:{"total":4500,"failures":[{"test":"case-2718","details":"REPORT_FAILURE: expected UTF-8 roundtrip"}]}
+        ```
+
+        Summary: out of 4500 test cases, there was **1 failure** — `case-2718`, with details `REPORT_FAILURE: expected UTF-8 roundtrip`.
+      stopReason: end_turn

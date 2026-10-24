@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -14,6 +15,73 @@ import { detectAgentHostE2EChanges } from '../../../.github/actions/detect-agent
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const profilePath = path.join(repositoryRoot, 'src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
+const nodeRequire = createRequire(import.meta.url);
+const runner: {
+	suites: readonly { id: string; label: string; file: string }[];
+	suiteArguments(args: readonly string[], suite: { id: string; label: string; file: string }): readonly string[];
+} = nodeRequire('../../../test/integration/agentHost/runner.ts');
+
+suite('Copilot E2E worker partitions', () => {
+	const workers = runner.suites.filter(item => item.id === 'copilot' || item.id === 'copilot-runtime');
+	const titles = [
+		'Agent Host E2E — Copilot retains context across consecutive turns',
+		'Agent Host E2E — Copilot managed settings: read denial',
+		'Agent Host E2E — Copilot runtime coverage shell: verifies exact command',
+		'Agent Host E2E — Copilot MCP runtime coverage mcp: preserves resources',
+	];
+
+	test('the two mandatory workers select disjoint and exhaustive cases without changing the entrypoint', () => {
+		assert.deepStrictEqual({
+			firstWorkers: runner.suites.slice(0, 2).map(worker => worker.id),
+			workers: workers.map(item => ({ id: item.id, file: item.file })),
+			selections: titles.map(title => workers.map(worker => {
+				const args = runner.suiteArguments([], worker);
+				return new RegExp(args[args.indexOf('--grep') + 1]).test(title);
+			})),
+		}, {
+			firstWorkers: ['copilot', 'copilot-runtime'],
+			workers: ['copilot', 'copilot-runtime'].map(id => ({
+				id, file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
+			})),
+			selections: [[true, false], [true, false], [false, true], [false, true]],
+		});
+	});
+
+	test('focused and inverted selections intersect each worker rather than escaping its partition', () => {
+		for (const option of ['--grep', '-g', '-f', '--grep=']) {
+			for (const pattern of ['', 'context', '^Agent Host', 'runtime coverage', 'managed settings', 'shell:.*command$']) {
+				for (const inverted of [false, true]) {
+					const original = new RegExp(pattern);
+					for (const worker of workers) {
+						const forwarded = option.endsWith('=') ? [`${option}${pattern}`] : [option, pattern];
+						if (inverted) {
+							forwarded.push('--invert');
+						}
+						const args = runner.suiteArguments(forwarded, worker);
+						const selected = new RegExp(args[args.indexOf('--grep') + 1]);
+						assert.deepStrictEqual(titles.map(title => selected.test(title)), titles.map(title =>
+							original.test(title) !== inverted
+							&& title.includes('runtime coverage ') === (worker.id === 'copilot-runtime')
+						), JSON.stringify({ option, pattern, inverted, worker: worker.id }));
+					}
+				}
+			}
+		}
+	});
+
+	test('other providers retain their filters, and reporting identifies each partition', () => {
+		const forwarded = ['--grep', 'context', '--invert'];
+		const other = runner.suites.find(item => item.id === 'claude')!;
+		assert.deepStrictEqual(runner.suiteArguments(forwarded, other), forwarded);
+		for (const worker of workers) {
+			const args = runner.suiteArguments(['--tfs', 'Integration'], worker);
+			assert.ok(args[args.indexOf('--tfs') + 1].startsWith(`Integration ${worker.label} `));
+			assert.throws(() => runner.suiteArguments(['--grep'], worker), /requires a pattern/);
+			const inverted = runner.suiteArguments(['--invert'], worker);
+			assert.ok(titles.every(title => !new RegExp(inverted[inverted.indexOf('--grep') + 1]).test(title)));
+		}
+	});
+});
 
 async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
 	const outputs: Record<string, string> = {};
@@ -270,8 +338,8 @@ suite('Agent Host PR test selection', () => {
 			.map(file => path.posix.join(e2eDirectory, file.split(path.sep).join('/')))
 			.filter(file => file.endsWith('.integrationTest.ts') && path.matchesGlob(file.replace(/^src\//, 'out/').replace(/\.ts$/, '.js'), shellGlob))
 			.sort();
-		const runnerFiles = [...readFileSync(path.join(repositoryRoot, 'test/integration/agentHost/runner.ts'), 'utf8').matchAll(/^\t\tfile: '(?<file>[^']+)',$/gm)]
-			.map(match => match.groups!.file)
+		const runnerFiles = [...new Set([...readFileSync(path.join(repositoryRoot, 'test/integration/agentHost/runner.ts'), 'utf8').matchAll(/^\t\tfile: '(?<file>[^']+)',$/gm)]
+			.map(match => match.groups!.file))]
 			.sort();
 		assert.deepStrictEqual({ batchGlob, excludedFromIntegrationScripts: excluded, runByAgentHostE2E: runnerFiles }, {
 			batchGlob: shellGlob,
@@ -341,6 +409,33 @@ suite('Agent Host PR test selection', () => {
 			'build/azure-pipelines/win32/steps/product-build-win32-test.yml',
 		].map(file => ({ file, integrationSteps: 1, pairedWithAgentHostE2E: true })));
 	});
+
+	test('packaged platforms run Agent Host E2E only in its dedicated checkpoint', () => {
+		const records = (value: unknown): Record<string, unknown>[] => {
+			if (Array.isArray(value)) {
+				return value.flatMap(records);
+			}
+			if (value && typeof value === 'object') {
+				return [value as Record<string, unknown>, ...Object.values(value).flatMap(records)];
+			}
+			return [];
+		};
+		for (const platform of ['darwin', 'linux', 'win32']) {
+			const file = `build/azure-pipelines/${platform}/steps/product-build-${platform}-test.yml`;
+			const template = readFileSync(path.join(repositoryRoot, file), 'utf8');
+			const calls = records(load(template))
+				.filter(record => typeof record.template === 'string' && record.template.endsWith('/run-test-with-checkpoint.yml@self'))
+				.map(record => record.parameters as { testId: string; beforeTestSteps?: object[]; testStep: { script?: string; powershell?: string } });
+			const host = calls.filter(call => call.testId === 'integration-agent-host-e2e');
+			const remaining = calls.filter(call => call.testId === 'integration-electron');
+			assert.deepStrictEqual({
+				hostCheckpoints: host.length,
+				remainingCheckpoints: remaining.length,
+				agentHostTestSteps: (template.match(/displayName: .*Run Agent Host E2E tests \(Electron\)/g) ?? []).length,
+				extraIntegrationSteps: remaining[0]?.beforeTestSteps,
+			}, { hostCheckpoints: 1, remainingCheckpoints: 1, agentHostTestSteps: 1, extraIntegrationSteps: undefined }, platform);
+		}
+	});
 });
 
 suite('Agent Host test profile registration', () => {
@@ -368,12 +463,15 @@ suite('Agent Host test profile registration', () => {
 		]);
 	});
 
-	test('the initial full-only inventory contains only the intended variations', () => {
+	test('pre-existing tests reserve native depth and redundant variations for Full', () => {
 		const titles: string[] = [];
 		for (const relativePath of [
 			'src/vs/platform/agentHost/test/node/e2e/suites/fileOperationsSuite.ts',
 			'src/vs/platform/agentHost/test/node/e2e/suites/multiChatSuite.ts',
 			'src/vs/platform/agentHost/test/node/e2e/suites/copilotCoverageSuite.ts',
+			'src/vs/platform/agentHost/test/node/e2e/suites/copilotRuntimeToolsSuite.ts',
+			'src/vs/platform/agentHost/test/node/e2e/suites/mcpPluginSuite.ts',
+			'src/vs/platform/agentHost/test/node/providerIntegration/copilotManagedPermissions.integrationTest.ts',
 			'src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts',
 		]) {
 			const source = ts.createSourceFile(relativePath, readFileSync(path.join(repositoryRoot, relativePath), 'utf8'), ts.ScriptTarget.Latest, true);
@@ -398,13 +496,173 @@ suite('Agent Host test profile registration', () => {
 			'counts lines in a file',
 			'lists workspace entries',
 			'inspects git status',
+			'creates a file in a new nested directory',
+			'renames a workspace file',
+			'deletes a workspace file',
 			'peer chat reads a file from a nested directory',
 			'peer chat creates a file in a nested directory',
+			'peer chat edits an existing workspace file',
+			'peer chat handles a missing workspace file without an error',
+			'peer chat reads a filename containing spaces',
 			'view range returns only the requested workspace lines',
 			'grep searches workspace content through the provider tool',
 			'glob finds a nested workspace file through the provider tool',
+			'shell output preserves public GitHub MCP metadata',
+			'runtime tools: compacted shell output preserves the complete original',
+			'runtime tools: native apply_patch handles bare-minus hunks on zero-byte files',
+			'runtime tools: GPT requests detailed reasoning and unfinished-task continuation guidance by default',
+			'plugin UserPromptSubmit hook receives the submitted prompt',
+			'plugin PreToolUse hook runs before an MCP tool',
+			'plugin PostToolUse hook runs after an MCP tool result',
+			'plugin SessionEnd hook runs when the session is disposed',
+			'failing plugin hook is non-fatal to the provider turn',
+			'non-JSON plugin hook output is ignored without failing the provider turn',
+			'runtime independently enforces both approval-mode restrictions',
 			'shell tools and concurrent session events complete with OTel ',
 		].sort());
+	});
+
+	test('added runtime coverage defaults to Full with an explicit host-regression PR subset', () => {
+		const sourceFor = (area: string) => {
+			const file = path.join(repositoryRoot, `src/vs/platform/agentHost/test/node/e2e/suites/copilotRuntime${area}CoverageSuite.ts`);
+			return ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+		};
+		const callsIn = (source: ts.Node, name: string): ts.CallExpression[] => {
+			const calls: ts.CallExpression[] = [];
+			const visit = (node: ts.Node): void => {
+				if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === name) {
+					calls.push(node);
+				}
+				ts.forEachChild(node, visit);
+			};
+			visit(source);
+			return calls;
+		};
+		const native = ['Data', 'Shell', 'Web', 'Telemetry', 'AutomaticContext'].map(area => {
+			const source = sourceFor(area);
+			return { area, full: callsIn(source, 'fullOnlyTest').length, pr: callsIn(source, 'test').length };
+		});
+		const helpers = {
+			Context: 'contextTest',
+			Customization: 'customizationTest',
+			Hooks: 'hooksTest',
+			ManagedSettings: 'managedTest',
+			ManagedDiagnostics: 'diagnosticTest',
+			Mcp: 'mcpTest',
+			McpAuthorization: 'authTest',
+			ModelCapability: 'capabilityTest',
+			Resilience: 'failureTest',
+		};
+		const retained = Object.fromEntries(['Auto', ...Object.keys(helpers), 'LegacyModel'].map(area => {
+			const source = sourceFor(area);
+			const names = new Map<string, string>();
+			const visit = (node: ts.Node): void => {
+				if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ts.isStringLiteral(node.initializer)) {
+					names.set(node.name.text, node.initializer.text);
+				}
+				if (ts.isFunctionDeclaration(node) && node.name?.text === helpers[area as keyof typeof helpers]) {
+					assert.strictEqual(node.parameters.find(parameter => parameter.name.getText(source) === 'profile')?.initializer?.getText(source), '\'full\'', area);
+					assert.ok(node.body?.getText(source).includes('profile === \'pr\' ? test : fullOnlyTest'), area);
+				}
+				ts.forEachChild(node, visit);
+			};
+			visit(source);
+			const titles = ['test', 'providerHostOnlyTest', ...Object.values(helpers)].flatMap(name =>
+				callsIn(source, name).filter(call => {
+					const last = call.arguments.at(-1);
+					return name === 'test' || name === 'providerHostOnlyTest' || (last && ts.isStringLiteral(last) && last.text === 'pr');
+				}).map(call => {
+					const title = call.arguments[call.expression.getText(source) === 'providerHostOnlyTest' ? 1 : 0];
+					const text = ts.isStringLiteral(title) ? title.text : ts.isIdentifier(title) ? names.get(title.text) : undefined;
+					assert.ok(text, `${area}: expected a concrete PR test title`);
+					return text.replace(/^(?:runtime coverage [^:]+|managed settings(?: diagnostics)?): /, '');
+				}));
+			return [area, titles.sort()];
+		}));
+		const gates = ['Data', 'Shell', 'AutomaticContext'].flatMap(area => callsIn(sourceFor(area), 'fullOnlyTest')
+			.filter(call => call.arguments.length === 3)
+			.map(call => call.arguments[2].getText()));
+		assert.deepStrictEqual({ native, retained, gates }, {
+			native: [
+				{ area: 'Data', full: 16, pr: 0 },
+				{ area: 'Shell', full: 16, pr: 0 },
+				{ area: 'Web', full: 1, pr: 0 },
+				{ area: 'Telemetry', full: 1, pr: 0 },
+				{ area: 'AutomaticContext', full: 1, pr: 0 },
+			],
+			retained: Object.fromEntries(Object.entries({
+				Auto: [
+					'modern routing exposes the concrete choice and capability scores through AHP',
+					'changing the enabled picker preference invalidates the cached routing profile',
+				],
+				Context: [
+					'embedded text attachment content survives summarization with its AHP attachment history',
+					'host restart rehydrates compacted native context and checkpoint metadata',
+				],
+				Customization: ['skill allowed tools read a supporting plugin resource'],
+				Hooks: ['native plugin SessionStart hook resolves its executable arguments and adds context'],
+				ManagedSettings: [
+					'managed write asks override session Allow All',
+					'managed shell asks override terminal rules and persistent tool preferences',
+					'forged Allow in Session selection cannot persist a managed write grant',
+					'bypass lock reports unavailable allow-all mode and preserves human approval',
+					'distinct initialized clients union independent restrictions',
+					'clearing one client layer preserves another client restriction',
+					'replacement updates only the contributing client layer',
+					'already materialized peer and default chats both refresh at idle boundaries',
+					'serialized empty permissions clear the injected layer on a resumed idle chat',
+					'disconnect grace expiry removes only the departing client restriction',
+					'host restart re-supplies current permissions when provider history resumes',
+					'host restart without injection clears the nonpersistent client layer',
+					'malformed ask rules fail resumed policy refresh instead of silently dropping restrictions',
+				],
+				ManagedDiagnostics: [
+					'pre-initialize notifications do not acquire a client-owned policy layer',
+					'a mixed-type deny list rejects the whole replacement without partially applying it',
+					'two transports for one client replace one contribution instead of unioning layers',
+					'quick reinitialization of the same owner preserves its disconnect-grace restriction',
+					'JSON omission of permissions is not an explicit empty-layer removal',
+				],
+				Mcp: [
+					'preserves structured HTTP tool results through the MCP side channel',
+					'reads text and binary HTTP resources through AHP',
+					'disables and reenables an HTTP customization without stray calls',
+					'preserves stdio working directory and environment launch values',
+				],
+				McpAuthorization: [
+					'projects a configured public OAuth client without starting browser authorization',
+					'refreshes an expired credential during a tool call and resumes it once',
+				],
+				ModelCapability: [
+					'an empty allowlist removes native and registered client tools',
+					'the custom wildcard preserves structured schemas and dispatches the owned input once',
+					'a non-reasoning model rejects an effort override before contacting the model',
+					'a vision override merges over catalog defaults without changing the native request budget',
+				],
+				Resilience: ['a quota error releases the active turn and permits a later local read'],
+				LegacyModel: [],
+			}).map(([area, titles]) => [area, titles.sort()])),
+			gates: ['context.runKnownIssueTests', 'context.runKnownIssueTests', ...Array.from({ length: 4 }, () => 'context.runRecordOnlyTests')],
+		});
+	});
+
+	test('runtime fixture workspaces are canonical and outside repository instruction ancestors', () => {
+		const directory = path.join(repositoryRoot, 'src/vs/platform/agentHost/test/node/e2e/suites');
+		for (const file of readdirSync(directory).filter(file => /^copilotRuntime.*CoverageSuite\.ts$/.test(file))) {
+			const text = readFileSync(path.join(directory, file), 'utf8');
+			const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+			const visit = (node: ts.Node): void => {
+				if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+					assert.notStrictEqual(node.expression.text, 'mkdtempSync', `${file}: use the canonical test-directory helper`);
+					if (node.expression.text === 'join') {
+						assert.notStrictEqual(node.arguments[0]?.getText(source), 'process.cwd()', `${file}: keep fixtures outside the checkout`);
+					}
+				}
+				ts.forEachChild(node, visit);
+			};
+			visit(source);
+			assert.ok(text.includes('createTestDirectory'), `${file}: no canonical fixture allocation`);
+		}
 	});
 });
 

@@ -1,0 +1,92 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with the shell tool. Then use a fresh shell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: cd "nested project"; node check.cjs
+            description: Run check.cjs in nested project directory
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with the shell tool. Then use a fresh shell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: cd "nested project"; node check.cjs
+                description: Run check.cjs in nested project directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                NESTED_DIRECTORY
+                <shellId: 0 completed with exit code 0>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: ${shell}
+          input:
+            command: node root.cjs
+            description: Run root.cjs in session working directory
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with the shell tool. Then use a fresh shell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: cd "nested project"; node check.cjs
+                description: Run check.cjs in nested project directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                NESTED_DIRECTORY
+                <shellId: 0 completed with exit code 0>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: powershell
+              input:
+                command: node root.cjs
+                description: Run root.cjs in session working directory
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                ROOT_DIRECTORY
+                <shellId: 1 completed with exit code 0>
+    response:
+      content: |-
+        Both commands ran exactly as specified, each in a fresh shell call:
+
+        1. `cd "nested project"; node check.cjs` → output: `NESTED_DIRECTORY`
+        2. `node root.cjs` (fresh shell, back in the base working directory) → output: `ROOT_DIRECTORY`
+
+        This confirms each shell call starts fresh in the session's working directory and the `cd` from the first command did not persist into the second.
+      stopReason: end_turn

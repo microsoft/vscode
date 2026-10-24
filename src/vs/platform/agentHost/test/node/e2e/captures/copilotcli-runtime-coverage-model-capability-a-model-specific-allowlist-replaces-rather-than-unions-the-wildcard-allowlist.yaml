@@ -1,0 +1,41 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use grep exactly once with pattern "CAPABILITY_NATIVE_FILE", path "capability.txt", and output_mode "content". Do not use other tools. Then reply exactly CAPABILITY_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: grep
+          input:
+            pattern: CAPABILITY_NATIVE_FILE
+            paths: capability.txt
+            output_mode: content
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use grep exactly once with pattern "CAPABILITY_NATIVE_FILE", path "capability.txt", and output_mode "content". Do not use other tools. Then reply exactly CAPABILITY_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: grep
+              input:
+                pattern: CAPABILITY_NATIVE_FILE
+                paths: capability.txt
+                output_mode: content
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: capability.txt:CAPABILITY_NATIVE_FILE
+    response:
+      content: CAPABILITY_COMPLETE
+      stopReason: end_turn
