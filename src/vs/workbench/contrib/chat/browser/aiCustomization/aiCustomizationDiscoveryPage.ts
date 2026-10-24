@@ -324,8 +324,9 @@ function getInstalledItemMarketplaceRecord(
 ): IRecordedCustomizationMarketplaceResource | undefined {
 	switch (item.type) {
 		case 'skill':
-		case 'plugin':
 			return item.uri ? installations.findByTarget({ kind: item.type, uri: item.uri }) : undefined;
+		case 'plugin':
+			return installations.findByTarget({ kind: 'plugin', uri: item.uri, name: item.name });
 		case 'mcp':
 			return item.mcpServerId ? installations.findByTarget({ kind: 'mcp', id: item.mcpServerId }) : undefined;
 		default:
@@ -1069,9 +1070,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				},
 				accessibilityProvider: {
 					getAriaLabel: entry => this.getEntryAriaLabel(entry),
-					getWidgetAriaLabel: () => this.isCanvasOnlyQuery()
-						? localize('customizationDiscovery.canvasResultsLabel', "Canvas extension search results")
-						: localize('customizationDiscovery.resultsLabel', "Customization search results"),
+					getWidgetAriaLabel: () => localize('customizationDiscovery.resultsLabel', "Customization search results"),
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: entry => entry.kind === 'loading' ? undefined : entry.kind === 'installed' ? entry.name : entry.resource.displayName,
@@ -1835,7 +1834,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			try {
 				const backfill = !this.query.isEmpty() && this.query.types.size > 0
 					&& (getCatalogMediaType(this.query.types) === undefined || this.query.types.has('canvas'));
-				const catalogQuery = this.query.text || (this.query.types.has('canvas') ? 'plugins' : undefined);
+				const catalogQuery = this.query.text || (this.isCanvasOnlyQuery() ? 'plugins' : undefined);
 				let hasMatchingCatalogItem = false;
 				for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
 					const page = await this.marketplaceService.query({
@@ -2068,6 +2067,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private renderSearchResults(preserveResults: boolean): void {
 		this.resultStatusDisposables.clear();
+		this.resultList.ariaLabel = this.isCanvasOnlyQuery()
+			? localize('customizationDiscovery.canvasResultsLabel', "Canvas extension search results")
+			: localize('customizationDiscovery.resultsLabel', "Customization search results");
 		const installed = [...this.getFilteredInstalledItems()];
 		const marketplaceInstallations = this.installService.installations.get();
 		const installedByMarketplaceRecord = new Map<IRecordedCustomizationMarketplaceResource, number>();

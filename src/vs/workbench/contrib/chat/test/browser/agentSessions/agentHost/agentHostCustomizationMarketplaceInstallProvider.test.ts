@@ -139,7 +139,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				request: { query: '', mediaType: undefined, limit: 30, cursor: undefined, feedId },
 			})),
 			item: {
-				identifier: 'feed-resource', tags: ['canvas', 'canvas-only'], icon: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+				identifier: 'feed-resource', tags: ['build', 'canvas', 'canvas-only'], icon: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
 				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection', itemUrl: undefined, installable: true },
 			},
 			recovery: 'signIn',

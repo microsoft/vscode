@@ -38,6 +38,7 @@ import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiC
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationItem } from '../../../common/customizationHarnessService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallOrigin, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -83,6 +84,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		installedIdentifiers: readonly string[] = [],
 		browseSections?: ICustomizationMarketplaceBrowseSections | Promise<ICustomizationMarketplaceBrowseSections>,
 		sourcePreviews: Readonly<Record<string, readonly ICustomizationMarketplaceResource[] | Promise<readonly ICustomizationMarketplaceResource[]>>> = {},
+		providerItems: readonly ICustomizationItem[] = [],
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -236,7 +238,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		instantiationService.stub(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() {
 			override getActiveItemSource(): IAICustomizationItemSource {
 				return new class extends mock<IAICustomizationItemSource>() {
-					override async fetchProviderItems() { return []; }
+					override async fetchProviderItems() { return providerItems; }
 				}();
 			}
 			override getItems(section: ItemsModelSection) {
@@ -1114,6 +1116,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			canvasOnly: lines.includes('canvas-only-plugin'),
 			descriptionOnly: lines.includes('description-only-canvas'),
 			categoryOnly: lines.includes('category-only-canvas'),
+			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
 		}, {
 			requests: [
 				{ query: 'plugins', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
@@ -1123,6 +1126,33 @@ suite('AICustomizationDiscoveryPage', () => {
 			canvasOnly: true,
 			descriptionOnly: false,
 			categoryOnly: false,
+			ariaLabel: 'Canvas extension search results',
+		});
+	});
+
+	test('combining Canvas with another type preserves the other type query and results', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:mcp @type:canvas');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('mail-mcp'),
+				resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			request: fixture.requests[0].options,
+			mcp: content.includes('mail-mcp'),
+			canvas: content.includes('canvas-plugin'),
+			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
+		}, {
+			request: { query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
+			mcp: true,
+			canvas: true,
+			ariaLabel: 'Customization search results',
 		});
 	});
 
@@ -1148,6 +1178,49 @@ suite('AICustomizationDiscoveryPage', () => {
 			ordinary: true,
 			canvas: true,
 			canvasOnly: false,
+		});
+	});
+
+	test('installed canvas-only provider plugins appear only in Canvas results', async () => {
+		const plugin = resource('canvas-only-plugin', {
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			tags: ['canvas', 'canvas-only'],
+		});
+		const fixture = createPage(
+			undefined,
+			[AICustomizationManagementSection.Plugins],
+			[],
+			undefined,
+			[],
+			undefined,
+			{},
+			[{
+				uri: URI.file('/provider/canvas-only-plugin'),
+				type: 'plugin',
+				name: 'canvas-only-plugin',
+				description: 'Canvas only',
+				source: 'plugin',
+				extensionId: undefined,
+				pluginUri: undefined,
+			}],
+		);
+		fixture.setInstallState(plugin, { kind: 'installed', target: { kind: 'plugin', name: 'canvas-only-plugin' } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@installed @type:plugin');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const pluginResults = fixture.page.getAccessibilityContent();
+
+		fixture.page.setSearchQuery('@installed @type:canvas');
+		await timeout(0);
+		const canvasResults = fixture.page.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			plugin: pluginResults.includes('canvas-only-plugin'),
+			canvas: canvasResults.includes('canvas-only-plugin'),
+		}, {
+			plugin: false,
+			canvas: true,
 		});
 	});
 
