@@ -74,6 +74,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get isPortable() { return this.configuration.isPortable; }
 
 	@memoize
+	get isCustomUserDataDir() { return this.args['user-data-dir'] !== undefined; }
+
+	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize

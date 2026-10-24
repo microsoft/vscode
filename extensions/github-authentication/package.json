@@ -19,6 +19,7 @@
   ],
   "enabledApiProposals": [
     "authIssuers",
+    "isCustomUserDataDir",
     "authProviderSpecific",
     "authSessionAccountIcon",
     "authSessionExpiration"

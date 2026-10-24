@@ -539,6 +539,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				get logUri() { return URI.joinPath(that._initData.logsLocation, extensionDescription.identifier.value); },
 				get storageUri() { return that._storagePath.workspaceValue(extensionDescription); },
 				get globalStorageUri() { return that._storagePath.globalValue(extensionDescription); },
+				get isCustomUserDataDir() {
+					checkProposedApiEnabled(extensionDescription, 'isCustomUserDataDir');
+					return that._initData.environment.isCustomUserDataDir ?? false;
+				},
 				get extensionMode() { return extensionMode; },
 				get extension() {
 					if (extension === undefined) {
