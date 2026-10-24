@@ -1115,6 +1115,33 @@ suite('EditorResolverService', () => {
 		});
 	});
 
+	test('getEditorMatches matches untitled resources by the extension of their language', async () => {
+		const configurationService = createMutableConfigurationService({});
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const [, service, accessor] = await createEditorResolverService(instantiationService);
+		disposables.add(accessor.languageService.registerLanguage({ id: 'testMarkdown', extensions: ['.tmd'] }));
+		disposables.add(service.registerEditor('*.tmd', { id: 'test.markdownEditor', label: 'Test Markdown Editor', priority: RegisteredEditorPriority.option }, {}, {}));
+
+		const markdown = disposables.add(accessor.untitledTextEditorService.create({ languageId: 'testMarkdown' }));
+		await markdown.resolve();
+		const withoutModel = URI.from({ scheme: Schemas.untitled, path: 'Untitled-42' });
+		const summarize = (resource: URI) => {
+			const matches = service.getEditorMatches(resource);
+			return { editorIds: matches.matches.map(match => match.editor.id), associationPattern: matches.defaultRule.associationPattern };
+		};
+
+		const result = {
+			markdown: summarize(markdown.resource),
+			withoutModel: summarize(withoutModel),
+			associationsAfterSetDefault: (service.setDefaultEditor(markdown.resource, 'test.markdownEditor'), service.getAllUserAssociations())
+		};
+		assert.deepStrictEqual(result, {
+			markdown: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id, 'test.markdownEditor'], associationPattern: '*.tmd' },
+			withoutModel: { editorIds: [DEFAULT_EDITOR_ASSOCIATION.id], associationPattern: '*' },
+			associationsAfterSetDefault: [{ filenamePattern: '*.tmd', viewType: 'test.markdownEditor' }]
+		});
+	});
+
 	test('setDefaultEditor removes the association when restoring the natural registered default', async () => {
 		const configurationService = createMutableConfigurationService({
 			[editorsAssociationsSettingId]: {

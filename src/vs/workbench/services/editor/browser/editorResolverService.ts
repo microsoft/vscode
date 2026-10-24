@@ -10,6 +10,8 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { Schemas } from '../../../../base/common/network.js';
 import { extname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -95,7 +97,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 		// Read in the cache on statup
@@ -293,6 +297,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	getEditorMatches(resource: URI, options?: IEditorResolverServiceGetEditorMatchesOptions): EditorMatches {
 		this._flattenedEditors = this._flattenEditorsMap();
+		resource = this.getResourceForEditorMatching(resource);
 
 		const associationType = options?.isDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
 		const associations = this.getAssociationsForResourceByType(resource, associationType);
@@ -329,6 +334,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		return new EditorMatches(matches, defaultRuleIndex, naturalDefaultRuleIndex, selection.conflictingDefault);
+	}
+
+	/**
+	 * Untitled resources without an associated file path have no file name to match editor globs
+	 * against. Derive one from the language of their text model so that, for example, an untitled
+	 * Markdown document is offered the editors registered for `*.md`.
+	 */
+	private getResourceForEditorMatching(resource: URI): URI {
+		if (resource.scheme !== Schemas.untitled || extname(resource)) {
+			return resource;
+		}
+		const languageId = this.modelService.getModel(resource)?.getLanguageId();
+		const extension = languageId ? this.languageService.getExtensions(languageId).at(0) : undefined;
+		return extension ? resource.with({ path: `${resource.path}${extension}` }) : resource;
 	}
 
 	private createEditorMatchRule(resource: URI, associationType: EditorAssociationType, editor: RegisteredEditor, associations: EditorAssociations, selection: DefaultEditorSelection): EditorMatchRule {
@@ -528,6 +547,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void {
 		const settingId = forDiffEditor ? diffEditorsAssociationsSettingId : editorsAssociationsSettingId;
 		const associationType = forDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+		resource = this.getResourceForEditorMatching(resource);
 		const matches = this.getEditorMatches(resource, { isDiffEditor: forDiffEditor });
 		const currentAssociation = matches.defaultRule.source === EditorMatchRuleSource.UserAssociation ? matches.defaultRule.association : undefined;
 		const associationPattern = matches.defaultRule.associationPattern;
