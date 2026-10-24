@@ -199,17 +199,15 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				.filter(plugin => plugin.marketplace || plugin.source !== 'builtin' || !syncedPluginNames.has(plugin.name));
 			const togglePluginNameCounts = new Map<string, number>();
 			for (const plugin of availablePlugins) {
-				if (plugin.directSourceId === undefined) {
-					togglePluginNameCounts.set(plugin.name, (togglePluginNameCounts.get(plugin.name) ?? 0) + 1);
-				}
+				togglePluginNameCounts.set(plugin.name, (togglePluginNameCounts.get(plugin.name) ?? 0) + 1);
 			}
 			const candidates = availablePlugins
 				.filter(plugin => {
 					switch (subcommand.toLowerCase()) {
 						case 'enable':
-							return plugin.directSourceId === undefined && !plugin.enabled;
+							return !plugin.enabled;
 						case 'disable':
-							return plugin.directSourceId === undefined && plugin.enabled;
+							return plugin.enabled;
 						case 'uninstall':
 						case 'remove':
 						case 'update':
@@ -224,7 +222,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 					if ((togglePluginNameCounts.get(plugin.name) ?? 0) <= 1) {
 						return [plugin.name];
 					}
-					return plugin.marketplace ? [`${plugin.name}@${plugin.marketplace}`] : [];
+					return plugin.marketplace ? [`${plugin.name}@${plugin.marketplace}`] : plugin.directSourceId ? [plugin.directSourceId] : [];
 				});
 			return Array.from(new Set(candidates))
 				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
