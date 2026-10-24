@@ -63,7 +63,7 @@
 		"build": "npm-run-all compile copy",
 		"compile": "tsc",
 		"copy": "copyfiles src/package.json \"src/**/*.tiktoken\" dist",
-		"package": "npm pack",
+		"package": "pnpm pack",
 		"postinstall": "tsx script/postinstall.js",
 		"test": "vitest run",
 		"test:watch": "vitest"

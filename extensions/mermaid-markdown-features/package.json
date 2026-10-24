@@ -250,9 +250,9 @@
     ]
   },
   "scripts": {
-    "compile": "gulp compile-extension:mermaid-markdown-features && npm run build-webview",
-    "watch": "npm run build-webview && gulp watch-extension:mermaid-markdown-features",
-    "vscode:prepublish": "npm run build-ext && npm run build-webview",
+    "compile": "gulp compile-extension:mermaid-markdown-features && pnpm run build-webview",
+    "watch": "pnpm run build-webview && gulp watch-extension:mermaid-markdown-features",
+    "vscode:prepublish": "pnpm run build-ext && pnpm run build-webview",
     "build-ext": "gulp compile-extension:mermaid-markdown-features",
     "build-webview": "node ./esbuild.webview.mts",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
