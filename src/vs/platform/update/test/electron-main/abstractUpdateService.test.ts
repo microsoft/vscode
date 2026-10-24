@@ -72,6 +72,13 @@ class TestUpdateService extends AbstractUpdateService {
 	/** Forces the service into a given state so tests can exercise cancellation from a cancellable state. */
 	forceState(state: State, options?: { deferred?: boolean }): void { this.setState(state, options); }
 
+	/** When set, overrides whether a pending update can be replaced by a newer one. */
+	overwriteSupported: boolean | undefined;
+
+	protected override get supportsUpdateOverwrite(): boolean {
+		return this.overwriteSupported ?? super.supportsUpdateOverwrite;
+	}
+
 	feedUrl: string | undefined = 'https://update.example/feed';
 
 	protected override async initialize(): Promise<void> {
@@ -496,6 +503,25 @@ suite('AbstractUpdateService', () => {
 			meteredConnectionService.setIsConnectionMetered(false);
 			await clock.tickAsync(0);
 			assert.deepStrictEqual({ checkCount: service.checkCount, state: service.state.type }, { checkCount: 1, state: StateType.Overwriting });
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('does not replace a pending update when overwriting is not supported', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const service = createService('default', { supportsUpdateOverwrite: true });
+			await service.whenInitialized;
+			service.overwriteSupported = false;
+			service.setLatestVersionResult(Promise.resolve(false));
+			service.forceState(State.Ready({ version: 'pending' }, false, false));
+
+			await clock.tickAsync(5 * 60 * 1000);
+			await service.quitAndInstall();
+			await clock.tickAsync(0);
+
+			assert.deepStrictEqual({ checkCount: service.checkCount, state: service.state.type }, { checkCount: 0, state: StateType.Restarting });
 		} finally {
 			clock.restore();
 		}

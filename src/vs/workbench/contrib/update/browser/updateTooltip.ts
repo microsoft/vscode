@@ -298,8 +298,11 @@ export class UpdateTooltip extends Disposable {
 		this.renderMessage(localize('updateTooltip.checkingPleaseWait', "Checking for updates, please wait..."));
 	}
 
-	private renderAvailableForDownload({ update }: AvailableForDownload) {
+	private renderAvailableForDownload({ update, requiresElevation }: AvailableForDownload) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateAvailableTitle', "Update Available"), update);
+		if (requiresElevation) {
+			this.renderMessage(localize('updateTooltip.requiresElevation', "Installing this update requires administrator privileges."), Codicon.shield);
+		}
 		this.renderActionButton(localize('updateTooltip.downloadButton', "Download"), 'update.downloadNow');
 	}
 
