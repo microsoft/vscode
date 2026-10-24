@@ -30,7 +30,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { chatWindowConversationFits, chatWindowForcedByWindow, chatWindowPersistedInputOnly, clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly, shouldRestoreChatWindowConversation } from './chatWindowInputOnly.js';
+import { stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly, clampStackedChatOnResize, decideStackedChatInputOnly, shouldDecideStackedChatInputOnly, shouldRestoreStackedChatConversation } from '../../../browser/parts/stackedChatInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -142,7 +142,7 @@ export class ChatWindowChatEditor extends EditorPane {
 	private _terminalHeight: number | undefined;
 	/** Whether the settle that is scheduled follows the user letting go of the sash. */
 	private _settleByUser = false;
-	/** Set while the chat shows only its input because the window is too short, see {@link chatWindowForcedByWindow}. */
+	/** Set while the chat shows only its input because the window is too short, see {@link stackedChatForcedByWindow}. */
 	private _forcedByWindow = false;
 
 	private readonly _onDidChangeSizeConstraints = this._register(new Emitter<undefined>());
@@ -370,7 +370,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			const sideBySide = splitLayout === ChatWindowLayout.SideBySide;
 			if (layout === ChatWindowLayout.EditorAboveChat) {
 				// Dragged to, or switched to by the chat: the chat window opens so next time, unless the window forced it.
-				state.setInputOnly(chatWindowPersistedInputOnly({ inputOnly, forcedByWindow: this._forcedByWindow, lastUserChoice: state.inputOnly.read(undefined) }));
+				state.setInputOnly(stackedChatPersistedInputOnly({ inputOnly, forcedByWindow: this._forcedByWindow, lastUserChoice: state.inputOnly.read(undefined) }));
 			}
 			if (this._sizing) {
 				// Laid out to a size the user dragged to, which already decided what it shows.
@@ -566,7 +566,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		if (this._sizing) {
 			this._decisionPending = true;
 		} else if (!windowResized) {
-			if (shouldDecideChatWindowInputOnly({ afterWindowResize: this._afterWindowResize, pointerDown: this._pointerDown })) {
+			if (shouldDecideStackedChatInputOnly({ afterWindowResize: this._afterWindowResize, pointerDown: this._pointerDown })) {
 				this._decide(this._pointerDown);
 			}
 		} else {
@@ -654,7 +654,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		if (!editor || part.hasMaximizedGroup()) {
 			return false;
 		}
-		const restore = shouldRestoreChatWindowConversation({
+		const restore = shouldRestoreStackedChatConversation({
 			forcedByWindow: true,
 			groupHeight: part.getSize(this.group).height,
 			collapsedHeight: this._inputOnlyHeight.get() + this._chrome + this._insets,
@@ -682,14 +682,14 @@ export class ChatWindowChatEditor extends EditorPane {
 		}
 		const { width, height: groupHeight } = part.getSize(this.group);
 		const collapsedHeight = this._inputOnlyHeight.get() + this._chrome + this._insets;
-		const height = view.inputOnly.get() ? undefined : clampChatWindowOnResize({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, inputOnly: false });
+		const height = view.inputOnly.get() ? undefined : clampStackedChatOnResize({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, inputOnly: false });
 		if (height === undefined) {
 			return;
 		}
 		const editor = part.groups.find(group => group !== this.group && group !== this._state?.terminalGroup.get());
 		this._sizing = true;
 		try {
-			if (editor && !chatWindowConversationFits({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, editorHeight: part.getSize(editor).height, editorMinimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height })) {
+			if (editor && !stackedChatConversationFits({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, editorHeight: part.getSize(editor).height, editorMinimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height })) {
 				// The editor gives way first; the terminal row keeps its height, so the chat shows only its input.
 				this._forcedByWindow = true;
 				view.setInputOnly(true);
@@ -713,7 +713,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		const part = this._editorGroupsService.getPart(this.group);
 		const { width, height: groupHeight } = part.getSize(this.group);
 		const collapsedHeight = this._inputOnlyHeight.get() + this._chrome + this._insets;
-		const { inputOnly, settleHeight } = decideChatWindowInputOnly({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, dragging });
+		const { inputOnly, settleHeight } = decideStackedChatInputOnly({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, dragging });
 		// Remembered once it settles, so that the sizes it passes through while dragged down to the input are not.
 		if (!inputOnly && groupHeight >= collapsedHeight + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT) {
 			this._settledConversationHeight = groupHeight;
@@ -722,7 +722,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			this._rememberConversationHeight.cancel();
 		}
 		const wasInputOnly = view.inputOnly.get();
-		this._forcedByWindow = chatWindowForcedByWindow({ wasForced: this._forcedByWindow, wasInputOnly, inputOnly, byUser });
+		this._forcedByWindow = stackedChatForcedByWindow({ wasForced: this._forcedByWindow, wasInputOnly, inputOnly, byUser });
 		this._sizing = true;
 		try {
 			if (inputOnly !== wasInputOnly) {
