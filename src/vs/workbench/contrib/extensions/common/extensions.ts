@@ -29,7 +29,7 @@ export const EXTENSIONS_CATEGORY = localize2('extensions', "Extensions");
 
 export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
 	readonly searchValue: string | undefined;
-	search(text: string): void;
+	search(text: string, refresh?: boolean): void;
 	refresh(): Promise<void>;
 }
 
