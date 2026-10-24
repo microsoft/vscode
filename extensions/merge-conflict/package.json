@@ -113,12 +113,12 @@
       "scm/resourceState/context": [
         {
           "command": "merge-conflict.accept.all-current",
-          "when": "scmProvider == git && scmResourceGroup == merge",
+          "when": "scmProvider == git && scmResourceGroup == merge && scmResourceState != wholeFileConflict",
           "group": "1_modification"
         },
         {
           "command": "merge-conflict.accept.all-incoming",
-          "when": "scmProvider == git && scmResourceGroup == merge",
+          "when": "scmProvider == git && scmResourceGroup == merge && scmResourceState != wholeFileConflict",
           "group": "1_modification"
         }
       ],

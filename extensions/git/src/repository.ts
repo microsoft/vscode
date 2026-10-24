@@ -193,7 +193,16 @@ export class Resource implements SourceControlResourceState {
 	get type(): Status { return this._type; }
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
-	get contextValue(): string | undefined { return this._repositoryKind; }
+	get contextValue(): string | undefined {
+		// Markerless conflicts hide Accept All. Take Current File and Take Incoming File stay available.
+		return this._wholeFileConflict ? 'wholeFileConflict' : this._repositoryKind;
+	}
+
+	private _wholeFileConflict = false;
+
+	markWholeFileConflict(): void {
+		this._wholeFileConflict = true;
+	}
 
 	private static Icons = {
 		light: {
@@ -346,7 +355,11 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	clone(resourceGroupType?: ResourceGroupType) {
-		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind);
+		const resource = new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind);
+		if (this._wholeFileConflict) {
+			resource.markWholeFileConflict();
+		}
+		return resource;
 	}
 }
 
@@ -1044,6 +1057,7 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
 			|| e.affectsConfiguration('git.similarityThreshold', root)
+			|| e.affectsConfiguration('git.detectWholeFileMergeConflicts', root)
 		)(() => this.updateModelState(), this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -1273,6 +1287,29 @@ export class Repository implements Disposable {
 
 	async hashObject(data: string): Promise<string> {
 		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
+	}
+
+	async takeMergeFile(resources: Uri[], side: 'ours' | 'theirs'): Promise<boolean> {
+		if (resources.length === 0) {
+			return false;
+		}
+
+		// The user picked Take Current/Incoming File. Do not require the optional
+		// whole-file scan: takeConflictSide leaves a path alone when it is not unmerged.
+		let taken = false;
+		await this.run(Operation.Add(!this.optimisticUpdateEnabled()), async () => {
+			const takenPaths: string[] = [];
+			for (const resource of resources) {
+				if (await this.repository.takeConflictSide(resource.fsPath, side)) {
+					takenPaths.push(resource.fsPath);
+				}
+			}
+			if (takenPaths.length > 0) {
+				taken = true;
+				this.closeDiffEditors([], takenPaths);
+			}
+		});
+		return taken;
 	}
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
@@ -3078,6 +3115,10 @@ export class Repository implements Disposable {
 					this.getStatus(cancellationToken),
 					this.getRefs({}, cancellationToken)]);
 
+			if (cancellationToken?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
 			this._refs = refs;
 			this._updateResourceGroupsState(resourceGroups);
 
@@ -3254,7 +3295,61 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
+		if (cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		await this.markWholeFileConflicts(mergeGroup, cancellationToken);
+
+		if (cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
 		return { indexGroup, mergeGroup, untrackedGroup, workingTreeGroup };
+	}
+
+	private async markWholeFileConflicts(mergeGroup: Resource[], token?: CancellationToken): Promise<void> {
+		// These statuses have no conflict markers: at least one content side is absent.
+		// Git status already says so, so hide Accept All without running Git commands.
+		for (const resource of mergeGroup) {
+			if (resource.type === Status.DELETED_BY_US || resource.type === Status.DELETED_BY_THEM
+				|| resource.type === Status.ADDED_BY_US || resource.type === Status.ADDED_BY_THEM
+				|| resource.type === Status.BOTH_DELETED) {
+				resource.markWholeFileConflict();
+			}
+		}
+
+		// The remaining classification (merge attribute, NUL in the first 8000 bytes)
+		// runs Git commands for every both-modified entry on each status refresh, so
+		// it stays behind git.detectWholeFileMergeConflicts and is off by default.
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		if (config.get<boolean>('detectWholeFileMergeConflicts') !== true) {
+			return;
+		}
+
+		const candidates = mergeGroup.filter(resource =>
+			resource.type === Status.BOTH_MODIFIED
+			|| resource.type === Status.BOTH_ADDED);
+		if (candidates.length === 0) {
+			return;
+		}
+
+		let wholeFile: Set<string>;
+		try {
+			wholeFile = await this.repository.findWholeFileConflicts(candidates.map(resource => resource.resourceUri.fsPath), token);
+		} catch (err) {
+			if (err instanceof CancellationError) {
+				throw err;
+			}
+			this.logger.warn(`[Repository][markWholeFileConflicts] ${err}`);
+			return;
+		}
+
+		for (const resource of candidates) {
+			if (wholeFile.has(resource.resourceUri.fsPath)) {
+				resource.markWholeFileConflict();
+			}
+		}
 	}
 
 	private setCountBadge(): void {
