@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 
+import { isMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -33,6 +34,10 @@ import { constObservable, ISettableObservable, observableValue } from '../../../
 import type { AgentModelCatalogStatus } from '../../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
+
+function markerMessage(marker: IMarkerData): string {
+	return isMarkdownString(marker.message) ? marker.message.plainTextValue ?? marker.message.value : marker.message;
+}
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1420,7 +1425,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
 			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
-			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected hint about unsupported attribute');
+			assert.ok(markerMessage(markers[0]).includes(`Attribute 'argument-hint' is not supported`), 'Expected hint about unsupported attribute');
 		});
 
 		test('github-copilot agent with valid permissions', async () => {
@@ -1458,7 +1463,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes('Unknown permission scope \'unknown-scope\''));
+			assert.ok(markerMessage(markers[0]).includes('Unknown permission scope \'unknown-scope\''));
 		});
 
 		test('github-copilot agent with invalid permission value', async () => {
@@ -1477,7 +1482,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.ok(markers[0].message.includes('Invalid permission value \'write\' for scope \'metadata\''));
+			assert.ok(markerMessage(markers[0]).includes('Invalid permission value \'write\' for scope \'metadata\''));
 		});
 
 		test('github-copilot agent with non-map github attribute', async () => {
@@ -1512,7 +1517,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes('Unknown property \'unknown\''));
+			assert.ok(markerMessage(markers[0]).includes('Unknown property \'unknown\''));
 		});
 
 		test('undefined target agent with valid github permissions', async () => {
@@ -1543,7 +1548,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes('Unknown permission scope \'unknown-scope\''));
+			assert.ok(markerMessage(markers[0]).includes('Unknown permission scope \'unknown-scope\''));
 		});
 
 		test('undefined target agent with invalid github permission value', async () => {
@@ -1559,7 +1564,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.ok(markers[0].message.includes('Invalid permission value \'write\' for scope \'metadata\''));
+			assert.ok(markerMessage(markers[0]).includes('Invalid permission value \'write\' for scope \'metadata\''));
 		});
 
 		test('undefined target agent with non-map github attribute', async () => {
@@ -1999,8 +2004,8 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1, 'user-invokable should produce exactly one diagnostic');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
 			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
-			assert.ok(markers[0].message.includes('user-invokable'), 'hint should mention the attribute name');
-			assert.ok(markers[0].message.includes('not supported'), 'hint should say attribute is not supported');
+			assert.ok(markerMessage(markers[0]).includes('user-invokable'), 'hint should mention the attribute name');
+			assert.ok(markerMessage(markers[0]).includes('not supported'), 'hint should say attribute is not supported');
 		});
 
 		test('disable-model-invocation attribute validation', async () => {
@@ -2456,7 +2461,7 @@ suite('PromptValidator', () => {
 			// Order: unknown attribute hints first (attribute iteration) then applyTo validation
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
 			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
-			assert.ok(markers[0].message.startsWith(`Attribute 'model' is not supported in instructions files.`));
+			assert.ok(markerMessage(markers[0]).startsWith(`Attribute 'model' is not supported in instructions files.`));
 			assert.strictEqual(markers[1].message, `The 'applyTo' attribute must be a valid glob pattern.`);
 		});
 
@@ -2820,7 +2825,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
 			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
-			assert.ok(markers[1].message.includes('description is required when user-invocable is false'));
+			assert.ok(markerMessage(markers[1]).includes('description is required when user-invocable is false'));
 		});
 
 		test('skill without description but with disable-model-invocation false should error on that attribute', async () => {
@@ -2836,7 +2841,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
 			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
-			assert.ok(markers[1].message.includes('description is required when model invocation is enabled'));
+			assert.ok(markerMessage(markers[1]).includes('description is required when model invocation is enabled'));
 		});
 
 		test('skill with empty description should error', async () => {
@@ -2929,8 +2934,8 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			// Should get error for non-string name type, but no folder mismatch warning
-			assert.ok(markers.some(m => m.message.includes('must be a string')), 'Expected error for non-string name');
-			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not warn about folder mismatch for non-string name');
+			assert.ok(markers.some(m => markerMessage(m).includes('must be a string')), 'Expected error for non-string name');
+			assert.ok(!markers.some(m => markerMessage(m).includes('should match the folder name')), 'Should not warn about folder mismatch for non-string name');
 		});
 
 		test('skill folder name validation only for skill type', async () => {
@@ -2944,7 +2949,7 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent, URI.parse('file:///.github/agents/my-agent/AGENT.md'));
 			// Should not get folder name mismatch warning for agents
-			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not validate folder names for agents');
+			assert.ok(!markers.some(m => markerMessage(m).includes('should match the folder name')), 'Should not validate folder names for agents');
 		});
 
 		test('skill with unknown attributes shows unnecessary hints', async () => {
@@ -2961,9 +2966,9 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 2);
 			assert.ok(markers.every(m => m.severity === MarkerSeverity.Hint));
 			assert.ok(markers.every(m => JSON.stringify(m.tags) === JSON.stringify([MarkerTag.Unnecessary])));
-			assert.ok(markers.some(m => m.message.includes('unknownAttr')));
-			assert.ok(markers.some(m => m.message.includes('anotherUnknown')));
-			assert.ok(markers.every(m => m.message.includes('Supported: ')));
+			assert.ok(markers.some(m => markerMessage(m).includes('unknownAttr')));
+			assert.ok(markers.some(m => markerMessage(m).includes('anotherUnknown')));
+			assert.ok(markers.every(m => markerMessage(m).includes('Supported: ')));
 		});
 
 		test('skill with user-invocable: false is valid', async () => {
@@ -3198,7 +3203,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
 			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
-			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files by VS Code agents.`));
+			assert.ok(markerMessage(markers[0]).includes(`Attribute 'applyTo' is not supported in rules files by VS Code agents.`));
 		});
 
 		test('claude rules with multiple validation errors', async () => {
