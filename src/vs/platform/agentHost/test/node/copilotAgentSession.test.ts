@@ -21169,6 +21169,27 @@ Use the attached image as context.
 			]);
 		});
 
+		test('steering during a Fusion phase keeps a streaming phase chat tool to a single row', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'phase-streamed', toolName: 'bash', inputDelta: '{"command":"git branch"}' });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('tool.execution_start', { toolCallId: 'phase-streamed', toolName: 'bash', arguments: { command: 'git branch' }, fusion }, { ephemeral: true });
+
+			const phaseChat = signals.find(signal => signal.kind === 'subagent_started');
+			assert.ok(phaseChat?.kind === 'subagent_started');
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart && signal.action.toolCallId === 'phase-streamed' ? [signal.parentToolCallId] : []), [
+				phaseChat.toolCallId,
+			]);
+		});
+
 		test('steering during a Fusion phase does not replay a running client tool', async () => {
 			const tools = [{ name: SEMANTIC_SEARCH_TOOL_NAME, description: 'Semantically searches the workspace', inputSchema: { type: 'object' as const, properties: { query: { type: 'string' } } } }];
 			const activeClientToolSet = new ActiveClientToolSet();

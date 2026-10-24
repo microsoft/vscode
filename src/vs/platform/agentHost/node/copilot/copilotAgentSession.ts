@@ -3313,6 +3313,7 @@ export class CopilotAgentSession extends Disposable {
 		this._completeFusionPhaseChats();
 		// Labels outlive a closed chat within the turn so a resumed workflow reopens it rather than routing to the root.
 		this._fusionPhases.clear();
+		this._clearStreamingToolCalls(false);
 		this._startTurn(turnId, senderClientId, clientContext, providerInitiated);
 	}
 
@@ -3320,8 +3321,6 @@ export class CopilotAgentSession extends Disposable {
 		this._clearActivity();
 		this._setManagedPluginActivity(undefined);
 		this._detectInterruptedTurnOnRestore = false;
-		this._streamingToolCalls.clear();
-		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated);
 		this._beginLocalModelTurn(turnId);
 	}
@@ -3568,9 +3567,23 @@ export class CopilotAgentSession extends Disposable {
 		this._computerUseActivation.cancel();
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
-		this._streamingToolCalls.clear();
-		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
+		this._clearStreamingToolCalls(preservesFusionState);
 		this._reportTurnEnded();
+	}
+
+	/**
+	 * Discards streaming tool calls of the ending turn. Streams already shown in a
+	 * Fusion phase chat can be kept when that chat stays open across steering, so
+	 * their execution start reuses the existing row instead of adding another.
+	 */
+	private _clearStreamingToolCalls(keepFusionPhaseChatStreams: boolean): void {
+		for (const [toolCallId, streaming] of this._streamingToolCalls) {
+			if (keepFusionPhaseChatStreams && streaming.started && streaming.parentToolCallId !== undefined && this._fusionPhases.has(streaming.parentToolCallId)) {
+				continue;
+			}
+			this._streamingToolCalls.delete(toolCallId);
+			this._streamingToolDisplaySchedulers.deleteAndDispose(toolCallId);
+		}
 	}
 
 	private _reportTurnEnded(): void {
