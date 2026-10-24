@@ -3,15 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener, EventType, getActiveWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -22,7 +29,7 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowDockedContext, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
@@ -154,10 +161,44 @@ for (const entry of chatWindowTabEntries) {
 }
 
 /**
- * When the terminal keys, which toggle the panel of the main window, toggle the terminal row of the chat window instead: in a
- * chat window with an editor area that stands on its own. A docked one is part of the main window, whose panel they keep toggling.
+ * Whether the terminal keys, which toggle the panel of the main window, act on the terminal row of the chat window instead:
+ * the focused window is a chat window of its own with an editor area. A docked one is part of the main window, whose panel
+ * they keep toggling. It follows the focused window, not the focused element, so it also holds with focus in the title bar.
  */
-export const CHAT_WINDOW_TERMINAL_KEYBINDING_WHEN = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatWindowDockedContext.negate())!;
+export function isChatWindowTerminalKeysWindow(windows: readonly { readonly docked: boolean; readonly windowId: number; readonly hasEditorArea: boolean }[], focusedWindowId: number): boolean {
+	return windows.some(window => !window.docked && window.hasEditorArea && window.windowId === focusedWindowId);
+}
+
+export const ChatWindowTerminalKeysContext = new RawContextKey<boolean>('sessions.chatWindowTerminalKeys', false, localize('chatWindowTerminalKeys', "Whether the focused window is a chat window of its own with an editor area, where the keys of the panel toggle its terminal."));
+
+class ChatWindowTerminalKeysContribution extends Disposable {
+
+	static readonly ID = 'sessions.chatWindowTerminalKeys';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatWindowService chatWindowService: IChatWindowService,
+		@IHostService hostService: IHostService,
+	) {
+		super();
+		const key = ChatWindowTerminalKeysContext.bindTo(contextKeyService);
+		const update = () => key.set(isChatWindowTerminalKeysWindow(chatWindowService.windows.get().map(window => ({ docked: window.docked, windowId: window.windowId, hasEditorArea: !!window.editorGroup && !!window.content.get().editorArea })), getActiveWindow().vscodeWindowId));
+		this._register(autorun(reader => {
+			for (const window of chatWindowService.windows.read(reader)) {
+				window.content.read(reader);
+			}
+			update();
+		}));
+		this._register(hostService.onDidChangeActiveWindow(update));
+		this._register(hostService.onDidChangeFocus(update));
+		// Focus moving between windows is also seen in the window itself, where the host may not tell.
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window, EventType.FOCUS, update, true));
+		}, { window: mainWindow, disposables: this._store }));
+	}
+}
+
+registerWorkbenchContribution2(ChatWindowTerminalKeysContribution.ID, ChatWindowTerminalKeysContribution, WorkbenchPhase.AfterRestored);
 
 // The terminal: shown in the row across the bottom of the window, as the panel of the main window shows it.
 registerAction2(class ToggleChatWindowTerminalAction extends Action2 {
@@ -168,18 +209,19 @@ registerAction2(class ToggleChatWindowTerminalAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.terminal,
 			f1: true,
-			precondition: ChatWindowHasEditorAreaContext,
+			// Outside the container of the window, such as in its title bar, only the key of the focused window tells it has the area.
+			precondition: ContextKeyExpr.or(ChatWindowHasEditorAreaContext, ChatWindowTerminalKeysContext),
 			toggled: ChatWindowTerminalShownContext,
 			// The keys of the panel and of the terminal, above the rules of the workbench for them.
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyJ,
 				weight: KeybindingWeight.WorkbenchContrib + 10,
-				when: CHAT_WINDOW_TERMINAL_KEYBINDING_WHEN,
+				when: ChatWindowTerminalKeysContext,
 			}, {
 				primary: KeyMod.CtrlCmd | KeyCode.Backquote,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Backquote },
 				weight: KeybindingWeight.WorkbenchContrib + 10,
-				when: CHAT_WINDOW_TERMINAL_KEYBINDING_WHEN,
+				when: ChatWindowTerminalKeysContext,
 			}],
 		});
 	}

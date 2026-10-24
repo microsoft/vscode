@@ -65,6 +65,10 @@ class ChatWindow implements IChatWindow {
 	/** Keeps the editor the chat window shows from being closed on its own. */
 	readonly editorKept = new MutableDisposable<IDisposable>();
 
+	get windowId(): number {
+		return this.part.windowId;
+	}
+
 	private _closed = false;
 
 	constructor(

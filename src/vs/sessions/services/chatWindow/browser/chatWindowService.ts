@@ -133,6 +133,8 @@ export interface IChatWindowOpenOptions {
 export interface IChatWindow {
 	readonly kind: IChatWindowKind;
 	readonly docked: boolean;
+	/** The id of the window it shows in; the main window's while docked. */
+	readonly windowId: number;
 	/** What it shows. */
 	readonly content: IObservable<IChatWindowContent>;
 	/** The session it shows, outside the main window's grid; see `ISessionsService.showSessionInWindow`. */
