@@ -62,3 +62,12 @@ export function clampChatWindowOnResize(context: IChatWindowResizeContext): numb
 	const minimum = collapsedHeight + conversationMinHeight;
 	return groupHeight < minimum ? minimum : undefined;
 }
+
+/**
+ * Whether what the chat shows is decided from its height, for a layout that is not a window resize. A layout that
+ * follows a resize, at the same height, is not a drag: only a press on the sash can switch what shows, so that a
+ * window too short for the editor and the conversation does not snap to the input.
+ */
+export function shouldDecideChatWindowInputOnly(context: { readonly afterWindowResize: boolean; readonly pointerDown: boolean }): boolean {
+	return context.pointerDown || !context.afterWindowResize;
+}

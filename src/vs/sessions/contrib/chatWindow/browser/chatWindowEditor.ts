@@ -29,7 +29,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { clampChatWindowOnResize, decideChatWindowInputOnly } from './chatWindowInputOnly.js';
+import { clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from './chatWindowInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -113,6 +113,8 @@ export class ChatWindowChatEditor extends EditorPane {
 	private _measuredInsets: number | undefined;
 	/** Whether a pointer is down, such as on the sash dragging this group's height. */
 	private _pointerDown = false;
+	/** Set when the window was resized, until the sash is pressed or the groups are arranged again; see {@link layout}. */
+	private _afterWindowResize = false;
 	/** Set when this editor was laid out while it sized its group, and what it shows is then decided again. */
 	private _decisionPending = false;
 	/** The height of the window's editor area when this editor was last laid out; see {@link layout}. */
@@ -168,6 +170,9 @@ export class ChatWindowChatEditor extends EditorPane {
 		this._register(dom.addDisposableListener(targetWindow, dom.EventType.POINTER_DOWN, e => {
 			// Only a press on a sash of this window's editor area can drag the split.
 			this._pointerDown = e.target instanceof targetWindow.Element && !!e.target.closest('.monaco-sash');
+			if (this._pointerDown) {
+				this._afterWindowResize = false;
+			}
 		}, true));
 		const release = () => {
 			if (this._pointerDown) {
@@ -345,6 +350,7 @@ export class ChatWindowChatEditor extends EditorPane {
 					this._decide(this._pointerDown);
 				}
 			};
+			this._afterWindowResize = false;
 			this._sizing = true;
 			try {
 				// Side by side, the chat leads and the editor follows it; otherwise the editor sits above the chat. The terminal
@@ -504,8 +510,11 @@ export class ChatWindowChatEditor extends EditorPane {
 		if (this._sizing) {
 			this._decisionPending = true;
 		} else if (!windowResized) {
-			this._decide(this._pointerDown);
+			if (shouldDecideChatWindowInputOnly({ afterWindowResize: this._afterWindowResize, pointerDown: this._pointerDown })) {
+				this._decide(this._pointerDown);
+			}
 		} else {
+			this._afterWindowResize = true;
 			this._clampOnResize();
 		}
 	}

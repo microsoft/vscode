@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { clampChatWindowOnResize, decideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
+import { clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
 
 suite('decideChatWindowInputOnly', () => {
 
@@ -58,5 +58,22 @@ suite('decideChatWindowInputOnly', () => {
 		test('asks for the least height however short the window, for its neighbours to give way', () => {
 			assert.strictEqual(clampChatWindowOnResize({ ...resized, groupHeight: 30, inputOnly: false }), 220);
 		});
+	});
+});
+
+suite('shouldDecideChatWindowInputOnly', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only a press on the sash decides after a window resize', () => {
+		assert.deepStrictEqual(
+			[
+				{ afterWindowResize: false, pointerDown: false },
+				{ afterWindowResize: false, pointerDown: true },
+				{ afterWindowResize: true, pointerDown: false },
+				{ afterWindowResize: true, pointerDown: true },
+			].map(shouldDecideChatWindowInputOnly),
+			[true, true, false, true]
+		);
 	});
 });
