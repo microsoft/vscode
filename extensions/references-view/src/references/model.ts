@@ -21,13 +21,14 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 	}
 
 	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
-
-		let model: ReferencesModel;
-		if (this._result) {
-			model = new ReferencesModel(this._result);
-		} else {
-			const resut = await Promise.resolve(vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start));
-			model = new ReferencesModel(resut ?? []);
+		const locations = await Promise.resolve(this._result ?? vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>(this._command, this.location.uri, this.location.range.start));
+		const model = new ReferencesModel(locations ?? []);
+		if (model.items.length > 0 && this._command === 'vscode.executeReferenceProvider') {
+			this._getDefinitionLocations().then(definitions => {
+				if (definitions?.length) {
+					model.setDefinitionLocations(definitions);
+				}
+			});
 		}
 
 		if (model.items.length === 0) {
@@ -45,6 +46,15 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 				provider.dispose();
 			}
 		};
+	}
+
+	private async _getDefinitionLocations(): Promise<vscode.Location[] | vscode.LocationLink[] | undefined> {
+		try {
+			return await vscode.commands.executeCommand<vscode.Location[] | vscode.LocationLink[]>('vscode.executeDefinitionProvider', this.location.uri, this.location.range.start);
+		} catch (error) {
+			console.error(error);
+			return undefined;
+		}
 	}
 
 	with(location: vscode.Location): ReferencesTreeInput {
@@ -72,6 +82,17 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 			}
 			last.references.push(new ReferenceItem(loc, last));
 		}
+	}
+
+	setDefinitionLocations(definitions: vscode.Location[] | vscode.LocationLink[]): void {
+		const definitionUris = new Set(definitions.map(item => {
+			const uri = item instanceof vscode.Location ? item.uri : item.targetUri;
+			return uri.with({ fragment: '' }).toString();
+		}));
+		for (const item of this.items) {
+			item.isDefinition = definitionUris.has(item.uri.toString());
+		}
+		this._onDidChange.fire(undefined);
 	}
 
 	private static _compareUriIgnoreFragment(a: vscode.Uri, b: vscode.Uri): number {
@@ -278,7 +299,13 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			const result = new vscode.TreeItem(element.uri);
 			result.contextValue = 'file-item';
 			result.description = true;
-			result.iconPath = vscode.ThemeIcon.File;
+			result.iconPath = element.isDefinition ? new vscode.ThemeIcon('symbol-misc') : vscode.ThemeIcon.File;
+			if (element.isDefinition) {
+				result.tooltip = vscode.l10n.t('Contains the definition');
+				result.accessibilityInformation = {
+					label: vscode.l10n.t('{0} contains the definition', vscode.workspace.asRelativePath(element.uri))
+				};
+			}
 			result.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
 			return result;
 
@@ -328,7 +355,8 @@ export class FileItem {
 	constructor(
 		readonly uri: vscode.Uri,
 		readonly references: Array<ReferenceItem>,
-		readonly model: ReferencesModel
+		readonly model: ReferencesModel,
+		public isDefinition = false
 	) { }
 
 	// --- adapter
