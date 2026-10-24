@@ -30,6 +30,7 @@ import {
 	TUNNEL_GATEWAY_MIN_PROTOCOL_VERSION,
 	TUNNEL_MIN_PROTOCOL_VERSION,
 	TunnelAgentHostsSettingId,
+	TunnelAuthenticationRequiredError,
 	type ICachedTunnel,
 	type ITunnelAgentHostMainService,
 	type ITunnelConnectResult,
@@ -217,6 +218,11 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					this._logService.debug(`${LOG_PREFIX} No cached token available for silent tunnel enumeration`);
 				} else {
 					this._logService.warn(`${LOG_PREFIX} No auth token available for tunnel enumeration`);
+				}
+				const authProvider = options?.authProvider ?? this._lastAuthProvider
+					?? (['github', 'microsoft'] as const).find(provider => this._getScopesForProvider(provider).length > 0);
+				if (authProvider && this._getScopesForProvider(authProvider).length > 0) {
+					throw new TunnelAuthenticationRequiredError(authProvider);
 				}
 				throw new Error(localize('tunnelAgentHost.noAuthentication', "No authentication is available to enumerate tunnels."));
 			}
@@ -600,6 +606,19 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	async getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> {
 		const result = await this._getToken(options?.silent ?? true);
 		return result?.provider;
+	}
+
+	async signIn(authProvider: 'github' | 'microsoft'): Promise<void> {
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+			|| this._configurationService.getValue<boolean>('chat.disableAIFeatures')) {
+			throw new Error(localize('tunnelAgentHost.disabled', "Remote agent hosts are disabled."));
+		}
+		const scopes = this._getScopesForProvider(authProvider);
+		if (!scopes.length) {
+			throw new Error(localize('tunnelAgentHost.authenticationUnsupported', "Tunnel sign-in is not supported by this application."));
+		}
+		await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+		this._lastAuthProvider = authProvider;
 	}
 
 	getCachedTunnels(): ICachedTunnel[] {

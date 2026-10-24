@@ -31,6 +31,7 @@ export interface IRemoteEmptyEntry {
 	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly action?: { readonly label: string; readonly enabled: boolean };
 	readonly documentation?: { readonly label: string; readonly href: string };
 }
 
@@ -60,7 +61,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -68,7 +69,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; link?: Link }
 		| { readonly column: 'connection'; readonly label: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
@@ -106,13 +107,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			case 'name': {
 				const content = dom.append(container, dom.$('.remotes-name-content'));
 				const nameRow = dom.append(content, dom.$('.remotes-name-row'));
+				const description = dom.append(content, dom.$('.remotes-empty-description'));
+				const actionContainer = dom.append(content, dom.$('.remotes-empty-signin'));
 				template = {
 					...base, column: this.column,
 					label: dom.append(nameRow, dom.$('.remotes-name')),
 					count: dom.append(nameRow, dom.$('.remotes-group-count')),
 					progress: dom.append(nameRow, dom.$('.remotes-group-progress', { 'aria-hidden': 'true' })),
 					warning: dom.append(nameRow, dom.$('.remotes-refresh-warning')),
-					description: dom.append(content, dom.$('.remotes-empty-description')),
+					description, actionContainer,
 					links: dom.append(content, dom.$('.remotes-empty-actions')),
 				};
 				dom.append(template.progress, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
@@ -201,6 +204,20 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.warning, { content: entry.warning, style: HoverStyle.Pointer }));
 				}
 				template.warning.hidden = !template.warning.hasChildNodes();
+				template.actionContainer.hidden = entry.type !== 'empty' || !entry.action;
+				if (entry.type === 'empty' && entry.action) {
+					if (!template.actionLink) {
+						template.actionLink = template.disposables.add(new Link(template.actionContainer, { label: entry.action.label, href: '#' }, {
+							opener: () => {
+								if (template.row?.entry.type === 'empty' && template.row.entry.action?.enabled) {
+									this.onAction(template.row.entry, 'signIn');
+								}
+							},
+						}, this.hoverService, this.openerService));
+					}
+					template.actionLink.link = { label: entry.action.label, href: '#' };
+					template.actionLink.enabled = entry.action.enabled;
+				}
 				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: template.label.textContent }));
 				template.description.textContent = entry.type === 'empty' ? entry.description ?? '' : '';
 				template.description.hidden = !template.description.textContent;
@@ -295,8 +312,13 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		const focused = template.row?.id === this.focusedId;
 		if (template.column === 'gutter' || template.column === 'actions') {
 			template.toolbar.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
-		} else if (template.column === 'name' && template.link && template.row?.entry.type === 'empty' && template.row.entry.documentation) {
-			template.link.link = { ...template.row.entry.documentation, title: template.row.entry.documentation.label, tabIndex: focused && !template.links.hidden ? 0 : -1 };
+		} else if (template.column === 'name' && template.row?.entry.type === 'empty') {
+			if (template.link && template.row.entry.documentation) {
+				template.link.link = { ...template.row.entry.documentation, title: template.row.entry.documentation.label, tabIndex: focused && !template.links.hidden ? 0 : -1 };
+			}
+			if (template.actionLink && template.row.entry.action) {
+				template.actionLink.link = { label: template.row.entry.action.label, href: '#', tabIndex: focused && template.row.entry.action.enabled ? 0 : -1 };
+			}
 		}
 	}
 
