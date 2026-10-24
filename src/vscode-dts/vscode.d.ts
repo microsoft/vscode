@@ -1285,8 +1285,7 @@ declare module 'vscode' {
 
 		/**
 		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
-		 * column is larger than three.
+		 * isn't one of the main editors, e.g. an embedded editor.
 		 */
 		readonly viewColumn: ViewColumn | undefined;
 
