@@ -976,16 +976,7 @@ export default defineConfig(
 				}
 			],
 			'local/code-run-with-faked-timers-whole-test': 'warn',
-			'local/code-no-timeout-polling-loop': [
-				'warn',
-				{
-					// Files should (only) be removed from the list once they no longer poll
-					'exclude': [
-						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
-						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
-					]
-				}
-			]
+			'local/code-no-timeout-polling-loop': 'warn',
 		}
 	},
 	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)

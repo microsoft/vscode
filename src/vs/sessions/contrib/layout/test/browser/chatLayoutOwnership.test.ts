@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -30,6 +29,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
+	let controllers: TestDesktopController[] = [];
 
 	class RecordingLogService extends NullLogService {
 		readonly errors: unknown[] = [];
@@ -39,6 +39,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	}
 
 	class TestDesktopController extends DesktopLayoutController {
+		constructor(...args: ConstructorParameters<typeof DesktopLayoutController>) {
+			super(...args);
+			controllers.push(this);
+		}
 		ownerKeyFor(session: IActiveSession): URI {
 			const key = this._ownerKeyFor(session);
 			assert.ok(key, 'expected an owner key while chat layout is active');
@@ -69,10 +73,9 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		return store.add(harness.instaService.createInstance(TestDesktopController));
 	}
 
+	/** Awaits the layout work of every controller the current test created, including disposed ones. */
 	async function settle(): Promise<void> {
-		for (let i = 0; i < 6; i++) {
-			await timeout(0);
-		}
+		await Promise.all(controllers.map(controller => controller.whenIdle()));
 	}
 
 	function visible(): { readonly editor: boolean; readonly auxiliaryBar: boolean } {
@@ -87,7 +90,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.layoutService.setPartHidden(!auxiliaryBar, Parts.AUXILIARYBAR_PART);
 	}
 
-	teardown(() => store.clear());
+	teardown(() => {
+		store.clear();
+		controllers = [];
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function editorState() {

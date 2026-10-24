@@ -20,6 +20,8 @@ export interface IDesktopLayoutContext {
 	readonly isRestoringSessionLayout: boolean;
 	/** Runs `work` while a session-switch layout restore is held. */
 	withSessionLayoutRestore(work: () => void | Promise<unknown>): void;
+	/** Tracks fire-and-forget layout work so that the controller's `whenIdle` awaits it. */
+	trackWork(work: Promise<unknown>): void;
 	/** Fires when a session-switch layout restore fully settles, so strategies reconcile off the settled state rather than the transient changes during the restore. */
 	readonly onDidEndSessionLayoutRestore: Event<void>;
 	/** `true` while the whole side pane (editor + aux bar) is being toggled together. */
