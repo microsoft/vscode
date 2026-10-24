@@ -337,6 +337,19 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	 * `IEditorPart.hideGroupTitle`. The title shows again once all holders have disposed.
 	 */
 	hideTitle(): IDisposable;
+
+	/**
+	 * Insets the group within the space the grid gives it, on each side by
+	 * the given pixels; see `IEditorPart.setGroupGap`.
+	 */
+	setLayoutInsets(insets: IEditorGroupLayoutInsets): void;
+}
+
+export interface IEditorGroupLayoutInsets {
+	readonly top: number;
+	readonly right: number;
+	readonly bottom: number;
+	readonly left: number;
 }
 
 export function fillActiveEditorSelection(group: IEditorGroup, expectedActiveEditor: EditorInput, options: IEditorOptions): IEditorOptions {
