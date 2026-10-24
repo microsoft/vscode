@@ -202,6 +202,35 @@ suite('AgentHostChatMovability', () => {
 		});
 	});
 
+	test('a chat follows its history: truncating every turn makes it unsent, loading turns makes it started', async () => {
+		const { stateManager, peer } = await setupStrict();
+		const unsent = buildChatUri(session, 'unsent');
+		stateManager.addChat(session, unsent, creationTimeChatStorageResource(session, unsent, buildDefaultChatUri(session)));
+		await timeout(0);
+		const movable = (chat: string) => stateManager.getSessionState(session)?.chats.find(candidate => candidate.resource === chat)?.movable ?? false;
+		stateManager.dispatchServerAction(peer, { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 10 });
+		const turns = [...stateManager.getChatState(peer)!.turns];
+
+		const before = movable(peer);
+		stateManager.dispatchServerAction(peer, { type: ActionType.ChatTruncated });
+		const truncated = movable(peer);
+		stateManager.dispatchServerAction(unsent, { type: ActionType.ChatTurnsLoaded, turns });
+
+		assert.deepStrictEqual({ turns: turns.length, before, truncated, loaded: movable(unsent) }, { turns: 1, before: true, truncated: false, loaded: true });
+	});
+
+	test('a restored chat without a conversation is not movable once its history loaded', async () => {
+		const { stateManager } = await setupStrict();
+		const restored = buildChatUri(session, 'restored');
+		stateManager.registerRestoredChatSummary(session, restored, { storageResource: creationTimeChatStorageResource(session, restored, buildDefaultChatUri(session)), resolver: async () => ({ turns: [] }) });
+		const movable = () => stateManager.getSessionState(session)?.chats.find(chat => chat.resource === restored)?.movable ?? false;
+		const before = movable();
+
+		await stateManager.resolveChatState(restored);
+
+		assert.deepStrictEqual({ before, after: movable() }, { before: true, after: false });
+	});
+
 	test('a chat about to join another session is judged by the folders it brings, not the destination\'s', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = disposables.add(new AgentConfigurationService(stateManager, new NullLogService()));

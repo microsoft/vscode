@@ -212,13 +212,17 @@ export class AgentHostChatMovability extends Disposable {
 				} else {
 					this.update(action.chat);
 				}
-			} else if (action.type === ActionType.ChatTurnStarted) {
+			} else if (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatTruncated || action.type === ActionType.ChatTurnsLoaded) {
 				this._registrationPass = undefined;
 				this.update(envelope.channel);
 			} else if (action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved) {
 				this._registrationPass = undefined;
 				this.update(envelope.channel);
 			}
+		}));
+		this._register(_stateManager.onDidResolveChatState(chat => {
+			this._registrationPass = undefined;
+			this.update(chat);
 		}));
 		this._register(_sources.conversions.onDidChangePending(chat => {
 			this._registrationPass = undefined;
