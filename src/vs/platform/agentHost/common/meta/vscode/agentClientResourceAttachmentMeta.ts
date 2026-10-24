@@ -7,19 +7,20 @@ import type { MessageResourceAttachment } from '../../state/protocol/state.js';
 
 const clientResourceAttachmentKey = 'vscode.agentHost.clientResourceAttachment';
 
-/** Retains the originating client's resource identity until the host replaces it with a snapshot. */
-export function withClientResourceAttachment<T extends MessageResourceAttachment>(attachment: T, clientId: string): T {
+/** Retains a client-authenticated resource identity until the host replaces it with a snapshot. */
+export function withClientResourceAttachment<T extends MessageResourceAttachment>(attachment: T, token: string): T {
 	return {
 		...attachment,
-		_meta: { ...attachment._meta, [clientResourceAttachmentKey]: { clientId, uri: attachment.uri } },
+		_meta: { ...attachment._meta, [clientResourceAttachmentKey]: { token, uri: attachment.uri } },
 	};
 }
 
-/** Restores client ownership only for the originating client and an unchanged resource identity. */
-export function readClientResourceAttachmentUri(attachment: MessageResourceAttachment, clientId: string | undefined): string | undefined {
+/** Restores ownership only when the unchanged URI and token match client-held state. */
+export function readClientResourceAttachmentUri(attachment: MessageResourceAttachment, tokens: ReadonlyMap<string, string> | undefined): string | undefined {
 	const metadata = attachment._meta?.[clientResourceAttachmentKey];
-	return clientId && isRecord(metadata)
-		&& metadata.clientId === clientId && typeof metadata.uri === 'string' && metadata.uri === attachment.uri
+	return tokens && isRecord(metadata)
+		&& typeof metadata.token === 'string' && typeof metadata.uri === 'string' && metadata.uri === attachment.uri
+		&& tokens.get(metadata.uri) === metadata.token
 		? metadata.uri
 		: undefined;
 }

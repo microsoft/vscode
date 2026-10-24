@@ -11,19 +11,21 @@ import { MessageAttachmentKind, type MessageResourceAttachment } from '../../com
 suite('AgentClientResourceAttachmentMeta', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('retains ownership only for the originating client and unchanged attachment URI', () => {
+	test('retains ownership only with client-held proof for the unchanged attachment URI', () => {
 		const original: MessageResourceAttachment = { type: MessageAttachmentKind.Resource, uri: 'file:///source/a.ts', label: 'a.ts', _meta: { opaque: false } };
 		const attachment = withClientResourceAttachment(original, 'client');
+		const tokens = new Map([[original.uri, 'client']]);
 		assert.deepStrictEqual({
 			original,
 			opaque: attachment._meta?.opaque,
-			owner: readClientResourceAttachmentUri(attachment, 'client'),
-			other: readClientResourceAttachmentUri(attachment, 'other'),
+			owner: readClientResourceAttachmentUri(attachment, tokens),
+			other: readClientResourceAttachmentUri(attachment, new Map([[original.uri, 'other']])),
 			missing: readClientResourceAttachmentUri(attachment, undefined),
-			snapshot: readClientResourceAttachmentUri({ ...attachment, uri: 'file:///attachments/snapshot.ts' }, 'client'),
-			invalid: [undefined, null, [], 'client', { clientId: 'client', uri: 123 }].map(metadata => readClientResourceAttachmentUri({
+			snapshot: readClientResourceAttachmentUri({ ...attachment, uri: 'file:///attachments/snapshot.ts' }, tokens),
+			fabricated: readClientResourceAttachmentUri(withClientResourceAttachment({ ...original, uri: 'file:///secret/key' }, 'client'), tokens),
+			invalid: [undefined, null, [], 'client', { token: 'client', uri: 123 }].map(metadata => readClientResourceAttachmentUri({
 				...original, _meta: { 'vscode.agentHost.clientResourceAttachment': metadata },
-			}, 'client')),
+			}, tokens)),
 		}, {
 			original: { type: MessageAttachmentKind.Resource, uri: 'file:///source/a.ts', label: 'a.ts', _meta: { opaque: false } },
 			opaque: false,
@@ -31,6 +33,7 @@ suite('AgentClientResourceAttachmentMeta', () => {
 			other: undefined,
 			missing: undefined,
 			snapshot: undefined,
+			fabricated: undefined,
 			invalid: [undefined, undefined, undefined, undefined, undefined],
 		});
 	});

@@ -16,6 +16,7 @@ import { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegr
 import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactChatAction } from '../common/artifactIntegrationChat.js';
 import { Schemas } from '../../../base/common/network.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -56,7 +57,7 @@ import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubs
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
-import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type StateAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
@@ -881,7 +882,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 			if (isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
 				for (const message of this._state.outbox) {
-					this._transport.send(message);
+					this._sendProtocolMessage(message);
 				}
 				this._state.outbox.length = 0;
 			}
@@ -1671,10 +1672,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// outbox (dispatched during it) so wire order roughly tracks
 		// dispatch order.
 		for (const msg of replays) {
-			this._transport.send(msg);
+			this._sendProtocolMessage(msg);
 		}
 		for (const msg of outbox) {
-			this._transport.send(msg);
+			this._sendProtocolMessage(msg);
 		}
 	}
 
@@ -1732,7 +1733,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					}
 				}));
 				store.add(new TimeoutTimer(() => reject(new Error('Artifact action acknowledgement timed out; delivery is uncertain')), 30_000));
-				this._transport.send({ jsonrpc: '2.0', method: 'dispatchAction', params: { channel: chat, clientSeq: sequence, action } });
+				this._sendProtocolMessage({ jsonrpc: '2.0', method: 'dispatchAction', params: { channel: chat, clientSeq: sequence, action } });
 			});
 		} finally {
 			store.dispose();
@@ -2528,7 +2529,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: session.toString(),
 			chat: chat.toString(),
 			...(options?.title !== undefined ? { title: options.title } : {}),
-			...(initialMessage ? { initialMessage } : {}),
+			...(initialMessage ? { initialMessage: this._mapOutgoingResourceMessage(initialMessage) } : {}),
 			...(options?.workingDirectories !== undefined && !options.fork
 				? { workingDirectories: options.workingDirectories.map(directory => fromAgentHostUri(directory).toString()) }
 				: {}),
@@ -2708,6 +2709,43 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
+	/** Unwraps owned attachments only at the wire boundary, after implicit grants use client identities. */
+	private _sendProtocolMessage(message: ProtocolMessage): void {
+		if (isJsonRpcNotification(message) && message.method === 'dispatchAction') {
+			message = { ...message, params: { ...message.params, action: this._mapOutgoingResourceAction(message.params.action) } };
+		} else if (isJsonRpcRequest(message) && message.method === 'createChat' && message.params.initialMessage) {
+			message = { ...message, params: { ...message.params, initialMessage: this._mapOutgoingResourceMessage(message.params.initialMessage) } };
+		}
+		this._transport.send(message);
+	}
+
+	private _mapOutgoingResourceAction(action: StateAction): StateAction {
+		switch (action.type) {
+			case ActionType.ChatTurnStarted:
+			case ActionType.ChatPendingMessageSet:
+				return { ...action, message: this._mapOutgoingResourceMessage(action.message) };
+			case ActionType.ChatDraftChanged:
+				return action.draft ? { ...action, draft: this._mapOutgoingResourceMessage(action.draft) } : action;
+			default:
+				return action;
+		}
+	}
+
+	private _mapOutgoingResourceMessage(message: Message): Message {
+		return !message.attachments ? message : {
+			...message,
+			attachments: message.attachments.map(attachment => {
+				if (attachment.type !== MessageAttachmentKind.Resource) {
+					return attachment;
+				}
+				const uri = URI.parse(attachment.uri);
+				const hostUri = this.resourceUris.toAgentHost(uri);
+				return hostUri !== uri && isEqual(this.resourceUris.fromAgentHost(hostUri), uri)
+					? { ...attachment, uri: hostUri.toString() }
+					: attachment;
+			}),
+		};
+	}
 	/**
 	 * Register implicit read grants for each customization URI that we are
 	 * about to send to the host. The host needs to read these to materialize
@@ -3194,7 +3232,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._state.reconnect.outbox.push(message);
 			return;
 		}
-		this._transport.send(message);
+		this._sendProtocolMessage(message);
 	}
 
 	async openTcpConnection(target: { host: string; port: number }): Promise<IAgentHostTcpConnection> {

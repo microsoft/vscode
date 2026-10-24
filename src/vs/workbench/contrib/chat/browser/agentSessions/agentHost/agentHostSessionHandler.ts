@@ -1361,6 +1361,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _lifetime = new CancellationTokenSource();
 	private readonly _turnStopWatches = new Map<string, StopWatch>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
+	private readonly _clientResourceAttachmentTokens = new Map<string, string>();
 	private readonly _canvasProvider: AgentHostCanvasCollection | undefined;
 
 	/** Active session subscriptions, keyed by backend session URI string. */
@@ -1819,7 +1820,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							turn => this._getTurnErrorDetails(turn, allowTurnResume),
 							readAgentContextUsage(sessionState, sessionState.turns.at(-1)?.usage),
 							this._managedPluginRetryTarget(resolvedSession, chatURI),
-							this._config.connection.clientId,
+							this._clientResourceAttachmentTokens,
 						));
 						this._logService.trace(`[AgentHost] provideChatSessionContent: converted ${sessionState.turns.length} turn(s) into ${history.length} history item(s) for ${resolvedSession.toString()}`);
 
@@ -1852,7 +1853,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								modelId: lookup.toLanguageModelId(sessionState.activeTurn.message.model?.id ?? activeRawModelId),
 								...(sessionState.activeTurn.message.model?.config ? { modelConfiguration: sessionState.activeTurn.message.model.config } : {}),
 								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
-								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority, this._config.connection.clientId),
+								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority, this._clientResourceAttachmentTokens),
 								...(isMessageHiddenFromTranscript(sessionState.activeTurn.message) ? { isHidden: true } : {}),
 								...(isMessageRequestHiddenFromTranscript(sessionState.activeTurn.message) ? { isRequestHidden: true } : {}),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
@@ -2600,7 +2601,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			id: pending.id,
 			kind,
 			message: pending.message.text,
-			variableData: messageToVariableData(pending.message, this._config.connectionAuthority, this._config.connection.clientId),
+			variableData: messageToVariableData(pending.message, this._config.connectionAuthority, this._clientResourceAttachmentTokens),
 			modelId: this._toLanguageModelId(sessionResource, pending.message.model?.id),
 			modelConfiguration: pending.message.model?.config,
 			agentHostMessageOrigin: pending.message.origin,
@@ -2881,7 +2882,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
 				lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
 				this._config.connection.resourceUris, turn => this._getTurnErrorDetails(turn, allowTurnResume),
-				readAgentContextUsage(state, state.turns.at(-1)?.usage), this._managedPluginRetryTarget(backendSession, chatURI), this._config.connection.clientId));
+				readAgentContextUsage(state, state.turns.at(-1)?.usage), this._managedPluginRetryTarget(backendSession, chatURI), this._clientResourceAttachmentTokens));
 		};
 		let previousContextUsage = currentState ? readAgentContextUsage(currentState, currentState.turns.at(-1)?.usage) : undefined;
 		disposables.add(sessionSub.onDidChange(() => {
@@ -2976,7 +2977,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			chatSession.startServerRequest(
 				activeTurn.id,
 				activeTurn.message.text,
-				messageToVariableData(activeTurn.message, this._config.connectionAuthority, this._config.connection.clientId),
+				messageToVariableData(activeTurn.message, this._config.connectionAuthority, this._clientResourceAttachmentTokens),
 				{
 					modelId: this._toLanguageModelId(sessionResource, activeTurn.message.model?.id),
 					metadata: readAgentMessageRoundTripMetadata(activeTurn.message),
@@ -7304,7 +7305,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const modelId = this._toLanguageModelId(sessionResource, draft.model?.id);
 		const metadata = modelId ? this._languageModelsService.lookupLanguageModel(modelId) : undefined;
-		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text, this._config.connection.clientId);
+		const variableData = messageAttachmentsToVariableData(draft.attachments, this._config.connectionAuthority, draft.text, this._clientResourceAttachmentTokens);
 		const cursor = offsetToPosition(draft.text, draft.text.length);
 		const agent = draft.agent && this._customizationService.getCustomAgents(sessionResource).find(agent => agent.uri === draft.agent?.uri);
 		return {
@@ -8037,6 +8038,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 	}
 
+	private _withClientResourceAttachment(attachment: MessageResourceAttachment, uri: URI): MessageResourceAttachment {
+		if (uri.scheme !== Schemas.file || this._config.connection.resourceUris.fromAgentHost(uri) === uri) {
+			return attachment;
+		}
+		let token = this._clientResourceAttachmentTokens.get(attachment.uri);
+		if (!token) {
+			token = generateUuid();
+			this._clientResourceAttachmentTokens.set(attachment.uri, token);
+		}
+		return withClientResourceAttachment(attachment, token);
+	}
+
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
 		const attachmentUri = this._rebaseAttachmentUri(uri, sessionResource);
 		const attachment: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label, displayKind };
@@ -8046,9 +8059,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (_meta) {
 			attachment._meta = _meta;
 		}
-		return uri.scheme === Schemas.file && this._config.connection.resourceUris.fromAgentHost(uri) !== uri
-			? withClientResourceAttachment(attachment, this._config.connection.clientId)
-			: attachment;
+		return this._withClientResourceAttachment(attachment, uri);
 	}
 
 	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
@@ -8066,9 +8077,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (_meta) {
 			attachment._meta = _meta;
 		}
-		const resourceAttachment = location.uri.scheme === Schemas.file && this._config.connection.resourceUris.fromAgentHost(location.uri) !== location.uri
-			? withClientResourceAttachment(attachment, this._config.connection.clientId)
-			: attachment;
+		const resourceAttachment = this._withClientResourceAttachment(attachment, location.uri);
 		if (!readAttachmentDetail(resourceAttachment)) {
 			const model = this._modelService.getModel(location.uri);
 			if (model && attachmentUri.scheme === Schemas.file) {
@@ -8236,6 +8245,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Rebases connection-owned attachments from the requested checkout onto the resolved worktree. */
 	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
 		const hostUri = this._toOwnedAgentHostUri(uri);
+		const toClientUri = (resource: URI) => hostUri === uri ? resource : this._config.connection.resourceUris.fromAgentHost(resource);
 		const clientRequestedDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
 		const requestedDirectories = clientRequestedDirectories?.map(directory => this._toOwnedAgentHostUri(directory));
 		const requestedDir = requestedDirectories?.[0];
@@ -8243,36 +8253,35 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (hostUri === uri && requestedDir !== clientRequestedDirectories?.[0]) {
 			return uri;
 		}
-		uri = hostUri;
 		if (!requestedDir || requestedDir.scheme !== 'file') {
-			return uri;
+			return toClientUri(hostUri);
 		}
 		// Project host files back to their filesystem namespace before applying path semantics.
-		const resource = this._config.connection.resourceUris.fromAgentHost(uri);
+		const resource = this._config.connection.resourceUris.fromAgentHost(hostUri);
 		const requestedResources = requestedDirectories.map(directory => this._config.connection.resourceUris.fromAgentHost(directory));
 		const requestedResource = requestedResources[0];
 		const resourceExtUri = resource.scheme === Schemas.file ? extUriBiasedIgnorePathCase : extUri;
 		const owningRequestedDirectory = findDeepestContainingWorkingDirectory(resource, requestedResources, resourceExtUri);
 		if (!owningRequestedDirectory || !resourceExtUri.isEqual(owningRequestedDirectory, requestedResource)) {
-			return uri;
+			return toClientUri(hostUri);
 		}
 		const backendSession = this._resolveSessionUri(sessionResource);
 		const rawResolvedDir = this._getSessionState(backendSession.toString())?.workingDirectories?.[0];
 		const resolvedDir = rawResolvedDir ? this._toOwnedAgentHostUri(typeof rawResolvedDir === 'string' ? URI.parse(rawResolvedDir) : rawResolvedDir) : undefined;
 		if (!resolvedDir || resolvedDir.scheme !== 'file') {
-			return uri;
+			return toClientUri(hostUri);
 		}
 		if (resourceExtUri.isEqual(requestedResource, this._config.connection.resourceUris.fromAgentHost(resolvedDir))) {
-			return uri;
+			return toClientUri(hostUri);
 		}
 		const rel = resourceExtUri.relativePath(requestedResource, resource);
 		if (rel === undefined) {
-			return uri;
+			return toClientUri(hostUri);
 		}
 		if (rel === '') {
-			return resolvedDir;
+			return toClientUri(resolvedDir);
 		}
-		return resolvedDir.with({ path: posix.join(resolvedDir.path, rel) });
+		return toClientUri(resolvedDir.with({ path: posix.join(resolvedDir.path, rel) }));
 	}
 
 	// ---- Lifecycle ----------------------------------------------------------
@@ -8556,6 +8565,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	override dispose(): void {
 		this._lifetime.dispose(true);
+		this._clientResourceAttachmentTokens.clear();
 		for (const [, session] of this._activeSessions) {
 			session.dispose();
 		}
