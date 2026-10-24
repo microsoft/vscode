@@ -259,7 +259,8 @@ interface ILastMcpAuthRequirement {
 }
 
 interface ICopilotActiveToolCall {
-	readonly turnId: string;
+	/** Reassigned when steering hands a running Fusion tool call to its successor turn. */
+	turnId: string;
 	readonly startedAt?: string;
 	readonly toolName: string;
 	readonly displayName: string;
@@ -1185,6 +1186,8 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
+	/** Completed tool calls whose completion waits on persistence before it is published. */
+	private readonly _unpublishedToolCompletions = new Map<string, { readonly toolCall: ICopilotActiveToolCall; readonly completion: Promise<void> }>();
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _subagents = this._register(new CopilotSubagentTracking());
@@ -2509,8 +2512,13 @@ export class CopilotAgentSession extends Disposable {
 	 * rather than being folded into the original turn.
 	 */
 	private _beginSteeringTurn(steering: IPendingSteering): void {
+		const previousTurnId = this._currentTurn.value?.id;
 		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
-		this._completeActiveTurn();
+		// The SDK keeps running an in-flight HydraFusion workflow after a steering
+		// message, so the steering turn takes it over rather than discarding it;
+		// otherwise its phase events can no longer be routed and stay invisible.
+		const continuesFusionWorkflow = previousTurnId !== undefined && !this._fusionTurnCancelled;
+		this._completeActiveTurn(false, continuesFusionWorkflow);
 		const newTurnId = generateUuid();
 		steering.promotedTurnId = newTurnId;
 		this._emitAction({
@@ -2527,11 +2535,24 @@ export class CopilotAgentSession extends Disposable {
 		// mark it `running` immediately rather than leaving it `pending`,
 		// otherwise an abort during the steering turn would treat it as a
 		// not-yet-started queued turn and leave it open.
-		this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
+		if (continuesFusionWorkflow) {
+			// Phase chats stay open: like subagents, they outlive the root turn, and closing one would drop its running tools' results.
+			this._startTurn(newTurnId, steering.sender?.clientId, steering.sender?.clientContext);
+			this._transferFusionWorkflow(previousTurnId, newTurnId);
+		} else {
+			this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
+		}
 		const turn = this._currentTurn.value;
 		if (turn) {
 			turn.messageCharLen = steering.pendingMessage.message.text.length;
 			turn.markRunning();
+		}
+		if (continuesFusionWorkflow) {
+			const resumedPhase = this._fusionProgress.resumeRunningPhase();
+			if (resumedPhase) {
+				this._emitFusionProgress(resumedPhase);
+			}
+			this._transferProvisionalFusionToolCalls(previousTurnId, newTurnId);
 		}
 		if (activeSdkTurnId && turn) {
 			turn.activeSdkTurnId = activeSdkTurnId;
@@ -3292,6 +3313,10 @@ export class CopilotAgentSession extends Disposable {
 		this._completeFusionPhaseChats();
 		// Labels outlive a closed chat within the turn so a resumed workflow reopens it rather than routing to the root.
 		this._fusionPhases.clear();
+		this._startTurn(turnId, senderClientId, clientContext, providerInitiated);
+	}
+
+	private _startTurn(turnId: string, senderClientId: string | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), providerInitiated = false): void {
 		this._clearActivity();
 		this._setManagedPluginActivity(undefined);
 		this._detectInterruptedTurnOnRestore = false;
@@ -3299,6 +3324,76 @@ export class CopilotAgentSession extends Disposable {
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
 		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated);
 		this._beginLocalModelTurn(turnId);
+	}
+
+	/** Hands the Fusion workflows owned by one host turn to its successor, without marking their SDK turns ambiguous. */
+	private _transferFusionWorkflow(fromTurnId: string, toTurnId: string): void {
+		for (const owners of [this._fusionEventTurnIds, this._hostTurnIdsBySdkTurnId]) {
+			for (const [key, turnId] of owners) {
+				if (turnId === fromTurnId) {
+					owners.set(key, toTurnId);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Hands running or still-publishing provisional Fusion tool calls to the steering
+	 * turn, since their completion is only shown in the turn that owns them. Ending the
+	 * preempted turn cancelled their root rows, so those are re-shown; phase-chat tools
+	 * keep their open chat, and `task_complete` never had a row. Client tools are not
+	 * replayed: a new running row would ask the client to execute them again.
+	 */
+	private _transferProvisionalFusionToolCalls(fromTurnId: string, toTurnId: string): void {
+		const unpublished = [...this._unpublishedToolCompletions].map(([toolCallId, { toolCall }]) => [toolCallId, toolCall] as const);
+		for (const [toolCallId, toolCall] of [...this._activeToolCalls, ...unpublished]) {
+			if (toolCall.turnId !== fromTurnId
+				|| (toolCall.parentToolCallId && !this._fusionPhases.has(toolCall.parentToolCallId))
+				|| toolCall.contributor?.kind === ToolCallContributorKind.Client
+				|| !this._surfacedProvisionalFusionToolCallIds.has(toolCallId)
+				|| this._pendingPermissions.has(toolCallId)) {
+				continue;
+			}
+			toolCall.turnId = toTurnId;
+			// The successor turn must wait for the completion before it can end.
+			const pending = this._unpublishedToolCompletions.get(toolCallId);
+			if (pending?.toolCall === toolCall) {
+				this._currentTurn.value?.trackToolCompletion(pending.completion);
+			}
+			if (toolCall.parentToolCallId || isTaskCompleteTool(toolCall.toolName)) {
+				continue;
+			}
+			this._emitAction({
+				type: ActionType.ChatToolCallStart,
+				turnId: toTurnId,
+				toolCallId,
+				toolName: toolCall.toolName,
+				displayName: toolCall.displayName,
+				intention: toolCall.intention,
+				contributor: toolCall.contributor,
+				_meta: toolCall.meta && toToolCallMeta(toolCall.meta),
+			});
+			this._emitAction({
+				type: ActionType.ChatToolCallReady,
+				turnId: toTurnId,
+				toolCallId,
+				...(toolCall.contributor ? { contributor: toolCall.contributor } : {}),
+				...(toolCall.intention !== undefined ? { intention: toolCall.intention } : {}),
+				invocationMessage: getInvocationMessage(toolCall.toolName, toolCall.displayName, toolCall.parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+				toolInput: getToolInputString(toolCall.toolName, toolCall.parameters, tryStringify(toolCall.parameters)),
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: toolCall.meta && toToolCallMeta(toolCall.meta),
+			});
+			// A running shell publishes its terminal only once, when it is created.
+			if (toolCall.content.length) {
+				this._emitAction({
+					type: ActionType.ChatToolCallContentChanged,
+					turnId: toTurnId,
+					toolCallId,
+					content: toolCall.content,
+				});
+			}
+		}
 	}
 
 	async hasRunningDetachedShells(): Promise<boolean> {
@@ -3395,7 +3490,7 @@ export class CopilotAgentSession extends Disposable {
 		return compactContextAttribution(attribution);
 	}
 
-	private _completeActiveTurn(trustedRootTurn = false): void {
+	private _completeActiveTurn(trustedRootTurn = false, continuesFusionWorkflow = false): void {
 		const turn = this._currentTurn.value;
 		if (!turn) {
 			return;
@@ -3409,7 +3504,7 @@ export class CopilotAgentSession extends Disposable {
 			turnId: turn.id,
 			duration: turn.duration,
 		}, undefined, trustedRootTurn);
-		this._clearActiveTurn();
+		this._clearActiveTurn(continuesFusionWorkflow);
 	}
 
 	failActiveTurn(error: ErrorInfo): string | undefined {
@@ -3441,12 +3536,14 @@ export class CopilotAgentSession extends Disposable {
 	 * agent defers while a turn runs — notably a pending CLI client restart —
 	 * is not stranded waiting on a turn that already ended.
 	 */
-	private _clearActiveTurn(): void {
+	private _clearActiveTurn(continuesFusionWorkflow = false): void {
 		const turn = this._currentTurn.value;
-		this._clearPendingFusionEvents();
-		this._hasFusionRootTurnBoundary = false;
-		this._fusionProgress.reset();
-		this._clearProvisionalFusionState();
+		if (!continuesFusionWorkflow) {
+			this._clearPendingFusionEvents();
+			this._hasFusionRootTurnBoundary = false;
+			this._fusionProgress.reset();
+			this._clearProvisionalFusionState();
+		}
 		this._clearActivity();
 		this._setManagedPluginActivity(undefined);
 		if (turn) {
@@ -9321,7 +9418,8 @@ export class CopilotAgentSession extends Disposable {
 
 			const abortToken = this._abortToken;
 			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
-			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn);
+			// A steering handoff can move the tool to the next turn while its completion persists.
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn || (this._currentTurn.value !== undefined && this._currentTurn.value.id === tracked.turnId));
 			let terminalOutputStored = false;
 			let completionPublished = false;
 			let publication: Promise<boolean> | undefined;
@@ -9331,7 +9429,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 				this._emitAction({
 					type: ActionType.ChatToolCallComplete,
-					turnId,
+					turnId: tracked.turnId,
 					toolCallId: e.data.toolCallId,
 					result: {
 						success: e.data.success,
@@ -9417,6 +9515,9 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			}).finally(() => {
+				if (this._unpublishedToolCompletions.get(e.data.toolCallId)?.toolCall === tracked) {
+					this._unpublishedToolCompletions.delete(e.data.toolCallId);
+				}
 				if (deferred && !deferred.isSettled) {
 					deferred.complete(undefined);
 				}
@@ -9424,6 +9525,7 @@ export class CopilotAgentSession extends Disposable {
 					this._pendingSubagentToolCompletions.delete(e.data.toolCallId);
 				}
 			});
+			this._unpublishedToolCompletions.set(e.data.toolCallId, { toolCall: tracked, completion });
 			if (outputFilePath || hasResources) {
 				this._pendingOutputCaptures.add(completion);
 				void completion.finally(() => this._pendingOutputCaptures.delete(completion));
