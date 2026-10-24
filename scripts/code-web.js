@@ -51,25 +51,25 @@ async function main() {
 
 	const serverArgs = [];
 
-	const HOST = args['host'] ?? 'localhost';
-	const PORT = args['port'] ?? '8080';
+	const HOST = args.host ?? 'localhost';
+	const PORT = args.port ?? '8080';
 
-	if (args['host'] === undefined) {
+	if (args.host === undefined) {
 		serverArgs.push('--host', HOST);
 	}
-	if (args['port'] === undefined) {
+	if (args.port === undefined) {
 		serverArgs.push('--port', PORT);
 	}
 
 	// only use `./scripts/code-web.sh --playground` to add vscode-web-playground extension by default.
-	if (args['playground'] === true) {
+	if (args.playground === true) {
 		serverArgs.push('--extensionPath', WEB_DEV_EXTENSIONS_ROOT);
 		serverArgs.push('--folder-uri', 'memfs:///sample-folder');
-		await ensureWebDevExtensions(args['verbose']);
+		await ensureWebDevExtensions(args.verbose);
 	}
 
 	let openSystemBrowser = false;
-	if (!args['browser'] && !args['browserType']) {
+	if (!args.browser && !args.browserType) {
 		serverArgs.push('--browserType', 'none');
 		openSystemBrowser = true;
 	}

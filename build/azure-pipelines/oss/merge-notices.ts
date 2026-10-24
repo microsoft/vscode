@@ -174,12 +174,12 @@ export function computeUnaccounted(
 
 async function mainAsync(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
-	const cgPath = args['cg'] || '';
-	const extPath = args['extensions'] || '';
-	const outputPath = args['output'];
-	const cglicensesPath = args['cglicenses'] || '';
+	const cgPath = args.cg || '';
+	const extPath = args.extensions || '';
+	const outputPath = args.output;
+	const cglicensesPath = args.cglicenses || '';
 	const strict = process.argv.includes('--strict');
-	const provenance = args['provenance'] !== undefined;
+	const provenance = args.provenance !== undefined;
 
 	if (!outputPath) {
 		console.error('Usage: merge-notices.js --cg <path> --extensions <path> --output <path> [--cglicenses <path>] [--strict]');
@@ -221,7 +221,7 @@ async function mainAsync(): Promise<void> {
 	// SPDX expression instead of real license text); for them the scanner entry
 	// must WIN the collision, overriding CG's stub with the real fetched text.
 	const stubOverrideKeys = new Set<string>();
-	const stubOverridePath = args['stuboverride'] || (extPath ? extPath + '.stuboverride.json' : '');
+	const stubOverridePath = args.stuboverride || (extPath ? extPath + '.stuboverride.json' : '');
 	if (stubOverridePath && fs.existsSync(stubOverridePath)) {
 		try {
 			const raw: unknown = JSON.parse(fs.readFileSync(stubOverridePath, 'utf8'));
@@ -328,7 +328,7 @@ async function mainAsync(): Promise<void> {
 				// Load the scanner's presence index (packages on disk with no license
 				// file). This lets applyOverrides tell "present but unlicensed" (inject)
 				// apart from "not shipped" (stale -> warn + skip).
-				const presencePath = args['presence'] || (extPath ? extPath + '.presence.json' : '');
+				const presencePath = args.presence || (extPath ? extPath + '.presence.json' : '');
 				const presentNames = new Set<string>();
 				if (presencePath && fs.existsSync(presencePath)) {
 					try {
@@ -480,7 +480,7 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 	// produced no row for). Cross-checked against the final merged notice below so
 	// packages rescued downstream (e.g. a cglicenses.json override) are excluded.
 	// Never throws — a missing/garbled sibling just yields an empty list.
-	const unresolvedPath = args['unresolved'] || (extPath ? extPath + '.unresolved.json' : '');
+	const unresolvedPath = args.unresolved || (extPath ? extPath + '.unresolved.json' : '');
 	let unresolvedList: Array<{ name: string; version: string; reason: string }> = [];
 	if (unresolvedPath && fs.existsSync(unresolvedPath)) {
 		try {

@@ -32,7 +32,7 @@ async function main() {
 
 	const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
 	const addr = await startServer(serverArgs);
-	if (args['launch']) {
+	if (args.launch) {
 		open.default(addr);
 	}
 }
