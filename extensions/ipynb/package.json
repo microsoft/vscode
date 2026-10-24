@@ -156,8 +156,8 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
-    "watch": "npx gulp watch-extension:ipynb",
+    "compile": "pnpm exec gulp compile-extension:ipynb && pnpm run build-notebook",
+    "watch": "pnpm exec gulp watch-extension:ipynb",
     "build-notebook": "node ./esbuild.notebook.mts"
   },
   "dependencies": {

@@ -30,7 +30,7 @@
 				"vscode-extras.npmUpToDateFeature.enabled": {
 					"type": "boolean",
 					"default": true,
-					"description": "Show a status bar warning when npm dependencies are out of date."
+					"description": "Show a status bar warning when dependencies are out of date."
 				}
 			}
 		}
