@@ -9,6 +9,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { isChatWindowTerminalKeysWindow } from '../../browser/chatWindowActivityBar.js';
 
 suite('Chat window terminal keybinding', () => {
@@ -38,5 +39,9 @@ suite('Chat window terminal keybinding', () => {
 			noEditorArea: isChatWindowTerminalKeysWindow([{ ...own, hasEditorArea: false }], 2),
 			noWindows: isChatWindowTerminalKeysWindow([], 1),
 		}, { chatWindowFocused: true, mainWindowFocused: false, otherChatWindowFocused: true, docked: false, noEditorArea: false, noWindows: false });
+	});
+
+	test('is not sent to the shell while the focus is in the terminal', () => {
+		assert.ok(DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID));
 	});
 });
