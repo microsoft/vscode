@@ -23,7 +23,7 @@ import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platfo
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IPolicyService, NullPolicyService } from '../../../../platform/policy/common/policy.js';
@@ -75,6 +75,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	private readonly settingsResource: URI;
 	private readonly configurationEditing: ConfigurationEditing;
 	private instantiationService: IInstantiationService | undefined;
+	private writeErrorReporter: ConfigurationWriteErrorReporter | undefined;
 
 	constructor(
 		userDataProfileService: IUserDataProfileService,
@@ -154,7 +155,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 	/**
 	 * This service is created before the workbench services, so it acquires
-	 * them later to report settings write errors to the user.
+	 * the instantiation service later to create its write error reporter.
 	 */
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
 		this.instantiationService = instantiationService;
@@ -240,27 +241,14 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			await this.configurationEditing.write(settingsResource, path, value);
 		} catch (error) {
 			// Like the workbench configuration service, report the failure to the user unless the caller handles it
-			const instantiationService = this.instantiationService;
-			if (options?.donotNotifyError || !instantiationService) {
+			if (options?.donotNotifyError || !this.instantiationService) {
 				throw error;
 			}
-			instantiationService.invokeFunction(accessor => this.notifyWriteError(accessor, error, settingsResource));
+			this.writeErrorReporter ??= this.instantiationService.createInstance(ConfigurationWriteErrorReporter);
+			this.writeErrorReporter.report(error, settingsResource);
 			return;
 		}
 		await this.reloadConfiguration(target);
-	}
-
-	private notifyWriteError(accessor: ServicesAccessor, error: unknown, settingsResource: URI): void {
-		const notificationService = accessor.get(INotificationService);
-		if (error instanceof ConfigurationEditingError && error.code === ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION) {
-			const editorService = accessor.get(IEditorService);
-			notificationService.prompt(Severity.Error, error.message, [{
-				label: localize('openSettings', "Open Settings"),
-				run: () => editorService.openEditor({ resource: settingsResource, options: { pinned: true } })
-			}]);
-		} else {
-			notificationService.error(error instanceof Error ? error : String(error));
-		}
 	}
 
 	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
@@ -483,6 +471,28 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	// #endregion
+}
+
+/**
+ * Reports failed settings writes to the user, like the workbench's `ConfigurationEditing`.
+ */
+class ConfigurationWriteErrorReporter {
+
+	constructor(
+		@INotificationService private readonly notificationService: INotificationService,
+		@IEditorService private readonly editorService: IEditorService,
+	) { }
+
+	report(error: unknown, settingsResource: URI): void {
+		if (error instanceof ConfigurationEditingError && error.code === ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION) {
+			this.notificationService.prompt(Severity.Error, error.message, [{
+				label: localize('openSettings', "Open Settings"),
+				run: () => this.editorService.openEditor({ resource: settingsResource, options: { pinned: true } })
+			}]);
+		} else {
+			this.notificationService.error(error instanceof Error ? error : String(error));
+		}
+	}
 }
 
 class ConfigurationEditing {
