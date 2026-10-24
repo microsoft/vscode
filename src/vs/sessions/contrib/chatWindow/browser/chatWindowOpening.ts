@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 
 /** What opening a chat window has set up so far, which a failure has to take down again. */
 export interface IChatWindowOpening {
@@ -38,4 +38,13 @@ export class InFlightOperations<T> {
 		this._pending.set(key, promise);
 		return promise;
 	}
+}
+
+/**
+ * Holds the loaded model of a chat while it moves between views, such as from the main window's grid to a chat window:
+ * the model is released when its last view lets go, so without it the view that takes over loads the history again.
+ * `acquire` gives a reference to the model if it is loaded.
+ */
+export function holdLoadedChat(acquire: () => IDisposable | undefined): IDisposable {
+	return acquire() ?? { dispose: () => { } };
 }

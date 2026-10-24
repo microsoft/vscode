@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { InFlightOperations, openCleaningUpOnFailure } from '../../browser/chatWindowOpening.js';
+import { InFlightOperations, holdLoadedChat, openCleaningUpOnFailure } from '../../browser/chatWindowOpening.js';
 
 suite('Chat window opening', () => {
 
@@ -62,5 +62,28 @@ suite('Chat window opening', () => {
 		});
 
 		assert.deepStrictEqual({ events, result }, { events: ['disposed'], result: 'opened' });
+	});
+
+	test('a chat moving between views keeps its loaded model, so the next view does not load it again', () => {
+		let refs = 0;
+		let loads = 0;
+		const model = { loaded: true };
+		/** A model store: released with its last reference, loaded again by whoever asks next. */
+		const acquire = () => { refs++; return toDisposable(() => { if (--refs === 0) { model.loaded = false; } }); };
+		const view = () => { const ref = acquire(); return ref; };
+		const bind = () => { if (!model.loaded) { loads++; model.loaded = true; } return acquire(); };
+
+		const mainView = view();
+		const held = holdLoadedChat(() => model.loaded ? acquire() : undefined);
+		mainView.dispose();
+		const windowView = bind();
+		held.dispose();
+		windowView.dispose();
+
+		assert.deepStrictEqual({ loads, refs, loaded: model.loaded }, { loads: 0, refs: 0, loaded: false });
+	});
+
+	test('holding a chat that is not loaded holds nothing', () => {
+		holdLoadedChat(() => undefined).dispose();
 	});
 });
