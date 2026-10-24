@@ -296,7 +296,7 @@ suite('RemotesWidget', () => {
 			const action = row.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!;
 			const unavailable = {
 				label: action.getAttribute('aria-label'), disabled: action.getAttribute('aria-disabled'),
-				icon: action.classList.contains('codicon-circle-slash'),
+				icon: action.classList.contains('codicon-eye-closed'),
 				opacity: dom.getWindow(action).getComputedStyle(action.closest('.monaco-toolbar')!).opacity,
 				accessible: widget.getAccessibilityContent().includes('not shown in Environment picker: Connect once'),
 			};
