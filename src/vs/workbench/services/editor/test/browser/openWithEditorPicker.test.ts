@@ -12,6 +12,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { IUntitledTextEditorService } from '../../../untitled/common/untitledTextEditorService.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IUntypedEditorInput } from '../../../../common/editor.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
@@ -163,6 +165,33 @@ suite('OpenWithEditorPicker', () => {
 		const { instantiationService } = await setup({}, quickPick => quickPick.hide());
 
 		assert.strictEqual(await pick(instantiationService, { resource }), undefined);
+	});
+
+	test('offers untitled files the editors matching their language instead of all editors', async () => {
+		const { instantiationService, shown } = await setup({}, quickPick => quickPick.hide(), quickPick => quickPick.hide());
+		const [editorResolverService, languageService, untitledTextEditorService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorResolverService),
+			accessor.get(ILanguageService),
+			accessor.get(IUntitledTextEditorService)
+		] as const);
+		disposables.add(editorResolverService.registerEditor('*.other', {
+			id: 'test.otherEditor',
+			label: 'Other Editor',
+			priority: RegisteredEditorPriority.option
+		}, {}, {}));
+		disposables.add(languageService.registerLanguage({ id: 'testComponent', extensions: ['.component.html'] }));
+		const component = disposables.add(untitledTextEditorService.create({ languageId: 'testComponent' }));
+		await component.resolve();
+		const plain = disposables.add(untitledTextEditorService.create());
+		await plain.resolve();
+
+		await pick(instantiationService, { resource: component.resource });
+		await pick(instantiationService, { resource: plain.resource });
+
+		assert.deepStrictEqual(shown.map(picker => picker.items), [
+			[`${DEFAULT_EDITOR_ASSOCIATION.id}: `, `${COMPONENT_EDITOR_ID}: Default`],
+			[`${DEFAULT_EDITOR_ASSOCIATION.id}: Default`]
+		]);
 	});
 
 	test('does not show a picker for side by side editors', async () => {

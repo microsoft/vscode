@@ -302,6 +302,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		webviewPanel: vscode.WebviewPanel,
 		token: vscode.CancellationToken,
 	): Promise<void> {
+		// Opening a new plain text file in the Markdown editor turns it into a Markdown scratchpad
+		if (document.uri.scheme === 'untitled' && document.languageId === 'plaintext') {
+			document = await vscode.languages.setTextDocumentLanguage(document, 'markdown');
+		}
 		await this.#resolveEditor(document, webviewPanel, token);
 	}
 
