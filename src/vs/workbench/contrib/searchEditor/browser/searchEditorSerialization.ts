@@ -10,7 +10,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Range } from '../../../../editor/common/core/range.js';
 import type { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
-import type { SearchConfiguration } from './constants.js';
+import { SearchContextLinesMode, searchContextLinesModes, type SearchConfiguration } from './constants.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ISearchTreeMatch, ISearchTreeFileMatch, ISearchResult, ISearchTreeFolderMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
@@ -62,14 +62,14 @@ const matchToSearchResultFormat = (match: ISearchTreeMatch, longestLineNumber: n
 
 type SearchResultSerialization = { text: string[]; matchRanges: Range[] };
 
-function fileMatchToSearchResultFormat(fileMatch: ISearchTreeFileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization[] {
+function fileMatchToSearchResultFormat(fileMatch: ISearchTreeFileMatch, labelFormatter: (x: URI) => string, contextLines: number, contextLinesMode: SearchContextLinesMode): SearchResultSerialization[] {
 
-	const textSerializations = fileMatch.textMatches().length > 0 ? matchesToSearchResultFormat(fileMatch.resource, fileMatch.textMatches().sort(searchMatchComparer), fileMatch.context, labelFormatter) : undefined;
-	const cellSerializations = (isNotebookFileMatch(fileMatch)) ? fileMatch.cellMatches().sort((a, b) => a.cellIndex - b.cellIndex).sort().filter(cellMatch => cellMatch.contentMatches.length > 0).map((cellMatch, index) => cellMatchToSearchResultFormat(cellMatch, labelFormatter, index === 0)) : [];
+	const textSerializations = fileMatch.textMatches().length > 0 ? matchesToSearchResultFormat(fileMatch.resource, fileMatch.textMatches().sort(searchMatchComparer), fileMatch.context, labelFormatter, contextLines, contextLinesMode) : undefined;
+	const cellSerializations = (isNotebookFileMatch(fileMatch)) ? fileMatch.cellMatches().sort((a, b) => a.cellIndex - b.cellIndex).sort().filter(cellMatch => cellMatch.contentMatches.length > 0).map((cellMatch, index) => cellMatchToSearchResultFormat(cellMatch, labelFormatter, index === 0, contextLines, contextLinesMode)) : [];
 
 	return [textSerializations, ...cellSerializations].filter(x => !!x) as SearchResultSerialization[];
 }
-function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchTreeMatch[], matchContext: Map<number, string>, labelFormatter: (x: URI) => string, shouldUseHeader = true): SearchResultSerialization {
+function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchTreeMatch[], matchContext: Map<number, string>, labelFormatter: (x: URI) => string, contextLines: number, contextLinesMode: SearchContextLinesMode, shouldUseHeader = true): SearchResultSerialization {
 	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
 
 	const text: string[] = shouldUseHeader ? [`${labelFormatter(resource)}:`] : [];
@@ -78,7 +78,15 @@ function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchTreeMa
 	const targetLineNumberToOffset: Record<string, number> = {};
 
 	const context: { line: string; lineNumber: number }[] = [];
-	matchContext.forEach((line, lineNumber) => context.push({ line, lineNumber }));
+	const sourceMatchRanges = sortedMatches.map(match => match.range());
+	matchContext.forEach((line, lineNumber) => {
+		const isIncluded = contextLinesMode === SearchContextLinesMode.Surrounding || sourceMatchRanges.some(range => contextLinesMode === SearchContextLinesMode.Before
+			? lineNumber < range.startLineNumber && lineNumber >= range.startLineNumber - contextLines
+			: lineNumber > range.endLineNumber && lineNumber <= range.endLineNumber + contextLines);
+		if (isIncluded) {
+			context.push({ line, lineNumber });
+		}
+	});
 	context.sort((a, b) => a.lineNumber - b.lineNumber);
 
 	let lastLine: number | undefined = undefined;
@@ -96,10 +104,14 @@ function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchTreeMa
 					lastLine = lineNumber;
 				}
 
+				const matchLineNumber = +match.lineNumber;
+				if (contextLinesMode === SearchContextLinesMode.After && lastLine !== undefined && matchLineNumber !== lastLine + 1) {
+					text.push('');
+				}
 				targetLineNumberToOffset[match.lineNumber] = text.length;
 				seenLines.add(match.lineNumber);
 				text.push(match.line);
-				lastLine = +match.lineNumber;
+				lastLine = matchLineNumber;
 			}
 
 			matchRanges.push(...match.ranges.map(translateRangeLines(targetLineNumberToOffset[match.lineNumber])));
@@ -114,11 +126,11 @@ function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchTreeMa
 	return { text, matchRanges };
 }
 
-function cellMatchToSearchResultFormat(cellMatch: ICellMatch, labelFormatter: (x: URI) => string, shouldUseHeader: boolean): SearchResultSerialization {
-	return matchesToSearchResultFormat(cellMatch.cell?.uri ?? cellMatch.parent.resource, cellMatch.contentMatches.sort(searchMatchComparer), cellMatch.context, labelFormatter, shouldUseHeader);
+function cellMatchToSearchResultFormat(cellMatch: ICellMatch, labelFormatter: (x: URI) => string, shouldUseHeader: boolean, contextLines: number, contextLinesMode: SearchContextLinesMode): SearchResultSerialization {
+	return matchesToSearchResultFormat(cellMatch.cell?.uri ?? cellMatch.parent.resource, cellMatch.contentMatches.sort(searchMatchComparer), cellMatch.context, labelFormatter, contextLines, contextLinesMode, shouldUseHeader);
 }
 
-const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: string, excludes: string, contextLines: number): SearchConfiguration => {
+const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: string, excludes: string, contextLines: number, contextLinesMode: SearchContextLinesMode): SearchConfiguration => {
 	return {
 		query: pattern.contentPattern.pattern,
 		isRegexp: !!pattern.contentPattern.isRegExp,
@@ -128,6 +140,7 @@ const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: stri
 		showIncludesExcludes: !!(includes || excludes || pattern?.userDisabledExcludesAndIgnoreFiles),
 		useExcludeSettingsAndIgnoreFiles: (pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? true : !pattern.userDisabledExcludesAndIgnoreFiles),
 		contextLines,
+		contextLinesMode,
 		onlyOpenEditors: !!pattern.onlyOpenEditors,
 		notebookSearchConfig: {
 			includeMarkupInput: !!pattern.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
@@ -157,12 +170,13 @@ export const serializeSearchConfiguration = (config: Partial<SearchConfiguration
 		config.filesToInclude ? `# Including: ${config.filesToInclude}` : undefined,
 		config.filesToExclude ? `# Excluding: ${config.filesToExclude}` : undefined,
 		config.contextLines ? `# ContextLines: ${config.contextLines}` : undefined,
+		config.contextLinesMode && config.contextLinesMode !== SearchContextLinesMode.Surrounding ? `# ContextLinesMode: ${config.contextLinesMode}` : undefined,
 		''
 	]).join(lineDelimiter);
 };
 
 export const extractSearchQueryFromModel = (model: ITextModel): SearchConfiguration =>
-	extractSearchQueryFromLines(model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter));
+	extractSearchQueryFromLines(model.getValueInRange(new Range(1, 1, 7, 1)).split(lineDelimiter));
 
 export const defaultSearchConfig = (): SearchConfiguration => ({
 	query: '',
@@ -173,6 +187,7 @@ export const defaultSearchConfig = (): SearchConfiguration => ({
 	useExcludeSettingsAndIgnoreFiles: true,
 	matchWholeWord: false,
 	contextLines: 0,
+	contextLinesMode: SearchContextLinesMode.Surrounding,
 	showIncludesExcludes: false,
 	onlyOpenEditors: false,
 	notebookSearchConfig: {
@@ -220,6 +235,13 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 			case 'Including': query.filesToInclude = value; break;
 			case 'Excluding': query.filesToExclude = value; break;
 			case 'ContextLines': query.contextLines = +value; break;
+			case 'ContextLinesMode': {
+				const contextLinesMode = searchContextLinesModes.find(mode => mode === value);
+				if (contextLinesMode !== undefined) {
+					query.contextLinesMode = contextLinesMode;
+				}
+				break;
+			}
 			case 'Flags': {
 				query.isRegexp = value.indexOf('RegExp') !== -1;
 				query.isCaseSensitive = value.indexOf('CaseSensitive') !== -1;
@@ -236,9 +258,9 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 };
 
 export const serializeSearchResultForEditor =
-	(searchResult: ISearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean): { matchRanges: Range[]; text: string; config: Partial<SearchConfiguration> } => {
+	(searchResult: ISearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean, contextLinesMode = SearchContextLinesMode.Surrounding): { matchRanges: Range[]; text: string; config: Partial<SearchConfiguration> } => {
 		if (!searchResult.query) { throw Error('Internal Error: Expected query, got null'); }
-		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
+		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines, contextLinesMode);
 
 		const filecount = searchResult.fileCount() > 1 ? localize('numFiles', "{0} files", searchResult.fileCount()) : localize('oneFile', "1 file");
 		const resultcount = searchResult.count() > 1 ? localize('numResults', "{0} results", searchResult.count()) : localize('oneResult', "1 result");
@@ -259,7 +281,7 @@ export const serializeSearchResultForEditor =
 			flattenSearchResultSerializations(
 				searchResult.folderMatches().sort(matchComparer)
 					.map(folderMatch => folderMatch.allDownstreamFileMatches().sort(matchComparer)
-						.flatMap(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter))).flat());
+						.flatMap(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter, contextLines, contextLinesMode))).flat());
 
 		return {
 			matchRanges: allResults.matchRanges.map(translateRangeLines(info.length)),

@@ -11,7 +11,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from '../../../../editor/contrib/find/browser/findModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandMetadata } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -255,7 +255,7 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 };
 
 export type OpenSearchEditorArgs = Partial<SearchEditorConstants.SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
-const openArgMetadata = {
+const openArgMetadata: ICommandMetadata = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
 		name: 'Open new Search Editor args',
@@ -265,6 +265,7 @@ const openArgMetadata = {
 				filesToInclude: { type: 'string' },
 				filesToExclude: { type: 'string' },
 				contextLines: { type: 'number' },
+				contextLinesMode: { type: 'string', enum: [...SearchEditorConstants.searchContextLinesModes] },
 				matchWholeWord: { type: 'boolean' },
 				isCaseSensitive: { type: 'boolean' },
 				isRegexp: { type: 'boolean' },
@@ -276,7 +277,7 @@ const openArgMetadata = {
 			}
 		}
 	}]
-} as const;
+};
 
 registerAction2(class extends Action2 {
 	constructor() {
