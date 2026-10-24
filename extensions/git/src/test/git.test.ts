@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getGitErrorCode } from '../git';
 import * as assert from 'assert';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
+import { GitErrorCodes } from '../api/git.constants';
 
 suite('git', () => {
 	suite('Git process input', () => {
@@ -721,6 +722,18 @@ suite('git', () => {
 					{ name: 'Jane Doe', email: 'jane@example.com' }
 				]
 			);
+		});
+	});
+
+	suite('getGitErrorCode', () => {
+		test('remote ref not found', () => {
+			assert.deepStrictEqual([
+				getGitErrorCode('fatal: couldn\'t find remote ref feat'),
+				getGitErrorCode('fatal: Couldn\'t find remote ref feat')
+			], [
+				GitErrorCodes.NoRemoteReference,
+				GitErrorCodes.NoRemoteReference
+			]);
 		});
 	});
 
