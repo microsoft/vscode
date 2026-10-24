@@ -12,6 +12,19 @@ import { Color } from '../../../../../base/common/color.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Event } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
+import { WalkthroughsService } from '../../browser/gettingStartedService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import '../../../../browser/media/style.css';
 import '../../browser/media/gettingStarted.css';
 
@@ -129,3 +142,85 @@ suite('Getting started focus styles', () => {
 		}
 	}
 });
+
+suite('WalkthroughsService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registerWalkthrough drops duplicate step id without throwing (#342574)', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override readonly onDidExecuteCommand = Event.None;
+		});
+		instantiationService.stub(IExtensionManagementService, new class extends mock<IExtensionManagementService>() {
+			override getInstalled() { return Promise.resolve([]); }
+			override readonly onDidInstallExtensions = Event.None;
+		});
+		instantiationService.stub(IHostService, new class extends mock<IHostService>() {
+			override hadLastFocus() { return Promise.resolve(false); }
+		});
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override readonly onDidChangeViewVisibility = Event.None;
+		});
+		instantiationService.stub(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() { });
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() { });
+		instantiationService.stub(IUserDataSyncEnablementService, new class extends mock<IUserDataSyncEnablementService>() {
+			override isEnabled() { return false; }
+			override readonly onDidChangeEnablement = Event.None;
+		});
+
+		const service = store.add(instantiationService.createInstance(WalkthroughsService));
+
+		const origError = console.error;
+		let loggedError = false;
+		console.error = (msg: unknown) => {
+			if (typeof msg === 'string' && msg.includes('Attempting to register step with id test-step-1 twice. Second is dropped.')) {
+				loggedError = true;
+			}
+		};
+
+		try {
+			assert.doesNotThrow(() => {
+				service.registerWalkthrough({
+					id: 'test-walkthrough',
+					title: 'Test Walkthrough',
+					description: 'Test Description',
+					order: 0,
+					source: 'test',
+					isFeatured: false,
+					when: ContextKeyExpr.true(),
+					icon: { type: 'icon', icon: Codicon.check },
+					walkthroughPageTitle: 'Test',
+					steps: [
+						{
+							id: 'test-step-1',
+							title: 'Step 1',
+							description: 'Step 1 Description',
+							category: 'test-walkthrough',
+							when: ContextKeyExpr.true(),
+							order: 0,
+							completionEvents: [],
+							media: { type: 'svg', path: URI.parse('https://example.com'), altText: 'alt' }
+						},
+						{
+							id: 'test-step-1',
+							title: 'Duplicate Step 1',
+							description: 'Duplicate Step 1 Description',
+							category: 'test-walkthrough',
+							when: ContextKeyExpr.true(),
+							order: 1,
+							completionEvents: [],
+							media: { type: 'svg', path: URI.parse('https://example.com'), altText: 'alt' }
+						}
+					]
+				});
+			});
+		} finally {
+			console.error = origError;
+		}
+
+		assert.strictEqual(loggedError, true);
+		const walkthrough = service.getWalkthrough('test-walkthrough');
+		assert.strictEqual(walkthrough.id, 'test-walkthrough');
+	});
+});
+
