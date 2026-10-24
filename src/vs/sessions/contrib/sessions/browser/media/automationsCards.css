@@ -724,7 +724,7 @@
 	border-radius: 0;
 }
 
-.automations-history-group-runs .automations-run-session-list .monaco-list-row:is(:hover, .hovered, .focused, :focus-within) .session-external-application-badge-title.visible {
+.automations-history-group-runs .automations-run-session-list .sessions-list-control .monaco-list-row:is(:hover, .hovered, .focused, :focus-within) .session-external-application-badge-title.visible {
 	display: flex;
 }
 
