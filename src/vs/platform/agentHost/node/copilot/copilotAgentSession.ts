@@ -259,8 +259,7 @@ interface ILastMcpAuthRequirement {
 }
 
 interface ICopilotActiveToolCall {
-	/** Reassigned when steering hands a running Fusion tool call to its successor turn. */
-	turnId: string;
+	readonly turnId: string;
 	readonly startedAt?: string;
 	readonly toolName: string;
 	readonly displayName: string;
@@ -1186,7 +1185,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
-	/** Completed tool calls whose completion waits on persistence before it is published. */
+	/** Completed tool calls whose completion waits on persistence before it is published in their (possibly handed-off) turn. */
 	private readonly _unpublishedToolCompletions = new Map<string, { readonly toolCall: ICopilotActiveToolCall; readonly completion: Promise<void> }>();
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
@@ -3354,11 +3353,14 @@ export class CopilotAgentSession extends Disposable {
 				|| this._pendingPermissions.has(toolCallId)) {
 				continue;
 			}
-			toolCall.turnId = toTurnId;
-			// The successor turn must wait for the completion before it can end.
+			const handedOff = { ...toolCall, turnId: toTurnId };
 			const pending = this._unpublishedToolCompletions.get(toolCallId);
 			if (pending?.toolCall === toolCall) {
+				this._unpublishedToolCompletions.set(toolCallId, { ...pending, toolCall: handedOff });
+				// The successor turn must wait for the completion before it can end.
 				this._currentTurn.value?.trackToolCompletion(pending.completion);
+			} else {
+				this._activeToolCalls.set(toolCallId, handedOff);
 			}
 			if (toolCall.parentToolCallId || isTaskCompleteTool(toolCall.toolName)) {
 				continue;
@@ -9419,7 +9421,8 @@ export class CopilotAgentSession extends Disposable {
 			const abortToken = this._abortToken;
 			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
 			// A steering handoff can move the tool to the next turn while its completion persists.
-			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn || (this._currentTurn.value !== undefined && this._currentTurn.value.id === tracked.turnId));
+			const publishingTurnId = () => this._unpublishedToolCompletions.get(e.data.toolCallId)?.toolCall.turnId ?? turnId;
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn || (this._currentTurn.value !== undefined && this._currentTurn.value.id === publishingTurnId()));
 			let terminalOutputStored = false;
 			let completionPublished = false;
 			let publication: Promise<boolean> | undefined;
@@ -9429,7 +9432,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 				this._emitAction({
 					type: ActionType.ChatToolCallComplete,
-					turnId: tracked.turnId,
+					turnId: publishingTurnId(),
 					toolCallId: e.data.toolCallId,
 					result: {
 						success: e.data.success,
@@ -9515,7 +9518,7 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			}).finally(() => {
-				if (this._unpublishedToolCompletions.get(e.data.toolCallId)?.toolCall === tracked) {
+				if (this._unpublishedToolCompletions.get(e.data.toolCallId)?.completion === completion) {
 					this._unpublishedToolCompletions.delete(e.data.toolCallId);
 				}
 				if (deferred && !deferred.isSettled) {

@@ -21211,7 +21211,7 @@ Use the attached image as context.
 			mockSession.fire('tool.execution_complete', { toolCallId: 'phase-tool', success: true, result: { content: 'main' }, fusion: { ...fusion, commitId: 'commit-1' } });
 
 			assert.ok(phaseChat?.kind === 'subagent_started');
-			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'subagent_completed'
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap<string | { type: string; parentToolCallId: string | undefined }>(signal => signal.kind === 'subagent_completed'
 				? [signal.kind]
 				: signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'phase-tool'
 					? [{ type: signal.action.type, parentToolCallId: signal.parentToolCallId }]
