@@ -2293,6 +2293,10 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 							|| !isEqual(changes.resourceObs.get(), sessionResource)) {
 							return;
 						}
+						// An explicit scope without a session must never write to the active session.
+						if (scope && !session) {
+							return;
+						}
 						changesViewService.setChangesetId(changeset.id, session);
 						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
 					}

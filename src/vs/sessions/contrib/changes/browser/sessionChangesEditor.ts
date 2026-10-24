@@ -103,7 +103,7 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 			return false;
 		}
 
-		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, this.scope.session.get());
+		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, { session: this.scope.session.get() });
 		return true;
 	}
 

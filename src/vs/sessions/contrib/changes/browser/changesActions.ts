@@ -119,6 +119,9 @@ class OpenChangedFileAction extends Action2 {
 
 		const changesViewService = accessor.get(IChangesViewService);
 		const session = resolveSessionActionTarget(accessor, args[1]);
+		if (!session) {
+			return;
+		}
 		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).activeSession.get(), session);
 		await accessor.get(IEditorService).openEditor({
 			resource: getWorkspaceResource(resource, changes.changesObs.get()),

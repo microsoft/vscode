@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { IReader } from '../../../../base/common/observable.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { ISessionsService } from './sessionsService.js';
@@ -18,9 +20,9 @@ function isSession(value: unknown): value is IActiveSession {
  * Finds the session shown for `resource`: the active session first, then the
  * other visible sessions. The one place to extend when more hosts show sessions.
  */
-export function findSessionByResource(sessionsService: ISessionsService, resource: URI): IActiveSession | undefined {
+export function findSessionByResource(sessionsService: ISessionsService, resource: URI, reader?: IReader): IActiveSession | undefined {
 	const key = resource.toString();
-	return [sessionsService.activeSession.get(), ...sessionsService.visibleSessions.get()].find(session => session?.resource.toString() === key);
+	return [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader)].find(session => session?.resource.toString() === key);
 }
 
 /**
@@ -28,6 +30,8 @@ export function findSessionByResource(sessionsService: ISessionsService, resourc
  * action was invoked with: a session, a `{ session }` context, or the resource
  * of a visible session. Without an argument the action falls back to the
  * active session, which is what keybindings and the command palette provide.
+ * An argument that names a session which cannot be resolved never falls back
+ * to the active session: the result is `undefined` and the action must no-op.
  */
 export function resolveSessionActionTarget(accessor: ServicesAccessor, arg?: unknown): IActiveSession | undefined {
 	if (isSession(arg)) {
@@ -35,11 +39,16 @@ export function resolveSessionActionTarget(accessor: ServicesAccessor, arg?: unk
 	}
 	const sessionsService = accessor.get(ISessionsService);
 	const activeSession = sessionsService.activeSession.get();
+	let session: IActiveSession | undefined;
 	if (arg instanceof URI) {
-		return findSessionByResource(sessionsService, arg);
+		session = findSessionByResource(sessionsService, arg);
+	} else if (arg && typeof arg === 'object' && hasKey(arg as { readonly session?: IActiveSession }, { session: true })) {
+		session = (arg as { readonly session: IActiveSession | undefined }).session;
+	} else {
+		return activeSession;
 	}
-	if (arg && typeof arg === 'object' && hasKey(arg as { readonly session?: IActiveSession }, { session: true })) {
-		return (arg as { readonly session: IActiveSession | undefined }).session;
+	if (!session) {
+		accessor.get(ILogService).trace('[sessionActionTarget] the session argument did not resolve to a session, the action does nothing');
 	}
-	return activeSession;
+	return session;
 }

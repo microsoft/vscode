@@ -20,6 +20,7 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../bro
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
@@ -51,6 +52,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IDecorationsService decorationsService: IDecorationsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -127,7 +129,9 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		if (options?.changesetSelection) {
 			// Select the changeset of the session the editor is opened for, which may not be the active one.
 			const session = findSessionByResource(this.sessionsService, sessionResource);
-			if (options.changesetSelection.kind === 'transient') {
+			if (!session) {
+				this.logService.trace('[SessionChangesService] cannot select a changeset, the session is not shown', sessionResource.toString());
+			} else if (options.changesetSelection.kind === 'transient') {
 				this.changesViewService.showChangeset(options.changesetSelection.changeset, session);
 			} else {
 				this.changesViewService.setChangesetId(options.changesetSelection.id, session);

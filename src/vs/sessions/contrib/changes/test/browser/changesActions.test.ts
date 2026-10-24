@@ -55,7 +55,7 @@ suite('Changes Actions', () => {
 			}]);
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {

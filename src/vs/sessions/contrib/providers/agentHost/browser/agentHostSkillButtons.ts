@@ -5,7 +5,8 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize2 } from '../../../../../nls.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
@@ -19,6 +20,7 @@ import { ChatSendResult, IChatService } from '../../../../../workbench/contrib/c
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../changes/common/changes.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
@@ -46,15 +48,16 @@ export class IsAgentHostSessionContextContribution extends Disposable implements
 	) {
 		super();
 
-		this._register(bindContextKey(IsAgentHostSession, contextKeyService, reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const provider = sessionsProvidersService.getProvider(activeSession.providerId);
-			return provider instanceof BaseAgentHostSessionsProvider;
-		}));
+		this._register(bindIsAgentHostSessionContextKey(contextKeyService, sessionsService.activeSession, sessionsProvidersService));
 	}
+}
+
+/** Binds {@link IsAgentHostSession} on `contextKeyService` to whether `session` is provided by an agent-host provider. */
+export function bindIsAgentHostSessionContextKey(contextKeyService: IContextKeyService, session: IObservable<IActiveSession | undefined>, sessionsProvidersService: ISessionsProvidersService): IDisposable {
+	return bindContextKey(IsAgentHostSession, contextKeyService, reader => {
+		const value = session.read(reader);
+		return !!value && sessionsProvidersService.getProvider(value.providerId) instanceof BaseAgentHostSessionsProvider;
+	});
 }
 
 registerWorkbenchContribution2(IsAgentHostSessionContextContribution.ID, IsAgentHostSessionContextContribution, WorkbenchPhase.AfterRestored);

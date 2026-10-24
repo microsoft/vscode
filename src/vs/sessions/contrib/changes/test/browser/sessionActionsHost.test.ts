@@ -18,6 +18,7 @@ import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubP
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { ActiveSessionState, IChangesSessionObservables, IChangesSessionScope } from '../../common/changesViewService.js';
 import { createSessionActionsInstantiationService } from '../../browser/sessionActionsHost.js';
+import { hasWorktreeAndRepositoryContextKey } from '../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 
 suite('Session Actions Host', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,5 +54,36 @@ suite('Session Actions Host', () => {
 			child: SessionPrimaryPullRequestOperationContext.getValue(childService),
 			global: SessionPrimaryPullRequestOperationContext.getValue(globalService),
 		}, { child: AgentHostPullRequestOperationId.Merge, global: undefined });
+	});
+
+	test('does not leak the active session context keys of the global service into the scoped one', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const globalService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		instantiationService.stub(IContextKeyService, globalService);
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			getSessionPullRequest: () => upcastPartial<ReturnType<IGitHubService['getSessionPullRequest']>>({
+				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), fixRequested: observableValue('fixRequested', false) })),
+			}),
+		}));
+		const scope = upcastPartial<IChangesSessionScope>({
+			session: constObservable(undefined),
+			changes: upcastPartial<IChangesSessionObservables>({
+				changesObs: constObservable([]),
+				changesetsLoadingObs: constObservable(false),
+				loadingObs: constObservable(false),
+				changesetObs: constObservable(undefined),
+				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
+			}),
+		});
+		globalService.createKey(hasWorktreeAndRepositoryContextKey.key, true);
+
+		const host = createSessionActionsInstantiationService(instantiationService, document.createElement('div'), scope);
+		disposables.add(host.store);
+
+		const childService = host.instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+		assert.deepStrictEqual({
+			child: hasWorktreeAndRepositoryContextKey.getValue(childService),
+			global: hasWorktreeAndRepositoryContextKey.getValue(globalService),
+		}, { child: false, global: true });
 	});
 });

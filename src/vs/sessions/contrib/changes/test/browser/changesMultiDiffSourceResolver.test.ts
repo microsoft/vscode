@@ -72,6 +72,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const sessionResource = URI.parse('agent-host:test-session');
 		const sourceResource = URI.parse('changes-multi-diff-source:test-session');
 		const sessionChanges = observableValue<readonly ISessionFileChange[]>('sessionChanges', [createChange('/workspace/visible.ts')]);
+		let chainsCreated = 0;
 		const visibleSession = upcastPartial<IActiveSession>({ sessionId: 'visible', resource: sessionResource });
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
@@ -79,6 +80,7 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override getSessionChanges() {
+				chainsCreated++;
 				return upcastPartial<IChangesSessionObservables>({ resourceObs: constObservable<URI | undefined>(sessionResource), changesObs: sessionChanges });
 			}
 		}();
@@ -100,8 +102,10 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		record();
 		disposables.add(source.resources.onDidChange(record));
 		sessionChanges.set([createChange('/workspace/updated.ts')], undefined);
+		sessionChanges.set([createChange('/workspace/again.ts')], undefined);
 
-		assert.deepStrictEqual(observed, [['/workspace/visible.ts'], ['/workspace/updated.ts']]);
+		assert.deepStrictEqual(observed, [['/workspace/visible.ts'], ['/workspace/updated.ts'], ['/workspace/again.ts']]);
+		assert.strictEqual(chainsCreated, 1);
 	});
 
 	test('preserves the previous diff while another session is active', async () => {

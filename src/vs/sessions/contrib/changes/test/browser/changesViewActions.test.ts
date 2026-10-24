@@ -21,6 +21,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -106,47 +107,71 @@ suite('Changes View Actions', () => {
 		}]);
 	});
 
-	test('Open Changes resolves a workspace resource to its snapshot-backed diff', async () => {
+	suite('Open Changes', () => {
 		const workspaceResource = URI.file('/workspace/file.ts');
 		const originalSnapshot = URI.parse('readonly-content:/before/file.ts');
 		const modifiedSnapshot = URI.parse('readonly-content:/after/file.ts');
-		const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesObs = constObservable([{
-				uri: workspaceResource,
-				originalUri: originalSnapshot,
-				modifiedUri: modifiedSnapshot,
-				insertions: 1,
-				deletions: 1,
+		const sessionResource = URI.parse('test-session:/session');
+		const otherSessionResource = URI.parse('test-session:/other');
+
+		async function openChanges(sessionArg: URI, visible: readonly IActiveSession[]): Promise<{ readonly original: string | undefined; readonly modified: string | undefined }[]> {
+			const opened: { readonly original: string | undefined; readonly modified: string | undefined }[] = [];
+			const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: sessionResource });
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
+			});
+			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+				override readonly activeSessionChangesObs = constObservable([{
+					uri: workspaceResource,
+					originalUri: originalSnapshot,
+					modifiedUri: modifiedSnapshot,
+					insertions: 1,
+					deletions: 1,
+				}]);
+				override getSessionChanges() {
+					return upcastPartial<IChangesSessionObservables>({ changesObs: constObservable([{ uri: workspaceResource, originalUri: URI.parse('readonly-content:/other/before.ts'), modifiedUri: URI.parse('readonly-content:/other/after.ts'), insertions: 1, deletions: 1 }]) });
+				}
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<undefined> {
+					const input = args[0] as {
+						readonly original?: { readonly resource?: URI };
+						readonly modified?: { readonly resource?: URI };
+					};
+					opened.push({
+						original: input.original?.resource?.toString(),
+						modified: input.modified?.resource?.toString(),
+					});
+					return undefined;
+				}
+			});
+
+			await instantiationService.invokeFunction(accessor =>
+				CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(accessor, sessionArg, 'ref', workspaceResource));
+			return opened;
+		}
+
+		test('resolves a workspace resource to its snapshot-backed diff', async () => {
+			assert.deepStrictEqual(await openChanges(sessionResource, []), [{
+				original: originalSnapshot.toString(),
+				modified: modifiedSnapshot.toString(),
 			}]);
 		});
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override async openEditor(...args: unknown[]): Promise<undefined> {
-				const input = args[0] as {
-					readonly original?: { readonly resource?: URI };
-					readonly modified?: { readonly resource?: URI };
-				};
-				opened.push({
-					original: input.original?.resource?.toString(),
-					modified: input.modified?.resource?.toString(),
-				});
-				return undefined;
-			}
+
+		test('opens the changes of a visible non-active session', async () => {
+			const other = upcastPartial<IActiveSession>({ sessionId: 'other', resource: otherSessionResource });
+			assert.deepStrictEqual(await openChanges(otherSessionResource, [other]), [{
+				original: 'readonly-content:/other/before.ts',
+				modified: 'readonly-content:/other/after.ts',
+			}]);
 		});
 
-		await instantiationService.invokeFunction(accessor =>
-			CommandsRegistry.getCommand('workbench.action.agentSessions.openChanges')!.handler(
-				accessor,
-				URI.parse('test-session:/session'),
-				'ref',
-				workspaceResource,
-			));
-
-		assert.deepStrictEqual(opened, [{
-			original: originalSnapshot.toString(),
-			modified: modifiedSnapshot.toString(),
-		}]);
+		test('does nothing for a session that is not shown instead of using the active session', async () => {
+			assert.deepStrictEqual(await openChanges(URI.parse('test-session:/gone'), []), []);
+		});
 	});
 
 	test('Create PR button actions unlock Ship it without drafts or updates', () => {

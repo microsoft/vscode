@@ -105,8 +105,8 @@ export function getActiveSessionChanges(service: IChangesViewService): IChangesS
 }
 
 /** The changes observables of `session`, using the cheaper active-session ones when it is the active session. */
-export function getChangesOfSession(service: IChangesViewService, activeSession: IActiveSession | undefined, session: IActiveSession | undefined): IChangesSessionObservables {
-	return !session || session === activeSession ? getActiveSessionChanges(service) : service.getSessionChanges(constObservable(session));
+export function getChangesOfSession(service: IChangesViewService, activeSession: IActiveSession | undefined, session: IActiveSession): IChangesSessionObservables {
+	return session === activeSession ? getActiveSessionChanges(service) : service.getSessionChanges(constObservable(session));
 }
 
 export interface IChangesViewService {

@@ -9,7 +9,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { bindHasWorktreeAndRepositoryContextKey } from '../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move the agent host session context key out of providers
+import { bindIsAgentHostSessionContextKey } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
 import { IChangesSessionScope } from '../common/changesViewService.js';
 import { bindSessionActionContextKeys } from './sessionActionContextKeys.js';
 
@@ -23,6 +27,9 @@ export function createSessionActionsInstantiationService(instantiationService: I
 	const store = new DisposableStore();
 	const scopedContextKeyService = store.add(instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService)).createScoped(container));
 	store.add(autorun(reader => setActiveSessionContextKeys(scope.session.read(reader), scopedContextKeyService, reader)));
+	// Every key the host's menus read must be bound for the scoped session, or it is inherited from the active one.
+	store.add(bindHasWorktreeAndRepositoryContextKey(scopedContextKeyService, scope.session));
+	store.add(instantiationService.invokeFunction(accessor => bindIsAgentHostSessionContextKey(scopedContextKeyService, scope.session, accessor.get(ISessionsProvidersService))));
 	store.add(instantiationService.invokeFunction(accessor => bindSessionActionContextKeys(instantiationService, {
 		session: scope.session,
 		changes: scope.changes,

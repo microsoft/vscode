@@ -10,6 +10,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionChangeset, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
@@ -27,6 +28,8 @@ suite('ChangesetReviewAction', () => {
 		readonly session?: IActiveSession;
 	}
 
+	const activeSession = upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') });
+
 	function createInstantiationService(changes: readonly ISessionFileChange[], setReviewStateCalls: ISetReviewStateCall[], otherChanges: readonly ISessionFileChange[] = []): TestInstantiationService {
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
@@ -42,7 +45,7 @@ suite('ChangesetReviewAction', () => {
 			}
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 		}();
 		const editorService = new class extends mock<IEditorService>() {
@@ -52,6 +55,7 @@ suite('ChangesetReviewAction', () => {
 			[IChangesViewService, changesViewService],
 			[IEditorService, editorService],
 			[ISessionsService, sessionsService],
+			[ILogService, new NullLogService()],
 		)));
 	}
 
@@ -79,7 +83,7 @@ suite('ChangesetReviewAction', () => {
 
 		new ChangesetReviewAction().run(instantiationService, resource);
 
-		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [resource], reviewed: true }]);
+		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [resource], reviewed: true, session: activeSession }]);
 	});
 
 	test('toggles a file of the session it is invoked for instead of the active one', () => {
@@ -97,6 +101,19 @@ suite('ChangesetReviewAction', () => {
 		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [resource], reviewed: true, session: otherSession }]);
 	});
 
+	test('does nothing when the session argument is empty instead of using the active session', () => {
+		const resource = URI.file('/workspace/current.ts');
+		const setReviewStateCalls: ISetReviewStateCall[] = [];
+		const instantiationService = createInstantiationService(
+			[{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }],
+			setReviewStateCalls,
+		);
+
+		new ChangesetReviewAction().run(instantiationService, resource, { session: undefined });
+
+		assert.deepStrictEqual(setReviewStateCalls, []);
+	});
+
 	test('toggles a deleted file using its file resource', () => {
 		const fileResource = URI.file('/workspace/deleted.ts');
 		const originalUri = URI.parse('git-blob:/workspace/deleted.ts');
@@ -108,6 +125,6 @@ suite('ChangesetReviewAction', () => {
 
 		new ChangesetReviewAction().run(instantiationService, originalUri);
 
-		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [fileResource], reviewed: false }]);
+		assert.deepStrictEqual(setReviewStateCalls, [{ resources: [fileResource], reviewed: false, session: activeSession }]);
 	});
 });

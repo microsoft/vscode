@@ -49,6 +49,9 @@ export class ChangesetReviewAction extends Action2 {
 		const changesViewService = accessor.get(IChangesViewService);
 		// The editor passes its own session; the file toolbar and keybindings fall back to the active one.
 		const session = resolveSessionActionTarget(accessor, args[1]);
+		if (!session) {
+			return;
+		}
 		const changes = getChangesOfSession(changesViewService, accessor.get(ISessionsService).activeSession.get(), session);
 		if (changes.changesetObs.get()?.capabilities?.review !== true) {
 			return;
