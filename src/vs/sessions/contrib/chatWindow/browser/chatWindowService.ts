@@ -17,11 +17,12 @@ import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupA
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { EditorsOrder, GroupModelChangeKind } from '../../../../workbench/common/editor.js';
+import { EditorsOrder, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { completeTerminalReturn, decideTerminalRowMove, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
+import { DeepPartial } from '../../../../base/common/types.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorResolverService } from '../../../../workbench/services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -176,6 +177,18 @@ class ChatWindow implements IChatWindow {
 	}
 }
 
+/**
+ * The options a chat window enforces on its editor part. An editor area stays when its last editor closes, and its tabs follow
+ * `workbench.editor.showTabs`, live, as does the terminal row. Double-clicking a tab must not maximize or expand a group: the window
+ * arranges its groups. Editor actions stay on every group, so that the terminal row keeps its New Terminal action while another group
+ * has focus. A window without an editor area shows no tabs.
+ */
+export function chatWindowPartOptions(hasEditorArea: boolean): DeepPartial<IEditorPartOptions> {
+	return hasEditorArea
+		? { closeEmptyGroups: false, alwaysShowEditorActions: true, doubleClickTabToToggleEditorGroupSizes: 'off' }
+		: { showTabs: 'none', showBreadcrumbs: false, editorActionsLocation: 'hidden', doubleClickTabToToggleEditorGroupSizes: 'off' };
+}
+
 export class ChatWindowService extends Disposable implements IChatWindowService {
 
 	declare readonly _serviceBrand: undefined;
@@ -324,12 +337,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		windowDisposables.add(autorun(reader => splitLayoutContext.set(state.splitLayout.read(reader))));
 		const terminalPositionContext = ChatWindowTerminalPositionContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => terminalPositionContext.set(state.terminalPosition.read(reader))));
-		// An editor area shows its editors in tabs, and stays when its last editor closes. Tabs show for the whole part.
-		// Double-clicking a tab must not maximize or expand a group: the window arranges its groups.
-		// Editor actions stay on every group, so that the terminal row keeps its New Terminal action while another group has focus.
-		windowDisposables.add(part.enforcePartOptions(content.editorArea
-			? { showTabs: 'multiple', closeEmptyGroups: false, alwaysShowEditorActions: true, doubleClickTabToToggleEditorGroupSizes: 'off' }
-			: { showTabs: 'none', showBreadcrumbs: false, editorActionsLocation: 'hidden', doubleClickTabToToggleEditorGroupSizes: 'off' }));
+		windowDisposables.add(part.enforcePartOptions(chatWindowPartOptions(!!content.editorArea)));
 		// The chat shows as a chat view, not as an editor: no tab, lock or editor actions.
 		windowDisposables.add(part.hideGroupTitle(chatGroup));
 		chatGroup.lock(true);
