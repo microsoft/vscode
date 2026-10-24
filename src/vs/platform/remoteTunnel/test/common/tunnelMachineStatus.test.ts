@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseTunnelMachineStatus, TUNNEL_MACHINE_STATUS_PREFIX } from '../../common/tunnelMachineStatus.js';
+import { isTunnelHostTokenUnauthorizedError, parseTunnelMachineStatus, TUNNEL_MACHINE_STATUS_PREFIX } from '../../common/tunnelMachineStatus.js';
 
 suite('Tunnel machine status', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -54,5 +54,13 @@ suite('Tunnel machine status', () => {
 			undefined,
 			undefined,
 		]);
+	});
+
+	test('detects host token 401 unauthorized errors from CLI output', () => {
+		const unauthorizedMessage = 'warn Error refreshing access token, will retry: failed to lookup tunnel for host token: response error: HTTP status 401 Unauthorized from https://useast.rel.tunnels.api.visualstudio.com/tunnels/test-tunnel?tokenScopes=host&api-version=2023-09-27-preview';
+		assert.strictEqual(isTunnelHostTokenUnauthorizedError(unauthorizedMessage), true);
+		assert.strictEqual(isTunnelHostTokenUnauthorizedError(`\u001b[33m${unauthorizedMessage}\u001b[0m`), true);
+		assert.strictEqual(isTunnelHostTokenUnauthorizedError('warn connection error: error sending request for url'), false);
+		assert.strictEqual(isTunnelHostTokenUnauthorizedError('unrelated log line'), false);
 	});
 });
