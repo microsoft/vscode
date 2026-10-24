@@ -122,7 +122,13 @@ function appendContent(markdownString: MarkdownString, authorAvatar: string | un
 	}
 
 	// Subject | Message (escape image syntax)
-	markdownString.appendMarkdown(`${emojify(message.replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}`);
+	// Strip Co-authored-by trailers from the message body; they are already rendered as
+	// formatted co-author entries above to avoid showing the same people twice.
+	const coAuthorTrailerRegex = /^Co-authored-by:.*$/gim;
+	const displayMessage = coAuthors && coAuthors.length > 0
+		? message.replace(coAuthorTrailerRegex, '').replace(/\n{3,}/g, '\n\n').trim()
+		: message;
+	markdownString.appendMarkdown(`${emojify(displayMessage.replace(/!\[/g, '&#33;&#91;').replace(/\r\n|\r|\n/g, '\n\n'))}`);
 	markdownString.appendMarkdown(`\n\n---\n\n`);
 }
 
