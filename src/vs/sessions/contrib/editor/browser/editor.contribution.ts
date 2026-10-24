@@ -29,6 +29,7 @@ import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { CustomViewVisibleContext, EditorMaximizedContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -46,8 +47,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { maximizeMainEditorPart, restoreMainEditorPart } from '../../../browser/mainEditorMaximize.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
-import { maximizeMainEditorPart, restoreMainEditorPart } from '../../layout/browser/mainEditorMaximize.js';
 
 export class SessionsTabStyleContribution extends Disposable implements IWorkbenchContribution {
 
@@ -162,7 +163,7 @@ class MaximizeMainEditorPartAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		maximizeMainEditorPart(accessor.get(IAgentWorkbenchLayoutService), accessor.get(IViewsService));
+		maximizeMainEditorPart(accessor.get(IAgentWorkbenchLayoutService), accessor.get(IViewsService).isViewVisible(TERMINAL_VIEW_ID));
 	}
 }
 

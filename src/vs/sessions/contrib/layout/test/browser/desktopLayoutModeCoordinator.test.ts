@@ -121,7 +121,7 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		});
 	});
 
-	test('leads the session activity bar of the main window with one Layout button, opening the four modes with the current one checked, while it shows its layout actions', async () => {
+	test('leads the session activity bar of the main window with one Layout button of the same icon in every mode, opening the four modes with the current one checked, while it shows its layout actions', async () => {
 		const controller = createController('chat', sessionA);
 		await controller.whenRestored();
 		const settings = { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true };
@@ -144,10 +144,10 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			// A chat window without an editor area has no layout modes, not the main window's.
 			chatOnlyChatWindow: strip(SessionLayoutMode.ChatOnly, { 'sessions.chatWindow': 'test' }),
 		}, {
-			sideBySide: [{ label: 'Layout: Side by Side', icon: 'split-horizontal', entries: entries(SessionLayoutMode.SideBySide) }],
-			stacked: [{ label: 'Layout: Stacked', icon: 'split-vertical', entries: entries(SessionLayoutMode.Stacked) }],
-			editorOnly: [{ label: 'Layout: Editor Only', icon: 'layout-sidebar-right', entries: entries(SessionLayoutMode.EditorOnly) }],
-			chatOnly: [{ label: 'Layout: Chat Only', icon: 'layout-sidebar-left', entries: entries(SessionLayoutMode.ChatOnly) }],
+			sideBySide: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.SideBySide) }],
+			stacked: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.Stacked) }],
+			editorOnly: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.EditorOnly) }],
+			chatOnly: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.ChatOnly) }],
 			layoutActionsOff: [],
 			chatWindow: [],
 			chatOnlyChatWindow: [],

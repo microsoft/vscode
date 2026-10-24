@@ -762,6 +762,12 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 		super.onClick(event);
 	}
 
+	/** Names the checked entry, if any, such as the current layout mode: "Layout: Stacked". */
+	protected override getTooltip(): string | undefined {
+		const checked = this.submenuAction.actions.find(action => action.checked);
+		return checked ? localize('sessionActivityBarSubmenuChecked', "{0}: {1}", this.submenuAction.label, checked.label) : super.getTooltip();
+	}
+
 	protected override getClass(): string | undefined {
 		const icon = this.submenuAction.item.icon;
 		return ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : super.getClass();

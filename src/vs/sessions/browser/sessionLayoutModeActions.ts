@@ -22,8 +22,6 @@ export interface ISessionLayoutModeChoice {
 	readonly title: ILocalizedString;
 	/** Its title in the Layout submenu. */
 	readonly shortTitle: string;
-	/** The title of the Layout button while it is the current mode. */
-	readonly buttonTitle: string;
 	readonly icon: ThemeIcon;
 }
 
@@ -33,25 +31,21 @@ export const sessionLayoutModeChoices: readonly ISessionLayoutModeChoice[] = [{
 	mode: SessionLayoutMode.ChatOnly,
 	title: localize2('sessionLayoutModeChatOnly', "Show Chat Only"),
 	shortTitle: localize('sessionLayoutModeChatOnly.short', "Chat Only"),
-	buttonTitle: localize('sessionLayoutModeChatOnly.button', "Layout: Chat Only"),
 	icon: Codicon.layoutSidebarLeft,
 }, {
 	mode: SessionLayoutMode.EditorOnly,
 	title: localize2('sessionLayoutModeEditorOnly', "Show Editor Only"),
 	shortTitle: localize('sessionLayoutModeEditorOnly.short', "Editor Only"),
-	buttonTitle: localize('sessionLayoutModeEditorOnly.button', "Layout: Editor Only"),
 	icon: Codicon.layoutSidebarRight,
 }, {
 	mode: SessionLayoutMode.Stacked,
 	title: localize2('sessionLayoutModeStacked', "Show Chat and Editor Stacked"),
 	shortTitle: localize('sessionLayoutModeStacked.short', "Stacked"),
-	buttonTitle: localize('sessionLayoutModeStacked.button', "Layout: Stacked"),
 	icon: Codicon.splitVertical,
 }, {
 	mode: SessionLayoutMode.SideBySide,
 	title: localize2('sessionLayoutModeSideBySide', "Show Chat and Editor Side by Side"),
 	shortTitle: localize('sessionLayoutModeSideBySide.short', "Side by Side"),
-	buttonTitle: localize('sessionLayoutModeSideBySide.button', "Layout: Side by Side"),
 	icon: Codicon.splitHorizontal,
 }];
 
@@ -114,17 +108,14 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 
 /**
  * One Layout button leads the Session Activity Bar and opens {@link Menus.SessionLayoutModes}, the modes of its window,
- * which the main window and chat windows contribute. Its icon and title are those of the current mode: one submenu
- * entry per mode, shown while it is the current mode. It hides while the submenu is empty, such as while the strip does
- * not show its layout actions.
+ * which the main window and chat windows contribute, the current one checked. Its icon is the same whatever the mode,
+ * that of the chat window's Layout menu. It hides while the submenu is empty, such as while the strip does not show its
+ * layout actions.
  */
-for (const choice of sessionLayoutModeChoices) {
-	MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-		submenu: Menus.SessionLayoutModes,
-		title: choice.buttonTitle,
-		icon: choice.icon,
-		group: SessionActivityBarGroup.Layout,
-		order: 0,
-		when: SessionLayoutModeContext.isEqualTo(choice.mode),
-	});
-}
+MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+	submenu: Menus.SessionLayoutModes,
+	title: localize('sessionLayoutModes', "Layout"),
+	icon: Codicon.layout,
+	group: SessionActivityBarGroup.Layout,
+	order: 0,
+});

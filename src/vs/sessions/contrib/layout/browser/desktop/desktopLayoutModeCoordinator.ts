@@ -9,9 +9,11 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent } fro
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { registerSessionLayoutModeActions } from '../../../../browser/sessionLayoutModeActions.js';
+import { maximizeMainEditorPart, restoreMainEditorPart } from '../../../../browser/mainEditorMaximize.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { chatLayoutOwnersEqual, IChatLayoutOwner } from '../../../../common/chatLayout.js';
 import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../../common/contextkeys.js';
@@ -19,7 +21,6 @@ import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, Sessio
 import { ChatWindowContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { getLayoutModeOwnerKind, IRememberedLayoutMode, ISessionLayoutModeService, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { maximizeMainEditorPart, restoreMainEditorPart } from '../mainEditorMaximize.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
 /** The commands that show a layout mode in the main window. */
@@ -167,7 +168,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			if (maximized) {
 				restoreMainEditorPart(this._layoutService);
 			} else {
-				maximizeMainEditorPart(this._layoutService, this._viewsService);
+				maximizeMainEditorPart(this._layoutService, this._viewsService.isViewVisible(TERMINAL_VIEW_ID));
 			}
 		}
 	}
@@ -196,7 +197,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 				this._layoutService.setSidePaneArrangement(remembered.splitLayout);
 			}
 			if (!this._layoutService.isEditorMaximized()) {
-				maximizeMainEditorPart(this._layoutService, this._viewsService);
+				maximizeMainEditorPart(this._layoutService, this._viewsService.isViewVisible(TERMINAL_VIEW_ID));
 			}
 			return;
 		}

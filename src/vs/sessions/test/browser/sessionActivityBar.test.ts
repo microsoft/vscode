@@ -46,7 +46,7 @@ interface ITestEntry {
 	readonly id: string;
 	readonly title: string;
 	readonly icon: ThemeIcon;
-	readonly submenu?: readonly { readonly id: string; readonly title: string }[];
+	readonly submenu?: readonly { readonly id: string; readonly title: string; readonly checked?: boolean }[];
 	/** The menu group, `navigation` by default. */
 	readonly group?: string;
 	/** Whether the entry is checked, as when the side pane shows its editor. */
@@ -117,7 +117,7 @@ suite('Sessions - Session Activity Bar', () => {
 							const group = entry.group ?? 'navigation';
 							groups.set(group, [...groups.get(group) ?? [], entry.submenu
 								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
-									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
+									createEntryAction({ ...item, icon: entry.icon }, options)))
 								: createEntryAction(entry, options)]);
 						}
 						return [...groups];
@@ -888,6 +888,24 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual({ before, ran }, {
 			before: { files: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null }, terminal: { checked: true, pressed: 'true' } },
 			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
+		});
+	});
+
+	test('names a submenu entry after its checked item, such as the Layout button after the current mode, keeping its icon', () => {
+		const layout = (checked: string): ITestEntry => ({
+			id: 'test.layout', title: 'Layout', icon: Codicon.layout,
+			submenu: ['Chat Only', 'Editor Only', 'Stacked', 'Side by Side'].map(title => ({ id: `test.layout.${title}`, title, checked: title === checked })),
+		});
+		const describe = (entries: ITestEntry[]) => {
+			const { activityBar } = createActivityBar(store, entries);
+			const button = activityBar.element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]')!;
+			return { label: button.getAttribute('aria-label'), icon: button.classList.contains('codicon-layout') };
+		};
+
+		assert.deepStrictEqual({ stacked: describe([layout('Stacked')]), editorOnly: describe([layout('Editor Only')]), noneChecked: describe([canvas]) }, {
+			stacked: { label: 'Layout: Stacked', icon: true },
+			editorOnly: { label: 'Layout: Editor Only', icon: true },
+			noneChecked: { label: 'Canvas', icon: false },
 		});
 	});
 

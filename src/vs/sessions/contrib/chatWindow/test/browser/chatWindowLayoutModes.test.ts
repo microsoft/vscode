@@ -36,16 +36,16 @@ suite('Chat window - layout modes in the Session Activity Bar', () => {
 			mainWindow: strip({ ...base, 'sessions.chatWindow': undefined, 'sessions.chatWindowHasEditor': false, 'sessions.chatWindowHasEditorArea': false }),
 		}, {
 			layoutActions: [{
-				label: 'Layout: Stacked', icon: 'split-vertical', entries: [
+				label: 'Layout', icon: 'layout', entries: [
 					entry('showChatOnly', 'Chat Only'), entry('showEditorOnly', 'Editor Only'), entry('showEditorAboveChat', 'Stacked', true), entry('showSideBySide', 'Side by Side'),
 				]
 			}],
 			docked: [{
-				label: 'Layout: Stacked', icon: 'split-vertical', entries: [
+				label: 'Layout', icon: 'layout', entries: [
 					entry('showChatOnly', 'Chat Only'), entry('showEditorOnly', 'Editor Only'), entry('showEditorAboveChat', 'Stacked', true),
 				]
 			}],
-			editorOnly: [['Layout: Editor Only', ['Editor Only']]],
+			editorOnly: [['Layout', ['Editor Only']]],
 			layoutActionsOff: [],
 			singleEditor: [],
 			mainWindow: [],
