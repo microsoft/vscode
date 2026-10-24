@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -878,8 +878,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
-	for (const scenario of ['enabled', 'delayed discovery', 'not discovered', 'cancelled', 'install refused', 'enable refused', 'reload failed', 'managed', 'ambiguous'] as const) {
+	for (const scenario of ['enabled', 'delayed discovery', 'not discovered', 'cancelled', 'cancelled during apply', 'cancelled during discovery', 'install refused', 'enable refused', 'reload failed', 'managed', 'ambiguous'] as const) {
 		test(`catalog activation: ${scenario}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const cancellation = store.add(new CancellationTokenSource());
 			const calls: string[] = [];
 			const uri = URI.file('/plugins/direct');
 			const plugin = new class extends mock<IAgentPlugin>() {
@@ -929,8 +930,16 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						}
 						if (scenario === 'delayed discovery') {
 							store.add(disposableTimeout(() => discoveredPlugins.set([wrongRoot, plugin], undefined), 1));
+						} else if (scenario === 'cancelled during discovery') {
+							store.add(disposableTimeout(() => {
+								cancellation.cancel();
+								discoveredPlugins.set([wrongRoot, plugin], undefined);
+							}, 1));
 						} else {
 							discoveredPlugins.set(scenario === 'not discovered' ? [wrongRoot] : scenario === 'ambiguous' ? [plugin, { ...plugin, uri: URI.file('/plugins/duplicate') }] : [wrongRoot, plugin], undefined);
+						}
+						if (scenario === 'cancelled during apply') {
+							cancellation.cancel();
 						}
 						return { kind: 'plugin' as const, name: 'canvas', repository: 'owner/repo', ref: 'revision', path: 'plugins/canvas' };
 					}
@@ -953,12 +962,12 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				sourceId: 'agentFinder', identifier: 'canvas', displayName: 'canvas', description: '',
 				mediaType: 'application/vnd.github.copilot-plugin', tags: [], capabilities: [], representativeQueries: [],
 				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection' },
-			}, CancellationToken.None);
+			}, cancellation.token);
 			const succeeds = scenario === 'enabled' || scenario === 'delayed discovery';
 			if (succeeds) {
 				await install;
 			} else {
-				await assert.rejects(install, scenario === 'cancelled' ? /Canceled/ : scenario === 'install refused' ? /install refused/ : scenario === 'not discovered' ? /was installed, but activation failed: The installed plugin was not discovered in time/ : /was installed, but activation failed/);
+				await assert.rejects(install, scenario.startsWith('cancelled') ? /Canceled/ : scenario === 'install refused' ? /install refused/ : scenario === 'not discovered' ? /was installed, but activation failed: The installed plugin was not discovered in time/ : /was installed, but activation failed/);
 			}
 			const applied = scenario !== 'cancelled' && scenario !== 'install refused';
 			assert.deepStrictEqual({

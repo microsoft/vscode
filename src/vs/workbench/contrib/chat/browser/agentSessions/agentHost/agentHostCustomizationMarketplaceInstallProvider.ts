@@ -506,9 +506,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				if (result?.kind !== 'plugin') {
 					throw new Error(localize('agentHost.customizationInstall.activationIdentityMissing', "The runtime did not return the installed plugin identity."));
 				}
-				await this.activateInstalledPlugin(result);
+				await this.activateInstalledPlugin(result, token);
 			} catch (error) {
 				this._onDidChange.fire();
+				this.throwIfCancelled(token);
 				throw new Error(localize('agentHost.customizationInstall.activationFailed', "Plugin '{0}' was installed, but activation failed: {1}. Enable it from Plugins to retry.", review.displayName, getErrorMessage(error)));
 			}
 		}
@@ -516,13 +517,15 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		this._onDidChange.fire();
 	}
 
-	private async activateInstalledPlugin(identity: AppliedPluginIdentity): Promise<void> {
+	private async activateInstalledPlugin(identity: AppliedPluginIdentity, token: CancellationToken): Promise<void> {
+		this.throwIfCancelled(token);
 		const disposables = new DisposableStore();
-		const cancellation = disposables.add(new CancellationTokenSource());
+		const cancellation = disposables.add(new CancellationTokenSource(token));
 		try {
 			disposables.add(disposableTimeout(() => cancellation.cancel(), 10_000));
 			const matches = this.agentPluginService.plugins.map(plugins => plugins.filter(plugin => matchesAppliedPlugin(plugin, identity)));
 			const plugins = await waitForState(matches, plugins => plugins.length > 0, undefined, cancellation.token).catch(error => {
+				this.throwIfCancelled(token);
 				if (cancellation.token.isCancellationRequested) {
 					throw new Error(localize('agentHost.customizationInstall.activationDiscoveryTimedOut', "The installed plugin was not discovered in time."));
 				}
@@ -536,6 +539,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			if (!plugin.setEnabled) {
 				throw new Error(localize('agentHost.customizationInstall.activationUnavailable', "Runtime plugin enablement is unavailable."));
 			}
+			this.throwIfCancelled(token);
 			await setAgentPluginEnablement(plugin, this.agentPluginService.enablementModel, ContributionEnablementState.EnabledProfile);
 		} finally {
 			cancellation.cancel();

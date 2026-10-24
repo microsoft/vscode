@@ -401,6 +401,51 @@ suite('AgentPlugin enablement', () => {
 		});
 	});
 
+	for (const policyTiming of ['before runtime enablement', 'during runtime enablement'] as const) {
+		test(`rejects a forced plugin collision ${policyTiming}`, async () => {
+			const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+			const key = plugin.uri.toString();
+			const required = URI.file('/plugins/required').toString();
+			const base = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+			base.setDefaultEnabled(key, false);
+			const policy = observableValue<ReadonlyMap<string, boolean>>('policy', new Map(policyTiming === 'before runtime enablement' ? [[required, true]] : []));
+			const group = [required, key];
+			const groups = observableValue<ReadonlyMap<string, readonly string[]>>('groups', new Map([[required, group], [key, group]]));
+			const model = new AgentPluginCollisionEnablementModel(base, groups, policy);
+			const calls: boolean[] = [];
+			plugin.setEnabled = async enabled => {
+				calls.push(enabled);
+				policy.set(new Map([[required, true]]), undefined);
+			};
+			await assert.rejects(setAgentPluginEnablement(plugin, model, ContributionEnablementState.EnabledProfile), /rejected by the local enablement model/);
+			assert.deepStrictEqual({ calls, state: model.readEnabled(key) }, {
+				calls: policyTiming === 'before runtime enablement' ? [] : [true, false],
+				state: ContributionEnablementState.DisabledProfile,
+			});
+		});
+	}
+
+	for (const rollbackFails of [false, true]) {
+		test(`reports a rejected local commit and ${rollbackFails ? 'failed' : 'successful'} runtime rollback`, async () => {
+			const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+			const calls: boolean[] = [];
+			const model: IEnablementModel = {
+				readEnabled: () => ContributionEnablementState.DisabledProfile,
+				readProfileEnabled: () => false,
+				setEnabled: () => { },
+				remove: () => { },
+			};
+			plugin.setEnabled = async enabled => {
+				calls.push(enabled);
+				if (!enabled && rollbackFails) {
+					throw new Error('rollback refused');
+				}
+			};
+			await assert.rejects(setAgentPluginEnablement(plugin, model, ContributionEnablementState.EnabledProfile), rollbackFails ? /runtime state could not be restored/ : /rejected by the local enablement model/);
+			assert.deepStrictEqual(calls, [true, false]);
+		});
+	}
+
 	test('same-URI duplicates collapse before collision grouping', () => {
 		const sharedUri = URI.file('/Users/test/.copilot/installed-plugins/team/model-council');
 		const discoveries: IDiscoveredAgentPlugins[] = [
