@@ -26,17 +26,20 @@ export const enum CommentsSortOrder {
 
 const CONTEXT_KEY_SHOW_RESOLVED = new RawContextKey<boolean>('commentsView.showResolvedFilter', true);
 const CONTEXT_KEY_SHOW_UNRESOLVED = new RawContextKey<boolean>('commentsView.showUnResolvedFilter', true);
+const CONTEXT_KEY_SHOW_OUTDATED = new RawContextKey<boolean>('commentsView.showOutdatedFilter', true);
 const CONTEXT_KEY_SORT_BY = new RawContextKey<CommentsSortOrder>('commentsView.sortBy', CommentsSortOrder.ResourceAscending);
 
 export interface CommentsFiltersChangeEvent {
 	showResolved?: boolean;
 	showUnresolved?: boolean;
+	showOutdated?: boolean;
 	sortBy?: CommentsSortOrder;
 }
 
 interface CommentsFiltersOptions {
 	showResolved: boolean;
 	showUnresolved: boolean;
+	showOutdated: boolean;
 	sortBy: CommentsSortOrder;
 }
 
@@ -46,15 +49,18 @@ export class CommentsFilters extends Disposable {
 	readonly onDidChange: Event<CommentsFiltersChangeEvent> = this._onDidChange.event;
 	private readonly _showUnresolved: IContextKey<boolean>;
 	private readonly _showResolved: IContextKey<boolean>;
+	private readonly _showOutdated: IContextKey<boolean>;
 	private readonly _sortBy: IContextKey<CommentsSortOrder>;
 
 	constructor(options: CommentsFiltersOptions, private readonly contextKeyService: IContextKeyService) {
 		super();
 		this._showUnresolved = CONTEXT_KEY_SHOW_UNRESOLVED.bindTo(this.contextKeyService);
 		this._showResolved = CONTEXT_KEY_SHOW_RESOLVED.bindTo(this.contextKeyService);
+		this._showOutdated = CONTEXT_KEY_SHOW_OUTDATED.bindTo(this.contextKeyService);
 		this._sortBy = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
 		this._showResolved.set(options.showResolved);
 		this._showUnresolved.set(options.showUnresolved);
+		this._showOutdated.set(options.showOutdated);
 		this._sortBy.set(options.sortBy);
 	}
 
@@ -75,6 +81,16 @@ export class CommentsFilters extends Disposable {
 		if (this._showResolved.get() !== showResolved) {
 			this._showResolved.set(showResolved);
 			this._onDidChange.fire({ showResolved: true });
+		}
+	}
+
+	get showOutdated(): boolean {
+		return !!this._showOutdated.get();
+	}
+	set showOutdated(showOutdated: boolean) {
+		if (this._showOutdated.get() !== showOutdated) {
+			this._showOutdated.set(showOutdated);
+			this._onDidChange.fire({ showOutdated: true });
 		}
 	}
 
@@ -190,6 +206,31 @@ registerAction2(class extends ViewAction<ICommentsView> {
 
 	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
 		view.filters.showResolved = !view.filters.showResolved;
+	}
+});
+
+registerAction2(class extends ViewAction<ICommentsView> {
+	constructor() {
+		super({
+			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleOutdatedComments`,
+			title: localize('toggle outdated', "Show Outdated"),
+			category: localize('comments', "Comments"),
+			toggled: {
+				condition: CONTEXT_KEY_SHOW_OUTDATED,
+				title: localize('outdated', "Show Outdated"),
+			},
+			menu: {
+				id: viewFilterSubmenu,
+				group: '1_filter',
+				when: ContextKeyExpr.equals('view', COMMENTS_VIEW_ID),
+				order: 2
+			},
+			viewId: COMMENTS_VIEW_ID
+		});
+	}
+
+	async runInView(serviceAccessor: ServicesAccessor, view: ICommentsView): Promise<void> {
+		view.filters.showOutdated = !view.filters.showOutdated;
 	}
 });
 

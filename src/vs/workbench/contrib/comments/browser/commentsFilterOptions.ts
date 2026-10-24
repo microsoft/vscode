@@ -13,16 +13,19 @@ export class FilterOptions {
 
 	readonly showResolved: boolean = true;
 	readonly showUnresolved: boolean = true;
+	readonly showOutdated: boolean = true;
 	readonly textFilter: { readonly text: string; readonly negate: boolean };
 
 	constructor(
 		readonly filter: string,
 		showResolved: boolean,
 		showUnresolved: boolean,
+		showOutdated: boolean,
 	) {
 		filter = filter.trim();
 		this.showResolved = showResolved;
 		this.showUnresolved = showUnresolved;
+		this.showOutdated = showOutdated;
 
 		const negate = filter.startsWith('!');
 		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
