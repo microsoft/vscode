@@ -33,6 +33,7 @@ import { SessionLayoutMode, SessionSplitLayout } from '../../../common/sessionLa
 import { STACKED_CHAT_CONVERSATION_MIN_HEIGHT, STACKED_CHAT_INPUT_MAX_HEIGHT } from '../../../common/layoutConstants.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly, clampStackedChatOnResize, decideStackedChatInputOnly, shouldDecideStackedChatInputOnly, shouldRestoreStackedChatConversation } from '../../../browser/parts/stackedChatInputOnly.js';
+import { registerChatWindowActivityBarHost } from './chatWindowActivityBarHost.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -266,6 +267,11 @@ export class ChatWindowChatEditor extends EditorPane {
 		const store = new DisposableStore();
 		const part = this._editorGroupsService.getPart(this.group);
 		const docked = state.docked;
+		// Below the editor or hidden, the chat leaves its Session Activity Bar to the right edge of the window.
+		const partElement = this._container?.closest<HTMLElement>('.part.editor');
+		if (partElement) {
+			store.add(registerChatWindowActivityBarHost(part, partElement, state.layout, () => part.groups.find(group => group !== this.group && group !== state.terminalGroup.get())));
+		}
 		// Side by side, or with the editor hidden, the chat has room for its conversation.
 		const conversationOnly = derived(this, reader => {
 			const layout = state.layout.read(reader);

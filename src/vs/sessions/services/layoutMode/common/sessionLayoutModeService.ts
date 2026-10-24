@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatLayoutOwner } from '../../../common/chatLayout.js';
 import { SessionLayoutMode, SessionSplitLayout } from '../../../common/sessionLayoutMode.js';
@@ -23,6 +24,14 @@ export const enum LayoutModeOwnerKind {
 	Existing = 'existing',
 	Draft = 'draft',
 	QuickChat = 'quickChat',
+}
+
+/** The lifecycle of `session`, which the shared layout scopes keep apart. */
+export function getLayoutModeOwnerKind(session: { readonly isCreated: IObservable<boolean>; readonly isQuickChat?: IObservable<boolean> }, reader?: IReader): LayoutModeOwnerKind {
+	if (session.isQuickChat?.read(reader)) {
+		return LayoutModeOwnerKind.QuickChat;
+	}
+	return session.isCreated.read(reader) ? LayoutModeOwnerKind.Existing : LayoutModeOwnerKind.Draft;
 }
 
 /**

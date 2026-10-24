@@ -18,9 +18,8 @@ import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, S
 import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../../common/sessionLayoutMode.js';
 import { ChatWindowContext, ChatWindowHasEditorAreaContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
-import { IRememberedLayoutMode, ISessionLayoutModeService, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
+import { getLayoutModeOwnerKind, IRememberedLayoutMode, ISessionLayoutModeService, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
 /** The commands that show a layout mode in the main window. */
@@ -30,14 +29,6 @@ export const MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS: Readonly<Record<SessionLayoutM
 	[SessionLayoutMode.Stacked]: 'workbench.action.agentSessions.layout.showStacked',
 	[SessionLayoutMode.SideBySide]: 'workbench.action.agentSessions.layout.showSideBySide',
 };
-
-/** The lifecycle of a session, which the shared layout scopes keep apart. */
-export function getLayoutModeOwnerKind(session: IActiveSession, reader?: IReader): LayoutModeOwnerKind {
-	if (session.isQuickChat?.read(reader)) {
-		return LayoutModeOwnerKind.QuickChat;
-	}
-	return session.isCreated.read(reader) ? LayoutModeOwnerKind.Existing : LayoutModeOwnerKind.Draft;
-}
 
 interface IFocusedOwner {
 	readonly owner: IChatLayoutOwner;

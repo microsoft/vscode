@@ -8,7 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatWindowTerminalPosition, IChatWindowKind } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
-import { ChatWindowDefaults, ChatWindowState } from '../../browser/chatWindowState.js';
+import { IRememberedLayoutMode } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
+import { ChatWindowDefaults, ChatWindowState, IChatWindowRememberedMode } from '../../browser/chatWindowState.js';
 
 suite('ChatWindowState', () => {
 
@@ -108,6 +109,53 @@ suite('ChatWindowState', () => {
 			chosen: ChatWindowTerminalPosition.UnderChat,
 			reopened: ChatWindowTerminalPosition.UnderChat,
 			otherKind: ChatWindowTerminalPosition.FullWidth,
+		});
+	});
+
+	test('opens as its chat is remembered rather than as its kind was left, and remembers what the user chooses for the chat', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		createState(storageService, false, true).setLayout(SessionLayoutMode.EditorOnly);
+		const writes: IRememberedLayoutMode[] = [];
+		const remembered = (initial: IRememberedLayoutMode | undefined): IChatWindowRememberedMode => ({ initial, set: mode => writes.push(mode) });
+		const sideBySide: IRememberedLayoutMode = { mode: SessionLayoutMode.SideBySide, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false };
+
+		const window = new ChatWindowState(kind, false, true, new ChatWindowDefaults(kind, storageService), remembered(sideBySide));
+		const opened = { layout: window.layout.get(), splitLayout: window.splitLayout.get(), inputOnly: window.inputOnly.get() };
+		window.setLayout(SessionLayoutMode.ChatOnly);
+		window.showBoth();
+		window.setLayout(SessionLayoutMode.Stacked);
+		window.setInputOnly(true);
+		const unremembered = new ChatWindowState(kind, false, true, new ChatWindowDefaults(kind, storageService), remembered(undefined)).layout.get();
+
+		assert.deepStrictEqual({ opened, unremembered, writes }, {
+			opened: { layout: SessionLayoutMode.SideBySide, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false },
+			// Without a remembered mode, as its kind was last left.
+			unremembered: SessionLayoutMode.Stacked,
+			writes: [
+				{ mode: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false },
+				{ mode: SessionLayoutMode.SideBySide, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false },
+				{ mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: false },
+				{ mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: true },
+			],
+		});
+	});
+
+	test('shows a remembered mode it cannot show as the closest it can, without changing what is remembered, and never remembers without an editor', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const writes: IRememberedLayoutMode[] = [];
+		const remembered: IChatWindowRememberedMode = { initial: { mode: SessionLayoutMode.SideBySide, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false }, set: mode => writes.push(mode) };
+
+		const docked = new ChatWindowState(kind, true, true, new ChatWindowDefaults(kind, storageService), remembered);
+		const dockedOpened = { layout: docked.layout.get(), splitLayout: docked.splitLayout.get(), inputOnly: docked.inputOnly.get() };
+		docked.setLayout(SessionLayoutMode.EditorOnly);
+		const withoutEditor = new ChatWindowState(kind, false, false, new ChatWindowDefaults(kind, storageService), remembered);
+		withoutEditor.setLayout(SessionLayoutMode.ChatOnly);
+
+		assert.deepStrictEqual({ dockedOpened, withoutEditor: withoutEditor.layout.get(), writes }, {
+			dockedOpened: { layout: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: true },
+			withoutEditor: SessionLayoutMode.ChatOnly,
+			// Docked, what it cannot show stays as it was remembered.
+			writes: [{ mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false }],
 		});
 	});
 });
