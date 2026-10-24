@@ -2513,11 +2513,12 @@ export class CopilotAgentSession extends Disposable {
 	private _beginSteeringTurn(steering: IPendingSteering): void {
 		const previousTurnId = this._currentTurn.value?.id;
 		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
-		// The SDK keeps running an in-flight HydraFusion workflow after a steering
-		// message, so the steering turn takes it over rather than discarding it;
-		// otherwise its phase events can no longer be routed and stay invisible.
-		const continuesFusionWorkflow = previousTurnId !== undefined && !this._fusionTurnCancelled;
-		this._completeActiveTurn(false, continuesFusionWorkflow);
+		// The SDK keeps running any in-flight HydraFusion workflow after a steering
+		// message, so the steering turn keeps the preempted turn's Fusion state
+		// (empty when no workflow is running); otherwise its phase events can no
+		// longer be routed and stay invisible. A cancelled workflow is not kept.
+		const preservesFusionState = previousTurnId !== undefined && !this._fusionTurnCancelled;
+		this._completeActiveTurn(false, preservesFusionState);
 		const newTurnId = generateUuid();
 		steering.promotedTurnId = newTurnId;
 		this._emitAction({
@@ -2534,7 +2535,7 @@ export class CopilotAgentSession extends Disposable {
 		// mark it `running` immediately rather than leaving it `pending`,
 		// otherwise an abort during the steering turn would treat it as a
 		// not-yet-started queued turn and leave it open.
-		if (continuesFusionWorkflow) {
+		if (preservesFusionState) {
 			// Phase chats stay open: like subagents, they outlive the root turn, and closing one would drop its running tools' results.
 			this._startTurn(newTurnId, steering.sender?.clientId, steering.sender?.clientContext);
 			this._transferFusionWorkflow(previousTurnId, newTurnId);
@@ -2546,7 +2547,7 @@ export class CopilotAgentSession extends Disposable {
 			turn.messageCharLen = steering.pendingMessage.message.text.length;
 			turn.markRunning();
 		}
-		if (continuesFusionWorkflow) {
+		if (preservesFusionState) {
 			const resumedPhase = this._fusionProgress.resumeRunningPhase();
 			if (resumedPhase) {
 				this._emitFusionProgress(resumedPhase);
@@ -3492,7 +3493,7 @@ export class CopilotAgentSession extends Disposable {
 		return compactContextAttribution(attribution);
 	}
 
-	private _completeActiveTurn(trustedRootTurn = false, continuesFusionWorkflow = false): void {
+	private _completeActiveTurn(trustedRootTurn = false, preservesFusionState = false): void {
 		const turn = this._currentTurn.value;
 		if (!turn) {
 			return;
@@ -3506,7 +3507,7 @@ export class CopilotAgentSession extends Disposable {
 			turnId: turn.id,
 			duration: turn.duration,
 		}, undefined, trustedRootTurn);
-		this._clearActiveTurn(continuesFusionWorkflow);
+		this._clearActiveTurn(preservesFusionState);
 	}
 
 	failActiveTurn(error: ErrorInfo): string | undefined {
@@ -3538,9 +3539,9 @@ export class CopilotAgentSession extends Disposable {
 	 * agent defers while a turn runs — notably a pending CLI client restart —
 	 * is not stranded waiting on a turn that already ended.
 	 */
-	private _clearActiveTurn(continuesFusionWorkflow = false): void {
+	private _clearActiveTurn(preservesFusionState = false): void {
 		const turn = this._currentTurn.value;
-		if (!continuesFusionWorkflow) {
+		if (!preservesFusionState) {
 			this._clearPendingFusionEvents();
 			this._hasFusionRootTurnBoundary = false;
 			this._fusionProgress.reset();
