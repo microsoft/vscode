@@ -482,14 +482,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			message: activatePlugin
 				? localize('agentHost.customizationInstall.confirmInstallAndEnable', "Install and enable '{0}'?", review.displayName)
 				: review.action === 'install'
-				? localize('agentHost.customizationInstall.confirmInstall', "Install '{0}'?", review.displayName)
-				: localize('agentHost.customizationInstall.confirmUninstall', "Uninstall '{0}'?", review.displayName),
+					? localize('agentHost.customizationInstall.confirmInstall', "Install '{0}'?", review.displayName)
+					: localize('agentHost.customizationInstall.confirmUninstall', "Uninstall '{0}'?", review.displayName),
 			detail: this.getReviewDetail(review),
 			primaryButton: activatePlugin
 				? localize('agentHost.customizationInstall.installAndEnableButton', "Install and Enable")
 				: review.action === 'install'
-				? localize('agentHost.customizationInstall.installButton', "Install")
-				: localize('agentHost.customizationInstall.uninstallButton', "Uninstall"),
+					? localize('agentHost.customizationInstall.installButton', "Install")
+					: localize('agentHost.customizationInstall.uninstallButton', "Uninstall"),
 			custom: { icon: Codicon.shield },
 		});
 		this.throwIfCancelled(token);
