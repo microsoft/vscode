@@ -139,51 +139,35 @@ __vsc_get_trap() {
 	builtin printf '%s' "${terms[2]:-}"
 }
 
-__vsc_escape_value_fast() {
-	builtin local LC_ALL=C out
-	out=${1//\\/\\\\}
-	out=${out//;/\\x3b}
-	builtin printf '%s\n' "${out}"
-}
-
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
-	# If the input being too large, switch to the faster function
+	builtin local -r LC_ALL=C
+	builtin local str
+
+	# Bulk replacement
+	str=${1//\\/\\\\}
+	str=${str//;/\\x3b}
+
+	# If the input is too large, get out directly
 	if [ "${#1}" -ge 2000 ]; then
-		__vsc_escape_value_fast "$1"
+		builtin printf '%s\n' "${str}"
 		builtin return
 	fi
 
 	# Process text byte by byte, not by codepoint.
-	builtin local -r LC_ALL=C
-	builtin local -r str="${1}"
-	builtin local -ir len="${#str}"
+	builtin local prefix byte token out=''
 
-	builtin local -i i
-	builtin local -i val
-	builtin local byte
-	builtin local token
-	builtin local out=''
-
-	for (( i=0; i < "${#str}"; ++i )); do
-		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
-		byte="${str:$i:1}"
-		builtin printf -v val '%d' "'$byte"
-		if  (( val < 31 )); then
-			builtin printf -v token '\\x%02x' "'$byte"
-		elif (( val == 92 )); then # \
-			token="\\\\"
-		elif (( val == 59 )); then # ;
-			token="\\x3b"
-		else
-			token="$byte"
-		fi
-
-		out+="$token"
+	# Loop only once per control character (zero iterations in the common case)
+	while [[ $str == *[[:cntrl:]]* ]]; do
+		prefix="${str%%[[:cntrl:]]*}"          # text before the first control char
+		byte="${str:${#prefix}:1}"
+		builtin printf -v token '\\x%02x' "'$byte"
+		out+="$prefix$token"
+		str="${str:${#prefix}+1}"
 	done
 
-	builtin printf '%s\n' "$out"
+	builtin printf '%s\n' "$out$str"
 }
 
 # Send the IsWindows property if the environment looks like Windows
