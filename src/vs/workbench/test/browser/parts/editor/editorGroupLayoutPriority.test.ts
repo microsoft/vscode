@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { GroupDirection, GroupLayoutPriority } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupLayoutPriority, GroupsOrder } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { createEditorPart, TestEditorPart, workbenchInstantiationService } from '../../workbenchTestServices.js';
 
@@ -111,5 +111,67 @@ suite('Editor Part Group Layout Priority', () => {
 
 		// As if the removed group never had a priority: the others resize proportionally again
 		assert.deepStrictEqual(await describe(true), await describe(false));
+	});
+	test('maximizing and restoring a group keeps the priorities, also when set while maximized', async () => {
+		const describe = async (setWhileMaximized: boolean) => {
+			const { part, top, middle, bottom } = await createStackedPart();
+			if (!setWhileMaximized) {
+				part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
+			}
+
+			part.toggleMaximizeGroup(middle);
+			if (setWhileMaximized) {
+				part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
+			}
+			const maximized = part.hasMaximizedGroup();
+			part.toggleMaximizeGroup(middle);
+			const restored = heights(part, top, middle, bottom);
+			part.layout(1080, 600, 0, 0);
+
+			return { maximized, restored, shrunk: heights(part, top, middle, bottom) };
+		};
+
+		const expected = { maximized: true, restored: [400, 200, 200], shrunk: [200, 200, 200] };
+		assert.deepStrictEqual({ setBefore: await describe(false), setWhileMaximized: await describe(true) }, { setBefore: expected, setWhileMaximized: expected });
+	});
+
+	test('restoring the state of the part restores the sizes, and the restored groups have no priority', async () => {
+		const { part, top } = await createStackedPart();
+		part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
+
+		await part.applyState(part.createState());
+		const [newTop, newMiddle, newBottom] = part.getGroups(GroupsOrder.GRID_APPEARANCE);
+		const restored = heights(part, newTop, newMiddle, newBottom);
+		part.layout(1080, 400, 0, 0);
+		const proportional = heights(part, newTop, newMiddle, newBottom);
+		part.layout(1080, 800, 0, 0);
+		part.setGroupLayoutPriority(newTop, GroupLayoutPriority.High);
+		part.layout(1080, 600, 0, 0);
+
+		assert.deepStrictEqual({ replaced: newTop !== top, restored, proportional, prioritized: heights(part, newTop, newMiddle, newBottom) }, {
+			replaced: true,
+			restored: [400, 200, 200],
+			proportional: [200, 100, 100],
+			prioritized: [200, 200, 200],
+		});
+	});
+
+	test('a group moved beside the group with a high priority takes its size from it, and gives it back when moved away', async () => {
+		const { part, top, middle, bottom } = await createStackedPart();
+		const right = part.addGroup(bottom, GroupDirection.RIGHT); // a row of two groups at the bottom
+		part.setGroupLayoutPriority(top, GroupLayoutPriority.High);
+		const before = heights(part, top, middle, bottom, right);
+
+		part.moveGroup(right, middle, GroupDirection.DOWN); // into the column of the high priority group
+		const movedIn = { order: part.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => [top, middle, right, bottom].indexOf(group)), heights: heights(part, top, middle, right, bottom) };
+		part.moveGroup(right, bottom, GroupDirection.RIGHT); // back into the row at the bottom
+		const movedOut = heights(part, top, middle, bottom, right);
+
+		assert.deepStrictEqual({ before, movedIn, movedOut }, {
+			before: [400, 200, 200, 200],
+			// Split from the middle group, which gets its size back from the high priority group
+			movedIn: { order: [0, 1, 2, 3], heights: [300, 200, 100, 200] },
+			movedOut: [400, 200, 200, 200],
+		});
 	});
 });

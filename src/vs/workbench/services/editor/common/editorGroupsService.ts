@@ -596,7 +596,7 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * groups of the part no longer resize proportionally: when the part is
 	 * resized, groups with a high priority take the change first, then those
 	 * with a normal priority, and those with a low priority last; and when a
-	 * group is added or removed beside a group with a high priority, the
+	 * group is added, removed or moved beside a group with a high priority, the
 	 * other groups beside it keep their sizes. `undefined`, or
 	 * {@link GroupLayoutPriority.Normal}, clears the priority of the group.
 	 *
