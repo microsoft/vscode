@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
 import * as streams from '../../../base/common/stream.js';
 import { isBoolean, isNumber } from '../../../base/common/types.js';
-import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
@@ -172,6 +172,49 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 	return module.request;
 }
 
+function resolveRedirectTarget(currentUrl: string, location: string): { url: string; crossOrigin: boolean } | undefined {
+	try {
+		const current = new URL(currentUrl);
+		const target = new URL(location, current);
+		if (target.protocol === 'http:' || target.protocol === 'https:') {
+			return { url: target.toString(), crossOrigin: current.origin !== target.origin };
+		}
+	} catch {
+		// An invalid redirect is returned to the caller without following it.
+	}
+	return undefined;
+}
+
+function stripRedirectHeaders(headers: IHeaders | undefined, crossOrigin: boolean, removeBody: boolean): IHeaders | undefined {
+	if (!headers || (!crossOrigin && !removeBody)) {
+		return headers;
+	}
+	const result: IHeaders = {};
+	for (const name of Object.keys(headers)) {
+		switch (name.toLowerCase()) {
+			case 'authorization':
+			case 'cookie':
+			case 'cookie2':
+				if (crossOrigin) {
+					continue;
+				}
+				break;
+			case 'content-type':
+			case 'content-encoding':
+			case 'content-language':
+			case 'content-location':
+			case 'content-length':
+			case 'origin':
+				if (removeBody) {
+					continue;
+				}
+				break;
+		}
+		result[name] = headers[name];
+	}
+	return result;
+}
+
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	const maxRetries = 3;
 	let lastError: Error | undefined;
@@ -204,7 +247,7 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached' } = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached'; redirect?: 'manual'; url?: string } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -223,14 +266,37 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 			opts.cache = 'no-store';
 		}
 
-		const req = rawRequest(opts, (res: http.IncomingMessage) => {
+		if (options.isChromiumNetwork) {
+			opts.redirect = 'manual';
+			// Electron reparses Node-style paths as URLs, which changes leading double slashes.
+			opts.url = options.url;
+		}
+
+		const followRedirect = (statusCode: number | undefined, location: string | undefined, method = options.type): boolean => {
 			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
-			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
+			const target = statusCode && statusCode >= 300 && statusCode < 400 && followRedirects > 0 && location
+				? resolveRedirectTarget(options.url!, location)
+				: undefined;
+			if (target) {
+				const removeBody = method !== (options.type || 'GET') && (method === 'GET' || method === 'HEAD');
 				nodeRequest({
 					...options,
-					url: res.headers['location'],
-					followRedirects: followRedirects - 1
+					url: target.url,
+					type: method,
+					data: removeBody ? undefined : options.data,
+					followRedirects: followRedirects - 1,
+					headers: stripRedirectHeaders(options.headers, target.crossOrigin, removeBody),
+					user: target.crossOrigin ? undefined : options.user,
+					password: target.crossOrigin ? undefined : options.password
 				}, token).then(resolve, reject);
+				return true;
+			}
+			return false;
+		};
+
+		const req = rawRequest(opts, (res: http.IncomingMessage) => {
+			if (followRedirect(res.statusCode, res.headers['location'])) {
+				res.resume();
 			} else {
 				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
 
@@ -248,6 +314,17 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 		});
 
 		req.on('error', reject);
+
+		if (options.isChromiumNetwork) {
+			req.on('redirect', (statusCode: number, method: string, redirectUrl: string, headers: IHeaders) => {
+				// Electron reports redirects separately from responses. Abort synchronously so
+				// Chromium cannot follow with the original credentials or cancel with an error.
+				req.abort();
+				if (!followRedirect(statusCode, redirectUrl, method)) {
+					resolve({ res: { statusCode, headers }, stream: streams.emptyStream() });
+				}
+			});
+		}
 
 		// Handle timeout
 		if (options.timeout) {
@@ -292,5 +369,6 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		req.on('response', () => cancellationListener.dispose());
 		req.on('error', () => cancellationListener.dispose());
+		req.on('abort', () => cancellationListener.dispose());
 	});
 }
