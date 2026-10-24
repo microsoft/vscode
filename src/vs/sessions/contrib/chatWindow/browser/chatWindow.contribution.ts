@@ -23,6 +23,7 @@ import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, Cha
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
 import { ChatWindowService } from './chatWindowService.js';
 import './chatWindowActivityBar.js';
+import './chatWindowChangesFileList.js';
 import './openChatInWindow.js';
 
 registerSingleton(IChatWindowService, ChatWindowService, InstantiationType.Delayed);
