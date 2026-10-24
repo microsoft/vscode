@@ -95,7 +95,6 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 		const left = this._decorationsLeft.toString();
 		const width = this._decorationsWidth.toString();
-		const common = '" style="left:' + left + 'px;width:' + width + 'px;"></div>';
 
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -103,14 +102,9 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 			const decorations = toRender[lineIndex].getDecorations();
 			let lineOutput = '';
 			for (const decoration of decorations) {
-				let addition = '<div class="cldr ' + decoration.className;
-				if (decoration.tooltip !== null) {
-					addition += '" title="' + decoration.tooltip; // The tooltip is already escaped.
-				}
-				addition += common;
-				lineOutput += addition;
+				lineOutput += `<div class="cldr ${decoration.className}"${decoration.tooltip !== null ? ` title="${decoration.tooltip}"` : ''}></div>`;
 			}
-			output[lineIndex] = lineOutput;
+			output[lineIndex] = `<div class="line-decor-container" style="left:${left}px;width:${width}px;">${lineOutput}</div>`;
 		}
 
 		this._renderResult = output;
