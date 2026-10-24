@@ -229,7 +229,7 @@ export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('edit
 
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', null, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', editorBackground, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (\"workbench.editor.showTabs\": \"single\"). Editor groups are the containers of editors."));
+export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', editorBackground, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
 	dark: null,
@@ -706,7 +706,7 @@ export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, loca
 
 export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_BORDER, localize('modernPanelBorder', "Border color of the panel surface when the modern UI is enabled."));
 
-// Dark and light themes use foreground at 40% alpha.
+// Dark and light themes use `foreground` at 40% alpha.
 // High contrast themes keep the foreground opaque so the grips stay legible.
 export const MODERN_SASH_GRIP_FOREGROUND = registerColor('modernSash.gripForeground', {
 	dark: transparent(foreground, 0.4),
