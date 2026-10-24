@@ -14,7 +14,8 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { SessionsCategories } from '../common/categories.js';
 import { Menus, SessionActivityBarGroup } from './menus.js';
-import { SessionActivityBarLayoutActionsContext } from '../common/contextkeys.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext, SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { IsAuxiliaryWindowContext } from '../../workbench/common/contextkeys.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../common/sessionLayoutMode.js';
 
 /** A {@link SessionLayoutMode} as offered to the user. */
@@ -213,10 +214,21 @@ export function getSessionLayoutButtonLabel(contextKeyService: IContextKeyServic
  * {@link Menus.SessionLayout}, which the main window and chat windows contribute to. Its icon is the same whatever the
  * mode, that of the Layout menu of the title bar. It hides while the menu is empty.
  */
+const layoutMenuItem = { submenu: Menus.SessionLayout, title: localize('sessionLayout', "Layout"), icon: Codicon.layout };
+
+/**
+ * Otherwise, the main window's title bar has the Layout button, after Toggle Side Panel: each window has one entry
+ * point to its Layout menu. A chat window has its own in its title bar.
+ */
+MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+	...layoutMenuItem,
+	group: 'navigation',
+	order: 12,
+	when: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionActivityBarLayoutActionsContext.negate()),
+});
+
 MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-	submenu: Menus.SessionLayout,
-	title: localize('sessionLayout', "Layout"),
-	icon: Codicon.layout,
+	...layoutMenuItem,
 	group: SessionActivityBarGroup.Layout,
 	order: 0,
 	when: SessionActivityBarLayoutActionsContext,

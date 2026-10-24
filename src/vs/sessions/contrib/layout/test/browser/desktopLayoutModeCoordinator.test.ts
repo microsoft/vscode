@@ -21,7 +21,8 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { DesktopLayoutModeCoordinator, MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS } from '../../browser/desktop/desktopLayoutModeCoordinator.js';
 import { createTestHarness, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
-import { describeSessionActivityBarLayout } from '../../../../test/browser/sessionLayoutModeTestUtils.js';
+import { describeMenuGroup, describeSessionActivityBarLayout } from '../../../../test/browser/sessionLayoutModeTestUtils.js';
+import { Menus } from '../../../../browser/menus.js';
 
 suite('Sessions - DesktopLayoutModeCoordinator', () => {
 
@@ -155,6 +156,24 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			layoutActionsOff: [],
 			chatWindow: [],
 			chatOnlyChatWindow: [],
+		});
+	});
+
+	test('shows the main window\'s Layout menu in one place: in its title bar after Toggle Side Panel, or in the Session Activity Bar while it shows its layout actions', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		const contextKeys: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, 'sessions.layoutMode': SessionLayoutMode.SideBySide, 'sessions.splitLayout': SessionLayoutMode.SideBySide };
+		const titleBar = (settings: Record<string, unknown>) => describeMenuGroup(store, Menus.TitleBarSessionMenu, 'navigation', contextKeys, settings)
+			.filter(item => item.label === 'Layout' || item.label === 'Toggle Side Panel').map(item => item.entries ? `${item.label} (menu)` : item.label);
+		const strip = (settings: Record<string, unknown>) => describeSessionActivityBarLayout(store, contextKeys, settings).map(item => item.label);
+		const where = (layoutActions: boolean) => {
+			const settings = { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: layoutActions };
+			return { titleBar: titleBar(settings), strip: strip(settings) };
+		};
+
+		assert.deepStrictEqual({ off: where(false), on: where(true) }, {
+			off: { titleBar: ['Toggle Side Panel', 'Layout (menu)'], strip: [] },
+			on: { titleBar: [], strip: ['Layout'] },
 		});
 	});
 
