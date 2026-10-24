@@ -42,11 +42,21 @@ function toRecord(mode: IRememberedLayoutMode): IRememberedLayoutMode {
 	return Object.freeze({ mode: mode.mode, splitLayout: mode.splitLayout, inputOnly: mode.inputOnly });
 }
 
+function modesEqual(a: IRememberedLayoutMode | undefined, b: IRememberedLayoutMode): boolean {
+	return !!a && a.mode === b.mode && a.splitLayout === b.splitLayout && a.inputOnly === b.inputOnly;
+}
+
+/** The most chats whose modes are remembered: the ones set least recently are forgotten first. */
+const MAX_PER_CHAT_ENTRIES = 200;
+
 function ownerId(owner: IChatLayoutOwner): string {
 	return `${owner.sessionResource.toString()}\n${owner.chatResource.toString()}`;
 }
 
-/** Modes per chat, persisted as `{ version, entries: [session, chat, mode][] }`. */
+/**
+ * Modes per chat, persisted as `{ version, entries: [session, chat, mode][] }` from the least to the most recently set,
+ * up to {@link MAX_PER_CHAT_ENTRIES}.
+ */
 class PerChatModes {
 
 	private readonly _entries = new Map<string, { readonly owner: IChatLayoutOwner; readonly mode: IRememberedLayoutMode }>();
@@ -73,7 +83,7 @@ class PerChatModes {
 				}
 				loaded.push({ owner: { sessionResource: URI.parse(entry[0]), chatResource: URI.parse(entry[1]) }, mode: toRecord(entry[2]) });
 			}
-			for (const { owner, mode } of loaded) {
+			for (const { owner, mode } of loaded.slice(-MAX_PER_CHAT_ENTRIES)) {
 				this._entries.set(ownerId(owner), { owner, mode });
 			}
 		} catch (error) {
@@ -87,7 +97,21 @@ class PerChatModes {
 	}
 
 	set(owner: IChatLayoutOwner, mode: IRememberedLayoutMode): void {
-		this._entries.set(ownerId(owner), { owner, mode: toRecord(mode) });
+		const id = ownerId(owner);
+		const existing = this._entries.get(id);
+		// Most recently set last.
+		this._entries.delete(id);
+		if (existing && modesEqual(existing.mode, mode)) {
+			this._entries.set(id, existing);
+			return;
+		}
+		this._entries.set(id, { owner, mode: toRecord(mode) });
+		for (const oldest of this._entries.keys()) {
+			if (this._entries.size <= MAX_PER_CHAT_ENTRIES) {
+				break;
+			}
+			this._entries.delete(oldest);
+		}
 		this._save();
 	}
 
@@ -170,6 +194,9 @@ class SharedModes {
 	}
 
 	set(kind: LayoutModeOwnerKind, mode: IRememberedLayoutMode): void {
+		if (modesEqual(this._entries.get(kind), mode)) {
+			return;
+		}
 		this._entries.set(kind, toRecord(mode));
 		this._storageService.store(this._key, JSON.stringify({ version: SCHEMA_VERSION, entries: [...this._entries] }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}

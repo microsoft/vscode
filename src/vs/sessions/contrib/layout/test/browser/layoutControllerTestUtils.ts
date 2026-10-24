@@ -271,6 +271,8 @@ export interface ITestLayoutHarness {
 	sessionsPartChromeHeight: number;
 	/** The height constraints the Sessions Part was last given. */
 	sessionsPartHeightConstraints: ISessionsPartHeightConstraints | undefined;
+	/** Every call that set the height constraints of the Sessions Part. */
+	sessionsPartHeightConstraintsCalls: (ISessionsPartHeightConstraints | undefined)[];
 	toggleSidePaneCalls: number;
 	sidePaneStateBeforeHide: SidePaneComposition | undefined;
 	partVisibility: Map<Parts, boolean>;
@@ -407,6 +409,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onDidLayoutSessionsPart: store.add(new Emitter<IDimension>()),
 		sessionsPartChromeHeight: 0,
 		sessionsPartHeightConstraints: undefined,
+		sessionsPartHeightConstraintsCalls: [],
 		toggleSidePaneCalls: 0,
 		sidePaneStateBeforeHide: undefined,
 		partVisibility: new Map<Parts, boolean>([
@@ -518,7 +521,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			harness.visibleSessionsObs.read(reader).length + harness.additionalShownChatsObs.read(reader));
 		override readonly onDidLayout = harness.onDidLayoutSessionsPart.event;
 		override get chromeHeight() { return harness.sessionsPartChromeHeight; }
-		override setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void { harness.sessionsPartHeightConstraints = constraints; }
+		override setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
+			harness.sessionsPartHeightConstraints = constraints;
+			harness.sessionsPartHeightConstraintsCalls.push(constraints);
+		}
 		override getSessionView() { return harness.sessionView; }
 	});
 

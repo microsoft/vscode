@@ -191,6 +191,8 @@ const DEFAULT_TOP_OFFSET = 4;
 
 /** Keeps the strip's bottom level with the chat input's: the composer's 22px footer controls, 4px gap, and 4px bottom padding. */
 const BOTTOM_CLEARANCE = 30;
+/** How many frames the active strip of a detached chat looks for its host; see `probeExternalHost`. */
+const MAX_PROBE_RETRIES = 3;
 
 /** Width the strip occupies at the chat's right edge: the 30px strip (24px buttons, 2px padding, 1px border) and its 12px scrollbar clearance in `sessionActivityBar.css`. */
 const COLUMN_WIDTH = 42;
@@ -304,8 +306,10 @@ export class ChatViewSessionActivityBar extends Disposable {
 	/** The host outside the chat that the strip can show in, found among the ancestors of the chat. */
 	private readonly externalHost = observableValue<ISessionActivityBarExternalHost | undefined>(this, undefined);
 	/** The host the strip shows in now, if any. */
-	private hostedIn: ISessionActivityBarExternalHost | undefined;
+	private readonly hostedIn = observableValue<ISessionActivityBarExternalHost | undefined>(this, undefined);
 	private readonly probeScheduler = this._register(new MutableDisposable());
+	/** The frames left to look for the host while the active chat is detached; see {@link probeExternalHost}. */
+	private probeRetries = 0;
 	/** The measured height of the strip, cached so layout passes do not force a reflow. */
 	private height: number | undefined;
 	private scrollDownButton: HTMLElement | undefined;
@@ -353,13 +357,20 @@ export class ChatViewSessionActivityBar extends Disposable {
 			activityBar.visible.read(reader);
 			const host = this.externalHost.read(reader);
 			host?.active.read(reader);
-			host?.height.read(reader);
 			this.height = undefined;
 			this.relocate();
 		}));
+		// Only the strip in a host moves within its height, which does not change the strip's own height.
+		this._register(autorun(reader => {
+			const hostedIn = this.hostedIn.read(reader);
+			if (hostedIn) {
+				hostedIn.height.read(reader);
+				this.applyPosition();
+			}
+		}));
 		this._register(toDisposable(() => {
-			this.hostedIn?.setOccupied(this, false);
-			this.hostedIn = undefined;
+			this.hostedIn.get()?.setOccupied(this, false);
+			this.hostedIn.set(undefined, undefined);
 			activityBar.element.remove();
 		}));
 	}
@@ -368,13 +379,18 @@ export class ChatViewSessionActivityBar extends Disposable {
 	 * Finds the host outside the chat among the chat's ancestors. A chat created before it is attached, such as while
 	 * the Sessions Part is hidden and so not laid out, looks again once it is attached.
 	 */
-	private probeExternalHost(): void {
+	private probeExternalHost(retry = false): void {
 		if (!this.container.isConnected) {
-			// Only the active strip shows, so only it looks again, until it is attached or no longer active.
-			if (this.active && !this.probeScheduler.value) {
+			if (!retry) {
+				this.probeRetries = MAX_PROBE_RETRIES;
+			}
+			// Only the active strip shows, so only it looks again, for a few frames; a chat attached later is laid out or
+			// activated, which looks again.
+			if (this.active && this.probeRetries > 0 && !this.probeScheduler.value) {
+				this.probeRetries--;
 				this.probeScheduler.value = scheduleAtNextAnimationFrame(getWindow(this.container), () => {
 					this.probeScheduler.clear();
-					this.probeExternalHost();
+					this.probeExternalHost(true);
 				});
 			}
 			return;
@@ -404,11 +420,12 @@ export class ChatViewSessionActivityBar extends Disposable {
 			parent.appendChild(element);
 			hadFocus?.focus();
 		}
-		if (this.hostedIn !== hostedIn) {
-			this.hostedIn?.setOccupied(this, false);
+		const previous = this.hostedIn.get();
+		if (previous !== hostedIn) {
+			previous?.setOccupied(this, false);
 		}
-		this.hostedIn = hostedIn;
 		hostedIn?.setOccupied(this, activityBar.visible.get());
+		this.hostedIn.set(hostedIn, undefined);
 		this.applyPosition();
 	}
 
@@ -478,7 +495,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 	/** The area the strip moves up and down in: beside the chat, or in the host it shows in. */
 	private getArea(): { readonly top: number; readonly height: number } {
-		return this.hostedIn ? { top: 0, height: this.hostedIn.height.get() } : this.area;
+		const hostedIn = this.hostedIn.get();
+		return hostedIn ? { top: 0, height: hostedIn.height.get() } : this.area;
 	}
 
 	private getHeight(): number {
@@ -505,7 +523,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 	}
 
 	private applyPosition(): void {
-		if (this.element?.isConnected && this.isShown(this.hostedIn) && this.activityBar?.visible.get()) {
+		if (this.element?.isConnected && this.isShown(this.hostedIn.get()) && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.getArea().top + this.getOffset()}px`;
 		}
 		this.scrollDownButtonScheduler?.schedule();
@@ -516,7 +534,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		if (!button?.parentElement) {
 			return;
 		}
-		if (!button.isConnected || !this.isShown(this.hostedIn) || !this.activityBar?.visible.get() || this.reservedWidth.get() === 0 || button.style.display === 'none') {
+		if (!button.isConnected || !this.isShown(this.hostedIn.get()) || !this.activityBar?.visible.get() || this.reservedWidth.get() === 0 || button.style.display === 'none') {
 			this.scrollDownButtonOffset = { x: 0, y: 0 };
 			button.style.removeProperty('translate');
 			return;

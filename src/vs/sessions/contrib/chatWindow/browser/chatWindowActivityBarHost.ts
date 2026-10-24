@@ -40,16 +40,25 @@ export function registerChatWindowActivityBarHost(part: IEditorPart, scope: HTML
 		setOccupied: (occupant, occupied) => occupancy.set(occupant, occupied),
 	}));
 
+	// Only while the host is active or a strip is in it; from the laid out content height, so it forces no reflow.
 	const layoutHost = () => {
+		const contentHeight = part.contentDimension?.height;
+		if (contentHeight === undefined || (!active.get() && !occupancy.occupied.get())) {
+			return;
+		}
 		const group = getEditorGroup();
 		const top = group ? part.getGroup(group.id)?.titleHeight.offset ?? 0 : 0;
-		const available = Math.max(0, scope.clientHeight - top);
+		const available = Math.max(0, contentHeight - top);
 		element.style.top = `${top}px`;
 		element.style.height = `${available}px`;
 		height.set(available, undefined);
 	};
 	store.add(part.onDidLayout(layoutHost));
-	layoutHost();
+	store.add(autorun(reader => {
+		active.read(reader);
+		occupancy.occupied.read(reader);
+		layoutHost();
+	}));
 
 	store.add(autorun(reader => {
 		const isOccupied = occupancy.occupied.read(reader);

@@ -146,6 +146,45 @@ suite('Sessions - SessionLayoutModeService', () => {
 		});
 	});
 
+	test('writes only modes that changed, and remembers the chats set most recently', () => {
+		class CountingStorageService extends TestStorageService {
+			writes = 0;
+			override store(key: string, value: string | number | boolean | object | undefined | null, scope: StorageScope, target: StorageTarget): void {
+				this.writes++;
+				super.store(key, value, scope, target);
+			}
+		}
+		const disposables = store.add(new DisposableStore());
+		const storageService = disposables.add(new CountingStorageService());
+		const service = createHarness('chat', disposables, storageService).create();
+
+		service.setMainWindowMode(mainA, LayoutModeOwnerKind.Existing, stacked);
+		const changed = storageService.writes;
+		service.setMainWindowMode(mainA, LayoutModeOwnerKind.Existing, { ...stacked });
+		const unchanged = storageService.writes;
+		// Two hundred other chats after it, the most remembered.
+		const others = Array.from({ length: 200 }, (_, index): IChatLayoutOwner => ({ sessionResource: URI.parse(`test:/other/${index}`), chatResource: URI.parse(`test:/other/${index}`) }));
+		for (const owner of others) {
+			service.setMainWindowMode(owner, LayoutModeOwnerKind.Existing, sideBySide);
+		}
+		const reloaded = createHarness('chat', disposables, storageService).create();
+
+		assert.deepStrictEqual({
+			changed, unchanged,
+			first: service.getMainWindowMode(mainA, LayoutModeOwnerKind.Existing),
+			oldestOther: service.getMainWindowMode(others[0], LayoutModeOwnerKind.Existing),
+			reloadedFirst: reloaded.getMainWindowMode(mainA, LayoutModeOwnerKind.Existing),
+			reloadedNewest: reloaded.getMainWindowMode(others[199], LayoutModeOwnerKind.Existing),
+		}, {
+			changed: 1,
+			unchanged: 1,
+			first: undefined,
+			oldestOther: sideBySide,
+			reloadedFirst: undefined,
+			reloadedNewest: sideBySide,
+		});
+	});
+
 	test('drops a malformed record whole instead of applying part of it', () => {
 		const disposables = store.add(new DisposableStore());
 		const storageService = disposables.add(new TestStorageService());

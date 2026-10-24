@@ -95,13 +95,19 @@ export class DesktopStackedChatController extends Disposable {
 			this._pointerDown = isHTMLElement(e.target) && !!e.target.closest('.monaco-sash.horizontal')
 				&& !e.target.closest('.part.sessionspart') && !e.target.closest('.part.editor');
 		}, true));
-		this._register(addDisposableListener(getWindow(container), EventType.POINTER_UP, () => {
+		const release = () => {
 			if (this._pointerDown) {
 				this._pointerDown = false;
 				// Where the drag lets go, the chat settles at the input or the conversation.
 				this._decide(false, true);
 			}
-		}, true));
+		};
+		// A pointer that is lost (such as when the window loses focus) must not leave the press stuck.
+		const targetWindow = getWindow(container);
+		for (const type of [EventType.POINTER_UP, 'pointercancel', EventType.DRAG_END]) {
+			this._register(addDisposableListener(targetWindow, type, release, true));
+		}
+		this._register(addDisposableListener(targetWindow, EventType.BLUR, release));
 
 		const that = this;
 		this._register(registerAction2(class extends Action2 {
@@ -134,14 +140,6 @@ export class DesktopStackedChatController extends Disposable {
 		const store = new DisposableStore();
 		this._view = view;
 		this._forcedByWindow = false;
-		store.add(toDisposable(() => {
-			this._afterLayout.cancel();
-			this._view = undefined;
-			view.disableInputOnly();
-			sessionView.setHeaderHidden(false);
-			this._sessionsPartService.setHeightConstraints(undefined);
-			this._inputOnlyHeight = constObservable(0);
-		}));
 
 		view.enableInputOnly({ maxHeight: STACKED_CHAT_INPUT_MAX_HEIGHT, inputOnly: this._layoutMode.getInputOnly() });
 		// The chat view is reused for the next chat of its kind, which shows only its input as it was last left.
@@ -177,7 +175,8 @@ export class DesktopStackedChatController extends Disposable {
 			}
 			const collapsed = height + this._sessionsPartService.chromeHeight;
 			const minimum = view.canShowInputOnly.read(reader) ? collapsed : collapsed + STACKED_CHAT_CONVERSATION_MIN_HEIGHT;
-			this._sessionsPartService.setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY });
+			// Showing only its input, the chat keeps its height as the window resizes, rather than growing to be sized back.
+			this._sessionsPartService.setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY, keepHeight: view.inputOnly.read(reader) });
 		}));
 
 		// Switched to, rather than dragged to: sized to the input, or to the conversation as the user last left it.
@@ -207,6 +206,21 @@ export class DesktopStackedChatController extends Disposable {
 			} else {
 				this._afterLayout.schedule();
 			}
+		}));
+
+		// Last, so that the autoruns above stop before the view is reset: resetting it is not the focused chat's choice.
+		store.add(toDisposable(() => {
+			this._afterLayout.cancel();
+			this._view = undefined;
+			view.disableInputOnly();
+			sessionView.setHeaderHidden(false);
+			this._inputOnlyHeight = constObservable(0);
+			// The chat attached next, such as on a session switch, takes the constraints over rather than laying out twice.
+			queueMicrotask(() => {
+				if (!this._view) {
+					this._sessionsPartService.setHeightConstraints(undefined);
+				}
+			});
 		}));
 		return store;
 	}

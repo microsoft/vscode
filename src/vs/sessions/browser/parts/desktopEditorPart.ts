@@ -7,7 +7,7 @@ import { $, append, scheduleAtNextAnimationFrame } from '../../../base/browser/d
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableMap, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, derived, observableSignalFromEvent, observableValue } from '../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../base/common/observable.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -47,6 +47,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	private _auxiliaryBar: DesktopAuxiliaryBarPart | undefined;
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
 	private readonly _sessionActivityBarOccupancy = new SessionActivityBarHostOccupancy();
+	private _sessionActivityBarHostActive: IObservable<boolean> = constObservable(false);
 	private readonly _sessionActivityBarHostHeight = observableValue(this, 0);
 	private _sessionActivityBarHost: HTMLElement | undefined;
 	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
@@ -204,7 +205,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		const element = this._sessionActivityBarHost = append(this.element, $('.session-activity-bar-host.session-activity-bar-editor-host'));
 		element.style.setProperty('--session-activity-bar-column-width', `${SESSION_ACTIVITY_BAR_COLUMN_WIDTH}px`);
 		const layoutChanged = observableSignalFromEvent(this, Event.any<unknown>(layoutService.onDidChangeSidePaneArrangement, layoutService.onDidChangeEditorMaximized, layoutService.onDidChangePartVisibility));
-		const active = derived(this, reader => {
+		const active = this._sessionActivityBarHostActive = derived(this, reader => {
 			layoutChanged.read(reader);
 			const sidePaneVisible = layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 			return sidePaneVisible && (layoutService.getSidePaneArrangement() === SessionLayoutMode.Stacked || layoutService.isEditorMaximized());
@@ -216,6 +217,10 @@ export class DesktopMainEditorPart extends MainEditorPart {
 			setOccupied: (occupant, occupied) => this._sessionActivityBarOccupancy.set(occupant, occupied),
 		}));
 		this._register(autorun(reader => {
+			active.read(reader);
+			this._layoutSessionActivityBarHost();
+		}));
+		this._register(autorun(reader => {
 			const occupied = this._sessionActivityBarOccupancy.occupied.read(reader);
 			element.classList.toggle('occupied', occupied);
 			this._layoutSessionActivityBarHost();
@@ -223,13 +228,15 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		}));
 	}
 
+	/** Only while the host is active or a strip is in it; from the laid out content height, so it forces no reflow. */
 	private _layoutSessionActivityBarHost(): void {
 		const element = this._sessionActivityBarHost;
-		if (!element) {
+		const contentHeight = this.contentDimension?.height;
+		if (!element || contentHeight === undefined || (!this._sessionActivityBarHostActive.get() && !this._sessionActivityBarOccupancy.occupied.get())) {
 			return;
 		}
 		const top = (this.activeGroup as EditorGroupView).titleHeight.offset;
-		const height = Math.max(0, this.element.clientHeight - top);
+		const height = Math.max(0, contentHeight - top);
 		element.style.top = `${top}px`;
 		element.style.height = `${height}px`;
 		this._sessionActivityBarHostHeight.set(height, undefined);

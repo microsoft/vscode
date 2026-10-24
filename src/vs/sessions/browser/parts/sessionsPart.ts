@@ -125,7 +125,9 @@ export class SessionsPart extends Part {
 		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
-	readonly priority = LayoutPriority.High;
+	get priority(): LayoutPriority {
+		return this._heightConstraints?.keepHeight ? LayoutPriority.Low : LayoutPriority.High;
+	}
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -538,11 +540,12 @@ export class SessionsPart extends Part {
 
 	/** Constrains the part's height in the workbench grid, such as to keep a chat below the editor at its input. */
 	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
-		if (this._heightConstraints?.minimum === constraints?.minimum && this._heightConstraints?.maximum === constraints?.maximum) {
-			return;
-		}
+		const previous = this._heightConstraints;
 		this._heightConstraints = constraints;
-		this._onDidChange.fire(undefined);
+		// Which part takes a resize applies from the next layout; only the limits need one now.
+		if (previous?.minimum !== constraints?.minimum || previous?.maximum !== constraints?.maximum) {
+			this._onDidChange.fire(undefined);
+		}
 	}
 
 	override dispose(): void {

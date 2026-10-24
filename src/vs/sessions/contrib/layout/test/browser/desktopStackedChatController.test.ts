@@ -197,6 +197,50 @@ suite('Sessions - DesktopStackedChatController', () => {
 		});
 	}));
 
+	test('settles where the sash is when its press is cancelled, as when it is released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { chatView, sessionView } = await createController();
+		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
+		await timeout(0);
+		const sash = harness.layoutService.mainContainer.appendChild(mainWindow.document.createElement('div'));
+		sash.className = 'monaco-sash horizontal';
+
+		sash.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		drag(collapsed + 50);
+		mainWindow.dispatchEvent(new PointerEvent('pointercancel'));
+		const cancelled = state(chatView, sessionView);
+
+		assert.deepStrictEqual(cancelled, { enabled: true, inputOnly: true, headerHidden: true, height: collapsed, minimum: collapsed, remembered: true });
+	}));
+
+	test('keeps the height of a chat showing only its input as the window resizes, and hands the constraints to the chat shown next', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { controller } = await createController();
+		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
+		await timeout(0);
+		const conversation = harness.sessionsPartHeightConstraints;
+		controller.stackedChat.toggleConversation();
+		await timeout(0);
+		const inputOnly = harness.sessionsPartHeightConstraints;
+		const otherSession = makeSession(URI.parse('test:/b'));
+		harness.layoutModeService.setMainWindowMode({ sessionResource: otherSession.resource, chatResource: otherSession.resource }, LayoutModeOwnerKind.Existing, { mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: true });
+		// The other session has its own view.
+		harness.sessionView = new TestSessionView(new TestChatView());
+		harness.sessionsPartHeightConstraintsCalls.length = 0;
+		harness.activeSessionObs.set(otherSession, undefined);
+		await controller.whenRestored();
+		await timeout(0);
+		const switched = [...harness.sessionsPartHeightConstraintsCalls];
+		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.SideBySide);
+		await timeout(0);
+
+		assert.deepStrictEqual({ conversation, inputOnly, switched, sideBySide: harness.sessionsPartHeightConstraints }, {
+			conversation: { minimum: collapsed, maximum: Number.POSITIVE_INFINITY, keepHeight: false },
+			inputOnly: { minimum: collapsed, maximum: Number.POSITIVE_INFINITY, keepHeight: true },
+			// Never cleared in between.
+			switched: [{ minimum: collapsed, maximum: Number.POSITIVE_INFINITY, keepHeight: true }],
+			sideBySide: undefined,
+		});
+	}));
+
 	test('shows only the input while the window is too short for the conversation, without remembering it, and the conversation once it grows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { chatView, sessionView } = await createController();
 		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
