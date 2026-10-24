@@ -32,7 +32,7 @@ import { IconBadge } from '../../../../../workbench/services/activity/common/act
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
 import { SessionActivityBarGroup } from '../../../../browser/menus.js';
-import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -137,7 +137,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	const width = options.width ?? 640;
 	const githubEntries: readonly IFixtureEntry[] = options.githubReferenceCount ? [
 		{ id: OPEN_PULL_REQUEST_ACTION_ID, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel },
-		{ id: OPEN_ISSUE_ACTION_ID, title: 'Open Issue', icon: Codicon.issues, group: SessionActivityBarGroup.SidePanel },
 	] : [];
 	const entries = [...(options.entries ?? workspaceChatEntries), ...githubEntries];
 	container.style.width = `${width}px`;

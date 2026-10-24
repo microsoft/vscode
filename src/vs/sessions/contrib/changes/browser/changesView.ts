@@ -750,6 +750,7 @@ export class ChangesViewPane extends ViewPane {
 
 	private bodyContainer: HTMLElement | undefined;
 	private welcomeContainer: HTMLElement | undefined;
+	private emptyState: ChangesEmptyState | undefined;
 	private filesHeaderNode: HTMLElement | undefined;
 	private fileHeaderToolbarContainer: HTMLElement | undefined;
 	private contentContainer: HTMLElement | undefined;
@@ -918,7 +919,7 @@ export class ChangesViewPane extends ViewPane {
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
 		this.welcomeContainer.style.display = 'none';
 
-		this._register(this.scopedInstantiationService.createInstance(ChangesEmptyState, this.welcomeContainer));
+		this.emptyState = this._register(this.scopedInstantiationService.createInstance(ChangesEmptyState, this.welcomeContainer));
 
 		// CI Status widget — bottom pane
 		this.ciStatusWidget = this._register(this.scopedInstantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
@@ -1360,7 +1361,7 @@ export class ChangesViewPane extends ViewPane {
 
 	private getTreePaneMaximumSize(): number {
 		if (this.listContainer?.style.display === 'none') {
-			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
+			return Number.POSITIVE_INFINITY;
 		}
 
 		return Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
@@ -1394,6 +1395,7 @@ export class ChangesViewPane extends ViewPane {
 		this.splitViewContainer.style.height = `${availableHeight}px`;
 		this.splitView.layout(availableHeight);
 		this.rebalanceSectionPanes?.();
+		this.emptyState?.layout();
 	}
 
 	/**

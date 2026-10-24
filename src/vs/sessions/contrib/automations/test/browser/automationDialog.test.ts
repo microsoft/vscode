@@ -57,7 +57,7 @@ import { ChatInputPart } from '../../../../../workbench/contrib/chat/browser/wid
 import { IAutomationDescriptor, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationScheduleToLocal, automationScheduleToUTC } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { AutomationCatalogueState, AutomationToolCatalog, AutomationUnavailableError, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { GitRefType, IGitRepository, IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -119,10 +119,12 @@ suite('Automation dialog creation', () => {
 		const cloudEnabled = observableValue('cloudEnabled', !!cloudConfiguration && cloudEnabledAtOpen);
 		let refresh: () => Promise<void> = async () => { };
 		const hovers: string[] = [];
-		const delayedHovers = new Map<HTMLElement, string>();
+		const delayedHovers = new Map<HTMLElement, () => string>();
 		const setupDelayedHover: IHoverService['setupDelayedHover'] = (target, options) => {
-			const content = (typeof options === 'function' ? options() : options).content;
-			delayedHovers.set(target, typeof content === 'string' ? content : String(content));
+			delayedHovers.set(target, () => {
+				const content = (typeof options === 'function' ? options() : options).content;
+				return typeof content === 'string' ? content : String(content);
+			});
 			return toDisposable(() => delayedHovers.delete(target));
 		};
 		// A fresh object keeps these fakes off the shared NullHoverService used by other suites.
@@ -185,12 +187,13 @@ suite('Automation dialog creation', () => {
 		instantiationService.stubInstance(AutomationInputCompletions, { dispose: () => { } });
 		const promptChanged = disposables.add(new Emitter<void>());
 		const promptInput = document.createElement('textarea');
+		const inputToolbarElement = DOM.$('div');
 		instantiationService.stubInstance(ChatInputPart, {
 			render: (container, value) => {
 				promptInput.value = value ?? '';
-				container.appendChild(promptInput);
+				container.append(promptInput, inputToolbarElement);
 			},
-			inputToolbarElement: DOM.$('div'),
+			inputToolbarElement,
 			setInputToolbarAriaLabel: () => { },
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({
 				updateOptions: () => { },
@@ -199,6 +202,7 @@ suite('Automation dialog creation', () => {
 					detailedReasons: [], detailedReasonsChangeLengths: [],
 				})),
 				getValue: () => promptInput.value,
+				getContribution: () => null,
 			}),
 			layout: () => { },
 			dispose: () => { },
@@ -231,9 +235,10 @@ suite('Automation dialog creation', () => {
 			cloudEnabled,
 			configurationService,
 			hovers,
-			getSaveTooltip: () => delayedHovers.get(saveButton),
-			getTooltip: (element: HTMLElement) => delayedHovers.get(element),
+			getSaveTooltip: () => delayedHovers.get(saveButton)?.(),
+			getTooltip: (element: HTMLElement) => delayedHovers.get(element)?.(),
 			setRefresh: (value: () => Promise<void>) => { refresh = value; },
+			failWorkspaceSelection: (message: string) => workspacePicker.onSelectionError?.(new Error(message)),
 			selectWorkspace: async (uri: URI | undefined, fromRepository = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME) => {
 				if (await workspacePicker.onWillSelectWorkspace?.()) {
 					selectingRepository = fromRepository;
@@ -307,7 +312,7 @@ suite('Automation dialog creation', () => {
 	): IAutomationProviderConfiguration {
 		return {
 			sessionTypes: ['cloud-agent'], timeZone: 'UTC', description: 'Runs on GitHub',
-			targetChangeDisabledReason: 'Duplicate to change repository.',
+			targetChangeDisabledReason: 'Certain settings cannot be changed for an existing cloud automation. Duplicate this automation to change those settings.',
 			tools, loadTools,
 			pickWorkspace: async () => REPOSITORY,
 			getWorkspaceTarget: uri => uri ? target : constObservable({ disabledReason: 'Choose a repository.' }),
@@ -765,6 +770,7 @@ suite('Automation dialog creation', () => {
 			if (repository) {
 				radios[0].focus();
 				radios[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+				await timeout(0);
 			}
 			dialog.saveButton.click();
 			const result = await dialog.result;
@@ -773,14 +779,14 @@ suite('Automation dialog creation', () => {
 		}
 	});
 
-	test('Repository create failure preserves the dialog and selected Owner with a readable server reason', async () => {
-		const reason = 'Repository automations are not enabled for this repository.';
+	test('Repository ownership rejection preserves the dialog and selected Owner with product copy', async () => {
+		const reason = 'Repository owned automations are not supported for this repository.';
 		const committing = new DeferredPromise<void>();
 		const dialog = openDialog({
 			commit: async result => {
 				assert.ok(result.kind === 'create' && result.value.ownership === 'repository');
 				await committing.p;
-				throw new AutomationUnavailableError(reason);
+				throw new Error(reason);
 			}
 		}, cloudConfiguration());
 		await dialog.setCloud(true);
@@ -788,18 +794,24 @@ suite('Automation dialog creation', () => {
 		dialog.setPrompt('Review changes');
 		const repository = dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]')[1];
 		repository.click();
+		await timeout(0);
 		dialog.saveButton.click();
 		await timeout(0);
 		const disabledDuringSave = repository.getAttribute('aria-disabled');
 		await committing.complete();
 		await timeout(0);
-		const error = dialog.container.querySelector<HTMLElement>('.automation-form-save-error')!;
+		const error = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
+		const style = DOM.getWindow(error).getComputedStyle(error);
 		assert.deepStrictEqual({
 			disabledDuringSave, selected: repository.getAttribute('aria-checked'),
 			retryEnabled: dialog.saveButton.getAttribute('aria-disabled'), message: error.textContent,
-			visible: error.style.display !== 'none', focused: DOM.getActiveElement() === error,
+			visible: error.style.display !== 'none', focused: DOM.getActiveElement() === error, role: error.getAttribute('role'),
+			severity: error.classList.contains('error'), outline: style.outlineStyle,
 			dialogOpen: !!dialog.container.querySelector('.automation-dialog'),
-		}, { disabledDuringSave: 'true', selected: 'true', retryEnabled: 'false', message: reason, visible: true, focused: true, dialogOpen: true });
+		}, {
+			disabledDuringSave: 'true', selected: 'true', retryEnabled: 'false', message: reason,
+			visible: true, focused: true, role: 'alert', severity: true, outline: 'none', dialogOpen: true,
+		});
 		dialog.cancelButton.click();
 		assert.strictEqual(await dialog.result, undefined);
 	});
@@ -807,14 +819,16 @@ suite('Automation dialog creation', () => {
 	test('Owner shares the Tools row, explains each choice, and warns when Repository is selected', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		await dialog.setCloud(true);
+		await dialog.selectWorkspace(REPOSITORY);
 		const owner = dialog.container.querySelector<HTMLElement>('.automation-owner')!;
 		const radios = owner.querySelectorAll<HTMLElement>('[role="radio"]');
 		const info = owner.querySelector<HTMLElement>('.automation-owner-info')!;
-		const warning = dialog.container.querySelector<HTMLElement>('.automation-owner-warning')!;
-		const warningState = () => ({ visible: warning.classList.contains('visible'), hidden: warning.getAttribute('aria-hidden'), display: warning.style.display });
+		const warning = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
+		const warningState = () => ({ visible: warning.classList.contains('warning'), hidden: warning.getAttribute('aria-hidden'), display: warning.style.display });
 		const initialWarning = warningState();
 		const initialInfo = { tooltip: dialog.getTooltip(info), description: owner.getAttribute('aria-description') };
 		radios[1].click();
+		await timeout(0);
 		assert.deepStrictEqual({
 			rowLabels: Array.from(owner.parentElement!.querySelectorAll('.automation-form-label'), label => label.textContent),
 			inlineText: owner.textContent,
@@ -848,7 +862,7 @@ suite('Automation dialog creation', () => {
 				codicon: true, hidden: 'true', tabIndex: -1,
 			},
 			warning: {
-				initial: { visible: false, hidden: 'true', display: '' },
+				initial: { visible: false, hidden: 'true', display: 'none' },
 				selected: { visible: true, hidden: 'false', display: '' },
 				role: 'status', live: 'polite', icon: 'true',
 				text: 'This automation will be visible to everyone with repository access, and can be edited by anyone with write access.',
@@ -880,7 +894,7 @@ suite('Automation dialog creation', () => {
 					disabled: radio.getAttribute('aria-disabled'),
 					description: radio.getAttribute('aria-description'),
 				})),
-				warning: dialog.container.querySelector('.automation-owner-warning')?.textContent,
+				warning: dialog.container.querySelector('.automation-dialog-notification-center:not([aria-hidden="true"])')?.textContent,
 			}, {
 				controls: 2, text: 'OwnerOnly meRepository',
 				info: {
@@ -897,7 +911,7 @@ suite('Automation dialog creation', () => {
 						description: `Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot. Ownership can't be changed after creation.`,
 					},
 				],
-				warning: ownership === 'repository' ? 'This automation is visible to everyone with repository access, and can be edited by anyone with write access.' : undefined,
+				warning: 'Certain settings cannot be changed for an existing cloud automation. Duplicate this automation to change those settings.',
 			});
 			dialog.saveButton.click();
 			const result = await dialog.result;
@@ -909,14 +923,16 @@ suite('Automation dialog creation', () => {
 	test('switching back to local hides Owner and never sends the Repository choice', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		await dialog.setCloud(true);
+		await dialog.selectWorkspace(REPOSITORY);
 		dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]')[1].click();
-		const warning = dialog.container.querySelector<HTMLElement>('.automation-owner-warning')!;
+		await timeout(0);
+		const warning = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
 		assert.strictEqual(warning.getAttribute('aria-hidden'), 'false');
 		await dialog.setCloud(false);
 		dialog.setPrompt('Local review');
 		assert.deepStrictEqual({
 			options: dialog.container.querySelector<HTMLElement>('.automation-provider-options')!.style.display,
-			warning: { visible: warning.classList.contains('visible'), hidden: warning.getAttribute('aria-hidden') },
+			warning: { visible: warning.classList.contains('warning'), hidden: warning.getAttribute('aria-hidden') },
 		}, { options: 'none', warning: { visible: false, hidden: 'true' } });
 		dialog.saveButton.click();
 		const result = await dialog.result;
@@ -939,6 +955,32 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('Run in the Cloud hides the harness picker and restores it for local runs', async () => {
+		const dialog = openDialog({}, cloudConfiguration());
+		const sessionConfigurationDisplay = () => dialog.container.querySelector<HTMLElement>('.automation-session-config')?.style.display;
+		const harnessDisplay = () => {
+			const harness = dialog.container.querySelector<HTMLElement>('.automation-harness-picker');
+			return harness ? DOM.getWindow(harness).getComputedStyle(harness).display : undefined;
+		};
+		const local = { harness: harnessDisplay(), sessionConfiguration: sessionConfigurationDisplay() };
+		await dialog.setCloud(true);
+		await dialog.selectWorkspace(REPOSITORY);
+		const cloud = { harness: harnessDisplay(), sessionConfiguration: sessionConfigurationDisplay() };
+		await dialog.setCloud(false);
+
+		assert.deepStrictEqual({
+			local,
+			cloud,
+			restored: { harness: harnessDisplay(), sessionConfiguration: sessionConfigurationDisplay() },
+		}, {
+			local: { harness: 'block', sessionConfiguration: '' },
+			cloud: { harness: 'none', sessionConfiguration: '' },
+			restored: { harness: 'block', sessionConfiguration: '' },
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('Create stays blocked while the cloud switch connects', async () => {
 		const dialog = openDialog({}, cloudConfiguration(), undefined, undefined, false);
 		dialog.setPrompt('Review changes');
@@ -947,15 +989,21 @@ suite('Automation dialog creation', () => {
 		const before = dialog.saveButton.getAttribute('aria-disabled');
 		dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
 		await timeout(0);
+		const spinner = dialog.container.querySelector<HTMLElement>('.automation-cloud-row > .automation-loading-spinner')!;
 		const connecting = {
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
 			progress: dialog.container.querySelector('.automation-target-progress')?.textContent,
+			spinner: { visible: spinner.style.display !== 'none', label: spinner.getAttribute('aria-label'), tooltip: dialog.getTooltip(spinner) },
 		};
 		await refresh.error(new Error('Offline'));
 		await timeout(0);
 		assert.deepStrictEqual({ before, connecting, after: dialog.saveButton.getAttribute('aria-disabled') }, {
 			before: 'false',
-			connecting: { disabled: 'true', progress: 'Connecting to cloud automations...' },
+			connecting: {
+				disabled: 'true',
+				progress: '',
+				spinner: { visible: true, label: 'Connecting to cloud automations...', tooltip: 'Connecting to cloud automations...' },
+			},
 			after: 'false',
 		});
 		dialog.cancelButton.click();
@@ -1055,10 +1103,20 @@ suite('Automation dialog creation', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			connecting,
-			after: { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked'), focused: DOM.getActiveElement() === toggle, hovers: dialog.hovers },
+			after: {
+				disabled: toggle.disabled,
+				checked: toggle.getAttribute('aria-checked'),
+				focused: DOM.getActiveElement() === toggle,
+				message: dialog.container.querySelector('.automation-dialog-notification-center')?.textContent,
+				role: dialog.container.querySelector('.automation-dialog-notification-center')?.getAttribute('role'),
+			},
 		}, {
 			connecting: { disabled: true, busy: 'true' },
-			after: { disabled: false, checked: 'false', focused: true, hovers: ['Unable to load cloud automations. Please try again in a few moments.'] },
+			after: {
+				disabled: false, checked: 'false', focused: true,
+				message: 'Unable to load cloud automations. Please try again in a few moments.',
+				role: 'alert',
+			},
 		});
 		dialog.cancelButton.click();
 		await dialog.result;
@@ -1082,7 +1140,11 @@ suite('Automation dialog creation', () => {
 		unreachableToggle.click();
 		await timeout(0);
 		await timeout(0);
-		const failedConnect = { checked: unreachableToggle.getAttribute('aria-checked'), hovers: [...unreachable.hovers], sessionType: sessionType(unreachable) };
+		const failedConnect = {
+			checked: unreachableToggle.getAttribute('aria-checked'),
+			message: unreachable.container.querySelector('.automation-dialog-notification-center')?.textContent,
+			sessionType: sessionType(unreachable),
+		};
 		unreachable.setRefresh(async () => unreachable.providers.set([{ id: 'host', label: 'Host' }, { id: 'cloud', label: 'Cloud' }], undefined));
 		unreachableToggle.click();
 		await timeout(0);
@@ -1105,7 +1167,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual({ withoutCloud, notCreatableAtOpen, failedConnect, connected, disabledAtOpen, afterEnabling }, {
 			withoutCloud: { display: 'none', hidden: 'true' },
 			notCreatableAtOpen: { display: '', hidden: null },
-			failedConnect: { checked: 'false', hovers: ['Unable to load cloud automations. Please try again in a few moments.'], sessionType: 'Session Type, Copilot' },
+			failedConnect: { checked: 'false', message: 'Unable to load cloud automations. Please try again in a few moments.', sessionType: 'Session Type, Copilot' },
 			connected: { checked: 'true', sessionType: 'Session Type, Cloud' },
 			disabledAtOpen: { display: 'none', hidden: 'true' },
 			afterEnabling: { display: 'none', hidden: 'true' },
@@ -1233,7 +1295,7 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('switching Weekdays to Cloud hides the option and requires an explicit supported schedule', async () => {
+	test('switching Weekdays to Cloud selects Manual without showing an error', async () => {
 		const dialog = openDialog({
 			initialValues: {
 				name: 'Weekday review', prompt: 'Review changes',
@@ -1248,21 +1310,20 @@ suite('Automation dialog creation', () => {
 			selected: interval.selectedOptions[0].textContent,
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
 			error: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.textContent,
+			messageVisible: !!dialog.container.querySelector('.automation-dialog-notification-center:not([aria-hidden="true"])'),
 		}, {
-			options: ['Choose a trigger', 'Weekly', 'Daily', 'Hourly', 'Manual'],
-			selected: 'Choose a trigger', disabled: 'true',
-			error: 'Weekdays is only available for local automations. Choose a supported schedule for Cloud.',
+			options: ['Weekly', 'Daily', 'Hourly', 'Manual'],
+			selected: 'Manual', disabled: 'false', error: '',
+			messageVisible: false,
 		});
 		await dialog.setCloud(false);
-		assert.strictEqual(interval.selectedOptions[0].textContent, 'Weekdays');
+		assert.strictEqual(interval.selectedOptions[0].textContent, 'Manual');
 		await dialog.setCloud(true);
-		interval.selectedIndex = Array.from(interval.options).findIndex(option => option.textContent === 'Daily');
-		interval.dispatchEvent(new (DOM.getWindow(interval).Event)('change', { bubbles: true }));
 		assert.deepStrictEqual({
 			options: Array.from(interval.options, option => option.textContent),
 			selected: interval.selectedOptions[0].textContent,
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
-		}, { options: ['Weekly', 'Daily', 'Hourly', 'Manual'], selected: 'Daily', disabled: 'false' });
+		}, { options: ['Weekly', 'Daily', 'Hourly', 'Manual'], selected: 'Manual', disabled: 'false' });
 		dialog.cancelButton.click();
 		assert.strictEqual(await dialog.result, undefined);
 	});
@@ -1277,13 +1338,20 @@ suite('Automation dialog creation', () => {
 		const time = dialog.container.querySelector<HTMLSelectElement>('.automation-form-time-group select')!;
 		assert.deepStrictEqual({ selected: time.selectedOptions[0].textContent, count: time.options.length }, { selected: '11:07 PM', count: 97 });
 		await dialog.setCloud(true);
+		const message = dialog.container.querySelector('.automation-dialog-notification-center')!;
 		assert.deepStrictEqual({
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
 			error: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.textContent,
-			errorRole: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.getAttribute('role'),
-			errorLive: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.getAttribute('aria-live'),
+			message: message.textContent,
+			errorRole: message.getAttribute('role'),
+			errorLive: message.getAttribute('aria-live'),
 			selected: time.selectedOptions[0].textContent,
-		}, { disabled: 'true', error: 'Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.', errorRole: 'status', errorLive: 'polite', selected: '11:07 PM' });
+		}, {
+			disabled: 'true',
+			error: 'Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.',
+			message: 'Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.',
+			errorRole: 'alert', errorLive: 'polite', selected: '11:07 PM',
+		});
 		const interval = dialog.container.querySelector<HTMLSelectElement>('.automation-form-schedule-group select[aria-label="Trigger"]')!;
 		const setInterval = (label: string) => {
 			interval.selectedIndex = Array.from(interval.options).findIndex(option => option.textContent === label);
@@ -1494,24 +1562,31 @@ suite('Automation dialog creation', () => {
 		const dialog = openDialog({}, cloudConfiguration(undefined, catalog, () => loads++));
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(REPOSITORY);
+		dialog.setPrompt('Review changes');
 		const button = dialog.container.querySelector<HTMLElement>('.automation-provider-tools .monaco-button')!;
 		const status = dialog.container.querySelector<HTMLElement>('.automation-provider-tools-status')!;
-		const retry = status.querySelector<HTMLElement>('.monaco-button')!;
 		const snapshot = () => ({
 			buttonDisabled: button.getAttribute('aria-disabled'), status: status.style.display === 'none' ? undefined : status.firstElementChild?.textContent,
-			role: status.getAttribute('role'), retryVisible: retry.style.display !== 'none', count: button.getAttribute('aria-description'),
+			role: status.getAttribute('role'),
+			message: dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center:not([aria-hidden="true"])')?.textContent,
+			count: button.getAttribute('aria-description'),
 		});
 		const loading = { loads, ...snapshot() };
 		catalog.set({ kind: 'error', message: 'Available tools could not be loaded.' }, undefined);
 		const failed = snapshot();
+		const retry = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center > .monaco-button')!;
+		dialog.saveButton.focus();
+		dispatchKey(dialog.saveButton, 'keydown', 'Tab', true);
+		const retryKeyboardReachable = DOM.getActiveElement() === retry;
 		retry.click();
 		catalog.set(toolCatalog(), undefined);
 		const retried = { loads, ...snapshot() };
 		catalog.set({ kind: 'loading' }, undefined);
-		assert.deepStrictEqual({ loading, failed, retried, accountChangeLoads: loads }, {
-			loading: { loads: 1, buttonDisabled: 'true', status: 'Loading available tools...', role: 'status', retryVisible: false, count: null },
-			failed: { buttonDisabled: 'true', status: 'Available tools could not be loaded.', role: 'status', retryVisible: true, count: null },
-			retried: { loads: 2, buttonDisabled: 'false', status: undefined, role: 'status', retryVisible: false, count: '0 of 2 tools selected' },
+		assert.deepStrictEqual({ loading, failed, retryKeyboardReachable, retried, accountChangeLoads: loads }, {
+			loading: { loads: 1, buttonDisabled: 'true', status: 'Loading available tools...', role: 'status', message: undefined, count: null },
+			failed: { buttonDisabled: 'true', status: undefined, role: 'status', message: 'Available tools could not be loaded.Retry', count: null },
+			retryKeyboardReachable: true,
+			retried: { loads: 2, buttonDisabled: 'false', status: undefined, role: 'status', message: undefined, count: '0 of 2 tools selected' },
 			accountChangeLoads: 3,
 		});
 		dialog.cancelButton.click();
@@ -1785,13 +1860,21 @@ suite('Automation dialog creation', () => {
 		await dialog.selectWorkspace(REPOSITORY);
 		const actual = {
 			text: dialog.container.querySelector('.automation-target-progress')?.textContent,
+			spinner: (() => {
+				const spinner = dialog.container.querySelector<HTMLElement>('.automation-target-toolbar > .automation-loading-spinner')!;
+				return { visible: spinner.style.display !== 'none', label: spinner.getAttribute('aria-label'), tooltip: dialog.getTooltip(spinner) };
+			})(),
 			invalid: dialog.container.querySelector('.automation-target-toolbar')?.getAttribute('aria-invalid'),
 			error: dialog.container.querySelector('#automation-target-error')?.textContent,
 			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
 		};
 		dialog.cancelButton.click();
 		await dialog.result;
-		assert.deepStrictEqual(actual, { text: 'Checking repository access...', invalid: null, error: '', saveDisabled: 'true' });
+		assert.deepStrictEqual(actual, {
+			text: 'Checking repository access...',
+			spinner: { visible: true, label: 'Checking repository access...', tooltip: 'Checking repository access...' },
+			invalid: null, error: '', saveDisabled: 'true',
+		});
 	});
 
 	test('target capture progress clears on success and cannot save the outgoing target', async () => {
@@ -1834,7 +1917,7 @@ suite('Automation dialog creation', () => {
 		await capture.error(new Error('Capture failed'));
 		await timeout(0);
 		const failed = {
-			error: dialog.container.querySelector('.automation-form-save-error')?.textContent,
+			error: dialog.container.querySelector('.automation-dialog-notification-center')?.textContent,
 			pending: dialog.container.querySelector<HTMLElement>('.automation-target-progress')?.style.display,
 			inert: dialog.container.querySelector('.automation-form-content')?.hasAttribute('inert'),
 			checked: dialog.container.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
@@ -1900,10 +1983,11 @@ suite('Automation dialog creation', () => {
 		await dialog.selectWorkspace(REPOSITORY);
 		const progress = dialog.container.querySelector<HTMLElement>('.automation-target-progress')!;
 		const error = dialog.container.querySelector<HTMLElement>('#automation-target-error')!;
+		const notification = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
 		const observer = new (DOM.getWindow(progress).MutationObserver)(() => { });
 		disposables.add(toDisposable(() => observer.disconnect()));
 		const counts: number[] = [];
-		for (const node of [progress, error]) {
+		for (const node of [progress, error, notification]) {
 			if (node === error) {
 				target.set({ disabledReason: 'Access denied' }, undefined);
 			}
@@ -1913,7 +1997,7 @@ suite('Automation dialog creation', () => {
 			counts.push(observer.takeRecords().length);
 			observer.disconnect();
 		}
-		assert.deepStrictEqual(counts, [0, 0]);
+		assert.deepStrictEqual(counts, [0, 0, 0]);
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
@@ -2036,20 +2120,50 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('cloud edit disables the immutable workspace while preserving configuration and enabled state', async () => {
+	test('cloud edit preserves an existing manageable public target and immutable configuration', async () => {
 		const existing: IAutomationDescriptor = {
 			id: 'cloud-existing', name: 'Review', prompt: 'Review changes', enabled: false, createdAt: '', updatedAt: '',
 			target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
 			schedule: { interval: 'weekly', scheduleHour: 15, scheduleMinute: 30, scheduleDay: 2, timeZone: 'UTC' },
 			sessionTemplate: { modelId: 'saved-model', config: { tools: ['read', 'future-tool'], reasoningEffort: 'high' } },
 		};
-		const dialog = openDialog({ existing }, cloudConfiguration());
+		const target = observableValue<IAutomationWorkspaceTarget>('target', {
+			disabledReason: 'Cloud automations cannot be managed for this repository.',
+			isRepository: true,
+			isPrivateRepository: false,
+			repositoryLabel: 'owner/public',
+		});
+		const dialog = openDialog({ existing }, cloudConfiguration(target));
+		const notification = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
+		dialog.nameInput.focus();
+		const mouseDownResult = notification.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({
 			workspacePicker: dialog.container.querySelector('.automation-target-toolbar')?.textContent?.includes('Select workspace'),
-			guidance: dialog.container.querySelector('.automation-form-hint')?.textContent,
+			inlineGuidance: dialog.container.querySelector('.automation-form-hint')?.textContent,
+			notification: notification.textContent,
+			notificationVisible: notification.style.display !== 'none',
+			notificationClass: notification.className,
+			notificationIcon: notification.querySelector('.codicon')?.className,
+			notificationPointerInteractive: mouseDownResult,
+			focusPreserved: DOM.getWindow(notification).document.activeElement === dialog.nameInput,
 			workspaceDisabledReason: dialog.getWorkspaceDisabledReason(),
 			cloudDisabled: dialog.container.querySelector('[aria-label="Session Type, Cloud"]')?.getAttribute('aria-disabled'),
-		}, { workspacePicker: true, guidance: 'Duplicate to change repository.', workspaceDisabledReason: 'Duplicate to change repository.', cloudDisabled: 'true' });
+			targetError: dialog.container.querySelector('#automation-target-error')?.textContent,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+		}, {
+			workspacePicker: true,
+			inlineGuidance: undefined,
+			notification: 'Certain settings cannot be changed for an existing cloud automation. Duplicate this automation to change those settings.',
+			notificationVisible: true,
+			notificationClass: 'automation-dialog-notification-center info',
+			notificationIcon: 'codicon codicon-info',
+			notificationPointerInteractive: false,
+			focusPreserved: true,
+			workspaceDisabledReason: 'Certain settings cannot be changed for an existing cloud automation. Duplicate this automation to change those settings.',
+			cloudDisabled: 'true',
+			targetError: '',
+			saveDisabled: 'false',
+		});
 		dialog.saveButton.click();
 		assert.deepStrictEqual(await dialog.result, {
 			kind: 'update', id: existing.id,
@@ -2069,7 +2183,11 @@ suite('Automation dialog creation', () => {
 			const cloudSwitch = row.querySelector<HTMLButtonElement>('[role="switch"]')!;
 			const snapshot = {
 				rowVisible: row.style.display !== 'none',
-				content: Array.from(row.children, element => element === cloudSwitch ? 'switch' : element.classList.contains('codicon-cloud') ? 'cloud icon' : element.textContent),
+				content: Array.from(row.children, element => element === cloudSwitch
+					? 'switch'
+					: element.classList.contains('codicon-cloud')
+						? 'cloud icon'
+						: element.classList.contains('automation-loading-spinner') ? 'loading spinner' : element.textContent),
 				iconHidden: row.querySelector('.codicon-cloud')?.getAttribute('aria-hidden'),
 				accessibleLabel: row.querySelector(`#${cloudSwitch.getAttribute('aria-labelledby')}`)?.textContent,
 				describedBy: cloudSwitch.getAttribute('aria-describedby'),
@@ -2081,7 +2199,7 @@ suite('Automation dialog creation', () => {
 		};
 		const expected = {
 			rowVisible: true,
-			content: ['cloud icon', 'Run in the Cloud', 'switch'],
+			content: ['cloud icon', 'Run in the Cloud', 'switch', 'loading spinner'],
 			iconHidden: 'true',
 			accessibleLabel: 'Run in the Cloud',
 			describedBy: null,
@@ -2205,7 +2323,7 @@ suite('Automation dialog creation', () => {
 		dialog.setName('My automation');
 		dialog.saveButton.click();
 		await timeout(0);
-		const error = dialog.container.querySelector<HTMLElement>('.automation-form-save-error')!;
+		const error = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center')!;
 		assert.deepStrictEqual({
 			text: error.textContent,
 			role: error.getAttribute('role'),
@@ -2218,6 +2336,25 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		assert.deepStrictEqual(error.style.display, 'none');
 		assert.deepStrictEqual({ kind: (await dialog.result)?.kind, attempts }, { kind: 'create', attempts: 2 });
+	});
+
+	test('a current save failure replaces an obsolete repository selection failure', async () => {
+		const dialog = openDialog({ commit: async () => { throw new Error('Create failed'); } });
+		dialog.setPrompt('Review changes');
+		dialog.failWorkspaceSelection('Repository selection failed');
+		const before = dialog.container.querySelector('.automation-dialog-notification-center')?.textContent;
+		dialog.saveButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before,
+			after: dialog.container.querySelector('.automation-dialog-notification-center')?.textContent,
+		}, {
+			before: 'Repository selection failed',
+			after: 'Create failed',
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
 	});
 
 	test('reloads choices from the form target controls and preserves toggles', async () => {
@@ -2250,7 +2387,7 @@ suite('Automation dialog creation', () => {
 		dialog.setPrompt('Review changes');
 		dialog.saveButton.click();
 		await timeout(0);
-		const message = dialog.container.querySelector('.automation-form-save-error')?.textContent;
+		const message = dialog.container.querySelector('.automation-dialog-notification-center')?.textContent;
 		dialog.cancelButton.click();
 		assert.deepStrictEqual({ message, result: await dialog.result }, { message: getErrorMessage(error), result: undefined });
 	});
@@ -2669,7 +2806,7 @@ suite('Automation dialog layout', () => {
 				'automation-form-row automation-form-schedule-row',
 				'automation-trigger-editor',
 				'automation-trigger-required-fields',
-				'automation-target-error',
+				'automation-target-error automation-visually-hidden',
 				'automation-advanced',
 			],
 			enabledCheckbox: null,
@@ -2748,13 +2885,13 @@ suite('Automation dialog layout', () => {
 		assert.deepStrictEqual({ unavailable, crossHost, resolved: validationPresentation() }, {
 			unavailable: {
 				text: 'Choose an available Agent Host that supports automations.',
-				visible: true, description: targetError.id, invalid: 'true', role: 'status', live: 'polite',
+				visible: true, description: targetError.id, invalid: 'true', role: null, live: null,
 			},
 			crossHost: {
 				text: 'To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.',
-				visible: true, description: targetError.id, invalid: 'true', role: 'status', live: 'polite',
+				visible: true, description: targetError.id, invalid: 'true', role: null, live: null,
 			},
-			resolved: { text: '', visible: false, description: null, invalid: null, role: 'status', live: 'polite' },
+			resolved: { text: '', visible: false, description: null, invalid: null, role: null, live: null },
 		});
 		const previousValidationCalls = validationCalls;
 		sessionTypesChanged.fire();

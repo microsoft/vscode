@@ -260,7 +260,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
 		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { creationEvents.push('navigate'); }, async createCustomization(section) { creationEvents.push(section); }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
@@ -393,21 +393,25 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	for (const [action, type] of [
-		['newAgent', PromptsType.agent],
-		['newSkill', PromptsType.skill],
-		['newInstructions', PromptsType.instructions],
-		['newPrompt', PromptsType.prompt],
+	for (const [action, section] of [
+		['newAgent', AICustomizationManagementSection.Agents],
+		['newSkill', AICustomizationManagementSection.Skills],
+		['newInstructions', AICustomizationManagementSection.Instructions],
+		['newPrompt', AICustomizationManagementSection.Prompts],
+		['addMcp', AICustomizationManagementSection.McpServers],
+		['addPlugin', AICustomizationManagementSection.Plugins],
 	] as const) {
-		test(`Add Customization > ${action} closes Discover before starting creation`, async () => {
+		test(`Add Customization > ${action} delegates to the section creation flow`, async () => {
 			const fixture = createPage(['agentFinder'], [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Skills,
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
 			]);
 			await fixture.selectAddCustomization(action);
-			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
+			assert.deepStrictEqual(fixture.creationEvents, [section]);
 		});
 	}
 
@@ -642,6 +646,130 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			browseCardKeptAfterMcpChange: true,
 			rows: ['Local mail skill'],
+		});
+	});
+
+	test('installation notifications keep browse cards mounted unless a displayed installation changes', async () => {
+		const fixture = createPage(['agentFinder']);
+		const item = resource('remote-mail', { mediaType: CustomizationMarketplaceMediaType.Skill });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		const primaryAction = card?.querySelector<HTMLElement>('.customization-discovery-card-primary');
+		assert.ok(card && primaryAction);
+		primaryAction.focus();
+
+		fixture.notifyInstallChange();
+		fixture.setInstallState(resource('unrelated'), { kind: 'installing' });
+		fixture.notifyInstallChange();
+		fixture.setInstallState(item, { kind: 'available' });
+		fixture.notifyInstallChange();
+		const unchanged = { mounted: card.isConnected, focused: DOM.getActiveElement() === primaryAction };
+
+		fixture.setInstallState(item, { kind: 'installing' });
+		fixture.notifyInstallChange();
+		const installingCard = fixture.container.querySelector('.customization-discovery-card');
+		fixture.setInstallState(item, { kind: 'installing' });
+		fixture.notifyInstallChange();
+
+		assert.deepStrictEqual({
+			unchanged,
+			oldCardRemoved: !card.isConnected,
+			installingCardKept: installingCard?.isConnected,
+			installing: installingCard?.querySelector('.monaco-button')?.getAttribute('aria-busy'),
+			requests: fixture.requests.length,
+		}, {
+			unchanged: { mounted: true, focused: true },
+			oldCardRemoved: true,
+			installingCardKept: true,
+			installing: 'true',
+			requests: 1,
+		});
+	});
+
+	for (const targetKind of ['skill', 'plugin'] as const) {
+		test(`equivalent ${targetKind} installation target URIs keep browse cards and focus`, async () => {
+			const fixture = createPage(['agentFinder']);
+			const item = resource('installed-item');
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/item'), name: 'item' } });
+			fixture.page.setVisible(true);
+			await fixture.requests[0].result.complete({ items: [item] });
+			await timeout(0);
+			const card = fixture.container.querySelector('.customization-discovery-card');
+			const primaryAction = card?.querySelector<HTMLElement>('.customization-discovery-card-primary');
+			assert.ok(card && primaryAction);
+			primaryAction.focus();
+
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/item'), name: 'item' } });
+			fixture.notifyInstallChange();
+			const unchanged = { mounted: card.isConnected, focused: DOM.getActiveElement() === primaryAction };
+			fixture.setInstallState(item, { kind: 'installed', target: { kind: targetKind, uri: URI.file('/installed/other'), name: 'item' } });
+			fixture.notifyInstallChange();
+
+			assert.deepStrictEqual({ unchanged, changedTargetRerendered: !card.isConnected }, {
+				unchanged: { mounted: true, focused: true },
+				changedTargetRerendered: true,
+			});
+		});
+	}
+
+	test('equivalent setup URLs keep browse cards while changed URLs update actions', async () => {
+		const fixture = createPage(['agentFinder']);
+		const item = resource('setup-item');
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/setup') });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		assert.ok(card);
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/setup') });
+		fixture.notifyInstallChange();
+		const unchangedCardKept = card.isConnected;
+		fixture.setInstallState(item, { kind: 'unavailable', message: 'Manual setup', setupUrl: URI.parse('https://example.com/other') });
+		fixture.notifyInstallChange();
+		const setupAction = fixture.container.querySelector<HTMLElement>('.customization-discovery-card-actions .monaco-button');
+		assert.ok(setupAction);
+		setupAction.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unchangedCardKept,
+			changedUrlRerendered: !card.isConnected,
+			opened: fixture.opened.map(uri => typeof uri === 'string' ? uri : uri.toString()),
+		}, {
+			unchangedCardKept: true,
+			changedUrlRerendered: true,
+			opened: ['https://example.com/other'],
+		});
+	});
+
+	test('curated browse cards track installation changes independently of catalog results', async () => {
+		const item = resource('curated-skill', { mediaType: CustomizationMarketplaceMediaType.Skill });
+		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, undefined, {
+			sourceId: 'agentFinder',
+			sections: [{ id: 'featured', title: 'Featured', items: [item] }],
+		});
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		assert.ok(card);
+		fixture.notifyInstallChange();
+		const unchangedCardKept = card.isConnected;
+		fixture.setInstallState(item, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed/curated-skill') } });
+		fixture.notifyInstallChange();
+
+		assert.deepStrictEqual({
+			unchangedCardKept,
+			oldCardRemoved: !card.isConnected,
+			action: fixture.container.querySelector('.customization-discovery-card-primary')?.getAttribute('aria-label'),
+			requests: fixture.requests.length,
+		}, {
+			unchangedCardKept: true,
+			oldCardRemoved: true,
+			action: 'Open installed customization curated-skill',
+			requests: 1,
 		});
 	});
 

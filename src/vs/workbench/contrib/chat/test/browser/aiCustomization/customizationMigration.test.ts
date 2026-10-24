@@ -100,6 +100,20 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('provides consistent progress titles for every migration category', () => {
+		assert.deepStrictEqual(CUSTOMIZATION_MIGRATION_CATEGORIES.map(category => ({
+			id: category.id,
+			single: category.getProgressTitle(1),
+			multiple: category.getProgressTitle(4),
+		})), [
+			{ id: CustomizationMigrationCategoryId.PromptFiles, single: 'Converting 1 prompt file to a skill...', multiple: 'Converting 4 prompt files to skills...' },
+			{ id: CustomizationMigrationCategoryId.UserData, single: 'Migrating 1 user data customization...', multiple: 'Migrating 4 user data customizations...' },
+			{ id: CustomizationMigrationCategoryId.ConfiguredLocations, single: 'Migrating 1 customization from a configured location...', multiple: 'Migrating 4 customizations from configured locations...' },
+			{ id: CustomizationMigrationCategoryId.McpServers, single: 'Migrating 1 MCP server...', multiple: 'Migrating 4 MCP servers...' },
+			{ id: CustomizationMigrationCategoryId.PluginMarketplaces, single: 'Migrating 1 plugin marketplace...', multiple: 'Migrating 4 plugin marketplaces...' },
+		]);
+	});
+
 	test('presents MCP source-to-target migration without file-only behavior', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const candidate = {

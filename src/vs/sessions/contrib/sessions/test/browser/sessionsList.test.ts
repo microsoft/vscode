@@ -101,6 +101,7 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../browser/customizationsConstants.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
@@ -791,6 +792,40 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('opens migrations from Customizations only while migration attention is active', async () => {
+			const customizationMigrationsAvailable = observableValue(disposables, true);
+			const harness = createListHarness(disposables, []);
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				customizationMigrationsAvailable,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const customizationsRow = navigationContainer.querySelector<HTMLElement>('.session-section-customizations');
+			assert.ok(customizationsRow);
+
+			clickRow(customizationsRow);
+			await Promise.resolve();
+			customizationMigrationsAvailable.set(false, undefined);
+			clickRow(customizationsRow);
+			await Promise.resolve();
+
+			assert.deepStrictEqual(harness.commandService.calls, [{
+				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+				args: [{ migration: true }],
+			}, {
+				commandId: OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+				args: [],
+			}]);
+		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const commands: string[] = [];
@@ -2236,8 +2271,8 @@ suite('Sessions - SessionsList', () => {
 
 				const hidden = { titleBadge: undefined, detailsBadge: undefined, ariaIncludesApplication: false };
 				const cliBadge = {
-					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Copilot CLI' : undefined,
-					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Copilot CLI' : undefined,
+					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Copilot CLI' : undefined,
+					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Copilot CLI' : undefined,
 					ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
 				};
 				assert.deepStrictEqual({ vscode, unknownApplications, external, continued, vscodeAgentsWindow, otherApplication }, {
@@ -2247,8 +2282,8 @@ suite('Sessions - SessionsList', () => {
 					continued: cliBadge,
 					vscodeAgentsWindow: hidden,
 					otherApplication: {
-						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Slack' : undefined,
-						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Slack' : undefined,
+						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Slack' : undefined,
+						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Slack' : undefined,
 						ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
 					},
 				});
@@ -4857,6 +4892,52 @@ suite('Sessions - SessionsList', () => {
 				renderedWhileEditing: true,
 				hasRenameInput: true,
 				renderedAfterEditing: true,
+			});
+		});
+
+		test('preserves the group rename draft, focus, and selection across rerenders', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [], { groups: [group] });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.beginRenameGroup(group.id);
+			const input = container.querySelector<HTMLInputElement>('.session-group-input input');
+			assert.ok(input);
+			input.value = 'Group draft';
+			input.setSelectionRange(2, 7, 'forward');
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			list.refresh();
+			const rerenderedInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const rerenderState = {
+				draft: rerenderedInput?.value,
+				inputRecreated: rerenderedInput !== input,
+				focused: mainWindow.document.activeElement === rerenderedInput,
+				selectionStart: rerenderedInput?.selectionStart,
+				selectionEnd: rerenderedInput?.selectionEnd,
+				selectionDirection: rerenderedInput?.selectionDirection,
+			};
+			rerenderedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			list.beginRenameGroup(group.id);
+			const restartedInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const restartedValue = restartedInput?.value;
+			// Close the editor so teardown does not commit it on blur.
+			restartedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({ rerenderState, restartedValue }, {
+				rerenderState: {
+					draft: 'Group draft',
+					inputRecreated: true,
+					focused: true,
+					selectionStart: 2,
+					selectionEnd: 7,
+					selectionDirection: 'forward',
+				},
+				restartedValue: 'Group',
 			});
 		});
 	});
@@ -10887,11 +10968,43 @@ suite('Sessions - SessionsList', () => {
 			}));
 
 			assert.deepStrictEqual(results, [
-				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
-				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
+				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
 			]);
+		});
+
+		test('keeps compact quick-chat rows the same height whether or not the title application badge is shown', () => {
+			const quickChat = createTestSession('External chat', { isQuickChat: true, application: 'github/cli', environment: 'cloud' }).session;
+			const harness = createListHarness(disposables, [quickChat], instantiationService => {
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Title);
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				useCompactQuickChatRows: true,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([quickChat]);
+			list.layout(list.getContentHeight(), 400);
+
+			const row = container.querySelector<HTMLElement>('.monaco-list-row');
+			const titleRow = container.querySelector<HTMLElement>('.session-title-row');
+			const badge = container.querySelector<HTMLElement>('.session-external-application-badge-title.visible');
+			assert.ok(row && titleRow && badge);
+			const measure = () => ({
+				badgeShown: mainWindow.getComputedStyle(badge).display !== 'none',
+				titleRowHeight: titleRow.getBoundingClientRect().height,
+			});
+			const atRest = measure();
+			row.classList.add('hovered');
+			const hovered = measure();
+
+			assert.deepStrictEqual({ atRest, hovered }, {
+				atRest: { badgeShown: true, titleRowHeight: 16 },
+				hovered: { badgeShown: false, titleRowHeight: 16 },
+			});
 		});
 
 		function createChat(id: string): IChat {

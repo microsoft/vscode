@@ -290,23 +290,38 @@ async function loadTests(opts) {
 		await perTestCoverage?.startTest();
 	});
 
-	teardown(async () => {
+	teardown(async function () {
 		await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
+
+		const failures = [];
 
 		// should not have unexpected output
 		if (_testsWithUnexpectedOutput && !opts.dev) {
-			assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+			failures.push('Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
 		}
 
 		// should not have unexpected errors
 		const errors = _unexpectedErrors.concat(_loaderErrors);
 		if (errors.length) {
-			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
-				msg.push(String(error));
 			}
-			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
+			failures.push(`Error: Test run should not have unexpected errors:\n${errors.map(String).join('\n')}`);
+		}
+
+		// judge the next test on its own,
+		// including the console.error calls
+		// above
+		_testsWithUnexpectedOutput = false;
+		_unexpectedErrors.length = 0;
+		_loaderErrors.length = 0;
+
+		if (failures.length) {
+			// there are no actual and expected values to diff
+			const error = Object.assign(new assert.AssertionError({ message: failures.join('\n') }), { showDiff: false });
+
+			// fail the test that just ran instead of this hook: when a root-level hook fails, mocha skips every remaining test
+			/** @type {Mocha.Hook} */ (this.test).error(error);
 		}
 	});
 
@@ -342,7 +357,11 @@ function serializeRunnable(runnable) {
 		async: runnable.async,
 		slow: runnable.slow(),
 		speed: runnable.speed,
-		duration: runnable.duration
+		duration: runnable.duration,
+		// the test file (module path) for the main process to rerun. Root-level hooks
+		// have none on purpose: their failure stops the whole run, so rerunning a single
+		// file would not cover the tests that never ran
+		file: runnable.file
 	};
 }
 

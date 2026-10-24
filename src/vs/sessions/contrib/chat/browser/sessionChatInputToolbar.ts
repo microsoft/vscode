@@ -31,8 +31,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IExternalUriOpenerService } from '../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { externalUriOpenersSettingId } from '../../../../workbench/contrib/externalUriOpener/common/configuration.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatInputPills, StandardChatInputPillSources, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
@@ -607,18 +605,21 @@ export class SessionChatInputToolbar extends Disposable {
 			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
 		const pullRequestData = createSessionPullRequestPillData(plainPullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const activityBarPullRequests = createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
-		const gitHubActionsEnabled = observableConfigValue(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false, configurationService);
 		const openerChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			extensionService.onDidChangeExtensions,
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(externalUriOpenersSettingId)),
 		));
+		const activityBarOpenerRefs = derivedOpts<readonly { id: string; uri: URI }[]>({ owner: this, equalsFn: structuralEquals }, reader =>
+			pullRequestRefs.read(reader).map(ref => ({ id: ref.recordedReferenceId ?? ref.uri.toString(), uri: ref.uri })));
+		let supportedOpenerUris = new Set<string>();
 		const activityBarOpeners = derived(this, reader => {
 			openerChanges.read(reader);
-			const supported = observableValue<ReadonlySet<string>>(this, new Set());
-			if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
-				return supported;
+			if (!pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
+				supportedOpenerUris.clear();
+				return constObservable<ReadonlySet<string>>(new Set());
 			}
-			const refs = [...pullRequestRefs.read(reader), ...issueRefs.read(reader)];
+			const refs = activityBarOpenerRefs.read(reader);
+			const supported = observableValue<ReadonlySet<string>>(this, new Set(refs.filter(ref => supportedOpenerUris.has(ref.uri.toString())).map(ref => ref.id)));
 			const cancellation = new CancellationTokenSource();
 			const check = toDisposable(() => cancellation.dispose(true));
 			this._activityBarOpenerCheck.value = check;
@@ -630,7 +631,7 @@ export class SessionChatInputToolbar extends Disposable {
 			void Promise.all(refs.map(async ref => {
 				try {
 					const opener = await externalUriOpenerService.getOpener(ref.uri, { sourceUri: ref.uri }, cancellation.token);
-					return opener ? ref.recordedReferenceId ?? ref.uri.toString() : undefined;
+					return opener ? ref : undefined;
 				} catch (error) {
 					if (!cancellation.token.isCancellationRequested) {
 						logService.error('[SessionChatInputToolbar] Could not resolve GitHub activity bar opener', error);
@@ -639,7 +640,9 @@ export class SessionChatInputToolbar extends Disposable {
 				}
 			})).then(ids => {
 				if (!cancellation.token.isCancellationRequested) {
-					supported.set(new Set(coalesce(ids)), undefined);
+					const refs = coalesce(ids);
+					supportedOpenerUris = new Set(refs.map(ref => ref.uri.toString()));
+					supported.set(new Set(refs.map(ref => ref.id)), undefined);
 				}
 			});
 			return supported;
@@ -647,12 +650,12 @@ export class SessionChatInputToolbar extends Disposable {
 		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
 		const editorPaneVisible = observableFromEvent(this, layoutService.onDidChangePartVisibility, () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		this.activityBarActions = derived(this, reader => {
-			if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
+			if (!pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
 				return [];
 			}
 			const chat = this._chat.read(reader);
 			const session = this._session.read(reader);
-			const createAction = (id: string, title: string, sections: IObservable<readonly IChatPillSection[]>, icon: ThemeIcon, viewType: string, refs: readonly (IGitHubPullRequestRef | IGitHubIssueRef)[]): IAction[] => {
+			const createAction = (id: string, title: string, sections: IObservable<readonly IChatPillSection[]>, icon: ThemeIcon, viewType: string, refs: readonly IGitHubPullRequestRef[]): IAction[] => {
 				const supported = activityBarOpeners.read(reader).read(reader);
 				const entries = getChatPillEntries(sections.read(reader)).filter(entry => supported.has(entry.id));
 				if (!entries.length) {
@@ -663,10 +666,10 @@ export class SessionChatInputToolbar extends Disposable {
 					: localize('sessionChatPills.activityBar.openEntries', "{0} ({1})", title, entries.length);
 				const matchesEditor = (editor: EditorInput | undefined, availableEntries = entries) => !!editor && !editor.isDisposed() && (
 					editor instanceof WebviewInput && editor.providerId === viewType
-					|| !!editor.resource && refs.some(ref => availableEntries.some(entry => entry.id === (ref.recordedReferenceId ?? ref.uri.toString())) && isEqual(viewType === 'IssueOverview' ? getSessionIssueUri(ref) : ref.uri, editor.resource)));
+					|| !!editor.resource && refs.some(ref => availableEntries.some(entry => entry.id === (ref.recordedReferenceId ?? ref.uri.toString())) && isEqual(ref.uri, editor.resource)));
 				const checked = editorPaneVisible.read(reader) && matchesEditor(activeEditor.read(reader));
 				const currentEntries = () => {
-					if (this._store.isDisposed || !gitHubActionsEnabled.read(undefined) || !pillsVisible.read(undefined) || this._debugData.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
+					if (this._store.isDisposed || !pillsVisible.read(undefined) || this._debugData.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
 						return [];
 					}
 					const supported = activityBarOpeners.read(undefined).read(undefined);
@@ -677,6 +680,10 @@ export class SessionChatInputToolbar extends Disposable {
 					run: async () => {
 						const entries = currentEntries();
 						if (!entries.length) {
+							return;
+						}
+						if (layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && matchesEditor(editorService.activeEditor, entries)) {
+							layoutService.hideSidePane();
 							return;
 						}
 						const editors = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
@@ -693,7 +700,6 @@ export class SessionChatInputToolbar extends Disposable {
 			};
 			return [
 				...createAction(OPEN_PULL_REQUEST_ACTION_ID, localize('sessionChatPills.activityBar.openPullRequest', "Open Pull Request"), activityBarPullRequests.sections, activityBarPullRequests.icon.read(reader), 'PullRequestOverview', pullRequestRefs.read(reader)),
-				...createAction(OPEN_ISSUE_ACTION_ID, localize('sessionChatPills.activityBar.openIssue', "Open Issue"), issueSections, issueIcon.read(reader), 'IssueOverview', issueRefs.read(reader)),
 			];
 		});
 		const integratedSources = derived(this, reader => {

@@ -33,13 +33,28 @@ import { SessionView } from '../../../../../browser/parts/sessionView.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
-import { MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { Menus } from '../../../../../browser/menus.js';
+import '../../browser/missionControlAgentHostContribution.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Tunnels uses the standard remote icon', () => {
 		assert.deepStrictEqual(MenuRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)?.icon, Codicon.remote);
+	});
+
+	test('remote connection picker labels end with an ellipsis', () => {
+		assert.deepStrictEqual([
+			RemoteAgentHostCommandIds.connectViaMissionControl,
+			RemoteAgentHostCommandIds.connectViaTunnel,
+			RemoteAgentHostCommandIds.connectViaSSH,
+			RemoteAgentHostCommandIds.connectViaWSL,
+		].map(id => {
+			const command = MenuRegistry.getMenuItems(Menus.SessionWorkspaceManage).filter(isIMenuItem).find(item => item.command.id === id)?.command;
+			const title = command?.shortTitle ?? command?.title;
+			return typeof title === 'string' ? title : title?.value;
+		}), ['Environments...', 'Tunnels...', 'SSH...', 'WSL...']);
 	});
 
 	for (const outcome of ['selected', 'cancelled-connection', 'cancelled-folder', 'missing-provider'] as const) {

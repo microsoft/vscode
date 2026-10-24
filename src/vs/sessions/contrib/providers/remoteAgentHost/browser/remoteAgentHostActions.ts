@@ -145,7 +145,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaMissionControl,
-			title: localize2('connectMissionControlHost', "Environments"),
+			title: localize2('connectMissionControlHost', "Environments..."),
 			icon: Codicon.remote,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true), ContextKeyExpr.equals(`config.${GitHubEnvironmentsEnabledSettingId}`, true), GitHubEnvironmentsAvailableContext),
 		});
@@ -679,7 +679,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaSSH,
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
-			shortTitle: localize2('connectViaSSHShort', "SSH"),
+			shortTitle: localize2('connectViaSSHShort', "SSH..."),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -1152,7 +1152,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: RemoteAgentHostCommandIds.connectViaTunnel,
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
-			shortTitle: localize2('connectViaTunnelShort', "Tunnels"),
+			shortTitle: localize2('connectViaTunnelShort', "Tunnels..."),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
