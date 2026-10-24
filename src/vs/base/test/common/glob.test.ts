@@ -562,6 +562,14 @@ suite('Glob', () => {
 
 		assertNoGlobMatch(p, 'foo/bar');
 
+		p = 'Source[^M/]*'; // https://github.com/microsoft/vscode/issues/322331
+
+		assertNoGlobMatch(p, 'Source/');
+		assertNoGlobMatch(p, 'Source/sub');
+		assertNoGlobMatch(p, 'SourceM');
+		assertGlobMatch(p, 'SourceX');
+		assertGlobMatch(p, 'SourceXyz');
+
 		p = 'foo.[[]';
 
 		assertGlobMatch(p, 'foo.[');
