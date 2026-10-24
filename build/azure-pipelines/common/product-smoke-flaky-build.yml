@@ -97,10 +97,10 @@ jobs:
       # once per test job.
       - ${{ if eq(parameters.testSmoke, true) }}:
         - ${{ if eq(parameters.platform, 'windows') }}:
-          - powershell: npm run compile --prefix test/smoke
+          - powershell: pnpm -C test/smoke run compile
             displayName: Compile smoke tests
         - ${{ else }}:
-          - script: npm run compile --prefix test/smoke
+          - script: pnpm -C test/smoke run compile
             displayName: Compile smoke tests
 
       - ${{ if eq(parameters.testIntegration, true) }}:
@@ -108,7 +108,7 @@ jobs:
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
-              exec { npm run gulp `
+              exec { pnpm run gulp `
                 compile-extension:configuration-editing `
                 compile-extension:css-language-features-server `
                 compile-extension:emmet `
@@ -133,7 +133,7 @@ jobs:
         - ${{ else }}:
           - script: |
               set -e
-              npm run gulp \
+              pnpm run gulp \
                 compile-extension:configuration-editing \
                 compile-extension:css-language-features-server \
                 compile-extension:emmet \

@@ -16,7 +16,7 @@ variables:
 
 jobs:
   - job: ValidateNpmPackages
-    displayName: Validate package-lock.json, Cargo.lock changes via Azure DevOps pipeline
+    displayName: Validate lockfile and Cargo.lock changes via Azure DevOps pipeline
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
@@ -41,7 +41,7 @@ jobs:
 
       - script: |
           set -e
-          echo "Checking if package.json or package-lock.json files were modified..."
+          echo "Checking if package.json or lockfiles were modified..."
 
           # Get the list of changed files in the PR
           git fetch origin main
@@ -49,8 +49,8 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          # Check if package.json or package-lock.json are in the changed files
-          if echo "$CHANGED_FILES" | grep -E '(^|/)package(-lock)?\.json$'; then
+          # Check if package.json, the pnpm files or package-lock.json (folders that still use npm) changed
+          if echo "$CHANGED_FILES" | grep -E '(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.pnpmfile\.mts)$'; then
             echo "##vso[task.setvariable variable=SHOULD_VALIDATE]true"
             echo "Package files were modified, proceeding with validation"
           else
@@ -82,6 +82,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
         displayName: Setup NPM Authentication
 
+      - template: ./common/install-pnpm.yml@self
+        parameters:
+          condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
       - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
         displayName: Install build tools
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
@@ -89,20 +93,14 @@ jobs:
       - script: |
           set -e
 
-          # Check if any build subfolders with package-lock.json were modified
+          # Check if any build folders with their own lockfile were modified: separate pnpm install
+          # roots (pnpm-lock.yaml) and folders that still install with npm (package-lock.json)
           git fetch origin main
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
           MODIFIED_BUILD_FOLDERS=""
 
-          # Check if build/package-lock.json itself was modified
-          if echo "$CHANGED_FILES" | grep -q "^build/package-lock\.json$"; then
-            MODIFIED_BUILD_FOLDERS="build"
-            echo "build/package-lock.json was modified"
-          fi
-
-          # Find all modified package-lock.json files under build subfolders and extract their directories
           for file in $CHANGED_FILES; do
-            if [[ $file =~ ^(build/.+)/package-lock\.json$ ]]; then
+            if [[ $file =~ ^(build(/.+)?)/(pnpm-lock\.yaml|package-lock\.json)$ ]]; then
               dir="${BASH_REMATCH[1]}"
               if [[ ! " $MODIFIED_BUILD_FOLDERS " =~ " $dir " ]]; then
                 MODIFIED_BUILD_FOLDERS="$MODIFIED_BUILD_FOLDERS $dir"
@@ -127,33 +125,44 @@ jobs:
               sleep 600
             fi
 
-            echo "Attempt $attempt: Running npm ci"
-            if npm i --ignore-scripts; then
-              # Rebuild each modified build subfolder separately
+            # Like `npm i`, update an outdated lockfile instead of failing, so that the clean git
+            # state check below reports the difference.
+            echo "Attempt $attempt: Running pnpm install"
+            if pnpm install --no-frozen-lockfile --ignore-scripts; then
+              # Install each modified build folder separately
               for folder in $MODIFIED_BUILD_FOLDERS; do
-                echo "Rebuilding modified $folder..."
-                if ! (cd "$folder" && npm i --ignore-scripts); then
-                  echo "npm i failed for $folder on attempt $attempt"
+                echo "Installing modified $folder..."
+                if [ -f "$folder/pnpm-lock.yaml" ]; then
+                  INSTALL="pnpm install --no-frozen-lockfile --ignore-scripts"
+                else
+                  INSTALL="npm i --ignore-scripts"
+                fi
+                if ! (cd "$folder" && $INSTALL); then
+                  echo "$INSTALL failed for $folder on attempt $attempt"
                   continue 2
                 fi
               done
 
               if node build/npm/postinstall.ts; then
-                echo "npm i succeeded on attempt $attempt"
+                echo "pnpm install succeeded on attempt $attempt"
                 exit 0
               else
                 echo "node build/npm/postinstall.ts failed on attempt $attempt"
               fi
             else
-              echo "npm i failed on attempt $attempt"
+              echo "pnpm install failed on attempt $attempt"
             fi
           done
 
           echo "giving up after $ATTEMPTS attempts"
-          echo "##vso[task.logissue type=error]npm install failed. If it reports ETARGET or 404 for a package version, that version may be younger than 7 days, which the internal npm feed does not serve yet."
+          echo "##vso[task.logissue type=error]pnpm install failed. If it reports ERR_PNPM_NO_MATURE_MATCHING_VERSION, ERR_PNPM_NO_MATCHING_VERSION or 404 for a package version, that version may be younger than 7 days, which pnpm's minimumReleaseAge rejects and the internal npm feed does not serve yet."
           exit 1
         env:
-          npm_command: 'install --ignore-scripts'
+          # build/npm/postinstall.ts runs a plain `pnpm install` in the other install roots; these
+          # settings make those installs skip install scripts and update outdated lockfiles too.
+          # (pnpm 11 reads `pnpm_config_*`, not `npm_config_*`, from the environment.)
+          pnpm_config_ignore_scripts: 'true'
+          pnpm_config_frozen_lockfile: 'false'
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -161,14 +170,14 @@ jobs:
         timeoutInMinutes: 120
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
-      - script: node build/npm/check-allow-scripts.ts
-        displayName: Check NPM install script approvals
-        condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+      # The installs above don't run install scripts, so they can't detect unapproved ones. Every other
+      # install (pull request checks, product builds) fails on them (`strictDepBuilds`), which replaces
+      # the former build/npm/check-allow-scripts.ts step.
 
       - script: |
           set -e
-          find . -name 'package-lock.json' -exec sed -i "s|$NPM_REGISTRY|https://registry.npmjs.org/|g" {} \;
-        displayName: Restore registry URLs in package-lock.json
+          find . \( -name 'package-lock.json' -o -name 'pnpm-lock.yaml' \) -exec sed -i "s|$NPM_REGISTRY|https://registry.npmjs.org/|g" {} \;
+        displayName: Restore registry URLs in lockfiles
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: .github/workflows/check-clean-git-state.sh

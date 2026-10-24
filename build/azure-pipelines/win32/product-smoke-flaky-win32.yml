@@ -107,7 +107,7 @@ jobs:
               - ${{ if xor(eq(shard, 'even'), or(endsWith(format('{0}', i), '1'), endsWith(format('{0}', i), '3'), endsWith(format('{0}', i), '5'), endsWith(format('{0}', i), '7'), endsWith(format('{0}', i), '9'))) }}:
                 - powershell: |
                     New-Item -ItemType Directory -Force -Path .build\crashes | Out-Null
-                    npm run test-node -- --build
+                    pnpm run test-node --build
                   displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
                   continueOnError: true
                   timeoutInMinutes: 15
@@ -228,7 +228,7 @@ jobs:
         testSteps:
           - ${{ each i in parameters.iterations }}:
             - powershell: |
-                npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                pnpm run smoketest-no-compile --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
                 $status = $LASTEXITCODE
                 if ($status -ne 0 -and (Test-Path .build\logs\smoke-tests-electron)) {
                   Move-Item .build\logs\smoke-tests-electron ".build\logs\failed-iteration-${{ i }}"

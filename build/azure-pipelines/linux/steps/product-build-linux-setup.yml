@@ -86,6 +86,8 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - template: ../../common/install-pnpm.yml@self
+
   - ${{ if and(eq(parameters.VSCODE_CIBUILD, false), eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, false)) }}:
     - task: NuGetAuthenticate@1
       displayName: Setup NuGet Authentication
@@ -94,12 +96,12 @@ steps:
       set -e
 
       for i in {1..5}; do # try 5 times
-        npm ci && break
+        pnpm install --frozen-lockfile && break
         if [ $i -eq 5 ]; then
-          echo "Npm install failed too many times" >&2
+          echo "pnpm install failed too many times" >&2
           exit 1
         fi
-        echo "Npm install failed $i, trying again..."
+        echo "pnpm install failed $i, trying again..."
       done
     workingDirectory: build
     env:
@@ -132,12 +134,12 @@ steps:
       node build/npm/preinstall.ts
 
       for i in {1..5}; do # try 5 times
-        npm ci && break
+        pnpm install --frozen-lockfile && break
         if [ $i -eq 5 ]; then
-          echo "Npm install failed too many times" >&2
+          echo "pnpm install failed too many times" >&2
           exit 1
         fi
-        echo "Npm install failed $i, trying again..."
+        echo "pnpm install failed $i, trying again..."
       done
     env:
       npm_config_arch: $(NPM_ARCH)
