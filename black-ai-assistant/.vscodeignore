@@ -1,0 +1,251 @@
+import * as vscode from "vscode";
+import { GeminiClient } from "./geminiClient";
+import { buildContext } from "./contextBuilder";
+
+export function activate(context: vscode.ExtensionContext) {
+  const disposable = vscode.commands.registerCommand("blackAiAssistant.openChat", async () => {
+    const config = vscode.workspace.getConfiguration("blackAiAssistant");
+    const apiKey = config.get<string>("apiKey") ?? "";
+
+    if (!apiKey) {
+      const openSettings = "Open settings";
+      const result = await vscode.window.showInformationMessage(
+        "Set your Gemini API key in the settings before using Black AI Assistant.",
+        openSettings
+      );
+
+      if (result === openSettings) {
+        await vscode.commands.executeCommand("workbench.action.openSettings", "Black AI Assistant");
+      }
+      return;
+    }
+
+    const panel = vscode.window.createWebviewPanel(
+      "blackAiAssistant",
+      "Black AI Assistant",
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true
+      }
+    );
+
+    let lastAnswer = "";
+    const client = new GeminiClient(apiKey);
+
+    panel.webview.html = getWebviewHtml();
+
+    panel.webview.onDidReceiveMessage(async (message) => {
+      switch (message.type) {
+        case "ask": {
+          const prompt = message.text?.trim();
+          if (!prompt) {
+            return;
+          }
+
+          try {
+            const context = await buildContext();
+            const finalPrompt = `
+You are an independent coding assistant named Black AI Assistant.
+You help with code explanation, debugging, refactoring, and generation.
+Use the coding context below and answer clearly and practically.
+Do not pretend to be GitHub Copilot or copy its behavior.
+
+Context:
+${context}
+
+User request:
+${prompt}
+`;
+
+            const answer = await client.ask(finalPrompt);
+            lastAnswer = answer;
+            panel.webview.postMessage({ type: "reply", text: answer });
+          } catch (error) {
+            const messageText = error instanceof Error ? error.message : String(error);
+            panel.webview.postMessage({ type: "reply", text: `Error: ${messageText}` });
+          }
+          return;
+        }
+
+        case "insert": {
+          const editor = vscode.window.activeTextEditor;
+          if (!editor) {
+            panel.webview.postMessage({ type: "reply", text: "No active file to insert code into." });
+            return;
+          }
+
+          if (!lastAnswer) {
+            panel.webview.postMessage({ type: "reply", text: "No generated code available to insert yet." });
+            return;
+          }
+
+          await editor.edit((builder) => {
+            builder.insert(editor.selection.active, lastAnswer);
+          });
+          panel.webview.postMessage({ type: "reply", text: "Inserted response into the active editor." });
+          return;
+        }
+      }
+    });
+  });
+
+  context.subscriptions.push(disposable);
+}
+
+export function deactivate() {}
+
+function getWebviewHtml(): string {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Black AI Assistant</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-strong: #1f2631;
+        --line: #30363d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --accent: #58a6ff;
+        --accent-soft: rgba(88, 166, 255, 0.15);
+        --success: #3fb950;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 18px 16px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        margin: 0;
+        font-size: 12px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 120px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        color: var(--text);
+        padding: 12px 14px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      textarea:focus {
+        outline: 2px solid var(--accent);
+        border-color: transparent;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #0b1220;
+        font-weight: 700;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: var(--panel-strong);
+        color: var(--text);
+        border: 1px solid var(--line);
+      }
+
+      .response {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        min-height: 120px;
+        white-space: pre-wrap;
+        line-height: 1.6;
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2 class="title">Black AI Assistant</h2>
+      <p class="subtitle">Independent AI coding helper powered by Gemini</p>
+
+      <textarea id="prompt" placeholder="Ask about the current file, snippet, bug, or feature..."></textarea>
+
+      <div class="actions">
+        <button id="send">Ask AI</button>
+        <button id="insert" class="secondary">Insert last answer</button>
+      </div>
+
+      <div id="result" class="response">Waiting for your request...</div>
+    </div>
+
+    <script>
+      const vscode = acquireVsCodeApi();
+      const promptField = document.getElementById('prompt');
+      const resultBox = document.getElementById('result');
+      const sendButton = document.getElementById('send');
+      const insertButton = document.getElementById('insert');
+
+      sendButton.addEventListener('click', () => {
+        const text = promptField.value.trim();
+        if (!text) {
+          return;
+        }
+
+        resultBox.textContent = 'Thinking...';
+        vscode.postMessage({ type: 'ask', text });
+      });
+
+      insertButton.addEventListener('click', () => {
+        vscode.postMessage({ type: 'insert' });
+      });
+
+      window.addEventListener('message', (event) => {
+        const message = event.data;
+        if (!message) {
+          return;
+        }
+
+        if (message.type === 'reply') {
+          resultBox.textContent = message.text;
+        }
+      });
+    </script>
+  </body>
+</html>
+  `;
+}
