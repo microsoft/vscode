@@ -39,6 +39,8 @@ import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly environmentsEnabled = observableValue(this, false);
+	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
+	async signInToTunnels(): Promise<void> { }
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
