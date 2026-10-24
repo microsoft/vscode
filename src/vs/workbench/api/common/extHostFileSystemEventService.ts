@@ -12,7 +12,7 @@ import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, Sou
 import * as typeConverter from './extHostTypeConverters.js';
 import { Disposable, WorkspaceEdit } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { FileChangeFilter, FileOperation, FileSystemProviderCapabilities, IGlobPatterns } from '../../../platform/files/common/files.js';
+import { FileChangeFilter, FileOperation, FileSystemProviderCapabilities, IGlobPatterns, IWatchOptions } from '../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
@@ -22,11 +22,25 @@ import { rtrim } from '../../../base/common/strings.js';
 import { normalizeWatcherPattern } from '../../../platform/files/common/watcher.js';
 import { ExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
 import { Schemas } from '../../../base/common/network.js';
+import { ResourceMap } from '../../../base/common/map.js';
 
 export interface FileSystemWatcherCreateOptions {
 	readonly ignoreCreateEvents?: boolean;
 	readonly ignoreChangeEvents?: boolean;
 	readonly ignoreDeleteEvents?: boolean;
+}
+
+/**
+ * The patterns that the workspace watcher excludes for a workspace folder
+ * because of `files.watcherExcludeGitIgnore`, relative to that folder.
+ */
+interface IGitIgnoreWatcherExcludes {
+	get(folder: URI): readonly string[];
+
+	/**
+	 * Calls `callback` whenever the patterns of `folder` change.
+	 */
+	onDidChange(folder: URI, callback: () => void): Disposable;
 }
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
@@ -52,7 +66,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(mainContext: IMainContext, configuration: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<LazyRevivedFileSystemEvents>, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions) {
+	constructor(mainContext: IMainContext, configuration: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<LazyRevivedFileSystemEvents>, gitIgnoreWatcherExcludes: IGitIgnoreWatcherExcludes, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions) {
 		this._config = 0;
 		if (options.ignoreCreateEvents) {
 			this._config += 0b001;
@@ -128,10 +142,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			}
 		});
 
-		this._disposable = Disposable.from(this.ensureWatching(mainContext, workspace, configuration, extension, globPattern, options, false), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+		this._disposable = Disposable.from(this.ensureWatching(mainContext, workspace, configuration, fileSystemInfo, gitIgnoreWatcherExcludes, extension, globPattern, options, false), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
 	}
 
-	private ensureWatching(mainContext: IMainContext, workspace: IExtHostWorkspace, configuration: ExtHostConfigProvider, extension: IExtensionDescription, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions, correlate: boolean | undefined): Disposable {
+	private ensureWatching(mainContext: IMainContext, workspace: IExtHostWorkspace, configuration: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, gitIgnoreWatcherExcludes: IGitIgnoreWatcherExcludes, extension: IExtensionDescription, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions, correlate: boolean | undefined): Disposable {
 		const disposable = Disposable.from();
 
 		if (typeof globPattern === 'string') {
@@ -149,9 +163,13 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		const excludes = [];
+		const excludes: string[] = [];
 		let includes: Array<string | IRelativePattern> | undefined = undefined;
 		let filter: FileChangeFilter | undefined;
+
+		// The workspace folder whose `files.watcherExcludeGitIgnore` patterns
+		// the watch request has to account for, like `files.watcherExclude`
+		let gitIgnoreFolder: vscode.WorkspaceFolder | undefined;
 
 		// Correlated: adjust filter based on arguments
 		if (correlate) {
@@ -188,6 +206,12 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 						}
 					}
 				}
+
+				// The `files.watcherExcludeGitIgnore` patterns are relative to the
+				// workspace folder, so they only apply when watching the folder itself
+				if (workspaceFolder && fileSystemInfo.extUri.isEqual(workspaceFolder.uri, URI.revive(globPattern.baseUri))) {
+					gitIgnoreFolder = workspaceFolder;
+				}
 			}
 
 			// Non-recursive watching inside the workspace will overlap with
@@ -218,19 +242,63 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 						}
 					}
 
-					// Still ignore watch request if there are actually no configured
-					// exclude rules, because in that case our default recursive watcher
-					// should be able to take care of all events.
-					if (!includes || includes.length === 0) {
-						return disposable;
-					}
+					// The same applies to the `files.watcherExcludeGitIgnore` patterns
+					gitIgnoreFolder = workspaceFolder;
 				}
 			}
 		}
 
-		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes, includes, filter }, Boolean(correlate));
+		if (!gitIgnoreFolder) {
+			proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes, includes, filter }, Boolean(correlate));
 
-		return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
+			return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
+		}
+
+		// Watch again whenever the `files.watcherExcludeGitIgnore` patterns of
+		// the workspace folder change
+		const folder = gitIgnoreFolder;
+		let watching = false;
+		const watch = () => {
+			const gitIgnoreExcludes = gitIgnoreWatcherExcludes.get(folder.uri);
+
+			let opts: IWatchOptions | undefined;
+			if (recursive) {
+				opts = { recursive, excludes: [...excludes, ...gitIgnoreExcludes], includes, filter };
+			} else {
+				// The patterns are relative to the workspace folder, which an
+				// explicit base preserves even for patterns that start with `**`
+				const allIncludes = [...includes ?? [], ...gitIgnoreExcludes.map(pattern => ({ base: folder.uri.fsPath, pattern }))];
+
+				// Still ignore watch request if there are actually no configured
+				// exclude rules, because in that case our default recursive watcher
+				// should be able to take care of all events.
+				if (allIncludes.length > 0) {
+					opts = { recursive, excludes, includes: allIncludes, filter };
+				}
+			}
+
+			if (opts) {
+				proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, opts, Boolean(correlate));
+			} else if (watching) {
+				proxy.$unwatch(this.session);
+			}
+
+			watching = !!opts;
+		};
+
+		watch();
+
+		const listener = gitIgnoreWatcherExcludes.onDidChange(folder.uri, watch);
+
+		return Disposable.from({
+			dispose: () => {
+				listener.dispose();
+
+				if (watching) {
+					proxy.$unwatch(this.session);
+				}
+			}
+		});
 	}
 
 	dispose() {
@@ -287,6 +355,12 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	private readonly _onFileSystemEvent = new Emitter<LazyRevivedFileSystemEvents>();
 
+	private readonly _gitIgnoreWatcherExcludes = new ResourceMap<readonly string[]>();
+
+	// Many watchers use the patterns (one per file that TypeScript watches), so
+	// they are tracked in sets that can be updated in constant time
+	private readonly _gitIgnoreWatcherExcludesCallbacks = new ResourceMap<Set<() => void>>();
+
 	private readonly _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
 	private readonly _onDidCreateFile = new Emitter<vscode.FileCreateEvent>();
 	private readonly _onDidDeleteFile = new Emitter<vscode.FileDeleteEvent>();
@@ -309,11 +383,44 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	//--- file events
 
 	createFileSystemWatcher(workspace: IExtHostWorkspace, configProvider: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, extension: IExtensionDescription, globPattern: vscode.GlobPattern, options: FileSystemWatcherCreateOptions): vscode.FileSystemWatcher {
-		return new FileSystemWatcher(this._mainContext, configProvider, fileSystemInfo, workspace, extension, this._onFileSystemEvent.event, typeConverter.GlobPattern.from(globPattern), options);
+		const gitIgnoreWatcherExcludes: IGitIgnoreWatcherExcludes = {
+			get: folder => this._gitIgnoreWatcherExcludes.get(folder) ?? [],
+			onDidChange: (folder, callback) => {
+				let callbacks = this._gitIgnoreWatcherExcludesCallbacks.get(folder);
+				if (!callbacks) {
+					callbacks = new Set();
+					this._gitIgnoreWatcherExcludesCallbacks.set(folder, callbacks);
+				}
+				callbacks.add(callback);
+
+				const folderCallbacks = callbacks;
+				return new Disposable(() => {
+					folderCallbacks.delete(callback);
+					if (folderCallbacks.size === 0 && this._gitIgnoreWatcherExcludesCallbacks.get(folder) === folderCallbacks) {
+						this._gitIgnoreWatcherExcludesCallbacks.delete(folder);
+					}
+				});
+			}
+		};
+
+		return new FileSystemWatcher(this._mainContext, configProvider, fileSystemInfo, workspace, extension, this._onFileSystemEvent.event, gitIgnoreWatcherExcludes, typeConverter.GlobPattern.from(globPattern), options);
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
 		this._onFileSystemEvent.fire(new LazyRevivedFileSystemEvents(events));
+	}
+
+	$acceptGitIgnoreWatcherExcludes(folder: UriComponents, excludes: readonly string[]): void {
+		const folderUri = URI.revive(folder);
+		if (excludes.length > 0) {
+			this._gitIgnoreWatcherExcludes.set(folderUri, excludes);
+		} else {
+			this._gitIgnoreWatcherExcludes.delete(folderUri);
+		}
+
+		for (const callback of [...this._gitIgnoreWatcherExcludesCallbacks.get(folderUri) ?? []]) {
+			callback();
+		}
 	}
 
 	//--- file operations

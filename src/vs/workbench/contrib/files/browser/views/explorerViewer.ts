@@ -55,7 +55,7 @@ import { IExplorerService } from '../files.js';
 import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from '../fileImportExport.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFileSystemAccess.js';
-import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
+import { IgnoreFile } from '../../../../../base/common/ignoreFile.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { defaultCountBadgeStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -1352,7 +1352,15 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	isIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
-		const ignoreFile = this.ignoreTreesPerRoot.get(rootResource.toString())?.findSubstr(resource);
+		const ignoreTree = this.ignoreTreesPerRoot.get(rootResource.toString());
+
+		// Like `git status`, treat a folder whose own ignore file ignores all of
+		// its entries as ignored, except for the workspace folder itself
+		if (isDirectory && ignoreTree?.get(resource)?.ignoresAllEntries && !this.uriIdentityService.extUri.isEqual(resource, rootResource)) {
+			return true;
+		}
+
+		const ignoreFile = ignoreTree?.findSubstr(resource);
 		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(resource.path, isDirectory);
 
 		// Doing !undefined returns true and we want it to be false when undefined because that means it's not included in the ignore file

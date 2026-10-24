@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { Event } from '../../../../../base/common/event.js';
 import { patternsEquals } from '../../../../../base/common/glob.js';
 import { BaseWatcher } from '../baseWatcher.js';
 import { isLinux } from '../../../../../base/common/platform.js';
-import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from '../../../common/watcher.js';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe, parseWatcherPatterns } from '../../../common/watcher.js';
 import { NodeJSFileWatcherLibrary } from './nodejsWatcherLib.js';
 import { ThrottledWorker } from '../../../../../base/common/async.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { dirname } from '../../../../../base/common/path.js';
 
 export interface INodeJSWatcherInstance {
 
@@ -41,7 +43,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 
 		// Figure out duplicates to remove from the requests
-		requests = this.removeDuplicateRequests(requests);
+		requests = await this.removeDuplicateRequests(requests);
 
 		// Figure out which watchers to start and which to stop
 		const requestsToStart: INonRecursiveWatchRequest[] = [];
@@ -131,7 +133,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		watcher.instance.dispose();
 	}
 
-	private removeDuplicateRequests(requests: INonRecursiveWatchRequest[]): INonRecursiveWatchRequest[] {
+	protected async removeDuplicateRequests(requests: INonRecursiveWatchRequest[]): Promise<INonRecursiveWatchRequest[]> {
 		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, INonRecursiveWatchRequest>>();
 
 		// Ignore requests for the same paths that have the same correlation
@@ -151,7 +153,39 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 			requestsForCorrelation.set(path, request);
 		}
 
+		// Ignore uncorrelated requests for files that an uncorrelated request
+		// for their folder reports already, because both would report the
+		// same events
+		const uncorrelatedRequests = mapCorrelationtoRequests.get(undefined);
+		if (uncorrelatedRequests) {
+			for (const [path, request] of uncorrelatedRequests) {
+				const folderRequest = uncorrelatedRequests.get(this.pathToWatcherKey(dirname(request.path)));
+				if (folderRequest && folderRequest !== request && this.reportsChildEvents(folderRequest, request.path) && await this.isFile(request.path)) {
+					this.trace(`ignoring a request for watching a file who's folder is already watched: ${this.requestToString(request)}`);
+
+					uncorrelatedRequests.delete(path);
+				}
+			}
+		}
+
 		return Array.from(mapCorrelationtoRequests.values()).flatMap(requests => Array.from(requests.values()));
+	}
+
+	private reportsChildEvents(folderRequest: INonRecursiveWatchRequest, path: string): boolean {
+		const ignoreCase = !isLinux;
+		if (parseWatcherPatterns(folderRequest.path, folderRequest.excludes, ignoreCase).some(exclude => exclude(path))) {
+			return false;
+		}
+
+		return !folderRequest.includes?.length || parseWatcherPatterns(folderRequest.path, folderRequest.includes, ignoreCase).some(include => include(path));
+	}
+
+	private async isFile(path: string): Promise<boolean> {
+		try {
+			return (await promises.lstat(path)).isFile(); // symbolic links are watched by their target, not their folder
+		} catch {
+			return false;
+		}
 	}
 
 	override async setVerboseLogging(enabled: boolean): Promise<void> {

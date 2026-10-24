@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ExtHostFileSystemEventService } from '../../common/extHostFileSystemEventService.js';
-import { IMainContext } from '../../common/extHost.protocol.js';
+import { IMainContext, MainThreadFileSystemEventServiceShape } from '../../common/extHost.protocol.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
@@ -148,6 +149,61 @@ suite('ExtHostFileSystemEventService', () => {
 
 		sub.dispose();
 		watcher.dispose();
+	});
+
+	test('FileSystemWatcher accounts for the files.watcherExcludeGitIgnore patterns of the workspace folder', function () {
+		const folder = URI.file('/workspace');
+		const log: string[] = [];
+		const sessions = new Map<number, string>();
+		const proxy: Pick<MainThreadFileSystemEventServiceShape, '$watch' | '$unwatch'> = {
+			$watch(_extensionId, session, resource, opts) {
+				const path = URI.revive(resource).path;
+				sessions.set(session, path);
+				const includes = opts.includes?.map(include => typeof include === 'string' ? include : `${include.base}:${include.pattern}`);
+				log.push(`watch ${path} recursive=${opts.recursive} excludes=[${opts.excludes}]${includes ? ` includes=[${includes}]` : ''}`);
+			},
+			$unwatch(session) {
+				log.push(`unwatch ${sessions.get(session)}`);
+			}
+		};
+		const protocolWithRecordingProxy: IMainContext = { ...protocol, getProxy: () => proxy as never };
+
+		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
+			getWorkspaceFolder: uri => isEqualOrParent(uri, folder) ? { uri: folder, name: 'workspace', index: 0 } : undefined
+		};
+		const configProvider = {
+			getConfiguration: () => ({ get: () => ({}) })
+		} as unknown as ExtHostConfigProvider;
+
+		const service = new ExtHostFileSystemEventService(protocolWithRecordingProxy, new NullLogService(), undefined!);
+		const createWatcher = (base: URI, pattern: string) => service.createFileSystemWatcher(workspace as IExtHostWorkspace, configProvider, new ExtHostFileSystemInfo(), nullExtensionDescription, new RelativePattern(base, pattern), {});
+		const watchers = [
+			createWatcher(folder, '**/*.js'),
+			createWatcher(joinPath(folder, 'src'), '**/*.js'),
+			createWatcher(joinPath(folder, 'out'), '*.js'),
+		];
+
+		log.push('-- excluded');
+		service.$acceptGitIgnoreWatcherExcludes(folder, ['out/**/*', '**/legacy/**']);
+		log.push('-- cleared');
+		service.$acceptGitIgnoreWatcherExcludes(folder, []);
+		log.push('-- disposed');
+		watchers.forEach(watcher => watcher.dispose());
+		service.$acceptGitIgnoreWatcherExcludes(folder, ['out/**/*']);
+
+		assert.deepStrictEqual(log, [
+			'watch /workspace recursive=true excludes=[]',
+			'watch /workspace/src recursive=true excludes=[]',
+			'-- excluded',
+			'watch /workspace recursive=true excludes=[out/**/*,**/legacy/**]',
+			`watch /workspace/out recursive=false excludes=[] includes=[${folder.fsPath}:out/**/*,${folder.fsPath}:**/legacy/**]`,
+			'-- cleared',
+			'watch /workspace recursive=true excludes=[]',
+			'unwatch /workspace/out',
+			'-- disposed',
+			'unwatch /workspace',
+			'unwatch /workspace/src',
+		]);
 	});
 
 });
