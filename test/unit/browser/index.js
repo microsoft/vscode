@@ -320,6 +320,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	} finally {
 		await stallWatchdog.dispose();
 		if (!isDebug) {
+			await page.removeAllListeners('console', { behavior: 'wait' });
 			server?.dispose();
 			await browser.close();
 		}
