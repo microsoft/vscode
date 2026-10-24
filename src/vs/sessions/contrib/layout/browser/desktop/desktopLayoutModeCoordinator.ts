@@ -46,9 +46,10 @@ interface IFocusedOwner {
  * maximized, and otherwise the side pane's arrangement with the chat, stacked or side by side.
  *
  * The mode is remembered for the focused chat through {@link ISessionLayoutModeService}, and restored as another chat
- * gets focus: its arrangement, and whether its editor area is maximized. Whether its side pane is open stays with the
- * layout strategies, which never reveal a closed side pane on a focus change; a chat returning from a chat window is
- * shown in its full mode, as that is the user's explicit choice. With several chat surfaces shown, the mode is
+ * gets focus: its arrangement, and whether its chat is hidden. Whether its side pane is open stays with the layout
+ * strategies, which never reveal a closed side pane on a focus change, except that a chat remembered in editor only
+ * reopens it as the chat last left it; a chat returning from a chat window is shown in its full mode, as that is the
+ * user's explicit choice. With several chat surfaces shown, the mode is
  * window-global and focus changes neither restore nor remember it.
  */
 export class DesktopLayoutModeCoordinator extends Disposable {
@@ -169,18 +170,30 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			return;
 		}
 		this._layoutService.setSidePaneArrangement(remembered.splitLayout);
-		// Synchronously, before the layout strategies restore the chat's side pane, which un-maximizing would overwrite.
+		// Synchronously, before the layout strategies restore the chat's side pane.
 		if (remembered.mode === SessionLayoutMode.EditorOnly) {
-			if (!this._layoutService.isEditorMaximized() && !this._isChatHidden()) {
-				// The strategies restore the chat's side pane next; the editor shows meanwhile.
-				if (!this._layoutService.isSidePaneVisible()) {
-					this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-				}
-				this._layoutService.setPartHidden(true, Parts.SESSIONS_PART);
-			}
+			this._showEditorOnly();
 			return;
 		}
 		this._showChat();
+	}
+
+	/**
+	 * Hides only the chat: the sessions list, the panel and the side pane's composition stay as they are. A closed side
+	 * pane reopens as the chat last left it, through the side pane toggle, so that the layout strategies remember the
+	 * chat's own composition rather than whatever part shows first.
+	 */
+	private _showEditorOnly(): void {
+		if (this._layoutService.isEditorMaximized() || this._isChatHidden()) {
+			return;
+		}
+		if (!this._layoutService.isSidePaneVisible()) {
+			this._layoutService.toggleSidePane();
+			if (!this._layoutService.isSidePaneVisible()) {
+				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			}
+		}
+		this._layoutService.setPartHidden(true, Parts.SESSIONS_PART);
 	}
 
 	/** Whether the chat (the Sessions Part) is hidden, rather than covered by a custom view. */
@@ -221,17 +234,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			if (remembered) {
 				this._layoutService.setSidePaneArrangement(remembered.splitLayout);
 			}
-			// Only the chat hides: the sessions list, the panel and the side pane's composition stay as they are.
-			if (!this._layoutService.isEditorMaximized() && !this._isChatHidden()) {
-				if (!this._layoutService.isSidePaneVisible()) {
-					// Reopens the chat's last side pane, else the editor.
-					this._layoutService.toggleSidePane();
-					if (!this._layoutService.isSidePaneVisible()) {
-						this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
-					}
-				}
-				this._layoutService.setPartHidden(true, Parts.SESSIONS_PART);
-			}
+			this._showEditorOnly();
 			return;
 		}
 		this._showChat();

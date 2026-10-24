@@ -153,6 +153,7 @@ suite('Sessions - Workbench', () => {
 	const toggleSecondarySideBarDesktop = DesktopWorkbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const isSecondarySideBarVisibleDesktop = DesktopWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
 	const toggleSidePane = DesktopWorkbench.prototype.toggleSidePane as (this: ITestWorkbench) => boolean;
+	const fireDidChangePartVisibilityDesktop = Reflect.get(DesktopWorkbench.prototype, '_fireDidChangePartVisibility') as (this: ITestWorkbench, partId: Parts, visible: boolean) => void;
 	const hideSidePane = Workbench.prototype.hideSidePane as (this: ITestWorkbench) => void;
 	const captureSidePaneComposition = Workbench.prototype.captureSidePaneComposition as (this: ITestWorkbench) => ISidePaneState;
 	const restoreSidePaneComposition = Workbench.prototype.restoreSidePaneComposition as (this: ITestWorkbench, composition: ISidePaneState) => void;
@@ -903,6 +904,41 @@ suite('Sessions - Workbench', () => {
 			sessions: true,
 			editor: false,
 			sessionsHidden: [false],
+		});
+	});
+
+	test('desktop shows the hidden chat (editor only) once the side pane settles hidden by other means than its toggle, not while a composition swaps its parts', async () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false, sessions: false } });
+		const sessionsHidden: boolean[] = [];
+		Object.assign(host, {
+			_onDidChangePartVisibility: { fire: () => { } },
+			setPartHidden: (hidden: boolean, part: Parts) => {
+				if (part === Parts.SESSIONS_PART) {
+					sessionsHidden.push(hidden);
+					host.partVisibility.sessions = !hidden;
+				}
+			},
+		});
+		const setPart = (part: 'editor' | 'auxiliaryBar', partId: Parts, visible: boolean) => {
+			host.partVisibility[part] = visible;
+			fireDidChangePartVisibilityDesktop.call(host, partId, visible);
+		};
+
+		// A composition swap, Editor to Details, hides and shows synchronously.
+		setPart('editor', Parts.EDITOR_PART, false);
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, true);
+		await Promise.resolve();
+		const afterSwap = { sessions: host.partVisibility.sessions, sessionsHidden: [...sessionsHidden] };
+
+		// Its last part then hides, as when its last editor closes.
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, false);
+		const synchronously = host.partVisibility.sessions;
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ afterSwap, synchronously, settled: { sessions: host.partVisibility.sessions, sessionsHidden } }, {
+			afterSwap: { sessions: false, sessionsHidden: [] },
+			synchronously: false,
+			settled: { sessions: true, sessionsHidden: [false] },
 		});
 	});
 

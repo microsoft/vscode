@@ -18,6 +18,7 @@ import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTI
 import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
 import { IChatWindow } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { DesktopLayoutModeCoordinator, MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS } from '../../browser/desktop/desktopLayoutModeCoordinator.js';
@@ -44,8 +45,8 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		}
 	}
 
-	function createController(chatLayoutMode: ChatLayoutMode, initialSession: IActiveSession): TestDesktopController {
-		harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode, workspaceFolders: [{ uri: URI.file('/repo') }] });
+	function createController(chatLayoutMode: ChatLayoutMode, initialSession: IActiveSession, workspaceFolder = URI.file('/repo')): TestDesktopController {
+		harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode, workspaceFolders: [{ uri: workspaceFolder }] });
 		harness.activeSessionObs.set(initialSession, undefined);
 		return store.add(harness.instaService.createInstance(TestDesktopController));
 	}
@@ -124,6 +125,44 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			focusedB: { mode: SessionLayoutMode.SideBySide, context: SessionLayoutMode.SideBySide, arrangement: SessionLayoutMode.SideBySide, maximized: false, chatHidden: false },
 		});
 	});
+
+	for (const scope of ['session-shared', 'chat'] as const) {
+		test(`restores a remembered editor only into a closed side pane with the focused chat's own side pane, which stays remembered, as ${scope} scopes it`, async () => {
+			const draft = makeSession(URI.parse('test:/draft'), { status: SessionStatus.Untitled, isCreated: false });
+			// The window's folder is not the sessions' yet, as while a session's workspace hydrates, so no editor working set
+			// restore is under way as the focus changes.
+			const controller = createController(scope, sessionB, URI.file('/other'));
+			await controller.whenRestored();
+			const sidePane = () => ({
+				...state(controller),
+				editor: harness.partVisibility.get(Parts.EDITOR_PART) ?? true,
+				details: harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true,
+			});
+
+			// B shows Details only, then editor only.
+			harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+			controller.layoutMode.setMode(SessionLayoutMode.EditorOnly);
+			const editorOnlyB = sidePane();
+			// A draft in chat only closes the side pane.
+			await focus(controller, draft);
+			controller.layoutMode.setMode(SessionLayoutMode.ChatOnly);
+			const chatOnlyDraft = sidePane();
+			await focus(controller, sessionB);
+			const backToB = sidePane();
+			await focus(controller, draft);
+			await focus(controller, sessionB);
+			const againB = sidePane();
+
+			const detailsOnly = { mode: SessionLayoutMode.EditorOnly, context: SessionLayoutMode.EditorOnly, arrangement: SessionLayoutMode.SideBySide, maximized: false, chatHidden: true, editor: false, details: true };
+			assert.deepStrictEqual({ editorOnlyB, chatOnlyDraft, backToB, againB }, {
+				editorOnlyB: detailsOnly,
+				chatOnlyDraft: { mode: SessionLayoutMode.ChatOnly, context: SessionLayoutMode.ChatOnly, arrangement: SessionLayoutMode.SideBySide, maximized: false, chatHidden: false, editor: false, details: false },
+				backToB: detailsOnly,
+				againB: detailsOnly,
+			});
+		});
+	}
 
 	test('leads the session activity bar of the main window with one Layout button of the same icon in every mode, opening Show Chat, Show Editor and Stacked as the window shows them, while it shows its layout actions', async () => {
 		const controller = createController('chat', sessionA);
