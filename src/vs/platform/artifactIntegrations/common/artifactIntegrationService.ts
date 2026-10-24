@@ -198,7 +198,11 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 						try {
 							const details = await model.acquireDetails(integrationId, detailsId);
 							const lease = toDisposable(() => { details.dispose(); reference.dispose(); });
-							return { details: details.details, loadMore: details.loadMore ? token => details.loadMore!(token) : undefined, dispose: () => lease.dispose() };
+							return {
+								details: details.details, dispose: () => lease.dispose(),
+								loadMore: details.loadMore ? token => details.loadMore!(token) : undefined,
+								runItemAction: details.runItemAction ? (itemId, actionId, token) => details.runItemAction!(itemId, actionId, token) : undefined,
+							};
 						} catch (error) {
 							reference.dispose();
 							throw error;
@@ -818,6 +822,7 @@ class ArtifactBinding extends Disposable {
 				return details;
 			}),
 			loadMore: current.model.loadMore ? token => current.model.loadMore!(token) : undefined,
+			runItemAction: current.model.runItemAction ? (itemId, actionId, token) => current.model.runItemAction!(itemId, actionId, token) : undefined,
 			dispose: () => lease.dispose(),
 		};
 	}

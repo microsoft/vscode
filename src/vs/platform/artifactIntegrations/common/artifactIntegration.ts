@@ -95,6 +95,23 @@ export type ArtifactDetailsLink =
 	| { readonly kind: 'action'; readonly actionId: string }
 	| { readonly kind: 'automation'; readonly optionId: string };
 
+/** An action on one details item, such as rerunning a check. */
+export interface ArtifactItemActionDescriptor {
+	readonly id: string;
+	readonly iconId: string;
+	readonly label: string;
+}
+
+export interface ArtifactDetailsItem {
+	readonly id: string;
+	readonly icon: ArtifactIcon;
+	readonly label: string;
+	readonly description?: string;
+	readonly resource: string;
+	/** IDs of the details' `itemActions` that currently apply to this item. Omit inapplicable actions. */
+	readonly actions?: readonly string[];
+}
+
 export interface ArtifactDetails {
 	readonly availability: ArtifactAvailability;
 	readonly title: string;
@@ -103,13 +120,21 @@ export interface ArtifactDetails {
 	readonly descriptionFormat?: 'plaintext' | 'markdown';
 	readonly facts?: readonly { readonly id: string; readonly label: string; readonly value: string }[];
 	readonly links: readonly ArtifactDetailsLink[];
-	readonly items: readonly { readonly id: string; readonly icon: ArtifactIcon; readonly label: string; readonly description?: string; readonly resource: string }[];
+	/** Actions that items reference by ID. Run them with {@link IArtifactDetailsModel.runItemAction}. */
+	readonly itemActions?: readonly ArtifactItemActionDescriptor[];
+	readonly items: readonly ArtifactDetailsItem[];
 	readonly completeness: 'complete' | 'partial';
 }
 
 export interface IArtifactDetailsModel extends IDisposable {
 	readonly details: IObservable<ArtifactDetails>;
 	loadMore?(token: CancellationToken): Promise<void>;
+	/**
+	 * Runs an item action directly, without run tracking, activity history, or automation. Use it only for effects that
+	 * are safe to repeat, and use registered artifact actions for anything else. The provider revalidates that the
+	 * action still applies to the item and rejects with a user-facing reason otherwise.
+	 */
+	runItemAction?(itemId: string, actionId: string, token: CancellationToken): Promise<void>;
 }
 
 interface ArtifactAutomationOptionBase {

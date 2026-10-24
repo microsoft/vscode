@@ -26,6 +26,8 @@ export interface IArtifactListViewData {
 	readonly message: string;
 	readonly loading: boolean;
 	readonly items: readonly ArtifactDetailsItem[];
+	/** Row actions by item ID; items without an entry have no actions. */
+	readonly itemActions: ReadonlyMap<string, readonly IArtifactActionViewData[]>;
 	readonly more?: IArtifactActionViewData;
 	openItem(item: ArtifactDetailsItem): void;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactIcon, ArtifactRequestPresentation } from './artifactIntegration.js';
+import { ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactIcon, ArtifactItemActionDescriptor, ArtifactRequestPresentation } from './artifactIntegration.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -58,14 +58,32 @@ export function hasValidArtifactPresentationReferences(view: ArtifactContributio
 		&& view.automationAvailability.every(option => optionIds.has(option.id));
 }
 
+function isItemActionDescriptor(value: unknown): value is ArtifactItemActionDescriptor {
+	return isRecord(value) && strings(value, 'id', 'label') && isArtifactIcon({ id: value.iconId });
+}
+
+function isUniqueStringList(value: unknown): value is readonly string[] {
+	return Array.isArray(value) && value.every(item => typeof item === 'string' && item.length > 0) && new Set(value).size === value.length;
+}
+
 export function isArtifactDetails(value: unknown): value is ArtifactDetails {
-	return isRecord(value) && isArtifactAvailability(value.availability) && typeof value.title === 'string'
+	if (!isRecord(value)) {
+		return false;
+	}
+	const actions = value.itemActions ?? [];
+	if (!Array.isArray(actions) || !actions.every(isItemActionDescriptor)) {
+		return false;
+	}
+	const itemActions = new Set(actions.map(action => action.id));
+	return isArtifactAvailability(value.availability) && typeof value.title === 'string'
 		&& (value.description === undefined || typeof value.description === 'string')
 		&& (value.descriptionFormat === undefined || value.descriptionFormat === 'plaintext' || value.descriptionFormat === 'markdown')
 		&& (value.completeness === 'complete' || value.completeness === 'partial')
 		&& (value.facts === undefined || (Array.isArray(value.facts) && value.facts.every(fact => isRecord(fact) && strings(fact, 'id', 'label') && typeof fact.value === 'string')))
 		&& Array.isArray(value.links) && value.links.every(link => isRecord(link) && (link.kind === 'action' ? strings(link, 'actionId') : link.kind === 'automation' && strings(link, 'optionId')))
-		&& Array.isArray(value.items) && value.items.length <= 200 && value.items.every(item => isRecord(item) && strings(item, 'id', 'label', 'resource') && isArtifactIcon(item.icon) && (item.description === undefined || typeof item.description === 'string'))
+		&& itemActions.size === actions.length
+		&& Array.isArray(value.items) && value.items.length <= 200 && value.items.every(item => isRecord(item) && strings(item, 'id', 'label', 'resource') && isArtifactIcon(item.icon) && (item.description === undefined || typeof item.description === 'string')
+			&& (item.actions === undefined || (isUniqueStringList(item.actions) && item.actions.every(action => itemActions.has(action)))))
 		&& new Set(value.items.map(item => item.id)).size === value.items.length;
 }
 
