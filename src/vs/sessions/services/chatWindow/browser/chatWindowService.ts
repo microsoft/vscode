@@ -241,6 +241,12 @@ export const ChatWindowEditorViewTypeContext = new RawContextKey<string>('sessio
 /** Whether the docked chat window was resized from its default size. */
 export const ChatWindowDockedResizedContext = new RawContextKey<boolean>('sessions.chatWindowDockedResized', false, localize('chatWindowDockedResized', "Whether the docked chat window was resized from its default size."));
 
+/**
+ * Whether the chat window shows a Session Activity Bar beside its chat (its kind's {@link IChatWindowKind.showActivityBar}).
+ * Only then can the strip take the window's Layout menu over from its title bar or header.
+ */
+export const ChatWindowHasSessionActivityBarContext = new RawContextKey<boolean>('sessions.chatWindowHasSessionActivityBar', false, localize('chatWindowHasSessionActivityBar', "Whether the chat window shows a Session Activity Bar beside its chat."));
+
 /** Whether the chat window shows an editor area beside its chat, which takes the editors opened from it. */
 export const ChatWindowHasEditorAreaContext = new RawContextKey<boolean>('sessions.chatWindowHasEditorArea', false, localize('chatWindowHasEditorArea', "Whether the chat window shows an editor area beside its chat."));
 

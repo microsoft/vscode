@@ -64,6 +64,7 @@ suite('Chat window - the Layout menu in the Session Activity Bar', () => {
 			'sessions.chatWindow': 'test',
 			'sessions.chatWindowHasEditor': true,
 			'sessions.chatWindowHasEditorArea': true,
+			'sessions.chatWindowHasSessionActivityBar': true,
 			'sessions.layoutMode': SessionLayoutMode.SideBySide,
 			'sessions.splitLayout': SessionLayoutMode.SideBySide,
 		};
@@ -85,6 +86,32 @@ suite('Chat window - the Layout menu in the Session Activity Bar', () => {
 			off: { titleBar: ['Layout'], strip: [], dockedHeader: ['Layout'], dockedStrip: [] },
 			// Without the Session Activity Bar, its layout actions show nowhere: the title bar keeps the menu.
 			stripHidden: { titleBar: ['Layout'], strip: [], dockedHeader: ['Layout'], dockedStrip: [] },
+		});
+	});
+
+	test('keeps the Layout menu in the title bar or header of a chat window without the Session Activity Bar, whatever showLayoutActions is', () => {
+		// A dockable chat window kind with only a chat, or an editor, and neither an editor area nor the strip beside it.
+		const undocked: Record<string, ContextKeyValue> = {
+			chatIsEnabled: true,
+			agentSessionsDesktopLayout: true,
+			'sessions.chatWindow': 'test',
+			'sessions.chatWindowDockable': true,
+			'sessions.layoutMode': SessionLayoutMode.ChatOnly,
+		};
+		const docked = { ...undocked, 'sessions.chatWindowDocked': true };
+		const layoutButtons = (menu: MenuId, contextKeys: Record<string, ContextKeyValue>, settings: Record<string, unknown>) =>
+			describeMenuGroup(store, menu, undefined, contextKeys, settings).filter(item => item.entries).map(item => item.label);
+		const where = (layoutActions: boolean) => {
+			const settings = { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: layoutActions };
+			return {
+				titleBar: layoutButtons(Menus.ChatWindowTitleBarLayout, undocked, settings),
+				dockedHeader: layoutButtons(Menus.ChatWindowTitleLayout, docked, settings),
+			};
+		};
+
+		assert.deepStrictEqual({ on: where(true), off: where(false) }, {
+			on: { titleBar: ['Layout'], dockedHeader: ['Layout'] },
+			off: { titleBar: ['Layout'], dockedHeader: ['Layout'] },
 		});
 	});
 });

@@ -28,7 +28,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowHasSessionActivityBarContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../common/sessionLayoutMode.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -329,6 +329,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// Its groups are the chat window's: the chat, and its editor or editor area.
 		EditorPartFixedGroupsContext.bindTo(windowContextKeyService).set(true);
 		ChatWindowDockableContext.bindTo(windowContextKeyService).set(!!kind.dockable);
+		ChatWindowHasSessionActivityBarContext.bindTo(windowContextKeyService).set(!!kind.showActivityBar);
 		ChatWindowDockedContext.bindTo(windowContextKeyService).set(docked);
 		ChatWindowHasEditorContext.bindTo(windowContextKeyService).set(!!content.editor || !!content.editorArea);
 		const editorViewTypeContext = ChatWindowEditorViewTypeContext.bindTo(windowContextKeyService);
