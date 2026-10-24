@@ -42,11 +42,6 @@ const CHAT_WINDOW_TERMINAL_HEIGHT_RATIO = 0.3;
 const CHAT_WINDOW_TERMINAL_MIN_HEIGHT = 120;
 
 /**
- * How the session of a chat window is focused, such as when it becomes the active session: its window, and its chat
- * only while the chat shows. Focusing the chat while only the editor shows would activate its hidden group, which shows
- * the chat again; only the user's choice of a layout shows it.
- */
-/**
  * Where the terminal row of a chat window shows: across the bottom of the window, below the editor only, or below the
  * chat only. Stacked, it is always across the bottom, below the chat, whatever position is chosen, which applies again
  * side by side.
@@ -55,6 +50,11 @@ export function getChatWindowTerminalPlacement(position: ChatWindowTerminalPosit
 	return splitLayout === SessionLayoutMode.SideBySide ? position : ChatWindowTerminalPosition.FullWidth;
 }
 
+/**
+ * How the session of a chat window is focused, such as when it becomes the active session: its window, and its chat
+ * only while the chat shows. Focusing the chat while only the editor shows would activate its hidden group, which shows
+ * the chat again; only the user's choice of a layout shows it.
+ */
 export function createChatWindowSessionViewHost(focusWindow: () => void, focusChat: () => void, isChatVisible: () => boolean): IWindowSessionViewHost {
 	return {
 		focus: () => {
