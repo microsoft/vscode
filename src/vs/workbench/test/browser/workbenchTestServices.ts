@@ -952,6 +952,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	readonly viewColumnGroup: IEditorGroup | undefined = undefined;
 	setViewColumnGroup(_group: IEditorGroup): IDisposable { return Disposable.None; }
 	setGroupGap(_gap: number): void { }
+	setGroupLayoutPriority(): void { }
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
 	registerContextKeyProvider<T extends ContextKeyValue>(_provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('not implemented'); }
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService { throw new Error('Method not implemented.'); }
@@ -1045,6 +1046,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	relayout() { }
 	hideTitle(): IDisposable { return Disposable.None; }
 	setLayoutInsets(): void { }
+	setLayoutPriority(): void { }
 	createEditorActions(_menuDisposable: IDisposable): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> } { throw new Error('not implemented'); }
 }
 
