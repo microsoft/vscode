@@ -10,6 +10,8 @@ import { autorun, derived, IObservable, ISettableObservable, observableFromEvent
 import { timeout } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatWindowCards } from './chatWindowCards.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroupView } from '../../../../workbench/browser/parts/editor/editor.js';
 import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupAddTab.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -198,6 +200,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -325,6 +328,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const editorGroup = content.editor || content.editorArea ? part.addGroup(chatGroup, GroupDirection.UP) : undefined;
 		// One editor is kept in its group; an editor area takes the editors opened from the chat window.
 		editorGroup?.lock(!!content.editor);
+		const chatGroupRoot = (chatGroup as IEditorGroupView).element.closest<HTMLElement>('.monaco-workbench');
+		if (!docked && chatGroupRoot) {
+			// Standalone windows only: the docked part is one floating card. Follows Layout Density while the window is open.
+			windowDisposables.add(new ChatWindowCards(part, chatGroupRoot, this._themeService));
+		}
 		const window = new ChatWindow(state, part, chatGroup, editorGroup, content, sessionObs, this, close, resetSize);
 		windowDisposables.add(autorun(reader => editorViewTypeContext.set(window.content.read(reader).editor?.viewType ?? '')));
 		ChatWindowHasEditorAreaContext.bindTo(windowContextKeyService).set(!!content.editorArea);
