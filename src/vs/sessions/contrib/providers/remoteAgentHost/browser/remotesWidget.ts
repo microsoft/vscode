@@ -329,14 +329,15 @@ export class RemotesWidget extends Disposable {
 		this.tableContainer.setAttribute('aria-busy', 'true');
 		try {
 			const failedKinds = await this.model.refresh(request.token, {
-				report: ({ kind, refreshing }) => {
+				report: progress => {
 					if (request.token.isCancellationRequested || this._store.isDisposed || this.refreshRequest.value !== request) {
 						return;
 					}
-					if (refreshing) {
-						this.refreshingKinds.add(kind);
+					if (progress.refreshing) {
+						this.refreshingKinds.add(progress.kind);
 					} else {
-						this.refreshingKinds.delete(kind);
+						this.refreshingKinds.delete(progress.kind);
+						this.failedKinds = [...this.failedKinds.filter(kind => kind !== progress.kind), ...(progress.failed ? [progress.kind] : [])];
 					}
 					this.render();
 				},
@@ -402,7 +403,7 @@ export class RemotesWidget extends Disposable {
 				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
 					busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
-				})) : this.hasRefreshed ? [this.getEmptyEntry(kind)] : []));
+				})) : this.hasRefreshed || this.failedKinds.includes(kind) ? [this.getEmptyEntry(kind)] : []));
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
@@ -493,7 +494,7 @@ export class RemotesWidget extends Disposable {
 			if (this.query && entries.length === 0) {
 				return [];
 			}
-			const empty = entries.length || !this.hasRefreshed ? undefined : this.getEmptyEntry(kind);
+			const empty = entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],

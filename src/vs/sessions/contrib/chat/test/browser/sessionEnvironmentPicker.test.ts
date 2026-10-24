@@ -152,6 +152,25 @@ suite('SessionEnvironmentPicker', () => {
 		}, { picker: [], selected: selected.id, resolved: selected.id });
 	});
 
+	for (const containerRequested of [false, true]) {
+		test(`restored hidden remote retains its destination without adding it to the picker (container: ${containerRequested})`, () => {
+			const remote = upcastPartial<IAgentHostSessionsProvider>({
+				...provider('agenthost-hidden', 'remote'), connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+				isVisibleInEnvironmentPicker: constObservable(false), isAvailableInEnvironmentPicker: constObservable(true),
+			});
+			const environments = getSessionCreationEnvironments([provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local'), remote]);
+			const selected = getDefaultSessionCreationEnvironment(environments, URI.parse('vscode-agent-host://host/project'), remote.id, containerRequested, remote);
+			assert.deepStrictEqual({
+				selected: selected && { id: selected.id, kind: selected.kind, label: selected.label, providers: selected.providerIds },
+				picker: environments.map(environment => environment.id),
+				resolved: selected && getEnvironmentWorkspaceProvider(selected, [remote], folder)?.id,
+			}, {
+				selected: { id: containerRequested ? `container:${remote.id}` : remote.id, kind: containerRequested ? 'container' : 'remote', label: containerRequested ? 'Dev Container' : remote.label, providers: [remote.id] },
+				picker: ['local'], resolved: remote.id,
+			});
+		});
+	}
+
 	test('renders before repository controls, updates its accessible name, and selects through the action widget', async () => {
 		const instantiation = store.add(new TestInstantiationService());
 		let hide: (() => void) | undefined;

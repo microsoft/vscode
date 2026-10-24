@@ -38,7 +38,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing = false): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = '640px';
 	container.classList.add('remotes-editor');
@@ -70,8 +70,11 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		readonly environmentsEnabled = observableValue(this, environments);
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
 		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
-			if (pendingRefresh) {
-				progress?.report({ kind: 'tunnel', refreshing: true });
+			if (pendingRefresh && refreshing) {
+				progress?.report({ kind: refreshing, refreshing: true });
+				for (const kind of failedKinds) {
+					progress?.report({ kind, refreshing: false, failed: true });
+				}
 				await pendingRefresh.p;
 			}
 			return failedKinds;
@@ -101,7 +104,8 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true) }),
-	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, true) }),
+	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, 'tunnel') }),
+	TunnelDiscoveryFailure: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true, 'ssh') }),
 	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
 	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),

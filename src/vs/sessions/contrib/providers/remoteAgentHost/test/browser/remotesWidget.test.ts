@@ -56,7 +56,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		}
 		const result = await (this.pendingRefresh?.p ?? this.failedKinds);
 		for (const kind of remoteKinds) {
-			progress?.report({ kind, refreshing: false });
+			progress?.report({ kind, refreshing: false, failed: result.includes(kind) });
 		}
 		return result;
 	}
@@ -676,7 +676,7 @@ suite('RemotesWidget', () => {
 		}));
 		const started = snapshot();
 		const progress = model.refreshProgress[0];
-		progress.report({ kind: 'ssh', refreshing: false });
+		progress.report({ kind: 'ssh', refreshing: false, failed: false });
 		const partial = snapshot();
 		const tunnelGroup = [...parent.querySelectorAll<HTMLElement>('.remotes-group-row')].find(row => row.querySelector('.remotes-name')?.textContent === 'Tunnels')!;
 		tunnelGroup.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!.click();
@@ -696,6 +696,34 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('tunnel failure replaces its spinner with a warning immediately while another section is loading', async () => {
+		const { parent, model, widget } = createWidget();
+		model.remotes.set([], undefined);
+		model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
+		widget.setVisible(true);
+		const groups = () => [...parent.querySelectorAll('.remotes-group-row')].map(row => ({
+			name: row.querySelector('.remotes-name')?.textContent,
+			spinning: !!row.querySelector('.remotes-group-progress:not([hidden])'),
+			warning: !!row.querySelector('.remotes-refresh-warning:not([hidden])'),
+		}));
+		const waiting = groups();
+		model.refreshProgress[0].report({ kind: 'tunnel', refreshing: false, failed: true });
+		const partial = {
+			groups: groups(), failedMessage: parent.querySelector('.remotes-empty-label')?.textContent,
+			accessible: widget.getAccessibilityContent().includes('Could not refresh Tunnels.'),
+			globalBusy: parent.querySelector('.remotes-table-container')?.getAttribute('aria-busy'),
+		};
+		await model.pendingRefresh.complete(['tunnel']);
+		await timeout(0);
+		assert.deepStrictEqual({ waiting, partial }, {
+			waiting: [{ name: 'SSH', spinning: true, warning: false }, { name: 'Tunnels', spinning: true, warning: false }],
+			partial: {
+				groups: [{ name: 'SSH', spinning: true, warning: false }, { name: 'Tunnels', spinning: false, warning: true }],
+				failedMessage: 'Could not refresh Tunnels.', accessible: true, globalBusy: 'true',
+			},
+		});
+	});
+
 	test('canceled refresh progress cannot stop a newer spinner and errors clear all spinners', async () => {
 		const { parent, model, widget, errors } = createWidget();
 		const first = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
@@ -706,7 +734,7 @@ suite('RemotesWidget', () => {
 		const canceled = spinners();
 		const second = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
 		widget.setVisible(true);
-		oldProgress.report({ kind: 'ssh', refreshing: false });
+		oldProgress.report({ kind: 'ssh', refreshing: false, failed: false });
 		await first.complete([]);
 		await timeout(0);
 		const restarted = spinners();

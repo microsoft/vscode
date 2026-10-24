@@ -53,10 +53,9 @@ export interface ICustomizationRemote {
 	readonly pickerUnavailableReason?: string;
 }
 
-export interface IRemoteRefreshProgress {
-	readonly kind: RemoteKind;
-	readonly refreshing: boolean;
-}
+export type IRemoteRefreshProgress =
+	| { readonly kind: RemoteKind; readonly refreshing: true }
+	| { readonly kind: RemoteKind; readonly refreshing: false; readonly failed: boolean };
 
 export interface IRemotesModel extends IDisposable {
 	readonly remotes: IObservable<readonly ICustomizationRemote[]>;
@@ -139,6 +138,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 		const discover = async (kind: RemoteKind, task: () => Promise<readonly RemoteTarget[]>): Promise<RemoteKind | undefined> => {
 			progress?.report({ kind, refreshing: true });
+			let failed = false;
 			try {
 				const targets = await task();
 				if (!token.isCancellationRequested && !this._store.isDisposed && this.enabled) {
@@ -155,10 +155,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			} catch (error) {
 				if (!token.isCancellationRequested && !isCancellationError(error)) {
 					this.logService.warn(`[Remotes] ${kind} discovery failed`, error);
+					failed = true;
 					return kind;
 				}
 			} finally {
-				progress?.report({ kind, refreshing: false });
+				progress?.report({ kind, refreshing: false, failed });
 			}
 			return undefined;
 		};

@@ -70,12 +70,15 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 }
 
 /** Describes a remote independently of picker visibility so an existing draft can retain its destination. */
-export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider): ISessionCreationEnvironment | undefined {
+export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider, containerRequested = false): ISessionCreationEnvironment | undefined {
 	if (!isRemoteSessionCreationEnvironment(provider)) {
 		return undefined;
 	}
 	return {
-		id: provider.id, kind: 'remote', label: provider.label, icon: provider.icon, providerIds: [provider.id],
+		id: containerRequested ? `container:${provider.id}` : provider.id,
+		kind: containerRequested ? 'container' : 'remote',
+		label: containerRequested ? localize('environmentPicker.container', "Dev Container") : provider.label,
+		icon: containerRequested ? Codicon.remote : provider.icon, providerIds: [provider.id],
 		description: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
 	};
 }
@@ -99,12 +102,14 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	return undefined;
 }
 
-export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false): ISessionCreationEnvironment | undefined {
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false, selectedProvider?: ISessionsProvider): ISessionCreationEnvironment | undefined {
 	const local = environments.find(environment => environment.kind === 'local');
 	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
 		return local;
 	}
-	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? '')) ?? local;
+	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? ''))
+		?? (selectedProvider && selectedProvider.id === providerId ? getRemoteSessionCreationEnvironment(selectedProvider, containerRequested) : undefined)
+		?? local;
 }
 
 interface IEnvironmentPickerItem {

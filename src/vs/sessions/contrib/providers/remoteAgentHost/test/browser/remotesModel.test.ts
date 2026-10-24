@@ -83,6 +83,7 @@ suite('RemotesModel', () => {
 		let wslDiscoveryCalls = 0;
 		let sshDiscovery: () => Promise<string[]> = async () => ['build', 'build'];
 		let tunnelDiscovery: () => Promise<ITunnelInfo[]> = async () => [tunnel];
+		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(ILogService, new class extends NullLogService {
@@ -145,7 +146,7 @@ suite('RemotesModel', () => {
 		instantiationService.stub(ITunnelAgentHostService, {
 			onDidChangeTunnels: Event.None,
 			getCachedTunnels: () => tunnels,
-			getAuthProvider: async () => 'github',
+			getAuthProvider: () => tunnelAuthentication(),
 			listTunnels: () => tunnelDiscovery(),
 			isTunnelDismissed: id => dismissed.has(id),
 			clearTunnelDismissal: id => { dismissed.delete(id); },
@@ -227,6 +228,7 @@ suite('RemotesModel', () => {
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
+			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
 			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
@@ -333,6 +335,40 @@ suite('RemotesModel', () => {
 			started: updates.filter(update => update.refreshing).map(update => update.kind).sort(),
 			finished: updates.filter(update => !update.refreshing).map(update => update.kind).sort(),
 		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: [...remoteKinds].sort(), finished: [...remoteKinds].sort() });
+	});
+
+	test('tunnel progress spans authentication and reports missing-scope failure before other discovery finishes', async () => {
+		const { model, setSSHDiscovery, setTunnelAuthentication, setTunnelDiscovery, logEntries } = setup();
+		const ssh = new DeferredPromise<string[]>();
+		const authentication = new DeferredPromise<'github' | 'microsoft' | undefined>();
+		const tunnelFinished = new DeferredPromise<void>();
+		const progress: IRemoteRefreshProgress[] = [];
+		const error = new Error('No authentication is available to enumerate tunnels.');
+		setSSHDiscovery(() => ssh.p);
+		setTunnelAuthentication(() => authentication.p);
+		setTunnelDiscovery(async () => { throw error; });
+		const refresh = model.refresh(CancellationToken.None, {
+			report: update => {
+				progress.push(update);
+				if (update.kind === 'tunnel' && !update.refreshing) {
+					tunnelFinished.complete();
+				}
+			},
+		});
+		const waitingForAuthentication = progress.filter(update => update.kind === 'tunnel');
+		await authentication.complete(undefined);
+		await tunnelFinished.p;
+		const failedBeforeSSH = !progress.some(update => update.kind === 'ssh' && !update.refreshing);
+		await ssh.complete([]);
+		const failures = await refresh;
+		assert.deepStrictEqual({
+			waitingForAuthentication, failedBeforeSSH, failures,
+			tunnelProgress: progress.filter(update => update.kind === 'tunnel'), logEntries,
+		}, {
+			waitingForAuthentication: [{ kind: 'tunnel', refreshing: true }], failedBeforeSSH: true, failures: ['tunnel'],
+			tunnelProgress: [{ kind: 'tunnel', refreshing: true }, { kind: 'tunnel', refreshing: false, failed: true }],
+			logEntries: [{ message: '[Remotes] tunnel discovery failed', args: [error] }],
+		});
 	});
 
 	test('successful refresh replaces discovered rows and removes obsolete connection targets', async () => {

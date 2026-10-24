@@ -343,7 +343,7 @@ export class NewChatWidget extends Disposable {
 			const sourceProvider = source?.kind !== 'cloud' && source && folderUri && getEnvironmentWorkspaceProvider(source, providers, folderUri);
 			if (source && folderUri && sourceProvider && this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, sourceProvider.id) === true) {
 				environments.push({ id: `container:${source.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote, providerIds: source.providerIds });
-			} else if (picked?.kind === 'container') {
+			} else if (picked?.kind === 'container' && environments.some(environment => environment.providerIds.some(id => picked.providerIds.includes(id)))) {
 				environments.push(picked);
 			}
 			return environments;
@@ -359,12 +359,10 @@ export class NewChatWidget extends Disposable {
 			const containerRequested = provider && isAgentHostProvider(provider) && provider.isDevContainerRequested?.(session.sessionId);
 			this._environmentWorkspaceChanged.read(reader);
 			const providerId = this._workspacePicker?.selectedResolved?.providerId ?? session?.providerId;
-			const selectedProvider = providerId && this.sessionsProvidersService.getProvider(providerId);
-			const remote = selectedProvider && getRemoteSessionCreationEnvironment(selectedProvider);
-			const candidates = remote && !environments.some(environment => environment.providerIds.includes(remote.id)) ? [...environments, remote] : environments;
+			const selectedProvider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
 			const selected = picked
 				? environments.find(environment => environment.id === picked.id) ?? picked
-				: getDefaultSessionCreationEnvironment(candidates, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested);
+				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;
@@ -2370,7 +2368,11 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const environments = this._environments.get();
-		const environment = environments.find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
+		let environment = environments.find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
+		if (!environment) {
+			const provider = this.sessionsProvidersService.getProvider(providerId);
+			environment = provider && getRemoteSessionCreationEnvironment(provider);
+		}
 		if (environment) {
 			this._pickedEnvironment.set(options.preferDevContainer
 				? { ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }
