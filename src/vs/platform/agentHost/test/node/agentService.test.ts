@@ -136,6 +136,7 @@ import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY
 import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import { editChatListAsOldBuild, editChatStateAsOldBuild } from './sessionStateCompatibilityFixtures.js';
+import { InMemoryJournalAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -20533,7 +20534,7 @@ suite('AgentService (node dispatcher)', () => {
 				await new Promise<void>((resolve, reject) => legacyDatabase!.close(error => error ? reject(error) : resolve()));
 				legacyDatabase = undefined;
 
-				database = new AgentHostDatabase(path);
+				database = new InMemoryJournalAgentHostDatabase(path);
 				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database));
 				const agent = disposables.add(new MockAgent('copilot'));
 				agent.sessionMetadataOverrides = { startTime: 1, modifiedTime: 1 };
@@ -27135,7 +27136,7 @@ suite('AgentService (node dispatcher)', () => {
 			const backing = createPerSessionDataService();
 			const directory = mkdtempSync(join(tmpdir(), 'agent-host-private-restore-'));
 			const path = join(directory, 'agent-host.db');
-			let database = disposables.add(new AgentHostDatabase(path));
+			let database = disposables.add(new InMemoryJournalAgentHostDatabase(path));
 			try {
 				const errors: string[] = [];
 				const log = new class extends NullLogService {
@@ -27194,7 +27195,7 @@ suite('AgentService (node dispatcher)', () => {
 				await timeout(0);
 				releaseFlush.complete();
 				await disposed;
-				database = disposables.add(new AgentHostDatabase(path));
+				database = disposables.add(new InMemoryJournalAgentHostDatabase(path));
 				const restored = createService();
 				registerTestAgentProvider(restored, agent);
 				await restored.restoreSession(session);
@@ -27202,7 +27203,7 @@ suite('AgentService (node dispatcher)', () => {
 				await database.updateChatV2Metadata(child, row, { metadata: { ...row.metadata, summary: 'Normalized Worker', titleSource: 'user' } });
 				await disposeService(restored);
 				await database.close();
-				database = disposables.add(new AgentHostDatabase(path));
+				database = disposables.add(new InMemoryJournalAgentHostDatabase(path));
 				const restarted = createService();
 				registerTestAgentProvider(restarted, agent);
 				await restarted.restoreSession(session);

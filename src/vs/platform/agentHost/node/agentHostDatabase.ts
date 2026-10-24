@@ -1163,6 +1163,16 @@ function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
 
+export interface IAgentHostDatabaseOptions {
+	/**
+	 * Keeps the connection's rollback journal in memory and skips fsync (`journal_mode = MEMORY`,
+	 * `synchronous = OFF`), so commits neither create a journal file nor wait for the disk. Defaults to `false`.
+	 * That is faster, but a crash can lose or corrupt the database. The database itself stays on disk, and both
+	 * settings last only for this connection: another connection opens the file with a durable journal as usual.
+	 */
+	readonly inMemoryJournal?: boolean;
+}
+
 export class AgentHostDatabase implements IAgentHostDatabase {
 	declare readonly _serviceBrand: undefined;
 
@@ -1175,6 +1185,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	constructor(
 		private readonly _path: string,
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
+		private readonly _options: IAgentHostDatabaseOptions = {},
 	) { }
 
 	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
@@ -4341,6 +4352,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				try {
 					database.serialize();
 					await exec(database, 'PRAGMA foreign_keys = ON');
+					if (this._options.inMemoryJournal) {
+						await exec(database, 'PRAGMA journal_mode = MEMORY; PRAGMA synchronous = OFF');
+					}
 					const versionRow = await get(database, 'PRAGMA user_version', []);
 					const currentVersion = await normalizePreReleaseCatalogSchema(database, (versionRow?.user_version as number | undefined) ?? 0);
 					for (const migration of migrations) {
