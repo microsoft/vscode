@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action } from '../../../../../base/common/actions.js';
@@ -59,6 +60,7 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	environment: {
 		label: localize('remotes.empty.environments', "No environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
+		documentation: { label: localize('remotes.docs.environments', "Environments Setup Guide"), href: 'https://aka.ms/vscode-agent-environments' },
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
@@ -78,6 +80,7 @@ export class RemotesWidget extends Disposable {
 	private readonly searchInput: InputBox;
 	private readonly refreshAction: Action;
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly refreshingKinds = new Set<RemoteKind>();
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedKinds = new Set<RemoteKind>();
@@ -140,8 +143,9 @@ export class RemotesWidget extends Disposable {
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 112 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
 		] as const;
+		const actionHoverDelegate = this._register(createInstantHoverDelegate());
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
-			column.id, (entry, action) => this.runRowAction(entry, action),
+			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
 			instantiationService, hoverService, openerService,
 		));
 		const columns = columnDefinitions.map((column, index) => ({
@@ -159,6 +163,9 @@ export class RemotesWidget extends Disposable {
 				getWidgetAriaLabel: () => label,
 				getAriaLabel: row => {
 					const entry = row.entry;
+					if (entry.type === 'group' && entry.refreshing) {
+						return localize('remotes.groupRefreshingLabel', "{0}, {1} remotes. Refreshing.", entry.label, entry.count);
+					}
 					return entry.type === 'group'
 						? entry.warning
 							? localize('remotes.groupWarningLabel', "{0}, {1} remotes. Warning: {2}", entry.label, entry.count, entry.warning)
@@ -228,7 +235,15 @@ export class RemotesWidget extends Disposable {
 				void this.openDocumentation(entry.documentation.href);
 			}
 		} else if (entry.type === 'remote') {
-			if (action === 'connect') {
+			if (action === 'toggleVisibility') {
+				try {
+					this.model.setHidden(entry.remote.id, !entry.remote.hidden);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						this.notificationService.error(error);
+					}
+				}
+			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'rename') {
 				void this.renameRemote(entry.remote.id);
@@ -299,6 +314,10 @@ export class RemotesWidget extends Disposable {
 		this.refreshAction.enabled = true;
 		this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
 		this.tableContainer.setAttribute('aria-busy', 'false');
+		if (this.refreshingKinds.size) {
+			this.refreshingKinds.clear();
+			this.render();
+		}
 	}
 
 	private async refresh(): Promise<void> {
@@ -309,7 +328,20 @@ export class RemotesWidget extends Disposable {
 		this.refreshAction.class = ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin'));
 		this.tableContainer.setAttribute('aria-busy', 'true');
 		try {
-			const failedKinds = await this.model.refresh(request.token);
+			const failedKinds = await this.model.refresh(request.token, {
+				report: progress => {
+					if (request.token.isCancellationRequested || this._store.isDisposed || this.refreshRequest.value !== request) {
+						return;
+					}
+					if (progress.refreshing) {
+						this.refreshingKinds.add(progress.kind);
+					} else {
+						this.refreshingKinds.delete(progress.kind);
+						this.failedKinds = [...this.failedKinds.filter(kind => kind !== progress.kind), ...(progress.failed ? [progress.kind] : [])];
+					}
+					this.render();
+				},
+			});
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
 				this.failedKinds = failedKinds;
 				this.hasRefreshed = true;
@@ -329,6 +361,7 @@ export class RemotesWidget extends Disposable {
 				this.refreshAction.class = ThemeIcon.asClassName(Codicon.refresh);
 				this.refreshRequest.clear();
 				this.tableContainer.setAttribute('aria-busy', 'false');
+				this.refreshingKinds.clear();
 				this.render();
 			}
 		}
@@ -363,14 +396,14 @@ export class RemotesWidget extends Disposable {
 			const collapsed = this.collapsedKinds.has(kind);
 			entries.push({
 				type: 'group', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
-				count: groupRemotes.length, collapsed, warning: this.getRefreshWarning(kind),
+				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
 				documentation: remoteSetup[kind].documentation,
 			});
 			if (!collapsed) {
 				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
 					busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
-				})) : this.hasRefreshed ? [this.getEmptyEntry(kind)] : []));
+				})) : this.hasRefreshed || this.failedKinds.includes(kind) ? [this.getEmptyEntry(kind)] : []));
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
@@ -429,7 +462,10 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
-		const label = localize('remotes.accessibleRow', "{0}. Connection: {1}", remote.name,
+		const name = remote.pickerUnavailableReason
+			? localize('remotes.unavailablePickerName', "{0} (not shown in Environment picker: {1})", remote.name, remote.pickerUnavailableReason)
+			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
+		const label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}
@@ -458,10 +494,11 @@ export class RemotesWidget extends Disposable {
 			if (this.query && entries.length === 0) {
 				return [];
 			}
-			const empty = entries.length || !this.hasRefreshed ? undefined : this.getEmptyEntry(kind);
+			const empty = entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],
+				...(this.refreshingKinds.has(kind) ? [localize('remotes.refreshingGroup', "Refreshing.")] : []),
 				...(warning ? [warning] : []),
 				...entries.map(remote => this.getRemoteAriaLabel(remote)),
 				...(empty ? [empty.label, empty.description ?? ''] : []),

@@ -25,7 +25,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Menus } from '../../../browser/menus.js';
-import { getAgentHostConnectionStatusLabel, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { getAgentHostConnectionStatusLabel, isAgentHostEnvironmentAvailable, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -61,14 +61,26 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
 	}
 	for (const provider of visible) {
-		if (!isAgentHostProvider(provider) || !provider.connectionStatus || provider.hostGroup) {
-			continue;
+		const environment = getRemoteSessionCreationEnvironment(provider);
+		if (environment) {
+			environments.push(environment);
 		}
-		const connection = provider.connectionStatus.get();
-		const description = getAgentHostConnectionStatusLabel(connection);
-		environments.push({ id: provider.id, kind: 'remote', label: provider.label, icon: provider.icon, providerIds: [provider.id], description });
 	}
 	return environments;
+}
+
+/** Describes a remote independently of picker visibility so an existing draft can retain its destination. */
+export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider, containerRequested = false): ISessionCreationEnvironment | undefined {
+	if (!isRemoteSessionCreationEnvironment(provider)) {
+		return undefined;
+	}
+	return {
+		id: containerRequested ? `container:${provider.id}` : provider.id,
+		kind: containerRequested ? 'container' : 'remote',
+		label: containerRequested ? localize('environmentPicker.container', "Dev Container") : provider.label,
+		icon: containerRequested ? Codicon.remote : provider.icon, providerIds: [provider.id],
+		description: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
+	};
 }
 
 export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): ISessionsProvider | undefined {
@@ -79,7 +91,7 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	for (const provider of providers) {
 		if (!environment.providerIds.includes(provider.id)
 			|| provider.supportsWorkspaceSelection === false
-			|| isAgentHostProvider(provider) && provider.isVisibleInEnvironmentPicker?.get() === false) {
+			|| isAgentHostProvider(provider) && !isAgentHostEnvironmentAvailable(provider)) {
 			continue;
 		}
 		const workspace = provider.resolveWorkspace(folderUri);
@@ -90,12 +102,14 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	return undefined;
 }
 
-export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false): ISessionCreationEnvironment | undefined {
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false, selectedProvider?: ISessionsProvider): ISessionCreationEnvironment | undefined {
 	const local = environments.find(environment => environment.kind === 'local');
 	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
 		return local;
 	}
-	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? '')) ?? local;
+	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? ''))
+		?? (selectedProvider && selectedProvider.id === providerId ? getRemoteSessionCreationEnvironment(selectedProvider, containerRequested) : undefined)
+		?? local;
 }
 
 interface IEnvironmentPickerItem {
