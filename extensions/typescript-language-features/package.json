@@ -1790,6 +1790,12 @@
             "default": 500,
             "description": "%configuration.hover.maximumLength%",
             "scope": "resource"
+          },
+          "js/ts.folding.includeClosingDelimiters": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.folding.includeClosingDelimiters%",
+            "scope": "language-overridable"
           }
         }
       },
