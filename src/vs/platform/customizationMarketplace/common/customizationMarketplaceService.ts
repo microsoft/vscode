@@ -92,6 +92,7 @@ export interface ICustomizationMarketplaceEntry {
 	/** Source-supplied origin within a feed, distinct from the feed's display name. */
 	readonly originLabel?: string;
 	readonly version?: string;
+	readonly installCount?: number;
 	readonly stars?: number;
 	/** Source-assigned relevance from 0 to 100, not a quality or trust rating. Unscored search results rank as 0. */
 	readonly score?: number;

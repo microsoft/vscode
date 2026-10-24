@@ -270,6 +270,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					capabilities: [],
 					representativeQueries: [],
 					connectorIds: item.connectorIds,
+					...(item.installCount !== undefined ? { installCount: item.installCount } : {}),
 					version: item.version,
 					repository: item.repository ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${item.repository}` }) : undefined,
 					publisher: item.publisher,

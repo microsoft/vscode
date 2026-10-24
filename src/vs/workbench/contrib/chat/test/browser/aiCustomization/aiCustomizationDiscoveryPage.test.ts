@@ -1160,6 +1160,48 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('blank Canvas search sorts by install count with stable zero and tie handling', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:canvas');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('first-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 5 }),
+				resource('missing-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
+				resource('highest-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 12 }),
+				resource('second-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 5 }),
+				resource('zero-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 0 }),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+		const positions = ['highest-count', 'first-tie', 'second-tie', 'missing-count', 'zero-count'].map(name => content.indexOf(name));
+
+		assert.deepStrictEqual({
+			ordered: [...positions].sort((first, second) => first - second),
+			positions,
+		}, {
+			ordered: positions,
+			positions,
+		});
+	});
+
+	test('Canvas text search preserves semantic order instead of sorting by install count', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('diagram @type:canvas');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('diagram-semantic-first', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 1 }),
+				resource('diagram-popular-second', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'], installCount: 100 }),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+
+		assert.ok(content.indexOf('diagram-semantic-first') < content.indexOf('diagram-popular-second'));
+	});
+
 	test('combining Canvas with another type preserves the other type query and results', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:mcp @type:canvas');

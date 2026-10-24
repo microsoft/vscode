@@ -884,6 +884,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			itemUrl: candidate.kind !== 'plugin' && candidate.source.kind === 'url' ? candidate.source.url : undefined,
 			connectorIds: candidate.connectorIds,
 			tags: getCanvasCompatibilityTags(candidate),
+			installCount: candidate.installCount,
 			installable: true,
 		};
 	}

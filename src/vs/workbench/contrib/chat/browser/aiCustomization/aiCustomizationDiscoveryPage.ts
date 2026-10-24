@@ -2066,6 +2066,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
 				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
 		});
+		if (this.isCanvasOnlyQuery() && !query) {
+			return matching
+				.map((resource, originalIndex) => ({ resource, originalIndex }))
+				.sort((first, second) => (second.resource.installCount ?? 0) - (first.resource.installCount ?? 0) || first.originalIndex - second.originalIndex)
+				.map(({ resource }) => ({ resource }));
+		}
 		return this.selectedSourceId
 			? matching.map(resource => ({ resource }))
 			: prioritizeLinkedCopilotConnectors(matching);
