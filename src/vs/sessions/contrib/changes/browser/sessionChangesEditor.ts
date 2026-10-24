@@ -61,7 +61,7 @@ import { localize } from '../../../../nls.js';
 import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, toggleMultiDiffEditorFileList } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { MultiDiffEditorWithFileListWidget } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorWithFileListWidget.js';
 import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChangesEmptyState } from './changesEmptyState.js';
@@ -338,8 +338,16 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		return widget;
 	}
 
-	/** Moves focus into the changed files list of a chat window's Changes editor. */
+	/** Chat windows offer Toggle Files in the editor title, the main window has no changed files list. */
+	get togglesFileListFromEditorTitle(): boolean {
+		return !!this.fileListWidget;
+	}
+
+	/** Moves focus into the changed files list of a chat window's Changes editor, showing it first when hidden. */
 	focusFileList(): void {
+		if (this.fileListWidget && !MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
+			toggleMultiDiffEditorFileList(this.storageService);
+		}
 		this.fileListWidget?.focusFileList();
 	}
 

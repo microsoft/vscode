@@ -8,10 +8,9 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { MultiDiffEditorFileListFocusedContext } from '../common/multiDiffEditor.js';
+import { isMultiDiffEditorFileListHost, MultiDiffEditorFileListFocusedContext } from '../common/multiDiffEditor.js';
 
 class MultiDiffEditorFileListAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
@@ -22,17 +21,14 @@ class MultiDiffEditorFileListAccessibilityHelp implements IAccessibleViewImpleme
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
-		// Other multi diff editors, such as the Changes editor of Agents window chat windows, also host the list.
-		const host = editor as { focusFileList?: () => void } | undefined;
-		const focusFileList = typeof host?.focusFileList === 'function' ? () => host.focusFileList?.() : undefined;
-		if (!focusFileList) {
+		if (!isMultiDiffEditorFileListHost(editor)) {
 			return undefined;
 		}
-		// Chat windows of the Agents window offer Toggle Files, unlike its main window.
-		const chatWindow = !!accessor.get(IContextKeyService).getContextKeyValue<string>('sessions.chatWindow');
+		const focusFileList = () => editor.focusFileList();
+		const togglesFromEditorTitle = !!editor.togglesFileListFromEditorTitle;
 
 		// The Agents window's main window offers Toggle Details instead of Toggle Files, and the submenu in the tab bar's More Actions menu.
-		const actionsHelp = chatWindow
+		const actionsHelp = togglesFromEditorTitle
 			? localize('multiDiffEditor.fileListHelp.chatWindowActions', "Use Toggle Files in the editor toolbar to show or hide the changed files. The Files View & Position submenu in the editor toolbar's More Actions menu switches between a list and a folder tree, and moves the files to the left or right of the diffs.")
 			: accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
 				? localize('multiDiffEditor.fileListHelp.agentsWindowActions', "Use Toggle Details in the editor toolbar{0} to show or hide the changed files. The Files View & Position submenu in the tab bar's More Actions menu switches between a list and a folder tree, and moves the files to the left or right of the diffs.", '<keybinding:workbench.action.agentSessions.toggleDetails>')
