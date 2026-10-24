@@ -381,6 +381,30 @@ function sanitizeRelativePath(path: string): string {
 	return path.replace(/\\/g, '/');
 }
 
+/**
+ * Derives the default folder name for a clone from its URL.
+ *
+ * Handles URLs with a scheme (`https://host/owner/repo.git`,
+ * `ssh://git@host:22/owner/repo`) as well as scp-like syntax
+ * (`git@host:owner/repo.git`), where the host is separated from the path by a
+ * colon instead of a slash. For scp-like URLs the `[user@]host:` part has to be
+ * stripped, otherwise the folder name contains a colon, which is not a valid
+ * character in a Windows path.
+ */
+export function getRepositoryNameFromUrl(url: string): string {
+	const name = decodeURI(url)
+		// Trailing slashes, e.g. `https://host/owner/repo/`
+		.replace(/[\\/]+$/, '')
+		// scp-like `[user@]host:` prefix, but not a `scheme://` separator
+		.replace(/^(?:[^/\\]*@)?[^/\\:]+:(?!\/\/)/, '')
+		// Everything up to the last path separator
+		.replace(/^.*[\\/\\]/, '')
+		// A `.git` suffix
+		.replace(/\.git$/, '');
+
+	return name || 'repository';
+}
+
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
 const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
@@ -442,7 +466,7 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = options.targetName || decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = options.targetName || getRepositoryNameFromUrl(url);
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
