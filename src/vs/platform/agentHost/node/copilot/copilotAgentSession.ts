@@ -1187,7 +1187,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
 	/** Completed tool calls whose completion waits on persistence before it is published. */
-	private readonly _unpublishedToolCompletions = new Map<string, ICopilotActiveToolCall>();
+	private readonly _unpublishedToolCompletions = new Map<string, { readonly toolCall: ICopilotActiveToolCall; readonly completion: Promise<void> }>();
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _subagents = this._register(new CopilotSubagentTracking());
@@ -3345,7 +3345,8 @@ export class CopilotAgentSession extends Disposable {
 	 * replayed: a new running row would ask the client to execute them again.
 	 */
 	private _transferProvisionalFusionToolCalls(fromTurnId: string, toTurnId: string): void {
-		for (const [toolCallId, toolCall] of [...this._activeToolCalls, ...this._unpublishedToolCompletions]) {
+		const unpublished = [...this._unpublishedToolCompletions].map(([toolCallId, { toolCall }]) => [toolCallId, toolCall] as const);
+		for (const [toolCallId, toolCall] of [...this._activeToolCalls, ...unpublished]) {
 			if (toolCall.turnId !== fromTurnId
 				|| (toolCall.parentToolCallId && !this._fusionPhases.has(toolCall.parentToolCallId))
 				|| toolCall.contributor?.kind === ToolCallContributorKind.Client
@@ -3354,6 +3355,11 @@ export class CopilotAgentSession extends Disposable {
 				continue;
 			}
 			toolCall.turnId = toTurnId;
+			// The successor turn must wait for the completion before it can end.
+			const pending = this._unpublishedToolCompletions.get(toolCallId);
+			if (pending?.toolCall === toolCall) {
+				this._currentTurn.value?.trackToolCompletion(pending.completion);
+			}
 			if (toolCall.parentToolCallId || isTaskCompleteTool(toolCall.toolName)) {
 				continue;
 			}
@@ -9449,7 +9455,6 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const outputDatabase = outputFilePath || hasResources ? this._sessionDataService.openDatabase(this._storageUri) : undefined;
-			this._unpublishedToolCompletions.set(e.data.toolCallId, tracked);
 			const deferred = isSubagent ? new DeferredPromise<AgentSignal | undefined>() : undefined;
 			if (parentToolCallId && deferred) {
 				this._pendingSubagentToolCompletions.set(e.data.toolCallId, deferred);
@@ -9510,7 +9515,7 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			}).finally(() => {
-				if (this._unpublishedToolCompletions.get(e.data.toolCallId) === tracked) {
+				if (this._unpublishedToolCompletions.get(e.data.toolCallId)?.toolCall === tracked) {
 					this._unpublishedToolCompletions.delete(e.data.toolCallId);
 				}
 				if (deferred && !deferred.isSettled) {
@@ -9520,6 +9525,7 @@ export class CopilotAgentSession extends Disposable {
 					this._pendingSubagentToolCompletions.delete(e.data.toolCallId);
 				}
 			});
+			this._unpublishedToolCompletions.set(e.data.toolCallId, { toolCall: tracked, completion });
 			if (outputFilePath || hasResources) {
 				this._pendingOutputCaptures.add(completion);
 				void completion.finally(() => this._pendingOutputCaptures.delete(completion));
