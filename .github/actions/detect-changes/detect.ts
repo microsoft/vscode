@@ -144,7 +144,22 @@ const coreTestRules: readonly ICoreTestRule[] = [
 ];
 
 function matchesAny(path: string, patterns: readonly string[]): boolean {
-	return patterns.some(pattern => pattern.endsWith('/') ? path.startsWith(pattern) : path === pattern);
+	return patterns.some(pattern => {
+		if (pattern.endsWith('/')) {
+			return path.startsWith(pattern);
+		}
+		if (path === pattern) {
+			return true;
+		}
+		if (pattern.includes('*')) {
+			const regexString = '^' + pattern
+				.replace(/\./g, '\\.')
+				.replace(/\*\*/g, '.*')
+				.replace(/\*/g, '[^/]*') + '$';
+			return new RegExp(regexString).test(path);
+		}
+		return false;
+	});
 }
 
 async function listChangedPaths(github: IGitHub, context: IContext, core: ICore): Promise<readonly string[] | undefined> {
