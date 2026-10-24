@@ -22,7 +22,7 @@ const NO_SCORE: FuzzyScore = [NO_MATCH, []];
 // const DEBUG = true;
 // const DEBUG_MATRIX = false;
 
-export function scoreFuzzy(target: string, query: string, queryLower: string, allowNonContiguousMatches: boolean): FuzzyScore {
+export function scoreFuzzy(target: string, query: string, queryLower: string, allowNonContiguousMatches: boolean, wordBoundaryFuzzy: boolean = false): FuzzyScore {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -39,7 +39,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, al
 	// }
 
 	const targetLower = target.toLowerCase();
-	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches);
+	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches, wordBoundaryFuzzy);
 
 	// if (DEBUG) {
 	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
@@ -49,7 +49,25 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, al
 	return res;
 }
 
-function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number, allowNonContiguousMatches: boolean): FuzzyScore {
+function isWordStart(target: string, targetIndex: number): boolean {
+	if (targetIndex === 0) {
+		return true; // start of string is always a word start
+	}
+
+	// After a separator character
+	if (scoreSeparatorAtPos(target.charCodeAt(targetIndex - 1)) > 0) {
+		return true;
+	}
+
+	// CamelCase transition: current char is uppercase and previous is not
+	if (isUpper(target.charCodeAt(targetIndex)) && !isUpper(target.charCodeAt(targetIndex - 1))) {
+		return true;
+	}
+
+	return false;
+}
+
+function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number, allowNonContiguousMatches: boolean, wordBoundaryFuzzy: boolean = false): FuzzyScore {
 	const scores: number[] = [];
 	const matches: number[] = [];
 
@@ -114,7 +132,12 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 				queryIndexGtNull ||
 				// lastly check if the query is completely contiguous at this index in the target
 				targetLower.startsWith(queryLower, targetIndex)
-			)) {
+			) && (
+					// Word boundary fuzzy: when starting a new match group (not a consecutive match),
+					// require the target character to be at a word boundary (start of string, after
+					// separator, or CamelCase transition). Consecutive matches are unrestricted.
+					!wordBoundaryFuzzy || matchesSequenceLength > 0 || isWordStart(target, targetIndex)
+				)) {
 				matches[currentIndex] = matchesSequenceLength + 1;
 				scores[currentIndex] = diagScore + score;
 			}
@@ -386,9 +409,10 @@ const LABEL_KEY_HASH = new ConstantStringHash('label');
 const VALUES_KEY_HASH = new ConstantStringHash('values');
 const EXPECT_CONTIGUOUS_MATCH_KEY_HASH = new ConstantStringHash('expectContiguousMatch');
 const VALUE_KEY_HASH = new ConstantStringHash('value');
+const WORD_BOUNDARY_FUZZY_KEY_HASH = new ConstantStringHash('wordBoundaryFuzzy');
 
 /** Reproduces the generic cache-key hash without constructing its nested object shape. */
-function getCacheHash(label: string, description: string | undefined, allowNonContiguousMatches: boolean, query: IPreparedQuery): number {
+function getCacheHash(label: string, description: string | undefined, allowNonContiguousMatches: boolean, query: IPreparedQuery, wordBoundaryFuzzy: boolean = false): number {
 	let hashVal = numberHash(OBJECT_HASH_SEED, 0);
 	hashVal = stringHash(query.normalized, hashVal);
 
@@ -415,10 +439,13 @@ function getCacheHash(label: string, description: string | undefined, allowNonCo
 		hashVal = doHash(value.normalized, hashVal);
 	}
 
+	hashVal = WORD_BOUNDARY_FUZZY_KEY_HASH.apply(hashVal);
+	hashVal = doHash(wordBoundaryFuzzy, hashVal);
+
 	return hashVal;
 }
 
-export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
+export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache, wordBoundaryFuzzy: boolean = false): IItemScore {
 	if (!item || !query.normalized) {
 		return NO_ITEM_SCORE; // we need an item and query to score on at least
 	}
@@ -435,19 +462,19 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContig
 	// - description (if provided)
 	// - whether non-contiguous matching is enabled or not
 	// - hash of the query (normalized) values
-	const cacheHash = getCacheHash(label, description, allowNonContiguousMatches, query);
+	const cacheHash = getCacheHash(label, description, allowNonContiguousMatches, query, wordBoundaryFuzzy);
 	const cached = cache[cacheHash];
 	if (cached) {
 		return cached;
 	}
 
-	const itemScore = doScoreItemFuzzy(label, description, accessor.getItemPath(item), query, allowNonContiguousMatches);
+	const itemScore = doScoreItemFuzzy(label, description, accessor.getItemPath(item), query, allowNonContiguousMatches, wordBoundaryFuzzy);
 	cache[cacheHash] = itemScore;
 
 	return itemScore;
 }
 
-function doScoreItemFuzzy(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, allowNonContiguousMatches: boolean): IItemScore {
+function doScoreItemFuzzy(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, allowNonContiguousMatches: boolean, wordBoundaryFuzzy: boolean = false): IItemScore {
 	const preferLabelMatches = !path || !query.containsPathSeparator;
 
 	// Treat identity matches on full path highest
@@ -457,20 +484,20 @@ function doScoreItemFuzzy(label: string, description: string | undefined, path: 
 
 	// Score: multiple inputs
 	if (query.values && query.values.length > 1) {
-		return doScoreItemFuzzyMultiple(label, description, path, query.values, preferLabelMatches, allowNonContiguousMatches);
+		return doScoreItemFuzzyMultiple(label, description, path, query.values, preferLabelMatches, allowNonContiguousMatches, wordBoundaryFuzzy);
 	}
 
 	// Score: single input
-	return doScoreItemFuzzySingle(label, description, path, query, preferLabelMatches, allowNonContiguousMatches);
+	return doScoreItemFuzzySingle(label, description, path, query, preferLabelMatches, allowNonContiguousMatches, wordBoundaryFuzzy);
 }
 
-function doScoreItemFuzzyMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, allowNonContiguousMatches: boolean): IItemScore {
+function doScoreItemFuzzyMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, allowNonContiguousMatches: boolean, wordBoundaryFuzzy: boolean = false): IItemScore {
 	let totalScore = 0;
 	const totalLabelMatches: IMatch[] = [];
 	const totalDescriptionMatches: IMatch[] = [];
 
 	for (const queryPiece of query) {
-		const { score, labelMatch, descriptionMatch } = doScoreItemFuzzySingle(label, description, path, queryPiece, preferLabelMatches, allowNonContiguousMatches);
+		const { score, labelMatch, descriptionMatch } = doScoreItemFuzzySingle(label, description, path, queryPiece, preferLabelMatches, allowNonContiguousMatches, wordBoundaryFuzzy);
 		if (score === NO_MATCH) {
 			// if a single query value does not match, return with
 			// no score entirely, we require all queries to match
@@ -496,7 +523,7 @@ function doScoreItemFuzzyMultiple(label: string, description: string | undefined
 	};
 }
 
-function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, allowNonContiguousMatches: boolean): IItemScore {
+function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, allowNonContiguousMatches: boolean, wordBoundaryFuzzy: boolean = false): IItemScore {
 
 	// Prefer label matches if told so or we have no description
 	if (preferLabelMatches || !description) {
@@ -504,7 +531,8 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 			label,
 			query.normalized,
 			query.normalizedLowercase,
-			allowNonContiguousMatches && !query.expectContiguousMatch);
+			allowNonContiguousMatches && !query.expectContiguousMatch,
+			wordBoundaryFuzzy);
 		if (labelScore) {
 
 			// If we have a prefix match on the label, we give a much
@@ -546,7 +574,8 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 			descriptionAndLabel,
 			query.normalized,
 			query.normalizedLowercase,
-			allowNonContiguousMatches && !query.expectContiguousMatch);
+			allowNonContiguousMatches && !query.expectContiguousMatch,
+			wordBoundaryFuzzy);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -645,9 +674,9 @@ function matchOverlaps(matchA: IMatch, matchB: IMatch): boolean {
 
 //#region Comparers
 
-export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): number {
-	const itemScoreA = scoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache);
-	const itemScoreB = scoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache);
+export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache, wordBoundaryFuzzy: boolean = false): number {
+	const itemScoreA = scoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache, wordBoundaryFuzzy);
+	const itemScoreB = scoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache, wordBoundaryFuzzy);
 
 	const scoreA = itemScoreA.score;
 	const scoreB = itemScoreB.score;
