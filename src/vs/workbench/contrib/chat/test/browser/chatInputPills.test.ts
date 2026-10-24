@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Action, SubmenuAction, toAction, type IAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -192,6 +193,20 @@ suite('StandardChatInputPillSources', () => {
 			preferred: AnchorPosition.ABOVE,
 			fixed: undefined,
 		})));
+	});
+
+	test('renders the Customizations pill with the Agents Window Customizations icon', () => {
+		const pills = createPills({
+			customizations: {
+				sections: constObservable([{
+					title: 'Customizations',
+					entries: [{ id: 'skill', label: 'Skill', open: () => { } }],
+				}]),
+			},
+		});
+		pills.visibility.toggle(SessionChatPillKind.Customizations);
+
+		assert.strictEqual(pills.inputPills.element.querySelector('.chat-pill-icon')?.classList.contains(`codicon-${Codicon.extensions.id}`), true);
 	});
 
 	test('background shells are visible by default and a single shell still opens a picker', () => {
