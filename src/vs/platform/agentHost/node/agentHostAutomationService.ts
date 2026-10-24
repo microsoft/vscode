@@ -20,7 +20,7 @@ import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomat
 import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
-import { automationHasModelSourceSelection, getModelSourceSelectionError } from '../common/agentModelSelection.js';
+import { automationHasModelSourceSelection, getModelSourceSelectionError, normalizeAgentModelMessage } from '../common/agentModelSelection.js';
 import { createAgentModelCatalog } from '../common/agentModelSource.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
@@ -714,7 +714,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (!entry) {
 				throw new Error(`Automation not found: ${initialRun.automation}`);
 			}
-			definition = entry.definition;
+			definition = this._withModelSourceOwner(entry.definition);
 			this._validateDefinition(definition);
 			const sessionTemplate = getExecutionSessionTemplate(definition);
 			const template = { ...sessionTemplate, agent: this._customizations.resolveAgent(sessionTemplate, entry.customizations ?? []) };
@@ -1116,6 +1116,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _withModelSourceOwner(definition: AutomationDefinition, previous?: AutomationDefinition): AutomationDefinition {
+		if (previous?.session.provider) {
+			previous = this._withModelSourceOwner(previous);
+		}
+		const agent = this._providerService.resolveProvider(previous?.session.provider ?? definition.session.provider);
+		const model = definition.session.model && agent?.normalizeModelSelection?.(definition.session.model);
+		const message = normalizeAgentModelMessage(agent, definition.message);
+		if ((model !== undefined && model !== definition.session.model) || message !== definition.message) {
+			definition = { ...definition, message, session: { ...definition.session, ...(model ? { model } : {}) } };
+		}
 		if (!automationHasModelSourceSelection(definition)) {
 			return definition;
 		}

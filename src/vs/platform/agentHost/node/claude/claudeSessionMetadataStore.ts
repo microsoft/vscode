@@ -8,8 +8,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { ClaudePermissionMode, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { IAgentChatMetadata } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
+import type { AgentSelection, ModelSelection, Turn } from '../../common/state/protocol/state.js';
 import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
+import { normalizeClaudeModelSelection } from './claudeModelSelection.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
@@ -77,6 +80,7 @@ export class ClaudeSessionMetadataStore {
 	private static readonly KEY_AGENT = 'claude.agent';
 	private static readonly KEY_TRANSPORT = 'claude.transport';
 	private static readonly KEY_WORKING_DIRECTORIES = 'claude.workingDirectories';
+	private static readonly KEY_TURN_MODEL_PREFIX = 'claude.turn.model.';
 
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
@@ -177,7 +181,72 @@ export class ClaudeSessionMetadataStore {
 		} finally {
 			ref.dispose();
 		}
+	}
 
+	/** The SDK journals the caller-supplied message UUID, which is also the live host turn ID. */
+	async writeTurnModel(session: URI, turnId: string, model: ModelSelection | undefined): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(session);
+		try {
+			await ref.object.createTurn(turnId);
+			await ref.object.setTurnEventId(turnId, turnId);
+			if (model) {
+				await ref.object.setMetadata(`${ClaudeSessionMetadataStore.KEY_TURN_MODEL_PREFIX}${turnId}`, serializeModelSelection(model));
+			}
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/** Restore recorded selections, never guessing them from the current model or actual usage. */
+	async restoreTurnModels(session: URI, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return turns;
+		}
+		try {
+			const keys = Object.fromEntries(turns.map(turn => [`${ClaudeSessionMetadataStore.KEY_TURN_MODEL_PREFIX}${turn.id}`, true as const]));
+			const recorded = await ref.object.getMetadataObject(keys);
+			return turns.map(turn => {
+				const model = parseModelSelection(recorded[`${ClaudeSessionMetadataStore.KEY_TURN_MODEL_PREFIX}${turn.id}`]);
+				return model ? { ...turn, message: { ...turn.message, model } } : turn;
+			});
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	async copyTurnModels(source: URI, destination: URI, turnIds: readonly string[]): Promise<void> {
+		const sourceRef = await this._sessionDataService.tryOpenDatabase(source);
+		if (!sourceRef) {
+			return;
+		}
+		try {
+			const keys = Object.fromEntries(turnIds.map(id => [`${ClaudeSessionMetadataStore.KEY_TURN_MODEL_PREFIX}${id}`, true as const]));
+			const values = await sourceRef.object.getMetadataObject(keys);
+			const destinationRef = this._sessionDataService.openDatabase(destination);
+			try {
+				const models = Object.fromEntries(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined));
+				await destinationRef.object.setMetadataValues(models);
+			} finally {
+				destinationRef.dispose();
+			}
+		} finally {
+			sourceRef.dispose();
+		}
+	}
+
+	async retainTurnModels(session: URI, turnIds: readonly string[]): Promise<void> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return;
+		}
+		try {
+			const retained = new Set(turnIds.map(id => `${ClaudeSessionMetadataStore.KEY_TURN_MODEL_PREFIX}${id}`));
+			const values = await ref.object.getMetadataByPrefix(ClaudeSessionMetadataStore.KEY_TURN_MODEL_PREFIX);
+			await ref.object.deleteMetadata(Object.keys(values).filter(key => !retained.has(key)));
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	/**
@@ -230,7 +299,7 @@ function parseWorkingDirectories(raw: string | undefined): readonly URI[] | unde
 }
 
 function serializeModelSelection(model: ModelSelection): string {
-	return JSON.stringify(model);
+	return JSON.stringify(normalizeClaudeModelSelection(model));
 }
 
 function parseModelSelection(raw: string | undefined): ModelSelection | undefined {
@@ -238,13 +307,19 @@ function parseModelSelection(raw: string | undefined): ModelSelection | undefine
 		return undefined;
 	}
 	try {
-		const value: { id?: unknown; config?: unknown } | string | number | boolean | null = JSON.parse(raw);
+		const value: { id?: unknown; config?: unknown; modelSourceId?: unknown } | string | number | boolean | null = JSON.parse(raw);
 		if (value && typeof value === 'object' && typeof value.id === 'string') {
 			const result: ModelSelection = { id: value.id };
+			if (value.modelSourceId !== undefined) {
+				if (typeof value.modelSourceId !== 'string') {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid stored Claude model source.');
+				}
+				result.modelSourceId = value.modelSourceId;
+			}
 			if (value.config && typeof value.config === 'object') {
-				const config: Record<string, string> = {};
+				const config: NonNullable<ModelSelection['config']> = {};
 				for (const [key, configValue] of Object.entries(value.config)) {
-					if (typeof configValue === 'string') {
+					if (configValue === null || typeof configValue === 'string' || typeof configValue === 'boolean' || (typeof configValue === 'number' && Number.isFinite(configValue))) {
 						config[key] = configValue;
 					}
 				}
@@ -252,10 +327,22 @@ function parseModelSelection(raw: string | undefined): ModelSelection | undefine
 					result.config = config;
 				}
 			}
-			return result;
+			return normalizeClaudeModelSelection(result);
 		}
-	} catch {
+		if (value && typeof value === 'object') {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid stored Claude model-source selection.');
+		}
+		if (typeof value === 'string') {
+			return normalizeClaudeModelSelection({ id: value });
+		}
+	} catch (error) {
+		if (!(error instanceof SyntaxError)) {
+			throw error;
+		}
+		if (/^\s*[{["]/.test(raw)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid stored Claude model-source selection.');
+		}
 		// Older session metadata stored the raw model id as a plain string.
 	}
-	return { id: raw };
+	return normalizeClaudeModelSelection({ id: raw });
 }

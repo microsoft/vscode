@@ -296,6 +296,10 @@ export class ClaudeSdkPipeline extends Disposable {
 	 */
 	get hasActiveTurn(): boolean { return !this._queue.isEmpty; }
 
+	get hasPendingConfiguration(): boolean {
+		return this._currentModel !== this._appliedModel || this._currentEffort !== this._appliedEffort || this._currentPermissionMode !== this._appliedPermissionMode;
+	}
+
 	/**
 	 * Abort the live SDK subprocess and **await its actual exit**.
 	 *
@@ -370,6 +374,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				this._appliedModel = model;
 			} catch (err) {
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] setModel failed: ${err}`);
+				throw err;
 			}
 		}
 	}
@@ -435,6 +440,8 @@ export class ClaudeSdkPipeline extends Disposable {
 		}
 		if (!this._query) {
 			this._bindWarmQuery();
+			await this._replayCurrentConfig();
+		} else if (this.hasPendingConfiguration) {
 			await this._replayCurrentConfig();
 		}
 		this._ensureConsumerLoop();
@@ -584,6 +591,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}
 		} catch (err) {
 			this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] _replayCurrentConfig failed: ${err}`);
+			throw err;
 		}
 	}
 

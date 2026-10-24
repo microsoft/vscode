@@ -99,7 +99,7 @@ import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSa
 import { hasSingleUserChat, ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
 import { IAgentHostResourceProviders } from './agentHostResourceProviders.js';
-import { chatHasModelSourceSelection, conversationHasModelSourceSelection } from '../common/agentModelSelection.js';
+import { chatHasModelSourceSelection, conversationHasModelSourceSelection, normalizeAgentModelAction } from '../common/agentModelSelection.js';
 import { GIT_BLOB_SCHEME } from './gitDiffContent.js';
 import { EditAttributionResourceProvider } from './resourceProviders/editAttributionResourceProvider.js';
 import { GitBlobResourceProvider } from './resourceProviders/gitBlobResourceProvider.js';
@@ -12672,6 +12672,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void {
 		const origin = { clientId, clientSeq };
+		try {
+			action = normalizeAgentModelAction(this._providerService.getProviderForSession(sessionChannel), action);
+		} catch (error) {
+			this._logService.warn('[AgentService] Invalid legacy model selection', error);
+			this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+			return;
+		}
 		if (action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved) {
 			const id = action.id;
 			const state = this._stateManager.getChatState(channel);

@@ -22,6 +22,7 @@ import { GitRepositoryRootsContribution } from './gitRepositoryRoots/gitReposito
 import { LocalCommandContribution } from './localCommand/localCommandContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { ModelSourceSelectionContribution } from './modelSourceSelection/modelSourceSelectionContribution.js';
+import { ModelSelectionMigrationContribution } from './modelSourceSelection/modelSelectionMigrationContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
 import { PersistedFailedTurnsContribution } from './persistedFailedTurns/persistedFailedTurnsContribution.js';
@@ -50,6 +51,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ExternalSessionAdoptionContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
 	registrations.add(contributions.registerContribution(ModelSourceSelectionContribution));
+	registrations.add(contributions.registerContribution(ModelSelectionMigrationContribution));
 	registrations.add(contributions.registerContribution(GitRepositoryRootsContribution));
 	registrations.add(contributions.registerContribution(ChatInputContribution));
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));

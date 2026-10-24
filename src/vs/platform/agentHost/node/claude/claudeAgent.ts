@@ -52,7 +52,8 @@ import { ICopilotApiService } from '../shared/copilotApiService.js';
 import { ClaudeSdkPackage, IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildModelEnumerationOptions } from './claudeSdkOptions.js';
 import { isClaudeAccountSetUp, resolveClaudeTransportMode, type ClaudeTransportMode } from './claudeTransportMode.js';
-import { mergeClaudeModelCatalogs, resolveClaudeSessionTransport } from './claudeModelSelection.js';
+import { mergeClaudeModelCatalogs, normalizeClaudeModelSelection, resolveClaudeSessionTransport } from './claudeModelSelection.js';
+import { JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { mapSessionMessagesToTurns, resolveForkAnchorUuid } from './claudeReplayMapper.js';
 import { getSubagentTranscript } from './claudeSubagentResolver.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -112,11 +113,8 @@ interface IClaudeModelSupports {
  * Project a {@link CCAModel} into the agent host's
  * {@link IAgentModelInfo} surface. The returned `provider` defaults to the
  * agent's id (`'claude'`), NOT the upstream `vendor: 'Anthropic'` field — the
- * chat model picker *groups* (does not filter) the model list by `provider`, so
- * a single, un-merged catalog buckets under the harness. When per-session
- * provider selection is on, {@link mergeClaudeModelCatalogs} re-stamps each model
- * with its transport provider (`copilot`/`anthropic`) to split the picker into a
- * Copilot group and an Anthropic group.
+ * owning harness. {@link mergeClaudeModelCatalogs} adds a typed model source
+ * without rewriting the raw model ID or changing this routing owner.
  */
 function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo {
 	const supports = m.capabilities?.supports;
@@ -215,6 +213,7 @@ interface IClaudeChatBacking {
 interface IClaudeInheritedConversation {
 	readonly sdkSessionId?: string;
 	readonly inheritedTurnId?: string;
+	readonly inheritedTurnIds?: readonly string[];
 }
 
 /**
@@ -735,10 +734,30 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			displayName: localize('claudeAgent.displayName', "Claude"),
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
 			capabilities: {
+				modelSourceSelection: {},
 				multipleChats: { fork: true, sideChat: true },
 				multipleWorkingDirectories: { immutablePrimary: true },
 			},
 		};
+	}
+
+	normalizeModelSelection(model: ModelSelection): ModelSelection {
+		return normalizeClaudeModelSelection(model);
+	}
+
+	private async _validateModelSource(model: ModelSelection | undefined): Promise<void> {
+		if (model?.modelSourceId === undefined) {
+			return;
+		}
+		normalizeClaudeModelSelection(model);
+		if (this._modelRefreshInFlight) {
+			await this._modelRefreshInFlight;
+		} else if (!this._models.get().length) {
+			await this.refreshModels();
+		}
+		if (!this._models.get().some(candidate => candidate.id === model.id && candidate.modelSource?.id === model.modelSourceId && candidate.policyState !== PolicyState.Disabled)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('claude.modelSourceUnavailable', "The selected Claude model source and model are no longer available."));
+		}
 	}
 
 	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
@@ -1134,6 +1153,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// pipeline (the next send applies it).
 			const live = existing ?? await this._ensureResolvedChatSession(current);
 			await live.truncateToTurn(turnId, anchor, current.resource);
+			const anchorIndex = messages.findIndex(message => message.uuid === anchor);
+			await this._metadataStore.retainTurnModels(current.resource, mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), chat, this._logService).map(turn => turn.id));
 			this._logService.info(`[Claude:${sdkSessionId}] truncateChat kept [0..${turnId}] (anchor=${anchor})`);
 		});
 	}
@@ -1164,6 +1185,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		await this._sdkService.deleteSession(sdkSessionId);
 		const fresh = await this._createProvisionalChatSession(context.owner, context.chat, context.resource, workingDirectories);
 		await fresh.pruneAllTurns(context.resource);
+		await this._metadataStore.retainTurnModels(context.resource, []);
 		this._logService.info(`[Claude:${sdkSessionId}] truncateChat removed all turns (deleteSession + fresh same-id)`);
 	}
 
@@ -1278,6 +1300,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// value: the agent owns transport resolution (it holds the live proxy
 		// handle), the session just consumes it. A later per-session provider
 		// switch is pushed in separately at send time (see `hasPendingTransportSwitch`).
+		if (session.provisionalModel?.modelSourceId !== undefined) {
+			await this._validateModelSource(session.provisionalModel);
+		}
 		const transport = this._ensureAuthenticated(session.provisionalModel);
 
 		const canUseTool = this._makeCanUseTool(sessionId, context.owner);
@@ -1389,8 +1414,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// Mutually exclusive with `options.fork` (per the contract), so it never
 		// changes the model a fork inherits below.
 		const model = options?.importConversation?.model ?? options?.model;
-		// An inherited model is resolved from the source conversation at materialization.
-		if (model || !options?.fork) {
+		// AHP provisions a model-less session before its first model-bearing message.
+		// Resolve inherited or absent selections at materialization, not against an unrelated default here.
+		if (model) {
 			this._ensureAuthenticated(model);
 		}
 		const chatKey = chat.toString();
@@ -1433,6 +1459,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * freshly minted one otherwise.
 	 */
 	private async _bindChatConversation(chat: URI, context: IAgentChatContext, model: ModelSelection | undefined, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		model = model && normalizeClaudeModelSelection(model);
+		if (model?.modelSourceId !== undefined) {
+			await this._validateModelSource(model);
+		}
 		const inherited = await this._inheritSourceConversation(options);
 		return inherited.sdkSessionId !== undefined
 			? this._bindInheritedConversation(chat, context, { ...inherited, sdkSessionId: inherited.sdkSessionId }, model, options)
@@ -1458,6 +1488,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return {
 			...(forked ? { sdkSessionId: forked.sessionId } : {}),
 			...(forked?.inheritedTurnId !== undefined ? { inheritedTurnId: forked.inheritedTurnId } : {}),
+			...(forked ? { inheritedTurnIds: forked.inheritedTurnIds } : {}),
 		};
 	}
 
@@ -1497,6 +1528,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		try {
 			sourceOverlay = await this._metadataStore.read(sourceResource);
 		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
 			this._logService.warn(`[Claude] createChat: source overlay read failed for ${sourceResource.toString()}; continuing with defaults`, err);
 		}
 		const sourceSdkId = sourceChat ? this._sourceChatSdkId(sourceChat) : undefined;
@@ -1534,6 +1568,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			...(agent ? { agent } : {}),
 			workingDirectories,
 		});
+		if (inherited.inheritedTurnIds?.length) {
+			await this._metadataStore.copyTurnModels(sourceResource, context.resource, inherited.inheritedTurnIds);
+		}
 		const project = await this._resolveProject(workingDirectory);
 		const backing = this._recordChatBacking(chat, {
 			sdkSessionId,
@@ -1686,7 +1723,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the source's sequencer would park the new chat behind the very turn it
 	 * branches from. The SDK's flushed transcript is read-only here.
 	 */
-	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnId: string | undefined } | undefined> {
+	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnId: string | undefined; inheritedTurnIds: readonly string[] } | undefined> {
 		const sourceSdkId = this._sourceChatSdkId(fork.source);
 		if (!sourceSdkId) {
 			this._logService.warn(`[Claude] createChat fork: source ${fork.source.toString()} has no SDK chat; creating fresh chat`);
@@ -1701,7 +1738,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const { sessionId } = await this._sdkService.forkSession(sourceSdkId, { upToMessageId });
 		const anchorIndex = messages.findIndex(message => message.uuid === upToMessageId);
 		const inheritedTurns = mapSessionMessagesToTurns(messages.slice(0, anchorIndex + 1), fork.source, this._logService);
-		return { sessionId, inheritedTurnId: inheritedTurns.at(-1)?.id };
+		return { sessionId, inheritedTurnId: inheritedTurns.at(-1)?.id, inheritedTurnIds: inheritedTurns.map(turn => turn.id) };
 	}
 
 
@@ -1732,6 +1769,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// this pre-`try` site so the freshly-built chat is left registered for a
 		// retry rather than disposed. The resolved transport is passed into materialize
 		// as a value; a per-session provider switch is pushed in later at send time.
+		if (chatSession.provisionalModel?.modelSourceId !== undefined) {
+			await this._validateModelSource(chatSession.provisionalModel);
+		}
 		const transport = this._ensureAuthenticated(chatSession.provisionalModel);
 		const canUseTool = this._makeCanUseTool(chatSession.sessionId, owner);
 		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
@@ -1811,6 +1851,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		try {
 			overlay = await this._metadataStore.read(resource);
 		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
 			this._logService.warn(`[Claude] chat overlay read failed for ${chat.toString()}; continuing with defaults`, err);
 		}
 		const sdkInfo = await this._sdkService.getSessionInfo(info.sdkSessionId);
@@ -1925,7 +1968,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		this._chatBackings.set(chat.toString(), {
 			sdkSessionId: persisted.sdkSessionId,
-			...(persisted.model ? { model: persisted.model } : {}),
+			...(persisted.model ? { model: normalizeClaudeModelSelection(persisted.model) } : {}),
 		});
 	}
 
@@ -2007,7 +2050,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const turns = await this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
 		await this._terminalOutputs.restore(context.resource, context.owner.get(), context.chat, turns);
-		return turns;
+		return this._metadataStore.restoreTurnModels(context.resource, turns);
 	}
 
 	/**
@@ -2403,6 +2446,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._sessionSequencer.queue(context.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, sendContext);
 			const session = await this._ensureResolvedChatSession(current, workingDirectories);
+			if (session.provisionalModel?.modelSourceId !== undefined) {
+				await this._validateModelSource(session.provisionalModel);
+			}
 			// The send carries the host's latest customization snapshot. An
 			// absent snapshot means the host has published none yet, which must
 			// not be read as "this session has no customizations" — keep the
@@ -2411,6 +2457,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				session.setHostCustomizations(current.customizations);
 			}
 			const switchTransport = session.hasPendingTransportSwitch ? this._ensureAuthenticated(session.provisionalModel) : undefined;
+			if (session.provisionalModel?.modelSourceId !== undefined) {
+				await this._metadataStore.writeTurnModel(current.resource, effectiveTurnId, session.provisionalModel);
+			}
 			await session.send(this._buildSdkPrompt(session.sessionId, prompt, attachments, effectiveTurnId), effectiveTurnId, current.owner.get(), workingDirectories, switchTransport, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true);
 			if (workingDirectories) {
 				await this._metadataStore.write(current.resource, { workingDirectories });
@@ -2503,16 +2552,23 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (!target.hasActiveTurn) {
 				return false;
 			}
+			const selected = steeringMessage.message.model ? normalizeClaudeModelSelection(steeringMessage.message.model) : target.provisionalModel;
+			if (selected?.modelSourceId !== undefined) {
+				if (!this._models.get().some(model => model.id === selected.id && model.modelSource?.id === selected.modelSourceId && model.policyState !== PolicyState.Disabled)) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('claude.modelSourceUnavailable', "The selected Claude model source and model are no longer available."));
+				}
+			}
 			target.injectSteering(steeringMessage);
 		}
 		return true;
 	}
 
 	private async _changeModel(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
+		model = normalizeClaudeModelSelection(model);
 		const context = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(context.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, operationContext);
-			await this._metadataStore.write(current.resource, { model });
+			await this._validateModelSource(model);
 			const sess = current.target;
 			if (sess) {
 				// The session owns the transport-crossing decision: a change that
@@ -2522,6 +2578,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				// See {@link ClaudeAgentSession.setModel}.
 				await sess.setModel(model);
 			}
+			await this._metadataStore.write(current.resource, { model });
 			if (current.sdkSessionId !== current.sessionBackedSdkId) {
 				await this._updateChatBackingModel(chat, model);
 			}

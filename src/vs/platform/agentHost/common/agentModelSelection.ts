@@ -4,14 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isObject } from '../../../base/common/types.js';
-import type { IAgentCreateSessionConfig } from './agent.js';
-import { ActionType, type ChatAction } from './state/sessionActions.js';
-import { PendingMessageKind, type AgentCapabilities, type AgentInfo, type ChatState, type ModelSelection } from './state/sessionState.js';
+import type { IAgent, IAgentCreateSessionConfig } from './agent.js';
+import { ActionType, type ChatAction, type StateAction } from './state/sessionActions.js';
+import { PendingMessageKind, type AgentCapabilities, type AgentInfo, type ChatState, type Message, type ModelSelection } from './state/sessionState.js';
 import type { AutomationDefinition } from './state/protocol/channels-automation/state.js';
 
 /** A local catalog key, never a runtime model ID or policy allowlist value. */
 export function getModelSelectionKey(model: ModelSelection): string {
 	return JSON.stringify([model.modelSourceId ?? null, model.id]);
+}
+
+/** Provider-owned legacy decoding; standard source-qualified identities are never reinterpreted. */
+export function normalizeAgentModelMessage(agent: Pick<IAgent, 'normalizeModelSelection'> | undefined, message: Message): Message {
+	const model = message.model && agent?.normalizeModelSelection?.(message.model);
+	return model && model !== message.model ? { ...message, model } : message;
+}
+
+export function normalizeAgentModelAction<T extends StateAction>(agent: Pick<IAgent, 'normalizeModelSelection'> | undefined, action: T): T {
+	if (action.type === ActionType.ChatDraftChanged) {
+		const draft = action.draft && normalizeAgentModelMessage(agent, action.draft);
+		return draft !== action.draft ? { ...action, draft } : action;
+	}
+	if (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatPendingMessageSet) {
+		const message = normalizeAgentModelMessage(agent, action.message);
+		return message !== action.message ? { ...action, message } : action;
+	}
+	return action;
 }
 
 export function supportsModelSourceSelection(capabilities: Pick<AgentCapabilities, 'modelSourceSelection'> | undefined): boolean {

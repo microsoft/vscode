@@ -1706,6 +1706,9 @@ export interface IAgent {
 	/** Available provider models. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
+	/** Converts this provider's historical selection encoding to the standard shape without changing an explicit source. */
+	normalizeModelSelection?(model: ModelSelection): ModelSelection;
+
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 

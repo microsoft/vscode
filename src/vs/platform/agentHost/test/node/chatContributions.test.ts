@@ -48,6 +48,8 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import type { IAgent } from '../../common/agent.js';
+import { normalizeClaudeModelSelection } from '../../node/claude/claudeModelSelection.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -1016,7 +1018,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory };
+	return { service, stateManager, agent: queueAgent, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -4364,6 +4366,25 @@ suite('AgentHostChatContributions', () => {
 				draft,
 				config: { values: { autoApprove: 'autoApprove' } },
 			},
+		});
+	});
+
+	test('normalizes provider-owned legacy model selections after persisted drafts and turns are restored', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const provider: IAgent = contributions.agent;
+		provider.normalizeModelSelection = normalizeClaudeModelSelection;
+		const chat = buildChatUri(contributions.session, 'source-migration');
+		const context = { session: contributions.session, chat, isDefaultChat: false, storageResource: creationTimeChatStorageResource(contributions.session, chat, buildDefaultChatUri(contributions.session)) };
+		const message: Message = { text: 'Saved draft', origin: { kind: MessageKind.User }, model: { id: '@provider=anthropic:shared', config: { effort: 'high' } } };
+		await contributions.database.setChatDraft(URI.parse(chat), message);
+		const restored = await contributions.service.hydrateChat(context, {});
+		const turns = await contributions.service.hydrateTurns(context, [{ ...hydrationTurn('saved'), message }]);
+		assert.deepStrictEqual({
+			draft: restored.draft,
+			turn: turns[0].message,
+		}, {
+			draft: { ...message, model: { id: 'shared', modelSourceId: 'anthropic', config: { effort: 'high' } } },
+			turn: { ...message, model: { id: 'shared', modelSourceId: 'anthropic', config: { effort: 'high' } } },
 		});
 	});
 

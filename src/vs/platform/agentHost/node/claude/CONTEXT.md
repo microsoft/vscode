@@ -1,9 +1,18 @@
 # Claude Agent (Agent Host)
 
-The Claude-side of the agent host: a `ClaudeAgent` implementation of `IAgent`
-that drives Anthropic-format tool-using sessions via the Claude Agent SDK,
-with all `messages` traffic proxied through a local server that translates
-Anthropic requests into GitHub Copilot CAPI calls.
+The Claude-side of the agent host: a `ClaudeAgent` implementation of `IAgent` that drives Anthropic-format tool-using sessions via the Claude Agent SDK. A selected model source chooses native Anthropic credentials or a local proxy that translates Anthropic requests into GitHub Copilot CAPI calls.
+
+## Model sources
+
+The Claude harness publishes native and proxy catalogs together using standard AHP `modelSources` descriptors and per-model `modelSourceId` references. Model IDs remain the SDK/catalog's raw IDs; the same raw ID may occur in both sources. Clients group and select by the source fields, not by vendor metadata or a private model-ID syntax.
+
+An explicit `(modelSourceId, id)` must identify an available catalog row. The adapter resolves that source to its transport and rejects unknown or removed pairs, including queued sends and steering that attempts to change the active model. A failed SDK model change or configuration replay stops execution rather than sending a prompt to the previously applied model. Genuinely unqualified legacy selections retain the existing host-default transport.
+
+Since AHP `createSession` carries no model, model-less provisioning does not authenticate a guessed transport or start an SDK conversation. Authentication and source validation run when the first selected model is materialized. Explicit proxy selections still require GitHub authentication; native selections use the SDK's existing setup without a GitHub sign-in.
+
+The former `@provider=...` model-ID encoding is read-only compatibility inside the Claude adapter. New catalogs and persisted selections use the standard pair. Provider-owned normalization also migrates restored drafts, turn selections and saved automation selections without requiring any AHP client to decode historical IDs.
+
+The overlay records qualified selections per turn, keyed by the prompt UUID that Claude writes to its transcript. Forks copy only inherited selections and truncation prunes removed turns. Usage attribution is separate: `vscode.modelExecution` captures the materialized transport and SDK-reported model, never a guess from the current picker or requested model. Historical turns without recorded attribution remain unknown.
 
 ## Language
 
@@ -43,9 +52,7 @@ The per-session DB layer that decorates the SDK's `SDKSessionInfo` with
 Claude-namespaced fields (`customizationDirectory`, `model`, `permissionMode`).
 The SDK is the source of truth for session existence; the overlay merely
 decorates. External Claude CLI sessions have no overlay DB, so reads return
-an empty overlay rather than throwing. Owns the three `claude.*` DB keys,
-the `ModelSelection` JSON codec, and the projection from SDK info + overlay
-onto the platform's `IAgentSessionMetadata` shape.
+an empty overlay rather than throwing. Owns the Claude overlay keys, per-turn model selections, the source-preserving `ModelSelection` JSON codec, and the projection from SDK info + overlay onto the platform's `IAgentChatMetadata` shape.
 _Avoid_: "session metadata" (overloaded with `IAgentSessionMetadata`).
 
 **Claude file-edit observer** / `ClaudeFileEditObserver`:

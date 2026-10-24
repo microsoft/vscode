@@ -51,12 +51,9 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	 * contribution is looked up by turn id (or the turn's SDK event id, which is
 	 * what a restored turn is keyed by).
 	 *
-	 * NOTE: the lookup only lands for providers that record the bridge between
-	 * the live protocol turn id (a host-generated uuid) and the id a restored
-	 * turn is keyed by. Today only Copilot does, via `setTurnEventId`. Claude
-	 * restores turns keyed by transcript uuid and never populates
-	 * `turns.event_id`, so its rows are written but never matched; giving it a
-	 * gauge after reload needs that bridge recorded first.
+	 * The provider records the bridge from the live host turn ID to its
+	 * history ID via `setTurnEventId`. Claude uses the host-supplied prompt UUID
+	 * for both; historical turns without a recorded bridge remain unattributed.
 	 */
 	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
 		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || this._chatOwnership.getChatParent(context.chat) !== undefined) {

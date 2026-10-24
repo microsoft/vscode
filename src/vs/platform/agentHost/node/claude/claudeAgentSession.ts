@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -31,7 +32,8 @@ import type { ClientPluginCustomization, CustomizationEnablement } from '../../c
 import { CustomizationType, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions, toClaudeMcpServers, type ClaudeDeniedMcpServerSpec } from './claudeSdkOptions.js';
-import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
+import { claudeNativeModelSource, claudeProxyModelSource, claudeTransportForProvider, normalizeClaudeModelSelection, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
+import { toAgentModelExecutionMeta } from '../../common/meta/agentModelProvider.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
@@ -397,10 +399,12 @@ export class ClaudeAgentSession extends Disposable {
 	 * All other signals pass through untouched.
 	 */
 	private _enrichSignalWithCredits(signal: AgentSignal): AgentSignal {
-		if (this._transportKind !== 'proxy' || signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage || this._currentTurnNanoAiu <= 0) {
+		if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatUsage) {
 			return signal;
 		}
 		const usage = signal.action.usage;
+		const transport = this._materializedTransport?.kind;
+		const source = transport === 'native' ? claudeNativeModelSource : transport === 'proxy' ? claudeProxyModelSource : undefined;
 		return {
 			...signal,
 			action: {
@@ -409,7 +413,8 @@ export class ClaudeAgentSession extends Disposable {
 					...usage,
 					_meta: {
 						...usage._meta,
-						copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu },
+						...toAgentModelExecutionMeta(source && usage.model ? { provider: { id: source.id, label: source.displayName, kind: transport === 'proxy' ? 'copilot' : 'anthropic' }, modelId: usage.model } : undefined),
+						...(transport === 'proxy' && this._currentTurnNanoAiu > 0 ? { copilotUsage: { totalNanoAiu: this._currentTurnNanoAiu } } : {}),
 					},
 				},
 			},
@@ -476,7 +481,7 @@ export class ClaudeAgentSession extends Disposable {
 				this.markMcpConfigurationDirty();
 			}
 		}));
-		this._provisionalModel = model;
+		this._provisionalModel = model && normalizeClaudeModelSelection(model);
 		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
 		this.abortController = abortController;
@@ -1191,6 +1196,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * defers to a rebuild on the next {@link send} rather than hot-swapping.
 	 */
 	async setModel(model: ModelSelection): Promise<void> {
+		model = normalizeClaudeModelSelection(model);
 		this._provisionalModel = model;
 		// A model change that crosses transports (Copilot ↔ native) on a live
 		// session can't hot-swap — the running subprocess is pinned to the old
@@ -1280,6 +1286,12 @@ export class ClaudeAgentSession extends Disposable {
 		const pipeline = this._requirePipeline();
 		if (pipeline.isAborted) {
 			return;
+		}
+		const selected = steeringMessage.message.model && normalizeClaudeModelSelection(steeringMessage.message.model);
+		if (selected?.modelSourceId !== undefined || this._provisionalModel?.modelSourceId !== undefined) {
+			if (this._pendingTransportSwitch || pipeline.hasPendingConfiguration || (selected && (selected.id !== this._provisionalModel?.id || selected.modelSourceId !== this._provisionalModel?.modelSourceId))) {
+				throw new Error(localize('claude.steeringModelSource', "A steering message cannot change the active Claude model source or model."));
+			}
 		}
 		const contentBlocks = resolvePromptToContentBlocks(
 			steeringMessage.message.text,

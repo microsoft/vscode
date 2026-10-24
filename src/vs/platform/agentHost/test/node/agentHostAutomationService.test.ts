@@ -46,6 +46,7 @@ import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeServic
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { normalizeClaudeModelSelection } from '../../node/claude/claudeModelSelection.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -978,6 +979,46 @@ suite('AgentHostAutomationService', () => {
 	});
 
 	for (const messageOnly of [false, true]) {
+		test(`a restored legacy Claude ${messageOnly ? 'message' : 'template'} selection retains its owning harness`, async () => {
+			const model = { id: 'shared', modelSourceId: 'anthropic' };
+			const legacy = { id: '@provider=anthropic:shared' };
+			const providers = new Map(['claude', 'other'].map(id => [id, upcastPartial<IAgent>({
+				id,
+				models: constObservable<readonly IAgentModelInfo[]>([{ id: 'shared', name: 'Shared', provider: id, supportsVision: false, modelSource: { id: 'anthropic', displayName: 'Anthropic' } }]),
+				getDescriptor: () => ({ provider: id, displayName: id, description: id, capabilities: { modelSourceSelection: {} } }),
+				...(id === 'claude' ? { normalizeModelSelection: normalizeClaudeModelSelection } : {}),
+			})]));
+			const providerService = new class extends mock<IAgentHostProviderService>() {
+				override resolveProvider(provider?: string): IAgent | undefined { return providers.get(provider ?? 'other'); }
+			}();
+			const automation = definition();
+			automation.session = { provider: 'claude', ...(!messageOnly ? { model: legacy } : {}) };
+			if (messageOnly) {
+				automation.message.model = legacy;
+			}
+			storageService.set('automations', {
+				version: 1,
+				catalog: {
+					automations: [{
+						resource: createAction().resource, definition: automation, runs: [],
+						operations: [AutomationOperation.Update, AutomationOperation.Remove],
+						createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
+					}],
+				},
+			});
+			await storageService.whenIdle();
+			const service = createService(undefined, providerService);
+			await assert.rejects(service.handleUpdate({
+				type: ActionType.AutomationUpdateRequested, resource: createAction().resource,
+				changes: { session: { provider: 'other', ...(!messageOnly ? { model } : {}) } },
+			}), /cannot change its owning agent harness/);
+			await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { title: 'Updated' } });
+			const updated = stateManager.getAutomationCatalogState()?.entries[0].definition;
+			assert.deepStrictEqual({
+				owner: updated?.session.provider, model: updated?.session.model, messageModel: updated?.message.model,
+			}, { owner: 'claude', model: messageOnly ? undefined : model, messageModel: messageOnly ? model : undefined });
+		});
+
 		test(`model source ownership survives a default-harness change with a ${messageOnly ? 'message' : 'template'} qualifier`, async () => {
 			let defaultProvider = 'first';
 			const models: IAgentModelInfo[] = [{ id: 'shared', name: 'Shared', provider: 'first', supportsVision: false, modelSource: { id: 'source', displayName: 'Source' } }];

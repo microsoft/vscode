@@ -478,6 +478,29 @@ suite('ClaudeSdkPipeline', () => {
 		});
 	});
 
+	test('a rejected SDK model change and replay never enqueue a prompt on the previous model', async () => {
+		const attempts: string[] = [];
+		let reads = 0;
+		const query = new class extends ImmediatelyDoneQuery {
+			override async next(): Promise<IteratorResult<never, void>> {
+				reads++;
+				return { done: true, value: undefined };
+			}
+			override async setModel(model?: string): Promise<void> {
+				attempts.push(model ?? '');
+				throw new Error('model unavailable');
+			}
+		}();
+		const { pipeline } = createPipeline(disposables, () => new class extends FakeWarmQuery {
+			override query(): Query { return query; }
+		}());
+		await pipeline.setModel('first');
+		await assert.rejects(pipeline.send(makePrompt('first'), 'first'), /model unavailable/);
+		await assert.rejects(pipeline.setModel('second'), /model unavailable/);
+		await assert.rejects(pipeline.send(makePrompt('second'), 'second'), /model unavailable/);
+		assert.deepStrictEqual({ attempts, reads }, { attempts: ['first', 'second', 'second'], reads: 0 });
+	});
+
 	suite('setEffort', () => {
 
 		// Bind a live Query (send() lazily binds it) seeded as if the session

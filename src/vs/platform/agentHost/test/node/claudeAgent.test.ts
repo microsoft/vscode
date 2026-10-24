@@ -61,7 +61,7 @@ import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomizatio
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition, type ModelSelection } from '../../common/state/protocol/state.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { serverToolAllowList } from '../../node/claude/claudeServerToolMcpServer.js';
 import { moveSessionToolDefinition } from '../../node/shared/sessionMoveTools.js';
@@ -85,7 +85,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { makeMcpServerCustomization } from '../../../agentPlugins/common/pluginParsers.js';
 import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js';
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
-import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
+import { claudeNativeModelSource, claudeProxyModelSource } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { readClaudePermissionMode } from '../../node/claude/claudeSessionPermissionMode.js';
 import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
@@ -108,6 +108,11 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 // #region Test fakes
+
+/** Historical on-disk selection format, never a newly published model identity. */
+function toClaudeModelSelectionId(provider: string, modelId: string): string {
+	return `@provider=${encodeURIComponent(provider)}:${encodeURIComponent(modelId)}`;
+}
 
 interface IStartCall {
 	readonly token: string;
@@ -1441,7 +1446,7 @@ suite('ClaudeAgent', () => {
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
 			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, capabilities: desc.capabilities, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { modelSourceSelection: {}, multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, agentHostCapabilities: { workspaceConversion: false } },
 		);
 	});
 
@@ -1642,17 +1647,17 @@ suite('ClaudeAgent', () => {
 			bothFailed: agent.models.get().map(model => model.id),
 		}, {
 			populated: [
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+				'claude-opus-4.6',
+				'claude-sonnet-4.6',
 			],
 			proxyOnlyFailed: [],
 			republished: [
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+				'claude-opus-4.6',
+				'claude-sonnet-4.6',
 			],
 			bothFailed: [
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+				'claude-opus-4.6',
+				'claude-sonnet-4.6',
 			],
 		});
 	});
@@ -1708,7 +1713,7 @@ suite('ClaudeAgent', () => {
 		}, {
 			bootstrap: ['Claude Sonnet 4.5'],
 			whileEnumerating: ['Claude Sonnet 4.5'],
-			merged: ['Claude Opus 4.6', 'Claude Sonnet 4.6', 'Claude Sonnet 4.5'],
+			merged: ['Claude Sonnet 4.5', 'Claude Opus 4.6', 'Claude Sonnet 4.6'],
 		});
 	});
 
@@ -1729,12 +1734,12 @@ suite('ClaudeAgent', () => {
 		}
 		await tick();
 		assert.deepStrictEqual({
-			models: agent.models.get().map(m => ({ id: m.id, name: m.name })),
+			models: agent.models.get().map(m => ({ id: m.id, name: m.name, modelSource: m.modelSource })),
 			proxyStarts: proxy.startCalls.length,
 			supportedModelsCalls: sdk.supportedModelsCallCount,
 			capiModelsCalls,
 		}, {
-			models: [{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' }],
+			models: [{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', modelSource: claudeNativeModelSource }],
 			proxyStarts: 0,
 			supportedModelsCalls: 1,
 			capiModelsCalls: 0,
@@ -1757,7 +1762,7 @@ suite('ClaudeAgent', () => {
 		}
 		await tick();
 		assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
-			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
+			{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5' },
 		]);
 	});
 
@@ -1877,16 +1882,26 @@ suite('ClaudeAgent', () => {
 		}, { startTokens: ['T', 'T'], disposeCount: 0 });
 	});
 
-	test('createChat before authenticate throws ProtocolError(AHP_AUTH_REQUIRED) with protected resources', async () => {
-		const { agent } = createTestContext(disposables);
-
+	test('model-less provisioning defers authentication to execution without starting the SDK', async () => {
+		const { agent, sdk, proxy } = createTestContext(disposables);
+		const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')] });
+		const chat = defaultChatUri(created.session);
 		await assert.rejects(
-			() => createSession(agent, { workingDirectories: [URI.file('/workspace')] }),
+			() => agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn', undefined, undefined, chatContext(chat)),
 			(err: Error) =>
 				err instanceof ProtocolError &&
 				err.code === AHP_AUTH_REQUIRED &&
 				Array.isArray(err.data) &&
 				(err.data as ProtectedResourceMetadata[])[0]?.resource === 'https://api.github.com',
+		);
+		assert.deepStrictEqual({ startups: sdk.startupCallCount, proxyStarts: proxy.startCalls.length }, { startups: 0, proxyStarts: 0 });
+	});
+
+	test('an explicit proxy model still requires authentication before provisioning', async () => {
+		const { agent } = createTestContext(disposables);
+		await assert.rejects(
+			() => createSession(agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6', modelSourceId: 'copilot' } }),
+			(err: Error) => err instanceof ProtocolError && err.code === AHP_AUTH_REQUIRED,
 		);
 	});
 
@@ -1935,8 +1950,8 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startCalls: ['tok'],
 			models: [
-				{ provider: 'claude', id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'), name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1, modelGroupId: CLAUDE_PROVIDER_COPILOT } },
-				{ provider: 'claude', id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'), name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1, modelGroupId: CLAUDE_PROVIDER_COPILOT } },
+				{ provider: 'claude', id: 'claude-opus-4.6', modelSource: claudeProxyModelSource, name: 'Claude Opus 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
+				{ provider: 'claude', id: 'claude-sonnet-4.6', modelSource: claudeProxyModelSource, name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, maxOutputTokens: 8192, maxPromptTokens: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
 			],
 		});
 	});
@@ -1970,7 +1985,6 @@ suite('ClaudeAgent', () => {
 			longContextCacheWriteCost: 7.5,
 			longContextOutputCost: 30,
 			priceCategory: 'medium',
-			modelGroupId: CLAUDE_PROVIDER_COPILOT,
 		});
 	});
 
@@ -1994,9 +2008,9 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(
 			agent.models.get().map(m => m.id),
 			[
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-haiku-4.6'),
+				'claude-sonnet-4.6',
+				'claude-opus-4.6',
+				'claude-haiku-4.6',
 			],
 		);
 	});
@@ -2049,7 +2063,7 @@ suite('ClaudeAgent', () => {
 			agent.models.get().map(m => [m.id, m.configSchema] as const),
 		);
 		assert.deepStrictEqual(schemasById, {
-			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6')]: {
+			'claude-opus-4.6': {
 				type: 'object',
 				properties: {
 					thinkingLevel: {
@@ -2063,7 +2077,7 @@ suite('ClaudeAgent', () => {
 					},
 				},
 			},
-			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6')]: {
+			'claude-sonnet-4.6': {
 				type: 'object',
 				properties: {
 					thinkingLevel: {
@@ -2077,8 +2091,8 @@ suite('ClaudeAgent', () => {
 					},
 				},
 			},
-			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-haiku-4.6')]: undefined,
-			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.5')]: {
+			'claude-haiku-4.6': undefined,
+			'claude-opus-4.5': {
 				type: 'object',
 				properties: {
 					thinkingLevel: {
@@ -2092,7 +2106,7 @@ suite('ClaudeAgent', () => {
 					},
 				},
 			},
-			[toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.5')]: undefined,
+			'claude-sonnet-4.5': undefined,
 		});
 	});
 
@@ -2274,7 +2288,7 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startTokens: ['tok', 'tok'],
 			disposeCount: 0,
-			modelIds: [toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_OPUS.id), toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_SONNET.id)],
+			modelIds: [CLAUDE_OPUS.id, CLAUDE_SONNET.id],
 		});
 	});
 
@@ -2288,8 +2302,8 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(
 			agent.models.get().map(m => m.id),
 			[
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'),
-				toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4.6'),
+				'claude-opus-4.6',
+				'claude-sonnet-4.6',
 			],
 		);
 	});
@@ -2400,13 +2414,13 @@ suite('ClaudeAgent', () => {
 		// Second authenticate: refresh-B runs to completion, models == [B].
 		await agent.authenticate('https://api.github.com', 'tokB');
 		await tick();
-		assert.deepStrictEqual(agent.models.get().map(m => m.id), [toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_SONNET.id)]);
+		assert.deepStrictEqual(agent.models.get().map(m => m.id), [CLAUDE_SONNET.id]);
 
 		// Now unblock refresh-A: it must observe the rotated token and
 		// drop its write rather than overwrite refresh-B's result.
 		tokAModels.complete([CLAUDE_OPUS]);
 		await tick();
-		assert.deepStrictEqual(agent.models.get().map(m => m.id), [toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, CLAUDE_SONNET.id)]);
+		assert.deepStrictEqual(agent.models.get().map(m => m.id), [CLAUDE_SONNET.id]);
 	});
 
 	// #region Phase 5 — session lifecycle
@@ -6560,6 +6574,12 @@ suite('ClaudeAgent — agent SDK setup channel', () => {
 suite('ClaudeAgent — per-session provider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createNativeContext(): ITestContext {
+		const context = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		context.sdk.supportedModelsResult = [{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' }];
+		return context;
+	}
+
 	/**
 	 * The per-session proxy bearer (`ANTHROPIC_AUTH_TOKEN`) is injected into
 	 * `Options.settings.env` only for the Copilot proxy transport; the native
@@ -6584,11 +6604,11 @@ suite('ClaudeAgent — per-session provider', () => {
 	 */
 	async function materializeSession(
 		ctx: ITestContext,
-		opts?: { readonly model?: { readonly id: string }; readonly block?: boolean },
+		opts?: { readonly model?: ModelSelection; readonly block?: boolean },
 	): Promise<{ readonly sessionUri: URI; readonly sessionId: string; readonly advance: DeferredPromise<void> }> {
 		await ctx.agent.authenticate('https://api.github.com', 'tok');
 		await tick();
-		const model = opts?.model ?? { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') };
+		const model = opts?.model ?? { id: 'claude-opus-4.6', modelSourceId: CLAUDE_PROVIDER_COPILOT };
 		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model });
 		const sessionId = created.sdkSessionId;
 		const advance = new DeferredPromise<void>();
@@ -6602,10 +6622,79 @@ suite('ClaudeAgent — per-session provider', () => {
 		return { sessionUri: created.session, sessionId, advance };
 	}
 
+	test('a native selection following model-less AHP provisioning does not require GitHub authentication', async () => {
+		const ctx = createNativeContext();
+		await ctx.agent.refreshModels();
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')] });
+		const chat = defaultChatUri(created.session);
+		await ctx.agent.chats.changeModel(chat, { id: 'claude-sonnet-4-5-20250929', modelSourceId: 'anthropic' }, chatContext(chat));
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await ctx.agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn', undefined, undefined, chatContext(chat));
+		assert.deepStrictEqual({
+			model: ctx.sdk.capturedStartupOptions[0]?.model,
+			proxyToken: proxyAuthTokenOf(ctx.sdk.capturedStartupOptions[0]),
+			proxyStarts: ctx.proxy.startCalls.length,
+		}, { model: 'claude-sonnet-4-5', proxyToken: undefined, proxyStarts: 0 });
+	});
+
+	test('colliding raw model IDs select their exact transport and usage captures actual SDK execution', async () => {
+		const ctx = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
+		ctx.sdk.supportedModelsResult = [{ value: 'claude-opus-4.6', displayName: 'Native Opus', description: '' }];
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		await tick();
+		const native = { id: 'claude-opus-4.6', modelSourceId: 'anthropic' };
+		const proxy = { id: 'claude-opus-4.6', modelSourceId: 'copilot' };
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: native });
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const chat = defaultChatUri(created.session);
+		for (const [index, model] of [native, proxy].entries()) {
+			if (index > 0) {
+				await ctx.agent.chats.changeModel(chat, model, chatContext(chat));
+			}
+			const result = makeResultSuccess(created.sdkSessionId);
+			result.modelUsage = {
+				[`sdk-resolved-${model.modelSourceId}`]: {
+					inputTokens: 1, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0,
+					webSearchRequests: 0, costUSD: 0, contextWindow: 200000, maxOutputTokens: 8192,
+				},
+			};
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), result];
+			await ctx.agent.chats.sendMessage(chat, 'synthetic turn', undefined, undefined, `turn-${index}`, undefined, undefined, chatContext(chat));
+		}
+		assert.deepStrictEqual({
+			startups: ctx.sdk.capturedStartupOptions.map(options => ({ model: options.model, proxy: proxyAuthTokenOf(options) !== undefined })),
+			execution: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage ? [signal.action.usage._meta?.['vscode.modelExecution']] : []),
+		}, {
+			startups: [{ model: 'claude-opus-4-6', proxy: false }, { model: 'claude-opus-4-6', proxy: true }],
+			execution: [
+				{ modelId: 'sdk-resolved-anthropic', provider: { id: 'anthropic', kind: 'anthropic', label: 'Anthropic' } },
+				{ modelId: 'sdk-resolved-copilot', provider: { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' } },
+			],
+		});
+	});
+
+	test('steering cannot select the same raw model from another source during an active turn', async () => {
+		const ctx = createNativeContext();
+		ctx.sdk.supportedModelsResult = [{ value: 'claude-opus-4.6', displayName: 'Native Opus', description: '' }];
+		const { sessionUri, advance } = await materializeSession(ctx, { block: true });
+		const chat = defaultChatUri(sessionUri);
+		const pendingSend = ctx.agent.chats.sendMessage(chat, 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(chat));
+		await tick();
+		const model = { id: 'claude-opus-4.6', modelSourceId: 'anthropic' };
+		assert.throws(() => ctx.agent.setPendingMessages!(chat, {
+			id: 'wrong-source', message: { text: 'continue', origin: { kind: MessageKind.User }, model },
+		}, []), /cannot change the active Claude model source/);
+		const steered = ctx.sdk.warmQueries[0].produced?.drainedPrompts.filter(prompt => prompt.priority === 'now');
+		advance.complete();
+		await pendingSend;
+		assert.deepStrictEqual({ steered, startups: ctx.sdk.startupCallCount }, { steered: [], startups: 1 });
+	});
+
 	test('a cross-transport model switch defers, then rebuilds on the new (native) transport at the next send (US 11)', async () => {
-		const ctx = createTestContext(disposables);
+		const ctx = createNativeContext();
 		const { sessionUri, sessionId } = await materializeSession(ctx);
-		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
+		const nativeModel = { id: 'claude-sonnet-4-5-20250929', modelSourceId: CLAUDE_PROVIDER_ANTHROPIC };
 
 		// Switching to a native-qualified model on a live proxy session defers:
 		// no hot-swap on the old transport, and no rebuild until the next send.
@@ -6646,7 +6735,7 @@ suite('ClaudeAgent — per-session provider', () => {
 
 		// Another Copilot-qualified model is the same transport → the change is
 		// pushed onto the live query in place, never rebuilding the subprocess.
-		await ctx.agent.chats.changeModel(defaultChatUri(sessionUri), { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-sonnet-4-5-20250929') }, chatContext(defaultChatUri(sessionUri)));
+		await ctx.agent.chats.changeModel(defaultChatUri(sessionUri), { id: 'claude-sonnet-4.6', modelSourceId: CLAUDE_PROVIDER_COPILOT }, chatContext(defaultChatUri(sessionUri)));
 
 		// Drive one more turn on the same (parked) query so it drains cleanly.
 		const p2 = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'again', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
@@ -6659,14 +6748,32 @@ suite('ClaudeAgent — per-session provider', () => {
 			hotSwaps: ctx.sdk.warmQueries[0]?.produced?.recordedModels ?? [],
 		}, {
 			startups: 1,
-			hotSwaps: ['claude-sonnet-4-5'],
+			hotSwaps: ['claude-sonnet-4-6'],
 		});
 	});
 
+	test('removing a selected native source rejects later sends and never starts a proxy replacement', async () => {
+		const ctx = createNativeContext();
+		const selection = { id: 'claude-sonnet-4-5-20250929', modelSourceId: CLAUDE_PROVIDER_ANTHROPIC };
+		const { sessionUri } = await materializeSession(ctx, { model: selection });
+		const before = ctx.sdk.capturedStartupOptions.length;
+		ctx.sdk.accountInfoResult = {};
+		await ctx.agent.refreshModels();
+		await assert.rejects(
+			ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'must not fall back', undefined, undefined, 'removed-source-turn', undefined, undefined, chatContext(defaultChatUri(sessionUri))),
+			/source and model are no longer available/,
+		);
+		await assert.rejects(ctx.agent.chats.changeModel(defaultChatUri(sessionUri), { id: selection.id, modelSourceId: 'unknown' }, chatContext(defaultChatUri(sessionUri))), /does not support the selected model source/);
+		assert.deepStrictEqual({
+			startups: ctx.sdk.capturedStartupOptions.length - before,
+			sources: [...new Set(ctx.agent.models.get().map(model => model.modelSource?.id))],
+		}, { startups: 0, sources: [CLAUDE_PROVIDER_COPILOT] });
+	});
+
 	test('a switch during an in-flight turn leaves it untouched; the rebuild fires only on the next send (US 12)', async () => {
-		const ctx = createTestContext(disposables);
+		const ctx = createNativeContext();
 		const { sessionUri, sessionId, advance } = await materializeSession(ctx, { block: true });
-		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
+		const nativeModel = { id: 'claude-sonnet-4-5-20250929', modelSourceId: CLAUDE_PROVIDER_ANTHROPIC };
 
 		// Turn 2 is in flight (parked in the SDK). A switch issued now serializes
 		// behind it on the session sequencer and must not disturb the running turn.
@@ -6699,10 +6806,10 @@ suite('ClaudeAgent — per-session provider', () => {
 		});
 	});
 
-	test('a native→Copilot switch while signed out surfaces AHP_AUTH_REQUIRED on the next send, then rebuilds once signed in (US 27)', async () => {
-		const ctx = createTestContext(disposables);
-		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
-		const copilotModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') };
+	test('a source-qualified switch rejects an unavailable Copilot catalog until sign-in makes it available', async () => {
+		const ctx = createNativeContext();
+		const nativeModel = { id: 'claude-sonnet-4-5-20250929', modelSourceId: CLAUDE_PROVIDER_ANTHROPIC };
+		const copilotModel = { id: 'claude-opus-4.6', modelSourceId: CLAUDE_PROVIDER_COPILOT };
 
 		// Materialize native while signed out (native needs no proxy handle).
 		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: nativeModel });
@@ -6710,17 +6817,15 @@ suite('ClaudeAgent — per-session provider', () => {
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		// Switch to a Copilot model → deferred. The next send's rebuild resolves the
-		// proxy transport, which requires a GitHub sign-in that is absent.
-		await ctx.agent.chats.changeModel(defaultChatUri(created.session), copilotModel, chatContext(defaultChatUri(created.session)));
-		const first = await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'turn 2', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)))
-			.then(() => 'sent', (err: unknown) => (err instanceof ProtocolError && err.code === AHP_AUTH_REQUIRED) ? 'auth-required' : `unexpected:${err}`);
+		const first = await ctx.agent.chats.changeModel(defaultChatUri(created.session), copilotModel, chatContext(defaultChatUri(created.session)))
+			.then(() => 'changed', (err: Error) => err.message);
 		const startupsAfterFailure = ctx.sdk.startupCallCount;
 
 		// Signing in provides the proxy handle; the still-pending switch rebuilds
 		// on the Copilot proxy at the next send (US 27: Copilot required again).
 		await ctx.agent.authenticate('https://api.github.com', 'tok');
-		await tick();
+		await ctx.agent.refreshModels();
+		await ctx.agent.chats.changeModel(defaultChatUri(created.session), copilotModel, chatContext(defaultChatUri(created.session)));
 		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'turn 3', undefined, undefined, 'turn-3', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		const rebuild = ctx.sdk.capturedStartupOptions.at(-1);
@@ -6732,7 +6837,7 @@ suite('ClaudeAgent — per-session provider', () => {
 			rebuiltProxy: proxyAuthTokenOf(rebuild) !== undefined,
 			rebuildModel: rebuild?.model,
 		}, {
-			first: 'auth-required',
+			first: 'The selected Claude model source and model are no longer available.',
 			startupsAfterFailure: 1,
 			startupsAfterAuth: 2,
 			rebuiltProxy: true,
@@ -6805,9 +6910,9 @@ suite('ClaudeAgent — per-session provider', () => {
 	});
 
 	test('a Copilot→native switch survives a cold resume: the reload rematerializes on native', async () => {
-		const ctx = createTestContext(disposables);
+		const ctx = createNativeContext();
 		const { sessionUri, sessionId } = await materializeSession(ctx);
-		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
+		const nativeModel = { id: 'claude-sonnet-4-5-20250929', modelSourceId: CLAUDE_PROVIDER_ANTHROPIC };
 
 		// Switch persists the native model to the overlay, then tear the session
 		// down so the next send has to cold-resume from that overlay.
@@ -6882,7 +6987,7 @@ suite('ClaudeAgent — per-session provider', () => {
 		]);
 	});
 
-	test('merged catalog lists both providers, each id provider-qualified', async () => {
+	test('merged catalog lists raw IDs with typed source descriptors under one harness', async () => {
 		const { agent, api, sdk } = createTestContext(disposables, { nativeAccount: NATIVE_ACCOUNT });
 		api.models = async () => [CLAUDE_OPUS];
 		sdk.supportedModelsResult = [
@@ -6892,12 +6997,9 @@ suite('ClaudeAgent — per-session provider', () => {
 		await agent.refreshModels();
 		await tick();
 
-		// Proxy first (preserves `models[0]`-is-default), then native; each id is
-		// rewritten to its provider-qualified form so the picked row carries its
-		// transport.
-		assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
-			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6'), name: 'Claude Opus 4.6' },
-			{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
+		assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name, source: m.modelSource })), [
+			{ id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', source: claudeNativeModelSource },
+			{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', source: claudeProxyModelSource },
 		]);
 	});
 
@@ -6905,17 +7007,17 @@ suite('ClaudeAgent — per-session provider', () => {
 		// Signed out (no proxy handle). The transport is derived per session from
 		// the picked model: a native-qualified model resolves without GitHub, while
 		// a Copilot-qualified one still throws AHP_AUTH_REQUIRED.
-		const { agent } = createTestContext(disposables);
-		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
-		const copilotModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') };
+		const { agent } = createNativeContext();
+		const nativeModel = { id: 'claude-sonnet-4-5-20250929', modelSourceId: CLAUDE_PROVIDER_ANTHROPIC };
+		const copilotModel = { id: 'claude-opus-4.6', modelSourceId: CLAUDE_PROVIDER_COPILOT };
 
 		const native = await createSession(agent, { workingDirectories: [URI.file('/ws-native')], model: nativeModel });
 		const copilotOutcome = await createSession(agent, { workingDirectories: [URI.file('/ws-copilot')], model: copilotModel })
-			.then(() => 'created', err => (err instanceof ProtocolError && err.code === AHP_AUTH_REQUIRED) ? 'auth-required' : `unexpected:${err}`);
+			.then(() => 'created', (err: Error) => err.message);
 
 		assert.deepStrictEqual(
 			{ nativeProvisional: native.provisional, copilotOutcome },
-			{ nativeProvisional: true, copilotOutcome: 'auth-required' },
+			{ nativeProvisional: true, copilotOutcome: 'Authentication is required to use Claude' },
 		);
 	});
 
@@ -6928,7 +7030,7 @@ suite('ClaudeAgent — per-session provider', () => {
 		// normalized id before it reaches the subprocess (a `@provider=…` id is
 		// unparseable and would 400). The prior weaker form only asserted the chat
 		// was created; it never materialized, so it masked both bugs.
-		const { agent, sdk, proxy } = createTestContext(disposables);
+		const { agent, sdk, proxy } = createNativeContext();
 		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
 		// Signed out (no `authenticate`) — only the native transport can run here.
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')], model: nativeModel });
@@ -6974,7 +7076,7 @@ suite('ClaudeAgent — per-session provider', () => {
 		// Signed out → the proxy half contributes nothing; only the native
 		// models appear, provider-qualified.
 		assert.deepStrictEqual(agent.models.get().map(m => m.id), [
-			toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'),
+			'claude-sonnet-4-5-20250929',
 		]);
 	});
 
@@ -7024,11 +7126,13 @@ suite('ClaudeAgent — per-session provider', () => {
 
 		// A Copilot-routed (model-less ⇒ proxy default) session must now demand
 		// sign-in rather than run under the superseded account A.
-		let createError: unknown;
+		let sendError: unknown;
 		try {
-			await createSession(agent, { workingDirectories: [URI.file('/workspace')] });
+			const created = await createSession(agent, { workingDirectories: [URI.file('/workspace')] });
+			const chat = defaultChatUri(created.session);
+			await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn', undefined, undefined, chatContext(chat));
 		} catch (err) {
-			createError = err;
+			sendError = err;
 		}
 
 		assert.deepStrictEqual({
@@ -7036,7 +7140,7 @@ suite('ClaudeAgent — per-session provider', () => {
 			startTokens: proxy.startCalls.map(c => c.token),
 			staleHandleDisposed: proxy.disposeCount,
 			modelsAfterFailedReplacement: agent.models.get(),
-			copilotSessionDemandsSignIn: createError instanceof ProtocolError && createError.code === AHP_AUTH_REQUIRED,
+			copilotSessionDemandsSignIn: sendError instanceof ProtocolError && sendError.code === AHP_AUTH_REQUIRED,
 		}, {
 			hadModelsUnderA: true,
 			startTokens: ['tokA', 'tokB'],
