@@ -21,11 +21,13 @@ const xAIModelProviderIcon = registerIcon('chat-model-provider-xai', Codicon.xai
 const genericModelProviderIcon = registerIcon('chat-model-provider-generic', Codicon.sparkle, localize('chatModelProviderGenericIcon', "Icon for other model providers."));
 const genericModelProviderCompactIcon = registerIcon('chat-model-provider-generic-compact', Codicon.sparkleCompact, localize('chatModelProviderGenericCompactIcon', "Compact icon for other model providers."));
 
-/**
- * The provider icon matching a free-form identity string (vendor, family, model
- * or provider name). Falls back to a generic icon when nothing matches.
- */
+/** Matches a free-form provider identity, falling back to a generic icon. */
 export function getProviderIconForIdentity(identity: string, copilotIdentity: string = identity): ThemeIcon {
+	return getKnownProviderIconForIdentity(identity, copilotIdentity) ?? genericModelProviderIcon;
+}
+
+/** Matches the same provider brands without replacing an unknown label with a generic icon. */
+export function getKnownProviderIconForIdentity(identity: string, copilotIdentity: string = identity): ThemeIcon | undefined {
 	const normalized = identity.toLowerCase();
 	if (normalized.includes('grok') || normalized.includes('xai')) {
 		return xAIModelProviderIcon;
@@ -49,7 +51,7 @@ export function getProviderIconForIdentity(identity: string, copilotIdentity: st
 	if (copilotIdentity.toLowerCase().includes('copilot')) {
 		return copilotModelProviderIcon;
 	}
-	return genericModelProviderIcon;
+	return undefined;
 }
 
 export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {

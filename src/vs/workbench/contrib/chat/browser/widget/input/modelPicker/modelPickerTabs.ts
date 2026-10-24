@@ -11,7 +11,7 @@ import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, getLanguageModelSource
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
-import { getProviderIconForIdentity } from './modelProviderIcons.js';
+import { getKnownProviderIconForIdentity, getProviderIconForIdentity } from './modelProviderIcons.js';
 import { isAutoModel } from './modelPickerPresentation.js';
 import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
 
@@ -44,7 +44,7 @@ export interface IModelPickerDestination {
 	readonly supportsCopilotCuration?: boolean;
 	/** Names the destination in the tab tooltip and as the list heading. */
 	readonly label: string;
-	/** Omitted for source tabs, whose protocol labels stay visible without inferring a brand. */
+	/** Unrecognized sources omit the icon so their supplied label stays visible. */
 	readonly icon: LanguageModelProviderIcon | undefined;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Providers with nothing to list yet, shown as a welcome body when there are no models. */
@@ -84,9 +84,13 @@ export function getModelProviderLabel(
 ): string {
 	const source = model.metadata.modelSourceId === undefined ? undefined : languageModelsService.getLanguageModelGroups(model.metadata.vendor).find(group => group.source?.id === model.metadata.modelSourceId)?.source;
 	if (source) {
-		return source.displayName;
+		return getSourcePickerLabel(source);
 	}
 	return getProviderGroupForModel(model, modelToGroup, languageModelsService).groupName;
+}
+
+function getSourcePickerLabel(source: ILanguageModelSource): string {
+	return source.displayName.toLowerCase() === 'github copilot' ? localize('chat.modelPicker.copilotSource', "Copilot") : source.displayName;
 }
 
 /**
@@ -151,8 +155,8 @@ export function buildModelPickerDestinations(
 		destinations.push({
 			id: `source:${id}`,
 			source: destination.source,
-			label: destination.source.displayName,
-			icon: undefined,
+			label: getSourcePickerLabel(destination.source),
+			icon: getKnownProviderIconForIdentity(destination.source.displayName),
 			models: destination.models,
 			placeholders: [],
 			supportsCopilotCuration: destination.models.some(model => model.metadata.isCopilotModel === true),

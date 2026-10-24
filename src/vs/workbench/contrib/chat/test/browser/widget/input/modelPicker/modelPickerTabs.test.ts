@@ -129,13 +129,13 @@ suite('Model picker destinations', () => {
 			after: after.map(destination => [destination.id, destination.label]),
 			byok: models.map(model => model.metadata.isBYOK),
 		}, {
-			before: sources.map((source, index) => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, index === 0 ? 'GitHub Copilot' : 'Microsoft 365', [models[index].identifier]]),
-			after: sources.map(source => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, source.displayName]),
+			before: sources.map((source, index) => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, index === 0 ? 'Copilot' : 'Microsoft 365', [models[index].identifier]]),
+			after: sources.map((source, index) => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, index === 0 ? 'Copilot' : source.displayName]),
 			byok: [undefined, undefined],
 		});
 	});
 
-	test('arbitrary source labels stay visible without inferred brands or Copilot curation', () => {
+	test('unrecognized source labels stay visible and branding does not change identity or Copilot curation', () => {
 		const vendor = 'agent-host-claude';
 		const sources = [
 			{ id: 'urn:source:91', displayName: 'Native' },
@@ -159,15 +159,47 @@ suite('Model picker destinations', () => {
 				curated: destination.supportsCopilotCuration,
 				models: destination.models.map(model => model.identifier),
 			})),
-			renamed: after.map(destination => [destination.id, destination.label, destination.icon]),
+			renamed: after.map(destination => [destination.id, destination.label, destination.icon && ThemeIcon.isThemeIcon(destination.icon) ? destination.icon.id : undefined]),
 		}, {
 			before: sources.map((source, index) => ({
 				id: `source:${getLanguageModelSourceIdentifier(vendor, source.id)}`,
 				label: ['Native', 'Proxied', 'Organization gateway'][index],
 				icon: undefined, curated: false, models: [models[index].identifier],
 			})),
-			renamed: sources.map(source => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, source.displayName, undefined]),
+			renamed: sources.map((source, index) => [`source:${getLanguageModelSourceIdentifier(vendor, source.id)}`, source.displayName, index === 1 ? 'chat-model-provider-microsoft' : undefined]),
 		});
+	});
+
+	test('source presentation reuses brand icons and shortens Copilot without changing identity or curation', () => {
+		const vendor = 'agent-host-claude';
+		const sources = [
+			{ id: 'urn:copilot:91', displayName: 'Anthropic' },
+			{ id: 'urn:anthropic:27', displayName: 'GitHub Copilot' },
+			{ id: 'copilot', displayName: 'Private gateway' },
+		];
+		const models = sources.map(source => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'claude-sonnet'),
+			metadata: { ...createModel('claude-sonnet', 'Shared model', { vendor }).metadata, modelSourceId: source.id, isCopilotModel: false },
+		}));
+		const sourceService: ILanguageModelsService = {
+			...service,
+			getLanguageModelGroups: () => sources.map((source, index) => ({ source, modelIdentifiers: [models[index].identifier] })),
+		};
+		assert.deepStrictEqual(buildModelPickerDestinations(models, sourceService).map(destination => ({
+			id: destination.id,
+			source: destination.source,
+			label: destination.label,
+			icon: destination.icon && ThemeIcon.isThemeIcon(destination.icon) ? destination.icon.id : undefined,
+			curated: destination.supportsCopilotCuration,
+			models: destination.models.map(model => model.identifier),
+		})), sources.map((source, index) => ({
+			id: `source:${getLanguageModelSourceIdentifier(vendor, source.id)}`,
+			source,
+			label: ['Anthropic', 'Copilot', 'Private gateway'][index],
+			icon: ['chat-model-provider-claude', 'chat-model-provider-copilot', undefined][index],
+			curated: false,
+			models: [models[index].identifier],
+		})));
 	});
 
 	test('a host that relays the built-in provider keeps its models built in', () => {

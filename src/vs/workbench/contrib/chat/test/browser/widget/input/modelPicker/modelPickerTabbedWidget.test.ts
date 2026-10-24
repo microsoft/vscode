@@ -842,6 +842,40 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ before, after: labels() }, { before: expected, after: expected });
 	});
 
+	test('recognized source tabs use shared brand icons and accessible picker labels', () => {
+		const vendor = 'agent-host-claude';
+		const sources = [{ id: 'native', displayName: 'Anthropic' }, { id: 'proxy', displayName: 'GitHub Copilot' }];
+		const models = sources.map(source => ({
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+			metadata: { ...model('shared').metadata, vendor, modelSourceId: source.id },
+		}));
+		const { popup, selections } = createPicker({
+			models,
+			modelGroups: sources.map((source, index) => ({ source, modelIdentifiers: [models[index].identifier] })),
+		});
+		const tabs = () => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-tabbar [role="radio"]'), tab => ({
+			label: tab.getAttribute('aria-label'),
+			text: tab.textContent?.trim(),
+			claudeIcon: !!tab.querySelector('.codicon-chat-model-provider-claude'),
+			copilotIcon: !!tab.querySelector('.codicon-chat-model-provider-copilot'),
+		}));
+		const before = tabs();
+		element(popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+		const after = tabs();
+		element(popup, '.chat-model-picker-model').click();
+		assert.deepStrictEqual({ before, after, selections }, {
+			before: [
+				{ label: 'Anthropic', text: 'Anthropic', claudeIcon: true, copilotIcon: false },
+				{ label: 'Copilot', text: '', claudeIcon: false, copilotIcon: true },
+			],
+			after: [
+				{ label: 'Anthropic', text: '', claudeIcon: true, copilotIcon: false },
+				{ label: 'Copilot', text: 'Copilot', claudeIcon: false, copilotIcon: true },
+			],
+			selections: [models[1].identifier],
+		});
+	});
+
 	test('checking a compare-mode model updates the rows in place instead of showing the list again', async () => {
 		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 		const comparison: IModelPickerComparison = {

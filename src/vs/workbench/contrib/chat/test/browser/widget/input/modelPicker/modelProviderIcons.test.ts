@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { getCompactModelPickerIcon, getModelPickerIcon, getModelProviderIcon } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
+import { getCompactModelPickerIcon, getKnownProviderIconForIdentity, getModelPickerIcon, getModelProviderIcon, getProviderIconForIdentity } from '../../../../../browser/widget/input/modelPicker/modelProviderIcons.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function createModel(id: string, name: string, vendor = 'copilot', metadata?: Partial<ILanguageModelChatMetadata>): ILanguageModelChatMetadataAndIdentifier {
@@ -29,6 +29,20 @@ function createModel(id: string, name: string, vendor = 'copilot', metadata?: Pa
 suite('ModelProviderIcons', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shares brand matching while allowing unknown sources to keep their labels', () => {
+		assert.deepStrictEqual(['GitHub Copilot', 'Copilot', 'Anthropic', 'Claude', 'Native'].map(label => ({
+			label,
+			known: getKnownProviderIconForIdentity(label)?.id,
+			fallback: getProviderIconForIdentity(label).id,
+		})), [
+			{ label: 'GitHub Copilot', known: 'chat-model-provider-copilot', fallback: 'chat-model-provider-copilot' },
+			{ label: 'Copilot', known: 'chat-model-provider-copilot', fallback: 'chat-model-provider-copilot' },
+			{ label: 'Anthropic', known: 'chat-model-provider-claude', fallback: 'chat-model-provider-claude' },
+			{ label: 'Claude', known: 'chat-model-provider-claude', fallback: 'chat-model-provider-claude' },
+			{ label: 'Native', known: undefined, fallback: 'chat-model-provider-generic' },
+		]);
+	});
 
 	test('uses provider-specific icons', () => {
 		assert.deepStrictEqual([
