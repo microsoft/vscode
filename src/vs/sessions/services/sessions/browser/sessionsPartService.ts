@@ -46,7 +46,10 @@ export interface IToggleMaximizeSessionEvent {
 export interface ISessionsPartHeightConstraints {
 	readonly minimum: number;
 	readonly maximum: number;
-	/** Whether the part keeps its height as the window resizes, leaving the change to the parts beside it that can take it. */
+	/**
+	 * Whether the part keeps its height as the window resizes, leaving the change to the parts beside it that can take
+	 * it, such as the editor stacked above it.
+	 */
 	readonly keepHeight?: boolean;
 }
 

@@ -13,8 +13,10 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../../../workbench/browser/parts/editor/editor.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import type { AbstractChatView } from '../../../../browser/parts/chatView.js';
+import { MainEditorPart } from '../../../../browser/parts/editorPart.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { clampStackedChatOnResize, decideStackedChatInputOnly, shouldRestoreStackedChatConversation, stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly } from '../../../../browser/parts/stackedChatInputOnly.js';
@@ -26,7 +28,7 @@ import { STACKED_CHAT_CONVERSATION_MIN_HEIGHT, STACKED_CHAT_INPUT_MAX_HEIGHT } f
 import { SessionLayoutMode, SessionLayoutModeContext } from '../../../../common/sessionLayoutMode.js';
 import { ChatWindowContext } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsPartHeightConstraints, ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { DesktopLayoutModeCoordinator } from './desktopLayoutModeCoordinator.js';
 import { IDesktopLayoutContext } from './desktopLayoutStrategy.js';
 
@@ -67,6 +69,7 @@ export class DesktopStackedChatController extends Disposable {
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
@@ -176,7 +179,7 @@ export class DesktopStackedChatController extends Disposable {
 			const collapsed = height + this._sessionsPartService.chromeHeight;
 			const minimum = view.canShowInputOnly.read(reader) ? collapsed : collapsed + STACKED_CHAT_CONVERSATION_MIN_HEIGHT;
 			// Showing only its input, the chat keeps its height as the window resizes, rather than growing to be sized back.
-			this._sessionsPartService.setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY, keepHeight: view.inputOnly.read(reader) });
+			this._setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY, keepHeight: view.inputOnly.read(reader) });
 		}));
 
 		// Switched to, rather than dragged to: sized to the input, or to the conversation as the user last left it.
@@ -218,11 +221,20 @@ export class DesktopStackedChatController extends Disposable {
 			// The chat attached next, such as on a session switch, takes the constraints over rather than laying out twice.
 			queueMicrotask(() => {
 				if (!this._view) {
-					this._sessionsPartService.setHeightConstraints(undefined);
+					this._setHeightConstraints(undefined);
 				}
 			});
 		}));
 		return store;
+	}
+
+	/** While the chat keeps its height, the editor above it takes the resizes of their column instead. */
+	private _setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
+		this._sessionsPartService.setHeightConstraints(constraints);
+		const editorPart = this._editorGroupsService.mainPart;
+		if (editorPart instanceof MainEditorPart) {
+			editorPart.setTakesStackedColumnResizes(!!constraints?.keepHeight);
+		}
 	}
 
 	private _collapsedHeight(): number {

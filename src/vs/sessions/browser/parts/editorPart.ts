@@ -27,7 +27,16 @@ export class MainEditorPart extends MainEditorPartBase {
 	// flexible view (LayoutPriority.High) that absorbs visibility/resize deltas.
 	// Making the editor the flex view caused its width to drift to the minimum
 	// when toggling the auxiliary bar across session switches.
-	override priority = LayoutPriority.Normal;
+	override priority: LayoutPriority = LayoutPriority.Normal;
+
+	/**
+	 * Stacked above a chat that keeps its height, the editor takes the resizes of their column instead, and keeps the
+	 * column first for the resizes of its row, as the Sessions Part otherwise does: in the center panel alignment the
+	 * column would otherwise rank with the sidebar beside it, which would then take the width.
+	 */
+	setTakesStackedColumnResizes(takes: boolean): void {
+		this.priority = takes ? LayoutPriority.High : LayoutPriority.Normal;
+	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		const agentLayoutService = this.layoutService as IAgentWorkbenchLayoutService;
