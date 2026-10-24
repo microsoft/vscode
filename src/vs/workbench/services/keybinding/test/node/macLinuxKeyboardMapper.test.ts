@@ -213,7 +213,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⇧⌘\'',
 				ariaLabel: 'Shift+Command+\'',
-				electronAccelerator: null,
+				electronAccelerator: 'Shift+Cmd+\'',
 				userSettingsLabel: 'shift+cmd+[Minus]',
 				isWYSIWYG: false,
 				isMultiChord: false,
@@ -1802,6 +1802,65 @@ suite('keyboardMapper - MAC zh_hant2', () => {
 
 	test('mapping', () => {
 		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant2.txt');
+	});
+});
+
+suite('keyboardMapper - MAC layout-dependent accelerators', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function resolveElectronAccelerator(value: string, withShift: string, shiftKey = false, valueIsDeadKey = false): string | null {
+		const mapper = new MacLinuxKeyboardMapper(false, {
+			Equal: {
+				value,
+				valueIsDeadKey,
+				withShift,
+				withShiftIsDeadKey: false,
+				withAltGr: '',
+				withAltGrIsDeadKey: false,
+				withShiftAltGr: '',
+				withShiftAltGrIsDeadKey: false,
+			}
+		}, false, OperatingSystem.Macintosh);
+
+		const keybinding = mapper.resolveKeyboardEvent({
+			_standardKeyboardEventBrand: true,
+			ctrlKey: false,
+			shiftKey,
+			altKey: false,
+			metaKey: true,
+			altGraphKey: false,
+			keyCode: KeyCode.DependsOnKbLayout,
+			code: 'Equal'
+		});
+
+		return keybinding.getElectronAccelerator();
+	}
+
+	test('uses the produced character when the scan code has no stable key code', () => {
+		assert.deepStrictEqual({
+			plus: resolveElectronAccelerator('+', ':'),
+			space: resolveElectronAccelerator(' ', ':'),
+			digit: resolveElectronAccelerator('1', ':'),
+			questionMark: resolveElectronAccelerator('?', 'é'),
+			shiftedApostrophe: resolveElectronAccelerator('\'', '?', true),
+			shiftedPlus: resolveElectronAccelerator('+', ':', true),
+			shiftedExclamationMark: resolveElectronAccelerator('!', ':', true),
+			deadKey: resolveElectronAccelerator('`', ':', false, true),
+			uppercase: resolveElectronAccelerator('A', ':'),
+			unsupported: resolveElectronAccelerator('é', 'É'),
+		}, {
+			plus: 'Cmd+Plus',
+			space: 'Cmd+Space',
+			digit: 'Cmd+1',
+			questionMark: 'Cmd+?',
+			shiftedApostrophe: 'Shift+Cmd+\'',
+			shiftedPlus: null,
+			shiftedExclamationMark: null,
+			deadKey: null,
+			uppercase: null,
+			unsupported: null,
+		});
 	});
 });
 
