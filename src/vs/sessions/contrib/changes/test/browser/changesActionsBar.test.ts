@@ -90,7 +90,7 @@ suite('ChangesActionsBar', () => {
 			activeSessionResourceObs: activeChanges.resourceObs,
 			getSessionChanges: () => otherChanges,
 		});
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession: active });
+		const sessionsService = upcastPartial<ISessionsService>({ activeSession: active, mainWindowActiveSession: active });
 
 		const activeScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: active });
 		const otherScope = createChangesSessionScope(changesViewService, sessionsService, { _serviceBrand: undefined, session: other });

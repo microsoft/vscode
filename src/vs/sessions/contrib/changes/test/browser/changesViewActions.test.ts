@@ -122,6 +122,8 @@ suite('Changes View Actions', () => {
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+				override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+				override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 				override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>(visible);
 			});
 			instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {

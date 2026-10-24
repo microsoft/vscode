@@ -25,7 +25,7 @@ suite('sessionActionTarget', () => {
 	function resolve(arg: unknown, active: IActiveSession | undefined, visible: readonly (IActiveSession | undefined)[] = []) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ISessionsService, { activeSession: constObservable(active), visibleSessions: constObservable(visible) });
+		instantiationService.stub(ISessionsService, { activeSession: constObservable(active), mainWindowActiveSession: constObservable<IActiveSession | undefined>(undefined), windowSessions: constObservable<readonly IActiveSession[]>([]), visibleSessions: constObservable(visible) });
 		return instantiationService.invokeFunction(accessor => resolveSessionActionTarget(accessor, arg));
 	}
 
@@ -62,7 +62,7 @@ suite('sessionActionTarget', () => {
 	test('the lookup tracks visible sessions when read with a reader', () => {
 		const visible = createSession('visible');
 		const visibleObs = observableValue<readonly (IActiveSession | undefined)[]>('visible', []);
-		const sessionsService = upcastPartial<ISessionsService>({ activeSession: constObservable(createSession('active')), visibleSessions: visibleObs });
+		const sessionsService = upcastPartial<ISessionsService>({ activeSession: constObservable(createSession('active')), mainWindowActiveSession: constObservable<IActiveSession | undefined>(undefined), windowSessions: constObservable<readonly IActiveSession[]>([]), visibleSessions: visibleObs });
 		const found: (IActiveSession | undefined)[] = [];
 		store.add(autorun(reader => found.push(findSessionByResource(sessionsService, visible.resource, reader))));
 		visibleObs.set([visible], undefined);

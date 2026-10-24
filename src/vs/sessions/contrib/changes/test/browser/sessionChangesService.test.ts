@@ -33,6 +33,8 @@ import { IChangesViewService } from '../../common/changesViewService.js';
 function noSessions(active?: IActiveSession): ISessionsService {
 	return new class extends mock<ISessionsService>() {
 		override readonly activeSession = constObservable<IActiveSession | undefined>(active);
+		override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(active);
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}();
 }
@@ -129,6 +131,8 @@ suite('SessionChangesService', () => {
 		const otherSession = upcastPartial<IActiveSession>({ sessionId: 'other', resource: URI.parse('agent-host:other-session') });
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active-session') }));
+			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([otherSession]);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
