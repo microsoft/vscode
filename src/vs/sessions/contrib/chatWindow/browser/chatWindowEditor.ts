@@ -124,6 +124,9 @@ export class ChatWindowChatEditor extends EditorPane {
 	private _conversationHeight: number | undefined;
 	private _settledConversationHeight: number | undefined;
 	private readonly _rememberConversationHeight = this._register(new RunOnceScheduler(() => this._conversationHeight = this._settledConversationHeight, 500));
+	/** Shows the conversation again once the layout that asked for it is done: arranging groups inside it would leave the split view's offsets stale. */
+	private readonly _restoreConversationScheduler = this._register(new RunOnceScheduler(() => this._view?.setInputOnly(false), 0));
+	private readonly _recoverTerminalScheduler = this._register(new RunOnceScheduler(() => this._recoverTerminal(), 0));
 	/** How the groups were last arranged: the editor above or beside this group. */
 	private _arrangedSplitLayout: ChatWindowSplitLayout | undefined;
 	/** Set while this editor is laid out, or while it sizes its group, so that sizes then do not switch what it shows. */
@@ -135,6 +138,8 @@ export class ChatWindowChatEditor extends EditorPane {
 		this._settleByUser = false;
 		this._decide(false, byUser);
 	}, 0));
+	/** The height of the terminal row the user last chose, or that it opened with: what it is given back when the window grows. */
+	private _terminalHeight: number | undefined;
 	/** Whether the settle that is scheduled follows the user letting go of the sash. */
 	private _settleByUser = false;
 	/** Set while the chat shows only its input because the window is too short, see {@link chatWindowForcedByWindow}. */
@@ -178,7 +183,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		// The sash drags with the mouse: what its drag shows is settled when it lets go.
 		this._register(dom.addDisposableListener(targetWindow, dom.EventType.POINTER_DOWN, e => {
 			// Only a press on a sash of this window's editor area can drag the split.
-			this._pointerDown = e.target instanceof targetWindow.Element && !!e.target.closest('.monaco-sash');
+			this._pointerDown = dom.isHTMLElement(e.target) && !!e.target.closest('.monaco-sash');
 			if (this._pointerDown) {
 				this._afterWindowResize = false;
 			}
@@ -186,6 +191,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		const release = () => {
 			if (this._pointerDown) {
 				this._pointerDown = false;
+				this._rememberTerminalHeight();
 				this._settleByUser = true;
 				this._settle.schedule();
 			}
@@ -299,11 +305,16 @@ export class ChatWindowChatEditor extends EditorPane {
 		let arrangedTerminalPosition: ChatWindowTerminalPosition | undefined;
 		/** The editor group that gives way first when the window is resized, or when the terminal row is added. */
 		let prioritizedEditor: IEditorGroup | undefined;
+		/** The terminal row, which gives way last. */
+		let prioritizedTerminal: IEditorGroup | undefined;
 		const clearPriority = () => {
-			if (prioritizedEditor && part.groups.includes(prioritizedEditor)) {
-				part.setGroupLayoutPriority(prioritizedEditor, undefined);
+			for (const group of [prioritizedEditor, prioritizedTerminal]) {
+				if (group && part.groups.includes(group)) {
+					part.setGroupLayoutPriority(group, undefined);
+				}
 			}
 			prioritizedEditor = undefined;
+			prioritizedTerminal = undefined;
 		};
 		store.add(toDisposable(clearPriority));
 
@@ -410,12 +421,16 @@ export class ChatWindowChatEditor extends EditorPane {
 				// heights. Docked, the chat has the part's height to itself.
 				// It is applied on every arrange: restoring the editor part's state drops it.
 				if (!docked) {
-					if (editor !== prioritizedEditor) {
+					if (editor !== prioritizedEditor || terminal !== prioritizedTerminal) {
 						clearPriority();
 					}
 					if (editor) {
 						part.setGroupLayoutPriority(editor, GroupLayoutPriority.High);
 						prioritizedEditor = editor;
+					}
+					if (terminal) {
+						part.setGroupLayoutPriority(terminal, GroupLayoutPriority.Low);
+						prioritizedTerminal = terminal;
 					}
 				}
 
@@ -477,7 +492,9 @@ export class ChatWindowChatEditor extends EditorPane {
 	/** Sizes the terminal row across the bottom of the window as the panel of the main window opens. */
 	private _sizeTerminalRow(part: IEditorPart, terminal: IEditorGroup): void {
 		const { width } = part.getSize(terminal);
-		part.setSize(terminal, { width, height: Math.max(CHAT_WINDOW_TERMINAL_MIN_HEIGHT, Math.round(part.contentDimension.height * CHAT_WINDOW_TERMINAL_HEIGHT_RATIO)) });
+		const height = Math.max(CHAT_WINDOW_TERMINAL_MIN_HEIGHT, Math.round(part.contentDimension.height * CHAT_WINDOW_TERMINAL_HEIGHT_RATIO));
+		part.setSize(terminal, { width, height });
+		this._terminalHeight = height;
 	}
 
 	private _applyConstraints(): void {
@@ -551,6 +568,45 @@ export class ChatWindowChatEditor extends EditorPane {
 			if (!this._restoreConversation()) {
 				this._clampOnResize();
 			}
+			this._recoverTerminalScheduler.schedule();
+		}
+	}
+
+	private _rememberTerminalHeight(): void {
+		const terminal = this._state?.terminalGroup.get();
+		if (terminal && !this._state?.docked) {
+			const part = this._editorGroupsService.getPart(this.group);
+			if (part.groups.includes(terminal) && !part.hasMaximizedGroup()) {
+				this._terminalHeight = part.getSize(terminal).height;
+			}
+		}
+	}
+
+	/**
+	 * The window grew after it squeezed the terminal row: the editor, which takes the growth first, gives the row back
+	 * the height it was left at, down to its own minimum height.
+	 */
+	private _recoverTerminal(): void {
+		const terminal = this._state?.terminalGroup.get();
+		const chosen = this._terminalHeight;
+		if (!terminal || chosen === undefined || this._state?.docked) {
+			return;
+		}
+		const part = this._editorGroupsService.getPart(this.group);
+		const editor = part.groups.find(group => group !== this.group && group !== terminal);
+		if (!editor || !part.groups.includes(terminal) || part.hasMaximizedGroup()) {
+			return;
+		}
+		const { width, height } = part.getSize(terminal);
+		const slack = part.getSize(editor).height - DEFAULT_EDITOR_MIN_DIMENSIONS.height;
+		const give = Math.min(chosen - height, slack);
+		if (give > 0) {
+			this._sizing = true;
+			try {
+				part.setSize(terminal, { width, height: height + give });
+			} finally {
+				this._sizing = false;
+			}
 		}
 	}
 
@@ -592,7 +648,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		if (restore) {
 			this._forcedByWindow = false;
 			// The groups are arranged again for it, the chat at the height the user last left it.
-			view.setInputOnly(false);
+			this._restoreConversationScheduler.schedule();
 		}
 		return restore;
 	}
