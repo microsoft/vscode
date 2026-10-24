@@ -60,6 +60,9 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
+import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -321,7 +324,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	}());
 	instantiationService.stub(IFileDialogService, overrides?.fileDialogService ?? {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 300 }));
+	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({
+		[DevContainerIdleTimeoutSettingId]: 300, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true,
+	}));
 	instantiationService.stub(INotificationService, { error: () => { } });
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return overrides?.workspaceTrusted ?? true; }
@@ -502,6 +507,139 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const host of [
+		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },
+		{ address: 'tunnel:laptop', preferenceKey: undefined },
+		{ address: 'wsl:Ubuntu', preferenceKey: undefined },
+		{ address: 'ws://localhost:9000', preferenceKey: undefined },
+	]) {
+		test(`picker hidden preference preserves sessions and combines with availability (${host.preferenceKey ?? host.address})`, () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+			const key = getRemoteAgentHostPickerKey(host.preferenceKey ?? host.address);
+			preference.setHidden(key, true);
+			const available = observableValue('available', true);
+			const provider = createProvider(disposables, connection, { ...host, storageService }, { isVisibleInEnvironmentPicker: available });
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			provider.seedSessions([createSession('retained-session')]);
+			const beforeSessions = provider.getSessions();
+			const snapshot = () => ({ available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(), entries: getSessionCreationEnvironments([provider]).length });
+			const hidden = snapshot();
+			provider.showInEnvironmentPicker();
+			const shown = snapshot();
+			available.set(false, undefined);
+			const offline = snapshot();
+			preference.setHidden(key, true);
+			available.set(true, undefined);
+			const hiddenAgain = snapshot();
+			provider.showInEnvironmentPicker();
+			assert.deepStrictEqual({
+				hidden, shown, offline, hiddenAgain, final: snapshot(),
+				sessionsUnchanged: provider.getSessions().length === beforeSessions.length && provider.getSessions()[0] === beforeSessions[0],
+				connectionStatus: provider.connectionStatus.get().kind,
+			}, {
+				hidden: { available: true, visible: false, entries: 0 }, shown: { available: true, visible: true, entries: 1 },
+				offline: { available: false, visible: false, entries: 0 }, hiddenAgain: { available: true, visible: false, entries: 0 },
+				final: { available: true, visible: true, entries: 1 }, sessionsUnchanged: true, connectionStatus: 'connected',
+			});
+		});
+	}
+
+	for (const host of [
+		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },
+		{ address: 'tunnel:laptop' },
+		{ address: 'wsl:Ubuntu' },
+		{ address: 'ws://localhost:9000' },
+		{ address: 'cloudsandbox:desktop', pickerVisibilityKey: getRemoteAgentHostPickerKey('cloudsandbox:desktop', 'account-one') },
+	]) {
+		test(`management setting gates hidden preferences live without overriding availability (${host.address})`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const configurationService = new TestConfigurationService();
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+			const key = host.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(host.preferenceKey ?? host.address);
+			preference.setHidden(key, true);
+			const available = observableValue('available', true);
+			const provider = createProvider(disposables, connection, { ...host, storageService, configurationService }, {
+				pickerVisibilityKey: host.pickerVisibilityKey, isVisibleInEnvironmentPicker: available,
+			});
+			const observed: boolean[] = [];
+			disposables.add(autorun(reader => observed.push(provider.isVisibleInEnvironmentPicker!.read(reader))));
+			const snapshot = () => ({ visible: provider.isVisibleInEnvironmentPicker!.get(), entries: getSessionCreationEnvironments([provider]).length, hidden: preference.isHidden(key) });
+			const setEnabled = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER, affectedKeys: new Set([ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]),
+					change: { keys: [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING], overrides: [] },
+					affectsConfiguration: key => key === ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING,
+				});
+			};
+			const defaultOff = snapshot();
+			await setEnabled(true);
+			const enabled = snapshot();
+			await setEnabled(false);
+			provider.showInEnvironmentPicker();
+			const disabled = snapshot();
+			available.set(false, undefined);
+			const offline = snapshot();
+			available.set(true, undefined);
+			await setEnabled(true);
+			const restored = snapshot();
+			provider.showInEnvironmentPicker();
+			assert.deepStrictEqual({ defaultOff, enabled, disabled, offline, restored, shown: snapshot(), observed }, {
+				defaultOff: { visible: true, entries: 1, hidden: true },
+				enabled: { visible: false, entries: 0, hidden: true },
+				disabled: { visible: true, entries: 1, hidden: true },
+				offline: { visible: false, entries: 0, hidden: true },
+				restored: { visible: false, entries: 0, hidden: true },
+				shown: { visible: true, entries: 1, hidden: false },
+				observed: [true, false, true, false, true, false, true],
+			});
+		});
+	}
+
+	test('explicit reveal clears only this account preference without overriding offline availability', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'cloudsandbox:desktop';
+		const key = getRemoteAgentHostPickerKey(address, 'account-one');
+		const otherKey = getRemoteAgentHostPickerKey(address, 'account-two');
+		preference.setHidden(key, true);
+		preference.setHidden(otherKey, true);
+		const available = observableValue('available', false);
+		const provider = createProvider(disposables, connection, { address, storageService }, {
+			pickerVisibilityKey: key, isVisibleInEnvironmentPicker: available,
+		});
+		provider.showInEnvironmentPicker();
+		assert.deepStrictEqual({
+			hidden: preference.isHidden(key), otherAccountHidden: preference.isHidden(otherKey),
+			available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(),
+		}, { hidden: false, otherAccountHidden: true, available: false, visible: false });
+	});
+
+	test('a hidden ordinary remote remains available when no availability signal is configured', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'wsl:Ubuntu';
+		preference.setHidden(getRemoteAgentHostPickerKey(address), true);
+		const provider = createProvider(disposables, connection, { address, storageService });
+		assert.deepStrictEqual({
+			available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(),
+		}, { available: true, visible: false });
+	});
+
+	test('account-scoped picker preferences do not hide another account environment', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'cloudsandbox:desktop';
+		const key = getRemoteAgentHostPickerKey(address, 'account-one');
+		preference.setHidden(key, true);
+		const provider = createProvider(disposables, connection, { address, storageService }, {
+			pickerVisibilityKey: getRemoteAgentHostPickerKey(address, 'account-two'),
+		});
+		assert.strictEqual(provider.isVisibleInEnvironmentPicker?.get(), true);
+	});
 
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {

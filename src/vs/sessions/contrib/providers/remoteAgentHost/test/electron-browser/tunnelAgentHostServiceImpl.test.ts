@@ -45,7 +45,7 @@ suite('TunnelAgentHostService discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService(
-		getSessions: (provider: string) => readonly AuthenticationSession[],
+		getSessions: (provider: string, scopes?: Parameters<IAuthenticationService['getSessions']>[1]) => readonly AuthenticationSession[],
 		channel: IChannel = new class extends mock<IChannel>() { }(),
 		options?: {
 			onFactory: (factory: IRemoteAgentHostConnectionFactory) => void;
@@ -69,8 +69,8 @@ suite('TunnelAgentHostService discovery', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
-			override async getSessions(provider: string): Promise<readonly AuthenticationSession[]> {
-				return getSessions(provider);
+			override async getSessions(provider: string, scopes?: Parameters<IAuthenticationService['getSessions']>[1]): Promise<readonly AuthenticationSession[]> {
+				return getSessions(provider, scopes);
 			}
 			override async createSession(provider: string): Promise<AuthenticationSession> {
 				if (!options) {
@@ -173,6 +173,14 @@ suite('TunnelAgentHostService discovery', () => {
 
 	test('rejects silent discovery when authentication is unavailable', async () => {
 		const service = createService(() => []);
+		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+	});
+
+	test('a cached token without the tunnel scope fails silent discovery without network enumeration or prompting', async () => {
+		const service = createService((provider, scopes) => provider === 'github' && scopes === undefined
+			? [{ id: 'github', accessToken: 'token', scopes: ['user:email'], account: { id: 'account', label: 'Account' } }]
+			: []);
+		assert.strictEqual(await service.getAuthProvider({ silent: true }), undefined);
 		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
 	});
 
