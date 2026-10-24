@@ -154,7 +154,7 @@
 }
 
 .remotes-widget .remotes-actions-column {
-	justify-content: flex-end;
+	justify-content: flex-start;
 }
 
 .remotes-widget .remotes-actions-column .monaco-toolbar {

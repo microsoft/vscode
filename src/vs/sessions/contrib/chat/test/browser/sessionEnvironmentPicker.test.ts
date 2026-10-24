@@ -245,10 +245,13 @@ suite('SessionEnvironmentPicker', () => {
 				let menu: { label: string | undefined; separator: boolean }[] = [];
 				let submenus: (readonly string[] | undefined)[] = [];
 				let websocketActions: readonly IAction[] | undefined;
+				let hideDefaultKeybindingTooltip: boolean | undefined;
 				instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 					isVisible: false,
 					hide: () => { calls.push('hide'); hide?.(); },
-					show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
+					show: (...args: Parameters<IActionWidgetService['show']>) => {
+						const [, , items, delegate, , , , , options] = args;
+						hideDefaultKeybindingTooltip = options?.hideDefaultKeybindingTooltip;
 						menu = items.map(item => ({ label: item.label, separator: item.kind === ActionListItemKind.Separator }));
 						submenus = items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.submenuActions?.map(action => action.label));
 						websocketActions = items.find(item => item.label === 'WebSocket')?.submenuActions;
@@ -276,7 +279,7 @@ suite('SessionEnvironmentPicker', () => {
 					await Promise.resolve();
 				}
 				assert.deepStrictEqual({
-					menu, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
+					menu, hideDefaultKeybindingTooltip, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
 				}, {
 					menu: [
 						{ label: 'This Computer', separator: false },
@@ -285,6 +288,7 @@ suite('SessionEnvironmentPicker', () => {
 						{ label: 'Connect via SSH...', separator: false },
 						...(showManage ? [{ label: '', separator: true }, { label: 'Manage...', separator: false }] : []),
 					],
+					hideDefaultKeybindingTooltip: true,
 					remoteSubmenus: [
 						showManage ? undefined : ['Manage SSH'],
 						showManage ? undefined : ['Manage Tunnel'],
