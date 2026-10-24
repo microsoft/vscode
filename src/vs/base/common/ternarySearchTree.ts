@@ -547,11 +547,8 @@ export class TernarySearchTree<K, V> {
 		}
 
 		if (superStr) {
-			// removing children, reset height
-			node.left = undefined;
+			// removing superstrings only, left and right hold unrelated keys
 			node.mid = undefined;
-			node.right = undefined;
-			node.height = 1;
 		} else {
 			// removing element
 			node.key = undefined;
@@ -559,7 +556,7 @@ export class TernarySearchTree<K, V> {
 		}
 
 		// BST node removal
-		if (!node.mid && !node.value) {
+		if (!node.mid && node.value === undefined) {
 			if (node.left && node.right) {
 				// full node
 				// replace deleted-node with the min-node of the right branch.
@@ -572,6 +569,8 @@ export class TernarySearchTree<K, V> {
 					node.key = min.key;
 					node.value = min.value;
 					node.segment = min.segment;
+					// the successor takes over this spot, its equal-child chain must move too
+					node.mid = min.mid;
 
 					// remove NODE (inorder successor can only have right child)
 					const newChild = min.right;
