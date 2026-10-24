@@ -229,7 +229,7 @@ export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('edit
 
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', null, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', editorBackground, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
+export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', editorBackground, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (\"workbench.editor.showTabs\": \"single\"). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
 	dark: null,
@@ -460,13 +460,9 @@ export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.bac
 	light: '#007ACC',
 	hcDark: '#000000',
 	hcLight: '#0F4A85'
-}, 
-export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('activityBar.hoverForeground', {
-	dark: Color.white,
-	light: '#333333',
-	hcDark: Color.white,
-	hcLight: '#333333'
-}, localize('activityBarHoverForeground', "Foreground color of the activity bar items on hover. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('activityBar.hoverForeground', ACTIVITY_BAR_FOREGROUND, localize('activityBarHoverForeground', "Foreground color of the activity bar items on hover. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('activityBar.hoverBackground', {
 	dark: null,
@@ -474,7 +470,6 @@ export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('activityBar.hoverBac
 	hcDark: null,
 	hcLight: null
 }, localize('activityBarHoverBackground', "Background color of the activity bar items on hover. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
-localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', Color.white, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
@@ -711,7 +706,7 @@ export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, loca
 
 export const MODERN_PANEL_BORDER = registerColor('modernPanel.border', SURFACE_BORDER, localize('modernPanelBorder', "Border color of the panel surface when the modern UI is enabled."));
 
-// Dark and light themes use `foreground` at 40% alpha.
+// Dark and light themes use foreground at 40% alpha.
 // High contrast themes keep the foreground opaque so the grips stay legible.
 export const MODERN_SASH_GRIP_FOREGROUND = registerColor('modernSash.gripForeground', {
 	dark: transparent(foreground, 0.4),
