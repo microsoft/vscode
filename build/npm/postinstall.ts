@@ -7,13 +7,14 @@ import * as fs from 'fs';
 import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
-import { dirs } from './dirs.ts';
+import { workspaceMembers, separateRoots, distroRoots } from './dirs.ts';
 import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
+import { getNativeBuildEnv, nativeBuildKeys } from './pnpm/nativeBuildEnv.ts';
+import { getPinnedPnpmVersion, getPnpmCommand } from '../lib/pnpm.ts';
 
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
+const pnpm = getPnpmCommand();
 
 function log(dir: string, message: string) {
 	if (process.stdout.isTTY) {
@@ -54,24 +55,25 @@ function spawnAsync(command: string, args: string[], opts: child_process.SpawnOp
 	});
 }
 
-async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): Promise<void> {
-	const finalOpts: child_process.SpawnOptions = {
-		env: { ...process.env },
-		...(opts ?? {}),
-		cwd: path.join(root, dir),
-		shell: true,
-	};
-
-	const command = process.env['npm_command'] || 'install';
-
+/**
+ * Installs a separate pnpm install root. pnpm uses `--frozen-lockfile` by default in CI.
+ */
+async function pnpmInstallAsync(dir: string, env: NodeJS.ProcessEnv): Promise<void> {
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const syncOpts: child_process.SpawnSyncOptions = {
-			env: finalOpts.env,
+			env,
 			cwd: root,
 			stdio: 'inherit',
 			shell: true,
 		};
 		const userinfo = os.userInfo();
+		const pnpmVersion = getPinnedPnpmVersion(root);
+		if (!pnpmVersion) {
+			throw new Error('The root package.json must pin pnpm in its packageManager field.');
+		}
+		// The container gets the pinned pnpm in the mounted musl Node.js and keeps its own store
+		// inside the mounted repository, so it never writes to the host's pnpm store.
+		const storeDir = '/root/vscode/.build/pnpm-store-container';
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
 		if (process.env['npm_config_arch'] === 'arm64') {
@@ -85,102 +87,88 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 			'-v', `${process.env['VSCODE_NPMRC_PATH']}:/root/.npmrc`,
 			'-w', path.resolve('/root/vscode', dir),
 			process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'],
-			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
+			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build pnpm@${pnpmVersion} && pnpm install --frozen-lockfile --store-dir ${storeDir}\"`
 		], syncOpts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], syncOpts);
+		if (fs.existsSync(path.join(root, '.build', 'pnpm-store-container'))) {
+			run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, path.join(root, '.build', 'pnpm-store-container')], syncOpts);
+		}
 	} else {
 		log(dir, 'Installing dependencies...');
-		const output = await spawnAsync(npm, command.split(' '), finalOpts);
+		const output = await spawnAsync(pnpm.command, [...pnpm.args, 'install'], { env, cwd: path.join(root, dir), shell: pnpm.shell });
 		if (output.trim()) {
 			for (const line of output.trim().split('\n')) {
 				log(dir, line);
 			}
 		}
 	}
-	removeParcelWatcherPrebuild(dir);
 }
 
-function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
-	const npmrcPath = path.join(root, dir, '.npmrc');
-	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
-
-	for (const line of lines) {
-		const trimmedLine = line.trim();
-		if (trimmedLine && !trimmedLine.startsWith('#')) {
-			const [key, value] = trimmedLine.split('=');
-			env[`npm_config_${key}`] = value.replace(/^"(.*)"$/, '$1');
+/**
+ * Applies native module build variables (`undefined` removes a variable).
+ */
+function applyEnv(env: NodeJS.ProcessEnv, values: Record<string, string | undefined>): NodeJS.ProcessEnv {
+	for (const [key, value] of Object.entries(values)) {
+		if (value === undefined) {
+			delete env[key];
+		} else {
+			env[key] = value;
 		}
 	}
+	return env;
+}
 
-	// Use our bundled node-gyp version
-	env['npm_config_node_gyp'] =
-		process.platform === 'win32'
-			? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-			: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+/**
+ * Removes the native build variables that the workspace's `.pnpmfile.mts` exported, for roots
+ * without a pnpmfile that don't build for Electron.
+ */
+function clearNativeBuildEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	for (const key of nativeBuildKeys) {
+		delete env[`npm_config_${key}`];
+	}
+	return env;
+}
 
-	// Force node-gyp to use process.config on macOS
-	// which defines clang variable as expected. Otherwise we
-	// run into compilation errors due to incorrect compiler
-	// configuration.
-	// NOTE: This means the process.config should contain
-	// the correct clang variable. So keep the version check
-	// in preinstall sync with this logic.
-	// Change was first introduced in https://github.com/nodejs/node/commit/6e0a2bb54c5bbeff0e9e33e1a0c683ed980a8a0f
-	if ((dir === 'remote' || dir === 'build') && process.platform === 'darwin') {
-		env['npm_config_force_process_config'] = 'true';
+function getRemoteEnv(): NodeJS.ProcessEnv {
+	const env: NodeJS.ProcessEnv = { ...process.env };
+	if (process.env['VSCODE_REMOTE_CC']) {
+		env['CC'] = process.env['VSCODE_REMOTE_CC'];
 	} else {
-		delete env['npm_config_force_process_config'];
+		delete env['CC'];
 	}
-
-	if (dir === 'build') {
-		env['npm_config_target'] = process.versions.node;
-		env['npm_config_arch'] = process.arch;
+	if (process.env['VSCODE_REMOTE_CXX']) {
+		env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
+	} else {
+		delete env['CXX'];
 	}
+	if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+	if (process.env['CFLAGS']) { delete env['CFLAGS']; }
+	if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
+	if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
+	if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
+	return env;
 }
 
-function removeParcelWatcherPrebuild(dir: string) {
-	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@parcel');
-	if (!fs.existsSync(parcelModuleFolder)) {
-		return;
-	}
-
-	const parcelModules = fs.readdirSync(parcelModuleFolder);
-	for (const moduleName of parcelModules) {
-		if (moduleName.startsWith('watcher-')) {
-			const modulePath = path.join(parcelModuleFolder, moduleName);
-			fs.rmSync(modulePath, { recursive: true, force: true });
-			log(dir, `Removed @parcel/watcher prebuilt module ${modulePath}`);
+/**
+ * Removes the prebuilt `@parcel/watcher-<platform>` packages so that `@parcel/watcher` loads the
+ * binary built from source. With the hoisted layout they can be in the install root's
+ * `node_modules` or in a workspace member's own `node_modules`.
+ */
+function removeParcelWatcherPrebuilds(dir: string) {
+	for (const parcelModuleFolder of [
+		path.join(root, dir, 'node_modules', '@parcel'),
+		path.join(root, dir, 'node_modules', '@parcel', 'watcher', 'node_modules', '@parcel'),
+	]) {
+		if (!fs.existsSync(parcelModuleFolder)) {
+			continue;
 		}
-	}
-}
-
-function getNpmrcConfigKeys(npmrcPath: string): string[] {
-	if (!fs.existsSync(npmrcPath)) {
-		return [];
-	}
-	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
-	const keys: string[] = [];
-	for (const line of lines) {
-		const trimmedLine = line.trim();
-		if (trimmedLine && !trimmedLine.startsWith('#')) {
-			const eqIndex = trimmedLine.indexOf('=');
-			if (eqIndex > 0) {
-				keys.push(trimmedLine.substring(0, eqIndex).trim());
+		for (const moduleName of fs.readdirSync(parcelModuleFolder)) {
+			if (moduleName.startsWith('watcher-')) {
+				const modulePath = path.join(parcelModuleFolder, moduleName);
+				fs.rmSync(modulePath, { recursive: true, force: true });
+				log(dir || '.', `Removed @parcel/watcher prebuilt module ${modulePath}`);
 			}
 		}
-	}
-	return keys;
-}
-
-function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
-	const dirNpmrcPath = path.join(root, dir, '.npmrc');
-	if (fs.existsSync(dirNpmrcPath)) {
-		return;
-	}
-
-	for (const key of rootNpmrcConfigKeys) {
-		const envKey = `npm_config_${key.replace(/-/g, '_')}`;
-		delete env[envKey];
 	}
 }
 
@@ -248,73 +236,54 @@ async function main() {
 
 	const _state = computeState();
 
+	// The workspace members were installed by the `pnpm install` that runs this script.
+	for (const dir of workspaceMembers) {
+		removeParcelWatcherPrebuilds(dir);
+	}
+
 	const nativeTasks: (() => Promise<void>)[] = [];
 	const parallelTasks: (() => Promise<void>)[] = [];
 
-	for (const dir of dirs) {
-		if (dir === '') {
-			removeParcelWatcherPrebuild(dir);
-			continue; // already executed in root
-		}
+	for (const dir of [...separateRoots, ...distroRoots]) {
+		const install = (env: NodeJS.ProcessEnv) => async () => {
+			await pnpmInstallAsync(dir, env);
+			removeParcelWatcherPrebuilds(dir);
+		};
 
 		if (dir === 'build') {
-			nativeTasks.push(() => {
-				const env: NodeJS.ProcessEnv = { ...process.env };
-				if (process.env['CC']) { env['CC'] = 'gcc'; }
-				if (process.env['CXX']) { env['CXX'] = 'g++'; }
-				if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
-				if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
-				setNpmrcConfig('build', env);
-				return npmInstallAsync('build', { env });
-			});
-			continue;
+			// build/.pnpmfile.mts exports the native module build variables: build/.npmrc, the running
+			// Node.js version and the host architecture.
+			const env: NodeJS.ProcessEnv = { ...process.env };
+			if (process.env['CC']) { env['CC'] = 'gcc'; }
+			if (process.env['CXX']) { env['CXX'] = 'g++'; }
+			if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
+			if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
+			nativeTasks.push(install(env));
+		} else if (dir === 'remote') {
+			// remote/.pnpmfile.mts exports the native module build variables of remote/.npmrc.
+			nativeTasks.push(install(getRemoteEnv()));
+		} else if (dir === 'extensions/copilot') {
+			// No .npmrc or pnpmfile: builds native modules for Electron with the workspace's variables.
+			nativeTasks.push(install({ ...process.env }));
+		} else if (dir === '.build/distro/npm/remote') {
+			// Distro roots have no .npmrc or pnpmfile: build for the remote server like remote/.
+			nativeTasks.push(install(applyEnv(getRemoteEnv(), getNativeBuildEnv(path.join(root, 'remote'), { forceProcessConfigOnDarwin: true }))));
+		} else {
+			parallelTasks.push(install(clearNativeBuildEnv({ ...process.env })));
 		}
-
-		if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
-			const remoteDir = dir;
-			nativeTasks.push(() => {
-				const env: NodeJS.ProcessEnv = { ...process.env };
-				if (process.env['VSCODE_REMOTE_CC']) {
-					env['CC'] = process.env['VSCODE_REMOTE_CC'];
-				} else {
-					delete env['CC'];
-				}
-				if (process.env['VSCODE_REMOTE_CXX']) {
-					env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
-				} else {
-					delete env['CXX'];
-				}
-				if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
-				if (process.env['CFLAGS']) { delete env['CFLAGS']; }
-				if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
-				if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
-				if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
-				if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
-				setNpmrcConfig('remote', env);
-				return npmInstallAsync(remoteDir, { env });
-			});
-			continue;
-		}
-
-		const taskDir = dir;
-		parallelTasks.push(() => {
-			const env = { ...process.env };
-			clearInheritedNpmrcConfig(taskDir, env);
-			return npmInstallAsync(taskDir, { env });
-		});
 	}
 
-	// Native dirs (build, remote) run sequentially to avoid node-gyp conflicts
+	// Native roots (build, remote) run sequentially to avoid node-gyp conflicts
 	for (const task of nativeTasks) {
 		await task();
 	}
 
-	// JS-only dirs run in parallel
+	// JS-only roots run in parallel
 	const concurrency = Math.min(os.cpus().length, 8);
-	log('.', `Running ${parallelTasks.length} npm installs with concurrency ${concurrency}...`);
+	log('.', `Running ${parallelTasks.length} pnpm installs with concurrency ${concurrency}...`);
 	await runWithConcurrency(parallelTasks, concurrency);
 
-	child_process.execSync('git config pull.rebase merges');
+		child_process.execSync('git config pull.rebase merges');
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
 
 	finishCloudSandbox();
@@ -336,40 +305,6 @@ async function main() {
 	const claudeSkillsLinkType = ensureAgentHarnessLink(path.join('..', '.agents', 'skills'), claudeSkillsLink);
 	if (claudeSkillsLinkType !== 'existing') {
 		log('.', `Created ${claudeSkillsLinkType} .claude/skills -> .agents/skills`);
-	}
-
-	// foundry-local-sdk's libraryPath redirects its shared libraries but not its
-	// two N-API addons. Packaged builds provision all native files together, so
-	// patch the lazy loader to resolve the addons from libraryPath as well.
-	for (const dir of ['', 'remote']) {
-		const nativeLoaderFile = path.join(root, dir, 'node_modules', 'foundry-local-sdk', 'dist', 'detail', 'native.js');
-		if (!fs.existsSync(nativeLoaderFile)) {
-			continue;
-		}
-		const content = fs.readFileSync(nativeLoaderFile, 'utf8');
-		const marker = '// VSCODE_PATCH:foundry-addons-from-library-path';
-		if (content.includes(marker)) {
-			continue;
-		}
-		const replacements: readonly [string, string][] = [
-			[
-				`const addonPath = resolve(prebuildDir, "foundry_local_node.node");\nconst preloadAddonPath = resolve(prebuildDir, "foundry_local_preload.node");`,
-				`${marker}\nlet addonPath = resolve(prebuildDir, "foundry_local_node.node");\nlet preloadAddonPath = resolve(prebuildDir, "foundry_local_preload.node");`,
-			],
-			[
-				`if (!existsSync(fullPath)) {\n        throw new Error(\`libraryPath does not contain \${expected}: \${libraryPath}\`);\n    }`,
-				`if (!existsSync(fullPath)) {\n        throw new Error(\`libraryPath does not contain \${expected}: \${libraryPath}\`);\n    }\n    const configuredAddonPath = resolve(libraryPath, "foundry_local_node.node");\n    const configuredPreloadAddonPath = resolve(libraryPath, "foundry_local_preload.node");\n    if (!existsSync(configuredAddonPath) || !existsSync(configuredPreloadAddonPath)) {\n        throw new Error(\`libraryPath does not contain both Foundry Local addons: \${libraryPath}\`);\n    }\n    addonPath = configuredAddonPath;\n    preloadAddonPath = configuredPreloadAddonPath;`,
-			],
-		];
-		let patched = content;
-		for (const [needle, replacement] of replacements) {
-			if (!patched.includes(needle)) {
-				throw new Error(`Unexpected foundry-local-sdk native loader shape in ${nativeLoaderFile}`);
-			}
-			patched = patched.replace(needle, replacement);
-		}
-		fs.writeFileSync(nativeLoaderFile, patched);
-		log(dir || '.', 'Patched foundry-local-sdk native loader (addons from libraryPath)');
 	}
 }
 
