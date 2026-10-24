@@ -66,7 +66,7 @@ suite('Sessions - Session Activity Bar', () => {
 		return new Promise(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 	}
 
-	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
+	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[], contextKeys: Record<string, string> = {}) {
 		const testStore = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, testStore);
 
@@ -150,7 +150,11 @@ suite('Sessions - Session Activity Bar', () => {
 
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, testStore.add(instantiationService.createInstance(ContextKeyService)));
+		const contextKeyService = testStore.add(instantiationService.createInstance(ContextKeyService));
+		for (const [key, value] of Object.entries(contextKeys)) {
+			contextKeyService.createKey(key, value);
+		}
+		instantiationService.stub(IContextKeyService, contextKeyService);
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
@@ -891,21 +895,27 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('names a submenu entry after its checked item, such as the Layout button after the current mode, keeping its icon', () => {
-		const layout = (checked: string): ITestEntry => ({
-			id: 'test.layout', title: 'Layout', icon: Codicon.layout,
-			submenu: ['Chat Only', 'Editor Only', 'Stacked', 'Side by Side'].map(title => ({ id: `test.layout.${title}`, title, checked: title === checked })),
-		});
-		const describe = (entries: ITestEntry[]) => {
-			const { activityBar } = createActivityBar(store, entries);
+	test('names the Layout button after the layout mode of its window, keeping its icon, and other submenu entries after their title', () => {
+		const layout: ITestEntry = {
+			id: Menus.SessionLayout.id, title: 'Layout', icon: Codicon.layout,
+			submenu: [{ id: 'test.showChat', title: 'Show Chat', checked: true }, { id: 'test.showEditor', title: 'Show Editor', checked: true }],
+		};
+		const describe = (entries: ITestEntry[], contextKeys: Record<string, string> = {}) => {
+			const { activityBar } = createActivityBar(store, entries, contextKeys);
 			const button = activityBar.element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]')!;
 			return { label: button.getAttribute('aria-label'), icon: button.classList.contains('codicon-layout') };
 		};
 
-		assert.deepStrictEqual({ stacked: describe([layout('Stacked')]), editorOnly: describe([layout('Editor Only')]), noneChecked: describe([canvas]) }, {
+		assert.deepStrictEqual({
+			stacked: describe([layout], { 'sessions.layoutMode': 'stacked' }),
+			editorOnly: describe([layout], { 'sessions.layoutMode': 'editorOnly' }),
+			noMode: describe([layout]),
+			canvas: describe([canvas]),
+		}, {
 			stacked: { label: 'Layout: Stacked', icon: true },
 			editorOnly: { label: 'Layout: Editor Only', icon: true },
-			noneChecked: { label: 'Canvas', icon: false },
+			noMode: { label: 'Layout', icon: true },
+			canvas: { label: 'Canvas', icon: false },
 		});
 	});
 

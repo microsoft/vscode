@@ -24,13 +24,13 @@ suite('Chat window - terminal position', () => {
 			'sessions.chatWindowTerminalPosition': 'underEditor',
 		};
 		const terminalPosition = (contextKeys: Record<string, ContextKeyValue>) => describeMenuGroup(store, MenuId.EditorTitle, '9_chatWindowTerminalPosition', contextKeys, {});
-		const entry = (id: string, label: string, checked = false) => ({ id: `sessions.chatWindow.terminalPosition.${id}`, label, checked });
+		const entry = (id: string, label: string, checked = false) => ({ id: `sessions.chatWindow.terminalPosition.${id}`, label, checked, enabled: true });
 
 		assert.deepStrictEqual({
 			row: terminalPosition(row),
 			otherGroup: terminalPosition({ ...row, 'sessions.chatWindowTerminalRow': false }),
 			aiDisabled: terminalPosition({ ...row, chatIsEnabled: false }),
-			inLayoutMenu: MenuRegistry.getMenuItems(Menus.ChatWindowLayout).filter(isIMenuItem).filter(item => item.command.id.startsWith('sessions.chatWindow.terminalPosition.')).length,
+			inLayoutMenu: MenuRegistry.getMenuItems(Menus.SessionLayout).filter(isIMenuItem).filter(item => item.command.id.startsWith('sessions.chatWindow.terminalPosition.')).length,
 		}, {
 			row: [{ label: 'Terminal Position', icon: undefined, entries: [entry('fullWidth', 'Across Full Width'), entry('underEditor', 'Under Editor', true), entry('underChat', 'Under Chat')] }],
 			otherGroup: [],

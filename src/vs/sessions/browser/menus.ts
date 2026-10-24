@@ -42,7 +42,6 @@ export const Menus = {
 	ChatWindowTitle: new MenuId('SessionsChatWindowTitle'),
 	/** The layout actions in the header of a docked chat window, before its Close button, as {@link ChatWindowTitleBarLayout}. */
 	ChatWindowTitleLayout: new MenuId('SessionsChatWindowTitleLayout'),
-	ChatWindowLayout: new MenuId('SessionsChatWindowLayout'),
 	/** Where the terminal row of a chat window shows, in the More Actions menu of the row. */
 	ChatWindowTerminalPosition: new MenuId('SessionsChatWindowTerminalPosition'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
@@ -126,16 +125,17 @@ export const Menus = {
 	 * entry opens or activates its side pane tab, revealing the side pane when it is closed; these entries
 	 * are gated on availability only. The terminal entry reveals the terminal in the panel. While the
 	 * activity bar shows its layout actions, the Layout button leads it, opening
-	 * {@link SessionLayoutModes}, and the panel toggle follows the
+	 * {@link SessionLayout}, and the panel toggle follows the
 	 * terminal, in place of the title bar's side panel and panel toggles.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
 	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
 	/**
-	 * The layout modes of the window, opened by the one Layout button of the Session Activity Bar, the current one
-	 * checked. The main window and chat windows each contribute theirs, scoped to their kind of window.
+	 * The Layout menu of a window: Show Chat, Show Editor, and Stacked, checked as the window shows them, and, in a chat
+	 * window, where it shows. One Layout button opens it, in the Session Activity Bar or in the title bar. The main
+	 * window and chat windows each contribute theirs, scoped to their kind of window.
 	 */
-	SessionLayoutModes: new MenuId('SessionsLayoutModes'),
+	SessionLayout: new MenuId('SessionsLayout'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),

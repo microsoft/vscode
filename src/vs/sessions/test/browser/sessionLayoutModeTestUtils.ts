@@ -20,7 +20,7 @@ import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 export interface ISessionActivityBarLayoutItem {
 	readonly label: string;
 	readonly icon: string | undefined;
-	readonly entries?: readonly { readonly id: string; readonly label: string; readonly checked: boolean }[];
+	readonly entries?: readonly { readonly id: string; readonly label: string; readonly checked: boolean; readonly enabled: boolean }[];
 }
 
 /**
@@ -43,7 +43,7 @@ export function describeMenuGroup(store: Pick<DisposableStore, 'add'>, menuId: M
 		return {
 			label: action.label,
 			icon: ThemeIcon.isThemeIcon(icon) ? icon.id : undefined,
-			entries: action.actions.filter(entry => !(entry instanceof Separator)).map(entry => ({ id: entry.id, label: entry.label, checked: !!entry.checked })),
+			entries: action.actions.filter(entry => !(entry instanceof Separator)).map(entry => ({ id: entry.id, label: entry.label, checked: !!entry.checked, enabled: entry.enabled })),
 		};
 	});
 }

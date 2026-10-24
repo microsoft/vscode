@@ -18,8 +18,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
-import { registerSessionLayoutModeActions, sessionLayoutModeChoices } from '../../../browser/sessionLayoutModeActions.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { registerSessionLayoutModeActions, SessionLayoutMenuGroup, sessionLayoutModeChoices } from '../../../browser/sessionLayoutModeActions.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, ChatWindowTerminalRowContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayoutContext } from '../../../common/sessionLayoutMode.js';
@@ -56,8 +55,12 @@ const InChatWindowContext = ContextKeyExpr.has(ChatWindowContext.key);
 /** Chat windows, like the chat, hide when AI features are disabled. */
 const ChatWindowMenuContext = ChatContextKeys.enabled;
 
-// The layout modes of chat windows, from the Command Palette, and in the Session Activity Bar of a chat window with an
-// editor area while it shows its layout actions. Docked, the editor shows above the chat, which keeps to its input.
+const TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID = 'sessions.chatWindow.toggleChat';
+const TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID = 'sessions.chatWindow.toggleArrangement';
+
+// The layout modes of chat windows, from the Command Palette, and the toggles of the Layout menu of a chat window with an
+// editor: Show Chat, Show Editor, and Stacked. Docked, the editor shows above the chat, which keeps to its input: there is
+// no side by side, so no Stacked toggle.
 const CHAT_WINDOW_LAYOUT_MODE_COMMAND_IDS: Readonly<Record<SessionLayoutMode, string>> = {
 	[SessionLayoutMode.ChatOnly]: 'sessions.chatWindow.showChatOnly',
 	[SessionLayoutMode.EditorOnly]: 'sessions.chatWindow.showEditorOnly',
@@ -66,27 +69,21 @@ const CHAT_WINDOW_LAYOUT_MODE_COMMAND_IDS: Readonly<Record<SessionLayoutMode, st
 };
 registerSessionLayoutModeActions({
 	ids: CHAT_WINDOW_LAYOUT_MODE_COMMAND_IDS,
+	toggleIds: { chat: TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, editor: CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, stacked: TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID },
 	precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext)!,
 	available: mode => mode === SessionLayoutMode.SideBySide ? ChatWindowDockedContext.negate() : undefined,
-	activityBarWhen: ContextKeyExpr.and(
-		ChatWindowMenuContext,
-		ChatWindowHasEditorAreaContext,
-		ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
-		ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
-	),
+	menuWhen: ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowHasEditorContext)!,
+	current: accessor => {
+		const window = accessor.get(IChatWindowService).getActiveWindow();
+		return window && { mode: window.layout.get(), splitLayout: window.splitLayout.get() };
+	},
 	run: (accessor, mode) => accessor.get(IChatWindowService).getActiveWindow()?.setLayout(mode),
 });
 
-// One Layout button, in the title bar of a chat window of its own and in the header of a docked one, opens a menu of
-// what the chat window shows (the chat, the editor), how the two are arranged together, and where the window shows.
-// Each of its actions also has a button there, hidden until the user shows it from the context menu of the buttons.
-const ChatWindowLayoutMenuGroup = {
-	panes: '1_panes',
-	arrangement: '2_arrangement',
-	window: '3_window',
-} as const;
-
-const chatWindowLayoutMenu = { submenu: Menus.ChatWindowLayout, title: localize2('chatWindowLayout', "Layout"), icon: Codicon.layout, group: 'navigation' };
+// One Layout button, in the title bar of a chat window of its own and in the header of a docked one, opens the Layout
+// menu of the window: what it shows (the chat, the editor), how the two are arranged together, and where the window
+// shows. Each of its actions also has a button there, hidden until the user shows it from the context menu of the buttons.
+const chatWindowLayoutMenu = { submenu: Menus.SessionLayout, title: localize2('chatWindowLayout', "Layout"), icon: Codicon.layout, group: 'navigation' };
 const ChatWindowHasLayoutMenuContext = ContextKeyExpr.or(ChatWindowHasEditorContext, ChatWindowDockableContext);
 // The Layout menu ends the layout actions, after the buttons the user chose to show.
 const CHAT_WINDOW_LAYOUT_MENU_ORDER = 100;
@@ -113,7 +110,7 @@ interface IChatWindowPaneToggle {
 }
 
 const chatWindowPaneToggles: readonly IChatWindowPaneToggle[] = [{
-	id: 'sessions.chatWindow.toggleChat',
+	id: TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID,
 	title: localize2('chatWindowShowChat', "Show Chat"),
 	button: { title: localize2('chatWindowToggleChat', "Toggle Chat"), hideTooltip: localize('chatWindowHideChat', "Hide Chat"), icon: Codicon.layoutSidebarLeftOff, shownIcon: Codicon.layoutSidebarLeft },
 	aloneLayout: SessionLayoutMode.ChatOnly,
@@ -132,33 +129,6 @@ for (const toggle of chatWindowPaneToggles) {
 	const shown = SessionLayoutModeContext.notEqualsTo(toggle.hiddenLayout);
 	// Shown alone, it cannot be hidden: show the other pane instead.
 	const precondition = ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, SessionLayoutModeContext.notEqualsTo(toggle.aloneLayout));
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: toggle.id,
-				title: toggle.title,
-				category: SessionsCategories.Sessions,
-				f1: true,
-				toggled: shown,
-				precondition,
-				menu: [{
-					id: Menus.ChatWindowLayout,
-					group: ChatWindowLayoutMenuGroup.panes,
-					order: toggle.order,
-					when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowHasEditorContext),
-				}],
-			});
-		}
-
-		override run(accessor: ServicesAccessor): void {
-			const window = accessor.get(IChatWindowService).getActiveWindow();
-			if (!window) {
-				return;
-			}
-			// Shown again, both show as they last showed together.
-			window.setLayout(window.layout.get() === toggle.hiddenLayout ? window.splitLayout.get() : toggle.hiddenLayout);
-		}
-	});
 	for (const { menu, when } of chatWindowLayoutButtonMenus) {
 		MenuRegistry.appendMenuItem(menu, {
 			command: {
@@ -178,35 +148,16 @@ for (const toggle of chatWindowPaneToggles) {
 }
 
 // How the chat and the editor show together, in a chat window of its own: docked, the editor always shows above the
-// chat. One action switches between the two arrangements, named after the one it switches to, and is disabled while
-// one of them is hidden. Its button, which the user can show, swaps its icon likewise.
-const TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID = 'sessions.chatWindow.toggleArrangement';
+// chat. The Stacked toggle of the Layout menu switches between the two arrangements; its button, which the user can
+// show, is named after the arrangement it switches to and swaps its icon likewise.
 const ChatWindowBothShownContext = ContextKeyExpr.or(SessionLayoutModeContext.isEqualTo(SessionLayoutMode.Stacked), SessionLayoutModeContext.isEqualTo(SessionLayoutMode.SideBySide));
 const ChatWindowArrangementContext = ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowHasEditorContext, ChatWindowDockedContext.negate());
-registerAction2(class ToggleChatWindowArrangementAction extends Action2 {
-	constructor() {
-		super({
-			id: TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID,
-			title: localize2('chatWindowToggleArrangement', "Toggle Stacked or Side by Side"),
-			category: SessionsCategories.Sessions,
-			f1: true,
-			precondition: ContextKeyExpr.and(ChatWindowArrangementContext, ChatWindowBothShownContext),
-		});
-	}
-
-	override run(accessor: ServicesAccessor): void {
-		const window = accessor.get(IChatWindowService).getActiveWindow();
-		window?.setLayout(window.splitLayout.get() === SessionLayoutMode.SideBySide ? SessionLayoutMode.Stacked : SessionLayoutMode.SideBySide);
-	}
-});
-
 const chatWindowArrangementButtonOrder = chatWindowPaneToggles.length + 1;
 for (const target of [SessionLayoutMode.SideBySide, SessionLayoutMode.Stacked] as const) {
 	const choice = sessionLayoutModeChoices.find(candidate => candidate.mode === target)!;
 	const title = target === SessionLayoutMode.SideBySide ? localize2('chatWindowShowSideBySideShort', "Show Side by Side") : localize2('chatWindowShowStackedShort', "Show Stacked");
 	const command = { id: TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, title, icon: choice.icon, precondition: ChatWindowBothShownContext };
 	const when = ContextKeyExpr.and(ChatWindowArrangementContext, SessionSplitLayoutContext.notEqualsTo(target));
-	MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, { command, group: ChatWindowLayoutMenuGroup.arrangement, when });
 	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, { command, group: 'navigation', order: chatWindowArrangementButtonOrder, when, isHiddenByDefault: true });
 }
 
@@ -288,14 +239,14 @@ registerAction2(class ToggleChatWindowDockedAction extends Action2 {
 });
 
 // What the item does, rather than a checked toggle: Dock to Main Window in a window of its own, and Move to New Window docked.
-MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock to Main Window") },
-	group: ChatWindowLayoutMenuGroup.window,
+	group: SessionLayoutMenuGroup.window,
 	when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockableContext, ChatWindowDockedContext.negate()),
 });
-MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to New Window") },
-	group: ChatWindowLayoutMenuGroup.window,
+	group: SessionLayoutMenuGroup.window,
 	when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext),
 });
 const chatWindowDockButtonOrder = chatWindowArrangementButtonOrder + 1;
@@ -325,8 +276,8 @@ registerAction2(class ResetChatWindowDockedSizeAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext, ChatWindowDockedResizedContext),
 			menu: [{
-				id: Menus.ChatWindowLayout,
-				group: ChatWindowLayoutMenuGroup.window,
+				id: Menus.SessionLayout,
+				group: SessionLayoutMenuGroup.window,
 				order: 1,
 				when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext),
 			}, {

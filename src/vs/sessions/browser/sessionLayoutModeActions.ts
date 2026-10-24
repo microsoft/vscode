@@ -10,11 +10,12 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { localize, localize2 } from '../../nls.js';
 import { ILocalizedString } from '../../platform/action/common/action.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
-import { ContextKeyExpr, ContextKeyExpression } from '../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { SessionsCategories } from '../common/categories.js';
 import { Menus, SessionActivityBarGroup } from './menus.js';
-import { SessionLayoutMode, SessionLayoutModeContext } from '../common/sessionLayoutMode.js';
+import { SessionActivityBarLayoutActionsContext } from '../common/contextkeys.js';
+import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../common/sessionLayoutMode.js';
 
 /** A {@link SessionLayoutMode} as offered to the user. */
 export interface ISessionLayoutModeChoice {
@@ -49,23 +50,77 @@ export const sessionLayoutModeChoices: readonly ISessionLayoutModeChoice[] = [{
 	icon: Codicon.splitHorizontal,
 }];
 
-/** Options of {@link registerSessionLayoutModeActions}: one family of the four actions, for one kind of window. */
+/** The groups of {@link Menus.SessionLayout}. */
+export const SessionLayoutMenuGroup = {
+	/** Show Chat and Show Editor. */
+	panes: '1_panes',
+	/** Stacked, checked while the chat and the editor show stacked rather than side by side. */
+	arrangement: '2_arrangement',
+	/** Where a chat window shows. */
+	window: '3_window',
+} as const;
+
+/** What a window shows: its {@link SessionLayoutMode}, and how it shows the chat and the editor together. */
+export interface ISessionLayoutState {
+	readonly mode: SessionLayoutMode;
+	readonly splitLayout: SessionSplitLayout;
+}
+
+/** Options of {@link registerSessionLayoutModeActions}: one family of the layout actions, for one kind of window. */
 export interface ISessionLayoutModeActionsOptions {
 	/** The command identifier of each mode. */
 	readonly ids: Readonly<Record<SessionLayoutMode, string>>;
+	/** The command identifiers of the toggles of the Layout menu: Show Chat, Show Editor, and Stacked. */
+	readonly toggleIds: { readonly chat: string; readonly editor: string; readonly stacked: string };
 	/** When the actions can run, which also scopes them to their kind of window. */
 	readonly precondition: ContextKeyExpression;
-	/** When a mode can be chosen, in addition to {@link precondition}. */
+	/** When a mode can be chosen, in addition to {@link precondition}. Without side by side, there is no Stacked toggle. */
 	readonly available?: (mode: SessionLayoutMode) => ContextKeyExpression | undefined;
-	/** When the modes show in the Layout submenu of the Session Activity Bar, {@link Menus.SessionLayoutModes}. */
-	readonly activityBarWhen?: ContextKeyExpression;
+	/** When the toggles show in the Layout menu, {@link Menus.SessionLayout}, which scopes them to their kind of window. */
+	readonly menuWhen: ContextKeyExpression;
+	/** What the window the action runs in shows. */
+	current(accessor: ServicesAccessor): ISessionLayoutState | undefined;
 	/** Shows `mode` in the window the action runs in. */
 	run(accessor: ServicesAccessor, mode: SessionLayoutMode): void | Promise<void>;
 }
 
+const BothShownContext = ContextKeyExpr.or(SessionLayoutModeContext.isEqualTo(SessionLayoutMode.Stacked), SessionLayoutModeContext.isEqualTo(SessionLayoutMode.SideBySide))!;
+
+/** A pane that the Layout menu shows or hides: the chat, or the editor. One of them always shows. */
+interface ISessionLayoutPaneToggle {
+	readonly id: (options: ISessionLayoutModeActionsOptions) => string;
+	readonly title: ILocalizedString;
+	/** The mode that shows only this pane: it cannot be hidden there. */
+	readonly aloneMode: SessionLayoutMode;
+	/** The mode that hides this pane. */
+	readonly hiddenMode: SessionLayoutMode;
+}
+
+const paneToggles: readonly ISessionLayoutPaneToggle[] = [{
+	id: options => options.toggleIds.chat,
+	title: localize2('sessionLayoutShowChat', "Show Chat"),
+	aloneMode: SessionLayoutMode.ChatOnly,
+	hiddenMode: SessionLayoutMode.EditorOnly,
+}, {
+	id: options => options.toggleIds.editor,
+	title: localize2('sessionLayoutShowEditor', "Show Editor"),
+	aloneMode: SessionLayoutMode.EditorOnly,
+	hiddenMode: SessionLayoutMode.ChatOnly,
+}];
+
+async function showLayoutMode(accessor: ServicesAccessor, options: ISessionLayoutModeActionsOptions, mode: SessionLayoutMode): Promise<void> {
+	await options.run(accessor, mode);
+	const choice = sessionLayoutModeChoices.find(candidate => candidate.mode === mode);
+	if (choice) {
+		status(localize('sessionLayoutModeChanged', "Layout: {0}", choice.title.value));
+	}
+}
+
 /**
- * Registers the four layout mode actions of a kind of window, checked while the window shows their mode, which is the
- * value of {@link SessionLayoutModeContext} in the window. Choosing a mode announces it to screen readers.
+ * Registers the layout actions of a kind of window: the four layout modes, checked while the window shows their mode,
+ * which is the value of {@link SessionLayoutModeContext} in the window, and the toggles of the Layout menu,
+ * {@link Menus.SessionLayout}: Show Chat and Show Editor, of which the last one shown cannot be hidden, and Stacked,
+ * which chooses how the two show together. Changing the layout announces it to screen readers.
  */
 export function registerSessionLayoutModeActions(options: ISessionLayoutModeActionsOptions): IDisposable {
 	const store = new DisposableStore();
@@ -83,39 +138,86 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				await options.run(accessor, choice.mode);
-				status(localize('sessionLayoutModeChanged', "Layout: {0}", choice.title.value));
+			override run(accessor: ServicesAccessor): Promise<void> {
+				return showLayoutMode(accessor, options, choice.mode);
 			}
 		}));
-		if (options.activityBarWhen) {
-			store.add(MenuRegistry.appendMenuItem(Menus.SessionLayoutModes, {
-				command: {
-					id: options.ids[choice.mode],
-					title: choice.shortTitle,
-					icon: choice.icon,
-					toggled: SessionLayoutModeContext.isEqualTo(choice.mode),
-					precondition: ContextKeyExpr.and(options.precondition, options.available?.(choice.mode)),
-				},
-				group: 'navigation',
-				order: sessionLayoutModeChoices.indexOf(choice),
-				when: ContextKeyExpr.and(options.activityBarWhen, options.available?.(choice.mode)),
-			}));
-		}
 	}
+
+	paneToggles.forEach((toggle, index) => {
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: toggle.id(options),
+					title: toggle.title,
+					category: SessionsCategories.Sessions,
+					f1: true,
+					toggled: SessionLayoutModeContext.notEqualsTo(toggle.hiddenMode),
+					// Shown alone, it cannot be hidden: show the other pane instead.
+					precondition: ContextKeyExpr.and(options.precondition, SessionLayoutModeContext.notEqualsTo(toggle.aloneMode)),
+					menu: { id: Menus.SessionLayout, group: SessionLayoutMenuGroup.panes, order: index, when: options.menuWhen },
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const current = options.current(accessor);
+				if (current) {
+					// Shown again, both show as they last showed together.
+					await showLayoutMode(accessor, options, current.mode === toggle.hiddenMode ? current.splitLayout : toggle.hiddenMode);
+				}
+			}
+		}));
+	});
+
+	// Checked while the two show stacked, unchecked side by side; the two can only be arranged while both show.
+	const sideBySideAvailable = options.available?.(SessionLayoutMode.SideBySide);
+	const stacked = SessionSplitLayoutContext.isEqualTo(SessionLayoutMode.Stacked);
+	const stackedPrecondition = ContextKeyExpr.and(options.precondition, sideBySideAvailable, BothShownContext);
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: options.toggleIds.stacked,
+				title: localize2('sessionLayoutToggleStacked', "Toggle Stacked or Side by Side"),
+				category: SessionsCategories.Sessions,
+				f1: true,
+				toggled: stacked,
+				precondition: stackedPrecondition,
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const current = options.current(accessor);
+			if (current) {
+				await showLayoutMode(accessor, options, current.splitLayout === SessionLayoutMode.Stacked ? SessionLayoutMode.SideBySide : SessionLayoutMode.Stacked);
+			}
+		}
+	}));
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionLayout, {
+		command: { id: options.toggleIds.stacked, title: localize('sessionLayoutStacked', "Stacked"), toggled: stacked, precondition: stackedPrecondition },
+		group: SessionLayoutMenuGroup.arrangement,
+		order: 0,
+		when: ContextKeyExpr.and(options.menuWhen, sideBySideAvailable),
+	}));
 	return store;
 }
 
+/** The label of a Layout button: "Layout: Stacked", after the mode its window shows, or "Layout" otherwise. */
+export function getSessionLayoutButtonLabel(contextKeyService: IContextKeyService): string {
+	const mode = contextKeyService.getContextKeyValue<SessionLayoutMode>(SessionLayoutModeContext.key);
+	const choice = sessionLayoutModeChoices.find(candidate => candidate.mode === mode);
+	return choice ? localize('sessionLayoutButtonMode', "Layout: {0}", choice.shortTitle) : localize('sessionLayout', "Layout");
+}
+
 /**
- * One Layout button leads the Session Activity Bar and opens {@link Menus.SessionLayoutModes}, the modes of its window,
- * which the main window and chat windows contribute, the current one checked. Its icon is the same whatever the mode,
- * that of the chat window's Layout menu. It hides while the submenu is empty, such as while the strip does not show its
- * layout actions.
+ * While the Session Activity Bar shows its layout actions, one Layout button leads it and opens the Layout menu,
+ * {@link Menus.SessionLayout}, which the main window and chat windows contribute to. Its icon is the same whatever the
+ * mode, that of the Layout menu of the title bar. It hides while the menu is empty.
  */
 MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-	submenu: Menus.SessionLayoutModes,
-	title: localize('sessionLayoutModes', "Layout"),
+	submenu: Menus.SessionLayout,
+	title: localize('sessionLayout', "Layout"),
 	icon: Codicon.layout,
 	group: SessionActivityBarGroup.Layout,
 	order: 0,
+	when: SessionActivityBarLayoutActionsContext,
 });

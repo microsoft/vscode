@@ -16,7 +16,7 @@ import { registerSessionLayoutModeActions } from '../../../../browser/sessionLay
 import { maximizeMainEditorPart, restoreMainEditorPart } from '../../../../browser/mainEditorMaximize.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { chatLayoutOwnersEqual, IChatLayoutOwner } from '../../../../common/chatLayout.js';
-import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext, SessionActivityBarLayoutActionsContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../../common/sessionLayoutMode.js';
 import { ChatWindowContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { getLayoutModeOwnerKind, IRememberedLayoutMode, ISessionLayoutModeService, LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
@@ -30,6 +30,13 @@ export const MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS: Readonly<Record<SessionLayoutM
 	[SessionLayoutMode.Stacked]: 'workbench.action.agentSessions.layout.showStacked',
 	[SessionLayoutMode.SideBySide]: 'workbench.action.agentSessions.layout.showSideBySide',
 };
+
+/** The commands of the toggles of the main window's Layout menu: Show Chat, Show Editor, and Stacked. */
+export const MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS = {
+	chat: 'workbench.action.agentSessions.layout.toggleChat',
+	editor: 'workbench.action.agentSessions.layout.toggleEditor',
+	stacked: 'workbench.action.agentSessions.layout.toggleStacked',
+} as const;
 
 interface IFocusedOwner {
 	readonly owner: IChatLayoutOwner;
@@ -135,8 +142,10 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			ids: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS,
 			// The main window's, not a chat window's, which has its own.
 			precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), CustomViewVisibleContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
-			// Not in the Session Activity Bar of a chat window, which shows the chat window's modes, if any.
-			activityBarWhen: ContextKeyExpr.and(SessionActivityBarLayoutActionsContext, ContextKeyExpr.has(ChatWindowContext.key).negate()),
+			toggleIds: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS,
+			// Not in the Layout menu of a chat window, which shows the chat window's toggles, if any.
+			menuWhen: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
+			current: () => ({ mode: this.mode.get(), splitLayout: this.splitLayout.get() }),
 			run: (_accessor, mode) => this.setMode(mode),
 		}));
 	}

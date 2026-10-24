@@ -295,7 +295,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			floatingPart = await this._editorGroupsService.createFloatingEditorPart({
 				title: content.title?.get() ?? kind.title,
 				titleMenu: Menus.ChatWindowTitle,
-				customizableTitleMenu: { menu: Menus.ChatWindowTitleLayout, alwaysShownItems: [Menus.ChatWindowLayout.id] },
+				customizableTitleMenu: { menu: Menus.ChatWindowTitleLayout, alwaysShownItems: [Menus.SessionLayout.id] },
 				size: defaults.getDockedSize(),
 				minimumSize: kind.dockedMinimumSize ?? CHAT_WINDOW_DOCKED_MINIMUM_SIZE,
 			});

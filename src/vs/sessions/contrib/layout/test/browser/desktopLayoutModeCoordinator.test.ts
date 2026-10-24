@@ -10,6 +10,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
@@ -18,7 +19,7 @@ import { IChatWindow } from '../../../../services/chatWindow/browser/chatWindowS
 import { LayoutModeOwnerKind } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
-import { DesktopLayoutModeCoordinator, MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS } from '../../browser/desktop/desktopLayoutModeCoordinator.js';
+import { DesktopLayoutModeCoordinator, MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS } from '../../browser/desktop/desktopLayoutModeCoordinator.js';
 import { createTestHarness, ITestLayoutHarness, makeSession } from './layoutControllerTestUtils.js';
 import { describeSessionActivityBarLayout } from '../../../../test/browser/sessionLayoutModeTestUtils.js';
 
@@ -121,37 +122,63 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		});
 	});
 
-	test('leads the session activity bar of the main window with one Layout button of the same icon in every mode, opening the four modes with the current one checked, while it shows its layout actions', async () => {
+	test('leads the session activity bar of the main window with one Layout button of the same icon in every mode, opening Show Chat, Show Editor and Stacked as the window shows them, while it shows its layout actions', async () => {
 		const controller = createController('chat', sessionA);
 		await controller.whenRestored();
 		const settings = { [SESSION_ACTIVITY_BAR_SETTING]: true, [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: true };
-		const strip = (mode: SessionLayoutMode, contextKeys: Record<string, ContextKeyValue> = {}, overrides: Record<string, unknown> = {}) =>
-			describeSessionActivityBarLayout(store, { agentSessionsDesktopLayout: true, 'sessions.layoutMode': mode, ...contextKeys }, { ...settings, ...overrides });
-		const entries = (checked: SessionLayoutMode) => [
-			{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.ChatOnly], label: 'Chat Only', checked: checked === SessionLayoutMode.ChatOnly },
-			{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.EditorOnly], label: 'Editor Only', checked: checked === SessionLayoutMode.EditorOnly },
-			{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.Stacked], label: 'Stacked', checked: checked === SessionLayoutMode.Stacked },
-			{ id: MAIN_WINDOW_LAYOUT_MODE_COMMAND_IDS[SessionLayoutMode.SideBySide], label: 'Side by Side', checked: checked === SessionLayoutMode.SideBySide },
-		];
+		const strip = (mode: SessionLayoutMode, splitLayout: SessionLayoutMode, contextKeys: Record<string, ContextKeyValue> = {}, overrides: Record<string, unknown> = {}) =>
+			describeSessionActivityBarLayout(store, { agentSessionsDesktopLayout: true, 'sessions.layoutMode': mode, 'sessions.splitLayout': splitLayout, ...contextKeys }, { ...settings, ...overrides });
+		// Checked and enabled: Show Chat, Show Editor, Stacked.
+		const layout = (chat: [boolean, boolean], editor: [boolean, boolean], stacked: [boolean, boolean]) => [{
+			label: 'Layout', icon: 'layout', entries: [
+				{ id: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.chat, label: 'Show Chat', checked: chat[0], enabled: chat[1] },
+				{ id: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.editor, label: 'Show Editor', checked: editor[0], enabled: editor[1] },
+				{ id: MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS.stacked, label: 'Stacked', checked: stacked[0], enabled: stacked[1] },
+			]
+		}];
 
 		assert.deepStrictEqual({
-			sideBySide: strip(SessionLayoutMode.SideBySide),
-			stacked: strip(SessionLayoutMode.Stacked),
-			editorOnly: strip(SessionLayoutMode.EditorOnly, { editorMaximized: true }),
-			chatOnly: strip(SessionLayoutMode.ChatOnly),
-			layoutActionsOff: strip(SessionLayoutMode.SideBySide, {}, { [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: false }),
-			chatWindow: strip(SessionLayoutMode.SideBySide, { 'sessions.chatWindow': 'test', 'sessions.chatWindowHasEditorArea': true }),
-			// A chat window without an editor area has no layout modes, not the main window's.
-			chatOnlyChatWindow: strip(SessionLayoutMode.ChatOnly, { 'sessions.chatWindow': 'test' }),
+			sideBySide: strip(SessionLayoutMode.SideBySide, SessionLayoutMode.SideBySide),
+			stacked: strip(SessionLayoutMode.Stacked, SessionLayoutMode.Stacked),
+			editorOnly: strip(SessionLayoutMode.EditorOnly, SessionLayoutMode.SideBySide, { editorMaximized: true }),
+			chatOnly: strip(SessionLayoutMode.ChatOnly, SessionLayoutMode.Stacked),
+			layoutActionsOff: strip(SessionLayoutMode.SideBySide, SessionLayoutMode.SideBySide, {}, { [SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: false }),
+			chatWindow: strip(SessionLayoutMode.SideBySide, SessionLayoutMode.SideBySide, { 'sessions.chatWindow': 'test', 'sessions.chatWindowHasEditorArea': true }),
+			// A chat window without an editor has no Layout menu, not the main window's.
+			chatOnlyChatWindow: strip(SessionLayoutMode.ChatOnly, SessionLayoutMode.SideBySide, { 'sessions.chatWindow': 'test' }),
 		}, {
-			sideBySide: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.SideBySide) }],
-			stacked: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.Stacked) }],
-			editorOnly: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.EditorOnly) }],
-			chatOnly: [{ label: 'Layout', icon: 'layout', entries: entries(SessionLayoutMode.ChatOnly) }],
+			sideBySide: layout([true, true], [true, true], [false, true]),
+			stacked: layout([true, true], [true, true], [true, true]),
+			// The last pane shown cannot be hidden, and the two can only be arranged while both show.
+			editorOnly: layout([false, true], [true, false], [false, false]),
+			chatOnly: layout([true, false], [false, true], [true, false]),
 			layoutActionsOff: [],
 			chatWindow: [],
 			chatOnlyChatWindow: [],
 		});
+	});
+
+	test('shows and hides the chat and the editor, and stacks them, through the toggles of the Layout menu', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		controller.layoutMode.setMode(SessionLayoutMode.SideBySide);
+		const steps: { toggle: string; mode: SessionLayoutMode }[] = [];
+		for (const toggle of ['editor', 'editor', 'chat', 'chat', 'stacked', 'chat', 'chat', 'stacked'] as const) {
+			await harness.instaService.invokeFunction(accessor => CommandsRegistry.getCommand(MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS[toggle])!.handler(accessor));
+			steps.push({ toggle, mode: controller.layoutMode.mode.get() });
+		}
+
+		assert.deepStrictEqual(steps, [
+			{ toggle: 'editor', mode: SessionLayoutMode.ChatOnly },
+			{ toggle: 'editor', mode: SessionLayoutMode.SideBySide },
+			{ toggle: 'chat', mode: SessionLayoutMode.EditorOnly },
+			{ toggle: 'chat', mode: SessionLayoutMode.SideBySide },
+			{ toggle: 'stacked', mode: SessionLayoutMode.Stacked },
+			// Shown again, both show as they last showed together.
+			{ toggle: 'chat', mode: SessionLayoutMode.EditorOnly },
+			{ toggle: 'chat', mode: SessionLayoutMode.Stacked },
+			{ toggle: 'stacked', mode: SessionLayoutMode.SideBySide },
+		]);
 	});
 
 	test('shows each mode through the existing side pane and maximize operations', async () => {

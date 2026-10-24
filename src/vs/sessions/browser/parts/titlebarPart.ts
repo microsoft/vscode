@@ -313,7 +313,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			const chatWindowLayoutContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-chat-window-actions-container'));
 			const chatWindowLayoutToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, chatWindowLayoutContainer, Menus.ChatWindowTitleBarLayout, {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
-				alwaysShownItems: [Menus.ChatWindowLayout.id],
+				alwaysShownItems: [Menus.SessionLayout.id],
 				telemetrySource: 'titlePart.chatWindowLayout',
 				toolbarOptions: { primaryGroup: () => true },
 			}));

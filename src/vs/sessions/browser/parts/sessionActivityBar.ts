@@ -38,6 +38,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
+import { getSessionLayoutButtonLabel } from '../sessionLayoutModeActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
@@ -732,6 +733,7 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 		options: IActionViewItemOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super(undefined, submenuAction, options);
 	}
@@ -762,10 +764,9 @@ class SessionActivityBarSubmenuViewItem extends ActionViewItem {
 		super.onClick(event);
 	}
 
-	/** Names the checked entry, if any, such as the current layout mode: "Layout: Stacked". */
+	/** The Layout button names the layout mode of its window: "Layout: Stacked". */
 	protected override getTooltip(): string | undefined {
-		const checked = this.submenuAction.actions.find(action => action.checked);
-		return checked ? localize('sessionActivityBarSubmenuChecked', "{0}: {1}", this.submenuAction.label, checked.label) : super.getTooltip();
+		return this.submenuAction.item.submenu === Menus.SessionLayout ? getSessionLayoutButtonLabel(this.contextKeyService) : super.getTooltip();
 	}
 
 	protected override getClass(): string | undefined {
