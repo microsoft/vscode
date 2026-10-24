@@ -57,10 +57,11 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { type ChatRequestSource, type IChatRequestVariableData, type IChatSessionCost } from '../../../common/model/chatModel.js';
 import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/chatRequestOrigin.js';
 import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { readClientResourceAttachmentUri } from '../../../../../../platform/agentHost/common/meta/agentClientResourceAttachmentMeta.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
-import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualAuthority } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
@@ -1223,7 +1224,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget, clientResourceTokens?: ReadonlyMap<string, string>): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -1231,7 +1232,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const details = turnToResponseDetails(turn, lookup);
 
 		// Request
-		const variableData = messageToVariableData(turn.message, connectionAuthority);
+		const variableData = messageToVariableData(turn.message, connectionAuthority, clientResourceTokens);
 		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		const requestSource = messageToRequestSource(turn.message);
@@ -1390,11 +1391,11 @@ export function messageToRequestOrigin(backendSession: URI, message: Message, pa
  * history replay (and pending/server-initiated turn synthesis). Returns
  * `undefined` when the message has no convertible attachments.
  */
-export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text);
+export function messageToVariableData(message: Message, connectionAuthority: string, clientResourceTokens?: ReadonlyMap<string, string>): IChatRequestVariableData | undefined {
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text, clientResourceTokens);
 }
 
-export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string): IChatRequestVariableData | undefined {
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string, clientResourceTokens?: ReadonlyMap<string, string>): IChatRequestVariableData | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
@@ -1414,7 +1415,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 			const imageAttachment = correlationId
 				? attachments.find(candidate => candidate.displayKind === 'image' && getElementAttachmentCorrelationId(candidate) === correlationId)
 				: undefined;
-			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, connectionAuthority) : undefined;
+			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, connectionAuthority, undefined, clientResourceTokens) : undefined;
 			if (imageAttachment && image?.kind === 'image') {
 				consumedAttachments.add(imageAttachment);
 			}
@@ -1423,7 +1424,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 				: element);
 			continue;
 		}
-		const v = messageAttachmentToVariableEntry(a, connectionAuthority, messageText);
+		const v = messageAttachmentToVariableEntry(a, connectionAuthority, messageText, clientResourceTokens);
 		if (v) {
 			variables.push(v);
 		}
@@ -1490,7 +1491,7 @@ function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachme
 	};
 }
 
-function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string, messageText?: string): IChatRequestVariableEntry | undefined {
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string, messageText?: string, clientResourceTokens?: ReadonlyMap<string, string>): IChatRequestVariableEntry | undefined {
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {
@@ -1515,7 +1516,11 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		if (isSessionReferenceTrajectoryAttachment(attachment)) {
 			return undefined;
 		}
-		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
+		const clientUri = readClientResourceAttachmentUri(attachment, clientResourceTokens);
+		const resource = URI.parse(attachment.uri);
+		const uri = clientUri || (resource.scheme === AGENT_HOST_SCHEME && isEqualAuthority(resource.authority, connectionAuthority))
+			? resource
+			: toAgentHostUri(resource, connectionAuthority);
 		const name = attachment.label;
 		const id = uri.toString() + (attachment.selection
 			? `:${attachment.selection.range.start.line}-${attachment.selection.range.end.line}`
