@@ -160,7 +160,7 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 	}
 }
 
-/** Entitlement decided locally from the token's tenant claim. The bearer travels with it. */
+/** Entitlement from the sign-in token's tenant claim; only resource-scoped bearers leave the provider. */
 export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvider {
 
 	constructor(
@@ -207,10 +207,10 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		}
 		const protectedResource = await this.discoverProtectedResource(serviceIndexUrl);
 		if (!protectedResource) {
-			return { accessToken: session.accessToken };
+			return {};
 		}
 		this.protectedResource = protectedResource;
-		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken ?? session.accessToken };
+		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken };
 	}
 
 	/** Work/school tenant is eligible, personal is not. Fails closed on an unreadable token. */
@@ -254,12 +254,11 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * treated here as simply having no session.
 	 */
 	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
-		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
-		if (!resourceScopes) {
+		if (protectedResource.scopes.length === 0) {
 			return undefined;
 		}
 		try {
-			const sessions = await this.authenticationService.getSessions('microsoft', resourceScopes, {
+			const sessions = await this.authenticationService.getSessions('microsoft', [...protectedResource.scopes], {
 				account: session.account,
 				authorizationServer: URI.parse(protectedResource.authorizationServer)
 			});
@@ -358,18 +357,14 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 */
 	private async consentToProtectedResource(session: AuthenticationSession): Promise<void> {
 		const protectedResource = this.protectedResource;
-		if (!protectedResource) {
+		if (!protectedResource || protectedResource.scopes.length === 0) {
 			return;
 		}
 		if (await this.getResourceSession(session, protectedResource)) {
 			return;
 		}
-		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
-		if (!resourceScopes) {
-			return;
-		}
 		try {
-			await this.authenticationService.createSession('microsoft', resourceScopes, {
+			await this.authenticationService.createSession('microsoft', [...protectedResource.scopes], {
 				account: session.account,
 				authorizationServer: URI.parse(protectedResource.authorizationServer)
 			});
