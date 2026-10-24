@@ -21,6 +21,11 @@
 	pointer-events: auto;
 }
 
+/* With an equal gap on either side in its column (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`): the editor has no scrollbar under it to clear. */
+.monaco-workbench .session-activity-bar-editor-host > .session-activity-bar.docked {
+	right: var(--vscode-spacing-size20);
+}
+
 .monaco-workbench .session-activity-bar.docked {
 	position: absolute;
 	/* Just clears the transcript's 10px overlay scrollbar. */

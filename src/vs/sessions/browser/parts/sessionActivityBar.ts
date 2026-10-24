@@ -195,8 +195,14 @@ const BOTTOM_CLEARANCE = 30;
 /** How many frames the active strip of a detached chat looks for its host; see `probeExternalHost`. */
 const MAX_PROBE_RETRIES = 3;
 
-/** Width the strip occupies at the chat's right edge: the 30px strip (24px buttons, 2px padding, 1px border) and its 12px scrollbar clearance in `sessionActivityBar.css`. */
-const COLUMN_WIDTH = 42;
+/** Width of the strip itself: 24px buttons, 2px padding and a 1px border on each side, in `sessionActivityBar.css`. */
+const STRIP_WIDTH = 30;
+
+/** Width the strip occupies at the chat's right edge: the strip and its 12px scrollbar clearance in `sessionActivityBar.css`. */
+const COLUMN_WIDTH = STRIP_WIDTH + 12;
+
+/** Space kept on either side of the strip at the right edge of an editor area, matching `sessionActivityBar.css`. */
+const EDITOR_EDGE_GAP = 2;
 
 /** Minimum space between the chat content and the strip. */
 const CONTENT_GAP = 12;
@@ -261,8 +267,12 @@ function findExternalHost(element: HTMLElement): ISessionActivityBarExternalHost
 	return undefined;
 }
 
-/** The width of the column the strip takes; see {@link ISessionActivityBarExternalHost.element}. */
-export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_WIDTH;
+/**
+ * The width of the column the strip takes at the right edge of an editor area, which the editor content makes room for:
+ * the strip with an equal gap on either side, between it and the content and between it and the edge. See
+ * {@link ISessionActivityBarExternalHost.element}.
+ */
+export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = EDITOR_EDGE_GAP + STRIP_WIDTH + EDITOR_EDGE_GAP;
 
 /** Where the strip sits: a distance from the top or bottom of the chat area, whichever it was dragged nearer. */
 interface IActivityBarPosition {

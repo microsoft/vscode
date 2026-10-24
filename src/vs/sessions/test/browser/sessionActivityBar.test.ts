@@ -29,7 +29,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SessionActivityBar, SessionActivityBarHostOccupancy } from '../../browser/parts/sessionActivityBar.js';
+import { ChatViewSessionActivityBar, registerSessionActivityBarExternalHost, SESSION_ACTIVITY_BAR_COLUMN_WIDTH, SessionActivityBar, SessionActivityBarHostOccupancy } from '../../browser/parts/sessionActivityBar.js';
 import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
@@ -732,6 +732,60 @@ suite('Sessions - Session Activity Bar', () => {
 			disabled: false,
 			focusMoved: { first: 'chat', second: 'host', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: true },
 			hostGone: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: false },
+		});
+	});
+
+	test('the strip at the edge of the editor area is as wide as beside the chat, with an equal 2px gap on either side in its column, at either density', () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		root.classList.add('agent-sessions-workbench');
+		// The design tokens the strip's style reads, for both of its hosts.
+		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+			root.style.setProperty(`--vscode-${token}`, value);
+		}
+		// As the editor part hosts it: a column of its own at its right edge, below the tabs, which the editor's content
+		// makes room for (`setContentRightInset`), so the content ends where the column starts.
+		const editorPart = append(root, $('.part.editor'));
+		editorPart.style.cssText = 'position: relative; width: 800px; height: 600px;';
+		const hostElement = append(editorPart, $('.session-activity-bar-host.session-activity-bar-editor-host'));
+		hostElement.style.setProperty('--session-activity-bar-column-width', `${SESSION_ACTIVITY_BAR_COLUMN_WIDTH}px`);
+		hostElement.style.height = '500px';
+		const active = observableValue('active', false);
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.setActive(true);
+		const measure = () => {
+			const strip = docked.element!;
+			const style = mainWindow.getComputedStyle(strip);
+			const entry = strip.querySelector<HTMLElement>('.action-label:not(.separator)')!;
+			return {
+				width: strip.offsetWidth,
+				padding: [style.paddingLeft, style.paddingRight],
+				border: [style.borderLeftWidth, style.borderRightWidth],
+				entryWidth: entry.offsetWidth,
+			};
+		};
+		const gaps = () => {
+			const strip = docked.element!.getBoundingClientRect();
+			const column = hostElement.getBoundingClientRect();
+			const part = editorPart.getBoundingClientRect();
+			return { column: column.width, content: strip.left - column.left, edge: part.right - strip.right };
+		};
+
+		const results: Record<string, unknown> = {};
+		for (const density of ['default', 'compact']) {
+			root.classList.toggle('modern-ui-compact', density === 'compact');
+			active.set(false, undefined);
+			const besideChat = measure();
+			active.set(true, undefined);
+			results[density] = { besideChat, atEditorEdge: measure(), gaps: gaps() };
+		}
+
+		const strip = { width: 30, padding: ['2px', '2px'], border: ['1px', '1px'], entryWidth: 24 };
+		// 2px between the editor's content and the strip, and between the strip and the edge.
+		const gapsAtEditorEdge = { column: 34, content: 2, edge: 2 };
+		assert.deepStrictEqual(results, {
+			default: { besideChat: strip, atEditorEdge: strip, gaps: gapsAtEditorEdge },
+			compact: { besideChat: strip, atEditorEdge: strip, gaps: gapsAtEditorEdge },
 		});
 	});
 
