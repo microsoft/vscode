@@ -16402,6 +16402,56 @@ suite('AgentHostChatContribution', () => {
 
 	suite('dynamic discovery', () => {
 
+		for (const remoteAuthority of ['wsl+Ubuntu', 'ssh-remote+example']) {
+			for (const hostResolvedDirectory of [false, true]) {
+				test(`registered ${remoteAuthority} handler rebases native remote attachments with ${hostResolvedDirectory ? 'host' : 'client'} resolved directories`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const remoteUri = (path: string) => URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path });
+					const requestedDir = remoteUri('/source');
+					const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, { resolve: () => requestedDir });
+					instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false, remoteAuthority });
+					agentHostService.resourceUris = createAgentHostResourceUriMapper(agentHostAuthority(`vscode-remote://${remoteAuthority}`));
+					agentHostService.setInitializeResult({ defaultDirectory: 'file:///home/user' });
+					agentHostService.nextResolvedWorkingDirectory = hostResolvedDirectory ? URI.file('/worktree') : remoteUri('/worktree');
+					const providers = new Map<string, IChatSessionContentProvider>();
+					instantiationService.stub(IChatSessionsService, 'registerChatSessionContentProvider', (type: string, provider: IChatSessionContentProvider) => {
+						providers.set(type, provider);
+						return toDisposable(() => providers.delete(type));
+					});
+					disposables.add(instantiationService.createInstance(AgentHostContribution));
+					agentHostService.setRootState({
+						agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [] }],
+						activeSessions: 0,
+					});
+					const handler = providers.get('agent-host-copilot');
+					assert.ok(handler instanceof AgentHostSessionHandler);
+					const clientFile = URI.file('/source/client.ts');
+					const otherRemoteFile = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+other', path: '/source/other.ts' });
+					const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, {
+						variables: {
+							variables: [
+								{ kind: 'file', id: 'file', name: 'a.ts', value: remoteUri('/source/a.ts').with({ authority: remoteAuthority.toUpperCase() }) },
+								{ kind: 'directory', id: 'directory', name: 'lib', value: remoteUri('/source/lib') },
+								{ kind: 'file', id: 'selection', name: 'selection', value: { uri: remoteUri('/source/sub/foo.ts'), range: new Range(2, 3, 4, 5) } },
+								{ kind: 'file', id: 'client-file', name: 'client', value: clientFile },
+								{ kind: 'file', id: 'other-remote-file', name: 'other', value: otherRemoteFile },
+							],
+						},
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+
+					const action = agentHostService.turnActions[0].action as ITurnStartedAction;
+					assert.deepStrictEqual(action.message.attachments, [
+						{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
+						{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/lib').toString(), label: 'lib', displayKind: 'directory' },
+						{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/sub/foo.ts').toString(), label: 'selection', displayKind: 'selection', selection: { range: { start: { line: 1, character: 2 }, end: { line: 3, character: 4 } } } },
+						{ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' },
+						{ type: MessageAttachmentKind.Resource, uri: otherRemoteFile.toString(), label: 'other', displayKind: 'document' },
+					]);
+				}));
+			}
+		}
+
 		for (const remoteAuthority of [undefined, 'wsl+Ubuntu']) {
 			test(`registered editor handler routes edit previews and markdown through its ${remoteAuthority ?? 'local'} connection`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);

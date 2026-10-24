@@ -19,7 +19,7 @@ import { LRUCache, ResourceMap, ResourceSet } from '../../../../../../base/commo
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, isEqualAuthority } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
 import { AgentHostSteeringMessageHandoff } from './agentHostSteeringMessageHandoff.js';
@@ -1018,6 +1018,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly connection: IAgentConnection;
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
+	/** Native workbench remote authority when this handler owns the editor's remote connection. */
+	readonly editorRemoteAuthority?: string;
 	readonly supportsCanvasPresentation?: boolean;
 	/**
 	 * Whether a managed plugin preparation failure offers a Retry link. Only the
@@ -7525,7 +7527,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return directories;
 		}
 		const hostScheme = URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory).scheme : URI.parse(defaultDirectory).scheme;
-		const addressable = directories.filter(directory => this._config.connection.resourceUris.toAgentHost(directory).scheme === hostScheme);
+		const addressable = directories.filter(directory => this._toOwnedAgentHostUri(directory).scheme === hostScheme);
 		if (addressable.length === directories.length) {
 			return directories;
 		}
@@ -8212,10 +8214,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 	}
 
-	/** Unwraps only resources that round-trip through the owning connection's mapper. */
+	/** Converts owned wrappers and same-authority editor-remote resources into host URI space. */
 	private _toOwnedAgentHostUri(uri: URI): URI {
 		const hostUri = this._config.connection.resourceUris.toAgentHost(uri);
-		return hostUri !== uri && isEqual(this._config.connection.resourceUris.fromAgentHost(hostUri), uri) ? hostUri : uri;
+		if (hostUri !== uri && isEqual(this._config.connection.resourceUris.fromAgentHost(hostUri), uri)) {
+			uri = hostUri;
+		}
+		return uri.scheme === Schemas.vscodeRemote && this._config.editorRemoteAuthority && isEqualAuthority(uri.authority, this._config.editorRemoteAuthority)
+			? uri.with({ scheme: Schemas.file, authority: '' })
+			: uri;
 	}
 
 	/** Rebases connection-owned attachments from the requested checkout onto the resolved worktree. */
