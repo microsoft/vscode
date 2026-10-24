@@ -250,6 +250,7 @@ export class BrowserView extends Disposable {
 		this.debugger = new BrowserViewDebugger(this);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
+		this._register(this.emulator.onDidChangePageMouseEventsSuppressed(suppressed => this.inspector.setElementPickerPageMouseEventsSuppressed(suppressed)));
 
 		this._register(this.session.permissions.onDidRequestPermission(e => {
 			if (e.webContents === this.webContents && !this._isDisposed) {
