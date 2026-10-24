@@ -37,7 +37,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, parseSourceQualifiedModelIdentifier } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
@@ -211,7 +211,7 @@ export class TabbedModelPicker extends Disposable {
 					? filterModelPickerModelsForEntitlement(this._comparisonModels, this._entitlementService.entitlement, this._languageModelsService)
 					: undefined,
 			}, this._models);
-			if (this._context.selectedModelId && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
+			if (this._context.selectedModelId && !parseSourceQualifiedModelIdentifier(this._context.selectedModelId) && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
 				const fallback = this._autoModel(this._context) ?? this._fallbackModel(this._context);
 				if (fallback) {
 					this._applyModelSelection(fallback, this._context, false);

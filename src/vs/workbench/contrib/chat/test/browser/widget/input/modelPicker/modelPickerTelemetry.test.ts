@@ -457,6 +457,31 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
+	test('sign-out does not replace a removed qualified Copilot selection with native', () => {
+		const vendor = 'agent-host-example';
+		const sources = [{ id: 'n', displayName: 'Anthropic' }, { id: 'p', displayName: 'GitHub Copilot' }];
+		const models = sources.map((source, index) => ({
+			...createModel('shared', { vendor, modelSourceId: source.id, isCopilotModel: index === 1 }),
+			identifier: getSourceQualifiedModelIdentifier(vendor, source.id, 'shared'),
+		}));
+		const groups = sources.map((source, index) => ({ source, modelIdentifiers: [models[index].identifier] }));
+		const result = createPicker(models[1], undefined, models, ChatEntitlement.Pro, true, false, { free: {}, paid: {} }, true, {
+			supportsCopilotModels: true, groups,
+		});
+		result.setModels([models[0]], [groups[0]]);
+		result.setEntitlement(ChatEntitlement.Unknown);
+		result.selectTab('Copilot');
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			changes: result.delegateSelections,
+			welcome: result.welcome()?.text,
+		}, {
+			selected: models[1].identifier,
+			changes: [],
+			welcome: ['Copilot', 'Sign in to see available models.', 'Sign in'],
+		});
+	});
+
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
 			const hydraFusion = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
