@@ -783,6 +783,40 @@ suite('TerminalLinkParsing', () => {
 			});
 		});
 
+		suite('should detect paths after a key= assignment (#340940)', () => {
+			const cases: { line: string; os: OperatingSystem; assignmentIndex: number; assignment: string; path: string }[] = [
+				// Go log/slog with AddSource
+				{ line: 'level=INFO source=/foo/bar.go:12 msg=hello', os: OperatingSystem.Linux, assignmentIndex: 11, assignment: 'source=', path: '/foo/bar.go' },
+				// go-kit log.DefaultCaller
+				{ line: 'level=info caller=bar.go:12', os: OperatingSystem.Linux, assignmentIndex: 11, assignment: 'caller=', path: 'bar.go' },
+				// logrus with ReportCaller
+				{ line: 'level=info file="/foo/bar.go:12"', os: OperatingSystem.Linux, assignmentIndex: 11, assignment: 'file="', path: '/foo/bar.go' },
+				{ line: '--file=./foo/bar.ts:12', os: OperatingSystem.Linux, assignmentIndex: 0, assignment: '--file=', path: './foo/bar.ts' },
+				{ line: '--out-file=C:\\foo\\bar.js:12', os: OperatingSystem.Windows, assignmentIndex: 0, assignment: '--out-file=', path: 'C:\\foo\\bar.js' },
+				// The full path is kept as the first result in case `=` is part of a folder name
+				{ line: 'foo=bar/baz.ts:12', os: OperatingSystem.Linux, assignmentIndex: 0, assignment: 'foo=', path: 'bar/baz.ts' },
+			];
+			for (const { line, os, assignmentIndex, assignment, path } of cases) {
+				test('`' + line + '`', () => {
+					const pathIndex = assignmentIndex + assignment.length;
+					const suffix = {
+						row: 12,
+						col: undefined,
+						rowEnd: undefined,
+						colEnd: undefined,
+						suffix: { index: pathIndex + path.length, text: ':12' }
+					};
+					deepStrictEqual(
+						detectLinks(line, os),
+						[
+							{ path: { index: assignmentIndex, text: assignment + path }, prefix: undefined, suffix },
+							{ path: { index: pathIndex, text: path }, prefix: undefined, suffix }
+						] as IParsedLink[]
+					);
+				});
+			}
+		});
+
 		suite('should detect 3 suffix links on a single line', () => {
 			for (let i = 0; i < testLinksWithSuffix.length - 2; i++) {
 				const link1 = testLinksWithSuffix[i];

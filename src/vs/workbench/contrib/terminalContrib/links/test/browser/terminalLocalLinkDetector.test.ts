@@ -292,6 +292,16 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				{ range: [[5, 1], [9, 1]], uri: URI.file('/parent/cwd/foo') }
 			]);
 		});
+
+		test('should support finding links after key= assignments in a default slog line', async () => {
+			validResources = [URI.file('/parent/cwd/foo')];
+			fileService.setFiles(validResources);
+			// The leading time= field with a timezone offset produces 4 unresolvable candidates
+			// before source=, all of which count towards MaxResolvedLinksInLine
+			await assertLinks(TerminalBuiltinLinkType.LocalFile, 'time=2026-10-12T10:00:00.123+05:30 level=INFO source=/parent/cwd/foo:12 msg=hi', [
+				{ range: [[54, 1], [71, 1]], uri: URI.file('/parent/cwd/foo') }
+			]);
+		});
 	});
 
 	suite('macOS/Linux', () => {
