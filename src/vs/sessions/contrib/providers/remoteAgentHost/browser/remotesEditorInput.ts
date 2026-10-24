@@ -31,7 +31,7 @@ export class RemotesEditorInput extends EditorInput implements IModalEditorOptio
 	}
 
 	override getName(): string {
-		return localize('remotes.editorName', "Remotes");
+		return localize('remotes.editorName', "Remote Environments");
 	}
 
 	override getIcon() {

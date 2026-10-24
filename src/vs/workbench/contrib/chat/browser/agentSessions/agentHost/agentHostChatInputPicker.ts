@@ -54,7 +54,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
-import { disableGlobalAutoApproveForPermissionSelection, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, getOrganizationDefaultApprovalLevel, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -162,7 +162,7 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle, query?: string): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle, query?: string, organizationDefault?: ChatPermissionLevel): IActionListItem<IConfigPickerItem>[] {
 	const pickerItems: readonly IConfigPickerItem[] = property === SessionConfigKey.Branch
 		? ensureSelectedBranchPickerItem(items, currentValue, query)
 		: items;
@@ -174,7 +174,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled) : {}),
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : {}),
 			...(unavailable ? { description: unavailable.description, ariaDescription: unavailable.ariaDescription } : { detail: disabled && typeof hover === 'string' ? hover : item.description }),
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
@@ -1070,7 +1070,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			const disabled = !available.some(value => readSessionApprovalLevel(approval, value) === item.value);
 			return { ...item, disabled, disabledByPolicy: disabled && useLocalPolicy && isApprovalLevelDisabledByKnownPolicy(item.value, this._configurationService, this._managedSettingsService) };
 		}) : items;
-		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
+		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property), undefined, getOrganizationDefaultApprovalLevel(this._configurationService));
 		const permissionsLearnMoreUrl = this._generic ? undefined : getPermissionsLearnMoreUrl(property);
 		if (permissionsLearnMoreUrl) {
 			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");

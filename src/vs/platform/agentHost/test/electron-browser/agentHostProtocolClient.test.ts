@@ -554,6 +554,45 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	suite('worktree cleanup', () => {
+		for (const capability of [undefined, false, 'true', {}]) {
+			test(`does not offer retry without a valid capability (${JSON.stringify(capability)})`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.worktreeCleanup': capability });
+				const before = transport.sentMessages.length;
+				const status = await client.sessionWorktreeCleanup(URI.parse('opaque-session://host/session'), false);
+				await assert.rejects(client.sessionWorktreeCleanup(URI.parse('opaque-session://host/session'), true), /does not support/);
+				assert.deepStrictEqual({ status, requests: transport.sentMessages.slice(before) }, { status: undefined, requests: [] });
+			});
+		}
+
+		for (const retry of [false, true]) {
+			test(`preserves the advertised opaque session URI for retry=${retry}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.worktreeCleanup': true });
+				const status = client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/exact-id'), retry);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'failed', message: 'permission denied' } });
+				assert.deepStrictEqual({
+					method: request.method, params: request.params, status: await status,
+				}, {
+					method: 'vscode/sessionWorktreeCleanup',
+					params: { session: 'opaque-session://tenant/exact-id', retry },
+					status: { state: 'failed', message: 'permission denied' },
+				});
+			});
+		}
+
+		test('rejects malformed cleanup outcomes', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeCleanup': true });
+			const status = client.sessionWorktreeCleanup(URI.parse('opaque-session://tenant/session'), false);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { state: 'failed', message: 123 } });
+			await assert.rejects(status, /invalid worktree cleanup status/);
+		});
+	});
+
 	suite('worktree disk usage', () => {
 		for (const capability of [undefined, false, 'true', {}]) {
 			test(`does not fall back to filesystem RPCs without a valid capability (${JSON.stringify(capability)})`, async () => {

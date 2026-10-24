@@ -23,6 +23,8 @@ import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
+import { supportsAgentHostWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
@@ -1989,6 +1991,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		} finally {
 			cancellation.dispose();
 		}
+	}
+
+	async sessionWorktreeCleanup(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+		if (!supportsAgentHostWorktreeCleanup(this.initializeResult.get())) {
+			if (retry) {
+				throw new Error('This agent host does not support retrying worktree cleanup.');
+			}
+			return undefined;
+		}
+		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry });
+		const validated = sessionWorktreeCleanupStatusValidator.validate(result);
+		if (validated.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid worktree cleanup status');
+		}
+		return validated.content;
 	}
 
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
