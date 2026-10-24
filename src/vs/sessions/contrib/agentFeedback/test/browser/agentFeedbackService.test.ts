@@ -625,6 +625,20 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 	});
 
+	test('exclusions of the same resource are independent', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		const first = service.registerFeedbackResourceExclusion(fileA);
+		const second = service.registerFeedbackResourceExclusion(fileA);
+		const isExcluded = () => service.getFeedbackSessionResource(fileA) === undefined;
+
+		first.dispose();
+		first.dispose();
+		const afterFirst = isExcluded();
+		second.dispose();
+
+		assert.deepStrictEqual({ afterFirst, afterBoth: isExcluded() }, { afterFirst: true, afterBoth: false });
+	});
+
 	test('explicit resource scope uses its supplied session and announces scope changes', () => {
 		setActiveSession(sessions.get(sessionS1.toString())!);
 		let scopeChanges = 0;

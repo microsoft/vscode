@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -357,7 +357,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	/** fileResource → sessionResource active when the editor for that file was first seen */
 	private readonly _fileToSession = new ResourceMap<URI>();
 	private readonly _explicitResourceScopes = new ResourceMap<URI>();
-	private readonly _excludedResources = new ResourceSet();
+	/** resource → number of live exclusions */
+	private readonly _excludedResources = new ResourceMap<number>();
 
 	/**
 	 * The last {@link _resolveSession} lookup, hit or miss. Feedback resolution
@@ -613,11 +614,20 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	registerFeedbackResourceExclusion(resourceUri: URI): IDisposable {
-		this._excludedResources.add(resourceUri);
+		this._excludedResources.set(resourceUri, (this._excludedResources.get(resourceUri) ?? 0) + 1);
 		this._onDidChangeFeedbackScope.fire();
+		let disposed = false;
 		return {
 			dispose: () => {
-				if (this._excludedResources.delete(resourceUri)) {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				const count = (this._excludedResources.get(resourceUri) ?? 1) - 1;
+				if (count > 0) {
+					this._excludedResources.set(resourceUri, count);
+				} else {
+					this._excludedResources.delete(resourceUri);
 					this._onDidChangeFeedbackScope.fire();
 				}
 			},
