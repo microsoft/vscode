@@ -61,7 +61,7 @@ import { readClientResourceAttachmentUri } from '../../../../../../platform/agen
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
-import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualAuthority } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
@@ -1517,7 +1517,10 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			return undefined;
 		}
 		const clientUri = readClientResourceAttachmentUri(attachment, clientResourceTokens);
-		const uri = clientUri ? URI.parse(clientUri) : toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
+		const resource = URI.parse(attachment.uri);
+		const uri = clientUri || (resource.scheme === AGENT_HOST_SCHEME && isEqualAuthority(resource.authority, connectionAuthority))
+			? resource
+			: toAgentHostUri(resource, connectionAuthority);
 		const name = attachment.label;
 		const id = uri.toString() + (attachment.selection
 			? `:${attachment.selection.range.start.line}-${attachment.selection.range.end.line}`

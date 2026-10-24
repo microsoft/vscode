@@ -1909,6 +1909,35 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('editing and resending an optimistic remote queued attachment does not wrap it twice before echo', async () => {
+			const { client, peer, chatUri, startRequest } = await openWireSession();
+			const file = URI.file('/home/user/a.ts');
+			const wrapped = client.resourceUris.fromAgentHost(file);
+			const queued = peer.nextDispatch(ActionType.ChatPendingMessageSet);
+			client.dispatch(chatUri, {
+				type: ActionType.ChatPendingMessageSet, id: 'queued-remote', kind: PendingMessageKind.Queued,
+				message: { text: 'Queued', origin: { kind: MessageKind.User }, attachments: [{ type: MessageAttachmentKind.Resource, uri: wrapped.toString(), label: 'a.ts' }] },
+			});
+			await queued;
+			const state = client.getSubscriptionUnmanaged<ChatState>(StateComponents.Chat, URI.parse(chatUri))?.value;
+			assert.ok(state && !(state instanceof Error));
+			const pending = state.queuedMessages?.find(message => message.id === 'queued-remote');
+			assert.ok(pending);
+			const variables = messageAttachmentsToVariableData(pending.message.attachments, agentHostAuthority('sandbox.example:443'), pending.message.text);
+			const { sent, finish } = await startRequest({ message: 'Edited queued request', variables });
+			assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+			await finish();
+			assert.deepStrictEqual({
+				optimistic: pending.message.attachments,
+				restored: variables?.variables.map(variable => URI.isUri(variable.value) ? variable.value.toString() : undefined),
+				sent: sent.action.message.attachments,
+			}, {
+				optimistic: [{ type: MessageAttachmentKind.Resource, uri: wrapped.toString(), label: 'a.ts' }],
+				restored: [wrapped.toString()],
+				sent: [{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'a.ts', displayKind: 'document' }],
+			});
+		});
+
 		for (const synchronous of [false, true]) {
 			test(`rejected turn starts surface the reason and settle without a host turn (synchronous: ${synchronous})`, async () => {
 				const { startRequest, echo, peer, client, chatUri, chatSession } = await openWireSession();
