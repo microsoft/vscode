@@ -271,9 +271,10 @@ async function createServer() {
  * @param {string | undefined} browserChannel
  * @param {string | undefined} grep
  * @param {number} attempt
+ * @param {IRerunTarget[] | undefined} rerunTargets
  * @returns {Promise<{ message: string | undefined; failures: IFailure[]; passed: IPassed[]; unattributedFailures: string[] }>}
  */
-async function runTestsInBrowser(testModules, browserType, browserChannel, grep, attempt) {
+async function runTestsInBrowser(testModules, browserType, browserChannel, grep, attempt, rerunTargets) {
 	const server = await createServer();
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
 	const context = await browser.newContext();
@@ -325,10 +326,10 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 	const passed = [];
 	/** @type {string[]} failures that do not belong to a test file, such as root-level hooks */
 	const unattributedFailures = [];
-	emitter.on('pass', test => passed.push({ title: test.fullTitle, file: test.file }));
+	emitter.on('pass', test => passed.push({ titlePath: test.titlePath, file: test.file, ambiguous: test.ambiguous }));
 	emitter.on('fail', test => {
 		if (test.file) {
-			failures.push({ title: test.fullTitle, file: test.file, type: test.type, parentTitle: test.parentTitle });
+			failures.push({ title: test.fullTitle, titlePath: test.titlePath, file: test.file, type: test.type, parentTitlePath: test.parentTitlePath, ambiguous: test.ambiguous });
 		} else {
 			unattributedFailures.push(test.fullTitle);
 		}
@@ -358,6 +359,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 		await page.evaluate(opts => loadAndRun(opts), {
 			modules: testModules,
 			grep,
+			rerunTargets,
 		});
 	} finally {
 		await stallWatchdog.dispose();
@@ -602,23 +604,23 @@ class EchoRunner extends events.EventEmitter {
 
 /**
  * A failed test or hook of a test file.
- * @typedef {{ title: string; file: string; type: string; parentTitle?: string }} IFailure
+ * @typedef {{ title: string; titlePath: string[]; file: string; type: string; parentTitlePath: string[]; ambiguous: boolean }} IFailure
  */
 
 /**
  * A test that passed.
- * @typedef {{ title: string; file: string }} IPassed
+ * @typedef {{ titlePath: string[]; file: string; ambiguous: boolean }} IPassed
  */
 
 /**
  * What a rerun runs to establish that a failure was flaky: a failed test by its full
  * title, the suite of a failed hook, or the test file of a failed hook outside any suite.
- * @typedef {{ kind: 'test' | 'suite' | 'file'; file: string; title: string; label: string }} IRerunTarget
+ * @typedef {{ kind: 'test' | 'suite' | 'file'; file: string; titlePath: string[]; label: string; ambiguous: boolean }} IRerunTarget
  */
 
 /**
  * The test files that a rerun loads, and the grep that selects their tests.
- * @typedef {{ byTitle: boolean; files: string[]; grep: string | undefined }} IRerunPlan
+ * @typedef {{ byTitle: boolean; files: string[]; grep: string | undefined; targets: IRerunTarget[] | undefined }} IRerunPlan
  */
 
 /**
@@ -643,7 +645,7 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 	/** @type {Map<string, IRerunRecord>} every failure that was a rerun target, by key */
 	const records = new Map();
 	/** @type {Map<string, IRerunTarget>} the failures that did not pass since they failed */
-	let targets = new Map();
+	const targets = new Map();
 	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
 	let plan;
 	let attemptModules = modules;
@@ -651,7 +653,7 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 	let grep = args.grep;
 
 	for (let attempt = 1; ; attempt++) {
-		const result = await runTestsInBrowser(attemptModules, browserType, browserChannel, grep, attempt);
+		const result = await runTestsInBrowser(attemptModules, browserType, browserChannel, grep, attempt, plan?.targets);
 		if (!plan && result.failures.length === 0 && result.unattributedFailures.length === 0) {
 			return undefined;
 		}
@@ -666,7 +668,12 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 				}
 			}
 		}
-		targets = new Map([...targets, ...targetsFromFailures(result.failures)]);
+		for (const [key, target] of targetsFromFailures(result.failures)) {
+			if (targets.get(key)?.ambiguous) {
+				target.ambiguous = true;
+			}
+			targets.set(key, target);
+		}
 		recordNotPassed(records, targets, attempt);
 
 		if (targets.size === 0 && result.unattributedFailures.length === 0) {
@@ -707,16 +714,16 @@ function targetsFromFailures(failures) {
 		/** @type {IRerunTarget} */
 		let target;
 		if (failure.type !== 'hook') {
-			target = { kind: 'test', file: failure.file, title: failure.title, label: failure.title };
-		} else if (failure.parentTitle) {
+			target = { kind: 'test', file: failure.file, titlePath: failure.titlePath, label: failure.title, ambiguous: failure.ambiguous };
+		} else if (failure.parentTitlePath.length > 0) {
 			// a failed hook skips the rest of its suite
-			target = { kind: 'suite', file: failure.file, title: failure.parentTitle, label: failure.title };
+			target = { kind: 'suite', file: failure.file, titlePath: failure.parentTitlePath, label: failure.title, ambiguous: failure.ambiguous };
 		} else {
-			target = { kind: 'file', file: failure.file, title: '', label: failure.title };
+			target = { kind: 'file', file: failure.file, titlePath: [], label: failure.title, ambiguous: failure.ambiguous };
 		}
 
-		const key = JSON.stringify([target.kind, target.file, target.title]);
-		if (!targets.has(key)) {
+		const key = JSON.stringify([target.kind, target.file, target.titlePath]);
+		if (!targets.has(key) || target.ambiguous) {
 			targets.set(key, target);
 		}
 	}
@@ -734,12 +741,12 @@ function planRerun(targets) {
 	// mocha reads a grep of the form /pattern/flags as a regular expression literal, which cannot be combined
 	const byTitle = targets.size <= MAX_RERUN_TARGETS && [...targets.values()].every(target => target.kind !== 'file') && !/^\/.*\/[gimy]{0,4}$/.test(args.grep ?? '');
 	if (!byTitle) {
-		return { byTitle, files, grep: args.grep };
+		return { byTitle, files, grep: args.grep, targets: undefined };
 	}
 
 	// mocha matches the grep against the full title of every test
-	const selection = [...targets.values()].map(target => target.kind === 'test' ? escapeRegExp(target.title) : `${escapeRegExp(target.title)} [\\s\\S]*`).join('|');
-	return { byTitle, files, grep: args.grep ? `^(?=[\\s\\S]*(?:${args.grep}))(?:${selection})$` : `^(?:${selection})$` };
+	const selection = [...targets.values()].map(target => target.kind === 'test' ? escapeRegExp(target.titlePath.join(' ')) : `${escapeRegExp(target.titlePath.join(' '))} [\\s\\S]*`).join('|');
+	return { byTitle, files, grep: args.grep ? `^(?=[\\s\\S]*(?:${args.grep}))(?:${selection})$` : `^(?:${selection})$`, targets: [...targets.values()] };
 }
 
 /**
@@ -753,17 +760,21 @@ function planRerun(targets) {
  */
 function findPassedTargets(targets, result) {
 	return [...targets].filter(([, target]) => {
-		const failedTitles = new Set(result.failures.filter(failure => failure.file === target.file).map(failure => failure.title));
+		if (target.ambiguous) {
+			return false;
+		}
+		const failures = result.failures.filter(failure => failure.file === target.file);
+		const failedPaths = new Set(failures.map(failure => JSON.stringify(failure.titlePath)));
 		// A test that passes and then fails in teardown is reported both ways.
-		const passedTitles = result.passed.filter(test => test.file === target.file && !failedTitles.has(test.title)).map(test => test.title);
+		const passed = result.passed.filter(test => test.file === target.file && !test.ambiguous && !failedPaths.has(JSON.stringify(test.titlePath)));
 		if (target.kind === 'file') {
-			return failedTitles.size === 0 && passedTitles.length > 0;
+			return failures.length === 0 && passed.length > 0;
 		}
 		if (target.kind === 'test') {
-			return passedTitles.includes(target.title);
+			return passed.some(test => JSON.stringify(test.titlePath) === JSON.stringify(target.titlePath));
 		}
-		const prefix = `${target.title} `;
-		return passedTitles.some(title => title.startsWith(prefix)) && ![...failedTitles].some(title => title.startsWith(prefix));
+		const isInSuite = titlePath => titlePath.length > target.titlePath.length && target.titlePath.every((title, index) => title === titlePath[index]);
+		return passed.some(test => isInSuite(test.titlePath)) && !failures.some(failure => isInSuite(failure.titlePath));
 	}).map(([key]) => key);
 }
 

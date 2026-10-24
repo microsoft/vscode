@@ -162,6 +162,43 @@
 	</script>
 
 	<script>
+		const ambiguousRunnables = new Set();
+
+		function runnableKey(runnable) {
+			return JSON.stringify([runnable.type === 'test' ? 'test' : 'suite', runnable.file, runnable.titlePath()]);
+		}
+
+		function prepareTestsForRerun(targets) {
+			const runnables = new Set();
+			function collect(suite) {
+				for (const runnable of [suite, ...suite.tests]) {
+					const key = runnableKey(runnable);
+					if (runnables.has(key)) {
+						ambiguousRunnables.add(key);
+					} else {
+						runnables.add(key);
+					}
+				}
+				suite.suites.forEach(collect);
+			}
+			// Detect duplicates before selection, including pending tests and suites.
+			collect(mocha.suite);
+			if (!targets) {
+				return;
+			}
+			function select(suite) {
+				suite.tests = suite.tests.filter(test => targets.some(target => {
+					const titlePath = test.titlePath();
+					return test.file === target.file
+						&& (target.kind !== 'test' || titlePath.length === target.titlePath.length)
+						&& target.titlePath.every((title, index) => title === titlePath[index]);
+				}));
+				suite.suites.forEach(select);
+			}
+			// A full-title grep cannot distinguish sibling names or different suite ancestry.
+			select(mocha.suite);
+		}
+
 		function serializeSuite(suite) {
 			return {
 				root: suite.root,
@@ -191,7 +228,8 @@
 				file: runnable.file,
 				// a failed test is rerun by itself, a failed hook with the rest of its suite
 				type: runnable.type,
-				parentTitle: runnable.parent?.fullTitle()
+				parentTitlePath: runnable.parent?.titlePath() ?? [],
+				ambiguous: ambiguousRunnables.has(runnableKey(runnable.type === 'hook' ? runnable.parent : runnable))
 			};
 		}
 		function serializeError(err) {
@@ -277,11 +315,12 @@
 	</script>
 
 	<script type="text" id="bootstrap">
-		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
+		const {data: {modules, grep, rerunTargets}, manual} = await globalThis._VSCODE_TEST_RUN
 
 		try {
 			// load
 			await loadModules(modules);
+			prepareTestsForRerun(rerunTargets);
 
 			// run
 			await new Promise((resolve, reject) => {
