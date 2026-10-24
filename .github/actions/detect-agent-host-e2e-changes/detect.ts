@@ -39,8 +39,10 @@ interface ICore {
 const exactPaths = new Set([
 	'.nvmrc',
 	'.npmrc',
+	'.pnpmfile.mts',
 	'package.json',
-	'package-lock.json',
+	'pnpm-lock.yaml',
+	'pnpm-workspace.yaml',
 	'product.json',
 	'scripts/test-agent-host-e2e.sh',
 	'scripts/test-agent-host-e2e.bat',
@@ -81,7 +83,8 @@ function requiresFullProfile(path: string): boolean {
 	}
 	return fullProfilePaths.has(path)
 		|| fullProfilePrefixes.some(prefix => path.startsWith(prefix))
-		|| /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json)$/.test(path);
+		// package-lock.json remains in the folders that still install with npm (build/agent-sdk/agents/*).
+		|| /(^|\/)(package(-lock)?\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.pnpmfile\.mts)$/.test(path);
 }
 
 function affectsAgentHostE2E(path: string): boolean {
