@@ -192,7 +192,7 @@ export class RemoteExtensionsInitializerContribution implements IWorkbenchContri
 	}
 }
 
-class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
+export class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 
 	constructor(
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
