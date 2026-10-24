@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize, localize2 } from '../../nls.js';
 import { ILocalizedString } from '../../platform/action/common/action.js';
-import { Action2, registerAction2 } from '../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { SessionsCategories } from '../common/categories.js';
@@ -20,6 +20,10 @@ import { SessionLayoutMode, SessionLayoutModeContext } from '../common/sessionLa
 export interface ISessionLayoutModeChoice {
 	readonly mode: SessionLayoutMode;
 	readonly title: ILocalizedString;
+	/** Its title in the Layout submenu. */
+	readonly shortTitle: string;
+	/** The title of the Layout button while it is the current mode. */
+	readonly buttonTitle: string;
 	readonly icon: ThemeIcon;
 }
 
@@ -28,18 +32,26 @@ export interface ISessionLayoutModeChoice {
 export const sessionLayoutModeChoices: readonly ISessionLayoutModeChoice[] = [{
 	mode: SessionLayoutMode.ChatOnly,
 	title: localize2('sessionLayoutModeChatOnly', "Show Chat Only"),
+	shortTitle: localize('sessionLayoutModeChatOnly.short', "Chat Only"),
+	buttonTitle: localize('sessionLayoutModeChatOnly.button', "Layout: Chat Only"),
 	icon: Codicon.layoutSidebarLeft,
 }, {
 	mode: SessionLayoutMode.EditorOnly,
 	title: localize2('sessionLayoutModeEditorOnly', "Show Editor Only"),
+	shortTitle: localize('sessionLayoutModeEditorOnly.short', "Editor Only"),
+	buttonTitle: localize('sessionLayoutModeEditorOnly.button', "Layout: Editor Only"),
 	icon: Codicon.layoutSidebarRight,
 }, {
 	mode: SessionLayoutMode.Stacked,
 	title: localize2('sessionLayoutModeStacked', "Show Chat and Editor Stacked"),
+	shortTitle: localize('sessionLayoutModeStacked.short', "Stacked"),
+	buttonTitle: localize('sessionLayoutModeStacked.button', "Layout: Stacked"),
 	icon: Codicon.splitVertical,
 }, {
 	mode: SessionLayoutMode.SideBySide,
 	title: localize2('sessionLayoutModeSideBySide', "Show Chat and Editor Side by Side"),
+	shortTitle: localize('sessionLayoutModeSideBySide.short', "Side by Side"),
+	buttonTitle: localize('sessionLayoutModeSideBySide.button', "Layout: Side by Side"),
 	icon: Codicon.splitHorizontal,
 }];
 
@@ -51,7 +63,7 @@ export interface ISessionLayoutModeActionsOptions {
 	readonly precondition: ContextKeyExpression;
 	/** When a mode can be chosen, in addition to {@link precondition}. */
 	readonly available?: (mode: SessionLayoutMode) => ContextKeyExpression | undefined;
-	/** When the modes show in the Session Activity Bar, leading it. */
+	/** When the modes show in the Layout submenu of the Session Activity Bar, {@link Menus.SessionLayoutModes}. */
 	readonly activityBarWhen?: ContextKeyExpression;
 	/** Shows `mode` in the window the action runs in. */
 	run(accessor: ServicesAccessor, mode: SessionLayoutMode): void | Promise<void>;
@@ -74,12 +86,6 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 					f1: true,
 					precondition: ContextKeyExpr.and(options.precondition, options.available?.(choice.mode)),
 					toggled: SessionLayoutModeContext.isEqualTo(choice.mode),
-					menu: options.activityBarWhen ? {
-						id: Menus.SessionActivityBar,
-						group: SessionActivityBarGroup.Layout,
-						order: sessionLayoutModeChoices.indexOf(choice),
-						when: ContextKeyExpr.and(options.activityBarWhen, options.available?.(choice.mode)),
-					} : undefined,
 				});
 			}
 
@@ -88,6 +94,37 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 				status(localize('sessionLayoutModeChanged', "Layout: {0}", choice.title.value));
 			}
 		}));
+		if (options.activityBarWhen) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionLayoutModes, {
+				command: {
+					id: options.ids[choice.mode],
+					title: choice.shortTitle,
+					icon: choice.icon,
+					toggled: SessionLayoutModeContext.isEqualTo(choice.mode),
+					precondition: ContextKeyExpr.and(options.precondition, options.available?.(choice.mode)),
+				},
+				group: 'navigation',
+				order: sessionLayoutModeChoices.indexOf(choice),
+				when: ContextKeyExpr.and(options.activityBarWhen, options.available?.(choice.mode)),
+			}));
+		}
 	}
 	return store;
+}
+
+/**
+ * One Layout button leads the Session Activity Bar and opens {@link Menus.SessionLayoutModes}, the modes of its window,
+ * which the main window and chat windows contribute. Its icon and title are those of the current mode: one submenu
+ * entry per mode, shown while it is the current mode. It hides while the submenu is empty, such as while the strip does
+ * not show its layout actions.
+ */
+for (const choice of sessionLayoutModeChoices) {
+	MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+		submenu: Menus.SessionLayoutModes,
+		title: choice.buttonTitle,
+		icon: choice.icon,
+		group: SessionActivityBarGroup.Layout,
+		order: 0,
+		when: SessionLayoutModeContext.isEqualTo(choice.mode),
+	});
 }

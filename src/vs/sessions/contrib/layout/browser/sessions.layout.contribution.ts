@@ -69,7 +69,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('sessions.sessionActivityBar.showLayoutActions', "Controls whether the Session Activity Bar shows the layout modes (Chat Only, Editor Only, Stacked, and Side by Side) and the Toggle Panel action, in place of the title bar's side panel and panel toggles. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
+			markdownDescription: localize('sessions.sessionActivityBar.showLayoutActions', "Controls whether the Session Activity Bar shows a Layout button, which opens the layout modes (Chat Only, Editor Only, Stacked, and Side by Side), and the Toggle Panel action, in place of the title bar's side panel and panel toggles. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
 		},
 	},
 });

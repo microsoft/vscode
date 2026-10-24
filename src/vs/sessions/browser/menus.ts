@@ -123,11 +123,17 @@ export const Menus = {
 	 * while the chat is below the editor or hidden, grouped by {@link SessionActivityBarGroup}. Each tab
 	 * entry opens or activates its side pane tab, revealing the side pane when it is closed; these entries
 	 * are gated on availability only. The terminal entry reveals the terminal in the panel. While the
-	 * activity bar shows its layout actions, the layout modes lead it and the panel toggle follows the
+	 * activity bar shows its layout actions, the Layout button leads it, opening
+	 * {@link SessionLayoutModes}, and the panel toggle follows the
 	 * terminal, in place of the title bar's side panel and panel toggles.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
 	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
+	/**
+	 * The layout modes of the window, opened by the one Layout button of the Session Activity Bar, the current one
+	 * checked. The main window and chat windows each contribute theirs, scoped to their kind of window.
+	 */
+	SessionLayoutModes: new MenuId('SessionsLayoutModes'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
@@ -153,7 +159,7 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
-	/** The layout modes: chat only, editor only, stacked and side by side. */
+	/** The Layout button, which opens the layout modes: chat only, editor only, stacked and side by side. */
 	Layout: '0_layout',
 	/** The entries that open the side panel's tabs. */
 	SidePanel: '1_sidePanel',
