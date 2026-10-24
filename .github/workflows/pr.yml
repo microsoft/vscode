@@ -29,7 +29,8 @@ jobs:
   # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
   # Linux runs every unit test on every push; the macOS and Windows unit test jobs download the
   # unit-test-plan artifact and run only the listed files. The artifact only exists when the
-  # plan selects files: its steps never fail the job, and without it those jobs run every unit test.
+  # plan selects files, and without it those jobs run every unit test. A ripple failure only fails
+  # the job for pull requests that change build/ripple.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -37,7 +38,6 @@ jobs:
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
-      ripple: ${{ steps.detect.outputs.ripple }}
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
       browser-integration: ${{ steps.detect.outputs.browser-integration }}
       product-tests: ${{ steps.detect.outputs.product-tests }}
@@ -113,6 +113,19 @@ jobs:
           name: unit-test-plan
           path: .build/unit-test-plan
           retention-days: 7
+
+      # The ripple steps above never fail the job, so that a broken ripple cannot block unrelated
+      # pull requests: their macOS and Windows unit test jobs run every unit test instead. A pull
+      # request that changes ripple fails here, before the failure reaches main. (A build that times
+      # out leaves no binary to plan with.)
+      - name: Report a ripple failure
+        if: steps.build-ripple.outcome == 'failure' || steps.plan.outcome != 'success'
+        run: |
+          if [ -n "$(git diff --name-only HEAD^1 HEAD -- build/ripple)" ]; then
+            echo "::error::This pull request changes build/ripple, and ripple failed to build, pass its tests or plan the unit tests. See the steps above."
+            exit 1
+          fi
+          echo "::warning::ripple failed to build, pass its tests or plan the unit tests, so macOS and Windows run every unit test. See the steps above."
 
   compile:
     name: Compile & Hygiene
@@ -242,16 +255,6 @@ jobs:
       locked: true
       all_targets: true
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
-
-  # The planning in Detect Changes never fails the job. This job fails when ripple's tests fail or
-  # it cannot plan the pull request.
-  ripple:
-    name: Ripple
-    needs: changes
-    if: ${{ !cancelled() }}
-    uses: ./.github/workflows/pr-ripple.yml
-    with:
-      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.ripple == 'true' }}
 
   # The test jobs below report "<OS> (<part>) / <job>" checks and skip when the
   # changes cannot affect them. required-checks reports the required

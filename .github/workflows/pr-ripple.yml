@@ -1,11 +1,8 @@
 name: Code OSS (ripple)
 
-# Builds and tests the ripple binary that the Detect Changes job of pr.yml uses to plan unit tests.
-# On main, it saves the binary in the cache: pull requests can only restore caches created on main,
-# so this spares each pull request a build. It runs when ripple changes, and daily in case the cache
-# was evicted. pr.yml calls it for pull requests that change ripple: their planning in Detect Changes
-# falls back to every unit test when ripple fails, so this job fails instead, and it also plans the
-# pull request to check the configuration.
+# Builds the ripple binary that the Detect Changes job of pr.yml uses to plan unit tests, and
+# saves it in the cache. Pull requests can only restore caches created on main, so this spares
+# each pull request a build. It runs when ripple changes, and daily in case the cache was evicted.
 on:
   push:
     branches:
@@ -16,39 +13,26 @@ on:
   schedule:
     - cron: '23 4 * * *'
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      affected:
-        description: Whether the pull request can affect ripple; the job is skipped when false
-        type: boolean
-        required: false
-        default: true
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   ripple:
-    # GitHub does not evaluate expressions in the name of a skipped job, so this name must stay
-    # fixed for the "Ripple / Ripple" check of pull requests to report.
     name: Ripple
-    # Skip this job rather than the calling job: a skipped job still reports its check.
-    if: ${{ github.event_name != 'pull_request' || inputs.affected }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
-    # At the job level: the workflow-level group of a called workflow would be the caller's.
-    concurrency:
-      group: ripple-${{ github.ref }}
-      cancel-in-progress: false
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Planning a pull request reads every file of the merge commit and of its base.
-          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 1 }}
-          sparse-checkout: ${{ github.event_name != 'pull_request' && 'build/ripple' || '' }}
+          sparse-checkout: build/ripple
 
       # Must match the Restore ripple step of pr.yml.
       - name: Look up ripple cache
@@ -57,8 +41,7 @@ jobs:
         with:
           path: build/ripple/target/release/ripple
           key: "ripple-${{ runner.os }}-${{ hashFiles('build/ripple/Cargo.lock', 'build/ripple/Cargo.toml', 'build/ripple/rust-toolchain.toml', 'build/ripple/src/**') }}"
-          # The binary in the cache passed its tests on main; pull requests use it to plan.
-          lookup-only: ${{ github.event_name != 'pull_request' }}
+          lookup-only: true
 
       - name: Build ripple
         if: steps.cache-ripple.outputs.cache-hit != 'true'
@@ -70,12 +53,8 @@ jobs:
           cargo build --release --locked
 
       - name: Save ripple cache
-        if: github.event_name != 'pull_request' && steps.cache-ripple.outputs.cache-hit != 'true'
+        if: steps.cache-ripple.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: build/ripple/target/release/ripple
           key: ${{ steps.cache-ripple.outputs.cache-primary-key }}
-
-      - name: Plan the unit tests of the pull request
-        if: github.event_name == 'pull_request'
-        run: build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/unit-test-plan
