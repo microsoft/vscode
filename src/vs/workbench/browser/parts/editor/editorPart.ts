@@ -363,7 +363,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	/**
-	 * The sizes of the groups before groups are added or removed, if any group
+	 * The sizes of the groups before groups are added, removed or moved, if any group
 	 * has a layout priority; see {@link keepGroupSizesBesideHighPriorityGroups}.
 	 */
 	private getGroupSizesForLayoutPriorities(): Map<IEditorGroupView, IViewSize> | undefined {
@@ -380,7 +380,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	/**
-	 * After groups were added or removed, gives the groups beside a group with a high
+	 * After groups were added, removed or moved, gives the groups beside a group with a high
 	 * layout priority back the size they had before, so that the space comes from, or
 	 * goes to, the group with the high priority.
 	 */
@@ -1070,7 +1070,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Same groups view: move via grid widget API
 		if (sourceView.groupsView === targetView.groupsView) {
+			const sizesBefore = this.getGroupSizesForLayoutPriorities();
+			sizesBefore?.delete(sourceView); // sized where it lands, like a new group
 			this.gridWidget.moveView(sourceView, this.getSplitSizingStyle(), targetView, this.toGridViewDirection(direction));
+			this.keepGroupSizesBesideHighPriorityGroups(sizesBefore);
 			movedView = sourceView;
 		}
 
