@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, Repository as GitRepository } from '../git';
 import * as assert from 'assert';
+import * as os from 'os';
+import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
 
@@ -795,6 +797,58 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+	suite('Repository clean', () => {
+		let git: Git;
+		let logger: LogOutputChannel;
+
+		suiteSetup(() => {
+			logger = window.createOutputChannel('git clean test', { log: true });
+			git = new Git({ gitPath: 'git', userAgent: 'git-clean-test', version: '2.0.0' });
+		});
+
+		suiteTeardown(() => {
+			logger?.dispose();
+		});
+
+		function recordingRepository(root: string) {
+			const repository = new GitRepository(git, root, undefined, { path: '', isBare: false }, logger);
+			const calls: string[][] = [];
+			repository.exec = async args => {
+				calls.push(args);
+				return { stdout: '', stderr: '', exitCode: 0 };
+			};
+			return { repository, calls };
+		}
+
+		test('passes a file named like a glob as a literal pathspec', async () => {
+			// A file can be named `*`. Without the `literal` pathspec magic, git
+			// expands it into a pattern, so discarding that one file deletes every
+			// untracked file matching it. See #133566.
+			const root = path.join(os.tmpdir(), 'repo');
+			const { repository, calls } = recordingRepository(root);
+
+			await repository.clean([path.join(root, '*')]);
+
+			assert.deepStrictEqual(calls, [
+				['clean', '-f', '-q', '--', ':(literal)*']
+			]);
+		});
+
+		test('passes every file of a directory as a literal pathspec', async () => {
+			const root = path.join(os.tmpdir(), 'repo');
+			const { repository, calls } = recordingRepository(root);
+
+			await repository.clean([
+				path.join(root, '*'),
+				path.join(root, 'file?.txt'),
+				path.join(root, '[abc].md')
+			]);
+
+			assert.deepStrictEqual(calls, [
+				['clean', '-f', '-q', '--', ':(literal)*', ':(literal)file?.txt', ':(literal)[abc].md']
+			]);
 		});
 	});
 });

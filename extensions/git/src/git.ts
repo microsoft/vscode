@@ -2354,8 +2354,11 @@ export class Repository {
 		const promises: Promise<IExecutionResult<string>>[] = [];
 		const args = ['clean', '-f', '-q'];
 
+		// File names are passed as literal pathspecs: a file can legitimately be named
+		// `*`, and without `:(literal)` git would expand it into a pattern and delete
+		// every untracked file matching it. See #133566.
 		for (const paths of groups) {
-			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
+			for (const chunk of splitInChunks(paths.map(p => `:(literal)${this.sanitizeRelativePath(p)}`), MAX_CLI_LENGTH)) {
 				promises.push(limiter.queue(() => this.exec([...args, '--', ...chunk])));
 			}
 		}
