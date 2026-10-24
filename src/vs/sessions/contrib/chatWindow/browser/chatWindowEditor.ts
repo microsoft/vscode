@@ -522,6 +522,12 @@ export class ChatWindowChatEditor extends EditorPane {
 		this._conversationHeight = undefined;
 		this._partHeight = undefined;
 		this._constraintMode = undefined;
+		this._restoreConversationScheduler.cancel();
+		this._recoverTerminalScheduler.cancel();
+		this._forcedByWindow = false;
+		this._afterWindowResize = false;
+		this._terminalHeight = undefined;
+		this._settleByUser = false;
 		this._applyConstraints();
 		super.clearInput();
 	}
@@ -568,8 +574,19 @@ export class ChatWindowChatEditor extends EditorPane {
 			if (!this._restoreConversation()) {
 				this._clampOnResize();
 			}
-			this._recoverTerminalScheduler.schedule();
+			if (this._terminalNeedsRecovery()) {
+				this._recoverTerminalScheduler.schedule();
+			}
 		}
+	}
+
+	private _terminalNeedsRecovery(): boolean {
+		const terminal = this._state?.terminalGroup.get();
+		if (this._terminalHeight === undefined || !terminal || this._state?.docked) {
+			return false;
+		}
+		const part = this._editorGroupsService.getPart(this.group);
+		return part.groups.includes(terminal) && part.getSize(terminal).height < this._terminalHeight;
 	}
 
 	private _rememberTerminalHeight(): void {
