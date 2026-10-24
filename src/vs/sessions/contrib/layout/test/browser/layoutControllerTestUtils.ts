@@ -46,6 +46,13 @@ import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from 
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { IGitHubCICheck } from '../../../github/common/types.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SessionLayoutMode, SessionSplitLayout } from '../../../../common/sessionLayoutMode.js';
+import { IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutModeService } from '../../../../services/layoutMode/browser/sessionLayoutModeService.js';
+import { ISessionLayoutModeService } from '../../../../services/layoutMode/common/sessionLayoutModeService.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
@@ -248,6 +255,14 @@ export interface ITestLayoutHarness {
 	mainContainerWidth: number;
 	editorMaximized: boolean;
 	setEditorMaximizedCalls: boolean[];
+	/** The side pane's arrangement with the Sessions Part, as the layout service reports it. */
+	sidePaneArrangement: SessionSplitLayout;
+	onDidChangeSidePaneArrangement: Emitter<SessionSplitLayout>;
+	/** The chat windows the chat window service reports open. */
+	chatWindowsObs: ISettableObservable<readonly IChatWindow[]>;
+	/** Commands run through the command service, such as Maximize and Restore Editor Area. */
+	executedCommands: string[];
+	readonly layoutModeService: ISessionLayoutModeService;
 	toggleSidePaneCalls: number;
 	sidePaneStateBeforeHide: SidePaneComposition | undefined;
 	partVisibility: Map<Parts, boolean>;
@@ -375,6 +390,11 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		mainContainerWidth: options.mainContainerWidth ?? 2000,
 		editorMaximized: false,
 		setEditorMaximizedCalls: [],
+		sidePaneArrangement: SessionLayoutMode.SideBySide,
+		onDidChangeSidePaneArrangement: store.add(new Emitter<SessionSplitLayout>()),
+		chatWindowsObs: observableValue<readonly IChatWindow[]>('chatWindows', []),
+		executedCommands: [],
+		get layoutModeService() { return layoutModeService; },
 		toggleSidePaneCalls: 0,
 		sidePaneStateBeforeHide: undefined,
 		partVisibility: new Map<Parts, boolean>([
@@ -471,6 +491,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidReplaceSession = harness.onDidReplaceSession.event;
 		override readonly onDidDeleteChat = harness.onDidDeleteChat.event;
 		override readonly onDidReplaceNewDraftSession = harness.onDidReplaceNewDraftSession.event;
+		override readonly onDidDeleteSession = Event.None;
+		override readonly onDidArchiveSession = Event.None;
 		override getSessions() { return []; }
 	});
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -650,6 +672,15 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
 		get chatLayoutPresentation() { return harness.chatLayoutPresentation; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
+		getSidePaneArrangement(): SessionSplitLayout { return harness.sidePaneArrangement; }
+		setSidePaneArrangement(arrangement: SessionSplitLayout): void {
+			if (harness.sidePaneArrangement !== arrangement) {
+				harness.sidePaneArrangement = arrangement;
+				harness.onDidChangeSidePaneArrangement.fire(arrangement);
+			}
+		}
+		readonly onDidChangeSidePaneArrangement = harness.onDidChangeSidePaneArrangement.event;
+		override readonly mainContainer = mainWindow.document.createElement('div');
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
 	} as unknown as IAgentWorkbenchLayoutService;
@@ -843,6 +874,22 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			harness.deleteWorkingSetCalls.push(workingSet.id);
 		}
 	});
+
+	instaService.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
+		override readonly windows = harness.chatWindowsObs;
+	});
+	instaService.stub(ICommandService, new class extends mock<ICommandService>() {
+		override async executeCommand<R>(id: string): Promise<R | undefined> {
+			harness.executedCommands.push(id);
+			if (id === MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID || id === RESTORE_MAIN_EDITOR_PART_COMMAND_ID) {
+				layoutService.setEditorMaximized(id === MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID);
+				harness.onDidChangeEditorMaximized.fire();
+			}
+			return undefined;
+		}
+	});
+	const layoutModeService = store.add(new SessionLayoutModeService(storageService, configService, new NullLogService(), instaService.get(ISessionsManagementService)));
+	instaService.stub(ISessionLayoutModeService, layoutModeService);
 
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 		override get onDidChangeWorkspaceFolders() { return Event.map(harness.onDidChangeWorkspaceFolders.event, () => ({ added: [], removed: [], changed: [] })); }

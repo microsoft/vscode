@@ -46,6 +46,7 @@ import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
@@ -140,7 +141,7 @@ class DesktopAddTabContribution extends Disposable implements IWorkbenchContribu
 registerWorkbenchContribution2(DesktopAddTabContribution.ID, DesktopAddTabContribution, WorkbenchPhase.BlockStartup);
 
 class MaximizeMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
+	static readonly ID = MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -185,7 +186,7 @@ class MaximizeMainEditorPartAction extends Action2 {
 registerAction2(MaximizeMainEditorPartAction);
 
 class RestoreMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.restoreMainEditorPart';
+	static readonly ID = RESTORE_MAIN_EDITOR_PART_COMMAND_ID;
 
 	constructor() {
 		super({
