@@ -33,7 +33,7 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
+import { AGENTS_SIDE_PANE_STACKED_CLASS, applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartCardMarginTop } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
@@ -500,14 +500,18 @@ export class SessionsPart extends Part {
 
 		const phoneLayout = isPhoneLayout(this.layoutService);
 		const compactLayout = this.layoutService.isModernUICompact();
+		// Stacked, the side pane is above the card rather than beside it.
+		const container = this.layoutService.mainContainer;
+		const sidePaneStacked = container.classList.contains(AGENTS_SIDE_PANE_STACKED_CLASS);
 		const cardSize = getAgentsPartCardContentSize(
 			width,
 			height,
-			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
+			this.agentWorkbenchLayoutService.isEditorPaneVisible() && !sidePaneStacked,
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
 			phoneLayout,
 			compactLayout,
-			getSessionsPartCardMarginRight(this.layoutService.mainContainer)
+			getSessionsPartCardMarginRight(container),
+			getSessionsPartCardMarginTop(container)
 		);
 
 		// Size the content area with the reduced dimensions.

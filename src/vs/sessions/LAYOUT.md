@@ -69,6 +69,8 @@ from geometry: restoring a chat's Editor/Details combination or reopening its
 last-open combination must not restore an old width or treat a closed grid node's
 zero width as a user resize.
 
+The desktop side pane is arranged either beside the Sessions Part (side by side) or stacked above it in the same column. Stacked, the side pane spans the row with its docked Details, the Sessions Part remains the flexible view and absorbs height deltas, and width-driven side-pane mechanics (squeezing the Editor out of the node, ratio preservation) do not apply. Switching the arrangement reparents the existing editor node and composes with either Panel alignment; the side-by-side width and stacked height are remembered separately. The live arrangement is window presentation; which arrangement a chat uses is remembered per layout owner (see [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)). The mobile presentation is always side by side.
+
 The desktop Panel supports two profile-scoped alignments. The default justified alignment places it below the Sessions Part and side pane, preserving the original spanning layout. Center alignment places it below the Sessions Part only, allowing the side pane to use the full content height. Switching alignment reparents the existing grid views without changing panel height or side-pane width. The mobile presentation keeps the justified topology.
 
 ## Sessions Part
