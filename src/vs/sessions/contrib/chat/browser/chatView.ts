@@ -1218,6 +1218,8 @@ export class ChatView extends AbstractChatView {
 		this._inputOnly.set(inputOnly, undefined);
 		this._inputOnlyContext.set(inputOnly);
 		this.element.classList.toggle('input-only', inputOnly);
+		// Showing only the input, the input stays one line tall; longer text scrolls in it.
+		this._widget.inputPart.setSingleLine(inputOnly);
 		this._updateChatPillsVisibility();
 		this._renderInputOnlyStatus();
 		this._layoutChatWidget();
