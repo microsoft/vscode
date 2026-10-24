@@ -75,7 +75,7 @@ class EditorTextRenderer {
 			if (lineContent === '') {
 				result += '<br>';
 			} else {
-				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, platform.isWindows);
+				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, !platform.isMacintosh);
 			}
 		}
 
