@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from '../copilot.ts';
+import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, isCopilotRuntimeVersionCompatible, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from '../copilot.ts';
 
 /**
  * Builds a fake `@github/copilot-win32-x64@1.0.73` tarball on disk and returns
@@ -44,6 +44,12 @@ suite('copilot', () => {
 		} finally {
 			fs.rmSync(repoRoot, { recursive: true, force: true });
 		}
+	});
+
+	test('validates versioned runtimes while accepting source builds', () => {
+		assert.strictEqual(isCopilotRuntimeVersionCompatible('1.2.3', '1.2.3'), true);
+		assert.strictEqual(isCopilotRuntimeVersionCompatible('1.2.3', '1.2.4'), false);
+		assert.strictEqual(isCopilotRuntimeVersionCompatible('1.2.3', '0.0.0-dev'), true);
 	});
 
 	test('keeps the SDK runtime package include list scoped to the selected platform', () => {

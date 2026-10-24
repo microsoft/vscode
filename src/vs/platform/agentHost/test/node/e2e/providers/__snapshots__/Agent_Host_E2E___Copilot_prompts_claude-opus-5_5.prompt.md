@@ -1,7 +1,7 @@
 ```json
 {
   "model": "claude-opus-5.5",
-  "max_tokens": 32000,
+  "max_tokens": 48000,
   "system": [
     {
       "type": "text",
