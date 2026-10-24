@@ -67,22 +67,31 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/07cc96d028f69fd9609b88fa23b1c087cde223393dd0fd9ad6341e480068db95)
 
 #### editor/injectedTextDecorations/ColorDecorators/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ca4563d37cccd40a5f49e1d6075dde7bbf085b718ca52a3e22d91e5d951242d2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6b96ac590e2c52dd89f824b28544ef1b87be14d2bc4a9c86b7756aef3b72d506)
 
 #### editor/injectedTextDecorations/InlayHints/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/76ab9ccd41b2b1a400c2feece58e56e8f49cad84023ed07708305e2ed75db8f5)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8c801e1af8f2765017c07001c450f1d88055d7c500f825021c8c8a47999cae35)
 
 #### editor/injectedTextDecorations/InlineProgress/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4aaae3363f8f4637ecde8de278eefc8a04f04a70f0ba6567309d9e8c76e8a260)
 
 #### editor/injectedTextDecorations/SelectedColorDecorator/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/ba9f3a1f916231953b82851a61bafbe0e2738056cac9d9a5be47da573d8ea5da)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3b019e83bf35814c0c58a8076039102d4cc40bdc14914b90d8d9766430a079c9)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidget/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/149a3762c5eef80f2a1c74385c9d45871821de012a9cc36ecaa8d22858ac1ad2)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidgetTerminated/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8d8b39f9a3dd85453ad1594df888c7ac1908d5c7ed80a5b15238d818a89aeb1b)
+
+#### editor/shrinkEmptyLines/Regular/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/463f36cdb6be64a8be848160a7d2450af36fcce2199e567c1e1b6d0b5052608c)
+
+#### editor/shrinkEmptyLines/Selected/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/30adbe2292cb1c333453b964747c8e7a8dee7b3d3936be80a627c2aa32d6913e)
+
+#### editor/shrinkEmptyLines/Shrunk/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ee4ef112a482391acdbfc8fa31d899812eb86bba85ac6c553a5bacc6f946678d)
 
 #### editor/wordWrapIndicator/WordWrapIndicator/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/9b7191f3dc7cede99687efc61bc2e50324e23b2bd0781ab62aed5bb6c113e77e)
