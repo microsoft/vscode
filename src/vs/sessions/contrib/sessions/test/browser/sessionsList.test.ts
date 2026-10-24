@@ -4894,6 +4894,52 @@ suite('Sessions - SessionsList', () => {
 				renderedAfterEditing: true,
 			});
 		});
+
+		test('preserves the group rename draft, focus, and selection across rerenders', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [], { groups: [group] });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			list.beginRenameGroup(group.id);
+			const input = container.querySelector<HTMLInputElement>('.session-group-input input');
+			assert.ok(input);
+			input.value = 'Group draft';
+			input.setSelectionRange(2, 7, 'forward');
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			list.refresh();
+			const rerenderedInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const rerenderState = {
+				draft: rerenderedInput?.value,
+				inputRecreated: rerenderedInput !== input,
+				focused: mainWindow.document.activeElement === rerenderedInput,
+				selectionStart: rerenderedInput?.selectionStart,
+				selectionEnd: rerenderedInput?.selectionEnd,
+				selectionDirection: rerenderedInput?.selectionDirection,
+			};
+			rerenderedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			list.beginRenameGroup(group.id);
+			const restartedInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const restartedValue = restartedInput?.value;
+			// Close the editor so teardown does not commit it on blur.
+			restartedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({ rerenderState, restartedValue }, {
+				rerenderState: {
+					draft: 'Group draft',
+					inputRecreated: true,
+					focused: true,
+					selectionStart: 2,
+					selectionEnd: 7,
+					selectionDirection: 'forward',
+				},
+				restartedValue: 'Group',
+			});
+		});
 	});
 
 	suite('nested custom groups', () => {
