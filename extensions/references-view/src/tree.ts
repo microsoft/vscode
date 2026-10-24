@@ -89,7 +89,7 @@ export class SymbolsTree {
 
 		// reveal & select
 		const selection = model.navigation?.nearest(input.location.uri, input.location.range.start);
-		if (selection && this._tree.visible) {
+		if (selection) {
 			await this._tree.reveal(selection, { select: true, focus: true, expand: true });
 		}
 
