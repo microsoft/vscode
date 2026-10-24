@@ -2042,6 +2042,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			mediaType: CustomizationMarketplaceMediaType.Skill,
 			installation: { kind: 'skill', repository: 'owner/catalog', ref: 'v1', path: 'skills/unreadable' },
 		});
+
 		const fixture = createPage();
 		fixture.setInstallState(candidate, { kind: 'error', target: { kind: 'skill', uri: URI.file('/workspace/.agents/skills/unreadable/SKILL.md') }, message: 'Permission denied' });
 		fixture.page.setSearchQuery('@installed unreadable');
@@ -2052,6 +2053,37 @@ suite('AICustomizationDiscoveryPage', () => {
 			action: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')?.textContent,
 			disabled: fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button')?.getAttribute('aria-disabled'),
 		}, { detail: 'Skill · GitHub Feed · Could not verify installation', action: 'Uninstall', disabled: 'false' });
+	});
+
+	test('explains unresolved plugin identity and disables uninstall until inventory recovers', async () => {
+		const candidate = resource('pacman', { displayName: 'Token Pacman Plugin', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin });
+		const fixture = createPage();
+		const target = { kind: 'plugin' as const, name: 'token-pacman' };
+		const message = 'Refresh the plugin inventory to resolve the installation identity.';
+		fixture.setInstallState(candidate, { kind: 'installed', target, uninstallUnavailableMessage: message });
+		fixture.page.setSearchQuery('@installed pacman');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const button = () => fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
+		const unresolved = {
+			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
+			action: button()?.textContent,
+			disabled: button()?.getAttribute('aria-disabled'),
+			label: button()?.getAttribute('aria-label'),
+		};
+		button()?.click();
+		fixture.setInstallState(candidate, { kind: 'installed', target });
+		fixture.notifyInstallChange();
+		await timeout(0);
+		assert.deepStrictEqual({ unresolved, recovered: button()?.getAttribute('aria-disabled') }, {
+			unresolved: {
+				detail: `Plugin · GitHub Feed · ${message}`,
+				action: 'Uninstall',
+				disabled: 'true',
+				label: `Uninstall Token Pacman Plugin. ${message}`,
+			},
+			recovered: 'false',
+		});
 	});
 
 	test('does not render after disposal while repair completes', async () => {

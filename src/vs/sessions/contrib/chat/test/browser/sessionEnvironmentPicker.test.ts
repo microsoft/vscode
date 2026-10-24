@@ -31,7 +31,7 @@ import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../servi
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../common/constants.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 
@@ -128,7 +128,7 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
-	test('an explicitly selected host never resolves through another host or a hidden provider', () => {
+	test('an explicitly selected host never resolves through another host or an unavailable provider', () => {
 		const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote-selected'] };
 		const selected = upcastPartial<IAgentHostSessionsProvider>({
 			...provider('agenthost-remote-selected', 'remote'),
@@ -136,6 +136,40 @@ suite('SessionEnvironmentPicker', () => {
 		});
 		assert.strictEqual(getEnvironmentWorkspaceProvider(remote, [selected, provider('agenthost-remote-other', 'remote')], folder), undefined);
 	});
+
+	test('a hidden but available remote stays resolvable for a selected draft without returning to the picker', () => {
+		const selected = upcastPartial<IAgentHostSessionsProvider>({
+			...provider('agenthost-selected', 'remote'),
+			connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+			isAvailableInEnvironmentPicker: constObservable(true),
+			isVisibleInEnvironmentPicker: constObservable(false),
+		});
+		const environment = getRemoteSessionCreationEnvironment(selected)!;
+		assert.deepStrictEqual({
+			picker: getSessionCreationEnvironments([selected]),
+			selected: environment.id,
+			resolved: getEnvironmentWorkspaceProvider(environment, [selected], folder)?.id,
+		}, { picker: [], selected: selected.id, resolved: selected.id });
+	});
+
+	for (const containerRequested of [false, true]) {
+		test(`restored hidden remote retains its destination without adding it to the picker (container: ${containerRequested})`, () => {
+			const remote = upcastPartial<IAgentHostSessionsProvider>({
+				...provider('agenthost-hidden', 'remote'), connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+				isVisibleInEnvironmentPicker: constObservable(false), isAvailableInEnvironmentPicker: constObservable(true),
+			});
+			const environments = getSessionCreationEnvironments([provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local'), remote]);
+			const selected = getDefaultSessionCreationEnvironment(environments, URI.parse('vscode-agent-host://host/project'), remote.id, containerRequested, remote);
+			assert.deepStrictEqual({
+				selected: selected && { id: selected.id, kind: selected.kind, label: selected.label, providers: selected.providerIds },
+				picker: environments.map(environment => environment.id),
+				resolved: selected && getEnvironmentWorkspaceProvider(selected, [remote], folder)?.id,
+			}, {
+				selected: { id: containerRequested ? `container:${remote.id}` : remote.id, kind: containerRequested ? 'container' : 'remote', label: containerRequested ? 'Dev Container' : remote.label, providers: [remote.id] },
+				picker: ['local'], resolved: remote.id,
+			});
+		});
+	}
 
 	test('renders before repository controls, updates its accessible name, and selects through the action widget', async () => {
 		const instantiation = store.add(new TestInstantiationService());
@@ -245,10 +279,13 @@ suite('SessionEnvironmentPicker', () => {
 				let menu: { label: string | undefined; separator: boolean }[] = [];
 				let submenus: (readonly string[] | undefined)[] = [];
 				let websocketActions: readonly IAction[] | undefined;
+				let hideDefaultKeybindingTooltip: boolean | undefined;
 				instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 					isVisible: false,
 					hide: () => { calls.push('hide'); hide?.(); },
-					show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
+					show: (...args: Parameters<IActionWidgetService['show']>) => {
+						const [, , items, delegate, , , , , options] = args;
+						hideDefaultKeybindingTooltip = options?.hideDefaultKeybindingTooltip;
 						menu = items.map(item => ({ label: item.label, separator: item.kind === ActionListItemKind.Separator }));
 						submenus = items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.submenuActions?.map(action => action.label));
 						websocketActions = items.find(item => item.label === 'WebSocket')?.submenuActions;
@@ -276,7 +313,7 @@ suite('SessionEnvironmentPicker', () => {
 					await Promise.resolve();
 				}
 				assert.deepStrictEqual({
-					menu, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
+					menu, hideDefaultKeybindingTooltip, remoteSubmenus: submenus.slice(1, providers.length + 1), calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'), triggers: telemetry.triggers,
 				}, {
 					menu: [
 						{ label: 'This Computer', separator: false },
@@ -285,6 +322,7 @@ suite('SessionEnvironmentPicker', () => {
 						{ label: 'Connect via SSH...', separator: false },
 						...(showManage ? [{ label: '', separator: true }, { label: 'Manage...', separator: false }] : []),
 					],
+					hideDefaultKeybindingTooltip: true,
 					remoteSubmenus: [
 						showManage ? undefined : ['Manage SSH'],
 						showManage ? undefined : ['Manage Tunnel'],

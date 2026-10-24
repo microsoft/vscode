@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
@@ -24,6 +26,8 @@ import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceIns
 import { ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { getGitHubMcpRegistryIcon } from '../../aiCustomization/githubMcpRegistryIcons.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../../common/plugins/agentPluginService.js';
 
 const maxCachedReceiptSessions = 50;
 const maxCatalogAssociations = 1000;
@@ -47,6 +51,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILogService private readonly logService: ILogService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
 		super();
 		this.onDidChange = Event.any(
@@ -54,6 +59,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			this.agentHostCustomizationService.onDidChangeCustomizations,
 			this.agentHostService.onAgentHostStart,
 			Event.map(this.agentHostService.onAgentHostExit, () => undefined),
+			Event.fromObservableLight(this.agentPluginService.plugins),
 		);
 	}
 
@@ -424,11 +430,15 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	async uninstall(sessionResource: URI, installation: IRecordedCustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
 		this.throwIfCancelled(token);
+		if (installation.state.kind === 'installed' && installation.state.uninstallUnavailableMessage) {
+			throw new Error(installation.state.uninstallUnavailableMessage);
+		}
 		if (installation.state.target.kind === 'plugin') {
 			const plugins = await this.listPluginInstallations(sessionResource, token);
 			const matches = plugins.filter(candidate => getPluginInstallationId(candidate) === installation.installationId);
 			const identity = matches.length === 1 ? matches[0] : undefined;
 			if (!identity || !identity.marketplace && !identity.directSourceId || !this.agentHostService.uninstallPlugin) {
+				this._onDidChange.fire();
 				throw new Error(localize('agentHost.customizationInstall.pluginRemovalUnavailable', "The SDK plugin installation identity is unavailable."));
 			}
 			await this.agentHostService.uninstallPlugin(this.providerId, {
@@ -436,6 +446,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				marketplace: identity.marketplace,
 				directSourceId: identity.directSourceId,
 			}, this.getBackendSession(sessionResource), this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
+			const plugin = this.findDiscoveredPlugin(identity);
+			if (plugin) {
+				this.agentPluginService.enablementModel.remove(plugin.uri.toString());
+			}
 			this.throwIfCancelled(token);
 			this.catalogAssociations.delete(getPluginInstallationId(identity));
 			this._onDidChange.fire();
@@ -462,15 +476,20 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		token: CancellationToken,
 		beforeChange?: (result: IAgentCustomizationInstallationApplyResult | undefined) => Promise<void> | void,
 	): Promise<void> {
+		const activatePlugin = review.action === 'install' && review.kind === 'plugin';
 		const confirmation = await this.dialogService.confirm({
 			type: 'question',
-			message: review.action === 'install'
-				? localize('agentHost.customizationInstall.confirmInstall', "Install '{0}'?", review.displayName)
-				: localize('agentHost.customizationInstall.confirmUninstall', "Uninstall '{0}'?", review.displayName),
+			message: activatePlugin
+				? localize('agentHost.customizationInstall.confirmInstallAndEnable', "Install and enable '{0}'?", review.displayName)
+				: review.action === 'install'
+					? localize('agentHost.customizationInstall.confirmInstall', "Install '{0}'?", review.displayName)
+					: localize('agentHost.customizationInstall.confirmUninstall', "Uninstall '{0}'?", review.displayName),
 			detail: this.getReviewDetail(review),
-			primaryButton: review.action === 'install'
-				? localize('agentHost.customizationInstall.installButton', "Install")
-				: localize('agentHost.customizationInstall.uninstallButton', "Uninstall"),
+			primaryButton: activatePlugin
+				? localize('agentHost.customizationInstall.installAndEnableButton', "Install and Enable")
+				: review.action === 'install'
+					? localize('agentHost.customizationInstall.installButton', "Install")
+					: localize('agentHost.customizationInstall.uninstallButton', "Uninstall"),
 			custom: { icon: Codicon.shield },
 		});
 		this.throwIfCancelled(token);
@@ -481,10 +500,51 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			throw new Error(localize('agentHost.customizationInstall.applyUnavailable', "The selected agent cannot apply this SDK installation."));
 		}
 		const result = await this.agentHostService.applyCustomizationInstallation(this.providerId, review.operationId);
-		this.throwIfCancelled(token);
 		await beforeChange?.(result);
+		if (activatePlugin) {
+			try {
+				if (result?.kind !== 'plugin') {
+					throw new Error(localize('agentHost.customizationInstall.activationIdentityMissing', "The runtime did not return the installed plugin identity."));
+				}
+				await this.activateInstalledPlugin(result, token);
+			} catch (error) {
+				this._onDidChange.fire();
+				this.throwIfCancelled(token);
+				throw new Error(localize('agentHost.customizationInstall.activationFailed', "Plugin '{0}' was installed, but activation failed: {1}. Enable it from Plugins to retry.", review.displayName, getErrorMessage(error)));
+			}
+		}
 		this.throwIfCancelled(token);
 		this._onDidChange.fire();
+	}
+
+	private async activateInstalledPlugin(identity: AppliedPluginIdentity, token: CancellationToken): Promise<void> {
+		this.throwIfCancelled(token);
+		const disposables = new DisposableStore();
+		const cancellation = disposables.add(new CancellationTokenSource(token));
+		try {
+			disposables.add(disposableTimeout(() => cancellation.cancel(), 10_000));
+			const matches = this.agentPluginService.plugins.map(plugins => plugins.filter(plugin => matchesAppliedPlugin(plugin, identity)));
+			const plugins = await waitForState(matches, plugins => plugins.length > 0, undefined, cancellation.token).catch(error => {
+				this.throwIfCancelled(token);
+				if (cancellation.token.isCancellationRequested) {
+					throw new Error(localize('agentHost.customizationInstall.activationDiscoveryTimedOut', "The installed plugin was not discovered in time."));
+				}
+				throw error;
+			});
+			if (plugins.length !== 1) {
+				throw new Error(localize('agentHost.customizationInstall.activationAmbiguous', "Multiple installations match the verified plugin source."));
+			}
+			const plugin = plugins[0];
+			this.associatePluginCatalogResource(plugin);
+			if (!plugin.setEnabled) {
+				throw new Error(localize('agentHost.customizationInstall.activationUnavailable', "Runtime plugin enablement is unavailable."));
+			}
+			this.throwIfCancelled(token);
+			await setAgentPluginEnablement(plugin, this.agentPluginService.enablementModel, ContributionEnablementState.EnabledProfile);
+		} finally {
+			cancellation.cancel();
+			disposables.dispose();
+		}
 	}
 
 	private async confirmAndApplyCatalogResource(review: IAgentCustomizationInstallationReview, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
@@ -516,9 +576,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				: localize('agentHost.customizationInstall.skillUninstallDetail', "The SDK will remove {0} owned files ({1} bytes) from {2}.{3}", review.fileCount, review.totalBytes, review.target, modifiedDetail);
 		}
 		if (review.kind === 'plugin') {
-			const status = review.installsDisabled
-				? localize('agentHost.customizationInstall.pluginDisabled', "The plugin will be installed disabled.")
-				: localize('agentHost.customizationInstall.pluginEnabled', "The plugin will be installed enabled.");
+			const status = localize('agentHost.customizationInstall.pluginActivated', "The plugin will be enabled for your profile after installation, and running chats will reload its contributions.");
 			const mcpServers = review.mcpServerCount
 				? localize('agentHost.customizationInstall.pluginMcpServers', "\nDeclared MCP servers: {0}", review.mcpServerCount)
 				: '';
@@ -589,33 +647,52 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const installations = await this.listPluginInstallations(sessionResource, token);
 		const matchCounts = new Map<string, number>();
 		for (const installation of installations) {
-			const key = getAppliedPluginInstallationKey(installation);
-			if (key) {
-				matchCounts.set(key, (matchCounts.get(key) ?? 0) + 1);
-			}
+			const key = getPluginInstallationId(installation);
+			matchCounts.set(key, (matchCounts.get(key) ?? 0) + 1);
 		}
 		const result: IRecordedCustomizationMarketplaceResource[] = [];
 		for (const installation of installations) {
 			const installationId = getPluginInstallationId(installation);
-			let resource = this.catalogAssociations.get(installationId);
-			if (!resource) {
-				const key = getAppliedPluginInstallationKey(installation);
-				const pendingIndex = this.pendingCatalogAssociations.findIndex(candidate =>
-					key === getVerifiedPluginKey(candidate.identity.name, candidate.identity.repository, candidate.identity.ref)
-					// SDK list metadata has no plugin root, so never guess between same-revision sources.
-					&& matchCounts.get(key) === 1);
-				if (pendingIndex !== -1) {
-					resource = this.pendingCatalogAssociations.splice(pendingIndex, 1)[0].resource;
-					this.rememberCatalogAssociation(installationId, resource);
-				}
+			const plugin = this.findDiscoveredPlugin(installation);
+			if (plugin) {
+				this.associatePluginCatalogResource(plugin);
 			}
+			const resource = this.catalogAssociations.get(installationId);
+			const uninstallUnavailableMessage = (!installation.marketplace && !installation.directSourceId || matchCounts.get(installationId) !== 1)
+				? localize('agentHost.customizationInstall.pluginRemovalIdentityUnavailable', "Uninstall is unavailable because the runtime has not reported a unique plugin installation identity. Refresh the plugin inventory and try again.")
+				: undefined;
 			result.push({
 				installationId,
-				resource: resource ?? toPluginMarketplaceResource(installation, this.logService),
-				state: { kind: 'installed', target: { kind: 'plugin', name: installation.name } },
+				resource: resource ?? toPluginMarketplaceResource(installation, this.logService, plugin),
+				state: {
+					kind: 'installed',
+					target: { kind: 'plugin', name: plugin?.copilotCliInstallation?.name ?? installation.name, ...(plugin ? { uri: plugin.uri } : {}) },
+					...(uninstallUnavailableMessage ? { uninstallUnavailableMessage } : {}),
+				},
 			});
 		}
 		return result;
+	}
+
+	private findDiscoveredPlugin(installation: IAgentPluginInstallation): IAgentPlugin | undefined {
+		if (!installation.marketplace && !installation.directSourceId) {
+			return undefined;
+		}
+		const matches = this.agentPluginService.plugins.get().filter(plugin =>
+			plugin.copilotCliInstallation && getPluginInstallationId(plugin.copilotCliInstallation) === getPluginInstallationId(installation));
+		return matches.length === 1 ? matches[0] : undefined;
+	}
+
+	private associatePluginCatalogResource(plugin: IAgentPlugin): void {
+		const installation = plugin.copilotCliInstallation;
+		if (!installation) {
+			return;
+		}
+		const pendingIndex = this.pendingCatalogAssociations.findIndex(candidate => matchesAppliedPlugin(plugin, candidate.identity));
+		if (pendingIndex !== -1) {
+			const { resource } = this.pendingCatalogAssociations.splice(pendingIndex, 1)[0];
+			this.rememberCatalogAssociation(getPluginInstallationId(installation), resource);
+		}
 	}
 
 	private getSourceId(source: string | undefined): string {
@@ -654,37 +731,43 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 }
 
-function getAppliedPluginInstallationKey(installation: IAgentPluginInstallation): string | undefined {
+function matchesAppliedPlugin(plugin: IAgentPlugin, identity: AppliedPluginIdentity): boolean {
+	const installation = plugin.copilotCliInstallation;
+	const source = installation?.source;
+	return !!installation?.directSourceId
+		&& !installation.marketplace
+		&& installation.name === identity.name
+		&& source?.kind === 'github'
+		&& source.repository.toLowerCase() === identity.repository.toLowerCase()
+		&& (source.sha ?? source.ref) === identity.ref
+		&& (source.path ?? '') === identity.path;
+}
+
+function toPluginMarketplaceResource(installation: IAgentPluginInstallation, logService: ILogService, plugin?: IAgentPlugin): ICustomizationMarketplaceResource {
 	const source = installation.verifiedSource;
-	return !installation.marketplace && installation.directSourceId && source
-		? getVerifiedPluginKey(installation.name, source.repository, source.revision)
+	const installedSource = plugin?.copilotCliInstallation?.source;
+	const revision = installedSource?.kind === 'github' ? installedSource.sha ?? installedSource.ref : undefined;
+	const directSource = !installation.marketplace && installedSource?.kind === 'github' && revision
+		? { kind: 'plugin' as const, repository: installedSource.repository, ref: revision, path: installedSource.path ?? '' }
 		: undefined;
-}
-
-function getVerifiedPluginKey(name: string, repository: string, revision: string): string {
-	return JSON.stringify([name, repository.toLowerCase(), revision]);
-}
-
-function toPluginMarketplaceResource(installation: IAgentPluginInstallation, logService: ILogService): ICustomizationMarketplaceResource {
-	const source = installation.verifiedSource;
 	const configured = installation.marketplace
 		? { kind: 'configuredPlugin' as const, name: installation.name, marketplace: installation.marketplace }
 		: undefined;
 	return {
 		sourceId: configured ? CustomizationMarketplaceSources.PluginMarketplaces.id : CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
 		identifier: configured ? JSON.stringify([installation.marketplace, installation.name]) : installation.directSourceId ?? installation.name,
-		displayName: installation.name,
+		displayName: plugin?.label ?? installation.name,
 		description: installation.description ?? '',
 		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 		tags: [],
 		capabilities: [],
 		representativeQueries: [],
-		version: installation.version,
+		version: installation.version ?? plugin?.version?.get(),
 		icon: getPluginIcon(installation.iconUrl, logService),
 		repository: source
 			? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${source.repository}` })
 			: undefined,
-		installation: configured,
+		installation: configured ?? directSource,
 	};
 }
 
@@ -703,7 +786,11 @@ function getPluginIcon(value: string | undefined, logService: ILogService): URI 
 }
 
 function getPluginInstallationId(installation: IAgentPluginInstallation): string {
-	return JSON.stringify(['plugin', installation.marketplace, installation.name, installation.directSourceId]);
+	return installation.marketplace
+		? JSON.stringify(['plugin', installation.marketplace, installation.name])
+		: installation.directSourceId
+			? JSON.stringify(['plugin', 'direct', installation.directSourceId])
+			: JSON.stringify(['plugin', 'unresolved', installation.name]);
 }
 
 function getCatalogMediaType(kind: 'skill' | 'mcp' | 'plugin'): CustomizationMarketplaceMediaType {

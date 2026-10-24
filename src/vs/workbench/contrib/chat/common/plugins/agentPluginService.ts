@@ -10,10 +10,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand, type PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
 import { IAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
+import { localize } from '../../../../../nls.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
 
@@ -69,6 +70,8 @@ export interface IAgentPlugin {
 	readonly policyBlocked?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). */
 	remove?(): Promise<boolean>;
+	/** Persists global enablement through the runtime that owns this installation. */
+	setEnabled?(enabled: boolean): Promise<void>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
@@ -86,6 +89,41 @@ export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	readonly enablementModel: IEnablementModel;
+}
+
+/** Commits global runtime enablement before publishing the client's decision; workspace overrides stay local. */
+export async function setAgentPluginEnablement(plugin: IAgentPlugin, model: IEnablementModel, state: ContributionEnablementState): Promise<void> {
+	if (plugin.policyEnablement?.get() !== undefined || plugin.policyBlocked?.get()) {
+		throw new Error(localize('pluginEnablementManaged', "Plugin '{0}' is managed by your organization.", plugin.label));
+	}
+	const key = plugin.uri.toString();
+	const rejected = () => new Error(localize('pluginEnablementRejected', "Plugin '{0}' enablement was rejected by the local enablement model.", plugin.label));
+	if (model.canSetEnabled?.(key, state) === false) {
+		throw rejected();
+	}
+	if (plugin.setEnabled && (state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.DisabledProfile)) {
+		const previousEnabled = model.readProfileEnabled(key);
+		const enabled = isContributionEnabled(state);
+		await plugin.setEnabled(enabled);
+		try {
+			if (model.canSetEnabled?.(key, state) === false) {
+				throw rejected();
+			}
+			model.setEnabled(key, state);
+			if (model.readProfileEnabled(key) !== enabled || isContributionEnabled(model.readEnabled(key)) !== enabled) {
+				throw rejected();
+			}
+		} catch (error) {
+			try {
+				await plugin.setEnabled(previousEnabled);
+			} catch (rollbackError) {
+				throw new AggregateError([error, rollbackError], localize('pluginEnablementRollbackFailed', "Plugin '{0}' enablement was rejected and its runtime state could not be restored.", plugin.label));
+			}
+			throw error;
+		}
+		return;
+	}
+	model.setEnabled(key, state);
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {

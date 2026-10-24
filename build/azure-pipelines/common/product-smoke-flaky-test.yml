@@ -23,7 +23,7 @@ parameters:
     default: ""
   - name: timeoutInMinutes
     type: number
-    default: 300
+    default: 360
   - name: extractArtifactSteps
     type: stepList
     default: []
