@@ -63,33 +63,36 @@ suite('Chat window - Add Tab watermark', () => {
 		});
 	});
 
-	test('the Changes entry opens in the editor group of the chat window for its session', async () => {
+	test('the Changes entry opens in the chat window whose group it was invoked from, not the active one', async () => {
 		const disposables = store.add(new DisposableStore());
-		const session = URI.parse('test://session/one');
-		const editorGroup = new class extends mock<IEditorGroup>() {
-			override get count() { return 0; }
-			override findEditors() { return []; }
+		const createWindow = (groupId: number, session: URI) => new class extends mock<IChatWindow>() {
+			override readonly editorGroup = new class extends mock<IEditorGroup>() {
+				override readonly id = groupId;
+				override get count() { return 0; }
+				override findEditors() { return []; }
+			}();
+			override readonly session = observableValue('session', { resource: session } as never);
+			override showEditor() { }
 		}();
+		const first = createWindow(1, URI.parse('test://session/one'));
+		const second = createWindow(2, URI.parse('test://session/two'));
 		const opened: unknown[] = [];
 		const { instantiationService } = createWatermark(disposables, true, services => {
 			services.stub(IChatWindowService, new class extends mock<IChatWindowService>() {
-				override getActiveWindow() {
-					return new class extends mock<IChatWindow>() {
-						override readonly editorGroup = editorGroup;
-						override readonly session = observableValue('session', { resource: session } as never);
-						override showEditor() { }
-					}();
-				}
+				override readonly windows = observableValue<readonly IChatWindow[]>('windows', [first, second]);
+				override getActiveWindow() { return first; }
 			}());
 			services.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 				override getChangesEditorResource(resource: URI) { return resource; }
-				override async openChangesEditor(resource: URI, _options?: unknown, group?: unknown) { opened.push([resource, group]); return undefined; }
+				override async openChangesEditor(resource: URI, _options?: unknown, group?: unknown) { opened.push([resource.toString(), group]); return undefined; }
 			}());
 		});
+		const run = (...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.chatWindow.openChanges')!.handler(accessor, ...args));
 
-		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.chatWindow.openChanges')!.handler(accessor));
+		await run({ groupId: 2 });
+		await run();
 
-		assert.deepStrictEqual(opened, [[session, editorGroup]]);
+		assert.deepStrictEqual(opened, [['test://session/two', second.editorGroup], ['test://session/one', first.editorGroup]]);
 	});
 
 	test('the Terminal entry shows the terminal row, or adds a terminal to a row that has some', async () => {

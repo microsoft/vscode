@@ -92,6 +92,22 @@ const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 	},
 }];
 
+/** The argument of the Add Tab actions: the group that they were invoked from. */
+interface IChatWindowGroupContext {
+	readonly groupId?: number;
+}
+
+/** The chat window that owns the group, or the active chat window when the action is not invoked from a group. */
+function getChatWindowForGroup(chatWindowService: IChatWindowService, context: IChatWindowGroupContext | undefined): IChatWindow | undefined {
+	if (typeof context?.groupId === 'number') {
+		const window = chatWindowService.windows.get().find(w => w.editorGroup?.id === context.groupId);
+		if (window) {
+			return window;
+		}
+	}
+	return chatWindowService.getActiveWindow();
+}
+
 for (const entry of chatWindowTabEntries) {
 	// Checked while the editor area shows its tab; clicking it then hides the editor area.
 	const shown = ContextKeyExpr.and(ChatWindowEditorAreaEditorContext.isEqualTo(entry.editorId), ChatWindowLayoutContext.notEqualsTo(ChatWindowLayout.ChatOnly));
@@ -122,8 +138,8 @@ for (const entry of chatWindowTabEntries) {
 			});
 		}
 
-		override async run(accessor: ServicesAccessor): Promise<void> {
-			const window = accessor.get(IChatWindowService).getActiveWindow();
+		override async run(accessor: ServicesAccessor, context?: IChatWindowGroupContext): Promise<void> {
+			const window = getChatWindowForGroup(accessor.get(IChatWindowService), context);
 			if (!window?.editorGroup) {
 				return;
 			}
@@ -188,8 +204,8 @@ registerAction2(class AddChatWindowTerminalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const window = accessor.get(IChatWindowService).getActiveWindow();
+	override async run(accessor: ServicesAccessor, context?: IChatWindowGroupContext): Promise<void> {
+		const window = getChatWindowForGroup(accessor.get(IChatWindowService), context);
 		if (!window) {
 			return;
 		}
