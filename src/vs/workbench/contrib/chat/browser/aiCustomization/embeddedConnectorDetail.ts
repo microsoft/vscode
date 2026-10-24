@@ -77,6 +77,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 	private readonly narrowLayoutUpdate = this._register(new MutableDisposable());
 	private readonly actionCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private current: ICopilotConnector | undefined;
+	private primaryActionButton: Button | undefined;
 	private pendingAction: IPendingConnectorAction | undefined;
 	private narrowLayout = false;
 
@@ -144,6 +145,11 @@ export class EmbeddedConnectorDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
+	/** The header's primary (non-secondary) action, if one is shown. */
+	get primaryAction(): Button | undefined {
+		return this.primaryActionButton;
+	}
+
 	setInput(connector: ICopilotConnector): void {
 		this.actionCancellation.value?.cancel();
 		this.actionCancellation.clear();
@@ -176,6 +182,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 			this.nameEl.textContent = '';
 			this.statusBadgeEl.textContent = '';
 			DOM.clearNode(this.titleActionsEl);
+			this.primaryActionButton = undefined;
 			this.descriptionEl.textContent = '';
 			DOM.clearNode(this.factsEl);
 			this.detailsEl.style.display = 'none';
@@ -194,6 +201,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 
 		const actionHadFocus = DOM.isAncestorOfActiveElement(this.titleActionsEl);
 		DOM.clearNode(this.titleActionsEl);
+		this.primaryActionButton = undefined;
 		const presentation = getConnectorRowPresentation(connector);
 		const pending = this.pendingAction?.connectorName === connector.name ? getPendingActionPresentation(this.pendingAction.action) : undefined;
 		const action = presentation.action === 'more' ? 'disconnect' : presentation.action ?? (connector.connectionStatus === 'pending' ? 'refresh' : undefined);
@@ -234,6 +242,9 @@ export class EmbeddedConnectorDetail extends Disposable {
 			ariaLabel: localize('connectorDetailActionAriaLabel', "{0} {1}", label, connector.displayName),
 		}));
 		actionButton.label = label;
+		if (connector.connectionStatus !== 'connected') {
+			this.primaryActionButton = actionButton;
+		}
 		if (focus) {
 			actionButton.focus();
 		}

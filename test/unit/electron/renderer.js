@@ -357,7 +357,11 @@ function serializeRunnable(runnable) {
 		async: runnable.async,
 		slow: runnable.slow(),
 		speed: runnable.speed,
-		duration: runnable.duration
+		duration: runnable.duration,
+		// the test file (module path) for the main process to rerun. Root-level hooks
+		// have none on purpose: their failure stops the whole run, so rerunning a single
+		// file would not cover the tests that never ran
+		file: runnable.file
 	};
 }
 

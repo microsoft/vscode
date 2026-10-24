@@ -13,10 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
@@ -24,11 +21,10 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID } from '../../browser/pullRequestActions.js';
+import '../../browser/pullRequestActions.js';
 import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
 import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../browser/githubService.js';
@@ -84,33 +80,11 @@ class TestOpenerService extends mock<IOpenerService>() {
 suite('Pull Request Actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('opts GitHub activity actions in from a checked AI-gated context-menu item', async () => {
+	test('does not require a separate PR activity action opt-in command or context-menu item', () => {
+		const commandId = 'workbench.action.agentSessions.toggleSessionActivityBarGitHubActions';
 		const item = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
-			.find(item => item.command.id === TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID);
-		const configurationService = new class extends TestConfigurationService {
-			override updateValue(key: string, value: unknown): Promise<void> {
-				return this.setUserConfiguration(key, value);
-			}
-		}();
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, configurationService);
-		const run = async () => {
-			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID)!.handler(accessor));
-			return configurationService.getValue(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING);
-		};
-		assert.deepStrictEqual({
-			title: item?.command.title,
-			toggled: item?.command.toggled,
-			when: item?.when?.serialize(),
-			afterFirstRun: await run(),
-			afterSecondRun: await run(),
-		}, {
-			title: 'Show Pull Request and Issue Actions',
-			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING}`, true),
-			when: 'chatIsEnabled',
-			afterFirstRun: true, afterSecondRun: false,
-		});
+			.find(item => item.command.id === commandId);
+		assert.deepStrictEqual({ item, command: CommandsRegistry.getCommand(commandId) }, { item: undefined, command: undefined });
 	});
 
 	test('shared presentation model preserves live pull request status icons', () => {

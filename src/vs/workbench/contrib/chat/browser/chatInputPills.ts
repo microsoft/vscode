@@ -23,7 +23,7 @@ import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../browser/label
 import { ChatChangesPillActionViewItem, type IChatChangesStats } from '../../../browser/chatChangesPill.js';
 import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillEntryHoverActions, withChatPillHoverLabel, type ChatPillsCompactMode, type IChatPill, type IChatPillAction, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
 import { ChatPillSingleEntry, createChatSectionPill, getChatPillInlineEntry, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
-import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
+import { getSessionChatPillLabel, getSessionChatPillMenu, isSessionChatPillHiddenByDefault, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
 import { sessionBackgroundShellsPillOptions, sessionBrowsersPillOptions, sessionCanvasesPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
 import { markOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
@@ -471,8 +471,9 @@ export class ChatInputPills extends Disposable {
 
 		derived(this, reader => {
 			const anyVisible = this._pills.isVisible.read(reader);
-			const anyHidden = kindsWithData.read(reader).size > 0;
-			return anyVisible ? 'visible' : anyHidden ? 'empty' : 'hidden';
+			// The empty row only restores pills the user hid or filtered; default-hidden kinds never claimed room in the row.
+			const anyRestorable = [...kindsWithData.read(reader)].some(kind => this._visibility.isVisible(kind, reader) || !isSessionChatPillHiddenByDefault(kind));
+			return anyVisible ? 'visible' : anyRestorable ? 'empty' : 'hidden';
 		}).recomputeInitiallyAndOnChange(this._store, state => {
 			const activeElement = getWindow(this._row.content).document.activeElement;
 			const restoreInputFocus = state === 'hidden' && !!activeElement && this._row.content.contains(activeElement);

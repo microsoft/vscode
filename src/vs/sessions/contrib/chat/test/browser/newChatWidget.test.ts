@@ -34,8 +34,8 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_ICON_ONLY_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
-import type { IconOnlySessionPickers, ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import type { ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -325,7 +325,6 @@ interface IRenderSessionTypePickerHarness {
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly _environment: ReturnType<typeof observableValue<ISessionCreationEnvironment | undefined>>;
-	readonly _environmentPickerBeforeWorkspace: ReturnType<typeof observableValue<boolean>>;
 	readonly _environmentPicker: { readonly isVisible: IObservable<boolean>; render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } };
 	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
@@ -348,7 +347,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
-	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers & Pick<IconOnlySessionPickers, 'hasChoice'>;
+	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers;
 	readonly _onDidChangeChatPetPlatform: Emitter<void>;
 	readonly telemetryService: ITelemetryService;
 }
@@ -430,7 +429,6 @@ interface IClearWorkspaceHarness {
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
 	iconOnlyPickerIds: constObservable(new Set<string>()),
-	hasChoice: () => false,
 	getPickerId: () => undefined,
 	showContextMenu: () => { },
 };
@@ -594,19 +592,6 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		test('reconciliation preserves only an explicit local isolation choice', () => {
-			const worktree: ISessionCreationEnvironment = { ...local, id: 'local:worktree', isolation: 'worktree' };
-			const picked = observableValue<ISessionCreationEnvironment | undefined>('picked', worktree);
-			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
-				_environment: picked,
-				_environments: constObservable([local, worktree]),
-				_pickedEnvironment: picked,
-			});
-			const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: NewChatWidget, options: ISelectWorkspaceOptions) => void;
-			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
-			assert.strictEqual(picked.get(), worktree);
-		});
-
 		test('automatic workspace restoration does not pin Cloud before This Computer registers', async () => {
 			const environments = observableValue<readonly ISessionCreationEnvironment[]>('environments', [cloud]);
 			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', undefined);
@@ -616,7 +601,6 @@ suite('NewChatWidget', () => {
 				_environment: environment,
 				_environments: environments,
 				_pickedEnvironment: picked,
-				_environmentPickerBeforeWorkspace: constObservable(false),
 				_workspaceOptOutEnabled: constObservable(false),
 				uriIdentityService: { extUri },
 				_workspacePicker: {
@@ -639,14 +623,13 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		test('refreshes an explicit environment selection when its metadata changes without changing its id', async () => {
+		test('workspace selection preserves an explicit environment selection', async () => {
 			const updatedCloud: ISessionCreationEnvironment = { ...cloud, label: 'Updated Cloud', providerIds: ['new-cloud-provider'] };
 			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', cloud);
 			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
 				_environment: constObservable(cloud),
 				_environments: constObservable([updatedCloud]),
 				_pickedEnvironment: picked,
-				_environmentPickerBeforeWorkspace: constObservable(false),
 				_workspaceOptOutEnabled: constObservable(false),
 				uriIdentityService: { extUri },
 				_workspacePicker: {
@@ -660,7 +643,7 @@ suite('NewChatWidget', () => {
 
 			await handleWorkspaceSelection.call(widget, folder);
 
-			assert.strictEqual(picked.get(), updatedCloud);
+			assert.strictEqual(picked.get(), cloud);
 		});
 
 		function createHarness(compatible: boolean, onSelect: () => Promise<void> = async () => { }) {
@@ -719,16 +702,6 @@ suite('NewChatWidget', () => {
 			assert.deepStrictEqual({ environment: harness._pickedEnvironment.get()?.id, folder: harness._workspacePicker.selectedFolderUri, calls }, {
 				environment: 'cloud', folder: undefined,
 				calls: ['saveDraft', 'cancelUpgrade', 'cancelCreation', 'cancelRestore', 'userSelection', 'clearWorkspace', 'Environment: Cloud'],
-			});
-		});
-
-		test('switches local isolation without replacing the draft or workspace', async () => {
-			const { harness, calls, select } = createHarness(true);
-			await select({ ...local, id: 'local:worktree', label: 'New Worktree', isolation: 'worktree' });
-			await select({ ...local, id: 'local:folder', label: 'Local Folder', isolation: 'folder' });
-			assert.deepStrictEqual({ environment: harness._pickedEnvironment.get()?.id, calls }, {
-				environment: 'local:folder',
-				calls: ['isolation:worktree', 'Environment: New Worktree', 'isolation:workspace', 'Environment: Local Folder'],
 			});
 		});
 
@@ -1131,30 +1104,6 @@ suite('NewChatWidget', () => {
 			});
 		}
 
-		test('switches to the selected workspace environment before creating a workspace-first draft', async () => {
-			const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
-			const picked = observableValue<ISessionCreationEnvironment | undefined>('environment', cloud);
-			const folderUri = URI.parse('vscode-agent-host://remote/project');
-			const calls: string[] = [];
-			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
-				_environment: picked,
-				_environments: constObservable([local, cloud, remote]),
-				_environmentPickerBeforeWorkspace: constObservable(false),
-				_pickedEnvironment: picked,
-				uriIdentityService: { extUri },
-				_workspaceOptOutEnabled: constObservable(false),
-				_workspacePicker: {
-					selectedResolved: { providerId: remote.providerIds[0] },
-					getEnvironmentWorkspace: () => undefined,
-				},
-				_isCurrentWorkspaceSelection: () => false,
-				_onWorkspaceSelected: async () => calls.push(`create:${picked.get()?.id}`),
-				_newChatInput: { focus: () => calls.push('focus') },
-			});
-			await handleWorkspaceSelection.call(widget, folderUri);
-			assert.deepStrictEqual({ environment: picked.get()?.id, calls }, { environment: remote.id, calls: ['create:remote', 'focus'] });
-		});
-
 		test('switching environments uses the matching checkout rather than the source device path', async () => {
 			const { harness, calls, select } = createHarness(true);
 			const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
@@ -1338,7 +1287,6 @@ suite('NewChatWidget', () => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const harness: IRenderWorkspacePickerHarness = {
 				_environment: observableValue('environment', undefined),
-				_environmentPickerBeforeWorkspace: observableValue('beforeWorkspace', false),
 				_environmentPicker: { isVisible: constObservable(false), render: () => assert.fail('No environment picker expected') },
 				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 				_workspacePicker: {
@@ -1415,7 +1363,6 @@ suite('NewChatWidget', () => {
 		let environmentRenderCount = 0;
 		const harness: IRenderWorkspacePickerHarness = {
 			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
-			_environmentPickerBeforeWorkspace: observableValue('environmentBeforeWorkspace', false),
 			_environmentPicker: {
 				isVisible: constObservable(true),
 				render: target => {
@@ -1637,99 +1584,32 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(telemetryService.triggers, [`config.${COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING}`]);
 
 		harness._collapsedSessionOptionsShowIcons.set(false, undefined);
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
 		const gated = container.textContent?.includes('Environment') ?? false;
-		harness._environmentPickerBeforeWorkspace.set(false, undefined);
 		harness._environment.set({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
-		const environment = details.firstElementChild!;
+		const environment = harness._workspacePickerRow!.firstElementChild!;
 		const environmentTrigger = environment.querySelector<HTMLElement>('[role="button"]')!;
-		const afterWorkspace = { insideOptions: details.contains(environment), hidden: details.hidden, inert: details.inert };
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
-		const beforeWorkspace = { first: harness._workspacePickerRow?.firstElementChild === environment, visible: environmentTrigger.checkVisibility() };
+		const collapsedEnvironment = { outsideOptions: !details.contains(environment), visible: environmentTrigger.checkVisibility() };
 		environmentTrigger.focus();
 		press('Tab');
 		const nextControl = document.activeElement?.textContent;
 		press('ArrowLeft');
 		const previousControl = document.activeElement === environmentTrigger;
 		harness._sessionOptionsExpanded.set(true, undefined);
-		harness._environmentPickerBeforeWorkspace.set(false, undefined);
-		const restored = { insideOptions: details.firstElementChild === environment, focused: document.activeElement === environmentTrigger };
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		const expandedEnvironment = { first: harness._workspacePickerRow?.firstElementChild === environment, focused: document.activeElement === environmentTrigger };
 		harness._sessionOptionsExpanded.set(false, undefined);
-		environmentTrigger.focus();
-		harness._environmentPickerBeforeWorkspace.set(false, undefined);
-		const focusAfterHiding = document.activeElement === toggle;
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		const focusedAfterCollapse = document.activeElement === environmentTrigger;
 		harness._environment.set(undefined, undefined);
 		assert.deepStrictEqual({
-			gated, afterWorkspace, beforeWorkspace, nextControl, previousControl, restored, focusAfterHiding, environmentRenderCount, removed: !container.contains(environment),
+			gated, collapsedEnvironment, nextControl, previousControl, expandedEnvironment, focusedAfterCollapse, environmentRenderCount, removed: !container.contains(environment),
 		}, {
 			gated: false,
-			afterWorkspace: { insideOptions: true, hidden: true, inert: true },
-			beforeWorkspace: { first: true, visible: true },
+			collapsedEnvironment: { outsideOptions: true, visible: true },
 			nextControl: isWeb ? 'Select Repository' : 'Workspace',
 			previousControl: true,
-			restored: { insideOptions: true, focused: true },
-			focusAfterHiding: true,
+			expandedEnvironment: { first: true, focused: true },
+			focusedAfterCollapse: true,
 			environmentRenderCount: 1,
 			removed: true,
-		});
-	});
-
-	test('environment icon-only experiment triggers where the environment label would show until the user chooses its presentation', () => {
-		const container = document.createElement('div');
-		document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
-		const telemetryService = new TestExperimentTriggerTelemetryService();
-		const hasChoice = observableValue('hasChoice', true);
-		const harness: IRenderWorkspacePickerHarness = {
-			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
-			_environmentPickerBeforeWorkspace: observableValue('beforeWorkspace', false),
-			_environmentPicker: {
-				isVisible: constObservable(true),
-				render: target => {
-					const element = append(target, $('div'));
-					return { element, dispose: () => element.remove() };
-				},
-			},
-			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
-			_workspacePicker: { selectedFolderUri: undefined, onDidChangeSelection: Event.None, renderCategoryTriggers: parent => append(parent, $('div')) },
-			_newChatInput: {
-				pickerVisibility: disposables.add(new SessionInputPickerVisibility()),
-				placeRepositoryControls: () => { },
-				sessionTypePicker: { render: () => { } },
-			},
-			_renderSessionTypePicker: () => { },
-			_workspacePickerRow: undefined,
-			_workspaceSessionOptionsHost: undefined,
-			_sessionOptionsExpanded: observableValue('expanded', false),
-			_setSessionOptionsExpandedFromUser: () => { },
-			_useExperimentalComposerLayout: observableValue('layout', true),
-			_workspaceOptOutTarget: constObservable(undefined),
-			_workspaceOptOutEnabled: observableValue('optOut', false),
-			_screenReaderOptimized: observableValue('screenReader', false),
-			_collapsedSessionOptionsShowIcons: observableValue('icons', false),
-			_iconOnlyPickers: { ...noIconOnlyPickers, hasChoice: (_pickerId, reader) => hasChoice.read(reader) },
-			_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
-			telemetryService,
-		};
-		disposables.add(renderWorkspacePicker.call(harness, container));
-		const triggered = () => telemetryService.triggers.includes(`config.${ENVIRONMENT_PICKER_ICON_ONLY_SETTING}`);
-		const states: Record<string, boolean> = {};
-		harness._environment.set({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
-		states.collapsedWithChoice = triggered();
-		harness._sessionOptionsExpanded.set(true, undefined);
-		states.expandedWithChoice = triggered();
-		harness._sessionOptionsExpanded.set(false, undefined);
-		hasChoice.set(false, undefined);
-		states.collapsedWithoutChoice = triggered();
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
-		states.beforeWorkspaceWithoutChoice = triggered();
-		assert.deepStrictEqual(states, {
-			collapsedWithChoice: false,
-			expandedWithChoice: false,
-			collapsedWithoutChoice: false,
-			beforeWorkspaceWithoutChoice: true,
 		});
 	});
 
@@ -2826,28 +2706,26 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('applies local isolation to replacement drafts after workspace or harness changes', async () => {
+	test('leaves local isolation to the repository picker when creating a draft', async () => {
 		const folder = URI.file('/project');
 		const calls: string[] = [];
 		const session = upcastPartial<IActiveSession>({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot' });
-		for (const isolation of ['folder', 'worktree'] as const) {
-			const harness = {
-				_environment: constObservable<ISessionCreationEnvironment>({ id: `local:${isolation}`, kind: 'local', isolation, label: isolation, icon: Codicon.folder, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
-				_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
-				_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
-				sessionsService: { openNewSession: async () => ({ session, trustDeclined: false }) },
-				sessionsProvidersService: {
-					getProvider: () => upcastPartial<ISessionsProvider>({
-						getSessionTypes: () => [{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true }],
-						setIsolationMode: async (id, mode) => { calls.push(`${id}:${mode}`); },
-					}),
-				},
-				_isPreferredServable: () => true,
-				logService: { error: () => assert.fail('unexpected creation error') },
-			};
-			await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
-		}
-		assert.deepStrictEqual(calls, ['draft:workspace', 'draft:worktree']);
+		const harness = {
+			_environment: constObservable<ISessionCreationEnvironment>({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
+			_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
+			sessionsService: { openNewSession: async () => ({ session, trustDeclined: false }) },
+			sessionsProvidersService: {
+				getProvider: () => upcastPartial<ISessionsProvider>({
+					getSessionTypes: () => [{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true }],
+					setIsolationMode: async (id, mode) => { calls.push(`${id}:${mode}`); },
+				}),
+			},
+			_isPreferredServable: () => true,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	test('requires container execution for every draft after harness changes and provider discovery', async () => {

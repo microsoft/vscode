@@ -101,7 +101,7 @@
 			}
 		},
 		"model": {
-			"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. Users may override this startup default. Hosts should match it against the account's available models.",
+			"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. 'fusion' is accepted as the Copilot Fusion name for 'auto'; use fusionTier to choose its tier. Users may override this startup default. Hosts should match it against the account's available models.",
 			"type": "string",
 			"x-composition": {
 				"strategy": "highest-layer-wins"

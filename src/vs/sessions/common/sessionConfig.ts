@@ -15,8 +15,6 @@ export const SESSION_ACTIVITY_BAR_SETTING = 'sessions.showSessionActivityBar';
 /** Whether the Session Activity Bar hosts the side panel and panel toggles in place of the title bar. */
 export const SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING = 'sessions.sessionActivityBar.showLayoutActions';
 
-export const SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING = 'sessions.sessionActivityBar.showGitHubActions';
-
 /** The setting {@link SESSION_ACTIVITY_BAR_SETTING} was named before the Session Toolbar became the Session Activity Bar. */
 export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 

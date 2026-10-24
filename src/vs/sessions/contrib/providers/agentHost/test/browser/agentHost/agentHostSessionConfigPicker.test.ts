@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -62,7 +61,7 @@ import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWor
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
-import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import { ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
 import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
@@ -208,6 +207,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		this.config = config;
 		this.resolving.set(resolving, undefined);
 		this._emitter.fire(SESSION_ID);
+	}
+
+	fireSessionConfigChange(sessionId: string): void {
+		this._emitter.fire(sessionId);
 	}
 }
 
@@ -442,16 +445,23 @@ suite('Agent Host Session Config Picker', () => {
 		const target = container.querySelector<HTMLElement>('[data-session-config-property="target"] .action-label')!;
 		target.click();
 		await timeout(0);
+		const targetItems = services.actionWidget.items.map(item => ({ value: item.item?.value, icon: item.group?.icon?.id }));
 		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'workspace')!.item!);
 		await timeout(0);
+		const targetIcon = container.querySelector('[data-session-config-property="target"] .codicon')?.className;
 		container.querySelector<HTMLElement>('[data-session-config-property="baseBranch"] .action-label')!.click();
 		await timeout(0);
 		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'main')!.item!);
 		await timeout(0);
 		container.querySelector<HTMLElement>('[data-session-config-property="branch"] .action-label')!.click();
 		await timeout(0);
-		assert.deepStrictEqual({ properties, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
+		assert.deepStrictEqual({ properties, targetItems, targetIcon, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
 			properties: ['target', 'baseBranch', 'branch'],
+			targetItems: [
+				{ value: 'workspace', icon: Codicon.folder.id },
+				{ value: 'worktree', icon: Codicon.worktree.id },
+			],
+			targetIcon: 'codicon codicon-folder',
 			writes: [
 				{ sessionId: SESSION_ID, property: 'target', value: 'workspace' },
 				{ sessionId: SESSION_ID, property: 'baseBranch', value: 'main' },
@@ -477,6 +487,36 @@ suite('Agent Host Session Config Picker', () => {
 	});
 
 	for (const isNew of [true, false]) {
+		test(`hides CLI bootstrap controls without changing ${isNew ? 'draft' : 'running'} session configuration`, () => {
+			const services = setupServices(store);
+			services.provider.isNew = isNew;
+			services.provider.config = {
+				schema: {
+					type: 'object', properties: {
+						remoteSession: { type: 'string', title: 'Remote session', enum: ['off', 'export', 'on'], sessionMutable: false },
+						enableManagedSettings: { type: 'boolean', title: 'Enable managed settings', sessionMutable: false },
+						enableSessionStore: { type: 'boolean', title: 'Enable session store', sessionMutable: false },
+						imageGeneration: { type: 'boolean', title: 'Image generation', default: false, sessionMutable: false },
+						allowTranscriptRecovery: { type: 'boolean', title: 'Allow transcript recovery', default: true, sessionMutable: false },
+						customToggle: { type: 'boolean', title: 'Custom toggle', sessionMutable: true },
+					}
+				},
+				values: { remoteSession: 'on', enableManagedSettings: true, enableSessionStore: false, imageGeneration: false, allowTranscriptRecovery: true, customToggle: true },
+			};
+			const originalConfig = structuredClone(services.provider.config);
+			const { container } = renderPicker(store, services);
+
+			assert.deepStrictEqual({
+				properties: Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty),
+				config: services.provider.config,
+				writes: services.provider.setSessionConfigValueArguments,
+			}, {
+				properties: ['customToggle'],
+				config: originalConfig,
+				writes: [],
+			});
+		});
+
 		test(`hides the input request timeout picker without changing ${isNew ? 'draft' : 'running'} session configuration`, () => {
 			const services = setupServices(store);
 			services.provider.isNew = isNew;
@@ -516,6 +556,7 @@ suite('Agent Host Session Config Picker', () => {
 				value: item.item?.value,
 				checked: item.item?.checked,
 				detail: item.detail,
+				icon: item.group?.icon?.id,
 			})));
 			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
 			await new Promise(resolve => setTimeout(resolve));
@@ -527,8 +568,8 @@ suite('Agent Host Session Config Picker', () => {
 			checkbox: container.querySelector('.monaco-checkbox'),
 		}, {
 			snapshots: [true, false].map(worktreeSelected => [
-				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer' },
-				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session' },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer', icon: Codicon.folder.id },
+				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session', icon: Codicon.worktree.id },
 			]),
 			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
 			finalLabel: 'New Worktree',
@@ -636,7 +677,6 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
 
 		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
-		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, true);
 		services.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 			affectsConfiguration: () => true,
 		}));
@@ -644,16 +684,7 @@ suite('Agent Host Session Config Picker', () => {
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-		assert.deepStrictEqual(localEntries, isWeb ? entries : ['Base Branch']);
-		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, false);
-		services.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
-			affectsConfiguration: () => true,
-		}));
-		const restoredEntries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
-			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-		assert.deepStrictEqual(restoredEntries, entries);
+		assert.deepStrictEqual(localEntries, entries);
 	});
 
 	test('repository pickers keep their menu action so the composer can identify them', async () => {
@@ -690,6 +721,36 @@ suite('Agent Host Session Config Picker', () => {
 		});
 
 		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
+	});
+
+	test('refreshes repository menu items only for configuration changes of visible sessions', () => {
+		const services = setupServices(store);
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([services.activeSession]);
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+		const repositoryItems = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'));
+		const initial = repositoryItems();
+
+		services.provider.fireSessionConfigChange('local-agent-host:other');
+		const afterOtherSession = repositoryItems();
+		services.provider.fireSessionConfigChange(SESSION_ID);
+		const afterVisibleSession = repositoryItems();
+
+		assert.deepStrictEqual({
+			hasItems: initial.length > 0,
+			keptForOtherSession: afterOtherSession.length === initial.length && afterOtherSession.every((item, index) => item === initial[index]),
+			refreshedForVisibleSession: afterVisibleSession.every(item => !initial.includes(item)),
+		}, { hasItems: true, keptForOtherSession: true, refreshedForVisibleSession: true });
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -2096,6 +2157,22 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(second.container)!.classList.contains('resolving'), false, 'isolation re-enables after resolve');
 		assert.strictEqual(branchSlot(second.container)!.classList.contains('resolving'), false, 'branch re-enables after resolve');
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
+	});
+
+	test('keeps its chips when another session\'s configuration changes', () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		const trigger = branchSlot(container)!.querySelector('.action-label');
+		services.provider.config = makeRepoConfig('dev');
+
+		services.provider.fireSessionConfigChange('local-agent-host:other');
+		const afterOtherSession = { label: branchLabel(container), sameTrigger: branchSlot(container)!.querySelector('.action-label') === trigger };
+		services.provider.fireSessionConfigChange(SESSION_ID);
+
+		assert.deepStrictEqual({ afterOtherSession, afterOwnSession: branchLabel(container) }, {
+			afterOtherSession: { label: 'main', sameTrigger: true },
+			afterOwnSession: 'dev',
+		});
 	});
 
 	test('does not render a Dev Container checkbox and disables New Worktree while Dev Container is selected', async () => {
