@@ -120,6 +120,7 @@ export enum ChatConfiguration {
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	TitleBarOpenInAgentsWindowRichHover = 'chat.titleBar.openInAgentsWindow.richHover',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
+	OpenInEditorPreserveHiddenChat = 'chat.experimental.openInEditor.preserveHiddenChat',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
 	AgentsWindowBannerDeveloperMode = 'chat.agentsWindowBanner.developerMode',
