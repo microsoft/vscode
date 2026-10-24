@@ -22,7 +22,7 @@ import { ApiRequestError, MutationUncertainError } from '../../../../../platform
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -398,7 +398,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			}, CancellationToken.None, signal);
 		} catch (error) {
 			if (value.ownership === 'repository' && isRepositoryOwnershipUnsupportedError(error)) {
-				throw new Error(repositoryOwnershipUnsupportedMessage(), { cause: error });
+				throw new AutomationRepositoryOwnershipUnavailableError(repositoryOwnershipUnsupportedMessage(), { cause: error });
 			}
 			throw error;
 		}
@@ -767,7 +767,7 @@ function repositoryKey(repository: RepositoryRef): string {
 }
 
 function repositoryOwnershipUnsupportedMessage(): string {
-	return localize('cloudAutomations.repositoryOwnershipUnavailable', "Repository owned automations are not supported for this repository.");
+	return localize('cloudAutomations.repositoryOwnershipUnavailable', "Repository owned automations are only supported for private repositories.");
 }
 
 function isRepositoryOwnershipUnsupportedError(error: unknown): boolean {
