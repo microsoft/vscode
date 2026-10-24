@@ -4184,7 +4184,7 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	test('session hover links each pull request and opens it externally', () => {
+	test('session hover links each pull request and opens it through the opener service without forcing the external browser', () => {
 		const pullRequestUri = URI.parse('https://github.com/microsoft/vscode/pull/241533');
 		const root = URI.file('/home/user/projects/vscode');
 		const session = upcastPartial<ISession>({
@@ -4245,7 +4245,9 @@ suite('Sessions - SessionsList', () => {
 			opened,
 		}, {
 			pullRequests: [{ title: 'Fix the redirect loop', uri: pullRequestUri.toString() }],
-			opened: [{ resource: pullRequestUri, openExternal: true }],
+			// In-product openers (e.g. the GitHub Pull Requests editor) must get a chance to
+			// handle the link, like PR links in chat do (#335778).
+			opened: [{ resource: pullRequestUri, openExternal: undefined }],
 		});
 	});
 

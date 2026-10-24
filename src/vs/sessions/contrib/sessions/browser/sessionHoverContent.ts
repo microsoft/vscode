@@ -270,7 +270,10 @@ function toHoverPullRequests(refs: Iterable<SessionPullRequestRef>, openerServic
 		title: ref.title ?? `#${ref.number}`,
 		icon: ref.icon,
 		uri: ref.uri,
-		onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
+		// Route through the opener service without forcing the external browser so
+		// in-product openers (e.g. the GitHub Pull Requests editor) can handle the
+		// link, like PR links in chat do (#335778).
+		onOpen: () => openerService.open(ref.uri).catch(onUnexpectedError),
 	}));
 	return pullRequests.length ? pullRequests : undefined;
 }
