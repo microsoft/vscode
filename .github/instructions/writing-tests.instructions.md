@@ -1,6 +1,6 @@
 ---
 description: VS Code test writing guidelines — unit tests, integration tests, snapshot tests, and clean teardown patterns. Reference when writing or updating tests.
-applyTo: "{src/vs/**/test/**,src/vs/**/*.test.ts,src/vs/**/*.integrationTest.ts}"
+applyTo: "{src/vs/**/test/**,**/*.test.ts,**/*.integrationTest.ts}"
 ---
 
 # Writing Tests
@@ -46,6 +46,8 @@ Always call `sinon.restore()` in `teardown` to avoid leaking mocks.
 
 ### Best Practices
 
+- Write fast and deterministic unit tests. Do not use sleeps, arbitrary delays, or increased timeouts to work around race conditions.
+- Synchronize asynchronous tests on explicit completion signals, such as promises, events, or observable state. Use fake timers when testing time-dependent behavior instead of waiting for wall-clock time.
 - Minimize assertions per test — prefer one `assert.deepStrictEqual` snapshot over many fine-grained assertions
 - Don't add tests to the wrong suite — find the relevant `suite` block
 - Follow existing patterns (`describe`/`test` or `suite`/`test`) consistently within a file
