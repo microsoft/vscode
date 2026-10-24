@@ -343,7 +343,7 @@ export class ConversationFeature implements IExtensionContribution {
 				create: () => this.instantiationService.createInstance(SymbolLinkifier)
 			}),
 			this.linkifyService.registerGlobalLinkifier({
-				create: () => disposables.add(this.instantiationService.createInstance(NotebookCellLinkifier))
+				create: () => this.instantiationService.createInstance(NotebookCellLinkifier)
 			}),
 			this.instantiationService.invokeFunction(registerInlineChatCommands),
 			this.registerTerminalQuickFixProviders(),
