@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Relay } from '../../../../base/common/event.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -374,30 +375,52 @@ suite('Artifact Integration Protocol', () => {
 		], [true, false, false]);
 	});
 
-	test('optional list references and Markdown description provenance survive transport and are validated', async () => {
-		const f = model(true);
-		const current = f.snapshot.get();
-		const contribution = current.contributions[0];
-		const lists = [{ id: 'progress', label: 'Progressions', icon: { id: 'graph', colorId: 'charts.green' }, detailsId: 'progress' }];
-		f.snapshot.set({ ...current, contributions: [{ ...contribution, view: { ...contribution.view, lists } }] }, undefined);
-		f.details.set({ ...f.details.get(), description: '**Actual resource description**', descriptionFormat: 'markdown' }, undefined);
-		const server = store.add(new ArtifactIntegrationServer(f.access));
+	test('item actions run through the details subscription, and items reference declared item actions', async () => {
+		const f = model();
+		const calls: unknown[][] = [];
+		const access: IArtifactIntegrationAccess = {
+			acquireArtifact: async (session, artifactId) => {
+				const reference = await f.access.acquireArtifact(session, artifactId);
+				return {
+					object: {
+						...reference.object,
+						acquireDetails: async (integrationId, detailsId) => {
+							const details = await reference.object.acquireDetails(integrationId, detailsId);
+							return { ...details, runItemAction: async (...args) => { calls.push([detailsId, ...args.slice(0, 2)]); }, dispose: () => details.dispose() };
+						},
+					},
+					dispose: () => reference.dispose(),
+				};
+			},
+		};
+		const server = store.add(new ArtifactIntegrationServer(access));
 		const client = store.add(new ArtifactIntegrationClient({ onDidUpdate: server.onDidUpdate, request: request => server.request(request) }, new NullLogService()));
 		const reference = store.add(await client.acquireArtifact('session', 'artifact'));
-		const details = store.add(await reference.object.acquireDetails('integration', 'progress'));
-		const withLists = (value: object[]) => ({ ...current, contributions: [{ ...contribution, view: { ...contribution.view, lists: value } }] });
+		const details = store.add(await reference.object.acquireDetails('test', 'checks'));
+		await details.runItemAction!('build', 'rerun', CancellationToken.None);
+
+		const request = { kind: 'runItemAction', subscription: 'sub', itemId: 'build', actionId: 'rerun' };
+		const page = (itemActions: unknown, actions: unknown) => ({
+			title: 'Checks', availability: { kind: 'available' }, completeness: 'complete', links: [], itemActions,
+			items: [{ id: 'build', label: 'Build', icon: { id: 'error' }, resource: 'https://example.test', actions }],
+		});
+		const rerun = { id: 'rerun', label: 'Rerun Check', iconId: 'debug-rerun' };
 		assert.deepStrictEqual({
-			lists: reference.object.snapshot.get().contributions[0].view.lists,
-			description: details.details.get().description, format: details.details.get().descriptionFormat,
-			validation: [
-				isArtifactSnapshot(withLists(lists)), isArtifactSnapshot(withLists([...lists, ...lists])),
-				isArtifactSnapshot(withLists([{ id: 'progress', label: 'Progressions' }])),
-				isArtifactSnapshot(withLists([{ ...lists[0], icon: undefined }])),
-				isArtifactSnapshot(withLists([{ ...lists[0], icon: { id: 'invalid icon' } }])),
-				isArtifactSnapshot(withLists([{ ...lists[0], icon: { id: 'graph', colorId: 42 } }])),
-				isArtifactDetails({ ...f.details.get(), descriptionFormat: 'html' }),
-				isArtifactDetails({ ...f.details.get(), descriptionFormat: undefined }),
+			calls,
+			requests: [isArtifactIntegrationRequest(request), isArtifactIntegrationRequest({ ...request, itemId: '' }), isArtifactIntegrationRequest({ ...request, actionId: 1 })],
+			details: [
+				isArtifactDetails(page([rerun], ['rerun'])),
+				isArtifactDetails(page(undefined, undefined)),
+				isArtifactDetails(page(undefined, ['rerun'])),
+				isArtifactDetails(page([rerun], ['missing'])),
+				isArtifactDetails(page([rerun], ['rerun', 'rerun'])),
+				isArtifactDetails(page([rerun, rerun], ['rerun'])),
+				isArtifactDetails(page([{ ...rerun, iconId: 'not an icon' }], ['rerun'])),
 			],
-		}, { lists, description: '**Actual resource description**', format: 'markdown', validation: [true, false, false, true, false, false, false, true] });
+		}, {
+			calls: [['checks', 'build', 'rerun']],
+			requests: [true, false, false],
+			details: [true, true, false, false, false, false, false],
+		});
 	});
 });
