@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { env } from '../../../../../../base/common/process.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { isUndefinedOrNull } from '../../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import * as Adapt from '../../../common/model/objectMutationLog.js';
 
-const enablePerf = process.env.VSCODE_PERF_CHAT_OBJECT_MUTATION_LOG === 'true';
+const enablePerf = env.VSCODE_PERF_CHAT_OBJECT_MUTATION_LOG === 'true';
 
 function perfSuite(name: string, callback: (this: Mocha.Suite) => void): void {
 	if (enablePerf) {
