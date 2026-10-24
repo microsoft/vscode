@@ -2353,7 +2353,8 @@ export class ChatService extends Disposable implements IChatService {
 	/**
 	 * Process the next pending request from the model's queue, if any.
 	 * Called after a request completes to continue processing queued requests.
-	 * Multiple consecutive steering requests are combined into a single request.
+	 * Consecutive steering requests are combined into a single request, unless they
+	 * mix user input with system notifications: those are sent as separate requests.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
 		if (model.isInputBlocked.get()) {
@@ -2366,8 +2367,9 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		// Dequeue all consecutive steering requests and combine them into one
-		const steeringRequests = model.dequeueAllSteeringRequests();
+		// Dequeue the consecutive steering requests that share the same provenance and combine them into one.
+		// A system notification (e.g. terminal output) is never merged into what the user typed.
+		const steeringRequests = model.dequeueSteeringRequests();
 
 		// Then dequeue a single non-steering request if no steering was found
 		const nextQueued = steeringRequests.length === 0 ? model.dequeuePendingRequest() : undefined;
@@ -2450,6 +2452,12 @@ export class ChatService extends Disposable implements IChatService {
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, firstRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
+
+		// Steering left in the queue (e.g. a notification that arrived together with user input)
+		// still has to be delivered after the next tool call, so ask the new request to yield.
+		if (model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering)) {
+			this.setYieldRequested(model.sessionResource);
+		}
 
 		const result: ChatSendResultSent = {
 			kind: 'sent',

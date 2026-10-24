@@ -2921,12 +2921,15 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	/**
-	 * @internal Used by ChatService to dequeue all consecutive steering requests at the front of the queue.
+	 * @internal Used by ChatService to dequeue the consecutive steering requests at the front of the queue
+	 * that share the provenance of the first one. User input and system notifications (for example a
+	 * background terminal completion) are never dequeued together, so they are never combined into one request.
 	 * Returns an empty array if the first pending request is not a steering request.
 	 */
-	dequeueAllSteeringRequests(): IChatPendingRequest[] {
+	dequeueSteeringRequests(): IChatPendingRequest[] {
+		const isSystemInitiated = !!this._pendingRequests.at(0)?.sendOptions.isSystemInitiated;
 		const steeringRequests: IChatPendingRequest[] = [];
-		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering) {
+		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering && !!this._pendingRequests[0].sendOptions.isSystemInitiated === isSystemInitiated) {
 			steeringRequests.push(this._pendingRequests.shift()!);
 		}
 		if (steeringRequests.length > 0) {

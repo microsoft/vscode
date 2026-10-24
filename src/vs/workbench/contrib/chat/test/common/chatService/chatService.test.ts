@@ -1626,10 +1626,10 @@ suite('ChatService', () => {
 		});
 	}
 
-	for (const { name, firstIsSystem, secondIsSystem, expectSystem } of [
-		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectSystem: true },
-		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectSystem: false },
-		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectSystem: false },
+	for (const { name, firstIsSystem, secondIsSystem, expected } of [
+		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expected: [{ message: 'message 1\n\nmessage 2', isSystemInitiated: true }] },
+		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expected: [{ message: 'message 1', isSystemInitiated: true }, { message: 'message 2', isSystemInitiated: false }] },
+		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expected: [{ message: 'message 1', isSystemInitiated: false }, { message: 'message 2', isSystemInitiated: true }] },
 	]) {
 		test(`steering batches preserve user turn boundaries: ${name}`, async () => {
 			const started = new DeferredPromise<void>();
@@ -1671,12 +1671,87 @@ suite('ChatService', () => {
 				await result.data.responseCompletePromise;
 			}
 			assert.deepStrictEqual({ invoked, label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
-				invoked: [{ message: 'task', isSystemInitiated: false }, { message: 'message 1\n\nmessage 2', isSystemInitiated: expectSystem }],
-				label: expectSystem ? 'Terminal completed' : undefined,
+				invoked: [{ message: 'task', isSystemInitiated: false }, ...expected],
+				label: secondIsSystem ? 'Terminal completed' : undefined,
 				pending: 0,
 			});
 		});
 	}
+
+	test('steering keeps a background terminal notification out of the user message', async () => {
+		const started = new DeferredPromise<void>();
+		const complete = new DeferredPromise<void>();
+		const invoked: { message: string; isSystemInitiated: boolean }[] = [];
+		const yieldRequested = new Set<string>();
+		const agentId = 'notificationAgent';
+		testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+			async invoke(request) {
+				invoked.push({ message: request.message, isSystemInitiated: !!request.isSystemInitiated });
+				if (invoked.length === 1) {
+					started.complete();
+					await complete.p;
+				}
+				return {};
+			},
+			setYieldRequested(requestId, value) {
+				if (value) {
+					yieldRequested.add(requestId);
+				}
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const first = await service.sendRequest(model.sessionResource, 'Fix the failing tests', { agentIdSilent: agentId });
+		ChatSendResult.assertSent(first);
+		await started.p;
+
+		// The user steers while a background command finishes. RunInTerminalTool queues the
+		// completion as system-initiated steering whose text carries the terminal output.
+		const steering = await service.sendRequest(model.sessionResource, 'Also update the README', { agentIdSilent: agentId, queue: ChatRequestQueueKind.Steering });
+		const notificationText = '[Terminal term-1 notification: command completed. The terminal has been cleaned up.]\nTerminal output:\nline 1\nline 2';
+		const notification = await service.sendRequest(model.sessionResource, notificationText, {
+			agentIdSilent: agentId,
+			queue: ChatRequestQueueKind.Steering,
+			isSystemInitiated: true,
+			systemInitiatedLabel: '`npm test` completed',
+			terminalExecutionId: 'term-1',
+		});
+		assert.ok(ChatSendResult.isQueued(steering));
+		assert.ok(ChatSendResult.isQueued(notification));
+		complete.complete();
+		await first.data.responseCompletePromise;
+		for (const queued of [steering, notification]) {
+			const result = await queued.deferred;
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+		}
+
+		assert.deepStrictEqual({
+			requests: model.getRequests().map(request => ({
+				text: request.message.text,
+				isSystemInitiated: !!request.isSystemInitiated,
+				label: request.systemInitiatedLabel,
+				terminalExecutionId: request.terminalExecutionId,
+				yieldRequested: yieldRequested.has(request.id),
+			})),
+			invoked,
+			pending: model.getPendingRequests().length,
+		}, {
+			requests: [
+				{ text: 'Fix the failing tests', isSystemInitiated: false, label: undefined, terminalExecutionId: undefined, yieldRequested: true },
+				// The user's message shows only what they typed, and still yields so the notification follows after the next tool call
+				{ text: 'Also update the README', isSystemInitiated: false, label: undefined, terminalExecutionId: undefined, yieldRequested: true },
+				{ text: notificationText, isSystemInitiated: true, label: '`npm test` completed', terminalExecutionId: 'term-1', yieldRequested: false },
+			],
+			invoked: [
+				{ message: 'Fix the failing tests', isSystemInitiated: false },
+				{ message: 'Also update the README', isSystemInitiated: false },
+				{ message: notificationText, isSystemInitiated: true },
+			],
+			pending: 0,
+		});
+	});
 
 	test('multiple steering messages are combined into a single request', async () => {
 		const requestStarted = new DeferredPromise<void>();
