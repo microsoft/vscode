@@ -419,6 +419,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly repository?: string;
 	readonly path?: string;
 	readonly connectorIds?: readonly string[];
+	readonly installCount?: number;
 	readonly installable: boolean;
 	readonly unavailableMessage?: string;
 }

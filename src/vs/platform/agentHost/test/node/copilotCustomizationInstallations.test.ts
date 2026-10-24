@@ -473,6 +473,7 @@ suite('CopilotCustomizationInstallations', () => {
 			displayName: 'Canvas Plugin',
 			source: { repository: 'github/canvas-plugin', path: '.github/plugin/plugin.json' },
 			compatibilityTags: ['github-copilot', 'canvas', 'canvas-only'],
+			installCount: 42,
 			provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/vnd.github.copilot-plugin' },
 		};
 		const client = {
@@ -495,7 +496,10 @@ suite('CopilotCustomizationInstallations', () => {
 
 		const result = await service.search({ query: 'plugins', limit: 10 });
 
-		assert.deepStrictEqual(result.kind === 'page' ? result.items.map(item => item.tags) : [], [['canvas', 'canvas-only']]);
+		assert.deepStrictEqual(result.kind === 'page' ? result.items.map(item => ({ tags: item.tags, installCount: item.installCount })) : [], [{
+			tags: ['canvas', 'canvas-only'],
+			installCount: 42,
+		}]);
 	});
 
 	test('answers queryless catalog browse without starting the SDK', async () => {
