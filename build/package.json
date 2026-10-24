@@ -48,6 +48,7 @@
     "debug": "^4.3.2",
     "esbuild": "0.27.2",
     "extract-zip": "^2.0.1",
+    "glob": "^7.2.3",
     "gulp-merge-json": "^2.1.1",
     "gulp-sort": "^2.0.0",
     "jsonc-parser": "^2.3.0",
