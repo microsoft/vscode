@@ -24,7 +24,7 @@ import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 const remotes: ICustomizationRemote[] = [
 	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: false, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
@@ -63,6 +63,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		readonly environmentsEnabled = observableValue(this, environments);
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
 		async refresh() { return failedKinds; }
+		setHidden(id: string, hidden: boolean) {
+			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, hidden } : remote), undefined);
+		}
 		async rename(id: string) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: `${remote.name} (renamed)` } : remote), undefined);
 		}
@@ -82,7 +85,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
-	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, false, [], true) }),
+	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true) }),
 	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
 	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),

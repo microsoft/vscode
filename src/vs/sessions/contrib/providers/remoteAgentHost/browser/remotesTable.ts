@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { Action } from '../../../../../base/common/actions.js';
@@ -58,7 +59,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'configure' | 'documentation' | 'connect' | 'rename';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -87,6 +88,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 	constructor(
 		private readonly column: RemoteColumn,
 		private readonly onAction: (entry: RemoteTableEntry, action: RemoteRowAction) => void,
+		private readonly actionHoverDelegate: IHoverDelegate,
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
@@ -121,10 +123,14 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			default: {
 				const action = disposables.add(new Action(`remotes.${this.column}`, '', undefined, true, async () => {
 					if (template.row && (template.column === 'gutter' || template.column === 'actions')) {
-						this.onAction(template.row.entry, template.column === 'gutter' ? 'toggleGroup' : template.row.entry.type === 'group' ? 'configure' : 'connect');
+						this.onAction(template.row.entry, template.column === 'gutter'
+							? template.row.entry.type === 'group' ? 'toggleGroup' : 'toggleVisibility'
+							: template.row.entry.type === 'group' ? 'configure' : 'connect');
 					}
 				}));
-				const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, { ariaLabel: localize('remotes.rowActions', "Remote actions") }));
+				const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+					ariaLabel: localize('remotes.rowActions', "Remote actions"), hoverDelegate: this.actionHoverDelegate,
+				}));
 				toolbar.setActions([action]);
 				if (this.column === 'gutter') {
 					template = { ...base, column: this.column, action, toolbar };
@@ -166,6 +172,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const rowElement = template.container.parentElement!;
 				rowElement.classList.toggle('remotes-group-row', entry.type === 'group');
 				rowElement.classList.toggle('remotes-empty-row', entry.type === 'empty');
+				rowElement.classList.toggle('remotes-row-hidden', entry.type === 'remote' && entry.remote.hidden === true);
 				if (entry.type === 'remote') {
 					rowElement.dataset.remoteId = entry.remote.id;
 				} else {
@@ -219,6 +226,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			case 'gutter':
 			case 'actions': {
 				const showCollapse = template.column === 'gutter' && entry.type === 'group';
+				const showVisibility = template.column === 'gutter' && entry.type === 'remote';
+				template.container.classList.toggle('remotes-visibility-column', showVisibility);
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
@@ -230,7 +239,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						...(showConfig ? [template.action] : []),
 					]);
 				}
-				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showConfig && !showDocumentation && !showConnection);
+				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showVisibility && !showConfig && !showDocumentation && !showConnection);
 				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
 					template.documentation.label = entry.documentation.label;
 				}
@@ -239,6 +248,11 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				if (showCollapse) {
 					template.action.label = entry.collapsed ? localize('remotes.expandGroup', "Expand {0}", entry.label) : localize('remotes.collapseGroup', "Collapse {0}", entry.label);
 					template.action.class = ThemeIcon.asClassName(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown);
+				} else if (showVisibility) {
+					template.action.label = entry.remote.hidden
+						? localize('remotes.showInPicker', "Show {0} in Environment Picker", entry.remote.name)
+						: localize('remotes.hideFromPicker', "Hide {0} from Environment Picker", entry.remote.name);
+					template.action.class = ThemeIcon.asClassName(entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
 				} else if (showConfig) {
 					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
 						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open Environment Settings")

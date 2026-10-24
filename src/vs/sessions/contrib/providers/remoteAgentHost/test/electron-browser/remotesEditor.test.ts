@@ -53,6 +53,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async setConnected(): Promise<void> { }
 	async rename(): Promise<void> { }
 	async remove(): Promise<void> { }
+	setHidden(): void { }
 
 	override dispose(): void {
 		this.disposed = true;

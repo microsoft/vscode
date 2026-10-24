@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action } from '../../../../../base/common/actions.js';
@@ -140,8 +141,9 @@ export class RemotesWidget extends Disposable {
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 112 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
 		] as const;
+		const actionHoverDelegate = this._register(createInstantHoverDelegate());
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
-			column.id, (entry, action) => this.runRowAction(entry, action),
+			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
 			instantiationService, hoverService, openerService,
 		));
 		const columns = columnDefinitions.map((column, index) => ({
@@ -228,7 +230,15 @@ export class RemotesWidget extends Disposable {
 				void this.openDocumentation(entry.documentation.href);
 			}
 		} else if (entry.type === 'remote') {
-			if (action === 'connect') {
+			if (action === 'toggleVisibility') {
+				try {
+					this.model.setHidden(entry.remote.id, !entry.remote.hidden);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						this.notificationService.error(error);
+					}
+				}
+			} else if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'rename') {
 				void this.renameRemote(entry.remote.id);
@@ -429,7 +439,8 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
-		const label = localize('remotes.accessibleRow', "{0}. Connection: {1}", remote.name,
+		const name = remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
+		const label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}

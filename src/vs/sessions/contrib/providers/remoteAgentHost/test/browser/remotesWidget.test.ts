@@ -36,6 +36,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	]);
 	readonly managementChanges: { id: string; action: 'rename' | 'remove' }[] = [];
 	readonly connectionChanges: { id: string; connected: boolean }[] = [];
+	readonly visibilityChanges: { id: string; hidden: boolean }[] = [];
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
 	failedKinds: readonly RemoteKind[] = [];
@@ -45,6 +46,11 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async refresh(): Promise<readonly RemoteKind[]> {
 		this.refreshCalls++;
 		return this.pendingRefresh?.p ?? this.failedKinds;
+	}
+
+	setHidden(id: string, hidden: boolean): void {
+		this.visibilityChanges.push({ id, hidden });
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, hidden } : remote), undefined);
 	}
 
 	async rename(id: string): Promise<void> {
@@ -205,6 +211,62 @@ suite('RemotesWidget', () => {
 			focused: { opacity: '1', pointerEvents: 'auto' },
 			alignment: 'flex-start',
 		});
+	});
+
+	test('eye action hides and restores a remote without changing its connection or keyboard focus', async () => {
+		const { parent, model, widget } = createWidget();
+		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
+		row.click();
+		const action = row.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!;
+		const before = { label: action.getAttribute('aria-label'), icon: action.classList.contains('codicon-eye') };
+		action.focus();
+		action.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		for (const type of ['keydown', 'keyup']) {
+			action.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		await timeout(0);
+		const hidden = {
+			label: action.getAttribute('aria-label'), icon: action.classList.contains('codicon-eye-closed'),
+			dimmed: row.classList.contains('remotes-row-hidden'), focused: dom.getActiveElement() === action,
+			connection: row.querySelector('.remotes-connection-state')?.textContent,
+			accessible: widget.getAccessibilityContent().includes('Build server (hidden from Environment picker)'),
+		};
+		widget.setSearchQuery('build');
+		widget.setVisible(true);
+		await timeout(0);
+		const retained = parent.querySelectorAll('[data-remote-id="ssh:build"]').length;
+		const show = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-gutter-column [role="button"]')!;
+		show.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			before, hidden, retained,
+			restored: model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden,
+			visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
+		}, {
+			before: { label: 'Hide Build server from Environment Picker', icon: true },
+			hidden: { label: 'Show Build server in Environment Picker', icon: true, dimmed: true, focused: true, connection: 'Connected', accessible: true },
+			retained: 1, restored: false,
+			visibilityChanges: [{ id: 'ssh:build', hidden: true }, { id: 'ssh:build', hidden: false }],
+			connectionChanges: [], managementChanges: [],
+		});
+	});
+
+	test('hidden remotes keep the Show eye visible at rest and offline remotes can be hidden', () => {
+		const { parent, model } = createWidget();
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:offline', kind: 'environment', name: 'Offline host', detail: 'offline', canRemove: false,
+			unavailableReason: 'Start the owning application.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+		}], undefined);
+		const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+		const toolbar = row.querySelector<HTMLElement>('.remotes-gutter-column .monaco-toolbar')!;
+		const idle = dom.getWindow(toolbar).getComputedStyle(toolbar).opacity;
+		row.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!.click();
+		assert.deepStrictEqual({
+			idle, hiddenOpacity: dom.getWindow(toolbar).getComputedStyle(toolbar).opacity,
+			connection: row.querySelector('.remotes-connection-state')?.textContent,
+			visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
+		}, { idle: '0', hiddenOpacity: '1', connection: 'Offline', visibilityChanges: [{ id: 'environment:offline', hidden: true }], connectionChanges: [] });
 	});
 
 	test('group keyboard collapse and expansion preserves rows through refresh', () => {

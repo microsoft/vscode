@@ -56,6 +56,7 @@ import type { INestedChatFolderInfo, INestedChatWorkspace, ISendRequestOptions, 
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v5.';
@@ -104,6 +105,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	/** Overrides the stable host key for account-scoped picker preferences. */
+	readonly pickerVisibilityKey?: string;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 	/**
@@ -339,7 +342,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
-		this.isVisibleInEnvironmentPicker = config.isVisibleInEnvironmentPicker;
+		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
+		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
+		this.isVisibleInEnvironmentPicker = derived(this, reader =>
+			!pickerVisibility.isHidden(pickerKey, reader) && config.isVisibleInEnvironmentPicker?.read(reader) !== false);
 		this.removeLabel = config.removeLabel;
 		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;

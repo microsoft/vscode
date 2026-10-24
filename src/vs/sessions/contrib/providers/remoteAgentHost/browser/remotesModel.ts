@@ -15,7 +15,7 @@ import { IDiscoveredDevContainer } from '../../../../../platform/agentHost/commo
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -26,6 +26,7 @@ import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } 
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { reconnectRemoteHost, removeRemoteHost, renameRemoteHost } from './remoteHostOptions.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'devContainer'] as const;
 export type RemoteKind = typeof remoteKinds[number];
@@ -47,6 +48,7 @@ export interface ICustomizationRemote {
 	readonly connectionStatus: RemoteAgentHostConnectionStatus;
 	readonly unavailableReason?: string;
 	readonly removeUnavailableReason?: string;
+	readonly hidden?: boolean;
 }
 
 export interface IRemotesModel extends IDisposable {
@@ -57,6 +59,7 @@ export interface IRemotesModel extends IDisposable {
 	setConnected(id: string, connected: boolean): Promise<void>;
 	rename(id: string): Promise<void>;
 	remove(id: string): Promise<void>;
+	setHidden(id: string, hidden: boolean): void;
 }
 
 export function getVisibleRemoteKinds(operatingSystem: OperatingSystem, environmentsEnabled = false): readonly RemoteKind[] {
@@ -82,6 +85,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = this._remotes;
 	private readonly _environmentsEnabled = observableValue(this, false);
 	readonly environmentsEnabled = this._environmentsEnabled;
+	private readonly pickerVisibility: RemoteAgentHostPickerVisibility;
 
 	constructor(
 		private readonly discoverDevContainers: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]>,
@@ -99,6 +103,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		@IMissionControlAvailabilityService environmentAvailabilityService: IMissionControlAvailabilityService,
 	) {
 		super();
+		this.pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		// Lazy services can publish providers while the initial cached state is being read.
 		this.update();
 		this._register(tunnelService.onDidChangeTunnels(() => this.update()));
@@ -328,6 +333,27 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 	}
 
+	setHidden(id: string, hidden: boolean): void {
+		const target = this.targets.get(id);
+		if (!target || !this.enabled) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		if (target.kind === 'environment') {
+			this.checkEnvironment(target);
+		}
+		this.pickerVisibility.setHidden(this.getPickerKey(target), hidden);
+	}
+
+	private getPickerKey(target: RemoteTarget): string {
+		if (target.kind === 'ssh' && target.entry.connection.type === RemoteAgentHostEntryType.SSH) {
+			const connection = target.entry.connection;
+			return getRemoteAgentHostPickerKey(computeSSHConnectionKey({
+				sshConfigHost: connection.sshConfigHost, host: connection.hostName, username: connection.user, port: connection.port,
+			}));
+		}
+		return getRemoteAgentHostPickerKey(this.getId(target), target.kind === 'environment' ? target.account : undefined);
+	}
+
 	private update(reader?: IReader): void {
 		const sshEntries = readSSHRemoteAgentHostEntries(this.storageService);
 		const distros = this.wslService.getCachedDistros();
@@ -411,7 +437,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? provider?.label ?? name;
 			}
 			const canRemove = target.kind !== 'environment' && this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
-			remotes.push({ id, kind: target.kind, name, detail, canRemove, unavailableReason, removeUnavailableReason, connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected });
+			remotes.push({
+				id, kind: target.kind, name, detail, canRemove, unavailableReason, removeUnavailableReason,
+				hidden: this.pickerVisibility.isHidden(this.getPickerKey(target), reader),
+				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,
+			});
 		}
 		transaction(tx => {
 			this._environmentsEnabled.set(environmentsEnabled, tx);

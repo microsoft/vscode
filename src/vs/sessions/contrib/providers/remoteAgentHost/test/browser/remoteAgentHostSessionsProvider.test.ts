@@ -60,6 +60,8 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
+import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -502,6 +504,56 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const host of [
+		{ address: 'localhost:4321', preferenceKey: 'ssh:build' },
+		{ address: 'tunnel:laptop', preferenceKey: undefined },
+		{ address: 'wsl:Ubuntu', preferenceKey: undefined },
+		{ address: 'ws://localhost:9000', preferenceKey: undefined },
+	]) {
+		test(`picker hidden preference preserves sessions and combines with availability (${host.preferenceKey ?? host.address})`, () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+			const key = getRemoteAgentHostPickerKey(host.preferenceKey ?? host.address);
+			preference.setHidden(key, true);
+			const available = observableValue('available', true);
+			const provider = createProvider(disposables, connection, { ...host, storageService }, { isVisibleInEnvironmentPicker: available });
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+			provider.seedSessions([createSession('retained-session')]);
+			const beforeSessions = provider.getSessions();
+			const snapshot = () => ({ visible: provider.isVisibleInEnvironmentPicker?.get(), entries: getSessionCreationEnvironments([provider]).length });
+			const hidden = snapshot();
+			preference.setHidden(key, false);
+			const shown = snapshot();
+			available.set(false, undefined);
+			const offline = snapshot();
+			preference.setHidden(key, true);
+			available.set(true, undefined);
+			const hiddenAgain = snapshot();
+			preference.setHidden(key, false);
+			assert.deepStrictEqual({
+				hidden, shown, offline, hiddenAgain, final: snapshot(),
+				sessionsUnchanged: provider.getSessions().length === beforeSessions.length && provider.getSessions()[0] === beforeSessions[0],
+				connectionStatus: provider.connectionStatus.get().kind,
+			}, {
+				hidden: { visible: false, entries: 0 }, shown: { visible: true, entries: 1 },
+				offline: { visible: false, entries: 0 }, hiddenAgain: { visible: false, entries: 0 },
+				final: { visible: true, entries: 1 }, sessionsUnchanged: true, connectionStatus: 'connected',
+			});
+		});
+	}
+
+	test('account-scoped picker preferences do not hide another account environment', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const preference = disposables.add(new RemoteAgentHostPickerVisibility(storageService));
+		const address = 'cloudsandbox:desktop';
+		const key = getRemoteAgentHostPickerKey(address, 'account-one');
+		preference.setHidden(key, true);
+		const provider = createProvider(disposables, connection, { address, storageService }, {
+			pickerVisibilityKey: getRemoteAgentHostPickerKey(address, 'account-two'),
+		});
+		assert.strictEqual(provider.isVisibleInEnvironmentPicker?.get(), true);
+	});
 
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {

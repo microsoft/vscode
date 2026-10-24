@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IDiscoveredDevContainer } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -30,6 +30,7 @@ import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessi
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { RemotesModel } from '../../browser/remotesModel.js';
+import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
 
 suite('RemotesModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -490,6 +491,75 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual({ name: remote.name, canRemove: remote.canRemove, entries: readSSHRemoteAgentHostEntries(storage), connectionChanges }, {
 			name: 'Discovered server', canRemove: false, entries: [], connectionChanges: [],
 		});
+	});
+
+	test('visibility persists for discovery-only remotes without registration, connection, or removal', async () => {
+		const { model, storage, connectionChanges, reconnects, removals, setRenameInput } = setup();
+		await model.refresh(CancellationToken.None);
+		const preference = store.add(new RemoteAgentHostPickerVisibility(storage));
+		model.setHidden('ssh:build', true);
+		model.setHidden('tunnel:laptop', true);
+		setRenameInput('Renamed');
+		await model.rename('ssh:build');
+		await model.refresh(CancellationToken.None);
+		const hidden = model.remotes.get().filter(remote => remote.hidden).map(remote => remote.id);
+		preference.setHidden(getRemoteAgentHostPickerKey('ssh:build'), false);
+		const externallyShown = model.remotes.get().find(remote => remote.id === 'ssh:build')?.hidden;
+		model.setHidden('tunnel:laptop', false);
+		assert.deepStrictEqual({
+			hidden, externallyShown, remainingHidden: model.remotes.get().filter(remote => remote.hidden),
+			entries: readSSHRemoteAgentHostEntries(storage), connectionChanges, reconnects, removals,
+		}, { hidden: ['ssh:build', 'tunnel:laptop'], externallyShown: false, remainingHidden: [], entries: [], connectionChanges: [], reconnects: [], removals: [] });
+	});
+
+	test('offline environment visibility is account-scoped and cannot bypass availability', async () => {
+		const { model, configuration, environmentAvailable, environmentHosts, environmentState, environmentConnections } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		const hosts = [{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'offline' }] as const;
+		environmentHosts.set(hosts, undefined);
+		const id = cloudSandboxAddress('desktop');
+		model.setHidden(id, true);
+		const hidden = model.remotes.get().find(remote => remote.id === id)?.hidden;
+		environmentState.account = 'account-two';
+		environmentHosts.set([...hosts], undefined);
+		const otherAccount = model.remotes.get().find(remote => remote.id === id)?.hidden;
+		environmentState.account = 'account-one';
+		environmentHosts.set([...hosts], undefined);
+		const restored = model.remotes.get().find(remote => remote.id === id)?.hidden;
+		model.setHidden(id, false);
+		await assert.rejects(model.setConnected(id, true), /not online/);
+		assert.deepStrictEqual({ hidden, otherAccount, restored, environmentConnections }, {
+			hidden: true, otherAccount: false, restored: true, environmentConnections: [],
+		});
+		environmentHosts.set([], undefined);
+		assert.throws(() => model.setHidden(id, true), /no longer available/);
+	});
+
+	test('SSH picker visibility uses the stable host key rather than the forwarded endpoint', () => {
+		const { model, storage } = setup();
+		addSSHRemoteAgentHostEntry(storage, {
+			name: 'Forwarded SSH', connection: {
+				type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', sshConfigHost: 'remote',
+				hostName: 'remote.example.com', user: 'user', port: 22,
+			},
+		});
+		model.setHidden('localhost:4321', true);
+		const preference = store.add(new RemoteAgentHostPickerVisibility(storage));
+		assert.deepStrictEqual({
+			hostHidden: preference.isHidden(getRemoteAgentHostPickerKey('ssh:remote')),
+			endpointHidden: preference.isHidden(getRemoteAgentHostPickerKey('localhost:4321')),
+		}, { hostHidden: true, endpointHidden: false });
+	});
+
+	test('disabled AI or remote hosts reject visibility changes', async () => {
+		const { model, setConfiguration } = setup();
+		await model.refresh(CancellationToken.None);
+		await setConfiguration('chat.disableAIFeatures', true);
+		assert.throws(() => model.setHidden('ssh:build', true), /no longer available/);
+		await setConfiguration('chat.disableAIFeatures', false);
+		await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
+		assert.throws(() => model.setHidden('ssh:build', true), /no longer available/);
 	});
 
 	test('environment inventory is gated and reacts to availability, configuration and account changes', async () => {
