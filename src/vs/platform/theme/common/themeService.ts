@@ -38,6 +38,7 @@ export interface ITokenStyle {
 	readonly underline: boolean | undefined;
 	readonly strikethrough: boolean | undefined;
 	readonly italic: boolean | undefined;
+	readonly fontFamily?: string;
 }
 
 export interface IColorTheme {

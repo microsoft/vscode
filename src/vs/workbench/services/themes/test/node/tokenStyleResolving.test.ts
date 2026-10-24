@@ -26,9 +26,9 @@ import { ExtensionGalleryManifestService } from '../../../../../platform/extensi
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
 
-function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean } | undefined): TokenStyle {
+function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean } | undefined, fontFamily?: string): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
-	return new TokenStyle(foregroundColor, styleFlags?.bold, styleFlags?.underline, styleFlags?.strikethrough, styleFlags?.italic);
+	return new TokenStyle(foregroundColor, styleFlags?.bold, styleFlags?.underline, styleFlags?.strikethrough, styleFlags?.italic, fontFamily);
 }
 
 function tokenStyleAsString(ts: TokenStyle | undefined | null) {
@@ -45,6 +45,9 @@ function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 	if (ts.italic !== undefined) {
 		str += ts.italic ? '+I' : '-I';
 	}
+	if (ts.fontFamily !== undefined) {
+		str += `+F(${ts.fontFamily})`;
+	}
 	return str;
 }
 
@@ -60,6 +63,7 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 	assert.strictEqual(actual.bold, expected.bold, 'bold ' + message);
 	assert.strictEqual(actual.italic, expected.italic, 'italic ' + message);
 	assert.strictEqual(actual.underline, expected.underline, 'underline ' + message);
+	assert.strictEqual(actual.fontFamily, expected.fontFamily, 'fontFamily ' + message);
 
 	const actualForegroundIndex = actual.foreground;
 	if (actualForegroundIndex && expected.foreground) {
@@ -236,6 +240,25 @@ suite('Themes - TokenStyleResolving', () => {
 
 	});
 
+
+	test('semantic fontFamily', async () => {
+		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+		themeData.setCustomColors({ 'editor.foreground': '#000000' });
+		themeData.setCustomSemanticTokenColors({
+			enabled: true,
+			rules: {
+				'type': { fontFamily: 'Iosevka' },
+				'class': { foreground: '#0000ff', fontFamily: 'JetBrains Mono' }
+			}
+		});
+
+		assertTokenStyles(themeData, {
+			'type': ts(undefined, undefined, 'Iosevka'),
+			'class': ts('#0000ff', undefined, 'JetBrains Mono')
+		});
+		assert.ok(themeData.tokenFontMap.some(font => font?.fontFamily === 'Iosevka'));
+		assert.ok(themeData.tokenFontMap.some(font => font?.fontFamily === 'JetBrains Mono'));
+	});
 
 	test('rule matching', async () => {
 		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
