@@ -14,7 +14,7 @@ import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../.
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { canClearPromptInputWithCtrlU, createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
@@ -190,23 +190,23 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				this._log.bind(this)
 			);
 
-			if (this._hasReceivedUserInput()) {
-				// Only send SIGINT (Ctrl+C) when shell integration confirms a previous
-				// command is still executing. Sending Ctrl+C at an idle prompt can be
-				// misinterpreted by the shell as cancelling the command we are about
-				// to send via sendText, producing spurious "Command exited with code
-				// 130" results for what should be the next, unrelated command.
-				if (this._commandDetection.executingCommandObject !== undefined) {
-					this._log('Previous command still executing with pending input, sending SIGINT before retrying');
-					await this._instance.sendText('\x03', false);
-					await waitForIdle(this._instance.onData, 100);
-				} else {
-					// Use Ctrl+U (kill line) to clear any pending input on the prompt
-					// without killing any running command. No-op on a clean prompt.
-					this._log('Prompt is idle; clearing pending input with Ctrl+U instead of SIGINT');
-					await this._instance.sendText('\x15', false);
-					await waitForIdle(this._instance.onData, 100);
-				}
+			// Only send SIGINT (Ctrl+C) when shell integration confirms a previous
+			// command is still executing (e.g. a previous execution finished via the
+			// idle fallback while its process kept running), otherwise the command
+			// line would be typed into that process. Sending Ctrl+C at an idle prompt
+			// can be misinterpreted by the shell as cancelling the command we are
+			// about to send via sendText, producing spurious "Command exited with
+			// code 130" results for what should be the next, unrelated command.
+			if (this._commandDetection.executingCommandObject !== undefined) {
+				this._log('Previous command still executing, sending SIGINT before retrying');
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 100);
+			} else if (this._hasReceivedUserInput() && canClearPromptInputWithCtrlU(this._instance)) {
+				// Use Ctrl+U (kill line) to clear any pending input on the prompt
+				// without killing any running command. No-op on a clean prompt.
+				this._log('Prompt is idle; clearing pending input with Ctrl+U instead of SIGINT');
+				await this._instance.sendText('\x15', false);
+				await waitForIdle(this._instance.onData, 100);
 			}
 
 			// Execute the command
