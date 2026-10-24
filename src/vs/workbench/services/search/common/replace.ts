@@ -120,29 +120,32 @@ export class ReplacePattern {
 
 			newReplaceString += patMatch[1]; // prefix
 			caseOps = caseOps.replace(/\\/g, '');
+			let caseConvertedReplacement = '';
 			let i = 0;
 			for (; i < caseOps.length; i++) {
 				switch (caseOps[i]) {
 					case 'U':
-						newReplaceString += replacement.slice(i).toUpperCase();
+						caseConvertedReplacement += replacement.slice(i).toUpperCase();
 						i = replacementLen;
 						break;
 					case 'u':
-						newReplaceString += replacement[i].toUpperCase();
+						caseConvertedReplacement += replacement[i].toUpperCase();
 						break;
 					case 'L':
-						newReplaceString += replacement.slice(i).toLowerCase();
+						caseConvertedReplacement += replacement.slice(i).toLowerCase();
 						i = replacementLen;
 						break;
 					case 'l':
-						newReplaceString += replacement[i].toLowerCase();
+						caseConvertedReplacement += replacement[i].toLowerCase();
 						break;
 				}
 			}
 			// Append any remaining replacement string content not covered by case operations.
 			if (i < replacementLen) {
-				newReplaceString += replacement.slice(i);
+				caseConvertedReplacement += replacement.slice(i);
 			}
+			// Captured text must remain literal when passed to string.replace().
+			newReplaceString += caseConvertedReplacement.replace(/\$/g, '$$$$');
 
 			newReplaceString += patMatch[4]; // suffix
 		}
