@@ -131,7 +131,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const item = page.items[0];
 		assert.deepStrictEqual({
 			requests,
-			item: { identifier: item.identifier, tags: item.tags, installCount: item.installCount, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
+			item: { identifier: item.identifier, tags: item.tags, compatibilityTags: item.compatibilityTags, installCount: item.installCount, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
 			recovery: provider.getRecoveryAction()?.kind,
 		}, {
 			requests: ['feed_auth', 'feed_editorial'].map(feedId => ({
@@ -139,7 +139,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				request: { query: '', mediaType: undefined, limit: 30, cursor: undefined, feedId },
 			})),
 			item: {
-				identifier: 'feed-resource', tags: ['build', 'canvas', 'canvas-only'], installCount: 42, icon: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+				identifier: 'feed-resource', tags: ['build'], compatibilityTags: ['canvas', 'canvas-only'], installCount: 42, icon: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
 				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection', itemUrl: undefined, installable: true },
 			},
 			recovery: 'signIn',

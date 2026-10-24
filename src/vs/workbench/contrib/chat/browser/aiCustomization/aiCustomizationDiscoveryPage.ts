@@ -172,6 +172,7 @@ interface IInstalledDiscoveryItem {
 	readonly promptDetail?: IAICustomizationListItem;
 	readonly pluginDetail?: IAgentPluginItem;
 	readonly mcpDetail?: IMcpServerDetailInput;
+	readonly matchMarketplaceByName?: boolean;
 	readonly linkedConnectionRole?: LinkedConnectionRole;
 	readonly alternativeExpanded?: boolean;
 }
@@ -270,11 +271,11 @@ function getCatalogType(resource: ICustomizationMarketplaceResource): 'skill' | 
 }
 
 function isCanvasMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
-	return getCatalogType(resource) === 'plugin' && resource.tags.some(tag => tag === 'canvas' || tag === 'canvas-only');
+	return getCatalogType(resource) === 'plugin' && resource.compatibilityTags?.some(tag => tag === 'canvas' || tag === 'canvas-only') === true;
 }
 
 function isCanvasOnlyMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
-	return getCatalogType(resource) === 'plugin' && resource.tags.includes('canvas-only');
+	return getCatalogType(resource) === 'plugin' && resource.compatibilityTags?.includes('canvas-only') === true;
 }
 
 function getSectionForCatalogType(type: 'skill' | 'mcp' | 'plugin'): AICustomizationManagementSection {
@@ -327,7 +328,7 @@ function getInstalledItemMarketplaceRecord(
 		case 'skill':
 			return item.uri ? installations.findByTarget({ kind: item.type, uri: item.uri }) : undefined;
 		case 'plugin':
-			return installations.findByTarget({ kind: 'plugin', uri: item.uri, name: item.name });
+			return installations.findByTarget({ kind: 'plugin', uri: item.uri, name: item.matchMarketplaceByName ? item.name : undefined });
 		case 'mcp':
 			return item.mcpServerId ? installations.findByTarget({ kind: 'mcp', id: item.mcpServerId }) : undefined;
 		default:
@@ -1541,6 +1542,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				section: AICustomizationManagementSection.Plugins,
 				uri: item.uri,
 				disabled: item.enabled === false,
+				matchMarketplaceByName: true,
 			}));
 			this.renderInstalledItemsChange();
 		} catch (error) {
@@ -1571,30 +1573,37 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	private matchesInstalledItem(item: IInstalledDiscoveryItem, installations: ICustomizationMarketplaceInstallationSnapshot): boolean {
+	private matchesDiscoveryType(type: DiscoveryItemType | undefined, resource?: ICustomizationMarketplaceResource): boolean {
+		if (!type) {
+			return false;
+		}
 		if (this.query.types.size === 0) {
 			return true;
 		}
-		const resource = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, installations)?.resource;
-		return item.type === 'skill' && this.query.types.has('skill')
-			|| item.type === 'mcp' && this.query.types.has('mcp')
-			|| item.type === 'plugin' && this.query.types.has('plugin') && !resource?.tags.includes('canvas-only')
+		return type === 'skill' && this.query.types.has('skill')
+			|| type === 'mcp' && this.query.types.has('mcp')
+			|| type === 'plugin' && this.query.types.has('plugin') && (!resource || !isCanvasOnlyMarketplaceResource(resource))
 			|| resource !== undefined && this.query.types.has('canvas') && isCanvasMarketplaceResource(resource);
 	}
 
+	private matchesInstalledItem(item: IInstalledDiscoveryItem, installations: ICustomizationMarketplaceInstallationSnapshot): boolean {
+		return this.matchesDiscoveryType(item.type, item.catalogResource ?? getInstalledItemMarketplaceRecord(item, installations)?.resource);
+	}
+
 	private matchesMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
-		if (this.query.types.size === 0) {
-			return true;
-		}
-		const type = getCatalogType(resource);
-		return type === 'skill' && this.query.types.has('skill')
-			|| type === 'mcp' && this.query.types.has('mcp')
-			|| type === 'plugin' && this.query.types.has('plugin') && !isCanvasOnlyMarketplaceResource(resource)
-			|| this.query.types.has('canvas') && isCanvasMarketplaceResource(resource);
+		return this.matchesDiscoveryType(getCatalogType(resource), resource);
 	}
 
 	private isCanvasOnlyQuery(): boolean {
 		return this.query.types.size === 1 && this.query.types.has('canvas');
+	}
+
+	private hasBlankCanvasFilter(): boolean {
+		return this.query.types.has('canvas') && !this.query.text;
+	}
+
+	private isBlankCanvasBrowse(): boolean {
+		return this.isCanvasOnlyQuery() && !this.query.text;
 	}
 
 	private shouldQueryCatalog(): boolean {
@@ -1623,6 +1632,37 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private hasNextCatalogPage(): boolean {
 		return !this.query.installed && this.catalogPage?.nextCursor !== undefined;
+	}
+
+	private shouldQueryCanvasFallback(): boolean {
+		return this.hasBlankCanvasFilter()
+			&& (!this.selectedSourceId || this.selectedSourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+	}
+
+	private async queryCanvasFallback(token: CancellationToken, sequence: number): Promise<{ readonly page: ICustomizationMarketplacePage; readonly limitReached: boolean } | undefined> {
+		const items: ICustomizationMarketplaceResource[] = [];
+		const sourceErrors: ICustomizationMarketplaceSourceError[] = [];
+		let cursor: ICustomizationMarketplaceCursor | undefined;
+		for (let pageCount = 0; pageCount < maxFilteredCatalogPagesPerLoad; pageCount++) {
+			// Best-effort compatibility fallback until github/copilot-agent-runtime#29133 provides filter-only catalog retrieval.
+			const page = await this.marketplaceService.query({
+				query: 'canvas',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+				pageSize: canvasCatalogPageSize,
+				cursor,
+			}, token);
+			if (sequence !== this.requestSequence || token.isCancellationRequested) {
+				return undefined;
+			}
+			items.push(...page.items);
+			sourceErrors.push(...page.sourceErrors ?? []);
+			cursor = page.nextCursor;
+			if (!cursor) {
+				return { page: { items, sourceErrors }, limitReached: false };
+			}
+		}
+		return { page: { items, sourceErrors }, limitReached: true };
 	}
 
 	private getMarketplaceSourceLabel(sourceId: string): string {
@@ -1789,6 +1829,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (!this.shouldQueryCatalog() || (append && (this.loading || !this.hasNextCatalogPage()))) {
 			return;
 		}
+		const loadingContinuation = append;
 		const browseRequest = !append && this.query.isEmpty();
 		const sequence = ++this.requestSequence;
 		this.cancelCatalogRequest();
@@ -1838,16 +1879,14 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			try {
 				const backfill = !this.query.isEmpty() && this.query.types.size > 0
 					&& (getCatalogMediaType(this.query.types) === undefined || this.query.types.has('canvas'));
-				const exhaustCanvasPages = this.isCanvasOnlyQuery() && !this.query.text;
-				// Best-effort compatibility fallback until github/copilot-agent-runtime#29133 provides filter-only catalog retrieval.
-				const catalogQuery = this.query.text || (this.isCanvasOnlyQuery() ? 'canvas' : undefined);
+				const exhaustCanvasPages = this.isBlankCanvasBrowse();
 				let hasMatchingCatalogItem = false;
 				for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
 					const page = await this.marketplaceService.query({
-						query: catalogQuery,
+						query: this.query.text || undefined,
 						mediaType: getCatalogMediaType(this.query.types),
 						sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
-						pageSize: this.isCanvasOnlyQuery() && !this.query.text ? canvasCatalogPageSize : this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
+						pageSize: exhaustCanvasPages ? canvasCatalogPageSize : this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
 						cursor: append ? this.catalogPage?.nextCursor : undefined,
 					}, request.token, browseRequest ? progress => {
 						if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
@@ -1871,6 +1910,22 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					}
 					if (pageCount === maxFilteredCatalogPagesPerLoad - 1) {
 						this.filteredBackfillLimitReached = true;
+					}
+				}
+				const primaryPage = this.catalogPage;
+				if (!loadingContinuation && this.shouldQueryCanvasFallback()) {
+					const fallback = await this.queryCanvasFallback(request.token, sequence);
+					if (!fallback) {
+						return;
+					}
+					this.updateCatalogPage(fallback.page, true);
+					this.filteredBackfillLimitReached ||= fallback.limitReached;
+					if (this.catalogPage) {
+						this.catalogPage = {
+							...this.catalogPage,
+							nextCursor: primaryPage?.nextCursor,
+							sourceErrors: [...primaryPage?.sourceErrors ?? [], ...this.catalogPage.sourceErrors ?? []],
+						};
 					}
 				}
 			} catch (error) {
@@ -2066,7 +2121,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
 				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
 		});
-		if (this.isCanvasOnlyQuery() && !query) {
+		if (this.isBlankCanvasBrowse()) {
 			return matching
 				.map((resource, originalIndex) => ({ resource, originalIndex }))
 				.sort((first, second) => (second.resource.installCount ?? 0) - (first.resource.installCount ?? 0) || first.originalIndex - second.originalIndex)

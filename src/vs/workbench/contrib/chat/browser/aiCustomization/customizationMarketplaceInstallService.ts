@@ -196,7 +196,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private rememberResource(resource: ICustomizationMarketplaceResource): void {
 		const key = getCustomizationMarketplaceResourceKey(resource);
 		const previous = this.knownResources.get(key);
-		if (previous && isCustomizationMarketplaceIconEqual(previous.icon, resource.icon) && equals(previous.tags, resource.tags)) {
+		if (previous
+			&& isCustomizationMarketplaceIconEqual(previous.icon, resource.icon)
+			&& equals(previous.tags, resource.tags)
+			&& equals(previous.compatibilityTags ?? [], resource.compatibilityTags ?? [])
+			&& previous.installCount === resource.installCount) {
 			return;
 		}
 		this.knownResources.set(key, resource);

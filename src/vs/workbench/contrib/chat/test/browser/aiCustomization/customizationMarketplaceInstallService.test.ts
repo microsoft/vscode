@@ -880,7 +880,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			tags: [],
 			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'canvas-plugin' },
 		});
-		const candidate = { ...providerResource, tags: ['canvas', 'canvas-only'] };
+		const candidate = { ...providerResource, compatibilityTags: ['canvas', 'canvas-only'] };
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;
 			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
@@ -904,10 +904,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		assert.deepStrictEqual({
 			installationId: associated?.installationId,
-			tags: associated?.resource.tags,
+			compatibilityTags: associated?.resource.compatibilityTags,
 		}, {
 			installationId: 'canvas-plugin-installation',
-			tags: ['canvas', 'canvas-only'],
+			compatibilityTags: ['canvas', 'canvas-only'],
 		});
 	});
 

@@ -78,6 +78,7 @@ export interface ICustomizationMarketplaceEntry {
 	readonly description: string;
 	readonly mediaType: string;
 	readonly tags: readonly string[];
+	readonly compatibilityTags?: readonly string[];
 	readonly capabilities: readonly string[];
 	readonly representativeQueries: readonly string[];
 	readonly connectorIds?: readonly string[];
