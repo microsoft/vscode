@@ -1119,14 +1119,38 @@ suite('AICustomizationDiscoveryPage', () => {
 			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
 		}, {
 			requests: [
-				{ query: 'plugins', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
-				{ query: 'plugins', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 50, cursor: undefined },
+				{ query: 'canvas', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 50, cursor },
 			],
 			canvas: true,
 			canvasOnly: true,
 			descriptionOnly: false,
 			categoryOnly: false,
 			ariaLabel: 'Canvas extension search results',
+		});
+	});
+
+	test('canvas text search preserves user text and requests only plugins', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('diagram @type:canvas');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('diagram-canvas', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
+				resource('diagram-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			request: fixture.requests[0].options,
+			canvas: content.includes('diagram-canvas'),
+			ordinary: content.includes('diagram-plugin'),
+		}, {
+			request: { query: 'diagram', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 24, cursor: undefined },
+			canvas: true,
+			ordinary: false,
 		});
 	});
 

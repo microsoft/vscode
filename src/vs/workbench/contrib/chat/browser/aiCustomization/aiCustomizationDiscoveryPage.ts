@@ -69,6 +69,7 @@ import { getPluginCustomizationMarketplaceSourceId } from './pluginCustomization
 const $ = DOM.$;
 const searchDelay = 300;
 const catalogPageSize = 24;
+const canvasCatalogPageSize = 50;
 const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
 const leadingBrowseItemCount = 4;
@@ -595,6 +596,9 @@ function getCatalogMediaType(types: ReadonlySet<CustomizationDiscoveryType>): Cu
 	}
 	if (types.has('mcp')) {
 		return CustomizationMarketplaceMediaType.McpServer;
+	}
+	if (types.has('canvas')) {
+		return CustomizationMarketplaceMediaType.CopilotPlugin;
 	}
 	return undefined;
 }
@@ -1834,14 +1838,15 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			try {
 				const backfill = !this.query.isEmpty() && this.query.types.size > 0
 					&& (getCatalogMediaType(this.query.types) === undefined || this.query.types.has('canvas'));
-				const catalogQuery = this.query.text || (this.isCanvasOnlyQuery() ? 'plugins' : undefined);
+				// Best-effort compatibility fallback until github/copilot-agent-runtime#29133 provides filter-only catalog retrieval.
+				const catalogQuery = this.query.text || (this.isCanvasOnlyQuery() ? 'canvas' : undefined);
 				let hasMatchingCatalogItem = false;
 				for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
 					const page = await this.marketplaceService.query({
 						query: catalogQuery,
 						mediaType: getCatalogMediaType(this.query.types),
 						sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
-						pageSize: this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
+						pageSize: this.isCanvasOnlyQuery() && !this.query.text ? canvasCatalogPageSize : this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
 						cursor: append ? this.catalogPage?.nextCursor : undefined,
 					}, request.token, browseRequest ? progress => {
 						if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
