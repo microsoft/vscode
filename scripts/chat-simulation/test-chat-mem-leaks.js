@@ -23,10 +23,10 @@
  * Multiple iterations let us detect consistent leaks vs. one-time caching.
  *
  * Usage:
- *   npm run perf:chat-leak                                # defaults from config
- *   npm run perf:chat-leak -- --iterations 5               # more iterations
- *   npm run perf:chat-leak -- --threshold 5                # 5MB steady-state threshold
- *   npm run perf:chat-leak -- --build 1.115.0              # test a specific build
+ *   pnpm run perf:chat-leak                                # defaults from config
+ *   pnpm run perf:chat-leak --iterations 5                 # more iterations
+ *   pnpm run perf:chat-leak --threshold 5                  # 5MB steady-state threshold
+ *   pnpm run perf:chat-leak --build 1.115.0                # test a specific build
  */
 
 const fs = require('fs');
