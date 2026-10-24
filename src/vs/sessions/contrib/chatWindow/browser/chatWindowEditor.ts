@@ -29,6 +29,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { decideChatWindowInputOnly } from './chatWindowInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -102,8 +103,16 @@ export class ChatWindowChatEditor extends EditorPane {
 	 * briefly measure taller than it is.
 	 */
 	private _inputOnlyHeight: IObservable<number> = constObservable(0);
-	/** The height of this group's own chrome, such as its title, above this editor. */
+	/** The height of this group's own chrome, such as its title, above this editor; not its layout insets. */
 	private _chrome = 0;
+	/** The height of the insets around this group, such as the gap between cards, which its minimum and maximum height add. */
+	private _insets = 0;
+	/** What limits the height of this group: set when it is arranged, and measured against its chrome and insets. */
+	private _constraintMode: { readonly minimum: 'input' | 'conversation' | undefined; readonly maximumInput: boolean } | undefined;
+	/** Whether a pointer is down, such as on the sash dragging this group's height. */
+	private _pointerDown = false;
+	/** Set when this editor was laid out while it sized its group, and what it shows is then decided again. */
+	private _decisionPending = false;
 	/** The height of the window's editor area when this editor was last laid out; see {@link layout}. */
 	private _partHeight: number | undefined;
 	/** The height of this group the user last chose while the conversation was shown below the editor. */
@@ -115,22 +124,8 @@ export class ChatWindowChatEditor extends EditorPane {
 	/** Set while this editor is laid out, or while it sizes its group, so that sizes then do not switch what it shows. */
 	private _sizing = false;
 	private readonly _inputDisposables = this._register(new DisposableStore());
-	private readonly _fitToInput = this._register(new RunOnceScheduler(() => {
-		const view = this._view;
-		if (view?.inputOnly.get() && this._minimumHeight !== undefined) {
-			const part = this._editorGroupsService.getPart(this.group);
-			const { width, height } = part.getSize(this.group);
-			const collapsedHeight = this._inputOnlyHeight.get() + this._chrome;
-			if (height !== collapsedHeight) {
-				this._sizing = true;
-				try {
-					part.setSize(this.group, { width, height: collapsedHeight });
-				} finally {
-					this._sizing = false;
-				}
-			}
-		}
-	}, 0));
+	/** Once a drag lets go, settles the group on the input, or on the conversation, rather than between. */
+	private readonly _settle = this._register(new RunOnceScheduler(() => this._decide(false), 0));
 
 	private readonly _onDidChangeSizeConstraints = this._register(new Emitter<undefined>());
 	override readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
@@ -166,6 +161,15 @@ export class ChatWindowChatEditor extends EditorPane {
 	protected override createEditor(parent: HTMLElement): void {
 		// Styled as the Sessions part styles its session views.
 		this._container = dom.append(parent, dom.$('.chat-window-editor.sessions-window-host'));
+		const targetWindow = dom.getWindow(parent);
+		// The sash drags with the mouse: what its drag shows is settled when it lets go.
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.MOUSE_DOWN, () => this._pointerDown = true, true));
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.MOUSE_UP, () => {
+			if (this._pointerDown) {
+				this._pointerDown = false;
+				this._settle.schedule();
+			}
+		}, true));
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 	}
@@ -245,9 +249,16 @@ export class ChatWindowChatEditor extends EditorPane {
 		store.add(autorun(reader => sessionView.setHeaderHidden(view.inputOnly.read(reader))));
 		store.add(toDisposable(() => sessionView.setHeaderHidden(false)));
 		// The session header, and the bar of the chat's group, stay above the input.
+		// Measured while it shows only the input: with the conversation, the session header is shown above the input as well,
+		// which would move the height the chat snaps to as it is dragged across it.
+		let measuredInputOnlyHeight = 0;
 		this._inputOnlyHeight = debouncedObservable(derived(this, reader => {
 			const height = view.inputOnlyHeight.read(reader);
-			return height ? height + sessionView.primaryChatViewTop.read(reader) : 0;
+			const inputOnly = view.inputOnly.read(reader);
+			if (inputOnly || !measuredInputOnlyHeight) {
+				measuredInputOnlyHeight = height ? height + sessionView.primaryChatViewTop.read(reader) : 0;
+			}
+			return measuredInputOnlyHeight;
 		}), 0);
 		store.add(toDisposable(() => this._inputOnlyHeight = constObservable(0)));
 		let arranged: ChatWindowLayout | undefined;
@@ -298,7 +309,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			const splitLayout = state.splitLayout.read(reader);
 			const inputOnly = view.inputOnly.read(reader);
 			const inputOnlyHeight = this._inputOnlyHeight.read(reader);
-			const collapsedHeight = inputOnlyHeight + this._chrome;
+			const collapsedHeight = inputOnlyHeight + this._chrome + this._insets;
 			const canCollapse = view.canShowInputOnly.read(reader);
 			// Below the editor, the group is sized to the input, so not before the input is measured.
 			if (part.count < 2 || (layout === ChatWindowLayout.EditorAboveChat && inputOnlyHeight === 0)) {
@@ -318,6 +329,12 @@ export class ChatWindowChatEditor extends EditorPane {
 				// Laid out to a size the user dragged to, which already decided what it shows.
 				return;
 			}
+			const decisionPending = () => {
+				if (this._decisionPending) {
+					this._decisionPending = false;
+					this._decide(this._pointerDown);
+				}
+			};
 			this._sizing = true;
 			try {
 				// Side by side, the chat leads and the editor follows it; otherwise the editor sits above the chat. The terminal
@@ -369,7 +386,8 @@ export class ChatWindowChatEditor extends EditorPane {
 					}
 				}
 				if (shown) {
-					this._setSizeConstraints(undefined, undefined);
+					this._constraintMode = undefined;
+					this._applyConstraints();
 					return;
 				}
 
@@ -380,10 +398,8 @@ export class ChatWindowChatEditor extends EditorPane {
 					view.setInputOnly(true);
 					return;
 				}
-				this._setSizeConstraints(
-					sideBySide ? undefined : canCollapse ? collapsedHeight - 1 : collapsedHeight + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT,
-					docked && canCollapse ? collapsedHeight : undefined,
-				);
+				this._constraintMode = { minimum: sideBySide ? undefined : canCollapse ? 'input' : 'conversation', maximumInput: docked && canCollapse };
+				this._applyConstraints();
 				const { width, height } = part.getSize(this.group);
 				if (sideBySide) {
 					if (previous !== layout) {
@@ -403,6 +419,7 @@ export class ChatWindowChatEditor extends EditorPane {
 				}
 			} finally {
 				this._sizing = false;
+				decisionPending();
 			}
 		}));
 		return store;
@@ -412,6 +429,15 @@ export class ChatWindowChatEditor extends EditorPane {
 	private _sizeTerminalRow(part: IEditorPart, terminal: IEditorGroup): void {
 		const { width } = part.getSize(terminal);
 		part.setSize(terminal, { width, height: Math.max(CHAT_WINDOW_TERMINAL_MIN_HEIGHT, Math.round(part.contentDimension.height * CHAT_WINDOW_TERMINAL_HEIGHT_RATIO)) });
+	}
+
+	private _applyConstraints(): void {
+		const mode = this._constraintMode;
+		const input = this._inputOnlyHeight.get() + this._chrome;
+		this._setSizeConstraints(
+			mode?.minimum === undefined ? undefined : mode.minimum === 'input' ? input - 1 : input + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT,
+			mode?.maximumInput ? input : undefined,
+		);
 	}
 
 	private _setSizeConstraints(minimumHeight: number | undefined, maximumHeight: number | undefined): void {
@@ -429,7 +455,8 @@ export class ChatWindowChatEditor extends EditorPane {
 		this._arrangedSplitLayout = undefined;
 		this._conversationHeight = undefined;
 		this._partHeight = undefined;
-		this._setSizeConstraints(undefined, undefined);
+		this._constraintMode = undefined;
+		this._applyConstraints();
 		super.clearInput();
 	}
 
@@ -451,35 +478,72 @@ export class ChatWindowChatEditor extends EditorPane {
 		}
 		const part = this._editorGroupsService.getPart(this.group);
 		const groupHeight = part.getSize(this.group).height;
-		this._chrome = Math.max(0, groupHeight - dimension.height);
+		const insets = this._measureInsets();
+		const chrome = Math.max(0, groupHeight - insets - dimension.height);
+		const constraintsChanged = chrome !== this._chrome || insets !== this._insets;
+		this._chrome = chrome;
+		this._insets = insets;
+		if (constraintsChanged && this._constraintMode) {
+			this._applyConstraints();
+		}
 		// The window was resized, rather than the split dragged: what this editor shows stays, and showing only the input,
 		// it is sized back to the input once the editor area is laid out (see `_arrangeGroups`).
 		const partHeight = part.contentDimension.height;
 		const windowResized = this._partHeight !== undefined && partHeight !== this._partHeight;
 		this._partHeight = partHeight;
-		if (this._minimumHeight !== undefined && !this._sizing && !windowResized && !this._state?.docked) {
-			// Below the editor: at the bottom, where dragging it down stops, it shows only the input; taller, the conversation.
-			const collapsedHeight = this._inputOnlyHeight.get() + this._chrome;
-			const inputOnly = groupHeight <= collapsedHeight;
-			// Remembered once it settles, so that the sizes it passes through while dragged down to the input are not.
-			if (!inputOnly && groupHeight >= collapsedHeight + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT) {
-				this._settledConversationHeight = groupHeight;
-				this._rememberConversationHeight.schedule();
-			} else {
-				this._rememberConversationHeight.cancel();
-			}
+		if (this._sizing) {
+			this._decisionPending = true;
+		} else if (!windowResized) {
+			this._decide(this._pointerDown);
+		}
+	}
+
+	/** The height of the layout insets around this group, such as the gap between cards, which it adds to its sizes. */
+	private _measureInsets(): number {
+		const group = this._container?.closest<HTMLElement>('.editor-group-container');
+		if (!group) {
+			return 0;
+		}
+		const style = dom.getWindow(group).getComputedStyle(group);
+		return (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+	}
+
+	/**
+	 * Below the editor: at the bottom, where dragging it down stops, it shows only the input; taller, the conversation.
+	 * Dragging snaps between the two, and where the drag lets go, the group is sized to one of them.
+	 */
+	private _decide(dragging: boolean): void {
+		const view = this._view;
+		if (!view || this._minimumHeight === undefined || this._sizing || this._state?.docked) {
+			return;
+		}
+		const part = this._editorGroupsService.getPart(this.group);
+		const { width, height: groupHeight } = part.getSize(this.group);
+		const collapsedHeight = this._inputOnlyHeight.get() + this._chrome + this._insets;
+		const { inputOnly, settleHeight } = decideChatWindowInputOnly({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, dragging });
+		// Remembered once it settles, so that the sizes it passes through while dragged down to the input are not.
+		if (!inputOnly && groupHeight >= collapsedHeight + CHAT_WINDOW_CONVERSATION_MIN_HEIGHT) {
+			this._settledConversationHeight = groupHeight;
+			this._rememberConversationHeight.schedule();
+		} else {
+			this._rememberConversationHeight.cancel();
+		}
+		this._sizing = true;
+		try {
 			if (inputOnly !== view.inputOnly.get()) {
-				this._sizing = true;
-				try {
-					view.setInputOnly(inputOnly);
-				} finally {
-					this._sizing = false;
-				}
+				view.setInputOnly(inputOnly);
 			}
-			if (view.inputOnly.get() && groupHeight !== collapsedHeight) {
-				// Dragged to the very bottom: once the drag lets go, back up to where it shows the input.
-				this._fitToInput.schedule();
+			if (settleHeight !== undefined) {
+				part.setSize(this.group, { width, height: settleHeight });
 			}
+		} finally {
+			this._sizing = false;
+		}
+		if (dragging) {
+			this._decisionPending = false;
+		} else if (this._decisionPending) {
+			this._decisionPending = false;
+			this._settle.schedule();
 		}
 	}
 
