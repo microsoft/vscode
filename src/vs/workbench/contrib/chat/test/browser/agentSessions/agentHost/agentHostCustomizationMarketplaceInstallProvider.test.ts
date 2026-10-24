@@ -108,7 +108,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						items: [{
 							selectionId: 'selection', identifier: 'feed-resource', kind: 'plugin' as const, displayName: 'Canvas Plugin',
 							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
-							categories: ['build'], tags: ['canvas', 'canvas-only'], installCount: 42,
+							categories: ['build'], compatibilityTags: ['canvas', 'canvas-only'], installCount: 42,
 						}],
 					};
 				}

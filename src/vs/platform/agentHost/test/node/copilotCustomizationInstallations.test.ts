@@ -132,7 +132,7 @@ suite('CopilotCustomizationInstallations', () => {
 			}), /Reached SDK installation planning/);
 			await fixture.service.search({ query: '', feedId: 'feed_another', limit: 1 });
 			assert.deepStrictEqual({
-				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories, item.tags]),
+				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories, item.compatibilityTags]),
 				feedIds: requests.map(request => request.feedId),
 				bound: requests.every(request => request.policySessionId === fixture.policySessions[0]),
 				capabilities: requests[0].contract.requiredCapabilities,
@@ -141,10 +141,10 @@ suite('CopilotCustomizationInstallations', () => {
 				installability: result.items.map(item => [item.installable, !!item.unavailableMessage]),
 			}, {
 				items: [
-					['figma', 'Figma', candidate.iconUrl, ['build'], []],
+					['figma', 'Figma', candidate.iconUrl, ['build'], undefined],
 					['azure-devops', 'Azure DevOps Copilot Plugin', pluginCandidate.iconUrl, ['build'], ['canvas', 'canvas-only']],
-					['second', 'Second', candidate.iconUrl, ['build'], []],
-					['blocked', 'Blocked', candidate.iconUrl, ['build'], []],
+					['second', 'Second', candidate.iconUrl, ['build'], undefined],
+					['blocked', 'Blocked', candidate.iconUrl, ['build'], undefined],
 				],
 				feedIds: ['feed_editorial', 'feed_another'],
 				bound: true,
@@ -460,46 +460,6 @@ suite('CopilotCustomizationInstallations', () => {
 			secondIdentifier: candidateUrl,
 			selectionChanged: true,
 		});
-	});
-
-	test('preserves validated canvas compatibility tags in catalog search results', async () => {
-		const candidate: PluginCatalogCandidate = {
-			kind: 'plugin',
-			handle: 'canvas-plugin',
-			handleExpiresAt: new Date(Date.now() + 60_000).toISOString(),
-			installability: 'installable',
-			mediaType: 'application/vnd.github.copilot-plugin',
-			identity: 'canvas-plugin',
-			displayName: 'Canvas Plugin',
-			source: { repository: 'github/canvas-plugin', path: '.github/plugin/plugin.json' },
-			compatibilityTags: ['github-copilot', 'canvas', 'canvas-only'],
-			installCount: 42,
-			provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/vnd.github.copilot-plugin' },
-		};
-		const client = {
-			rpc: {
-				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
-					override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
-						kind: 'succeeded',
-						searchId: 'search',
-						candidates: [candidate],
-						truncated: false,
-						negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
-					});
-				}(),
-				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
-				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
-			},
-		};
-		const policySessions = new TestPolicySessions();
-		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
-
-		const result = await service.search({ query: 'plugins', limit: 10 });
-
-		assert.deepStrictEqual(result.kind === 'page' ? result.items.map(item => ({ tags: item.tags, installCount: item.installCount })) : [], [{
-			tags: ['canvas', 'canvas-only'],
-			installCount: 42,
-		}]);
 	});
 
 	test('answers queryless catalog browse without starting the SDK', async () => {
@@ -835,12 +795,16 @@ suite('CopilotCustomizationInstallations', () => {
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
 					},
 					{
+						handle: 'installable-plugin',
+						handleExpiresAt: expiresAt,
 						kind: 'plugin' as const,
 						mediaType: 'application/vnd.github.copilot-plugin' as const,
+						installability: 'installable' as const,
 						identity: 'plugin',
 						displayName: 'Pinned Plugin',
 						source: { repository: 'owner/repository', path: '.github/plugin/plugin.json' },
-						compatibilityTags: ['github-copilot' as const],
+						compatibilityTags: ['github-copilot' as const, 'canvas' as const, 'canvas-only' as const],
+						installCount: 42,
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/vnd.github.copilot-plugin' as const },
 					},
 				],
@@ -875,12 +839,20 @@ suite('CopilotCustomizationInstallations', () => {
 		const result = await service.search({ query: 'demo', limit: 10 });
 
 		assert.deepStrictEqual(result.kind === 'page' ? {
-			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, itemUrl: item.itemUrl, connectorIds: item.connectorIds, installable: item.installable })),
+			items: result.items.map(item => ({
+				kind: item.kind,
+				displayName: item.displayName,
+				itemUrl: item.itemUrl,
+				connectorIds: item.connectorIds,
+				...(item.kind === 'plugin' ? { compatibilityTags: item.compatibilityTags, installCount: item.installCount } : {}),
+				installable: item.installable,
+			})),
 			hasNextCursor: typeof result.nextCursor === 'string',
 		} : result, {
 			items: [
 				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', connectorIds: undefined, installable: true },
 				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', connectorIds: ['githubcopilotfigmamcp'], installable: true },
+				{ kind: 'plugin', displayName: 'Pinned Plugin', itemUrl: undefined, connectorIds: undefined, compatibilityTags: ['canvas', 'canvas-only'], installCount: 42, installable: true },
 			],
 			hasNextCursor: true,
 		});

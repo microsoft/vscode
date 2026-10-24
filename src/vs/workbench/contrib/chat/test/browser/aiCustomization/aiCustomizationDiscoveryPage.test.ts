@@ -1094,6 +1094,11 @@ suite('AICustomizationDiscoveryPage', () => {
 				resource('first-page-canvas', {
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 					compatibilityTags: ['canvas'],
+					installCount: 5,
+				}),
+				resource('missing-count', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
 				}),
 				resource('description-only-canvas', {
 					description: 'A canvas workflow without compatibility metadata',
@@ -1108,16 +1113,24 @@ suite('AICustomizationDiscoveryPage', () => {
 				resource('canvas-plugin', {
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 					compatibilityTags: ['canvas'],
+					installCount: 12,
 				}),
 				resource('canvas-only-plugin', {
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 					compatibilityTags: ['canvas-only'],
+					installCount: 5,
+				}),
+				resource('zero-count', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					compatibilityTags: ['canvas'],
+					installCount: 0,
 				}),
 			],
 		});
 		await timeout(0);
 		const content = fixture.page.getAccessibilityContent();
 		const lines = content.split('\n');
+		const positions = ['canvas-plugin', 'first-page-canvas', 'canvas-only-plugin', 'missing-count', 'zero-count'].map(name => content.indexOf(name));
 
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options),
@@ -1126,6 +1139,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			firstPageCanvas: lines.includes('first-page-canvas'),
 			descriptionOnly: lines.includes('description-only-canvas'),
 			categoryOnly: lines.includes('category-only-canvas'),
+			positions,
 			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
 		}, {
 			requests: [
@@ -1138,6 +1152,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			firstPageCanvas: true,
 			descriptionOnly: false,
 			categoryOnly: false,
+			positions: [...positions].sort((first, second) => first - second),
 			ariaLabel: 'Canvas extension search results',
 		});
 	});
@@ -1148,7 +1163,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
 			items: [
-				resource('diagram-canvas', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] }),
+				resource('diagram-semantic-first', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 1 }),
+				resource('diagram-popular-second', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 100 }),
 				resource('diagram-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
 			],
 		});
@@ -1157,57 +1173,13 @@ suite('AICustomizationDiscoveryPage', () => {
 
 		assert.deepStrictEqual({
 			request: fixture.requests[0].options,
-			canvas: content.includes('diagram-canvas'),
+			semanticOrder: content.indexOf('diagram-semantic-first') < content.indexOf('diagram-popular-second'),
 			ordinary: content.includes('diagram-plugin'),
 		}, {
 			request: { query: 'diagram', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, sourceIds: undefined, pageSize: 24, cursor: undefined },
-			canvas: true,
+			semanticOrder: true,
 			ordinary: false,
 		});
-	});
-
-	test('blank Canvas search sorts by install count with stable zero and tie handling', async () => {
-		const fixture = createPage();
-		fixture.page.setSearchQuery('@type:canvas');
-		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({ items: [] });
-		await waitForRequestCount(fixture.requests, 2);
-		await fixture.requests[1].result.complete({
-			items: [
-				resource('first-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 5 }),
-				resource('missing-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'] }),
-				resource('highest-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 12 }),
-				resource('second-tie', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 5 }),
-				resource('zero-count', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 0 }),
-			],
-		});
-		await timeout(0);
-		const content = fixture.page.getAccessibilityContent();
-		const positions = ['highest-count', 'first-tie', 'second-tie', 'missing-count', 'zero-count'].map(name => content.indexOf(name));
-
-		assert.deepStrictEqual({
-			ordered: [...positions].sort((first, second) => first - second),
-			positions,
-		}, {
-			ordered: positions,
-			positions,
-		});
-	});
-
-	test('Canvas text search preserves semantic order instead of sorting by install count', async () => {
-		const fixture = createPage();
-		fixture.page.setSearchQuery('diagram @type:canvas');
-		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({
-			items: [
-				resource('diagram-semantic-first', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 1 }),
-				resource('diagram-popular-second', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, compatibilityTags: ['canvas'], installCount: 100 }),
-			],
-		});
-		await timeout(0);
-		const content = fixture.page.getAccessibilityContent();
-
-		assert.ok(content.indexOf('diagram-semantic-first') < content.indexOf('diagram-popular-second'));
 	});
 
 	test('combining Canvas with another type preserves the other type query and results', async () => {
@@ -1343,12 +1315,18 @@ suite('AICustomizationDiscoveryPage', () => {
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			compatibilityTags: ['canvas', 'canvas-only'],
 		});
-		const snapshot = createCustomizationMarketplaceInstallationSnapshot([{
-			resource: plugin,
-			state: { kind: 'installed', target: { kind: 'plugin', name: 'shared-name' } },
-		}]);
+		const localPlugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/local/shared-name');
+			override readonly label = 'shared-name';
+		}();
+		const fixture = createPage(undefined, [AICustomizationManagementSection.Plugins], [localPlugin]);
+		fixture.setInstallState(plugin, { kind: 'installed', target: { kind: 'plugin', name: 'shared-name' } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@installed @type:plugin');
+		fixture.page.setVisible(true);
+		await timeout(0);
 
-		assert.strictEqual(snapshot.findByTarget({ kind: 'plugin', uri: URI.file('/local/shared-name') }), undefined);
+		assert.strictEqual(fixture.page.getAccessibilityContent().includes('shared-name'), true);
 	});
 
 	test('plugin-only search finds a match after the first 24 filtered items', async () => {

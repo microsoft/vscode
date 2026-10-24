@@ -1639,7 +1639,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			&& (!this.selectedSourceId || this.selectedSourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
 	}
 
-	private async queryCanvasFallback(token: CancellationToken, sequence: number): Promise<{ readonly page: ICustomizationMarketplacePage; readonly limitReached: boolean } | undefined> {
+	private async queryCanvasFallback(token: CancellationToken, sequence: number): Promise<ICustomizationMarketplacePage | undefined> {
 		const items: ICustomizationMarketplaceResource[] = [];
 		const sourceErrors: ICustomizationMarketplaceSourceError[] = [];
 		let cursor: ICustomizationMarketplaceCursor | undefined;
@@ -1659,10 +1659,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			sourceErrors.push(...page.sourceErrors ?? []);
 			cursor = page.nextCursor;
 			if (!cursor) {
-				return { page: { items, sourceErrors }, limitReached: false };
+				return { items, sourceErrors };
 			}
 		}
-		return { page: { items, sourceErrors }, limitReached: true };
+		this.filteredBackfillLimitReached = true;
+		return { items, sourceErrors };
 	}
 
 	private getMarketplaceSourceLabel(sourceId: string): string {
@@ -1918,15 +1919,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					if (!fallback) {
 						return;
 					}
-					this.updateCatalogPage(fallback.page, true);
-					this.filteredBackfillLimitReached ||= fallback.limitReached;
-					if (this.catalogPage) {
-						this.catalogPage = {
-							...this.catalogPage,
-							nextCursor: primaryPage?.nextCursor,
-							sourceErrors: [...primaryPage?.sourceErrors ?? [], ...this.catalogPage.sourceErrors ?? []],
-						};
-					}
+					this.updateCatalogPage({
+						...fallback,
+						nextCursor: primaryPage?.nextCursor,
+						sourceErrors: [...primaryPage?.sourceErrors ?? [], ...fallback.sourceErrors ?? []],
+					}, true);
 				}
 			} catch (error) {
 				if (sequence !== this.requestSequence || isCancellationError(error)) {
