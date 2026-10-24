@@ -185,7 +185,6 @@ const enum StringOffsetValidationType {
 
 export class TextModel extends Disposable implements model.ITextModel, IDecorationsTreesHost {
 
-	static _MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB,  // used in tests
 	private static readonly LARGE_FILE_SIZE_THRESHOLD = 20 * 1024 * 1024; // 20 MB;
 	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
 	private static readonly LARGE_FILE_HEAP_OPERATION_THRESHOLD = 256 * 1024 * 1024; // 256M characters, usually ~> 512MB memory usage
@@ -199,6 +198,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
+		largeFileSizeLimit: EDITOR_MODEL_DEFAULTS.largeFileSizeLimit,
 		bracketPairColorizationOptions: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions,
 	};
 
@@ -365,7 +365,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		);
 		this._fontTokenDecorationsProvider = this._register(new TokenizationFontDecorationProvider(this, this._tokenizationTextModelPart));
 
-		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
+		const limit = creationOptions.largeFileSizeLimit * 1024 * 1024;
+		this._isTooLargeForSyncing = (limit > 0 && bufferTextLength > limit) || this._isTooLargeForHeapOperation;
 
 		this._versionId = 1;
 		this._alternativeVersionId = 1;
