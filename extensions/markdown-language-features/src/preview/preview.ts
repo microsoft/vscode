@@ -493,7 +493,11 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}
 
-		return this.#opener.openDocumentLink(href, this.resource);
+		const openInBackground = config.get<boolean>('preview.openLinksInBackground', false);
+		return this.#opener.openDocumentLink(href, this.resource, {
+			preserveFocus: openInBackground,
+			background: openInBackground,
+		});
 	}
 
 	//#region WebviewResourceProvider
