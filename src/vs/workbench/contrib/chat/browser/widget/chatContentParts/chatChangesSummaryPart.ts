@@ -10,7 +10,7 @@ import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/brow
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReaderWithStore } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -23,7 +23,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
+import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -103,109 +103,25 @@ export function openChatFileChangeDiff(editorService: IEditorService, diff: IEdi
  * Renders the collapsible list of changed files (one row per {@link IEditSessionEntryDiff},
  * showing the file's resource label and its +added/-removed counts) into `container`,
  * keeping it in sync with `diffs`. Rows open the file or its diff on activation.
- * Shared by the checkpoint file changes summary and the agent turn changes summary
- * so both render an identical list.
+ * Use a {@link ChangesSummaryFileListPool} instead to render many lists that share
+ * their resources.
  */
 export function renderChangesSummaryFileList(
 	container: HTMLElement,
 	diffs: IObservable<readonly IEditSessionEntryDiff[]>,
 	instantiationService: IInstantiationService,
-	editorService: IEditorService,
-	configurationService: IConfigurationService,
 	options?: IChangesSummaryFileListOptions,
 ): IChangesSummaryFileList {
-	const store = new DisposableStore();
-	const columnWidths: IChangesSummaryColumnWidths = { insertions: 2, deletions: 2 };
-	const { list, renderer } = store.add(instantiationService.createInstance(CollapsibleChangesSummaryListPool, options, columnWidths)).get();
-	const listNode = list.getHTMLElement();
-	const listContainer = listNode.parentElement!;
-	container.appendChild(listContainer);
-
-	store.add(list.onDidOpen((item) => {
-		const diff = item.element;
-		if (!diff) {
-			return;
-		}
-
-		if (options?.openFile) {
-			editorService.openEditor({
-				resource: diff.isDeleted ? diff.originalURI : diff.modifiedURI,
-				options: item.editorOptions,
-			}, item.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-			return;
-		}
-
-		const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
-		const openInDiffEditorByDefault = configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
-		const openInDiffEditor = diff.isDeleted || (altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault);
-
-		if (!openInDiffEditor) {
-			const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
-			if (fileURI) {
-				editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });
-				return;
-			}
-			// The file's origin cannot be recovered (e.g. legacy snapshot URIs):
-			// fall back to the diff editor.
-		}
-
-		openChatFileChangeDiff(editorService, diff, { preserveFocus: true });
-	}));
-
-	store.add(list.onContextMenu(e => {
-		dom.EventHelper.stop(e.browserEvent, true);
-	}));
-
-	store.add(autorun((r) => {
-		const currentDiffs = diffs.read(r);
-		// Laying out and rebuilding the rows removes whatever had keyboard focus in them, so focus returns to the same file afterwards.
-		const hadFocus = !!options?.getRowActions && dom.isAncestorOfActiveElement(listNode);
-		const focusedAction = hadFocus ? renderer.getFocusedRowAction() : undefined;
-		const focusedIndex = focusedAction ? list.indexOf(focusedAction.diff) : list.getFocus().at(0);
-		let insertionsColumnCharacters = 2;
-		let deletionsColumnCharacters = 2;
-		// Widths are shared by the list so each row uses the same count columns.
-		for (const diff of currentDiffs) {
-			if (!diff.identical && !diff.isBusy) {
-				insertionsColumnCharacters = Math.max(insertionsColumnCharacters, String(diff.added).length + 1);
-				deletionsColumnCharacters = Math.max(deletionsColumnCharacters, String(diff.removed).length + 1);
-			}
-		}
-		columnWidths.insertions = insertionsColumnCharacters;
-		columnWidths.deletions = deletionsColumnCharacters;
-
-		const itemsShown = Math.min(currentDiffs.length, CHANGES_SUMMARY_MAX_ITEMS_SHOWN);
-		listContainer.classList.toggle('overflowing', currentDiffs.length > itemsShown);
-		const height = itemsShown * CHANGES_SUMMARY_ELEMENT_HEIGHT;
-		list.layout(height);
-		listNode.style.height = height + 'px';
-
-		list.splice(0, list.length, currentDiffs);
-		if (hadFocus) {
-			const sameFile = focusedAction && currentDiffs.find(diff => isEqual(diff.modifiedURI, focusedAction.diff.modifiedURI));
-			if (sameFile) {
-				// Its actions only show in the focused row, which an insertion may have moved out of view.
-				const index = list.indexOf(sameFile);
-				list.setFocus([index]);
-				list.reveal(index);
-			} else if (focusedIndex !== undefined && focusedIndex >= 0 && list.getFocus().length === 0 && list.length > 0) {
-				// When the focused file leaves the list, keyboard focus moves to the file taking its place.
-				const index = Math.min(focusedIndex, list.length - 1);
-				list.setFocus([index]);
-				list.reveal(index);
-			}
-			if (!dom.isAncestorOfActiveElement(listNode) && !(sameFile && focusedAction && renderer.focusRowAction(sameFile, focusedAction.index))) {
-				list.domFocus();
-			}
-		}
-	}));
-
+	const listPool = instantiationService.createInstance(ChangesSummaryFileListPool, options);
+	const fileList = listPool.render(container, diffs);
 	return {
-		getSelectedElements: () => list.getSelectedElements(),
-		dispose: () => store.dispose(),
+		getSelectedElements: () => fileList.getSelectedElements(),
+		dispose: () => {
+			fileList.dispose();
+			listPool.dispose();
+		},
 	};
 }
-
 
 export class ChatCheckpointFileChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -219,10 +135,10 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 	constructor(
 		private readonly content: IChatFileChangesSummaryPart,
 		context: IChatContentPartRenderContext,
+		listPool: ChangesSummaryFileListPool,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatResponseFileChangesService private readonly chatResponseFileChangesService: IChatResponseFileChangesService,
 	) {
@@ -247,7 +163,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		}));
 
 		this._register(this.renderHeader(headerDomNode));
-		this._register(this.renderFilesList(this.detailsElement));
+		this._register(listPool.renderOnFirstExpand(this.detailsElement, this.fileChangesDiffsObservable));
 		this._register(dom.addDisposableListener(headerDomNode, 'click', () => {
 			this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		}));
@@ -351,10 +267,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		}));
 	}
 
-	private renderFilesList(container: HTMLElement): IDisposable {
-		return renderChangesSummaryFileList(container, this.fileChangesDiffsObservable, this.instantiationService, this.editorService, this.configurationService);
-	}
-
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		return other.kind === 'changesSummary' && other.requestId === this.content.requestId;
 	}
@@ -365,8 +277,9 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 }
 
 interface IChatFileChangesSummaryListWrapper extends IDisposable {
-	list: WorkbenchList<IEditSessionEntryDiff>;
-	renderer: CollapsibleChangesSummaryListRenderer;
+	readonly list: WorkbenchList<IEditSessionEntryDiff>;
+	readonly renderer: CollapsibleChangesSummaryListRenderer;
+	readonly columnWidths: IChangesSummaryColumnWidths;
 }
 
 interface IChangesSummaryColumnWidths {
@@ -374,26 +287,163 @@ interface IChangesSummaryColumnWidths {
 	deletions: number;
 }
 
-class CollapsibleChangesSummaryListPool extends Disposable {
+/**
+ * Provides the lists of changed files rendered by changes summaries. The lists
+ * share one set of resource labels, so rendering more lists does not add
+ * listeners to global services, and a list released by one summary is reused
+ * by the next.
+ */
+export class ChangesSummaryFileListPool extends Disposable {
 
-	private _resourcePool: ResourcePool<IChatFileChangesSummaryListWrapper>;
+	private readonly _pool: ResourcePool<IChatFileChangesSummaryListWrapper>;
+	private _resourceLabels: ResourceLabels | undefined;
 
 	constructor(
 		private readonly options: IChangesSummaryFileListOptions | undefined,
-		private readonly columnWidths: IChangesSummaryColumnWidths,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		this._resourcePool = this._register(new ResourcePool(() => this.listFactory()));
+		this._pool = this._register(new ResourcePool(() => this.listFactory(), { maxIdleSize: 2 }));
+	}
+
+	/**
+	 * Renders a list of changed files into `details` the first time it is
+	 * expanded, so collapsed summaries create no list.
+	 */
+	renderOnFirstExpand(details: HTMLDetailsElement, diffs: IObservable<readonly IEditSessionEntryDiff[]>): IDisposable {
+		const fileList = new MutableDisposable<IChangesSummaryFileList>();
+		const toggleListener = dom.addDisposableListener(details, 'toggle', () => {
+			if (details.open && !fileList.value) {
+				fileList.value = this.render(details, diffs);
+			}
+		});
+		return combinedDisposable(toggleListener, fileList);
+	}
+
+	/**
+	 * Renders a list of changed files into `container`, keeping it in sync with
+	 * `diffs`. Disposing the result returns the list to the pool.
+	 */
+	render(container: HTMLElement, diffs: IObservable<readonly IEditSessionEntryDiff[]>): IChangesSummaryFileList {
+		const wrapper = this._pool.get();
+		const { list, renderer, columnWidths } = wrapper;
+		const store = new DisposableStore();
+		const listNode = list.getHTMLElement();
+		const listContainer = listNode.parentElement!;
+		container.appendChild(listContainer);
+
+		store.add(list.onDidOpen((item) => {
+			const diff = item.element;
+			if (!diff) {
+				return;
+			}
+
+			if (this.options?.openFile) {
+				this.editorService.openEditor({
+					resource: diff.isDeleted ? diff.originalURI : diff.modifiedURI,
+					options: item.editorOptions,
+				}, item.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				return;
+			}
+
+			const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
+			const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+			const openInDiffEditor = diff.isDeleted || (altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault);
+
+			if (!openInDiffEditor) {
+				const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
+				if (fileURI) {
+					this.editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });
+					return;
+				}
+				// The file's origin cannot be recovered (e.g. legacy snapshot URIs):
+				// fall back to the diff editor.
+			}
+
+			openChatFileChangeDiff(this.editorService, diff, { preserveFocus: true });
+		}));
+
+		store.add(list.onContextMenu(e => {
+			dom.EventHelper.stop(e.browserEvent, true);
+		}));
+
+		store.add(autorun((r) => {
+			const currentDiffs = diffs.read(r);
+			// Laying out and rebuilding the rows removes whatever had keyboard focus in them, so focus returns to the same file afterwards.
+			const hadFocus = !!this.options?.getRowActions && dom.isAncestorOfActiveElement(listNode);
+			const focusedAction = hadFocus ? renderer.getFocusedRowAction() : undefined;
+			const focusedIndex = focusedAction ? list.indexOf(focusedAction.diff) : list.getFocus().at(0);
+			let insertionsColumnCharacters = 2;
+			let deletionsColumnCharacters = 2;
+			// Widths are shared by the list so each row uses the same count columns.
+			for (const diff of currentDiffs) {
+				if (!diff.identical && !diff.isBusy) {
+					insertionsColumnCharacters = Math.max(insertionsColumnCharacters, String(diff.added).length + 1);
+					deletionsColumnCharacters = Math.max(deletionsColumnCharacters, String(diff.removed).length + 1);
+				}
+			}
+			columnWidths.insertions = insertionsColumnCharacters;
+			columnWidths.deletions = deletionsColumnCharacters;
+
+			const itemsShown = Math.min(currentDiffs.length, CHANGES_SUMMARY_MAX_ITEMS_SHOWN);
+			listContainer.classList.toggle('overflowing', currentDiffs.length > itemsShown);
+			const height = itemsShown * CHANGES_SUMMARY_ELEMENT_HEIGHT;
+			list.layout(height);
+			listNode.style.height = height + 'px';
+
+			list.splice(0, list.length, currentDiffs);
+			if (hadFocus) {
+				const sameFile = focusedAction && currentDiffs.find(diff => isEqual(diff.modifiedURI, focusedAction.diff.modifiedURI));
+				if (sameFile) {
+					// Its actions only show in the focused row, which an insertion may have moved out of view.
+					const index = list.indexOf(sameFile);
+					list.setFocus([index]);
+					list.reveal(index);
+				} else if (focusedIndex !== undefined && focusedIndex >= 0 && list.getFocus().length === 0 && list.length > 0) {
+					// When the focused file leaves the list, keyboard focus moves to the file taking its place.
+					const index = Math.min(focusedIndex, list.length - 1);
+					list.setFocus([index]);
+					list.reveal(index);
+				}
+				if (!dom.isAncestorOfActiveElement(listNode) && !(sameFile && focusedAction && renderer.focusRowAction(sameFile, focusedAction.index))) {
+					list.domFocus();
+				}
+			}
+		}));
+
+		const release = toDisposable(() => {
+			store.dispose();
+			if (this._store.isDisposed) {
+				return;
+			}
+			listContainer.remove();
+			list.splice(0, list.length);
+			this._pool.release(wrapper);
+		});
+
+		return {
+			getSelectedElements: () => list.getSelectedElements(),
+			dispose: () => release.dispose(),
+		};
+	}
+
+	/**
+	 * Disposes the lists that are not in use.
+	 */
+	clear(): void {
+		this._pool.clear();
 	}
 
 	private listFactory(): IChatFileChangesSummaryListWrapper {
+		this._resourceLabels ??= this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 		const container = $('.chat-summary-list');
 		const store = new DisposableStore();
 		store.add(createFileIconThemableTreeContainerScope(container, this.themeService));
-		const resourceLabels = store.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: () => Disposable.None }));
-		const renderer = new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options, this.columnWidths);
+		const columnWidths: IChangesSummaryColumnWidths = { insertions: 2, deletions: 2 };
+		const renderer = new CollapsibleChangesSummaryListRenderer(this._resourceLabels, this.options, columnWidths);
 		const list = store.add(this.instantiationService.createInstance(
 			WorkbenchList<IEditSessionEntryDiff>,
 			'ChatListRenderer',
@@ -418,16 +468,11 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 			}
 		));
 		return {
-			list: list,
+			list,
 			renderer,
-			dispose: () => {
-				store.dispose();
-			}
+			columnWidths,
+			dispose: () => store.dispose(),
 		};
-	}
-
-	get(): IChatFileChangesSummaryListWrapper {
-		return this._resourcePool.get();
 	}
 }
 

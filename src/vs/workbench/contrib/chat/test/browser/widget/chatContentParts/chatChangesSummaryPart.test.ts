@@ -12,13 +12,15 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { isResourceDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
-import { ChatCheckpointFileChangesSummaryContentPart, renderChangesSummaryFileList } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
+import { ChangesSummaryFileListPool, ChatCheckpointFileChangesSummaryContentPart, renderChangesSummaryFileList } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { emptySessionEntryDiff, IEditSessionEntryDiff } from '../../../../common/editing/chatEditingService.js';
 import { IChatChangesSummaryPart } from '../../../../common/model/chatViewModel.js';
 
@@ -43,6 +45,7 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 			ChatCheckpointFileChangesSummaryContentPart,
 			content,
 			{} as IChatContentPartRenderContext,
+			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
 		));
 
 		const readState = () => ({
@@ -95,6 +98,7 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 				sessionResource: URI.parse('chat-session://test/session'),
 			},
 			{} as IChatContentPartRenderContext,
+			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
 		));
 		let toggleCount = 0;
 		const listener = () => toggleCount++;
@@ -129,11 +133,7 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 			{ ...emptySessionEntryDiff(URI.file('/file.md'), URI.file('/file.md')), added: 5, removed: 2 },
 			{ ...emptySessionEntryDiff(URI.file('/other.md'), URI.file('/other.md')), added: 123, removed: 45 },
 		]);
-		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
-			accessor.get(IEditorService),
-			accessor.get(IConfigurationService),
-		] as const);
-		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, {
 			getRowActions: () => [toAction({ id: 'preview', label: 'Preview', run: () => undefined })],
 		}));
 
@@ -165,11 +165,7 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 			{ ...emptySessionEntryDiff(URI.file('/file.md'), URI.file('/file.md')), added: 5, removed: 2 },
 		]);
 		const undoOffered = observableValue('undoOffered', false);
-		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
-			accessor.get(IEditorService),
-			accessor.get(IConfigurationService),
-		] as const);
-		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, {
 			rowActionIcons: true,
 			getRowActions: (_diff, reader) => [
 				toAction({ id: 'keep', label: 'Keep', run: () => undefined }),
@@ -203,11 +199,7 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', initialDiffs);
-		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
-			accessor.get(IEditorService),
-			accessor.get(IConfigurationService),
-		] as const);
-		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, {
 			rowActionIcons: true,
 			getRowActions: () => [
 				toAction({ id: 'keep', label: 'Keep', run: () => undefined }),
@@ -275,11 +267,9 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 				return undefined;
 			}
 		}();
-		const configurationService = new class extends mock<IConfigurationService>() {
-			override getValue<T>(): T {
-				return true as T;
-			}
-		}();
+		instantiationService.set(IEditorService, editorService);
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configurationService.setUserConfiguration(ChatConfiguration.OpenChangedFileInDiffEditor, true);
 		const container = document.createElement('div');
 		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [{
 			...emptySessionEntryDiff(URI.file('/edited-before.ts'), URI.file('/edited.ts')),
@@ -292,7 +282,7 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 			...emptySessionEntryDiff(URI.file('/deleted-before.ts'), URI.file('/deleted.ts')),
 			isDeleted: true,
 		}]);
-		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService));
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService));
 
 		for (const row of container.querySelectorAll<HTMLElement>('.monaco-list-row')) {
 			row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));

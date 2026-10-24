@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
+import { ChangesSummaryFileListPool } from '../../../../contrib/chat/browser/widget/chatContentParts/chatChangesSummaryPart.js';
 import { ChatTurnPillsContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { IChatTurnPillsPart } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -67,10 +68,13 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 	};
 	const partContext = upcastPartial<IChatContentPartRenderContext>({ container });
 
-	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, partContext));
+	const listPool = disposableStore.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined));
+	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, partContext, listPool));
 
 	if (options.expanded) {
-		part.domNode.querySelector<HTMLDetailsElement>('.checkpoint-file-changes-disclosure')!.open = true;
+		const disclosure = part.domNode.querySelector<HTMLDetailsElement>('.checkpoint-file-changes-disclosure')!;
+		disclosure.open = true;
+		disclosure.dispatchEvent(new Event('toggle'));
 	}
 
 	// The turn changes summary reuses the checkpoint summary styling, which is
