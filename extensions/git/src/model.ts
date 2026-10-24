@@ -223,11 +223,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	@memoize
 	get isInitialized(): Promise<void> {
-		if (this._state === 'initialized') {
+		if (this._state === 'initialized' || this._state === 'failed') {
 			return Promise.resolve();
 		}
 
-		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized') as Event<unknown>) as Promise<void>;
+		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized' || s === 'failed') as Event<unknown>) as Promise<void>;
 	}
 
 	private remoteSourcePublishers = new Set<RemoteSourcePublisher>();
@@ -307,7 +307,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
 
 		this.setState('uninitialized');
-		this.doInitialScan().finally(() => this.setState('initialized'));
+		this.doInitialScan().then(
+			() => this.setState('initialized'),
+			err => {
+				this.logger.error(`[Model][doInitialScan] Initial repository scan failed: ${err}`);
+				this.setState('failed');
+			}
+		);
 		this._repositoryCache = new RepositoryCache(globalState, logger);
 	}
 
@@ -327,10 +333,30 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.scanWorkspaceFolders()
 		]);
 
-		if (config.get<boolean>('showProgress', true)) {
-			await window.withProgress({ location: ProgressLocation.SourceControl }, initialScanFn);
-		} else {
-			await initialScanFn();
+		// Guard against a hung scan leaving the SCM view in a perpetual
+		// "scanning" state. On timeout the constructor transitions to 'failed'.
+		const initialScanTimeoutMs = 30000;
+		let scanTimeout: ReturnType<typeof setTimeout> | undefined;
+		const initialScanWithTimeout = new Promise<void>((_, reject) => {
+			scanTimeout = setTimeout(() => reject(new Error(`Initial repository scan timed out after ${initialScanTimeoutMs}ms`)), initialScanTimeoutMs);
+		});
+
+		try {
+			if (config.get<boolean>('showProgress', true)) {
+				await Promise.race([
+					window.withProgress({ location: ProgressLocation.SourceControl }, initialScanFn),
+					initialScanWithTimeout
+				]);
+			} else {
+				await Promise.race([
+					initialScanFn(),
+					initialScanWithTimeout
+				]);
+			}
+		} finally {
+			if (scanTimeout !== undefined) {
+				clearTimeout(scanTimeout);
+			}
 		}
 
 		if (this.parentRepositories.length !== 0 &&
@@ -599,6 +625,21 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
+
+		// Fast-path for deleted Agent worktrees / ghost paths. Without this,
+		// every stale path enters the @sequentialize queue and spawns an
+		// expensive `git rev-parse` that only fails after a timeout.
+		try {
+			const stat = await fs.promises.stat(repoPath);
+			if (!stat.isDirectory()) {
+				this.logger.trace(`[Model][openRepository] Skipped non-directory path: ${repoPath}`);
+				return;
+			}
+		} catch {
+			this.logger.trace(`[Model][openRepository] Skipped non-existent path: ${repoPath}`);
+			return;
+		}
+
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
 			this.logger.trace(`[Model][openRepository] Repository for path ${repoPath} already exists: ${existingRepository.root}`);
