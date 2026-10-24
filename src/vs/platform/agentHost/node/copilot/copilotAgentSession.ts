@@ -2534,8 +2534,7 @@ export class CopilotAgentSession extends Disposable {
 		// otherwise an abort during the steering turn would treat it as a
 		// not-yet-started queued turn and leave it open.
 		if (continuesFusionWorkflow) {
-			// Phase chats reopen under the steering turn on their next event.
-			this._completeFusionPhaseChats();
+			// Phase chats stay open: like subagents, they outlive the root turn, and closing one would drop its running tools' results.
 			this._startTurn(newTurnId, steering.sender?.clientId, steering.sender?.clientContext);
 			this._transferFusionWorkflow(previousTurnId, newTurnId);
 		} else {
@@ -3339,11 +3338,17 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Re-homes running provisional Fusion tool calls into the steering turn. Ending
 	 * the preempted turn cancelled their rows, and their completion is only shown
-	 * in the turn that owns them.
+	 * in the turn that owns them. Phase-chat tools keep their open chat. Client
+	 * tools are not replayed: a new running row would ask the client to execute
+	 * them again.
 	 */
 	private _transferProvisionalFusionToolCalls(fromTurnId: string, toTurnId: string): void {
 		for (const [toolCallId, toolCall] of this._activeToolCalls) {
-			if (toolCall.turnId !== fromTurnId || toolCall.parentToolCallId || !this._surfacedProvisionalFusionToolCallIds.has(toolCallId) || this._pendingPermissions.has(toolCallId)) {
+			if (toolCall.turnId !== fromTurnId
+				|| toolCall.parentToolCallId
+				|| toolCall.contributor?.kind === ToolCallContributorKind.Client
+				|| !this._surfacedProvisionalFusionToolCallIds.has(toolCallId)
+				|| this._pendingPermissions.has(toolCallId)) {
 				continue;
 			}
 			toolCall.turnId = toTurnId;
@@ -3368,6 +3373,15 @@ export class CopilotAgentSession extends Disposable {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toolCall.meta && toToolCallMeta(toolCall.meta),
 			});
+			// A running shell publishes its terminal only once, when it is created.
+			if (toolCall.content.length) {
+				this._emitAction({
+					type: ActionType.ChatToolCallContentChanged,
+					turnId: toTurnId,
+					toolCallId,
+					content: toolCall.content,
+				});
+			}
 		}
 	}
 
