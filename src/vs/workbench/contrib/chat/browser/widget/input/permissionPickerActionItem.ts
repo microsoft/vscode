@@ -19,6 +19,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { getOrganizationDefaultApprovalLevel } from '../../../common/agentHostConfigPolicy.js';
 import { IChatSessionProviderOptionItem, SessionType } from '../../../common/chatSessionsService.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -237,6 +238,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					onChange: (checked: boolean) => { void setSandboxEnabled(checked); },
 				} : undefined;
 				const levels = getOfferedPermissionLevels(delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS, delegate.unavailableLevels?.get());
+				// Only pickers seeded from `chat.defaultConfiguration` start from the organization's default.
+				const organizationDefault = delegate.defaultSettingKey === ChatConfiguration.DefaultConfiguration ? getOrganizationDefaultApprovalLevel(configurationService) : undefined;
 				const actions: IActionWidgetDropdownAction[] = levels.map(level => {
 					const meta = getPermissionLevelMeta(level);
 					const unavailable = getUnavailablePresentation(level);
@@ -255,7 +258,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: meta.id,
 						label: meta.label,
-						...getPermissionLevelBadge(level, !!unavailable),
+						...getPermissionLevelBadge(level, !!unavailable, organizationDefault),
 						icon: meta.icon,
 						checked: currentLevel === level,
 						enabled: !unavailable,

@@ -367,8 +367,9 @@ jobs:
 
   # On Windows, Agent Host E2E is the slowest part of the Electron job, so it runs in parallel
   # with the integration tests on its own machine; reports as part of "Windows / Electron".
+  # A skipped caller shows only its own name, so the name says what it runs.
   windows-agent-host-e2e-tests:
-    name: Windows (run)
+    name: Windows (agent host)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
