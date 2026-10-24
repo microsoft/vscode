@@ -1930,6 +1930,48 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	for (const protocolVersion of [undefined, '0.8.0']) {
+		test(`marking several sessions read publishes one session change (${protocolVersion ?? 'current'} protocol)`, async () => {
+			if (protocolVersion) {
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion }, undefined);
+			}
+			const ids = ['bulk-read-1', 'bulk-read-2', 'bulk-read-3'];
+			for (const id of ids) {
+				agentHost.addSession(createSession(id, { status: ProtocolSessionStatus.Idle }));
+			}
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const sessions = ids.map(id => provider.getSessions().find(session => AgentSession.id(session.resource) === id)!);
+			const before = sessions.map(session => session.isRead.get());
+			const changes: ISessionChangeEvent[] = [];
+			disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+			await provider.setSessionsReadState(sessions.map(session => session.sessionId), true);
+			const afterBatch = { events: changes.length, read: sessions.map(session => session.isRead.get()) };
+			await provider.setSessionReadState(sessions[0].sessionId, false);
+
+			assert.deepStrictEqual({
+				before,
+				afterBatch,
+				events: changes.map(change => change.changed.map(session => AgentSession.id(session.resource)).sort()),
+				read: sessions.map(session => session.isRead.get()),
+				dispatched: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.SessionIsReadChanged)
+					.map(dispatch => ({ channel: dispatch.channel, isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined })),
+			}, {
+				before: [false, false, false],
+				afterBatch: { events: 1, read: [true, true, true] },
+				events: [ids, ['bulk-read-1']],
+				read: [false, true, true],
+				dispatched: [
+					...ids.map(id => ({ channel: AgentSession.uri('copilotcli', id).toString(), isRead: true })),
+					{ channel: AgentSession.uri('copilotcli', 'bulk-read-1').toString(), isRead: false },
+				],
+			});
+		});
+	}
+
 	test('session removed notification clears cache and metadata', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
