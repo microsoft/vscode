@@ -58,6 +58,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -79,12 +82,12 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -132,6 +135,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Check Electron cache
         id: cache-electron
         uses: ./.github/actions/setup-electron
@@ -163,12 +169,12 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
@@ -181,12 +187,12 @@ jobs:
           source ./build/azure-pipelines/linux/setup-env.sh
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
@@ -229,6 +235,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Check Electron cache
         id: cache-electron
         uses: ./.github/actions/setup-electron
@@ -253,12 +262,12 @@ jobs:
           python3 -m pip install --break-system-packages setuptools
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
@@ -342,6 +351,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Check Electron cache
         id: cache-electron
         uses: ./.github/actions/setup-electron
@@ -365,21 +377,20 @@ jobs:
           $ErrorActionPreference = "Stop"
           for ($i = 1; $i -le 5; $i++) {
             try {
-              exec { npm ci }
+              exec { pnpm install --frozen-lockfile }
               break
             }
             catch {
               if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
+                Write-Error "pnpm install failed after 5 attempts"
                 throw
               }
-              Write-Host "npm ci failed attempt $i, retrying..."
+              Write-Host "pnpm install failed attempt $i, retrying..."
               Start-Sleep -Seconds 2
             }
           }
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
-          npm_config_foreground_scripts: "true"
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -423,6 +434,9 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -431,14 +445,16 @@ jobs:
           key-args: "$(node -p process.platform) $(node -p process.arch)"
           lookup-only: 'true'
 
+      # Only the dependencies of the root project, without the root install scripts that install
+      # every other install root. extensions/copilot is a separate install root.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -458,6 +474,9 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
@@ -466,14 +485,16 @@ jobs:
           key-args: "$(node -p process.platform) $(node -p process.arch)"
           lookup-only: 'true'
 
+      # Only the dependencies of the root project, without the root install scripts that install
+      # every other install root. extensions/copilot is a separate install root.
       - name: Install root dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
 
       - name: Install copilot dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Save node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
