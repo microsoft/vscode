@@ -205,6 +205,8 @@ export const CopilotCliSdkAttr = {
 export const GitHubCopilotAttr = {
 	/** Agent type classifier: `builtin` | `plugin` | `custom`. */
 	AGENT_TYPE: 'github.copilot.agent.type',
+	/** `true` when the model was selected by Auto model selection (only emitted when true). */
+	AUTO_MODE: 'github.copilot.auto_mode',
 
 	/** Git remote URL (normalized). Dual of `copilot_chat.repo.remote_url`. */
 	GIT_REPOSITORY: 'github.copilot.git.repository',
