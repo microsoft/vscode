@@ -109,6 +109,8 @@ export class ChatWindowChatEditor extends EditorPane {
 	private _insets = 0;
 	/** What limits the height of this group: set when it is arranged, and measured against its chrome and insets. */
 	private _constraintMode: { readonly minimum: 'input' | 'conversation' | undefined; readonly maximumInput: boolean } | undefined;
+	private _measuredMargin: string | undefined;
+	private _measuredInsets: number | undefined;
 	/** Whether a pointer is down, such as on the sash dragging this group's height. */
 	private _pointerDown = false;
 	/** Set when this editor was laid out while it sized its group, and what it shows is then decided again. */
@@ -163,13 +165,21 @@ export class ChatWindowChatEditor extends EditorPane {
 		this._container = dom.append(parent, dom.$('.chat-window-editor.sessions-window-host'));
 		const targetWindow = dom.getWindow(parent);
 		// The sash drags with the mouse: what its drag shows is settled when it lets go.
-		this._register(dom.addDisposableListener(targetWindow, dom.EventType.MOUSE_DOWN, () => this._pointerDown = true, true));
-		this._register(dom.addDisposableListener(targetWindow, dom.EventType.MOUSE_UP, () => {
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.POINTER_DOWN, e => {
+			// Only a press on a sash of this window's editor area can drag the split.
+			this._pointerDown = e.target instanceof targetWindow.Element && !!e.target.closest('.monaco-sash');
+		}, true));
+		const release = () => {
 			if (this._pointerDown) {
 				this._pointerDown = false;
 				this._settle.schedule();
 			}
-		}, true));
+		};
+		// A pointer that is lost (such as when the window loses focus) must not leave the press stuck.
+		for (const type of [dom.EventType.POINTER_UP, 'pointercancel', dom.EventType.DRAG_END]) {
+			this._register(dom.addDisposableListener(targetWindow, type, release, true));
+		}
+		this._register(dom.addDisposableListener(targetWindow, dom.EventType.BLUR, release));
 		const scopedContextKeyService = this._register(this._contextKeyService.createScoped(this._container));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 	}
@@ -504,8 +514,14 @@ export class ChatWindowChatEditor extends EditorPane {
 		if (!group) {
 			return 0;
 		}
-		const style = dom.getWindow(group).getComputedStyle(group);
-		return (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+		// The insets are set as the group's margin: they are measured again only when it changes.
+		const margin = group.style.margin;
+		if (this._measuredMargin !== margin || this._measuredInsets === undefined) {
+			const style = dom.getWindow(group).getComputedStyle(group);
+			this._measuredMargin = margin;
+			this._measuredInsets = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+		}
+		return this._measuredInsets;
 	}
 
 	/**
