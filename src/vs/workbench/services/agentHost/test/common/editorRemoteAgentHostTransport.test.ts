@@ -177,7 +177,7 @@ function messageActions(uri: string | undefined, attachments?: Message['attachme
 	];
 }
 
-function messageSnapshot(uri: string): Snapshot {
+function messageSnapshot(uri: string) {
 	return {
 		resource: chat, fromSeq: 11,
 		state: {
@@ -188,7 +188,7 @@ function messageSnapshot(uri: string): Snapshot {
 			queuedMessages: [{ id: 'queued', kind: PendingMessageKind.Queued, message: agentMessage(uri) }],
 			steeringMessage: { id: 'steering', kind: PendingMessageKind.Steering, message: agentMessage(uri) },
 		},
-	};
+	} satisfies Snapshot;
 }
 
 suite('EditorRemoteAgentHostTransport', () => {

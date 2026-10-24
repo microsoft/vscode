@@ -2459,7 +2459,7 @@ suite('AgentHostChatContribution', () => {
 					restored: { text: 'display prompt', hidden: style === 'Copilot D' ? true : undefined, attachmentKind: style === 'VS Code' ? 'file' : 'generic' },
 					text: 'display prompt edited', metadata: style === 'Copilot D' ? metadata : undefined,
 					attachmentMetadata: attachment._meta,
-					attachmentUri: style === 'VS Code' ? toAgentHostUri(URI.file('/workspace/file.ts'), agentHostAuthority('sandbox.example:443')).toString() : undefined,
+					attachmentUri: style === 'VS Code' ? URI.file('/workspace/file.ts').toString() : undefined,
 				});
 			});
 		}
@@ -16186,89 +16186,122 @@ suite('AgentHostChatContribution', () => {
 		// created worktree path. The handler rebases attachment URIs so the
 		// agent receives URIs under its own working directory.
 
-		test('rebases file/directory/selection attachments under requested working dir onto resolved working dir', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const requestedDir = URI.file('/source');
-			const resolvedDir = URI.file('/worktree');
-			const expectedSelectionUri = URI.file('/worktree/sub/foo.ts');
-			const feedbackUri = URI.file('/source/commented.ts');
+		for (const target of ['local', 'wsl', 'remote', 'remote-host-resolved'] as const) {
+			test(`rebases ${target} file/directory/selection attachments under requested working dir onto resolved working dir`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mapper = target === 'local' ? identityAgentHostResourceUriMapper : createAgentHostResourceUriMapper(target === 'wsl' ? agentHostAuthority('vscode-remote://wsl+Ubuntu') : 'remote-host');
+				const requestedDir = mapper.fromAgentHost(URI.file('/source'));
+				const resolvedDir = target === 'remote-host-resolved' ? URI.file('/worktree') : mapper.fromAgentHost(URI.file('/worktree'));
+				const expectedSelectionUri = URI.file('/worktree/sub/foo.ts');
+				const feedbackUri = URI.file('/source/commented.ts');
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					workingDirectoryResolver: { resolve: () => requestedDir },
+				});
+				agentHostService.resourceUris = mapper;
+				agentHostService.nextResolvedWorkingDirectory = resolvedDir;
+
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					message: 'rebase me',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'file', id: 'v-file', name: 'a.ts', value: mapper.fromAgentHost(URI.file('/source/a.ts')) }),
+							upcastPartial({ kind: 'directory', id: 'v-dir', name: 'lib', value: mapper.fromAgentHost(URI.file('/source/lib')) }),
+							upcastPartial({
+								kind: 'implicit',
+								id: 'v-implicit',
+								name: 'selection',
+								isFile: true as const,
+								isSelection: true,
+								uri: mapper.fromAgentHost(URI.file('/source/sub/foo.ts')),
+								enabled: true,
+								value: { uri: mapper.fromAgentHost(URI.file('/source/sub/foo.ts')), range: new Range(2, 3, 4, 5) },
+							}),
+							upcastPartial({
+								kind: 'agentFeedback',
+								id: 'v-feedback',
+								name: 'Feedback',
+								value: 'Feedback text for the model',
+								sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' }),
+								feedbackItems: [{
+									id: 'feedback-1',
+									text: 'Please simplify this.',
+									resourceUri: feedbackUri,
+									range: new Range(6, 1, 6, 8),
+									codeSelection: 'compute',
+								}],
+							}),
+						],
+					},
+				});
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+
+				assert.strictEqual(agentHostService.turnActions.length, 1);
+				const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+				assert.deepStrictEqual(turnAction.message.attachments, [
+					{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
+					{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/lib').toString(), label: 'lib', displayKind: 'directory' },
+					{
+						type: MessageAttachmentKind.Resource,
+						uri: expectedSelectionUri.toString(),
+						label: 'selection',
+						displayKind: 'selection',
+						selection: {
+							range: {
+								start: { line: 1, character: 2 },
+								end: { line: 3, character: 4 },
+							},
+						},
+					},
+					{
+						type: MessageAttachmentKind.Simple,
+						label: 'Feedback',
+						modelRepresentation: 'Feedback text for the model',
+						displayKind: AgentFeedbackAttachmentDisplayKind,
+						_meta: {
+							[AgentFeedbackAttachmentMetadataKey]: {
+								sessionResource: 'agent-host-copilot:/new-turntest',
+								feedbackItems: [{
+									id: 'feedback-1',
+									text: 'Please simplify this.',
+									resourceUri: feedbackUri.toString(),
+									range: {
+										start: { line: 5, character: 0 },
+										end: { line: 5, character: 7 },
+									},
+								}],
+							},
+						},
+					},
+				]);
+			}));
+		}
+
+		test('does not rebase client or other-connection attachments into a remote worktree', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const mapper = createAgentHostResourceUriMapper('remote-host');
+			const requestedDir = mapper.fromAgentHost(URI.file('/source'));
+			const clientFile = URI.file('/source/a.ts');
+			const otherHostFile = toAgentHostUri(clientFile, 'other-host');
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				workingDirectoryResolver: { resolve: () => requestedDir },
 			});
-			agentHostService.nextResolvedWorkingDirectory = resolvedDir;
+			agentHostService.resourceUris = mapper;
+			agentHostService.nextResolvedWorkingDirectory = mapper.fromAgentHost(URI.file('/worktree'));
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-				message: 'rebase me',
 				variables: {
 					variables: [
-						upcastPartial({ kind: 'file', id: 'v-file', name: 'a.ts', value: URI.file('/source/a.ts') }),
-						upcastPartial({ kind: 'directory', id: 'v-dir', name: 'lib', value: URI.file('/source/lib') }),
-						upcastPartial({
-							kind: 'implicit',
-							id: 'v-implicit',
-							name: 'selection',
-							isFile: true as const,
-							isSelection: true,
-							uri: URI.file('/source/sub/foo.ts'),
-							enabled: true,
-							value: { uri: URI.file('/source/sub/foo.ts'), range: new Range(2, 3, 4, 5) },
-						}),
-						upcastPartial({
-							kind: 'agentFeedback',
-							id: 'v-feedback',
-							name: 'Feedback',
-							value: 'Feedback text for the model',
-							sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/new-turntest' }),
-							feedbackItems: [{
-								id: 'feedback-1',
-								text: 'Please simplify this.',
-								resourceUri: feedbackUri,
-								range: new Range(6, 1, 6, 8),
-								codeSelection: 'compute',
-							}],
-						}),
+						{ kind: 'file', id: 'client-file', name: 'client', value: clientFile },
+						{ kind: 'file', id: 'other-host-file', name: 'other-host', value: otherHostFile },
 					],
 				},
 			});
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.turnActions.length, 1);
 			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.message.attachments, [
-				{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/a.ts').toString(), label: 'a.ts', displayKind: 'document' },
-				{ type: MessageAttachmentKind.Resource, uri: URI.file('/worktree/lib').toString(), label: 'lib', displayKind: 'directory' },
-				{
-					type: MessageAttachmentKind.Resource,
-					uri: expectedSelectionUri.toString(),
-					label: 'selection',
-					displayKind: 'selection',
-					selection: {
-						range: {
-							start: { line: 1, character: 2 },
-							end: { line: 3, character: 4 },
-						},
-					},
-				},
-				{
-					type: MessageAttachmentKind.Simple,
-					label: 'Feedback',
-					modelRepresentation: 'Feedback text for the model',
-					displayKind: AgentFeedbackAttachmentDisplayKind,
-					_meta: {
-						[AgentFeedbackAttachmentMetadataKey]: {
-							sessionResource: 'agent-host-copilot:/new-turntest',
-							feedbackItems: [{
-								id: 'feedback-1',
-								text: 'Please simplify this.',
-								resourceUri: feedbackUri.toString(),
-								range: {
-									start: { line: 5, character: 0 },
-									end: { line: 5, character: 7 },
-								},
-							}],
-						},
-					},
-				},
+				{ type: MessageAttachmentKind.Resource, uri: clientFile.toString(), label: 'client', displayKind: 'document' },
+				{ type: MessageAttachmentKind.Resource, uri: otherHostFile.toString(), label: 'other-host', displayKind: 'document' },
 			]);
 		}));
 

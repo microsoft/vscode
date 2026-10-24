@@ -8212,23 +8212,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 	}
 
-	/**
-	 * Unwrap attachments owned by this connection, then rebase a `file:`-scheme URI
-	 * from the session's requested working directory onto the server-resolved working directory. This
-	 * matters on the first turn of a worktree-isolated session, where the
-	 * provider creates a worktree under a different path than the workspace
-	 * folder the workbench attached the file from. Leaves the unwrapped URI unchanged
-	 * if the requested and resolved directories match, the URI is not under
-	 * the requested directory, or either side is unavailable.
-	 */
-	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
+	/** Unwraps only resources that round-trip through the owning connection's mapper. */
+	private _toOwnedAgentHostUri(uri: URI): URI {
 		const hostUri = this._config.connection.resourceUris.toAgentHost(uri);
-		// Other connections' resources must still be fetched from the client, not treated as files on this host.
-		if (hostUri !== uri && this._config.connection.resourceUris.fromAgentHost(hostUri).toString() === uri.toString()) {
-			uri = hostUri;
-		}
-		const requestedDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+		return hostUri !== uri && isEqual(this._config.connection.resourceUris.fromAgentHost(hostUri), uri) ? hostUri : uri;
+	}
+
+	/** Rebases connection-owned attachments from the requested checkout onto the resolved worktree. */
+	private _rebaseAttachmentUri(uri: URI, sessionResource: URI): URI {
+		const hostUri = this._toOwnedAgentHostUri(uri);
+		const clientRequestedDirectories = this._resolveRequestedWorkingDirectories(sessionResource);
+		const requestedDirectories = clientRequestedDirectories?.map(directory => this._toOwnedAgentHostUri(directory));
 		const requestedDir = requestedDirectories?.[0];
+		// A client-local file must not become host-local just because its path matches a remote checkout.
+		if (hostUri === uri && requestedDir !== clientRequestedDirectories?.[0]) {
+			return uri;
+		}
+		uri = hostUri;
 		if (!requestedDir || requestedDir.scheme !== 'file') {
 			return uri;
 		}
@@ -8238,7 +8238,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const backendSession = this._resolveSessionUri(sessionResource);
 		const rawResolvedDir = this._getSessionState(backendSession.toString())?.workingDirectories?.[0];
-		const resolvedDir = typeof rawResolvedDir === 'string' ? URI.parse(rawResolvedDir) : rawResolvedDir;
+		const resolvedDir = rawResolvedDir ? this._toOwnedAgentHostUri(typeof rawResolvedDir === 'string' ? URI.parse(rawResolvedDir) : rawResolvedDir) : undefined;
 		if (!resolvedDir || resolvedDir.scheme !== 'file') {
 			return uri;
 		}
