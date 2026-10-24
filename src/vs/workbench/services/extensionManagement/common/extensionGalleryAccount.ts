@@ -9,6 +9,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 /** `accessToken` is only carried when the provider authenticates with a bearer. */
 export interface IExtensionGalleryAccount {
 	readonly accessToken?: string;
+	/** Delay in milliseconds before silently resolving the account again. */
+	readonly refreshAfter?: number;
 }
 
 export const enum ExtensionGalleryAccountStatus {
