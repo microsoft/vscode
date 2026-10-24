@@ -596,13 +596,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		commands.executeCommand('setContext', 'git.activeResourceHasMergeConflicts', hasMergeConflicts);
 	}
 
+	/** Returns the resolved repository, or undefined if it could not be opened. */
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<Repository | undefined> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
 			this.logger.trace(`[Model][openRepository] Repository for path ${repoPath} already exists: ${existingRepository.root}`);
-			return;
+			return existingRepository;
 		}
 
 		const config = workspace.getConfiguration('git', Uri.file(repoPath));
@@ -620,7 +621,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const existingRepository = await this.getRepositoryExact(repositoryRoot);
 			if (existingRepository) {
 				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
-				return;
+				return existingRepository;
 			}
 
 			if (this.shouldRepositoryBeIgnored(repositoryRoot)) {
@@ -698,10 +699,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this._initialStatusLimiter.queue(() => repository.status()).then(() => {
 				this._repositoryCache.update(repository.remotes, [], repository.root);
 			});
+			return repository;
 		} catch (err) {
 			// noop
 			this.logger.trace(`[Model][openRepository] Opening repository for path='${repoPath}' failed. Error:${err}`);
 		}
+		return undefined;
 	}
 
 	async openParentRepository(repoPath: string): Promise<void> {

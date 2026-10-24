@@ -26,10 +26,14 @@ export interface IAgentBranchNameGeneratorRequest {
 	/**
 	 * Optional prefix prepended before the built-in {@link AGENT_BRANCH_PREFIX}
 	 * when constructing the branch name (e.g. the user's `git.branchPrefix`
-	 * setting). An empty or omitted value preserves the historical
-	 * `agents/<hint>` naming.
+	 * setting). With `useGitSettings`, this is instead the complete namespace,
+	 * including an explicitly empty prefix.
 	 */
 	readonly branchPrefix?: string;
+	/** Use the supplied prefix as the complete namespace, without `agents/`. */
+	readonly useGitSettings?: boolean;
+	/** Complete, already-prefixed candidate supplied by the Git extension. */
+	readonly preferredBranchName?: string;
 	/**
 	 * Optional predicate used to check whether a candidate branch name collides
 	 * with an existing branch or its corresponding worktree path.
@@ -53,7 +57,7 @@ export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
 	) { }
 
 	async generateBranchName(request: IAgentBranchNameGeneratorRequest): Promise<string> {
-		const branchNameHint = (await this._generateBranchNameHint(request)) ?? getAgentBranchNameHintFromMessage(request.message ?? '');
+		const branchNameHint = request.preferredBranchName ?? (await this._generateBranchNameHint(request)) ?? getAgentBranchNameHintFromMessage(request.message ?? '');
 		return this._buildBranchName(request, branchNameHint);
 	}
 
@@ -117,12 +121,14 @@ export class AgentBranchNameGenerator implements IAgentBranchNameGenerator {
 	}
 
 	private async _buildBranchName(request: IAgentBranchNameGeneratorRequest, branchNameHint: string | undefined): Promise<string> {
-		// Prepend the caller-supplied prefix (e.g. `git.branchPrefix`) ahead of
-		// the built-in `agents/` prefix. An empty/omitted value keeps the
-		// historical `agents/<hint>` shape.
-		const prefix = `${request.branchPrefix ?? ''}${AGENT_BRANCH_PREFIX}`;
+		const prefix = `${request.branchPrefix ?? ''}${request.useGitSettings ? '' : AGENT_BRANCH_PREFIX}`;
 
-		const branchName = `${prefix}${branchNameHint ?? request.sessionId}`;
+		const branchName = request.preferredBranchName ?? `${prefix}${branchNameHint ?? request.sessionId}`;
+		if (request.useGitSettings && (!branchName || branchName === '@' || branchName.startsWith('-')
+			|| /[\s~^:?*[\\\x00-\x1f\x7f]/.test(branchName) || branchName.includes('..') || branchName.includes('@{')
+			|| branchName.endsWith('.') || branchName.split('/').some(part => !part || part.startsWith('.') || part.endsWith('.lock')))) {
+			throw new Error(`Invalid Git branch name: ${branchName}`);
+		}
 		const collisionBase = branchNameHint
 			? `${branchName}-${request.sessionId.substring(0, AGENT_BRANCH_SESSION_ID_SUFFIX_LENGTH)}`
 			: branchName;
