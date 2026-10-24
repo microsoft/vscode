@@ -975,6 +975,47 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
+	test('grapheme breaking: Indic conjuncts', () => {
+		withTestCodeEditor([
+			'क्षत्रिय',
+		], {}, (editor, viewModel) => {
+
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			moveRight(editor, viewModel);
+			assertCursor(viewModel, new Position(1, 4));
+			moveRight(editor, viewModel);
+			assertCursor(viewModel, new Position(1, 8));
+			moveRight(editor, viewModel);
+			assertCursor(viewModel, new Position(1, 9));
+			moveLeft(editor, viewModel);
+			assertCursor(viewModel, new Position(1, 8));
+			moveLeft(editor, viewModel);
+			assertCursor(viewModel, new Position(1, 4));
+			moveLeft(editor, viewModel);
+			assertCursor(viewModel, new Position(1, 1));
+
+		});
+	});
+
+	test('grapheme breaking: Indic conjuncts with delete and backspace', () => {
+		withTestCodeEditor([
+			'क्षत्रिय',
+		], {}, (editor, viewModel) => {
+			const model = editor.getModel()!;
+
+			// Delete removes the whole conjunct, like any other grapheme cluster
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+			editor.runCommand(CoreEditingCommands.DeleteRight, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'त्रिय');
+
+			// Backspace right after a conjunct still removes only its last code point
+			model.setValue('क्षत्रिय');
+			editor.setSelections([new Selection(1, 4, 1, 4)]);
+			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			assert.strictEqual(model.getValue(EndOfLinePreference.LF), 'क्त्रिय');
+		});
+	});
+
 	test('issue #4905 - column select is biased to the right', () => {
 		withTestCodeEditor([
 			'var gulp = require("gulp");',
