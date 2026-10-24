@@ -124,19 +124,35 @@ suite('DebugSession - continued events', () => {
 
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession() {
+	function createSession(threads: DebugProtocol.Thread[] = [{ id: 1, name: 'first' }, { id: 2, name: 'second' }]) {
 		const model = createMockDebugModel(ds);
 		session = ds.add(createTestSession(model));
 		model.addSession(session);
 		const adapter = ds.add(new class extends MockDebugAdapter {
+			/** While set, `threads` responses wait in {@link heldThreadsResponses} */
+			holdThreadsResponses = false;
+			readonly heldThreadsResponses: (() => void)[] = [];
+			readonly stackTraceThreadIds: number[] = [];
+
+			releaseThreadsResponses() {
+				this.holdThreadsResponses = false;
+				this.heldThreadsResponses.splice(0).forEach(respond => respond());
+			}
+
 			override sendMessage(message: DebugProtocol.ProtocolMessage): void {
 				if (message.type === 'request') {
 					const request = message as DebugProtocol.Request;
 					if (request.command === 'threads') {
-						this.sendResponseBody(request, { threads: [{ id: 1, name: 'first' }, { id: 2, name: 'second' }] });
+						const respond = () => this.sendResponseBody(request, { threads });
+						if (this.holdThreadsResponses) {
+							this.heldThreadsResponses.push(respond);
+						} else {
+							respond();
+						}
 						return;
 					}
 					if (request.command === 'stackTrace') {
+						this.stackTraceThreadIds.push(request.arguments.threadId);
 						this.sendResponseBody(request, { stackFrames: [], totalFrames: 0 });
 						return;
 					}
@@ -206,5 +222,123 @@ suite('DebugSession - continued events', () => {
 		await continued;
 
 		assert.strictEqual(session.getStoppedDetails(), undefined);
+	});
+
+	/**
+	 * Stops a thread and waits for it. The adapter's messages are handled in
+	 * order, so everything sent before this has been handled as well.
+	 */
+	async function stopThread(session: DebugSession, adapter: MockDebugAdapter, threadId = 1) {
+		const body = { reason: 'step', threadId };
+		const stopped = Event.toPromise(Event.filter(session.onDidChangeState, () => session.getThread(threadId)?.stoppedDetails === body));
+		adapter.sendEventBody('stopped', body);
+		await stopped;
+	}
+
+	for (const allThreadsContinued of [false, true]) {
+		test(`drops a stop with a pending threads request on ${allThreadsContinued ? 'all-thread' : 'single-thread'} continuation`, async () => {
+			const { session, adapter } = createSession();
+			await stopThread(session, adapter);
+
+			adapter.holdThreadsResponses = true;
+			const continued = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('stopped', { reason: 'entry', threadId: 2 });
+			adapter.sendEventBody('continued', { threadId: 2, allThreadsContinued });
+			await continued;
+
+			adapter.releaseThreadsResponses();
+			await stopThread(session, adapter);
+
+			assert.strictEqual(session.getThread(2)?.stopped, false);
+			assert.strictEqual(session.getThread(2)?.stoppedDetails, undefined);
+		});
+	}
+
+	test('keeps threads running when they continue in reverse order before their stops are fetched', async () => {
+		// Event sequence from the mock debug repro in #280933
+		const threads = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Thread ${i + 1}` }));
+		const { session, adapter } = createSession(threads);
+		await stopThread(session, adapter);
+
+		adapter.holdThreadsResponses = true;
+		const continued = Event.toPromise(session.onDidChangeState);
+		for (let i = 2; i <= 12; i++) {
+			adapter.sendEventBody('thread', { reason: 'started', threadId: i });
+		}
+		for (let i = 2; i <= 12; i++) {
+			adapter.sendEventBody('stopped', { reason: 'entry', threadId: i, allThreadsStopped: false });
+		}
+		for (let i = 12; i >= 2; i--) {
+			adapter.sendEventBody('continued', { threadId: i, allThreadsContinued: false });
+		}
+		await continued;
+
+		adapter.releaseThreadsResponses();
+		await stopThread(session, adapter);
+
+		assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1]);
+	});
+
+	test('applies a stop with a pending threads request when another thread continues', async () => {
+		const { session, adapter } = createSession();
+		await stopThread(session, adapter);
+
+		adapter.holdThreadsResponses = true;
+		const continued = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('stopped', { reason: 'entry', threadId: 2 });
+		adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
+		await continued;
+
+		const stopped = Event.toPromise(session.onDidChangeState);
+		adapter.releaseThreadsResponses();
+		await stopped;
+
+		assert.strictEqual(session.getThread(1)?.stopped, false);
+		assert.strictEqual(session.getThread(2)?.stopped, true);
+		assert.strictEqual(session.getThread(2)?.stoppedDetails?.reason, 'entry');
+	});
+
+	for (const continuedThreadId of [1, 2]) {
+		test(`applies an all-thread stop with a pending threads request to the threads that did not continue (thread ${continuedThreadId} continues)`, async () => {
+			const { session, adapter } = createSession([{ id: 1, name: 'first' }, { id: 2, name: 'second' }, { id: 3, name: 'third' }]);
+			await stopThread(session, adapter);
+			const running = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
+			await running;
+
+			adapter.holdThreadsResponses = true;
+			const continued = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 1, allThreadsStopped: true });
+			adapter.sendEventBody('continued', { threadId: continuedThreadId, allThreadsContinued: false });
+			await continued;
+
+			adapter.releaseThreadsResponses();
+			await stopThread(session, adapter, 3);
+
+			assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1, 2, 3].filter(id => id !== continuedThreadId));
+		});
+	}
+
+	test('applies an all-thread stop for a thread that is not in the threads response', async () => {
+		const { session, adapter } = createSession([{ id: 1, name: 'first' }, { id: 2, name: 'second' }, { id: 3, name: 'third' }]);
+		let stateChanges = 0;
+		ds.add(session.onDidChangeState(() => stateChanges++));
+
+		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 4, allThreadsStopped: true });
+		await stopThread(session, adapter, 3);
+
+		// One change for each of the two stops
+		assert.strictEqual(stateChanges, 2);
+		assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1, 2, 3]);
+	});
+
+	test('loads the call stack only for the thread that stopped on an all-thread stop', async () => {
+		const { session, adapter } = createSession([{ id: 1, name: 'first' }, { id: 2, name: 'second' }, { id: 3, name: 'third' }]);
+		const stopped = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 2, allThreadsStopped: true });
+		await stopped;
+
+		assert.deepStrictEqual(adapter.stackTraceThreadIds, [2]);
+		assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1, 2, 3]);
 	});
 });

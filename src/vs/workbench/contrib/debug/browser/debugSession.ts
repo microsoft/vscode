@@ -1015,21 +1015,21 @@ export class DebugSession implements IDebugSession {
 			// Set the availability of the threads' callstacks depending on
 			// whether the thread is stopped or not
 			if (stoppedDetails.allThreadsStopped) {
-				this.threads.forEach(thread => {
-					thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: thread.stoppedDetails?.reason };
-					thread.stopped = true;
-					thread.clearCallStack();
-				});
+				this.threads.forEach(thread => this.setThreadStopped(thread, stoppedDetails));
 			} else {
 				const thread = typeof stoppedDetails.threadId === 'number' ? this.threads.get(stoppedDetails.threadId) : undefined;
 				if (thread) {
 					// One thread is stopped, only update that thread.
-					thread.stoppedDetails = stoppedDetails;
-					thread.clearCallStack();
-					thread.stopped = true;
+					this.setThreadStopped(thread, stoppedDetails);
 				}
 			}
 		}
+	}
+
+	private setThreadStopped(thread: Thread, stoppedDetails: IRawStoppedDetails) {
+		thread.stoppedDetails = thread.threadId === stoppedDetails.threadId ? stoppedDetails : { reason: thread.stoppedDetails?.reason };
+		thread.clearCallStack();
+		thread.stopped = true;
 	}
 
 	private waitForTriggeredBreakpoints() {
@@ -1043,14 +1043,13 @@ export class DebugSession implements IDebugSession {
 		);
 	}
 
-	private async fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
+	private async fetchThreads(): Promise<void> {
 		if (this.raw) {
 			const response = await this.raw.threads();
 			if (response?.body && response.body.threads) {
 				this.model.rawUpdate({
 					sessionId: this.getId(),
-					threads: response.body.threads,
-					stoppedDetails
+					threads: response.body.threads
 				});
 			}
 		}
@@ -1361,9 +1360,28 @@ export class DebugSession implements IDebugSession {
 			this._waitToResume = this.enableDependentBreakpoints(event.hitBreakpointIds);
 		}
 
+		// The stop is applied to each thread here rather than with the threads
+		// response, so the queue skips threads that changed state while the
+		// threads were fetched (#280933)
 		this.statusQueue.run(
-			this.fetchThreads(event).then(() => event.threadId === undefined ? this.threadIds : [event.threadId]),
+			this.fetchThreads().then(() => {
+				if (event.threadId === undefined) {
+					return this.threadIds;
+				}
+				// The thread that stopped runs last, so the other threads are marked
+				// before it takes focus, and it runs even if it is not in the response
+				return event.allThreadsStopped ? [...this.threadIds.filter(id => id !== event.threadId), event.threadId] : [event.threadId];
+			}),
 			async (threadId, token) => {
+				const thread = this.getThread(threadId);
+				if (thread && (event.allThreadsStopped || threadId === event.threadId)) {
+					this.setThreadStopped(thread, event);
+				}
+				if (event.threadId !== undefined && threadId !== event.threadId) {
+					// Only the thread that stopped loads its call stack and takes focus
+					return;
+				}
+
 				const hasLotsOfThreads = event.threadId === undefined && this.threadIds.length > 10;
 
 				// If the focus for the current session is on a non-existent thread, clear the focus.
@@ -1373,7 +1391,6 @@ export class DebugSession implements IDebugSession {
 					this.debugService.focusStackFrame(undefined, undefined);
 				}
 
-				const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
