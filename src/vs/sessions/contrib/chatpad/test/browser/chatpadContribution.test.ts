@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -32,7 +32,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { CHATPAD_CHAT_WINDOW_KIND, CHATPAD_ENABLED_SETTING, ChatpadProviderContext } from '../../browser/chatpad.js';
-import { ChatpadRestoration, ChatpadProviderContextContribution } from '../../browser/chatpad.contribution.js';
+import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
+import { ChatpadFeedbackExclusion, ChatpadRestoration, ChatpadProviderContextContribution } from '../../browser/chatpad.contribution.js';
 
 interface IFakeProvider {
 	readonly id: string;
@@ -62,6 +63,7 @@ suite('Chatpad contribution', () => {
 	let activeWindow: unknown;
 	let deleted: string[];
 	let deleteFails: boolean;
+	let excluded: string[];
 
 	function localProvider(calls: string[], options?: { fails?: boolean; unavailable?: boolean }): IFakeProvider {
 		return {
@@ -91,6 +93,7 @@ suite('Chatpad contribution', () => {
 		activeWindow = undefined;
 		deleted = [];
 		deleteFails = false;
+		excluded = [];
 		onDidChangeProviders = store.add(new Emitter<void>());
 		windows = observableValue('windows', []);
 		storage = store.add(new InMemoryStorageService());
@@ -121,6 +124,12 @@ suite('Chatpad contribution', () => {
 			getProvider: (id: string) => providers.find(provider => provider.id === id),
 			onDidChangeProviders: onDidChangeProviders.event,
 		} as unknown as Partial<ISessionsProvidersService>);
+		instantiationService.stub(IAgentFeedbackService, {
+			registerFeedbackResourceExclusion: (resource: URI) => {
+				excluded.push(resource.toString());
+				return toDisposable(() => excluded.splice(excluded.indexOf(resource.toString()), 1));
+			},
+		} as unknown as Partial<IAgentFeedbackService>);
 		instantiationService.stub(IChatWindowService, {
 			windows,
 			getActiveWindow: () => activeWindow,
@@ -248,6 +257,19 @@ suite('Chatpad contribution', () => {
 		const after = read();
 		assert.deepStrictEqual({ before, after }, { before: false, after: true });
 		assert.ok(contribution);
+	});
+
+	test('the note of an open Chatpad is kept out of agent feedback, and nothing else is', () => {
+		const chatpad = { kind: CHATPAD_CHAT_WINDOW_KIND, content: observableValue('content', { editor: { resource: note } }) };
+		const session = { kind: { id: 'session' }, content: observableValue('content', { editor: { resource: URI.file('/other.ts') } }) };
+		store.add(instantiationService.createInstance(ChatpadFeedbackExclusion));
+		const before = excluded.slice();
+
+		windows.set([session, chatpad], undefined);
+		const whileOpen = excluded.slice();
+		windows.set([session], undefined);
+
+		assert.deepStrictEqual({ before, whileOpen, afterClose: excluded }, { before: [], whileOpen: [note.toString()], afterClose: [] });
 	});
 
 	suite('restore', () => {

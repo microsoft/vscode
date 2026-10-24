@@ -789,6 +789,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getSessionForFile: () => undefined,
 		getChatChanges: () => [],
 		getFeedbackSessionResource: () => undefined,
+		registerFeedbackResourceExclusion: () => toDisposable(() => { }),
 		registerFeedbackResourceScope: () => toDisposable(() => { }),
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },

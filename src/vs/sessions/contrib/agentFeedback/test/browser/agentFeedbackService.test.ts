@@ -600,6 +600,31 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		});
 	});
 
+	test('excluded resource resolves no session, even with an explicit scope, until the exclusion is disposed', () => {
+		setActiveSession(sessions.get(sessionS1.toString())!);
+		let scopeChanges = 0;
+		store.add(service.onDidChangeFeedbackScope(() => scopeChanges++));
+
+		const exclusion = service.registerFeedbackResourceExclusion(fileA);
+		store.add(service.registerFeedbackResourceScope(fileA, sessionS2));
+		const excluded = {
+			scope: service.getFeedbackSessionResource(fileA),
+			session: service.getSessionForFile(fileA),
+			otherFileScope: service.getFeedbackSessionResource(fileB)?.toString(),
+		};
+		exclusion.dispose();
+
+		assert.deepStrictEqual({
+			excluded,
+			scopeAfterDispose: service.getFeedbackSessionResource(fileA)?.toString(),
+			scopeChanges,
+		}, {
+			excluded: { scope: undefined, session: undefined, otherFileScope: sessionS1.toString() },
+			scopeAfterDispose: sessionS2.toString(),
+			scopeChanges: 3,
+		});
+	});
+
 	test('explicit resource scope uses its supplied session and announces scope changes', () => {
 		setActiveSession(sessions.get(sessionS1.toString())!);
 		let scopeChanges = 0;

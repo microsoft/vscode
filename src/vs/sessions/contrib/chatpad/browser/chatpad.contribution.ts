@@ -17,7 +17,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -26,6 +26,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowEditorViewTypeContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -87,6 +88,29 @@ export class ChatpadProviderContextContribution extends Disposable implements IW
 		const update = () => key.set(!!getChatpadProvider(providersService));
 		update();
 		this._register(providersService.onDidChangeProviders(update));
+	}
+}
+
+/** Keeps the note of the Chatpad out of agent feedback: it belongs to no session's changes, so no feedback UI shows in its editor. */
+export class ChatpadFeedbackExclusion extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatpadFeedbackExclusion';
+
+	constructor(
+		@IChatWindowService chatWindowService: IChatWindowService,
+		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
+	) {
+		super();
+		this._register(autorun(reader => {
+			for (const window of chatWindowService.windows.read(reader)) {
+				if (window.kind === CHATPAD_CHAT_WINDOW_KIND) {
+					const note = window.content.read(reader).editor?.resource;
+					if (note) {
+						reader.store.add(agentFeedbackService.registerFeedbackResourceExclusion(note));
+					}
+				}
+			}
+		}));
 	}
 }
 
@@ -367,5 +391,6 @@ export class ChatpadRestoration extends Disposable implements IWorkbenchContribu
 }
 
 registerWorkbenchContribution2(ChatpadProviderContextContribution.ID, ChatpadProviderContextContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatpadFeedbackExclusion.ID, ChatpadFeedbackExclusion, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatpadLauncherContribution.ID, ChatpadLauncherContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatpadRestoration.ID, ChatpadRestoration, WorkbenchPhase.AfterRestored);

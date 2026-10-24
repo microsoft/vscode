@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, runOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -246,6 +246,13 @@ export interface IAgentFeedbackService {
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable;
 
 	/**
+	 * Takes a file out of agent feedback, such as a note that no session's changes
+	 * contain: {@link getFeedbackSessionResource} resolves no session for it, so no
+	 * feedback UI shows in its editor. Disposing brings it back.
+	 */
+	registerFeedbackResourceExclusion(resourceUri: URI): IDisposable;
+
+	/**
 	 * Resolve the most recently updated session that has feedback for a given resource.
 	 */
 	getMostRecentSessionForResource(resourceUri: URI): URI | undefined;
@@ -350,6 +357,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	/** fileResource → sessionResource active when the editor for that file was first seen */
 	private readonly _fileToSession = new ResourceMap<URI>();
 	private readonly _explicitResourceScopes = new ResourceMap<URI>();
+	private readonly _excludedResources = new ResourceSet();
 
 	/**
 	 * The last {@link _resolveSession} lookup, hit or miss. Feedback resolution
@@ -585,6 +593,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	}
 
 	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
+		if (this._excludedResources.has(resourceUri)) {
+			return undefined;
+		}
 		const explicitScope = this._explicitResourceScopes.get(resourceUri);
 		if (explicitScope) {
 			return explicitScope;
@@ -599,6 +610,18 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		return this.getSessionForFile(resourceUri)?.resource;
+	}
+
+	registerFeedbackResourceExclusion(resourceUri: URI): IDisposable {
+		this._excludedResources.add(resourceUri);
+		this._onDidChangeFeedbackScope.fire();
+		return {
+			dispose: () => {
+				if (this._excludedResources.delete(resourceUri)) {
+					this._onDidChangeFeedbackScope.fire();
+				}
+			},
+		};
 	}
 
 	registerFeedbackResourceScope(resourceUri: URI, sessionResource: URI): IDisposable {
@@ -620,7 +643,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	 * feedback on, so it is the one thing excluded here.
 	 */
 	private _isFileEligibleForFeedback(resourceUri: URI): boolean {
-		return resourceUri.scheme !== Schemas.outputChannel;
+		return resourceUri.scheme !== Schemas.outputChannel && !this._excludedResources.has(resourceUri);
 	}
 
 	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted, sourcePullRequest?: IFeedbackPullRequest): IAgentFeedback {
