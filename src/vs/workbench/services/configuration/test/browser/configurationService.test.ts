@@ -1430,8 +1430,8 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'userValue');
 		assert.strictEqual(target.callCount, 4);
-		assert.deepStrictEqual(target.args[0], [WorkbenchState.FOLDER]);
-		assert.deepStrictEqual(target.args[1], [undefined]);
+		assert.deepStrictEqual(target.args[1], [WorkbenchState.FOLDER]);
+		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(f => f.uri.toString()), [folder.toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
@@ -1456,9 +1456,9 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
-		assert.deepStrictEqual(target.args[1], [WorkbenchState.FOLDER]);
-		assert.deepStrictEqual(target.args[2], [undefined]);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[1][0]).affectedKeys], ['initialization.testSetting1']);
+		assert.deepStrictEqual(target.args[2], [WorkbenchState.FOLDER]);
+		assert.deepStrictEqual(target.args[3], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(f => f.uri.toString()), [folder.toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
@@ -1480,8 +1480,8 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 4);
-		assert.deepStrictEqual(target.args[0], [WorkbenchState.WORKSPACE]);
-		assert.deepStrictEqual(target.args[1], [undefined]);
+		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
+		assert.deepStrictEqual(target.args[2], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
@@ -1505,9 +1505,9 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1', 'initialization.testSetting2']);
-		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-		assert.deepStrictEqual(target.args[2], [undefined]);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[1][0]).affectedKeys], ['initialization.testSetting1', 'initialization.testSetting2']);
+		assert.deepStrictEqual(target.args[2], [WorkbenchState.WORKSPACE]);
+		assert.deepStrictEqual(target.args[3], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
@@ -1551,12 +1551,50 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
 		assert.strictEqual(target.callCount, 3);
-		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[1][0]).affectedKeys], ['initialization.testSetting1']);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 
 	}));
+
+	test('initializing a multi-root workspace waits for folder participants before publishing configuration and workspace changes', async () => {
+		const folderA = joinPath(ROOT, 'a');
+		const folderB = joinPath(ROOT, 'b');
+		await testObject.initialize(convertToWorkspacePayload(folderA));
+		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify({
+			folders: [{ path: folderA.path }, { path: folderB.path }],
+			settings: { 'initialization.testSetting1': 'workspaceValue' }
+		})));
+
+		const events: string[] = [];
+		const participantStarted = new DeferredPromise<void>();
+		const participantReady = new DeferredPromise<void>();
+		disposables.add(testObject.onWillChangeWorkspaceFolders(event => {
+			events.push('willChangeFolders');
+			event.join((async () => {
+				await participantReady.p;
+				events.push('participantComplete');
+			})());
+			participantStarted.complete();
+		}));
+		disposables.add(testObject.onDidChangeConfiguration(() => events.push('configuration')));
+		disposables.add(testObject.onDidChangeWorkbenchState(() => events.push('state')));
+		disposables.add(testObject.onDidChangeWorkspaceName(() => events.push('name')));
+		disposables.add(testObject.onDidChangeWorkspaceFolders(() => events.push('folders')));
+
+		const initialization = testObject.initialize(getWorkspaceIdentifier(configResource));
+		await participantStarted.p;
+		const whileWaiting = { events: [...events], value: testObject.getValue('initialization.testSetting1') };
+		await participantReady.complete();
+		await initialization;
+
+		assert.deepStrictEqual({ whileWaiting, events, value: testObject.getValue('initialization.testSetting1') }, {
+			whileWaiting: { events: ['willChangeFolders'], value: 'isSet' },
+			events: ['willChangeFolders', 'participantComplete', 'configuration', 'state', 'name', 'folders'],
+			value: 'workspaceValue'
+		});
+	});
 
 	(isMacintosh ? test.skip : test)('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
@@ -1571,9 +1609,9 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[0][0]).affectedKeys], ['initialization.testSetting1']);
-		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-		assert.deepStrictEqual(target.args[2], [undefined]);
+		assert.deepStrictEqual([...(<IConfigurationChangeEvent>target.args[1][0]).affectedKeys], ['initialization.testSetting1']);
+		assert.deepStrictEqual(target.args[2], [WorkbenchState.WORKSPACE]);
+		assert.deepStrictEqual(target.args[3], [undefined]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
 		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
