@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventEmitter } from 'events';
 
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { encodeWebSocketFrame, type IWebSocketFrame, WebSocketFrameParser, WebSocketOpcode } from '../../../../base/parts/ipc/common/webSocketFraming.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -478,7 +477,7 @@ function connect(stream: FakeDuplexStream, path = '/', host?: string, options: O
 
 async function createUpgradeResponse(request: string): Promise<Uint8Array> {
 	const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(requestKey(request) + websocketAcceptGuid));
-	const accept = Buffer.from(digest).toString('base64');
+	const accept = encodeBase64(VSBuffer.wrap(new Uint8Array(digest)));
 	return new TextEncoder().encode([
 		'HTTP/1.1 101 Switching Protocols',
 		'Upgrade: websocket',
@@ -530,7 +529,20 @@ function concat(...chunks: Uint8Array[]): Uint8Array {
 	return result;
 }
 
-class FakeDuplexStream extends EventEmitter implements ITunnelDuplexStream {
+type FakeDuplexStreamEvents = {
+	data: [chunk: Uint8Array];
+	error: [error: Error];
+	close: [hadError?: boolean];
+	end: [];
+};
+
+class FakeDuplexStream implements ITunnelDuplexStream {
+	private readonly _listeners: { [K in keyof FakeDuplexStreamEvents]: Set<(...args: FakeDuplexStreamEvents[K]) => void> } = {
+		data: new Set(),
+		error: new Set(),
+		close: new Set(),
+		end: new Set(),
+	};
 	readonly writes: (Uint8Array | string)[] = [];
 	endCalls = 0;
 	destroyCalls = 0;
@@ -539,6 +551,20 @@ class FakeDuplexStream extends EventEmitter implements ITunnelDuplexStream {
 
 	get request(): string {
 		return this.writes.map(write => typeof write === 'string' ? write : new TextDecoder().decode(write)).join('');
+	}
+
+	on<K extends keyof FakeDuplexStreamEvents>(event: K, listener: (...args: FakeDuplexStreamEvents[K]) => void): void {
+		this._listeners[event].add(listener);
+	}
+
+	removeListener<K extends keyof FakeDuplexStreamEvents>(event: K, listener: (...args: FakeDuplexStreamEvents[K]) => void): void {
+		this._listeners[event].delete(listener);
+	}
+
+	protected emit<K extends keyof FakeDuplexStreamEvents>(event: K, ...args: FakeDuplexStreamEvents[K]): void {
+		for (const listener of [...this._listeners[event]]) {
+			listener(...args);
+		}
 	}
 
 	write(chunk: Uint8Array | string): boolean {
