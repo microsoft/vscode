@@ -21077,6 +21077,93 @@ Use the attached image as context.
 			]);
 		});
 
+		test('steering during a Fusion phase hands a still-persisting provisional completion to the steering turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'persisting', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'persisting', success: true, result: { content: 'created' }, fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			const steeringTurnId = session.currentTurnId;
+			edit.complete(undefined);
+			await timeout(0);
+			mockSession.fire('tool.execution_start', { toolCallId: 'persisting', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'persisting', success: true, result: { content: 'created' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'persisting'
+				? [{ type: signal.action.type, steeringTurn: signal.action.turnId === steeringTurnId }]
+				: []), [
+				{ type: ActionType.ChatToolCallStart, steeringTurn: true },
+				{ type: ActionType.ChatToolCallReady, steeringTurn: true },
+				{ type: ActionType.ChatToolCallComplete, steeringTurn: true },
+			]);
+		});
+
+		test('steering during a Fusion phase keeps publishing a still-persisting phase chat completion', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const edit = new DeferredPromise<undefined>();
+			sessionInternals._editTracker.takeCompletedEdit = () => edit.p;
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'phase-persisting', toolName: 'create', arguments: { path: '/workspace/a.ts', file_text: 'x' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'phase-persisting', success: true, result: { content: 'created' }, fusion }, { ephemeral: true });
+			const phaseChat = signals.find(signal => signal.kind === 'subagent_started');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			edit.complete(undefined);
+			await timeout(0);
+
+			assert.ok(phaseChat?.kind === 'subagent_started');
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action) && hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'phase-persisting'
+				? [{ type: signal.action.type, parentToolCallId: signal.parentToolCallId }]
+				: []), [
+				{ type: ActionType.ChatToolCallComplete, parentToolCallId: phaseChat.toolCallId },
+			]);
+		});
+
+		test('steering during a Fusion phase hands a running task_complete to the steering turn without a tool row', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the bug' }, fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			const steeringTurnId = session.currentTurnId;
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'done' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-complete', toolName: 'task_complete', arguments: { summary: 'Fixed the bug' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-complete', success: true, result: { content: 'done' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action' && isChatAction(signal.action)
+				&& ((hasKey(signal.action, { toolCallId: true }) && signal.action.toolCallId === 'tc-complete') || (signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown && signal.action.part.content.includes('Task completed')))
+				? [{ type: signal.action.type, steeringTurn: signal.action.turnId === steeringTurnId }]
+				: []), [
+				{ type: ActionType.ChatResponsePart, steeringTurn: true },
+			]);
+		});
+
 		test('steering during a Fusion phase does not replay a running client tool', async () => {
 			const tools = [{ name: SEMANTIC_SEARCH_TOOL_NAME, description: 'Semantically searches the workspace', inputSchema: { type: 'object' as const, properties: { query: { type: 'string' } } } }];
 			const activeClientToolSet = new ActiveClientToolSet();

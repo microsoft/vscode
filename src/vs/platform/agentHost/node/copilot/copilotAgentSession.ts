@@ -1186,6 +1186,8 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, ICopilotActiveToolCall>();
+	/** Completed tool calls whose completion waits on persistence before it is published. */
+	private readonly _unpublishedToolCompletions = new Map<string, ICopilotActiveToolCall>();
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _subagents = this._register(new CopilotSubagentTracking());
@@ -3336,22 +3338,25 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Re-homes running provisional Fusion tool calls into the steering turn. Ending
-	 * the preempted turn cancelled their rows, and their completion is only shown
-	 * in the turn that owns them. Phase-chat tools keep their open chat. Client
-	 * tools are not replayed: a new running row would ask the client to execute
-	 * them again.
+	 * Hands running or still-publishing provisional Fusion tool calls to the steering
+	 * turn, since their completion is only shown in the turn that owns them. Ending the
+	 * preempted turn cancelled their root rows, so those are re-shown; phase-chat tools
+	 * keep their open chat, and `task_complete` never had a row. Client tools are not
+	 * replayed: a new running row would ask the client to execute them again.
 	 */
 	private _transferProvisionalFusionToolCalls(fromTurnId: string, toTurnId: string): void {
-		for (const [toolCallId, toolCall] of this._activeToolCalls) {
+		for (const [toolCallId, toolCall] of [...this._activeToolCalls, ...this._unpublishedToolCompletions]) {
 			if (toolCall.turnId !== fromTurnId
-				|| toolCall.parentToolCallId
+				|| (toolCall.parentToolCallId && !this._fusionPhases.has(toolCall.parentToolCallId))
 				|| toolCall.contributor?.kind === ToolCallContributorKind.Client
 				|| !this._surfacedProvisionalFusionToolCallIds.has(toolCallId)
 				|| this._pendingPermissions.has(toolCallId)) {
 				continue;
 			}
 			toolCall.turnId = toTurnId;
+			if (toolCall.parentToolCallId || isTaskCompleteTool(toolCall.toolName)) {
+				continue;
+			}
 			this._emitAction({
 				type: ActionType.ChatToolCallStart,
 				turnId: toTurnId,
@@ -9407,7 +9412,8 @@ export class CopilotAgentSession extends Disposable {
 
 			const abortToken = this._abortToken;
 			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
-			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn);
+			// A steering handoff can move the tool to the next turn while its completion persists.
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn || (this._currentTurn.value !== undefined && this._currentTurn.value.id === tracked.turnId));
 			let terminalOutputStored = false;
 			let completionPublished = false;
 			let publication: Promise<boolean> | undefined;
@@ -9417,7 +9423,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 				this._emitAction({
 					type: ActionType.ChatToolCallComplete,
-					turnId,
+					turnId: tracked.turnId,
 					toolCallId: e.data.toolCallId,
 					result: {
 						success: e.data.success,
@@ -9443,6 +9449,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const outputDatabase = outputFilePath || hasResources ? this._sessionDataService.openDatabase(this._storageUri) : undefined;
+			this._unpublishedToolCompletions.set(e.data.toolCallId, tracked);
 			const deferred = isSubagent ? new DeferredPromise<AgentSignal | undefined>() : undefined;
 			if (parentToolCallId && deferred) {
 				this._pendingSubagentToolCompletions.set(e.data.toolCallId, deferred);
@@ -9503,6 +9510,9 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			}).finally(() => {
+				if (this._unpublishedToolCompletions.get(e.data.toolCallId) === tracked) {
+					this._unpublishedToolCompletions.delete(e.data.toolCallId);
+				}
 				if (deferred && !deferred.isSettled) {
 					deferred.complete(undefined);
 				}
