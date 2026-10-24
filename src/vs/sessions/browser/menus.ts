@@ -43,6 +43,8 @@ export const Menus = {
 	/** The layout actions in the header of a docked chat window, before its Close button, as {@link ChatWindowTitleBarLayout}. */
 	ChatWindowTitleLayout: new MenuId('SessionsChatWindowTitleLayout'),
 	ChatWindowLayout: new MenuId('SessionsChatWindowLayout'),
+	/** Where the terminal row of a chat window shows, in the More Actions menu of the row. */
+	ChatWindowTerminalPosition: new MenuId('SessionsChatWindowTerminalPosition'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),

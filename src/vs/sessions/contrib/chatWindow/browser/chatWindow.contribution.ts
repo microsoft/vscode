@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -21,7 +21,7 @@ import { Menus } from '../../../browser/menus.js';
 import { registerSessionLayoutModeActions, sessionLayoutModeChoices } from '../../../browser/sessionLayoutModeActions.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowHasEditorAreaContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, ChatWindowTerminalRowContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayoutContext } from '../../../common/sessionLayoutMode.js';
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
 import { ChatWindowService } from './chatWindowService.js';
@@ -83,7 +83,6 @@ registerSessionLayoutModeActions({
 const ChatWindowLayoutMenuGroup = {
 	panes: '1_panes',
 	arrangement: '2_arrangement',
-	terminal: '2_terminal',
 	window: '3_window',
 } as const;
 
@@ -213,20 +212,32 @@ for (const target of [SessionLayoutMode.SideBySide, SessionLayoutMode.Stacked] a
 
 // Where the terminal row shows, chosen like a radio group: below the chat and the editor area, below the editor area
 // only, or below the chat only. Stacked, the chat is the bottom of the window, so below the chat is across the bottom.
-const chatWindowTerminalPositionChoices: readonly { readonly position: ChatWindowTerminalPosition; readonly id: string; readonly title: ILocalizedString }[] = [{
+// Chosen from the Terminal Position menu in the More Actions menu of the row, as the panel's position is from the panel.
+const chatWindowTerminalPositionChoices: readonly { readonly position: ChatWindowTerminalPosition; readonly id: string; readonly title: ILocalizedString; readonly shortTitle: string }[] = [{
 	position: ChatWindowTerminalPosition.FullWidth,
 	id: 'sessions.chatWindow.terminalPosition.fullWidth',
 	title: localize2('chatWindowTerminalFullWidth', "Terminal Across Full Width"),
+	shortTitle: localize('chatWindowTerminalFullWidthShort', "Across Full Width"),
 }, {
 	position: ChatWindowTerminalPosition.UnderEditor,
 	id: 'sessions.chatWindow.terminalPosition.underEditor',
 	title: localize2('chatWindowTerminalUnderEditor', "Terminal Under Editor"),
+	shortTitle: localize('chatWindowTerminalUnderEditorShort', "Under Editor"),
 }, {
 	position: ChatWindowTerminalPosition.UnderChat,
 	id: 'sessions.chatWindow.terminalPosition.underChat',
 	title: localize2('chatWindowTerminalUnderChat', "Terminal Under Chat"),
+	shortTitle: localize('chatWindowTerminalUnderChatShort', "Under Chat"),
 }];
+const ChatWindowTerminalRowMenuContext = ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowTerminalRowContext, ChatWindowHasEditorAreaContext);
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	submenu: Menus.ChatWindowTerminalPosition,
+	title: localize('chatWindowTerminalPosition', "Terminal Position"),
+	group: '9_chatWindowTerminalPosition',
+	when: ChatWindowTerminalRowMenuContext,
+});
 chatWindowTerminalPositionChoices.forEach((choice, index) => {
+	const toggled = ChatWindowTerminalPositionContext.isEqualTo(choice.position);
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -235,19 +246,24 @@ chatWindowTerminalPositionChoices.forEach((choice, index) => {
 				category: SessionsCategories.Sessions,
 				f1: true,
 				precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorAreaContext),
-				toggled: ChatWindowTerminalPositionContext.isEqualTo(choice.position),
-				menu: {
-					id: Menus.ChatWindowLayout,
-					group: ChatWindowLayoutMenuGroup.terminal,
-					order: index,
-					when: ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowHasEditorAreaContext),
-				},
+				toggled,
 			});
 		}
 
-		override run(accessor: ServicesAccessor): void {
-			accessor.get(IChatWindowService).getActiveWindow()?.setTerminalPosition(choice.position);
+		override run(accessor: ServicesAccessor, context?: { groupId?: number }): void {
+			// From the menu of a row, its own window, which is not necessarily the active chat window.
+			const chatWindowService = accessor.get(IChatWindowService);
+			const window = context?.groupId === undefined
+				? chatWindowService.getActiveWindow()
+				: chatWindowService.windows.get().find(candidate => candidate.terminalGroup.get()?.id === context.groupId);
+			window?.setTerminalPosition(choice.position);
 		}
+	});
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTerminalPosition, {
+		command: { id: choice.id, title: choice.shortTitle, toggled },
+		group: 'navigation',
+		order: index,
+		when: ChatWindowTerminalRowMenuContext,
 	});
 });
 
