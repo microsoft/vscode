@@ -15,7 +15,8 @@ async function spawn(cmd: string, args: string[], opts?: Parameters<typeof _spaw
 }
 
 async function main() {
-	await spawn('npm', ['ci'], { cwd: 'extensions' });
+	// Installs the workspace, which includes extensions/ and its vscode-grammar-updater.
+	await spawn('pnpm', ['install', '--frozen-lockfile']);
 
 	for (const extension of readdirSync('extensions')) {
 		try {
@@ -27,7 +28,7 @@ async function main() {
 			continue;
 		}
 
-		await spawn(`npm`, ['run', 'update-grammar'], { cwd: `extensions/${extension}` });
+		await spawn('pnpm', ['run', 'update-grammar'], { cwd: `extensions/${extension}` });
 	}
 
 	// run integration tests

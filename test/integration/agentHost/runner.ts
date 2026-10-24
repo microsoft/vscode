@@ -356,20 +356,23 @@ async function prepareTestRuntime(): Promise<void> {
 	delete environment.ELECTRON_RUN_AS_NODE;
 
 	mkdirSync(join(repoRoot, '.build', 'crashes'), { recursive: true });
+	const { getPnpmCommand } = await import('../../../build/lib/pnpm.ts');
+	const pnpm = getPnpmCommand();
 	if (!existsSync(join(repoRoot, 'node_modules'))) {
-		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install'], environment);
+		runSync(pnpm.command, [...pnpm.args, 'install'], environment, pnpm.shell);
 	}
 	const { shouldDownloadElectron } = await import('../../../build/lib/electronVersion.ts');
 	if (shouldDownloadElectron(repoRoot, environment)) {
-		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'electron'], environment);
+		runSync(pnpm.command, [...pnpm.args, 'run', 'electron'], environment, pnpm.shell);
 	}
 }
 
-function runSync(command: string, args: readonly string[], environment: NodeJS.ProcessEnv): void {
+function runSync(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, shell = false): void {
 	const result = spawnSync(command, args, {
 		cwd: repoRoot,
 		env: environment,
 		stdio: 'inherit',
+		shell,
 	});
 	if (result.error) {
 		throw result.error;

@@ -9,16 +9,17 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getGitCommitDate } from '../lib/date.ts';
+import { getPnpmCommand } from '../lib/pnpm.ts';
 import { applyIncrementalClientChanges, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS } from './transpile.ts';
 
 const STATE_SCHEMA = 2;
 const BUILD_RECIPE = 4;
 const LOCK_STALE_AFTER_MS = 30_000;
-const BUILD_SCOPES = ['src', 'extensions', '.vscode/extensions', 'build', 'gulpfile.mjs', 'package.json', 'package-lock.json', '.nvmrc'];
+const BUILD_SCOPES = ['src', 'extensions', '.vscode/extensions', 'build', 'gulpfile.mjs', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.nvmrc'];
 const API_PROPOSALS_OUTPUT = 'src/vs/platform/extensions/common/extensionsApiProposals.ts';
 const EXTENSION_POINTS_OUTPUT = 'src/vs/workbench/services/extensions/common/extensionPoints.json';
 const EXTENSION_BUILD_ARGS = ['run', 'gulp', 'transpile-extensions', 'compile-extension-media'];
-const COPILOT_BUILD_ARGS = ['--prefix', 'extensions/copilot', 'run', 'compile'];
+const COPILOT_BUILD_ARGS = ['-C', 'extensions/copilot', 'run', 'compile'];
 
 type Fingerprint = string | null;
 type LaneMode = 'skip' | 'incremental' | 'full';
@@ -113,7 +114,7 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 
 		const prerequisites = createBuildFastPrerequisites(plan.client === 'full', plan.changedPaths);
 		if (prerequisites.tasks.length > 0) {
-			await runCommand(repoRoot, npmCommand(), ['run', 'gulp', ...prerequisites.tasks], 'prerequisites');
+			await runPnpm(repoRoot, ['run', 'gulp', ...prerequisites.tasks], 'prerequisites');
 			const generated = await collectSnapshot(repoRoot);
 			const dirty = { ...before.dirty };
 			for (const [task, filePath] of [
@@ -138,10 +139,10 @@ export async function runBuildFast(repoRoot: string, force: boolean, clientOnly 
 			tasks.push(runTimed('client', () => applyIncrementalClientChanges(repoRoot, 'out', prerequisites.clientChangedPaths)));
 		}
 		if (plan.extensions === 'full') {
-			tasks.push(runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'));
+			tasks.push(runPnpm(repoRoot, EXTENSION_BUILD_ARGS, 'extensions'));
 		}
 		if (plan.copilot === 'full') {
-			tasks.push(runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'));
+			tasks.push(runPnpm(repoRoot, COPILOT_BUILD_ARGS, 'copilot'));
 		}
 
 		await waitForTasks(tasks);
@@ -365,7 +366,8 @@ function isGlobalBuildInput(filePath: string): boolean {
 	return filePath.startsWith('build/')
 		|| filePath === 'gulpfile.mjs'
 		|| filePath === 'package.json'
-		|| filePath === 'package-lock.json'
+		|| filePath === 'pnpm-lock.yaml'
+		|| filePath === 'pnpm-workspace.yaml'
 		|| filePath === '.nvmrc';
 }
 
@@ -406,7 +408,7 @@ function validateSelectedOutputs(plan: BuildFastPlan, outputs: OutputStatus): vo
 }
 
 async function runAllFull(repoRoot: string, clientOnly: boolean): Promise<void> {
-	await runCommand(repoRoot, npmCommand(), [
+	await runPnpm(repoRoot, [
 		'run',
 		'gulp',
 		'copy-codicons',
@@ -416,16 +418,20 @@ async function runAllFull(repoRoot: string, clientOnly: boolean): Promise<void> 
 	await waitForTasks([
 		runCommand(repoRoot, process.execPath, [path.join(repoRoot, 'build', 'next', 'index.ts'), 'transpile'], 'client'),
 		...(!clientOnly ? [
-			runCommand(repoRoot, npmCommand(), EXTENSION_BUILD_ARGS, 'extensions'),
-			runCommand(repoRoot, npmCommand(), COPILOT_BUILD_ARGS, 'copilot'),
+			runPnpm(repoRoot, EXTENSION_BUILD_ARGS, 'extensions'),
+			runPnpm(repoRoot, COPILOT_BUILD_ARGS, 'copilot'),
 		] : []),
 	]);
 }
 
-async function runCommand(cwd: string, command: string, args: readonly string[], label: string): Promise<void> {
+function runPnpm(cwd: string, args: readonly string[], label: string): Promise<void> {
+	const pnpm = getPnpmCommand();
+	return runCommand(cwd, pnpm.command, [...pnpm.args, ...args], label, pnpm.shell);
+}
+
+async function runCommand(cwd: string, command: string, args: readonly string[], label: string, shell = false): Promise<void> {
 	return runTimed(label, () => new Promise<void>((resolve, reject) => {
-		const useShell = process.platform === 'win32' && path.basename(command).toLowerCase() === 'npm.cmd';
-		const child = spawn(command, args, { cwd, stdio: 'inherit', shell: useShell });
+		const child = spawn(command, args, { cwd, stdio: 'inherit', shell });
 		child.on('error', reject);
 		child.on('close', code => {
 			if (code === 0) {
@@ -547,10 +553,6 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 function normalizePath(filePath: string): string {
 	return filePath.replaceAll('\\', '/');
-}
-
-function npmCommand(): string {
-	return process.platform === 'win32' ? 'npm.cmd' : 'npm';
 }
 
 function getErrorMessage(error: unknown): string {
