@@ -31,6 +31,7 @@ suite('Copilot SDK Connector reconciliation', function () {
 	let mcpUrl: string;
 	let mailEndpoint: string;
 	let mailConnected: boolean;
+	let newConnectorsConnected: boolean;
 	let initializations: Record<string, number>;
 	let unexpectedRequests: string[];
 	let tlsErrors: string[];
@@ -39,6 +40,7 @@ suite('Copilot SDK Connector reconciliation', function () {
 		home = await mkdtemp(join(tmpdir(), 'copilot-connectors-'));
 		mailEndpoint = 'mail';
 		mailConnected = true;
+		newConnectorsConnected = false;
 		initializations = {};
 		unexpectedRequests = [];
 		tlsErrors = [];
@@ -106,10 +108,15 @@ suite('Copilot SDK Connector reconciliation', function () {
 				json({ login: 'connector-test', id: 1 });
 			} else if (path === '/copilot-connectors/api/v1/plugins') {
 				json({
-					plugins: ['mail', 'calendar'].map(name => ({
+					plugins: [
+						{ name: 'mail', connected: mailConnected, endpoint: mailEndpoint },
+						{ name: 'calendar', connected: true, endpoint: 'calendar' },
+						{ name: 'drive', connected: newConnectorsConnected, endpoint: 'drive' },
+						{ name: 'files', connected: newConnectorsConnected, endpoint: 'files' },
+					].map(({ name, connected, endpoint }) => ({
 						name, metadata: { displayName: `Test ${name}`, tier: 'standard', releaseTag: 'preview' },
-						connection: { status: name === 'mail' && !mailConnected ? 'available' : 'connected' },
-						mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${name === 'mail' ? mailEndpoint : name}` } } },
+						connection: { status: connected ? 'connected' : 'available' },
+						mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${endpoint}` } } },
 					})),
 				});
 			} else {
@@ -224,6 +231,20 @@ suite('Copilot SDK Connector reconciliation', function () {
 			deferred: false, unrelatedTarget: true,
 			calendarStarts: beforeDeferred.calendar, ordinaryStarts: beforeDeferred.ordinary,
 			mailStarts: beforeDeferred['mail-relocated'] + 1, unexpectedRequests: [],
+		});
+
+		newConnectorsConnected = true;
+		const added = await reconcileCopilotConnectors(session, log, { preserveStoppedServers: true, addNewlyConnected: true });
+		const afterAdd = (await session.rpc.connectors.getStatus()).runtimeServers;
+		assert.deepStrictEqual({
+			calendarConfigured: (await session.rpc.mcp.listConfigured()).servers.find(server => server.name === calendar.runtimeServerId)?.live?.status,
+			reconciled: added.reconciled, newlyConnectedChecked: added.newlyConnectedChecked,
+			servers: afterAdd.map(({ connectorName, status }) => ({ connectorName, status })).sort((a, b) => a.connectorName.localeCompare(b.connectorName)),
+			calendarStarts: initializations.calendar, driveStarts: initializations.drive, filesStarts: initializations.files, unexpectedRequests,
+		}, {
+			calendarConfigured: 'stopped', reconciled: false, newlyConnectedChecked: true,
+			servers: [{ connectorName: 'calendar', status: 'stopped' }, { connectorName: 'drive', status: 'connected' }, { connectorName: 'files', status: 'connected' }, { connectorName: 'mail', status: 'connected' }],
+			calendarStarts: beforeDeferred.calendar, driveStarts: 1, filesStarts: 1, unexpectedRequests: [],
 		});
 		await session.disconnect();
 	});
