@@ -160,8 +160,8 @@ suite('Sessions - Session Activity Bar', () => {
 			root,
 			activityBar,
 			activityService,
-			createDocked: () => {
-				const host = append(root, $('.host'));
+			createDocked: (parent: HTMLElement = root) => {
+				const host = append(parent, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
 				for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size40', '4px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
 					host.style.setProperty(`--vscode-${token}`, value);
@@ -726,6 +726,37 @@ suite('Sessions - Session Activity Bar', () => {
 			hostGone: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH] },
 			// Occupied while the shown strip is in it, empty while the strip is disabled.
 			occupied: [true, false, true, false, true, false],
+		});
+	});
+
+	test('shows the strip of an active chat hidden with its part only in an active external host, and finds the host once the chat is attached', async () => {
+		const { createDocked, root } = createActivityBar(store, [changes]);
+		const hostElement = append(root, $('.external-host'));
+		const active = observableValue('active', false);
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active, height: constObservable(500), setOccupied: () => { } }));
+		// Created detached, as a chat is while the Sessions Part is hidden and not laid out.
+		const detached = mainWindow.document.createElement('div');
+		const docked = createDocked(detached);
+		const where = () => docked.element?.parentElement === hostElement ? 'host' : docked.element?.classList.contains('inactive') ? 'hidden' : 'chat';
+
+		docked.setActive(true, true);
+		const hiddenWithPart = where();
+		active.set(true, undefined);
+		const hostActiveWhileDetached = where();
+		root.appendChild(detached);
+		await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+		const attached = where();
+		active.set(false, undefined);
+		const hostInactive = where();
+		docked.setActive(true, false);
+		const partShown = where();
+
+		assert.deepStrictEqual({ hiddenWithPart, hostActiveWhileDetached, attached, hostInactive, partShown }, {
+			hiddenWithPart: 'hidden',
+			hostActiveWhileDetached: 'hidden',
+			attached: 'host',
+			hostInactive: 'hidden',
+			partShown: 'chat',
 		});
 	});
 

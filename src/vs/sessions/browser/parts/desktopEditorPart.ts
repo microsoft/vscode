@@ -273,7 +273,11 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	private _registerGroupRelayoutListener(group: EditorGroupView): void {
-		this._groupRelayoutListeners.set(group, group.onDidRelayout(() => this._dockedAuxBar?.layout()));
+		this._groupRelayoutListeners.set(group, group.onDidRelayout(() => {
+			this._dockedAuxBar?.layout();
+			// Below the tabs, whose height is known once the group lays out.
+			this._layoutSessionActivityBarHost();
+		}));
 	}
 
 	/**

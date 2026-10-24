@@ -224,7 +224,8 @@ export class ChatWindowChatEditor extends EditorPane {
 			// The one session view of its window: styled as the active one of the grid is.
 			view.element.classList.add('is-active');
 			view.setActive(true);
-			view.setVisible(this._visible);
+			// Hidden with this editor, as when the editor only shows: the Session Activity Bar can still show beside the editor.
+			view.setPartVisible(this._visible);
 			this._register(this._sessionsPartService.registerWindowSessionView(view, {
 				focus: () => {
 					if (this._container) {
@@ -536,7 +537,7 @@ export class ChatWindowChatEditor extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		this._visible = visible;
-		this._sessionView?.setVisible(visible);
+		this._sessionView?.setPartVisible(visible);
 	}
 
 	override layout(dimension: dom.Dimension): void {

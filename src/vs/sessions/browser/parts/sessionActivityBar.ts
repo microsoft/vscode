@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionActivityBar.css';
-import { $, addDisposableListener, AnimationFrameScheduler, append, EventHelper, EventLike, EventType, getActiveElement, getWindow, isHTMLElement } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, append, EventHelper, EventLike, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -279,10 +279,13 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private position = DEFAULT_POSITION;
 	private area = { top: 0, height: 0 };
 	private active = false;
+	/** Whether the chat is hidden with the Sessions Part, such as while the editor area is maximized. */
+	private surfaceHidden = false;
 	/** The host outside the chat that the strip can show in, found among the ancestors of the chat. */
 	private readonly externalHost = observableValue<ISessionActivityBarExternalHost | undefined>(this, undefined);
 	/** The host the strip shows in now, if any. */
 	private hostedIn: ISessionActivityBarExternalHost | undefined;
+	private readonly probeScheduler = this._register(new MutableDisposable());
 	/** The measured height of the strip, cached so layout passes do not force a reflow. */
 	private height: number | undefined;
 	private scrollDownButton: HTMLElement | undefined;
@@ -341,8 +344,21 @@ export class ChatViewSessionActivityBar extends Disposable {
 		}));
 	}
 
-	/** Finds the host outside the chat, now that the chat is in the DOM. */
+	/**
+	 * Finds the host outside the chat among the chat's ancestors. A chat created before it is attached, such as while
+	 * the Sessions Part is hidden and so not laid out, looks again once it is attached.
+	 */
 	private probeExternalHost(): void {
+		if (!this.container.isConnected) {
+			// Only the active strip shows, so only it looks again, until it is attached or no longer active.
+			if (this.active && !this.probeScheduler.value) {
+				this.probeScheduler.value = scheduleAtNextAnimationFrame(getWindow(this.container), () => {
+					this.probeScheduler.clear();
+					this.probeExternalHost();
+				});
+			}
+			return;
+		}
 		const host = findExternalHost(this.container);
 		if (host !== this.externalHost.get()) {
 			this.externalHost.set(host, undefined);
@@ -357,6 +373,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 		}
 		const host = this.externalHost.get();
 		const hostedIn = host && this.active && host.active.get() ? host : undefined;
+		// A chat hidden with the Sessions Part shows its strip only in the host outside it.
+		this.element?.classList.toggle('inactive', !this.isShown(hostedIn));
 		const parent = hostedIn?.element ?? this.container;
 		const element = activityBar.element;
 		if (element.parentElement !== parent) {
@@ -407,14 +425,24 @@ export class ChatViewSessionActivityBar extends Disposable {
 		scheduler.schedule();
 	}
 
-	setActive(active: boolean): void {
+	/**
+	 * Whether the chat is the active one, whose strip shows. `surfaceHidden` is set while the chat is active but hidden
+	 * with the Sessions Part, such as while the editor area is maximized: its strip then shows only in a host outside it.
+	 */
+	setActive(active: boolean, surfaceHidden = false): void {
 		this.probeExternalHost();
-		if (this.active === active) {
+		if (this.active === active && this.surfaceHidden === surfaceHidden) {
 			return;
 		}
 		this.active = active;
-		this.element?.classList.toggle('inactive', !active);
+		this.surfaceHidden = surfaceHidden;
+		this.probeExternalHost();
 		this.relocate();
+	}
+
+	/** Whether the strip shows: for the active chat, beside it, or only in `hostedIn` while the chat is hidden. */
+	private isShown(hostedIn: ISessionActivityBarExternalHost | undefined): boolean {
+		return this.active && (!this.surfaceHidden || !!hostedIn);
 	}
 
 	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
@@ -457,7 +485,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 	}
 
 	private applyPosition(): void {
-		if (this.element?.isConnected && this.active && this.activityBar?.visible.get()) {
+		if (this.element?.isConnected && this.isShown(this.hostedIn) && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.getArea().top + this.getOffset()}px`;
 		}
 		this.scrollDownButtonScheduler?.schedule();
@@ -468,7 +496,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		if (!button?.parentElement) {
 			return;
 		}
-		if (!button.isConnected || !this.active || !this.activityBar?.visible.get() || this.reservedWidth.get() === 0 || button.style.display === 'none') {
+		if (!button.isConnected || !this.isShown(this.hostedIn) || !this.activityBar?.visible.get() || this.reservedWidth.get() === 0 || button.style.display === 'none') {
 			this.scrollDownButtonOffset = { x: 0, y: 0 };
 			button.style.removeProperty('translate');
 			return;

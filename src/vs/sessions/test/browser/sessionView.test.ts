@@ -191,8 +191,8 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
-	test('forwards effective visibility (part and grid leaf) to the hosted chat view', () => {
-		const forwarded: boolean[] = [];
+	test('forwards effective visibility (part and grid leaf) to the hosted chat view, and the part visibility for its session activity bar', () => {
+		const forwarded: [visible: boolean, partVisible: boolean][] = [];
 		// Created from the prototype so the internal visibility helpers are present.
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_headerHeight: observableValue('headerHeight', 0),
@@ -200,7 +200,7 @@ suite('Sessions - Session View', () => {
 			_isLeafVisible: true,
 			_isVisibleObs: observableValue('visible', true),
 			_lastLayout: undefined,
-			_groupsView: { setSessionVisible: (visible: boolean) => forwarded.push(visible) },
+			_groupsView: { setSessionVisible: (visible: boolean, partVisible: boolean) => forwarded.push([visible, partVisible]) },
 			_standaloneView: { get: () => undefined },
 			_preparationView: constObservable(undefined),
 		});
@@ -214,7 +214,8 @@ suite('Sessions - Session View', () => {
 		// Showing the part again reveals the chat.
 		view.setPartVisible(true);
 
-		assert.deepStrictEqual(forwarded, [false, true]);
+		// The chat is never revealed while the part is hidden; the part's visibility follows each change.
+		assert.deepStrictEqual(forwarded, [[false, true], [false, false], [false, false], [true, true]]);
 	});
 
 	test('quiets inactive chat chrome without changing its layout and reveals it for hover or keyboard focus', () => {
