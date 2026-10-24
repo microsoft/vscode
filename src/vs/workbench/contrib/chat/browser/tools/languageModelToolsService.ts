@@ -133,6 +133,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
 	private readonly _onDidChangeToolsScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750));
 	private readonly _tools = new Map<string, IToolEntry>();
+	/** Implementations registered before their tool data contribution was processed, keyed by tool id. Attached when the matching tool data registers. */
+	private readonly _pendingToolImpls = new Map<string, IToolImpl>();
 	private readonly _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
 
@@ -313,6 +315,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		this._tools.set(toolData.id, { data: toolData });
 		this._ctxToolsCount.set(this._tools.size);
+
+		// An implementation may have been registered before this tool's data contribution was
+		// processed (the extension point handler and the extension's registerTool API call race).
+		// Attach the buffered implementation now instead of having dropped it earlier.
+		const pendingImpl = this._pendingToolImpls.get(toolData.id);
+		if (pendingImpl) {
+			this._pendingToolImpls.delete(toolData.id);
+			this._tools.get(toolData.id)!.impl = pendingImpl;
+		}
 		if (!this._onDidChangeToolsScheduler.isScheduled()) {
 			this._onDidChangeToolsScheduler.schedule();
 		}
@@ -352,7 +363,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
 		const entry = this._tools.get(id);
 		if (!entry) {
-			throw new Error(`Tool "${id}" was not contributed.`);
+			// The implementation can arrive before the tool's data contribution has been processed
+			// (the extension point handler and the extension's registerTool API call race during
+			// activation). Buffer it so registerToolData can attach it, rather than throwing.
+			if (this._pendingToolImpls.has(id)) {
+				throw new Error(`Tool "${id}" already has an implementation.`);
+			}
+			this._pendingToolImpls.set(id, tool);
+			return toDisposable(() => {
+				if (this._pendingToolImpls.get(id) === tool) {
+					this._pendingToolImpls.delete(id);
+				} else {
+					const current = this._tools.get(id);
+					if (current?.impl === tool) {
+						current.impl = undefined;
+					}
+				}
+			});
 		}
 
 		if (entry.impl) {
