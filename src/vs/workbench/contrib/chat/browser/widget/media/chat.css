@@ -1467,6 +1467,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: var(--vscode-button-hoverBackground);
 }
 
+/* A host-provided label (for example "Run 3 Attempts") sits before the button. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button.labeled {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .chat-submit-button-label {
+	order: -1;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.labeled) > .chat-submit-button-label {
+	display: none;
+}
+
 .interactive-session .chat-editing-session {
 	width: 100%;
 	position: relative;
@@ -1483,6 +1502,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
+}
+
+.monaco-workbench .interactive-session .chat-input-stack-input-focused > .chat-editing-session.chat-input-stack-continues > .chat-session-working-set {
+	border-inline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .interactive-session .chat-input-stack-input-focused.chat-input-stack-input-working > .chat-editing-session.chat-input-stack-continues > .chat-session-working-set {
+	border-inline-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
@@ -3308,6 +3335,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* When the heading's buttons need the room, the file count truncates instead of the line counts. */
+.interactive-session .chat-session-working-set .working-set-title .monaco-button {
+	max-width: 100%;
+}
+
+.interactive-session .chat-session-working-set .working-set-title .monaco-button-mdlabel {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .interactive-session .chat-session-working-set .insertions-and-deletions {
 	display: flex;
 	flex-shrink: 0;
@@ -3327,6 +3366,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-session-working-set .deletions {
 	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Keep and Undo stay quiet until a file row is hovered, focused, or selected, like the editing session's working set. */
+.interactive-session .chat-session-working-set .chat-summary-list-icon-actions {
+	display: none;
+	flex-shrink: 0;
+	padding-left: var(--vscode-spacing-size60);
+}
+
+.interactive-session .chat-session-working-set .monaco-list-row:hover .chat-summary-list-icon-actions,
+.interactive-session .chat-session-working-set .monaco-list-row.focused .chat-summary-list-icon-actions,
+.interactive-session .chat-session-working-set .monaco-list-row.selected .chat-summary-list-icon-actions {
+	display: flex;
 }
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
@@ -3869,6 +3921,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 4px;
 }
 
+/* A labelled attachment's own icon, sized and spaced like a label icon. */
+.chat-attached-context .chat-attached-context-attachment > .codicon.chat-attached-context-icon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	align-self: center;
+	margin-right: var(--vscode-spacing-size40);
+}
+
 .chat-attached-context-attachment .chat-attached-context-pill-image {
 	width: 13px;
 	height: 13px;
@@ -3959,7 +4018,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-generated-image-result {
-	--chat-generated-image-max-height: min(60vh, 400px);
 	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 
 	.chat-collapsible-io-resource-group {
@@ -4018,26 +4076,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 	position: absolute;
 	/* Clear any content floating above the input. */
-	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px));
-	right: 12px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size280);
+	bottom: calc(var(--vscode-spacing-size80) + var(--vscode-chat-persistent-content-height, 0px));
+	right: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-large);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	box-shadow: var(--vscode-shadow-md);
 
 	.codicon {
 		margin: 0;
-	}
-
-	.codicon::before {
-		display: inline-block;
-		transform: translateY(1px);
+		flex-shrink: 0;
+		font-size: var(--vscode-codiconFontSize);
 	}
 }
 
 .interactive-session .chat-scroll-down:hover,
 .interactive-session .chat-scroll-down:focus {
-	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
-	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
+	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
 }
 
 .chat-quota-error-widget,

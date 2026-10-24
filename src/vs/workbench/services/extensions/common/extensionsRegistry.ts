@@ -395,6 +395,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
 					},
 					{
+						label: 'onChatArtifactIntegration',
+						body: 'onChatArtifactIntegration',
+						description: nls.localize('vscode.extension.activationEvents.onChatArtifactIntegration', 'An activation event emitted when recorded chat artifacts are observed or an agent host that can use artifact integrations connects.'),
+					},
+					{
 						label: 'onChatContextProvider',
 						body: 'onChatContextProvider:${1:contextProviderId}',
 						description: nls.localize('vscode.extension.activationEvents.onChatContextProvider', 'An activation event emitted when the specified chat context provider is invoked.'),
@@ -589,7 +594,7 @@ export const schema: IJSONSchema = {
 					}
 				},
 				agentsWindow: {
-					description: nls.localize('vscode.extension.capabilities.agentsWindow', "Declares whether the extension should be enabled in the Agents window. Requires the `agentsWindowActivation` API proposal. Non-built-in extensions also require the experimental Agents window capability setting."),
+					description: nls.localize('vscode.extension.capabilities.agentsWindow', "Declares whether the extension should be enabled in the Agents window."),
 					type: 'object',
 					required: ['supported'],
 					defaultSnippets: [
@@ -597,7 +602,7 @@ export const schema: IJSONSchema = {
 					],
 					properties: {
 						supported: {
-							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window. The extension must enable the `agentsWindowActivation` API proposal. Non-built-in extensions also require the `extensions.experimental.enableAgentsWindowCapability` setting for this property to take effect."),
+							markdownDescription: nls.localize('vscode.extension.capabilities.agentsWindow.supported', "Declares whether the extension supports running in the Agents window. For non-built-in extensions, this takes effect while the `extensions.experimental.enableAgentsWindowCapability` setting is enabled (the default)."),
 							type: 'boolean'
 						}
 					}

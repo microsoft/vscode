@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -19,7 +20,7 @@ import { TestColorTheme } from '../../../../../../platform/theme/test/common/tes
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { getGlyphMessageBit, GlyphSurface } from '../../../browser/attachments/chatImageGlyphSurface.js';
 import { ChatImageReveal } from '../../../browser/attachments/chatImageReveal.js';
-import { ImageSamples, ITextureFrame, RevealPace } from '../../../browser/attachments/chatImageTextures.js';
+import { ImageSamples, ITextureFrame, placeWave, RevealPace } from '../../../browser/attachments/chatImageTextures.js';
 
 function halves(left: string, right: string): string {
 	const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 400, height: 240 });
@@ -41,6 +42,8 @@ suite('ChatImageReveal', () => {
 		motionChanged = store.add(new Emitter<void>());
 	});
 
+	teardown(() => sinon.restore());
+
 	async function render(theme = ColorScheme.DARK, width = 400, height = 240) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
@@ -56,6 +59,8 @@ suite('ChatImageReveal', () => {
 		image.style.height = `${height}px`;
 		const host = dom.append(mainWindow.document.body, dom.$('div'));
 		host.style.width = '760px';
+		// The loading square is two thirds of the generated image size cap.
+		host.style.setProperty('--chat-generated-image-max-height', '300px');
 		const container = dom.append(host, dom.$('div', undefined, image));
 		store.add(toDisposable(() => host.remove()));
 		const reveal = store.add(instantiationService.createInstance(ChatImageReveal, container, image, { container: host }));
@@ -97,7 +102,7 @@ suite('ChatImageReveal', () => {
 		await nextFrame();
 	}
 
-	test('the loading glyph band has a fixed width and remains painted until the image is ready', async () => {
+	test('the loading glyph square takes the image size cap and remains painted until the image is ready', async () => {
 		const { container, image } = await render();
 		await nextFrame();
 		await nextFrame();
@@ -109,12 +114,116 @@ suite('ChatImageReveal', () => {
 			painted: pixels.some((value, index) => index % 4 === 3 && value > 0),
 		}, {
 			state: { pending: true, revealing: false, effects: 1, imageOpacity: '0' },
-			size: [320, 50],
+			size: [200, 200],
 			painted: true,
 		});
 	});
 
-	for (const [width, height] of [[200, 240], [400, 240], [200, 30]]) {
+	for (const theme of [ColorScheme.DARK, ColorScheme.LIGHT]) {
+		for (const phase of [0, 800, 1600, 3199]) {
+			test(`the reveal preserves every pixel of the last loading frame (${theme}, phase=${phase})`, () => runWithFakedTimers({ startTime: phase / 2 }, async () => {
+				const { container, image, reveal, host } = await render(theme);
+				host.style.setProperty('--chat-generated-image-max-height', '340.5px');
+				await nextFrame();
+				await nextFrame();
+				const field = container.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+				const bounds = container.getBoundingClientRect();
+				const { width, height } = field;
+				const pixels = () => field.getContext('2d')!.getImageData(0, 0, width, height).data;
+				await timeout(7);
+				const loading = pixels();
+				reveal.reveal();
+				const initial = pixels();
+				const initialBounds = container.getBoundingClientRect();
+				const state = snapshot(container, image);
+				reveal.dispose();
+				assert.deepStrictEqual({
+					painted: loading.some((value, index) => index % 4 === 3 && value > 0),
+					changedChannels: initial.reduce((count, value, index) => count + Number(value !== loading[index]), 0),
+					size: [initialBounds.width, initialBounds.height],
+					state,
+				}, {
+					painted: true,
+					changedChannels: 0,
+					size: [bounds.width, bounds.height],
+					state: { pending: false, revealing: true, effects: 1, imageOpacity: '0' },
+				});
+			}));
+		}
+	}
+
+	for (const phase of [800, 1600, 2400]) {
+		test(`the outgoing wave fades during expansion and never overlaps the finishing sweep (${phase})`, async () => {
+			const { container, image, reveal, instantiationService } = await render();
+			reveal.dispose();
+			container.style.width = '320px';
+			container.style.height = '200px';
+			const surface = store.add(instantiationService.createInstance(GlyphSurface, container));
+			const timing = surface.getRevealTiming(320, phase);
+			const samples = ImageSamples.create(image, 600, 400, false)!;
+			surface.reveal({
+				image, samples, fromWidth: 320, fromHeight: 200, timing,
+				duration: timing.pace.duration,
+				onFrame: () => { },
+			});
+			const draw = sinon.spy(surface.canvas.getContext('2d')!, 'drawImage');
+			const highestGlyph = async (opening: number, after = -Infinity) => {
+				draw.resetHistory();
+				await seekVirtualTime(container, timing.pace, timing.loadingEnd + opening);
+				return Math.max(...draw.args.filter(args => args.length === 9 && args[5] / mainWindow.devicePixelRatio > after).map(args => args[1] / args[3]));
+			};
+			const initial = await highestGlyph(0);
+			const halfway = await highestGlyph(450);
+			const nearlyExpanded = await highestGlyph(675);
+			const expanded = await highestGlyph(900);
+			const finishingWave = placeWave(200 / 1500, 600, Math.floor(phase / 3200) + 1, 300);
+			const aheadOfFinishingWave = await highestGlyph(1100, finishingWave.head + 6);
+			assert.deepStrictEqual({
+				startsWithWave: initial >= 2,
+				partiallyFaded: halfway >= 2 && halfway <= 5,
+				nearlyExpanded,
+				expanded,
+				aheadOfFinishingWave,
+			}, {
+				startsWithWave: true,
+				partiallyFaded: true,
+				nearlyExpanded: 1,
+				expanded: 1,
+				aheadOfFinishingWave: 1,
+			});
+		});
+	}
+
+	test('the finishing reveal glyphs are independent of the outgoing loading wave', async () => {
+		const surfaces = [];
+		for (const [fromWidth, fromHeight] of [[200, 200], [320, 50]]) {
+			const { container, image, reveal, instantiationService } = await render();
+			reveal.dispose();
+			container.style.width = `${fromWidth}px`;
+			container.style.height = `${fromHeight}px`;
+			const surface = store.add(instantiationService.createInstance(GlyphSurface, container));
+			const timing = surface.getRevealTiming(fromWidth, 1600);
+			surface.reveal({
+				image, samples: ImageSamples.create(image, 400, 240, false)!, fromWidth, fromHeight, timing,
+				duration: timing.pace.duration,
+				onFrame: () => { },
+			});
+			seek(container, 0);
+			surfaces.push({ surface, container, timing });
+		}
+		const differences = [];
+		for (const opening of [2600, 3300, 3800, 4400]) {
+			const frames: Uint8ClampedArray[] = [];
+			for (const { surface, container, timing } of surfaces) {
+				await seekVirtualTime(container, timing.pace, timing.loadingEnd + opening);
+				frames.push(surface.canvas.getContext('2d')!.getImageData(0, 0, surface.canvas.width, surface.canvas.height).data);
+			}
+			differences.push(frames[0].reduce((count, value, index) => count + Number(value !== frames[1][index]), 0));
+		}
+		assert.deepStrictEqual(differences, [0, 0, 0, 0]);
+	});
+
+	for (const [width, height] of [[220, 240], [400, 240], [220, 30]]) {
 		test(`the default reveal immediately resizes to a ${width}x${height} image and yields to its original pixels`, async () => {
 			const { container, image, reveal, host } = await render(ColorScheme.DARK, width, height);
 			reveal.reveal();
@@ -139,7 +248,7 @@ suite('ChatImageReveal', () => {
 				finished: snapshot(container, image),
 				originClean: !host.classList.contains('chat-image-reveal-running') && !host.classList.contains('chat-image-reveal-pending'),
 			}, {
-				start: { width: 320, height: 50, image: 0, texture: 1 },
+				start: { width: 200, height: 200, image: 0, texture: 1 },
 				resizingWithin100ms: true,
 				middle: { width, height, image: 0, texture: 1 },
 				end: { width, height, image: 1, texture: 0 },
@@ -149,8 +258,48 @@ suite('ChatImageReveal', () => {
 		});
 	}
 
+	test('a resize of the glyph canvas repaints the reveal after resize observation, so it causes no resize observer loop', async () => {
+		const { container, reveal, host } = await render();
+		// The chat list observes the rows that contain a reveal.
+		const hostObserver = store.add(new dom.DisposableResizeObserver('ChatImageReveal.test.host', () => { }));
+		store.add(hostObserver.observe(host));
+		const loopErrors: string[] = [];
+		const onError = (event: ErrorEvent) => {
+			if (event.message.includes('ResizeObserver loop')) {
+				loopErrors.push(event.message);
+			}
+		};
+		mainWindow.addEventListener('error', onError);
+		store.add(toDisposable(() => mainWindow.removeEventListener('error', onError)));
+		reveal.reveal();
+		const field = container.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+		seek(container, 0);
+		// Without motion, the reveal paints no more animation frames: only a resize of its canvas repaints it.
+		reducedMotion = true;
+		await nextFrame();
+		await nextFrame();
+		const heightBefore = container.getBoundingClientRect().height;
+
+		// The reveal moves on and its canvas is resized in the same animation frame.
+		await new Promise<void>(resolve => store.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+			seek(container, 0.5);
+			field.style.width = `${field.getBoundingClientRect().width + 1}px`;
+			resolve();
+		})));
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			loopErrors,
+			repainted: container.getBoundingClientRect().height !== heightBefore,
+		}, {
+			loopErrors: [],
+			repainted: true,
+		});
+	});
+
 	for (const [width, height, loadingTime] of [[200, 240, 0], [400, 240, 1600], [319, 240, 2400], [320, 240, 3199], [321, 240, 3199], [200, 30, 1200]]) {
-		test(`skips the loading sweep and resizes continuously (${width}x${height}, phase=${loadingTime})`, async () => {
+		test(`resizes immediately while the loading sweep continues (${width}x${height}, phase=${loadingTime})`, async () => {
 			const { container, image, reveal, instantiationService } = await render(ColorScheme.DARK, width, height);
 			reveal.dispose();
 			container.style.width = '320px';
@@ -172,7 +321,7 @@ suite('ChatImageReveal', () => {
 			};
 			const resizeStart = await at(timing.loadingEnd);
 			const readBand = () => surface.canvas.getContext('2d')!.getImageData(0, 0, surface.canvas.width, Math.round(50 * mainWindow.devicePixelRatio)).data;
-			const settledBand = width === 320 ? readBand() : undefined;
+			const initialBand = width === 320 ? readBand() : undefined;
 			const resizeFrames: ITextureFrame[] = [];
 			for (const elapsed of [1, 225, 450, 675, 899, 900]) {
 				resizeFrames.push(await at(timing.loadingEnd + elapsed));
@@ -187,7 +336,7 @@ suite('ChatImageReveal', () => {
 					&& progress(frame.height, 50, height) <= 1;
 			});
 			const near = (actual: ITextureFrame, expectedWidth: number, expectedHeight: number) => Math.abs(actual.width - expectedWidth) < 0.01 && Math.abs(actual.height - expectedHeight) < 0.01;
-			const resizedBand = settledBand ? readBand() : undefined;
+			const resizedBand = initialBand ? readBand() : undefined;
 			assert.deepStrictEqual({
 				sweepSkipped: timing.loadingEnd > 0 && timing.pace.virtualAt(0) === timing.loadingEnd,
 				initialSize: near(resizeStart, 320, 50),
@@ -197,10 +346,10 @@ suite('ChatImageReveal', () => {
 				synchronized,
 				monotonic,
 				imageWaitsForResize: resizeFrames.every(frame => frame.imageOpacity === 0 && frame.textureOpacity === 1),
-				loadingDoesNotRestart: !settledBand || settledBand.every((value, index) => value === resizedBand![index]),
+				loadingKeepsAnimating: !initialBand || initialBand.some((value, index) => value !== resizedBand![index]),
 			}, {
 				sweepSkipped: true, initialSize: true, smoothStart: true, halfway: true,
-				smoothEnd: true, synchronized: true, monotonic: true, imageWaitsForResize: true, loadingDoesNotRestart: true,
+				smoothEnd: true, synchronized: true, monotonic: true, imageWaitsForResize: true, loadingKeepsAnimating: true,
 			});
 		});
 	}
@@ -300,26 +449,24 @@ suite('ChatImageReveal', () => {
 		});
 	});
 
-	test('time spent handling the image load does not extend the reveal deadline', async () => {
+	test('time spent handling the image load does not extend the reveal deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { container, image, reveal } = await render();
 		const fresh = await render();
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const loadedAt = mainWindow.performance.now();
-			await timeout(100);
-			fresh.reveal.reveal();
-			reveal.reveal(loadedAt);
-			const duration = Number(container.getAnimations({ subtree: true })[0].effect?.getTiming().duration);
-			const freshDuration = Number(fresh.container.getAnimations({ subtree: true })[0].effect?.getTiming().duration);
-			await timeout(duration - 1);
-			const beforeDeadline = container.classList.contains('revealing');
-			await timeout(2);
-			assert.deepStrictEqual({ shortenedBy: Math.round(freshDuration - duration), beforeDeadline, finished: snapshot(container, image) }, {
-				shortenedBy: 100,
-				beforeDeadline: true,
-				finished: { pending: false, revealing: false, effects: 0, imageOpacity: '1' },
-			});
+		const loadedAt = mainWindow.performance.now();
+		await timeout(100);
+		fresh.reveal.reveal();
+		reveal.reveal(loadedAt);
+		const duration = Number(container.getAnimations({ subtree: true })[0].effect?.getTiming().duration);
+		const freshDuration = Number(fresh.container.getAnimations({ subtree: true })[0].effect?.getTiming().duration);
+		await timeout(duration - 1);
+		const beforeDeadline = container.classList.contains('revealing');
+		await timeout(2);
+		assert.deepStrictEqual({ shortenedBy: Math.round(freshDuration - duration), beforeDeadline, finished: snapshot(container, image) }, {
+			shortenedBy: 100,
+			beforeDeadline: true,
+			finished: { pending: false, revealing: false, effects: 0, imageOpacity: '1' },
 		});
-	});
+	}));
 
 	test('an expired load deadline shows the image immediately', async () => {
 		const { container, image, reveal } = await render();
@@ -389,19 +536,17 @@ suite('ChatImageReveal', () => {
 		assert.deepStrictEqual(snapshot(container, image), { pending: false, revealing: false, effects: 0, imageOpacity: '1' });
 	});
 
-	test('disposing during a reveal removes its canvas and cancels completion', async () => {
+	test('disposing during a reveal removes its canvas and cancels completion', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { container, image, reveal } = await render();
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			reveal.reveal();
-			const canvas = container.querySelector<HTMLCanvasElement>('canvas')!;
-			reveal.dispose();
-			const disposed = snapshot(container, image);
-			await timeout(10000);
-			assert.deepStrictEqual({ disposed, later: snapshot(container, image), canvasSize: [canvas.width, canvas.height] }, {
-				disposed: { pending: false, revealing: false, effects: 0, imageOpacity: '1' },
-				later: { pending: false, revealing: false, effects: 0, imageOpacity: '1' },
-				canvasSize: [0, 0],
-			});
+		reveal.reveal();
+		const canvas = container.querySelector<HTMLCanvasElement>('canvas')!;
+		reveal.dispose();
+		const disposed = snapshot(container, image);
+		await timeout(10000);
+		assert.deepStrictEqual({ disposed, later: snapshot(container, image), canvasSize: [canvas.width, canvas.height] }, {
+			disposed: { pending: false, revealing: false, effects: 0, imageOpacity: '1' },
+			later: { pending: false, revealing: false, effects: 0, imageOpacity: '1' },
+			canvasSize: [0, 0],
 		});
-	});
+	}));
 });

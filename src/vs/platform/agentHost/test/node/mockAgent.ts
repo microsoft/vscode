@@ -82,6 +82,9 @@ export class MockAgent implements IAgent {
 	readonly sendMessageCalls: IMockSendMessageCall[] = [];
 	readonly setPendingMessagesCalls: { chat: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[]; steeringSender: IAgentPendingMessageSender | undefined }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
+	private readonly _onDidDisposeSession = new Emitter<URI>();
+	/** Fires after each call recorded in {@link disposeSessionCalls}. */
+	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 	readonly releaseSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
@@ -264,9 +267,12 @@ export class MockAgent implements IAgent {
 		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages, steeringSender });
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void {
+	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean> {
 		return this.setPendingMessages(chat, message, [], sender);
 	}
+
+	/** Assign to model a provider that can withdraw steering it was already handed. */
+	withdrawSteeringMessage?: (chat: URI, messageId: string) => void;
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		const subagentInfo = parseSubagentSessionUri(session);
@@ -293,6 +299,7 @@ export class MockAgent implements IAgent {
 
 	async finalizeSession(session: URI, _context?: { readonly workspaceless?: boolean }): Promise<void> {
 		this.disposeSessionCalls.push(session);
+		this._onDidDisposeSession.fire(session);
 		this._sessions.delete(AgentSession.id(session));
 	}
 
@@ -371,6 +378,7 @@ export class MockAgent implements IAgent {
 			return this.disposeChat(session, chat).then(() => {
 				if (this._initialChats.delete(chatUri.toString())) {
 					this.disposeSessionCalls.push(session);
+					this._onDidDisposeSession.fire(session);
 					this._sessions.delete(AgentSession.id(session));
 				}
 			});
@@ -499,6 +507,7 @@ export class MockAgent implements IAgent {
 		this._discoveredChatsEmitter.dispose();
 		this._onDidChatProgress.dispose();
 		this._onDidSendMessage.dispose();
+		this._onDidDisposeSession.dispose();
 		this._onDidCustomizationsChange.dispose();
 	}
 }

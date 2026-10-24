@@ -8,6 +8,10 @@ import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/
 import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
 
+export function sessionActivityBarChatActionContext(commandId: string): RawContextKey<boolean> {
+	return new RawContextKey<boolean>(`sessionActivityBar.chatAction.${commandId}`, false);
+}
+
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
@@ -19,7 +23,6 @@ export const SessionWorkspaceIsVirtualContext = new RawContextKey<boolean>('sess
 export const SessionHasGitRepositoryContext = new RawContextKey<boolean>('sessionHasGitRepository', false, localize('sessionHasGitRepository', "Whether the session has a usable git repository"));
 export const SessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('sessionUsesCombinedConfigPicker', false, localize('sessionUsesCombinedConfigPicker', "Whether the session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const SessionUsesExperimentalComposerLayoutContext = new RawContextKey<boolean>('sessionUsesExperimentalComposerLayout', false, localize('sessionUsesExperimentalComposerLayout', "Whether the session chat input uses the experimental composer layout"));
-export const SessionAgentPickerInAttachContext = new RawContextKey<boolean>('sessionAgentPickerInAttachContext', false, localize('sessionAgentPickerInAttachContext', "Whether the active session's Agent picker is shown in Add Context instead of the input toolbar"));
 export const SessionSupportsRenameContext = new RawContextKey<boolean>('sessionSupportsRename', false, localize('sessionSupportsRename', "Whether the session can be renamed"));
 export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionSupportsDelete', false, localize('sessionSupportsDelete', "Whether the session can be deleted"));
 export const SessionItemIsMultiSelectionContext = new RawContextKey<boolean>('sessionItem.isMultiSelection', false, localize('sessionItem.isMultiSelection', "Whether multiple sessions are selected in the sessions list"));
@@ -122,7 +125,8 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 //#region < --- Experiments --- >
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
-export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
+export const SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT = true;
+export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
 export const SessionsListRearrangeContext = new RawContextKey<boolean>('sessionsListRearrange', false, localize('sessionsListRearrange', "Whether the sessions list uses the experimental navigation arrangement"));
 
 //#endregion
@@ -137,6 +141,10 @@ export const SessionWorkspacePickerGroupContext = new RawContextKey<string>('ses
 
 export const NewSessionCreationProviderIdContext = new RawContextKey<string>('newSessionCreationProviderId', '', localize('newSessionCreationProviderId', "The provider selected for new session creation before a draft exists"));
 export const SessionWorkspacePickerVisibleContext = new RawContextKey<boolean>('sessionWorkspacePickerVisible', false, localize('sessionWorkspacePickerVisible', "Whether the new-session view's workspace picker is rendered (as opposed to being replaced by the no-agent-host empty state)"));
+export const SessionEnvironmentPickerVisibleContext = new RawContextKey<boolean>('sessionEnvironmentPickerVisible', false, localize('sessionEnvironmentPickerVisible', "Whether the new-session view's environment picker is visible"));
+export const SessionBranchPickerVisibleContext = new RawContextKey<boolean>('sessionBranchPickerVisible', false, localize('sessionBranchPickerVisible', "Whether the new-session view's branch picker is visible"));
+export const SessionWorktreePickerVisibleContext = new RawContextKey<boolean>('sessionWorktreePickerVisible', false, localize('sessionWorktreePickerVisible', "Whether the new-session view's worktree picker is visible"));
+export const SessionSyncActionVisibleContext = new RawContextKey<boolean>('sessionSyncActionVisible', false, localize('sessionSyncActionVisible', "Whether the new-session view's sync action is visible"));
 export const SessionHarnessPickerVisibleContext = new RawContextKey<boolean>('sessionHarnessPickerVisible', false, localize('sessionHarnessPickerVisible', "Whether the new-session view's harness (session type) picker is visible — it is hidden when at most one harness can serve the selected workspace"));
 export const SessionIsolationPickerVisibleContext = new RawContextKey<boolean>('sessionIsolationPickerVisible', false, localize('sessionIsolationPickerVisible', "Whether the new-session view's isolation picker is visible — it is shown only when the isolation option is enabled and the workspace has a git repository"));
 export const AgentHostSessionTypesAvailableContext = new RawContextKey<boolean>('agentHostSessionTypesAvailable', false, localize('agentHostSessionTypesAvailable', "Whether at least one connected agent-host provider has advertised session types"));

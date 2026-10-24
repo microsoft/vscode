@@ -5,27 +5,34 @@
 
 import './emptyFileEditor.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { combinedDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorsOrder } from '../../../../workbench/common/editor.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { EmptyFileEditorInput } from './emptyFileEditorInput.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 
 export const NEW_BROWSER_TAB_COMMAND_ID = 'workbench.action.agentSessions.newBrowserTab';
+export const OPEN_BROWSER_COMMAND_ID = 'workbench.action.agentSessions.openBrowser';
 export const NEW_SEARCH_TAB_COMMAND_ID = 'workbench.action.agentSessions.newSearchTab';
 export const NEW_CHANGES_TAB_COMMAND_ID = 'workbench.action.agentSessions.newChangesTab';
 
@@ -64,6 +71,14 @@ const filesAddTabWhen = ContextKeyExpr.and(
 	DesktopFilesTabAvailableContext,
 	ContextKeyExpr.or(singleEditorTitleWhen, DesktopFilesTabMissingContext));
 
+/**
+ * Shows a Session Activity Bar entry as checked while the side pane shows its editor; clicking it then hides the side pane.
+ * The side pane can show just the detail panel of the active editor while the editor area is collapsed.
+ */
+function sessionActivityBarEntryToggled(editorId: string) {
+	return ContextKeyExpr.and(ContextKeyExpr.or(MainEditorAreaVisibleContext, AuxiliaryBarVisibleContext), ActiveEditorContext.isEqualTo(editorId))!;
+}
+
 export class NewFileTabAction extends Action2 {
 
 	constructor() {
@@ -90,11 +105,6 @@ export class NewFileTabAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: filesAddTabWhen
-			}, {
-				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.Tabs,
-				order: 1,
-				when: filesTabActionWhen
 			}]
 		});
 	}
@@ -138,11 +148,6 @@ export class NewBrowserTabAction extends Action2 {
 				group: 'navigation',
 				order: 2,
 				when: addTabLayoutWhen
-			}, {
-				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.Tabs,
-				order: 2,
-				when: addTabActionWhen
 			}]
 		});
 	}
@@ -153,6 +158,47 @@ export class NewBrowserTabAction extends Action2 {
 		const browserInput = browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
 
 		await editorService.openEditor(browserInput, { pinned: true });
+	}
+}
+
+/**
+ * Session Activity Bar entry for the browser. Unlike {@link NewBrowserTabAction},
+ * which explicitly adds a tab, this activates the most recent browser tab of the
+ * active group, or opens a new one as a preview tab and focuses its URL input.
+ */
+export class OpenBrowserAction extends Action2 {
+
+	constructor() {
+		super({
+			id: OPEN_BROWSER_COMMAND_ID,
+			title: localize2('openBrowser', "Browser"),
+			icon: Codicon.globe,
+			precondition: addTabActionWhen,
+			toggled: sessionActivityBarEntryToggled(BrowserEditorInput.EDITOR_ID),
+			menu: {
+				id: Menus.SessionActivityBar,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 3,
+				when: addTabActionWhen
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
+		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const commandService = accessor.get(ICommandService);
+		const group = editorGroupsService.mainPart.activeGroup;
+
+		// An existing browser tab is activated in place. Otherwise a new one opens as a
+		// preview tab, which the browser editor pins once it navigates.
+		const existing = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(editor => editor instanceof BrowserEditorInput);
+		const browserInput = existing ?? browserViewWorkbenchService.getOrCreateLazy({ id: generateUuid() });
+		const editorPane = await editorService.openEditor(browserInput, undefined, group);
+		if (editorPane && !browserInput.url) {
+			await commandService.executeCommand(BrowserViewCommandId.FocusUrlInput, editorPane);
+		}
 	}
 }
 
@@ -214,12 +260,6 @@ export class NewChangesTabAction extends Action2 {
 				group: 'navigation',
 				order: 0,
 				when: changesAddTabWhen
-			}, {
-				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.Tabs,
-				order: 0,
-				// Offered whenever the tab is available; an open tab is activated in place.
-				when: changesTabActionWhen
 			}]
 		});
 	}
@@ -237,4 +277,38 @@ export class NewChangesTabAction extends Action2 {
 			await sessionChangesService.openChangesEditor(session.resource, { index }, group);
 		}
 	}
+}
+
+/**
+ * Adds the Changes and Files entries to the Session Activity Bar. They are registered apart
+ * from their actions so that only these entries are checked, not the Add Tab entries.
+ */
+export function registerSessionActivityBarTabEntries(): IDisposable {
+	return combinedDisposable(
+		MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+			command: {
+				id: NEW_CHANGES_TAB_COMMAND_ID,
+				title: localize2('newChangesTab', "Changes"),
+				icon: Codicon.diffMultiple,
+				precondition: changesTabActionWhen,
+				toggled: sessionActivityBarEntryToggled(SessionChangesEditorInput.EDITOR_ID),
+			},
+			group: SessionActivityBarGroup.SidePanel,
+			order: 1,
+			// Offered whenever the tab is available; an open tab is activated in place.
+			when: changesTabActionWhen
+		}),
+		MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+			command: {
+				id: NEW_FILE_TAB_COMMAND_ID,
+				title: localize2('newFileTab', "Files"),
+				icon: EmptyFileEditorInput.ICON,
+				precondition: filesTabActionWhen,
+				toggled: sessionActivityBarEntryToggled(EmptyFileEditorInput.EDITOR_ID),
+			},
+			group: SessionActivityBarGroup.SidePanel,
+			order: 2,
+			when: filesTabActionWhen
+		}),
+	);
 }

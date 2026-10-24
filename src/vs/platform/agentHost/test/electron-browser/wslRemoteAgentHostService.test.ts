@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../base/comm
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
@@ -288,6 +289,17 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(WSLRemoteAgentHostService));
 	});
 
+	test('registers a distro persistently without explicitly connecting', () => {
+		service.cacheDistro({ distro: 'Ubuntu', name: 'Ubuntu' });
+		service.cacheDistro({ distro: 'Ubuntu', name: 'Work Ubuntu' });
+		assert.deepStrictEqual({
+			cached: service.getCachedDistros(),
+			entries: remoteAgentHostService.configuredEntries.map(entry => entry.name),
+			connectCalls: mainService.connectCalls,
+			transports: transports.length,
+		}, { cached: [{ distro: 'Ubuntu', name: 'Work Ubuntu' }], entries: ['Work Ubuntu'], connectCalls: [], transports: 0 });
+	});
+
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -458,7 +470,8 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		});
 	});
 
-	test('releases a late replacement relay after the protocol client is disposed', async () => {
+	test('releases a late replacement relay after the protocol client is disposed', () => runWithFakedTimers({}, async () => {
+		// The relay reconnects after the default real-time backoff; advance it in virtual time.
 		const initial = await mainService.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
 		const replacement = new DeferredPromise<IWSLConnectResult>();
 		mainService.deferredReconnect = replacement;
@@ -481,5 +494,5 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		await lateRelease;
 
 		assert.deepStrictEqual(mainService.releaseRelayCalls, [initial.connectionId, 'late-relay']);
-	});
+	}));
 });

@@ -64,4 +64,12 @@ export interface IClipboardService {
 	 * image, an empty buffer is returned.
 	 */
 	readImage(): Promise<Uint8Array>;
+
+	/**
+	 * Writes a PNG encoded image to the system clipboard.
+	 *
+	 * The image may be passed as a promise so that the write starts right away. Some browsers only
+	 * allow clipboard writes that start while handling the user gesture that triggered them.
+	 */
+	writeImage(data: Uint8Array | Promise<Uint8Array>): Promise<void>;
 }

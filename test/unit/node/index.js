@@ -9,7 +9,9 @@
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
 import * as assert from 'assert';
+import { spawnSync } from 'child_process';
 import Mocha from 'mocha';
+import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import glob from 'glob';
@@ -20,11 +22,11 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
 
 /**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; }}
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
-	string: ['run', 'coveragePath', 'coverageFormats', 'timeout'],
+	string: ['run', 'coveragePath', 'coverageFormats', 'timeout', 'rerun-failed-files'],
 	alias: {
 		h: 'help',
 		t: 'timeout'
@@ -53,12 +55,24 @@ Options:
 --run <file>     Run a single file
 --coverage       Generate a coverage report
 --timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
+--rerun-failed-files <count>  Rerun the test files that failed, each time in a fresh process, up to <count> more times
 --help           Show help`);
 	process.exit(0);
 }
 
 const TEST_GLOB = '**/test/**/*.test.js';
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
+
+/**
+ * Set for the process that reruns failed test files: the path of the JSON file in
+ * which it reports the test files that failed again.
+ */
+const FAILED_FILES_REPORT_ENV = 'VSCODE_TEST_FAILED_FILES_REPORT';
+
+const CHECK_LOADER_ENV = 'VSCODE_TEST_CHECK_LOADER';
+const checkLoader = process.env[CHECK_LOADER_ENV] === undefined
+	? !args.run && !args.runGlob
+	: process.env[CHECK_LOADER_ENV] === '1';
 
 const excludeGlobs = [
 	'**/{browser,electron-browser,electron-main,electron-utility}/**/*.test.js',
@@ -219,18 +233,18 @@ function main() {
 
 		process.stderr.write = write;
 
-		if (!args.run && !args.runGlob) {
+		if (checkLoader) {
 			// set up last test
-			Mocha.suite('Loader', function() {
+			detachFromTestFiles(Mocha.suite('Loader', function() {
 				test('should not explode while loading', function() {
 					assert.ok(!didErr, `should not explode while loading: ${didErr}`);
 				});
-			});
+			}));
 		}
 
 		// report failing test for every unexpected error during any of the tests
 		const unexpectedErrors = [];
-		Mocha.suite('Errors', function() {
+		detachFromTestFiles(Mocha.suite('Errors', function() {
 			test('should not have unexpected errors in tests', function() {
 				if (unexpectedErrors.length) {
 					unexpectedErrors.forEach(function(stack) {
@@ -241,7 +255,7 @@ function main() {
 					assert.ok(false);
 				}
 			});
-		});
+		}));
 
 		// replace the default unexpected error handler to be useful during tests
 		import(`${baseUrl}/vs/base/common/errors.js`).then(errors => {
@@ -250,10 +264,170 @@ function main() {
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});
 
+			/** @type {Set<string>} test files with a failing test or hook */
+			const failedFiles = new Set();
+			/** @type {string[]} failures that do not belong to a test file, such as the runner's own checks */
+			const unattributedFailures = [];
+
 			// fire up mocha
-			runner.run(failures => process.exit(failures ? 1 : 0));
+			const mochaRunner = runner.run(failures => {
+				/** @type {IAttemptResult} */
+				const result = { failures, failedFiles: [...failedFiles], unattributedFailures };
+				const reportPath = process.env[FAILED_FILES_REPORT_ENV];
+				if (reportPath) {
+					fs.writeFileSync(reportPath, JSON.stringify(result));
+				}
+
+				process.exit(failures ? rerunFailedFiles(result) : 0);
+			});
+
+			mochaRunner.on('fail', (runnable) => {
+				if (runnable.file) {
+					failedFiles.add(runnable.file);
+				} else {
+					unattributedFailures.push(runnable.fullTitle());
+				}
+			});
 		});
 	});
+}
+
+/**
+ * The runner's own suites are created after the test files are loaded, so mocha
+ * attributes them to the last loaded file. They do not belong to any test file,
+ * and rerunning one file would not cover them.
+ * @param {Mocha.Suite} suite
+ */
+function detachFromTestFiles(suite) {
+	suite.file = undefined;
+	for (const test of suite.tests) {
+		test.file = undefined;
+	}
+}
+
+/**
+ * @typedef {{ failures: number; failedFiles: string[]; unattributedFailures: string[] }} IAttemptResult
+ */
+
+/**
+ * Reruns the test files that failed, each time in a fresh process, up to
+ * `--rerun-failed-files` more times. Returns the exit code for the whole run.
+ * @param {IAttemptResult} result the result of the first attempt, which failed
+ * @returns {number}
+ */
+function rerunFailedFiles(result) {
+	const maxReruns = args.coverage ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
+
+	/** @type {Map<string, number>} test file -> the last attempt in which it failed */
+	const lastFailedAttempt = new Map();
+	/** @type {string[] | undefined} the test files that the attempt behind `result` reran */
+	let rerunFiles;
+
+	for (let attempt = 1; ; attempt++) {
+		for (const file of result.failedFiles) {
+			lastFailedAttempt.set(file, attempt);
+		}
+
+		if (attempt > maxReruns) {
+			if (maxReruns > 0) {
+				console.error(`\n${result.failedFiles.length} test file(s) still failed after ${attempt} attempts:\n${result.failedFiles.map(file => `  ${file}`).join('\n')}`);
+			}
+		} else if (result.unattributedFailures.length > 0) {
+			console.error(`\nNot rerunning failed tests: ${result.unattributedFailures.length} failure(s) do not belong to a test file:\n${result.unattributedFailures.map(title => `  ${title}`).join('\n')}`);
+		} else {
+			console.log(`\nRerunning ${result.failedFiles.length} test file(s) with failures in a fresh process (attempt ${attempt + 1} of ${maxReruns + 1}):\n${result.failedFiles.map(file => `  ${file}`).join('\n')}\n`);
+			const next = runInFreshProcess(result.failedFiles);
+			if (!next) {
+				console.error('\nThe rerun did not complete normally or report its results.');
+			} else if (next.failures === 0) {
+				reportRescuedFiles(lastFailedAttempt, new Set());
+				return 0;
+			} else {
+				rerunFiles = result.failedFiles;
+				result = next;
+				continue;
+			}
+		}
+
+		// A rerun with failures outside any test file, such as unexpected errors, does
+		// not establish that its other files passed.
+		const stillFailingFiles = result.unattributedFailures.length > 0 && rerunFiles
+			? new Set([...rerunFiles, ...result.failedFiles])
+			: new Set(result.failedFiles);
+		reportRescuedFiles(lastFailedAttempt, stillFailingFiles);
+		return 1;
+	}
+}
+
+/**
+ * Runs the given test files in a new process, the same way `npm run test-node` runs
+ * all of them, and returns its result, or `undefined` when it did not complete
+ * normally or report one.
+ * @param {string[]} files test files as module paths
+ * @returns {IAttemptResult | undefined}
+ */
+function runInFreshProcess(files) {
+	const reportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-node-rerun-'));
+	const reportPath = path.join(reportDir, 'result.json');
+	try {
+		const mochaCli = module.createRequire(import.meta.url).resolve('mocha/bin/mocha.js');
+		const child = spawnSync(process.execPath, [
+			...process.execArgv,
+			mochaCli, fileURLToPath(import.meta.url), '--delay', '--ui=tdd', '--exit',
+			...(args.build ? ['--build'] : []),
+			...(args.timeout !== undefined ? ['--timeout', args.timeout] : []),
+			...files.flatMap(file => ['--run', path.join(src, `${file}.js`)]),
+		], {
+			stdio: 'inherit',
+			env: { ...process.env, [FAILED_FILES_REPORT_ENV]: reportPath, [CHECK_LOADER_ENV]: checkLoader ? '1' : '0' },
+		});
+
+		if (child.error) {
+			console.error('\nFailed to start the rerun:', child.error);
+			return undefined;
+		}
+		if (child.signal) {
+			console.error(`\nThe rerun was terminated by signal ${child.signal}.`);
+			return undefined;
+		}
+		if (!fs.existsSync(reportPath)) {
+			return undefined;
+		}
+
+		/** @type {IAttemptResult} */
+		const result = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+		if (child.status !== (result.failures ? 1 : 0)) {
+			console.error(`\nThe rerun exited with code ${child.status}, inconsistent with its reported ${result.failures} failure(s).`);
+			return undefined;
+		}
+		return result;
+	} finally {
+		fs.rmSync(reportDir, { recursive: true, force: true });
+	}
+}
+
+/**
+ * Reports the test files that failed and then passed when they were rerun, as warnings
+ * in CI, so that flaky tests stay visible whether or not the run passed.
+ * @param {Map<string, number>} lastFailedAttempt
+ * @param {Set<string>} stillFailingFiles
+ */
+function reportRescuedFiles(lastFailedAttempt, stillFailingFiles) {
+	const rescued = [...lastFailedAttempt].filter(([file]) => !stillFailingFiles.has(file));
+	if (rescued.length === 0) {
+		return;
+	}
+
+	console.log(`\n${rescued.length} test file(s) failed and then passed when rerun in a fresh process. Their tests are flaky:`);
+	for (const [file, attempt] of rescued) {
+		const message = `${file} failed in ${attempt === 1 ? 'attempt 1' : `attempts 1 to ${attempt}`} and passed in attempt ${attempt + 1}`;
+		console.log(`  ${message}`);
+		if (process.env.GITHUB_ACTIONS) {
+			console.log(`::warning title=Flaky node.js unit test file::${message}`);
+		} else if (process.env.TF_BUILD) {
+			console.log(`##vso[task.logissue type=warning]Flaky node.js unit test file: ${message}`);
+		}
+	}
 }
 
 main();

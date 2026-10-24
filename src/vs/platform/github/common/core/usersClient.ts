@@ -16,6 +16,7 @@ export class UsersClient implements IUsersClient {
 
 	async getAuthenticated(signal: AbortSignal, options?: ApiRequestOptions): Promise<User> {
 		return this._client.request({
+			domain: 'users',
 			method: 'GET',
 			path: '/user',
 			authentication: 'required',
@@ -26,6 +27,7 @@ export class UsersClient implements IUsersClient {
 
 	async get(username: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<User> {
 		return this._client.request({
+			domain: 'users',
 			method: 'GET',
 			path: `/users/${pathSegment(username)}`,
 			authentication: 'optional',
@@ -37,6 +39,7 @@ export class UsersClient implements IUsersClient {
 	async listEmails(signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly UserEmail[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'users',
 			method: 'GET',
 			path: withQuery('/user/emails', { ...query }),
 			authentication: 'required',

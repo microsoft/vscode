@@ -19,7 +19,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition, hasNativeTitlebar, useWindowControlsOverlay } from '../../../platform/window/common/window.js';
 import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkeys.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -193,7 +193,9 @@ export class NativeTitlebarPart extends TitlebarPart {
 
 		if (useWindowControlsOverlay(this.configurationService)) {
 			const zoomFactor = getZoomFactor(getWindow(this.element));
-			const newHeight = Math.round(height * zoomFactor);
+			// Mirror the default-density toolbar's optical padding in the native button center.
+			const opticalPadding = isMacintosh && this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) !== ModernUIDensity.Compact ? 2 : 0;
+			const newHeight = Math.round(height * zoomFactor + opticalPadding * (this.preventZoom ? 1 : zoomFactor));
 			const horizontalInset = isMacintosh
 				? getMacOSWindowControlsPosition(Math.round(DEFAULT_CUSTOM_TITLEBAR_HEIGHT * (this.preventZoom ? 1 : zoomFactor)), this.environmentService.os.release)?.x
 				: undefined;

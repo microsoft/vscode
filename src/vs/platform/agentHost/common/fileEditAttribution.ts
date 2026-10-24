@@ -5,7 +5,6 @@
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { stringHash } from '../../../base/common/hash.js';
-import type { AutoModeRoutingTier } from './autoModeTiers.js';
 import { IOffsetEdit } from './diffComputeService.js';
 import { ToolResultFileEditContent } from './state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
@@ -67,8 +66,9 @@ export interface IAgentEditAttribution {
 	readonly beforeText: string;
 	readonly afterText: string;
 	readonly changes: readonly IOffsetEdit[];
+	readonly diffHitTimeout?: boolean;
 	readonly modelId: string | undefined;
-	readonly autoTier?: AutoModeRoutingTier;
+	readonly autoTier?: string;
 	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
 	readonly fusionModel?: string;
 	readonly toolName: string;
@@ -114,6 +114,8 @@ export interface IPrepareEditAttributionFlushParams {
 export interface IPreparedEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
+	/** Omitted by older hosts; counts coarse diff applications across the prepared reporting scope. */
+	readonly coarseDiffCount?: number;
 	readonly lastSequence?: number;
 	readonly coverageGapThroughSequence?: number;
 	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];
@@ -140,6 +142,7 @@ export type EditAttributionFlushOutcome = 'committed' | 'cancelled' | 'missing';
 export interface IEditAttributionFlushResult {
 	readonly outcome: EditAttributionFlushOutcome;
 	readonly agentModifiedCount: number;
+	readonly coarseDiffCount?: number;
 	readonly lastSequence?: number;
 	readonly coverageGapThroughSequence?: number;
 	readonly standaloneCoverageGapAcknowledgements?: readonly IEditAttributionCoverageGapAcknowledgement[];

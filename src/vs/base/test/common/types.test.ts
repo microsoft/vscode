@@ -361,7 +361,7 @@ suite('Types', () => {
 				}
 			}
 
-			const errorMessage = 'Oops something hapenned.';
+			const errorMessage = 'Oops something happened.';
 			const error = new TestError(errorMessage);
 
 			let thrownError;
@@ -867,18 +867,18 @@ suite('Types', () => {
 						);
 
 					});
+				});
 
-					test('both', () => {
-						assert.throws(() => {
-							const item: unknown = '21';
-							const list: unknown[] = ['14.25', '7', '12'];
+				test('both', () => {
+					assert.throws(() => {
+						const item: unknown = '21';
+						const list: unknown[] = ['14.25', '7', '12'];
 
-							assert(
-								isOneOf(item, list),
-								'21 must not be one of: 14.25, 7, 12',
-							);
+						assert(
+							isOneOf(item, list),
+							'21 must not be one of: 14.25, 7, 12',
+						);
 
-						});
 					});
 				});
 			});

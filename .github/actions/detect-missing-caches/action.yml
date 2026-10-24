@@ -1,0 +1,41 @@
+name: Detect missing caches
+description: Determines which jobs of pr-node-modules.yml need to run because a cache they keep warm is missing.
+
+inputs:
+  token:
+    description: "GitHub token with the `actions: read` permission, used to list the caches."
+    required: true
+
+outputs:
+  compile:
+    description: "'true' when the Compile job needs to run."
+    value: ${{ steps.detect.outputs.compile }}
+  linux:
+    description: "'true' when the Linux job needs to run."
+    value: ${{ steps.detect.outputs.linux }}
+  macOS:
+    description: "'true' when the macOS job needs to run."
+    value: ${{ steps.detect.outputs.macOS }}
+  windows:
+    description: "'true' when the Windows job needs to run."
+    value: ${{ steps.detect.outputs.windows }}
+  copilot-linux:
+    description: "'true' when the Copilot (Linux) job needs to run."
+    value: ${{ steps.detect.outputs.copilot-linux }}
+  copilot-windows:
+    description: "'true' when the Copilot (Windows) job needs to run."
+    value: ${{ steps.detect.outputs.copilot-windows }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect missing caches
+      id: detect
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const { pathToFileURL } = require('url');
+          const scriptUrl = pathToFileURL(process.env.GITHUB_WORKSPACE + '/.github/actions/detect-missing-caches/detect.ts');
+          const { detectMissingCaches } = await import(scriptUrl.href);
+          await detectMissingCaches(github, context, core);

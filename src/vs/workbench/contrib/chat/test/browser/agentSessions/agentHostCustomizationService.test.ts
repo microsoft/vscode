@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { withMcpServerConnectorNameMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -26,7 +26,10 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
@@ -35,6 +38,8 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IAgentHostAuthenticateRequest } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -44,16 +49,18 @@ import { IAgentHostActiveClientService } from '../../../browser/agentSessions/ag
 import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
+	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
 	readonly startCalls: string[] = [];
-	readonly authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+	readonly authenticateCalls: IAgentHostAuthenticateRequest[] = [];
 	readonly operationLog: string[] = [];
 	authenticateResult: unknown = { authenticated: true };
 	startError: Error | undefined;
+	onAuthenticate: ((request: IAgentHostAuthenticateRequest) => void) | undefined;
 	handleMcpRequest?: IAgentHostCustomizationTarget['handleMcpRequest'];
 
 	constructor(
-		readonly customizations: readonly Customization[],
+		public customizations: readonly Customization[],
 		readonly workingDirectory?: string,
 		private readonly _isBundledMcpServer: (pluginUri: string, serverName: string) => boolean = () => false,
 		readonly resourceUris: IAgentHostResourceUriMapper = identityAgentHostResourceUriMapper,
@@ -64,9 +71,10 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		return this._isBundledMcpServer(pluginUri, serverName);
 	}
 
-	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown> {
+	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown> {
 		this.operationLog.push('authenticate');
 		this.authenticateCalls.push(request);
+		this.onAuthenticate?.(request);
 		return Promise.resolve(this.authenticateResult);
 	}
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void {
@@ -112,6 +120,16 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 		this._targets.set(sessionResource, target);
 	}
 
+	setMcpAuthenticationVerificationTimeout(timeoutMs: number): void {
+		this._mcpAuthenticationVerificationTimeoutMs = timeoutMs;
+	}
+
+	/** Replaces a target's customizations as the host would, notifying observers. */
+	updateTarget(target: FakeTarget, customizations: readonly Customization[]): void {
+		target.customizations = customizations;
+		this._fireCustomizationsChanged();
+	}
+
 	publishTarget(sessionResource: URI, target: FakeTarget): void {
 		this.setTarget(sessionResource, target);
 		this._fireCustomizationsChanged();
@@ -149,13 +167,16 @@ class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 suite('AbstractAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSut(authenticationError?: Error, options: { readonly authenticationSessions?: AuthenticationSession[]; readonly authenticationTargets?: Array<{ id: string; name: string }> } = {}): TestAgentHostCustomizationService {
+	function createSut(authenticationError?: Error, options: { readonly authenticationSessions?: AuthenticationSession[]; readonly authenticationTargets?: Array<{ id: string; name: string }>; readonly configure?: (instantiationService: TestInstantiationService) => void } = {}): TestAgentHostCustomizationService {
 		const authenticationSessions = options.authenticationSessions ?? [{ id: 'test-session', accessToken: 'token', scopes: [], account: { id: 'test-account', label: 'Test Account' } }];
 		const authenticationTargets = options.authenticationTargets;
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ILabelService, { getHostLabel: () => 'Test Host' });
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount = null;
+		}());
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => {
@@ -176,6 +197,11 @@ suite('AbstractAgentHostCustomizationService', () => {
 			getChannelDescriptor: () => undefined,
 			showChannel: async () => { },
 		});
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount = null;
+		}());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		options.configure?.(instantiationService);
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}
 
@@ -251,6 +277,35 @@ suite('AbstractAgentHostCustomizationService', () => {
 			{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] },
 			{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 		]);
+	});
+
+	test('uses conforming host plugin and child targets verbatim without client identity hints', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const pluginId = 'peer plugin opaque target';
+		const childId = 'peer child opaque target';
+		const child: McpServerCustomization = {
+			...mcpServer(childId, 'Server'),
+			uri: 'peer-definition://tenant/child?version=19',
+		};
+		const plugin: Customization = {
+			type: CustomizationType.Plugin, id: pluginId, uri: 'urn:peer:content:unrelated-root', name: 'Plugin', children: [child],
+		};
+		const target = new FakeTarget([plugin]);
+		sut.setTarget(session, target);
+		sut.setCustomizationEnablement(session, plugin.id, undefined, CustomizationEnablementKind.Session, false);
+		const [server] = sut.getMcpServers(session);
+		server.setEnabled(false);
+
+		assert.deepStrictEqual({
+			plugin: sut.getCustomizations(session).map(customization => ({ id: customization.id, uri: customization.uri })),
+			child: { id: server.id, pluginId: server.pluginId, uri: server.sourceUri?.toString() },
+			changes: target.enablementChanges,
+		}, {
+			plugin: [{ id: pluginId, uri: plugin.uri }],
+			child: { id: `${session.authority}/${childId}`, pluginId, uri: URI.parse(child.uri).toString() },
+			changes: [pluginId, childId].map(rawId => ({ rawId, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] })),
+		});
 	});
 
 	test('lists all pages of tools for an MCP server contributed by a plugin', async () => {
@@ -505,7 +560,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 				kind: McpServerStatus.AuthRequired as const,
 				reason: McpAuthRequiredReason.InsufficientScope,
 				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
-				requiredScopes: ['write:plugin_gateway_connections'],
+				requiredScopes: ['notifications'],
 			},
 		}];
 		const initialTarget = new FakeTarget(authRequired());
@@ -617,11 +672,44 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
-	test('starts an unchanged auth-required server before forwarding root authentication results', async () => {
+	test('targets the advertised backend session and distinct customization ids for servers sharing a resource', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///frontend-session');
+		const servers: McpServerCustomization[] = ['opaque/account-a/server', 'urn:example:mcp:account-b'].map(id => ({
+			...mcpServer(id, 'Slack'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.slack.com', authorization_servers: ['https://auth.example.com'] },
+				requiredScopes: ['read'],
+			},
+		}));
+		const target = new FakeTarget(servers);
+		target.onAuthenticate = request => queueMicrotask(() => sut.updateTarget(target, target.customizations.map(customization =>
+			customization.type === CustomizationType.McpServer && customization.id === request.target?.customizationId
+				? { ...customization, state: { kind: McpServerStatus.Ready } }
+				: customization)));
+		sut.setTarget(session, target);
+		const results: boolean[] = [];
+		for (const server of servers) {
+			results.push(await sut.authenticateMcpServer(session, server.id));
+		}
+		assert.deepStrictEqual({ results, requests: target.authenticateCalls }, {
+			results: [true, true],
+			requests: servers.map(server => ({
+				target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: server.id },
+				resource: 'https://mcp.slack.com',
+				scopes: ['read'],
+				token: 'token',
+			})),
+		});
+	});
+
+	test('starts an unchanged auth-required server before forwarding root authentication results and reports success once it restarts', async () => {
 		const authenticationTargets: Array<{ id: string; name: string }> = [];
 		const sut = createSut(undefined, { authenticationTargets });
 		const session = URI.parse('vscode-agent-session:///session-1');
-		const target = new FakeTarget([{
+		const authRequired: McpServerCustomization = {
 			...mcpServer('server-1', 'Server One'),
 			_meta: withMcpServerDisplayNameMeta(undefined, 'Connector One'),
 			state: {
@@ -629,12 +717,16 @@ suite('AbstractAgentHostCustomizationService', () => {
 				reason: McpAuthRequiredReason.Required,
 				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
 			},
-		}]);
+		};
+		const target = new FakeTarget([authRequired]);
+		target.onAuthenticate = () => queueMicrotask(() => sut.updateTarget(target, [{ ...authRequired, state: { kind: McpServerStatus.Starting } }]));
 		sut.setTarget(session, target);
 
 		const firstAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+		sut.updateTarget(target, [authRequired]);
 		target.authenticateResult = {};
 		const secondAuthentication = await sut.authenticateMcpServer(session, 'server-1');
+		sut.updateTarget(target, [authRequired]);
 
 		assert.deepStrictEqual({
 			authentication: [firstAuthentication, secondAuthentication],
@@ -647,8 +739,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 			startCalls: ['server-1', 'server-1'],
 			operationLog: ['start', 'authenticate', 'start', 'authenticate'],
 			authenticateCalls: [
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
 			],
 			authenticationTargets: [
 				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One (Connector)' },
@@ -666,9 +758,145 @@ suite('AbstractAgentHostCustomizationService', () => {
 			failedAuthentication: false,
 			operationLog: ['start', 'authenticate', 'start', 'authenticate', 'start'],
 			authenticateCalls: [
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
 			],
+		});
+	});
+
+	test('does not report success when a forwarded MCP token leaves the server asking for the same authentication', async () => {
+		const sut = createSut();
+		sut.setMcpAuthenticationVerificationTimeout(0);
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const target = new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			},
+		}]);
+		sut.setTarget(session, target);
+
+		assert.deepStrictEqual({
+			result: await sut.authenticateMcpServer(session, 'server-1'),
+			tokens: target.authenticateCalls.map(call => call.resource),
+		}, { result: false, tokens: ['https://mcp.example.com'] });
+	});
+
+	suite('Copilot Connector servers', () => {
+		const connectorUrl = 'https://api.github.com/copilot-connectors/api/v1/connectors/workiqmcp/mcp';
+		const connectorAuthRequired = (meta: Record<string, unknown> | undefined): McpServerCustomization => ({
+			...mcpServer('workiq', 'connector-workiq'),
+			...(meta ? { _meta: meta } : {}),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.InsufficientScope,
+				resource: { resource: connectorUrl, resource_name: 'connector-workiq', authorization_servers: ['https://github.com/login/oauth'] },
+				requiredScopes: ['write:plugin_gateway_connections'],
+			},
+		});
+		const fullScopeSession: AuthenticationSession = {
+			id: 'connector-session', accessToken: 'connector-token', scopes: ['read:user', 'user:email', 'write:plugin_gateway_connections'], account: { id: 'test-account', label: 'Test Account' },
+		};
+
+		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void) {
+			const operations: string[] = [];
+			const notifications: string[] = [];
+			const sut: TestAgentHostCustomizationService = createSut(undefined, {
+				authenticationSessions: [fullScopeSession],
+				configure: instantiationService => {
+					instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+						override notify(notification: INotification): INotificationHandle {
+							notifications.push(`${notification.severity}:${notification.message}`);
+							return new class extends mock<INotificationHandle>() { }();
+						}
+					}());
+					instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
+						override async authorize(): Promise<AuthenticationSession> {
+							operations.push('authorize');
+							return fullScopeSession;
+						}
+						override async refreshAgentHostSessions(connectorName?: string): Promise<void> {
+							operations.push(`refresh:${connectorName}`);
+							await onRefresh(sut);
+						}
+					}());
+				},
+			});
+			return { sut, operations, notifications };
+		}
+
+		for (const [identification, meta, refreshed] of [
+			['published Connector name', withMcpServerConnectorNameMeta(undefined, 'workiqmcp'), 'workiqmcp'],
+			['Connector-scope challenge', undefined, undefined],
+		] as const) {
+			test(`signs in through Connector authorization by ${identification} and forwards no MCP token`, async () => {
+				const session = URI.parse('vscode-agent-session:///session-1');
+				const target = new FakeTarget([connectorAuthRequired(meta)]);
+				const { sut, operations, notifications } = createConnectorSut(sut => {
+					sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Starting } }]);
+					sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Ready } }]);
+				});
+				sut.setTarget(session, target);
+				const silent = sut.getMcpServers(session).map(server => ({ authenticating: server.authenticating, connectorName: server.connectorName }));
+				target.onAuthenticate = request => operations.push(`authenticate:${request.resource}`);
+
+				const result = await sut.authenticateMcpServer(session, 'workiq');
+				assert.deepStrictEqual({ silent, result, operations, starts: target.startCalls, tokens: target.authenticateCalls.map(call => [call.resource, call.token]), notifications }, {
+					silent: [{ authenticating: false, connectorName: meta ? 'workiqmcp' : undefined }],
+					result: true,
+					operations: ['authorize', 'authenticate:https://api.github.com', `refresh:${refreshed}`],
+					starts: [],
+					tokens: [['https://api.github.com', 'connector-token']],
+					notifications: [],
+				});
+			});
+		}
+
+		for (const release of ['timeout', 'disposal'] as const) {
+			test(`releases Sign In on ${release} while the Connector refresh is still pending`, async () => {
+				const meta = withMcpServerConnectorNameMeta(undefined, 'workiqmcp');
+				const session = URI.parse('vscode-agent-session:///session-1');
+				const target = new FakeTarget([connectorAuthRequired(meta)]);
+				const refreshStarted = new DeferredPromise<void>();
+				const { sut, operations, notifications } = createConnectorSut(() => {
+					refreshStarted.complete();
+					return new Promise<void>(() => { /* never settles */ });
+				});
+				sut.setTarget(session, target);
+				sut.setMcpAuthenticationVerificationTimeout(release === 'timeout' ? 0 : 60_000);
+
+				const signIn = sut.authenticateMcpServer(session, 'workiq');
+				await refreshStarted.p;
+				if (release === 'disposal') {
+					sut.dispose();
+				}
+				assert.deepStrictEqual({ result: await signIn, operations, notifications }, {
+					result: false,
+					operations: ['authorize', 'refresh:workiqmcp'],
+					notifications: [],
+				});
+			});
+		}
+
+		test('reports an actionable failure when the Connector asks for the same authorization again', async () => {
+			const meta = withMcpServerConnectorNameMeta(withMcpServerDisplayNameMeta(undefined, 'Work IQ'), 'workiqmcp');
+			const session = URI.parse('vscode-agent-session:///session-1');
+			const target = new FakeTarget([connectorAuthRequired(meta)]);
+			const { sut, operations, notifications } = createConnectorSut(sut => {
+				sut.updateTarget(target, [{ ...connectorAuthRequired(meta), state: { kind: McpServerStatus.Starting } }]);
+				sut.updateTarget(target, [connectorAuthRequired(meta)]);
+			});
+			sut.setTarget(session, target);
+
+			const result = await sut.authenticateMcpServer(session, 'workiq');
+			assert.deepStrictEqual({ result, operations, tokens: target.authenticateCalls.map(call => call.resource), notifications }, {
+				result: false,
+				operations: ['authorize', 'refresh:workiqmcp'],
+				tokens: ['https://api.github.com'],
+				notifications: [`${Severity.Warning}:Work IQ (Connector) still cannot access Copilot connectors. Authorize Copilot connectors with the same GitHub account that you use for GitHub Copilot, then sign in again.`],
+			});
 		});
 	});
 

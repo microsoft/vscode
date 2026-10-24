@@ -7,11 +7,12 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import { type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
@@ -33,6 +34,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
+		@IAgentHostMacAccessibilityTrustService private readonly _macAccessibilityTrust: IAgentHostMacAccessibilityTrustService,
 	) { }
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
@@ -57,12 +59,37 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._missionControl?.environmentId;
 	}
 
+	async getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._missionControl?.environmentName;
+	}
+
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession({ ...config, legacyChatUris: undefined }));
 	}
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
+	}
+
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.installSandboxCertificate) {
+			throw new Error('Sandbox certificate installation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.installSandboxCertificate!(chat, scopeId));
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.rotateSandboxCertificate) {
+			throw new Error('Sandbox certificate rotation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.rotateSandboxCertificate!(chat, scopeId));
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.removeSandboxCertificate) {
+			throw new Error('Sandbox certificate removal is unavailable');
+		}
+		return this._runMutation(() => this._agentService.removeSandboxCertificate!(chat, scopeId));
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
@@ -114,7 +141,28 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
 	}
 
-	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI) {
+		if (!this._agentService.listPluginInstallations) {
+			throw new Error('Agent Host plugin installation inventory is unavailable');
+		}
+		return this._agentService.listPluginInstallations(provider, session, chat);
+	}
+
+	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		if (!this._agentService.listAgentExtensions) {
+			throw new Error('Copilot extension inventory is unavailable.');
+		}
+		return this._agentService.listAgentExtensions(session, chat);
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		if (!this._agentService.setAgentExtensionEnabled) {
+			throw new Error('Copilot extension management is unavailable.');
+		}
+		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session, chat));
+	}
+
+	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._agentService.listSessionCanvases) {
 			throw new Error('Copilot canvas inventory is unavailable');
 		}
@@ -140,6 +188,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host plugin install is unavailable');
 		}
 		return this._runMutation(() => this._agentService.installPlugin!(provider, request, session, chat));
+	}
+
+	retryManagedPlugins(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		if (!this._agentService.retryManagedPlugins) {
+			throw new Error('Agent Host managed plugin retry is unavailable');
+		}
+		return this._runMutation(() => this._agentService.retryManagedPlugins!(provider, session, chat));
 	}
 
 	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI) {
@@ -198,7 +253,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.prepareCustomizationInstallation!(provider, session, request));
 	}
 
-	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void> {
+	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
 		if (!this._agentService.applyCustomizationInstallation) {
 			throw new Error('Agent Host customization installation apply is unavailable');
 		}
@@ -222,6 +277,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
 		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
 		this._systemWake.setFullyAwake(fullyAwake);
+	}
+
+	async reportMacAccessibilityTrustChange(): Promise<void> {
+		this._logService.info('[AgentHost] macOS changed which apps it trusts for Accessibility');
+		this._macAccessibilityTrust.reportChange();
 	}
 
 	shutdown(): Promise<void> {

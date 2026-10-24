@@ -722,6 +722,43 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.clearStaleWorktreeCoOwners(worktreePath);
 	}
 
+	insertScratchFolder(...[request]: Parameters<IAgentHostDatabase['insertScratchFolder']>): ReturnType<IAgentHostDatabase['insertScratchFolder']> {
+		return this.raw.insertScratchFolder({ ...request, chatUri: this.identity.toStorage(request.chatUri) });
+	}
+
+	markScratchFolderOwned(...args: Parameters<IAgentHostDatabase['markScratchFolderOwned']>): ReturnType<IAgentHostDatabase['markScratchFolderOwned']> {
+		return this.raw.markScratchFolderOwned(...args);
+	}
+
+	markScratchFolderRemoving(...args: Parameters<IAgentHostDatabase['markScratchFolderRemoving']>): ReturnType<IAgentHostDatabase['markScratchFolderRemoving']> {
+		return this.raw.markScratchFolderRemoving(...args);
+	}
+
+	async listScratchFolders(): ReturnType<IAgentHostDatabase['listScratchFolders']> {
+		return (await this.raw.listScratchFolders()).map(row => ({ ...row, chatUri: this.identity.toRuntime(row.chatUri) }));
+	}
+
+	hasScratchFolder(...args: Parameters<IAgentHostDatabase['hasScratchFolder']>): ReturnType<IAgentHostDatabase['hasScratchFolder']> {
+		return this.raw.hasScratchFolder(...args);
+	}
+
+	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostDatabase['recordScratchFolderRemovalFailure']>): ReturnType<IAgentHostDatabase['recordScratchFolderRemovalFailure']> {
+		return this.raw.recordScratchFolderRemovalFailure(...args);
+	}
+
+	deleteScratchFolder(...args: Parameters<IAgentHostDatabase['deleteScratchFolder']>): ReturnType<IAgentHostDatabase['deleteScratchFolder']> {
+		return this.raw.deleteScratchFolder(...args);
+	}
+
+	isScratchFolderInUse(...args: Parameters<IAgentHostDatabase['isScratchFolderInUse']>): ReturnType<IAgentHostDatabase['isScratchFolderInUse']> {
+		return this.raw.isScratchFolderInUse(...args);
+	}
+
+	markOrphanedScratchFolderRemoving(...[folder, chatUris]: Parameters<IAgentHostDatabase['markOrphanedScratchFolderRemoving']>): ReturnType<IAgentHostDatabase['markOrphanedScratchFolderRemoving']> {
+		// Every recorded spelling of the chat: a row written before its chat had a storage identity holds the runtime one.
+		return this.raw.markOrphanedScratchFolderRemoving(folder, chatUris.flatMap(chat => [chat, this.identity.toStorage(chat), this.identity.toRuntime(chat)]));
+	}
+
 	isSessionLive(...[session]: Parameters<IAgentHostDatabase['isSessionLive']>): ReturnType<IAgentHostDatabase['isSessionLive']> {
 		return this.raw.isSessionLive(this.identity.toStorage(session));
 	}

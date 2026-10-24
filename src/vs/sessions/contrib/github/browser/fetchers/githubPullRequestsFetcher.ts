@@ -14,7 +14,7 @@ export class GitHubPullRequestsFetcher {
 
 	getPullRequests(owner: string, repo: string, cursor?: string): Promise<IGitHubPullRequestsPage> {
 		return this._client.withClient(async (client, signal) => {
-			const connection = await client.pullRequests.listConnection({ owner, name: repo }, signal, { query: { first: 100, after: cursor } });
+			const connection = await client.pullRequests.listConnection({ owner, repo }, signal, { query: { first: 100, after: cursor } });
 			if (!connection) {
 				throw new GitHubRequestError(`GitHub repository not found: ${owner}/${repo}`, 'notFound');
 			}
