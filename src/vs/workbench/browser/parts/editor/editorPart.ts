@@ -353,8 +353,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 
 		// The grid keeps the proportions of its views from when they last changed:
-		// update them by resizing each group to its size, unless that would undo a
-		// maximized group
+		// update them by resizing each group to its size. Not while a group is
+		// maximized, as resizing would undo that: the grid saves the proportions
+		// again when it shows the other groups
 		if (active !== wasActive && this.gridWidget && !this.hasMaximizedGroup()) {
 			for (const group of this.groupViews.values()) {
 				this.gridWidget.resizeView(group, this.gridWidget.getViewSize(group));
@@ -382,34 +383,70 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	/**
 	 * After groups were added, removed or moved, gives the groups beside a group with a high
 	 * layout priority back the size they had before, so that the space comes from, or
-	 * goes to, the group with the high priority.
+	 * goes to, the groups with the high priority. Groups only grow back by as much as those
+	 * can give above their minimum sizes; beyond that, the sizes the grid gave are kept.
 	 */
 	private keepGroupSizesBesideHighPriorityGroups(sizesBefore: Map<IEditorGroupView, IViewSize> | undefined): void {
 		if (!sizesBefore || this.groupLayoutPriorities.size === 0 || this.hasMaximizedGroup()) {
 			return;
 		}
 
-		const hasHighPriority = (node: GridNode<IEditorGroupView>): boolean => isGridBranchNode(node) ? node.children.some(hasHighPriority) : this.groupLayoutPriorities.get(node.view) === LayoutPriority.High;
+		const isHighPriority = (node: GridNode<IEditorGroupView>): boolean => isGridBranchNode(node) ? node.children.some(isHighPriority) : this.groupLayoutPriorities.get(node.view) === LayoutPriority.High;
+
+		// The least size of a node along an axis, in a branch of the given orientation
+		const minimumSize = (node: GridNode<IEditorGroupView>, vertical: boolean, orientation: Orientation): number => {
+			if (!isGridBranchNode(node)) {
+				return vertical ? node.view.minimumHeight : node.view.minimumWidth;
+			}
+			const childOrientation = orthogonal(orientation);
+			const sizes = node.children.map(child => minimumSize(child, vertical, childOrientation));
+			return (childOrientation === Orientation.VERTICAL) === vertical ? sizes.reduce((total, size) => total + size, 0) : Math.max(0, ...sizes);
+		};
+
 		const visit = (branch: GridBranchNode<IEditorGroupView>, orientation: Orientation): void => {
-			const highPriorityChild = branch.children.find(hasHighPriority);
+			const vertical = orientation === Orientation.VERTICAL;
+			const sizeOf = (node: GridNode<IEditorGroupView>) => vertical ? node.box.height : node.box.width;
+			const highPriorityChildren = branch.children.filter(isHighPriority);
+
+			// The sizes to give back to the groups that are beside the groups with a high priority
+			const targets: { view: IEditorGroupView; size: number; delta: number }[] = [];
+			if (highPriorityChildren.length > 0) {
+				for (const child of branch.children) {
+					const before = !isGridBranchNode(child) && !highPriorityChildren.includes(child) ? sizesBefore.get(child.view) : undefined;
+					if (!isGridBranchNode(child) && before) { // not a new group
+						const size = sizeOf(child);
+						targets.push({ view: child.view, size, delta: (vertical ? before.height : before.width) - size });
+					}
+				}
+			}
+
+			// Shrink first, which gives space to the groups with a high priority, then grow by
+			// no more than those can give
+			let available = highPriorityChildren.reduce((total, child) => total + sizeOf(child) - minimumSize(child, vertical, orientation), 0);
+			for (const target of targets.filter(target => target.delta < 0)) {
+				available -= target.delta;
+				this.resizeGroupAlong(target.view, vertical, target.size + target.delta);
+			}
+			for (const target of targets.filter(target => target.delta > 0)) {
+				const delta = Math.min(target.delta, available);
+				if (delta > 0) {
+					available -= delta;
+					this.resizeGroupAlong(target.view, vertical, target.size + delta);
+				}
+			}
+
 			for (const child of branch.children) {
 				if (isGridBranchNode(child)) {
 					visit(child, orthogonal(orientation));
-					continue;
-				}
-
-				const before = sizesBefore.get(child.view);
-				if (!highPriorityChild || child === highPriorityChild || !before || this.groupLayoutPriorities.get(child.view) === LayoutPriority.High) {
-					continue; // a new group, or one that gives way itself
-				}
-
-				const size = this.gridWidget.getViewSize(child.view);
-				if (orientation === Orientation.VERTICAL ? size.height !== before.height : size.width !== before.width) {
-					this.gridWidget.resizeView(child.view, orientation === Orientation.VERTICAL ? { width: size.width, height: before.height } : { width: before.width, height: size.height });
 				}
 			}
 		};
 		visit(this.gridWidget.getViews(), this.gridWidget.orientation);
+	}
+
+	private resizeGroupAlong(group: IEditorGroupView, vertical: boolean, size: number): void {
+		const current = this.gridWidget.getViewSize(group);
+		this.gridWidget.resizeView(group, vertical ? { width: current.width, height: size } : { width: size, height: current.height });
 	}
 
 	private _activeGroup!: IEditorGroupView;
