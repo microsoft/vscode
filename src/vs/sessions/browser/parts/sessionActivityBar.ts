@@ -350,8 +350,10 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this._register(this.registerDragListeners(dragHandle));
 
 		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
-		// While the strip shows outside the chat, no chat of the window keeps room for it.
-		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) && !this.externalHost.read(reader)?.active.read(reader) ? ChatViewSessionActivityBar.RESERVED_WIDTH : 0);
+		// Also while the strip shows outside the chat, such as at the edge of the editor stacked above it: the chat keeps its
+		// right column empty, so that what floats at the corner of the window, such as the Chatpad launcher, does not
+		// cover the input's toolbar, and its content does not shift as the strip moves.
+		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? ChatViewSessionActivityBar.RESERVED_WIDTH : 0);
 
 		this._register(autorun(reader => {
 			activityBar.itemCount.read(reader);

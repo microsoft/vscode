@@ -695,7 +695,7 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('shows the strip of the active chat in an active external host, which no chat then reserves room for, and beside the chat otherwise', () => {
+	test('shows the strip of the active chat in an active external host, every chat still keeping its column empty, and beside the chat otherwise', () => {
 		const { createDocked, setEnabled, root } = createActivityBar(store, [changes]);
 		const hostElement = append(root, $('.external-host'));
 		const active = observableValue('active', false);
@@ -728,9 +728,9 @@ suite('Sessions - Session Activity Bar', () => {
 
 		assert.deepStrictEqual({ inactiveHost, activeHost, disabled, focusMoved, hostGone }, {
 			inactiveHost: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: false },
-			activeHost: { first: 'host', second: 'chat', reserved: [0, 0], occupied: true },
+			activeHost: { first: 'host', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: true },
 			disabled: false,
-			focusMoved: { first: 'chat', second: 'host', reserved: [0, 0], occupied: true },
+			focusMoved: { first: 'chat', second: 'host', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: true },
 			hostGone: { first: 'chat', second: 'chat', reserved: [ChatViewSessionActivityBar.RESERVED_WIDTH, ChatViewSessionActivityBar.RESERVED_WIDTH], occupied: false },
 		});
 	});
