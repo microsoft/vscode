@@ -9484,6 +9484,11 @@ export class CopilotAgentSession extends Disposable {
 					return true;
 				});
 			}
+			const releaseHandoff = () => {
+				if (this._unpublishedToolCompletions.get(e.data.toolCallId)?.completion === completion) {
+					this._unpublishedToolCompletions.delete(e.data.toolCallId);
+				}
+			};
 			const completion = (async () => {
 				// The turn's existing completion tracking makes session.idle wait for these writes.
 				if (hasResources && resultContent?.contents && outputDatabase) {
@@ -9511,7 +9516,10 @@ export class CopilotAgentSession extends Disposable {
 					}
 				}
 				if (isCurrent()) {
-					await complete(authoritativeOutput);
+					const published = complete(authoritativeOutput);
+					// The row is now complete, so a later steering handoff must not show it running again.
+					releaseHandoff();
+					await published;
 				}
 			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(async () => {
 				try {
@@ -9532,9 +9540,7 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			}).finally(() => {
-				if (this._unpublishedToolCompletions.get(e.data.toolCallId)?.completion === completion) {
-					this._unpublishedToolCompletions.delete(e.data.toolCallId);
-				}
+				releaseHandoff();
 				if (deferred && !deferred.isSettled) {
 					deferred.complete(undefined);
 				}
