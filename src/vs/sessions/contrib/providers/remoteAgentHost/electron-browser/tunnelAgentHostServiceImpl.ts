@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -617,8 +618,16 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		if (!scopes.length) {
 			throw new Error(localize('tunnelAgentHost.authenticationUnsupported', "Tunnel sign-in is not supported by this application."));
 		}
-		await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
-		this._lastAuthProvider = authProvider;
+		try {
+			await this._authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			this._lastAuthProvider = authProvider;
+		} catch (error) {
+			// GitHub Authentication documents this cancellation shape across the extension-host boundary.
+			if (authProvider === 'github' && (error === 'Cancelled' || error instanceof Error && error.message === 'Cancelled')) {
+				throw new CancellationError();
+			}
+			throw error;
+		}
 	}
 
 	getCachedTunnels(): ICachedTunnel[] {

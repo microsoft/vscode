@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import type { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -222,6 +222,25 @@ suite('TunnelAgentHostService discovery', () => {
 			});
 		});
 	}
+
+	for (const error of [new CancellationError(), new Error('Cancelled'), 'Cancelled']) {
+		test(`normalizes GitHub cancellation (${typeof error === 'string' ? 'string' : error.name})`, async () => {
+			const service = createService(() => [], undefined, {
+				onFactory: () => { },
+				createSession: async () => { throw error; },
+			});
+			await assert.rejects(service.signIn('github'), isCancellationError);
+		});
+	}
+
+	test('does not interpret another provider error as GitHub cancellation', async () => {
+		const error = new Error('Cancelled');
+		const service = createService(() => [], undefined, {
+			onFactory: () => { },
+			createSession: async () => { throw error; },
+		});
+		await assert.rejects(service.signIn('microsoft'), actual => actual === error && !isCancellationError(actual));
+	});
 
 	test('sign-in propagates cancellation and failures and respects the remote-host gate', async () => {
 		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
