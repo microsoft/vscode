@@ -77,6 +77,7 @@ import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
+import { certificateMatchesPublicKey, getOpenSSHPrivateKeyPublicBlob, isOpenSSHCertificateType, parseOpenSSHPublicKeyLine } from './sshUserCertificates.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -170,12 +171,14 @@ const RESOLVED_CONFIG_REUSE_MS = 10_000;
  * `authHandler`. Each attempt corresponds to one of the auth method shapes
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
  *
- * `keyPath` is internal-only metadata for logging — it is stripped before the
- * attempt is returned to ssh2.
+ * `keyPath` and `certificatePath` are internal-only metadata for logging —
+ * they are stripped before the attempt is returned to ssh2. `certificate` is
+ * an OpenSSH user certificate (`*-cert.pub` contents) presented together with
+ * `key`.
  */
 export type SSHAuthAttempt =
 	| { readonly type: 'none'; readonly username: string }
-	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string; readonly encrypted?: boolean }
+	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string; readonly encrypted?: boolean; readonly certificate?: Buffer; readonly certificatePath?: string }
 	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
 	| { readonly type: 'password'; readonly username: string; readonly password: string }
 	| { readonly type: 'keyboard-interactive'; readonly username: string };
@@ -183,7 +186,7 @@ export type SSHAuthAttempt =
 function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 	switch (attempt.type) {
 		case 'none': return 'none';
-		case 'publickey': return `publickey ${attempt.keyPath}`;
+		case 'publickey': return attempt.certificatePath ? `publickey ${attempt.keyPath} with certificate ${attempt.certificatePath}` : `publickey ${attempt.keyPath}`;
 		case 'agent': return 'agent';
 		case 'password': return 'password';
 		case 'keyboard-interactive': return 'keyboard-interactive';
@@ -224,8 +227,9 @@ function toAuthMethod(
 ): AnyAuthMethod | undefined {
 	switch (attempt.type) {
 		case 'publickey': {
-			// Strip our internal `keyPath` metadata before handing to ssh2.
-			const { keyPath: _kp, encrypted: _encrypted, ...payload } = attempt;
+			// Strip our internal metadata before handing to ssh2. `certificate`
+			// is kept: ssh2 presents it instead of the plain public key.
+			const { keyPath: _kp, encrypted: _encrypted, certificatePath: _cp, ...payload } = attempt;
 			if (attempt.encrypted) {
 				if (!keyPassphraseHandler) {
 					return undefined;
@@ -291,6 +295,22 @@ export function makeAuthHandler(
 	keyPassphraseHandler?: SSHKeyPassphrasePromptHandler,
 ): (methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void {
 	let index = 0;
+	// A key is tried with its certificate and then on its own; remember the
+	// passphrase so the user is only prompted once per key per connection.
+	const passphrases = new Map<string, string>();
+	const passphraseHandler: SSHKeyPassphrasePromptHandler | undefined = keyPassphraseHandler && ((keyPath, finish) => {
+		const cached = passphrases.get(keyPath);
+		if (cached !== undefined) {
+			finish(cached);
+			return;
+		}
+		keyPassphraseHandler(keyPath, passphrase => {
+			if (passphrase !== undefined) {
+				passphrases.set(keyPath, passphrase);
+			}
+			finish(passphrase);
+		});
+	});
 	return (methodsLeft, _partialSuccess, callback) => {
 		while (index < attempts.length) {
 			const attempt = attempts[index++];
@@ -298,12 +318,13 @@ export function makeAuthHandler(
 				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft!.join(', ')}`);
 				continue;
 			}
-			const method = toAuthMethod(attempt, kbiHandler, keyPassphraseHandler, callback);
+			if (attempt.type === 'publickey' && attempt.encrypted && passphraseHandler) {
+				logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
+				toAuthMethod(attempt, kbiHandler, passphraseHandler, callback);
+				return;
+			}
+			const method = toAuthMethod(attempt, kbiHandler, passphraseHandler, callback);
 			if (!method) {
-				if (attempt.type === 'publickey' && attempt.encrypted && keyPassphraseHandler) {
-					logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-					return;
-				}
 				logService.warn(`${LOG_PREFIX} ${describeAuthAttempt(attempt)} skipped: no prompt handler available`);
 				continue;
 			}
@@ -1336,6 +1357,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath,
 			identityAgent: resolved.identityAgent,
+			certificateFiles: resolved.certificateFile,
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
@@ -1526,6 +1548,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			port: config.port ?? resolved?.port,
 			sshConfigHost: originalHost,
 			identityAgent: config.identityAgent ?? resolved?.identityAgent,
+			certificateFiles: config.certificateFiles ?? resolved?.certificateFile,
 			privateKeyPath: config.privateKeyPath ?? resolved?.identityFile[0],
 		};
 		const port = config.port ?? 22;
@@ -1603,7 +1626,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		};
 
 		if (config.agentForward) {
-			const agentSock = this._getAgentSocket(config);
+			const agentSock = await this._getAgentSocket(config);
 			if (agentSock) {
 				// ssh2 needs `connectConfig.agent` set so it knows which local
 				// agent socket to forward to. Without it, agent forwarding is a
@@ -1814,7 +1837,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// matches OpenSSH's IdentityAgent semantics and avoids an
 				// unnecessary passphrase prompt when an encrypted key file is
 				// configured but the agent already holds its unlocked copy.
-				const agentSock = this._getAgentSocket(config);
+				const agentSock = await this._getAgentSocket(config);
 				if (agentSock) {
 					attempts.push({ type: 'agent', username, agent: agentSock });
 				}
@@ -1823,13 +1846,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				if (explicitKeyPath && !explicitIsDefault) {
 					const explicit = await this._readKeyFileIfExists(explicitKeyPath);
 					if (explicit) {
-						attempts.push({ type: 'publickey', username, key: explicit, keyPath: explicitKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
+						attempts.push(...await this._publicKeyAttempts(config, explicitKeyPath, explicit));
 					}
 				}
 				for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
 					const contents = await this._readKeyFileIfExists(keyPath);
 					if (contents) {
-						attempts.push({ type: 'publickey', username, key: contents, keyPath, ...(isEncryptedPrivateKey(contents) ? { encrypted: true } : undefined) });
+						attempts.push(...await this._publicKeyAttempts(config, keyPath, contents));
 					}
 				}
 				// Final fallback: keyboard-interactive (typically a password prompt).
@@ -1850,7 +1873,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				if (!explicit) {
 					throw new Error(localize('ssh.failedToReadPrivateKey', "Failed to read private key file: {0}", config.privateKeyPath));
 				}
-				attempts.push({ type: 'publickey', username, key: explicit, keyPath: config.privateKeyPath, ...(isEncryptedPrivateKey(explicit) ? { encrypted: true } : undefined) });
+				attempts.push(...await this._publicKeyAttempts(config, config.privateKeyPath, explicit));
 				break;
 			}
 			case SSHAuthMethod.Password: {
@@ -1861,6 +1884,63 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 		}
 
+		return attempts;
+	}
+
+	/**
+	 * Build the publickey attempts for one private key: an attempt for each
+	 * OpenSSH user certificate that certifies the key, followed by the plain
+	 * key. Candidate certificates are the configured `CertificateFile`
+	 * entries and the conventional `<key>-cert.pub` next to the key.
+	 */
+	private async _publicKeyAttempts(config: ISSHAgentHostConfig, keyPath: string, key: Buffer): Promise<SSHAuthAttempt[]> {
+		const username = config.username;
+		const encrypted = isEncryptedPrivateKey(key) ? { encrypted: true } : undefined;
+		const plain: SSHAuthAttempt = { type: 'publickey', username, key, keyPath, ...encrypted };
+
+		const normalizedKeyPath = SSHRemoteAgentHostMainService._normalizeKeyPath(keyPath);
+		const conventionalCertPath = `${normalizedKeyPath}-cert.pub`;
+		const candidates = new Map<string, string>();
+		for (const certPath of [...(config.certificateFiles ?? []), `${keyPath}-cert.pub`]) {
+			const normalized = SSHRemoteAgentHostMainService._normalizeKeyPath(certPath);
+			if (!candidates.has(normalized)) {
+				candidates.set(normalized, certPath);
+			}
+		}
+		if (candidates.size === 0) {
+			return [plain];
+		}
+
+		let publicKeyBlob = getOpenSSHPrivateKeyPublicBlob(key);
+		if (!publicKeyBlob) {
+			const publicKeyFile = await this._readKeyFileIfExists(`${keyPath}.pub`);
+			const parsed = publicKeyFile && parseOpenSSHPublicKeyLine(publicKeyFile);
+			publicKeyBlob = parsed && !isOpenSSHCertificateType(parsed.type) ? parsed.blob : undefined;
+		}
+
+		const attempts: SSHAuthAttempt[] = [];
+		for (const [normalizedCertPath, certPath] of candidates) {
+			const contents = await this._readKeyFileIfExists(certPath);
+			if (!contents) {
+				continue;
+			}
+			const certificate = parseOpenSSHPublicKeyLine(contents);
+			if (!certificate || !isOpenSSHCertificateType(certificate.type)) {
+				this._logService.warn(`${LOG_PREFIX} Ignoring ${certPath}: not an OpenSSH certificate`);
+				continue;
+			}
+			// Without the public key we cannot verify the pairing, so only the
+			// conventional `<key>-cert.pub` name is trusted to belong to the key.
+			const matches = publicKeyBlob
+				? certificateMatchesPublicKey(certificate.blob, publicKeyBlob)
+				: normalizedCertPath === conventionalCertPath;
+			if (!matches) {
+				this._logService.trace(`${LOG_PREFIX} Certificate ${certPath} does not certify ${keyPath}; skipping`);
+				continue;
+			}
+			attempts.push({ ...plain, certificate: contents, certificatePath: certPath });
+		}
+		attempts.push(plain);
 		return attempts;
 	}
 
@@ -1886,31 +1966,80 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return SSHRemoteAgentHostMainService._defaultKeyPaths.some(p => SSHRemoteAgentHostMainService._normalizeKeyPath(p) === normalized);
 	}
 
-	/** Test seam: returns the SSH agent socket path, or undefined when no agent is available. */
-	protected _isAgentAvailable(): string | undefined {
-		return process.env['SSH_AUTH_SOCK'];
+	/** Named pipe used by the Windows OpenSSH agent service when `SSH_AUTH_SOCK` is unset. */
+	private static readonly _windowsOpenSSHAgentPipe = '\\\\.\\pipe\\openssh-ssh-agent';
+
+	/** Test seam: the value of `SSH_AUTH_SOCK`. */
+	protected _getSSHAuthSock(): string | undefined {
+		return process.env['SSH_AUTH_SOCK'] || undefined;
 	}
 
-	protected _getAgentSocket(config: ISSHAgentHostConfig): string | undefined {
+	/** Test seam: the host platform. */
+	protected get _platform(): NodeJS.Platform {
+		return process.platform;
+	}
+
+	/** Test seam: whether a local agent endpoint (socket or named pipe) exists. */
+	protected async _agentEndpointExists(endpoint: string): Promise<boolean> {
+		try {
+			await fsp.stat(endpoint);
+			return true;
+		} catch (err) {
+			const code = (err as NodeJS.ErrnoException).code;
+			// A busy pipe still exists; only treat "not found" as absent.
+			return code !== 'ENOENT' && code !== 'ENOTDIR';
+		}
+	}
+
+	/**
+	 * Returns the default SSH agent endpoint, or undefined when no agent is
+	 * available: `SSH_AUTH_SOCK` when set, otherwise (on Windows) the
+	 * OpenSSH agent service's named pipe, mirroring OpenSSH for Windows.
+	 */
+	protected async _isAgentAvailable(): Promise<string | undefined> {
+		const authSock = this._getSSHAuthSock();
+		if (authSock) {
+			this._logService.trace(`${LOG_PREFIX} Using SSH agent from SSH_AUTH_SOCK: ${authSock}`);
+			return authSock;
+		}
+		if (this._platform === 'win32') {
+			const pipe = SSHRemoteAgentHostMainService._windowsOpenSSHAgentPipe;
+			if (await this._agentEndpointExists(pipe)) {
+				this._logService.info(`${LOG_PREFIX} SSH_AUTH_SOCK is not set; using Windows OpenSSH agent pipe ${pipe}`);
+				return pipe;
+			}
+			this._logService.info(`${LOG_PREFIX} SSH_AUTH_SOCK is not set and Windows OpenSSH agent pipe ${pipe} was not found; skipping agent auth`);
+			return undefined;
+		}
+		this._logService.trace(`${LOG_PREFIX} SSH_AUTH_SOCK is not set; skipping agent auth`);
+		return undefined;
+	}
+
+	protected async _getAgentSocket(config: ISSHAgentHostConfig): Promise<string | undefined> {
 		if (config.identityAgent !== undefined) {
 			return this._resolveIdentityAgent(config.identityAgent);
 		}
 		return this._isAgentAvailable();
 	}
 
-	private _resolveIdentityAgent(identityAgent: string): string | undefined {
+	private async _resolveIdentityAgent(identityAgent: string): Promise<string | undefined> {
 		const trimmed = identityAgent.trim();
 		if (!trimmed || trimmed.toLowerCase() === 'none') {
+			this._logService.trace(`${LOG_PREFIX} IdentityAgent is none; skipping agent auth`);
 			return undefined;
 		}
 		if (trimmed === 'SSH_AUTH_SOCK') {
 			return this._isAgentAvailable();
 		}
+		let resolved: string | undefined;
 		if (trimmed.startsWith('$')) {
 			const envMatch = /^\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)\}$|^\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)$/.exec(trimmed);
-			return envMatch?.groups ? process.env[envMatch.groups.braced ?? envMatch.groups.plain] || undefined : undefined;
+			resolved = envMatch?.groups ? process.env[envMatch.groups.braced ?? envMatch.groups.plain] || undefined : undefined;
+		} else {
+			resolved = trimmed.replace(/^~/, os.homedir());
 		}
-		return trimmed.replace(/^~/, os.homedir());
+		this._logService.trace(`${LOG_PREFIX} Using SSH agent from IdentityAgent ${trimmed}: ${resolved ?? '(unset)'}`);
+		return resolved;
 	}
 
 	/**
