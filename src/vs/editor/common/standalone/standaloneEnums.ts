@@ -141,7 +141,11 @@ export enum DefaultEndOfLine {
 	/**
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
-	CRLF = 2
+	CRLF = 2,
+	/**
+	 * Use carriage return (\r) as the end of line character.
+	 */
+	CR = 3
 }
 
 /**
@@ -370,7 +374,11 @@ export enum EndOfLinePreference {
 	/**
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
-	CRLF = 2
+	CRLF = 2,
+	/**
+	 * Use carriage return (\r) as the end of line character.
+	 */
+	CR = 3
 }
 
 /**
@@ -384,7 +392,11 @@ export enum EndOfLineSequence {
 	/**
 	 * Use carriage return and line feed (\r\n) as the end of line character.
 	 */
-	CRLF = 1
+	CRLF = 1,
+	/**
+	 * Use carriage return (\r) as the end of line character.
+	 */
+	CR = 2
 }
 
 /**
