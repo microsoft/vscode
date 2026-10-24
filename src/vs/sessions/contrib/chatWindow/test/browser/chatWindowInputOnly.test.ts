@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { chatWindowConversationFits, chatWindowForcedByWindow, clampChatWindowOnResize, shouldRestoreChatWindowConversation, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
+import { chatWindowConversationFits, chatWindowForcedByWindow, chatWindowPersistedInputOnly, clampChatWindowOnResize, shouldRestoreChatWindowConversation, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
 
 suite('decideChatWindowInputOnly', () => {
 
@@ -113,6 +113,22 @@ suite('chat window forced to its input by the window', () => {
 				{ wasForced: true, wasInputOnly: true, inputOnly: false, byUser: false },
 			].map(chatWindowForcedByWindow),
 			[true, true, false, false, false, false]
+		);
+	});
+});
+
+suite('chatWindowPersistedInputOnly', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only what the user chose is remembered', () => {
+		assert.deepStrictEqual(
+			[
+				{ inputOnly: true, forcedByWindow: true, lastUserChoice: false },
+				{ inputOnly: false, forcedByWindow: true, lastUserChoice: true },
+				{ inputOnly: true, forcedByWindow: false, lastUserChoice: false },
+				{ inputOnly: false, forcedByWindow: false, lastUserChoice: true },
+			].map(chatWindowPersistedInputOnly),
+			[false, true, true, false]
 		);
 	});
 });

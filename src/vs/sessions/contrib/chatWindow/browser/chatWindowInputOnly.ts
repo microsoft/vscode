@@ -83,6 +83,14 @@ export function chatWindowForcedByWindow(context: { readonly wasForced: boolean;
 	return context.wasForced || !context.wasInputOnly;
 }
 
+/**
+ * What of the chat showing only its input is remembered for the next time the chat window opens: only what the user
+ * chose. While the window forces it, the value the user last chose stays.
+ */
+export function chatWindowPersistedInputOnly(context: { readonly inputOnly: boolean; readonly forcedByWindow: boolean; readonly lastUserChoice: boolean }): boolean {
+	return context.forcedByWindow ? context.lastUserChoice : context.inputOnly;
+}
+
 export interface IChatWindowRestoreContext {
 	/** Whether the chat shows only its input because the window is too short, see {@link chatWindowForcedByWindow}. */
 	readonly forcedByWindow: boolean;

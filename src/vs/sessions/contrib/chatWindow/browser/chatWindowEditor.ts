@@ -30,7 +30,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { chatWindowConversationFits, chatWindowForcedByWindow, clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly, shouldRestoreChatWindowConversation } from './chatWindowInputOnly.js';
+import { chatWindowConversationFits, chatWindowForcedByWindow, chatWindowPersistedInputOnly, clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly, shouldRestoreChatWindowConversation } from './chatWindowInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -369,8 +369,8 @@ export class ChatWindowChatEditor extends EditorPane {
 			wasInputOnly = inputOnly;
 			const sideBySide = splitLayout === ChatWindowLayout.SideBySide;
 			if (layout === ChatWindowLayout.EditorAboveChat) {
-				// Dragged to, or switched to by the chat: the chat window opens so next time.
-				state.setInputOnly(inputOnly);
+				// Dragged to, or switched to by the chat: the chat window opens so next time, unless the window forced it.
+				state.setInputOnly(chatWindowPersistedInputOnly({ inputOnly, forcedByWindow: this._forcedByWindow, lastUserChoice: state.inputOnly.read(undefined) }));
 			}
 			if (this._sizing) {
 				// Laid out to a size the user dragged to, which already decided what it shows.
