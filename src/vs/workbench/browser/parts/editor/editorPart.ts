@@ -276,6 +276,49 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
+	private _groupGap = 0;
+	private groupGapApplied = false;
+
+	setGroupGap(gap: number): void {
+		const next = Math.max(0, Math.round(gap));
+		if (next === this._groupGap) {
+			return;
+		}
+
+		this._groupGap = next;
+		this.applyGroupGap();
+	}
+
+	private applyGroupGap(): void {
+		if (!this.gridWidget || (this._groupGap === 0 && !this.groupGapApplied)) {
+			return; // nothing to apply or undo
+		}
+
+		this.groupGapApplied = this._groupGap > 0;
+
+		// Inset each group on the sides where its box in the grid does not touch the edge of the
+		// grid, which are those that face another group. Boxes rather than neighbours, because the
+		// groups hidden by maximizing are still neighbours, with a box of no size.
+		const root = this.gridWidget.getViews().box;
+		const leading = Math.floor(this._groupGap / 2);
+		const trailing = this._groupGap - leading;
+		const visit = (node: GridNode<IEditorGroupView>): void => {
+			if (isGridBranchNode(node)) {
+				node.children.forEach(visit);
+				return;
+			}
+
+			const { top, left, width, height } = node.box;
+			node.view.setLayoutInsets({
+				top: top - root.top >= 1 ? leading : 0,
+				left: left - root.left >= 1 ? leading : 0,
+				bottom: (root.top + root.height) - (top + height) >= 1 ? trailing : 0,
+				right: (root.left + root.width) - (left + width) >= 1 ? trailing : 0,
+			});
+		};
+		visit(this.gridWidget.getViews());
+	}
+
 	private _activeGroup!: IEditorGroupView;
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
@@ -1183,20 +1226,24 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			updateContextKeys();
 			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidRemoveGroup(() => {
 			updateContextKeys();
 			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidChangeGroupMaximized(() => {
 			updateContextKeys();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
 		this._register(this.onDidMoveGroup(() => {
 			updateTopRightGroupContextKey();
 			this.applyContentRightInset();
+			this.applyGroupGap();
 		}));
 		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
 	}
@@ -1506,6 +1553,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		// Layout Grid
 		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height, top, left);
+		this.applyGroupGap(); // edges can change with the grid, such as when it is replaced by a state
 
 		// Event
 		this._onDidLayout.fire(dimension);

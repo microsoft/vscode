@@ -548,6 +548,17 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Undone when the returned disposable is disposed.
 	 */
 	setViewColumnGroup(group: IEditorGroup): IDisposable;
+
+	/**
+	 * Leaves `gap` pixels between neighbouring groups of the part, such as
+	 * to show its groups as separate cards. Each group is inset by half of
+	 * the gap on its sides that face another group (the left and top halves
+	 * are rounded down, the right and bottom ones up, so neighbours are
+	 * exactly `gap` apart); the outer edges of the part are not inset. The
+	 * group lays out its title and editor within the inset, so nothing is
+	 * clipped. `0`, the default, lays groups out next to each other.
+	 */
+	setGroupGap(gap: number): void;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
