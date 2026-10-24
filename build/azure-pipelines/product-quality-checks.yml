@@ -63,6 +63,8 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ./common/install-pnpm.yml@self
+
       - task: NuGetAuthenticate@1
         displayName: Setup NuGet Authentication
 
@@ -70,12 +72,12 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         workingDirectory: build
         env:
@@ -99,12 +101,12 @@ jobs:
           node build/npm/preinstall.ts
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           npm_config_arch: x64
@@ -153,6 +155,23 @@ jobs:
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
+      # Transition-time check (remove together with the one in .github/workflows/pr.yml): the distro
+      # keeps its npm lockfiles next to the pnpm ones until every release branch uses pnpm, and the
+      # pull request check cannot see the distro. vscode's npm lockfiles are read from the parent of
+      # the commit that deleted package-lock.json, which the shallow checkout lacks, so fetch the last
+      # commits first. No --strict; reports differences without failing the build.
+      - script: |
+          set -e
+          git fetch --no-tags --deepen=50 origin "$(Build.SourceVersion)" || echo "##vso[task.logissue type=warning]Could not fetch the history of $(Build.SourceVersion)."
+          DELETION=$(git log -1 --format=%H --diff-filter=D HEAD -- package-lock.json)
+          if [ -z "$DELETION" ]; then
+            echo "##vso[task.logissue type=warning]No commit in the fetched history deleted package-lock.json; skipping the pnpm lockfile verification."
+            exit 0
+          fi
+          node build/npm/pnpm/verify-locks.ts --npm-ref "$DELETION^" --distro .build/distro --report .build/verify-locks-report.json
+        displayName: Verify pnpm lockfiles (including the distro)
+        continueOnError: true
+
       - template: ./common/mixin-vscode-capi.yml@self
 
       # Generate and publish the NOTICE before compiling: every platform compile job
@@ -160,7 +179,7 @@ jobs:
       # minutes. Component Detection only reads manifests and lockfiles, so scanning
       # before compile finds the same components (compile only copies src cgmanifest.json
       # files into out-build).
-      - script: npm run download-builtin-extensions-cg
+      - script: pnpm run download-builtin-extensions-cg
         displayName: Download component details of built-in extensions
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
@@ -385,7 +404,7 @@ jobs:
 
       - script: |
           set -e
-          npx tsc6 --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
+          pnpm exec tsc6 --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
           node .oss-build-out/scan-licenses.js \
             --repo "$(Build.SourcesDirectory)" \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
@@ -417,20 +436,21 @@ jobs:
 
         # With VSCODE_CHANGED_SINCE, hygiene and ESLint check only the files that changed since that commit, so they
         # take seconds and fail the job before the compilation checks start. --continue-on-error reports both when both
-        # fail. ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
+        # fail. ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs. No `--`
+        # before the arguments: pnpm passes it on to the script, where it ends option parsing.
         - script: |
             set -e
-            changed_since="${VSCODE_CHANGED_SINCE:+ -- --changed-since $VSCODE_CHANGED_SINCE}"
-            npm exec -- npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "eslint$changed_since"
+            changed_since="${VSCODE_CHANGED_SINCE:+ --changed-since $VSCODE_CHANGED_SINCE}"
+            pnpm exec npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "eslint$changed_since"
           displayName: Hygiene & ESLint
 
-        - script: npm exec -- npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        - script: pnpm exec npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
           env:
             GITHUB_TOKEN: "$(github-token-code-oss)"
           displayName: Compile
 
       - ${{ else }}:
-        - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        - script: pnpm exec npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
           env:
             GITHUB_TOKEN: "$(github-token-code-oss)"
           displayName: Compile & Hygiene

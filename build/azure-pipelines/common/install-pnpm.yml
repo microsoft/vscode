@@ -1,0 +1,53 @@
+parameters:
+  # Condition of the steps, for example to install pnpm only when the node_modules cache missed.
+  - name: condition
+    type: string
+    default: succeeded()
+  # Folder whose npm configuration (registry and authentication) the installation uses. Empty for
+  # the step's default working directory, the sources directory.
+  - name: workingDirectory
+    type: string
+    default: ''
+  # Whether to set the NPM_REGISTRY feed and its authentication in the user npm configuration first,
+  # for jobs that don't do it themselves.
+  - name: setupRegistry
+    type: boolean
+    default: false
+
+# Installs the pnpm version that the `packageManager` field of the root package.json pins, unless it
+# is already installed (installPnpm.ts). Use it after Node.js, the npm registry and its authentication
+# are set up (or with setupRegistry), so that pnpm comes from the same registry as the dependencies.
+#
+# Most product build jobs include this template, and the expanded product build is close to Azure
+# Pipelines' limit ("Maximum events exceeded while evaluating the template"). So the installation is
+# one step that runs the same on every platform, without keys that only repeat the defaults.
+steps:
+  - ${{ if eq(parameters.setupRegistry, true) }}:
+    - script: |
+        set -e
+        npm config set registry "$NPM_REGISTRY"
+        echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+      condition: and(${{ parameters.condition }}, ne(variables['NPM_REGISTRY'], 'none'), ne(variables['Agent.OS'], 'Windows_NT'))
+      displayName: Setup NPM
+
+    - powershell: |
+        . $env:BUILD_SOURCESDIRECTORY/build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { npm config set registry "$env:NPM_REGISTRY" }
+        $NpmrcPath = (npm config get userconfig)
+        echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+      condition: and(${{ parameters.condition }}, ne(variables['NPM_REGISTRY'], 'none'), eq(variables['Agent.OS'], 'Windows_NT'))
+      displayName: Setup NPM
+
+    - task: npmAuthenticate@0
+      inputs:
+        workingFile: $(NPMRC_PATH)
+      condition: and(${{ parameters.condition }}, ne(variables['NPM_REGISTRY'], 'none'))
+      displayName: Setup NPM Authentication
+
+  - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/installPnpm.ts"
+    ${{ if ne(parameters.condition, 'succeeded()') }}:
+      condition: ${{ parameters.condition }}
+    ${{ if ne(parameters.workingDirectory, '') }}:
+      workingDirectory: ${{ parameters.workingDirectory }}
+    displayName: Install pnpm
