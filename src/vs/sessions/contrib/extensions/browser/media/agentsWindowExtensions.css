@@ -7,11 +7,6 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	box-sizing: border-box;
-	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-sizeNone);
-	background: var(--vscode-agentsPanel-background);
-	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 }
 

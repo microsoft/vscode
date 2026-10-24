@@ -2405,7 +2405,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		return undefined;
 	});
 	private readonly customizationsIcon = derived(this, reader => this.customizationMigrationsAvailable.read(reader)
-		? { ...Codicon.circleFilled, color: themeColorFromId('activityWarningBadge.background') }
+		? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
 		: this.customizationExtensionSuggestionsAvailable.read(reader)
 			? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
 			: undefined);
