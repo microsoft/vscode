@@ -148,6 +148,13 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 	}
 
 	private createButtons(options: readonly string[]): IChatConfirmationButton<() => void>[] {
+		const customOptions = IChatToolInvocation.getConfirmationMessages(this.toolInvocation)?.customOptions;
+		if (customOptions?.length) {
+			return buildCustomOptionButtons(customOptions, option => () => {
+				this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
+			});
+		}
+
 		const [primaryOption, ...secondaryOptions] = options;
 		return [
 			{
