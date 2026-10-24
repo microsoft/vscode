@@ -177,6 +177,127 @@ suite('typescript.previewer', () => {
 			'a [`dog`](command:_typescript.openJsDocLink?%5B%7B%22file%22%3A%7B%22path%22%3A%22%2Fpath%2Ffile.ts%22%2C%22scheme%22%3A%22file%22%7D%2C%22position%22%3A%7B%22line%22%3A6%2C%22character%22%3A4%7D%7D%5D "Open symbol link") b');
 	});
 
+	test('Should render @type tag generics as code (#341685)', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Promise<number> | Promise<string>}'
+				}
+			], noopToResource),
+			'*@type* — `Promise<number> | Promise<string>`');
+	});
+
+	test('Should render @type tag with trailing description text', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Promise<number>} some doc text'
+				}
+			], noopToResource),
+			'*@type* — `Promise<number>` some doc text');
+	});
+
+	test('Should render @satisfies tag generics as code', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'satisfies',
+					text: '{Promise<number> | Promise<string>}'
+				}
+			], noopToResource),
+			'*@satisfies* — `Promise<number> | Promise<string>`');
+	});
+
+	test('Should render @throws tag generics as code', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'throws',
+					text: '{Promise<number>} if bad'
+				}
+			], noopToResource),
+			'*@throws* — `Promise<number>` if bad');
+	});
+
+	test('Should render @type tag with nested object type generics as code', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Array<{ a: number }>}'
+				}
+			], noopToResource),
+			'*@type* — `Array<{ a: number }>`');
+	});
+
+	test('Should not end @type code span early on a brace inside a quoted string-literal type', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{\'}\' | Promise<number>}'
+				}
+			], noopToResource),
+			'*@type* — `\'}\' | Promise<number>`');
+	});
+
+	test('Should use a longer backtick delimiter for @type template-literal types', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{`item-${number}`}'
+				}
+			], noopToResource),
+			'*@type* — `` `item-${number}` ``');
+	});
+
+	test('Should preserve whitespace and block structure in @type trailing descriptions', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{Error}\n\n> Details'
+				}
+			], noopToResource),
+			'*@type*  \n`Error`\n\n> Details');
+	});
+
+	test('Should not wrap a leading brace in code for tags that are not type expressions', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'defaultValue',
+					text: '{ enabled: true }'
+				}
+			], noopToResource),
+			'*@defaultValue* — { enabled: true }');
+	});
+
+	test('Should handle a nested template literal inside an @type interpolation', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{`outer-${`inner-${number}`}` | Promise<string>}'
+				}
+			], noopToResource),
+			'*@type* — `` `outer-${`inner-${number}`}` | Promise<string> ``');
+	});
+
+	test('Should not end @type code span early on a brace inside a nested template-literal interpolation', () => {
+		assert.strictEqual(
+			tagsToMarkdown([
+				{
+					name: 'type',
+					text: '{`x${`}`}` | Promise<number>}'
+				}
+			], noopToResource),
+			'*@type* — `` `x${`}`}` | Promise<number> ``');
+	});
+
 	test('Should render @linkcode text as code', () => {
 		assert.strictEqual(
 			asPlainTextWithLinks([
