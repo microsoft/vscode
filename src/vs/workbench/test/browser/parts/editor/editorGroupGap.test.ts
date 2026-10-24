@@ -9,7 +9,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { GroupDirection } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
-import { createEditorPart, TestEditorPart, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { IDimension } from '../../../../../base/browser/dom.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { createEditorPart, TestEditorPart, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+
+class TestGroupGapLayoutService extends TestLayoutService {
+	override getMaximumEditorDimensions(): IDimension { return { width: Number.POSITIVE_INFINITY, height: Number.POSITIVE_INFINITY }; }
+}
 
 suite('Editor Part Group Gap', () => {
 
@@ -23,6 +29,7 @@ suite('Editor Part Group Gap', () => {
 
 	async function createPart(): Promise<TestEditorPart> {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.stub(IWorkbenchLayoutService, new TestGroupGapLayoutService());
 		return createEditorPart(instantiationService, disposables); // laid out at 1080x800
 	}
 
@@ -108,6 +115,31 @@ suite('Editor Part Group Gap', () => {
 		assert.deepStrictEqual({ maximized, restored: [describe(part, left), describe(part, right)] }, {
 			maximized: { margin: '0 0 0 0', width: 1080, height: 800 },
 			restored: [{ margin: '0 4 0 0', width: 536, height: 800 }, { margin: '0 0 0 4', width: 536, height: 800 }],
+		});
+	});
+
+	test('the grid is told when the insets change the size constraints of a group', async () => {
+		const part = await createPart();
+		const left = part.activeGroup;
+		const right = part.addGroup(left, GroupDirection.RIGHT);
+		const constraintChanges: string[] = [];
+		disposables.add(left.onDidChange(e => { if (!e) { constraintChanges.push('left'); } }));
+		disposables.add(right.onDidChange(e => { if (!e) { constraintChanges.push('right'); } }));
+		const minimum = () => ({ width: part.minimumWidth, height: part.minimumHeight });
+		const withoutGap = minimum();
+
+		part.setGroupGap(8);
+		const afterGap = { changes: constraintChanges.splice(0), minimum: minimum() };
+		part.setGroupGap(8);
+		const sameGap = constraintChanges.splice(0);
+		const below = part.addGroup(right, GroupDirection.DOWN); // the right group gains an interior edge at its bottom
+		const afterSplit = { changes: constraintChanges.splice(0), minimum: minimum(), rightMinimumHeight: right.minimumHeight - below.minimumHeight };
+
+		assert.deepStrictEqual({ afterGap, sameGap, afterSplit }, {
+			afterGap: { changes: ['left', 'right'], minimum: { width: withoutGap.width + 8, height: withoutGap.height } },
+			sameGap: [],
+			// The right column now has a gap between its rows, and the right group's minimum height includes its share
+			afterSplit: { changes: ['right'], minimum: { width: withoutGap.width + 8, height: withoutGap.height * 2 + 8 }, rightMinimumHeight: 0 },
 		});
 	});
 

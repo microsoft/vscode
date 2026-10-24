@@ -525,7 +525,8 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * For a group whose editor shows its own chrome, while other
 	 * groups of the part show tabs. Shows the title again once the
 	 * returned disposable, and those of other calls for the group,
-	 * are disposed.
+	 * are disposed. For the feature that owns the part; not persisted
+	 * with the state of the part.
 	 */
 	hideGroupTitle(group: IEditorGroup | GroupIdentifier): IDisposable;
 
@@ -545,7 +546,9 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	/**
 	 * Makes numbered view columns open in `group` of the part while it is the
 	 * active part, such as a window with one editor area beside other content.
-	 * Undone when the returned disposable is disposed.
+	 * Undone when the returned disposable is disposed. For the feature that
+	 * owns the part; the last call wins, and it is not persisted with the
+	 * state of the part.
 	 */
 	setViewColumnGroup(group: IEditorGroup): IDisposable;
 
@@ -556,7 +559,12 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * are rounded down, the right and bottom ones up, so neighbours are
 	 * exactly `gap` apart); the outer edges of the part are not inset. The
 	 * group lays out its title and editor within the inset, so nothing is
-	 * clipped. `0`, the default, lays groups out next to each other.
+	 * clipped.
+	 *
+	 * For the feature that owns the part and arranges its groups; the main
+	 * editor part does not use it. Each call replaces the gap of the previous
+	 * one, and the gap is not persisted with the state of the part. `0`, the
+	 * default, is a no-op: groups lay out next to each other.
 	 */
 	setGroupGap(gap: number): void;
 }
