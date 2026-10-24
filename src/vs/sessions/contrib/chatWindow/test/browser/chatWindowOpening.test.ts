@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { InFlightOperations, openCleaningUpOnFailure } from '../../browser/chatWindowOpening.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { InFlightOperations, ChatModelHold, openCleaningUpOnFailure } from '../../browser/chatWindowOpening.js';
 
 suite('Chat window opening', () => {
 
@@ -62,5 +63,60 @@ suite('Chat window opening', () => {
 		});
 
 		assert.deepStrictEqual({ events, result }, { events: ['disposed'], result: 'opened' });
+	});
+
+	suite('Chat model hold', () => {
+
+		const resource = URI.parse('chat:/a');
+
+		function setup() {
+			const counter = { refs: 0, acquired: 0 };
+			const acquire = () => { counter.refs++; counter.acquired++; return toDisposable(() => counter.refs--); };
+			return { counter, acquire };
+		}
+
+		test('is held until the view has bound, then released', async () => {
+			const { counter, acquire } = setup();
+			const hold = disposables.add(new ChatModelHold(acquire, 10_000, 5));
+			let bound = false;
+			hold.hold(resource, () => bound);
+			const held = counter.refs;
+			bound = true;
+			await timeout(30);
+
+			assert.deepStrictEqual({ held, after: counter.refs, holding: hold.isHolding }, { held: 1, after: 0, holding: false });
+		});
+
+		test('is released after the timeout when the view never reports binding', async () => {
+			const { counter, acquire } = setup();
+			const hold = disposables.add(new ChatModelHold(acquire, 20, 5));
+			hold.hold(resource, () => false);
+			await timeout(60);
+
+			assert.strictEqual(counter.refs, 0);
+		});
+
+		test('a hold for another chat replaces the previous one, and none is taken without a chat or a loaded model', () => {
+			const { counter, acquire } = setup();
+			const hold = disposables.add(new ChatModelHold(acquire, 10_000, 5));
+			hold.hold(resource, () => false);
+			hold.hold(URI.parse('chat:/b'), () => false);
+			const replaced = counter.refs;
+			hold.hold(undefined, () => false);
+			const none = counter.refs;
+			const unloaded = disposables.add(new ChatModelHold(() => undefined));
+			unloaded.hold(resource, () => false);
+
+			assert.deepStrictEqual({ replaced, none, unloaded: unloaded.isHolding }, { replaced: 1, none: 0, unloaded: false });
+		});
+
+		test('disposing the hold, as closing the window or a failed opening does, releases it', () => {
+			const { counter, acquire } = setup();
+			const hold = new ChatModelHold(acquire, 10_000, 5);
+			hold.hold(resource, () => false);
+			hold.dispose();
+
+			assert.strictEqual(counter.refs, 0);
+		});
 	});
 });

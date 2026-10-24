@@ -31,7 +31,10 @@ import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
 import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { InFlightOperations, IChatWindowOpening, openCleaningUpOnFailure } from './chatWindowOpening.js';
+import { InFlightOperations, IChatWindowOpening, ChatModelHold, openCleaningUpOnFailure } from './chatWindowOpening.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -201,6 +204,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IChatService private readonly _chatService: IChatService,
+		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 	) {
 		super();
 
@@ -385,6 +390,11 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 
 		// Taken out of the main window's grid once its editors moved along, which switching sessions there would close.
+		// The main window's view of the chat lets go of its model as the session leaves the grid: held, so that the window's view binds to it rather than loading the chat again.
+		const heldChat = windowDisposables.add(new ChatModelHold(resource => this._chatService.acquireExistingSession(resource, 'ChatWindow#move')));
+		heldChat.hold(this._chatToHold(session, content.chat), this._boundCheck(session));
+		this._heldChats.set(window, heldChat);
+		windowDisposables.add(toDisposable(() => this._heldChats.delete(window)));
 		const windowSession = this._sessionsService.showSessionInWindow(session, { chatResource: content.chat, activates: kind.activatesSession ?? true });
 		// What moved or opened is the editor area's now.
 		window.setContent({ ...content, chat: windowSession.scopedChatResource, editorArea: content.editorArea ? {} : undefined });
@@ -626,6 +636,10 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				return;
 			}
 			const previous = window.session.get();
+			const held = this._heldChats.get(window);
+			if (held) {
+				held.hold(this._chatToHold(session, content.chat), this._boundCheck(session));
+			}
 			const windowSession = this._sessionsService.showSessionInWindow(session, { chatResource: content.chat, activates: window.kind.activatesSession ?? true });
 			window.setSession(windowSession);
 			replaced = true;
@@ -648,6 +662,30 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 	}
 
+
+	/** What each chat window holds on to while its view binds to the chat: the loaded model of the chat; see {@link ChatModelHold}. */
+	private readonly _heldChats = new Map<ChatWindow, ChatModelHold>();
+
+	/** The chat that moves, when it is given and the session has it: no other chat is held in its place. */
+	private _chatToHold(session: ISession, chat: URI | undefined): URI | undefined {
+		return chat && session.chats.get().find(candidate => isEqual(candidate.resource, chat))?.resource;
+	}
+
+	/** Whether the chat view of the window of `session` has bound to its model: it loaded, or showed that it was loading and is done. */
+	private _boundCheck(session: ISession): () => boolean {
+		let loading = false;
+		return () => {
+			const view = this._sessionsPartService.getSessionView(session.sessionId)?.primaryChatView.get();
+			if (!view) {
+				return false;
+			}
+			if (view.isLoadingTranscript.get()) {
+				loading = true;
+				return false;
+			}
+			return loading;
+		};
+	}
 
 	/** Brings `window` to the front with the group it shows. */
 	private async _reveal(window: ChatWindow): Promise<void> {
