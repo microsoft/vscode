@@ -104,6 +104,9 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 		const model = this._editor.getModel();
 		const lineNumber = anchor.range.startLineNumber;
+		if (lineNumber < 1 || lineNumber > model.getLineCount()) {
+			return [];
+		}
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkdownHover[] = [];
 
