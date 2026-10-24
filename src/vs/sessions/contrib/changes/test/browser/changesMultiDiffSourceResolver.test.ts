@@ -21,6 +21,8 @@ import { IChangesSessionObservables, IChangesViewService } from '../../common/ch
 function noSessions(): ISessionsService {
 	return new class extends mock<ISessionsService>() {
 		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+		override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 		override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}();
 }
@@ -38,7 +40,6 @@ suite('ChangesMultiDiffSourceResolver', () => {
 
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
-			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 			override readonly activeSessionChangesObs = activeChanges;
 			override readonly activeSessionLoadingObs = loading;
 		}();
@@ -77,6 +78,8 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const visibleSession = upcastPartial<IActiveSession>({ sessionId: 'visible', resource: sessionResource });
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			override readonly mainWindowActiveSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([visibleSession]);
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
@@ -121,7 +124,6 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = activeSessionResource;
 			override readonly activeSessionChangesObs = activeChanges;
-			override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 		}();
 		let resolver: IMultiDiffSourceResolver | undefined;
 		const resolverService = new class extends mock<IMultiDiffSourceResolverService>() {
@@ -176,7 +178,6 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
 				new class extends mock<IChangesViewService>() {
 					override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
-					override getSessionChanges() { return constObservable<readonly ISessionFileChange[]>([]); }
 					override readonly activeSessionChangesObs = changes;
 				}(),
 				new class extends mock<IMultiDiffSourceResolverService>() {

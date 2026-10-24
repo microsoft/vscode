@@ -162,7 +162,6 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 
 	setChangesetId(_changesetId: string | undefined): void { }
 	showChangeset(_changeset: ISessionChangeset): void { }
-	getSessionChanges(_sessionResource: URI): IObservable<readonly ISessionFileChange[]> { return constObservable([]); }
 
 	setChangesetFilesReviewState(_resources: readonly URI[], _reviewed: boolean): void { }
 
