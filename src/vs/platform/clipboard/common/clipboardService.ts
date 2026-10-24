@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { IReadonlyVSDataTransfer } from '../../../base/common/dataTransfer.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IClipboardService = createDecorator<IClipboardService>('clipboardService');
@@ -11,6 +12,22 @@ export const IClipboardService = createDecorator<IClipboardService>('clipboardSe
 export interface IClipboardService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Whether the Clipboard API supports rich text and custom clipboard formats.
+	 */
+	readonly supportsClipboardData: boolean;
+
+	/**
+	 * Reads rich text, custom string data, and images using the Clipboard API.
+	 * Returns undefined when native clipboard formats require a paste event.
+	 */
+	readData(): Promise<IReadonlyVSDataTransfer | undefined>;
+
+	/**
+	 * Writes rich text and custom data using the Clipboard API. An empty transfer leaves the clipboard unchanged.
+	 */
+	writeData(data: IReadonlyVSDataTransfer): Promise<void>;
 
 	/**
 	 * Trigger the paste. Returns undefined if the paste was not triggered or a promise that resolves on paste end.

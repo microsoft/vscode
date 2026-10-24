@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../base/browser/clipboard.js';
 import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise } from '../../../base/common/async.js';
@@ -11,6 +12,7 @@ import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { IReadonlyVSDataTransfer } from '../../../base/common/dataTransfer.js';
 import { IClipboardService } from '../common/clipboardService.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -48,6 +50,21 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	triggerPaste(): Promise<void> | undefined {
 		this.logService.trace('BrowserClipboardService#triggerPaste');
 		return undefined;
+	}
+
+	get supportsClipboardData(): boolean {
+		return supportsClipboardData();
+	}
+
+	readData(): Promise<IReadonlyVSDataTransfer> {
+		this.logService.trace('BrowserClipboardService#readData');
+		return readClipboardData();
+	}
+
+	writeData(data: IReadonlyVSDataTransfer): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeData');
+		this.clearResourcesState();
+		return writeClipboardData(data);
 	}
 
 	async readImage(): Promise<Uint8Array> {

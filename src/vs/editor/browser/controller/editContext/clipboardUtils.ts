@@ -14,11 +14,12 @@ import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
 import { toExternalVSDataTransfer } from '../../dataTransfer.js';
 
-export function generateDataToCopyAndStoreInMemory(viewModel: IViewModel, id: string | undefined, isFirefox: boolean): { dataToCopy: ClipboardDataToCopy; metadata: ClipboardStoredMetadata } {
-	const { dataToCopy, metadata } = generateDataToCopy(viewModel);
-	storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
-	return { dataToCopy, metadata };
-}
+/**
+ * ClipboardItem requires valid "type/subtype" MIME syntax; the legacy "vscode-editor-data" label has no "/" and would cause a TypeError.
+ * @see https://w3c.github.io/clipboard-apis/#dom-clipboarditem-clipboarditem
+ * @see https://mimesniff.spec.whatwg.org/#parse-a-mime-type
+ */
+const editorDataMime = 'application/vnd.code.editor-data';
 
 function storeMetadataInMemory(textToCopy: string, metadata: ClipboardStoredMetadata, isFirefox: boolean): void {
 	InMemoryClipboardMetadataManager.INSTANCE.set(
@@ -124,7 +125,6 @@ export interface ClipboardStoredMetadata {
 
 export const CopyOptions = {
 	forceCopyWithSyntaxHighlighting: false,
-	electronBugWorkaroundCopyEventHasFired: false
 };
 
 interface InMemoryClipboardMetadata {
@@ -137,7 +137,7 @@ const ClipboardEventUtils = {
 	getTextData(clipboardData: IReadableClipboardData | DataTransfer, getFilePath: (file: File) => string | undefined): [string, ClipboardStoredMetadata | null] {
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
-		const rawmetadata = clipboardData.getData('vscode-editor-data');
+		const rawmetadata = clipboardData.getData(editorDataMime);
 		if (typeof rawmetadata === 'string') {
 			try {
 				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
@@ -163,7 +163,7 @@ const ClipboardEventUtils = {
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);
 		}
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
+		clipboardData.setData(editorDataMime, JSON.stringify(metadata));
 	}
 };
 
@@ -220,16 +220,6 @@ export interface IClipboardCopyEvent {
 	 * Ensure that the clipboard gets the editor data.
 	 */
 	ensureClipboardGetsEditorData(): void;
-
-	/**
-	 * Signal that the event has been handled and default processing should be skipped.
-	 */
-	setHandled(): void;
-
-	/**
-	 * Whether the event has been marked as handled.
-	 */
-	readonly isHandled: boolean;
 }
 
 /**
@@ -275,7 +265,6 @@ export interface IClipboardPasteEvent {
  */
 export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean, context: ViewContext, logService: ILogService, isFirefox: boolean): IClipboardCopyEvent {
 	const { dataToCopy, metadata } = generateDataToCopy(context.viewModel);
-	let handled = false;
 	return {
 		isCut,
 		clipboardData: {
@@ -292,12 +281,23 @@ export function createClipboardCopyEvent(e: ClipboardEvent, isCut: boolean, cont
 			storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
 			logService.trace('ensureClipboardGetsEditorSelection with id : ', metadata.id, ' with text.length: ', dataToCopy.text.length);
 		},
-		setHandled: () => {
-			handled = true;
-			e.preventDefault();
-			e.stopImmediatePropagation();
+	};
+}
+
+/**
+ * Creates copy/cut data for the Clipboard API without a DOM event.
+ */
+export function createClipboardCopyEventFromData(clipboardData: IWritableClipboardData, isCut: boolean, viewModel: IViewModel, logService: ILogService, isFirefox: boolean): IClipboardCopyEvent {
+	const { dataToCopy, metadata } = generateDataToCopy(viewModel);
+	return {
+		isCut,
+		clipboardData,
+		dataToCopy,
+		ensureClipboardGetsEditorData: (): void => {
+			ClipboardEventUtils.setTextData(clipboardData, dataToCopy.text, dataToCopy.html, metadata);
+			storeMetadataInMemory(dataToCopy.text, metadata, isFirefox);
+			logService.trace('ensureClipboardGetsEditorSelection with id : ', metadata.id, ' with text.length: ', dataToCopy.text.length);
 		},
-		get isHandled() { return handled; },
 	};
 }
 
@@ -318,6 +318,26 @@ export function createClipboardPasteEvent(e: ClipboardEvent, getFilePath: (file:
 			handled = true;
 			e.preventDefault();
 			e.stopImmediatePropagation();
+		},
+		get isHandled() { return handled; },
+	};
+}
+
+/**
+ * Creates paste data from normalized Clipboard API formats without a DOM event.
+ */
+export function createClipboardPasteEventFromData(clipboardData: DataTransfer, getFilePath: (file: File) => string | undefined = getPathForFile): IClipboardPasteEvent {
+	let handled = false;
+	let [text, metadata] = clipboardData ? ClipboardEventUtils.getTextData(clipboardData, getFilePath) : ['', null];
+	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+	return {
+		clipboardData: createReadableClipboardData(clipboardData),
+		metadata,
+		text,
+		toExternalVSDataTransfer: () => toExternalVSDataTransfer(clipboardData),
+		browserEvent: undefined,
+		setHandled: () => {
+			handled = true;
 		},
 		get isHandled() { return handled; },
 	};

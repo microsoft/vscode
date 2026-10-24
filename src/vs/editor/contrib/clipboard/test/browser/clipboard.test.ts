@@ -1,0 +1,659 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../base/common/dataTransfer.js';
+import { HierarchicalKind } from '../../../../../base/common/hierarchicalKind.js';
+import { isNative } from '../../../../../base/common/platform.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../../browser/controller/editContext/clipboardUtils.js';
+import { MultiCommand } from '../../../../browser/editorExtensions.js';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../../../browser/services/bulkEditService.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { Handler } from '../../../../common/editorCommon.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { WorkspaceEdit } from '../../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { TestCommandService } from '../../../../test/browser/editorTestServices.js';
+import { CopyAction, CutAction, PasteAction } from '../../browser/clipboard.js';
+import { CopyPasteController } from '../../../dropOrPasteInto/browser/copyPasteController.js';
+import { SnippetParser } from '../../../snippet/browser/snippetParser.js';
+
+interface ClipboardTestContext {
+	editor: ITestCodeEditor;
+	clipboard: TestClipboardService;
+	instantiationService: TestInstantiationService;
+	run(command: MultiCommand | undefined): Promise<void>;
+}
+
+function textData(text: string): VSDataTransfer {
+	const data = new VSDataTransfer();
+	data.replace('text/plain', createStringDataTransferItem(text));
+	return data;
+}
+
+async function withClipboardEditor(text: string, options: TestCodeEditorInstantiationOptions, callback: (context: ClipboardTestContext) => Promise<void>): Promise<void> {
+	let failure: { error: unknown } | undefined;
+	await withAsyncTestCodeEditor(text, { copyWithSyntaxHighlighting: false, ...options }, async (editor, _viewModel, instantiationService) => {
+		sinon.stub(editor, 'hasTextFocus').returns(true);
+		const clipboard = new TestClipboardService();
+		instantiationService.stub(IClipboardService, clipboard);
+		try {
+			await callback({
+				editor,
+				clipboard,
+				instantiationService,
+				run: async command => {
+					assert.ok(command);
+					await instantiationService.invokeFunction(accessor => command.runCommand(accessor, undefined));
+				},
+			});
+		} catch (error) {
+			failure = { error };
+		}
+	});
+	if (failure) {
+		throw failure.error;
+	}
+}
+
+suite('Editor clipboard commands', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	test('registers cut and copy commands', () => {
+		assert.deepStrictEqual([CutAction, CopyAction].map(action => action && CommandsRegistry.getCommand(action.id)?.id), [
+			'editor.action.clipboardCutAction',
+			'editor.action.clipboardCopyAction',
+		]);
+	});
+
+	test('copy and cut hooks can override the prepared clipboard data', async () => {
+		for (const isCut of [false, true]) {
+			await withClipboardEditor('source', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				disposables.add((isCut ? editor.onWillCut : editor.onWillCopy)(event => {
+					event.clipboardData.setData('text/plain', 'from hook');
+					event.clipboardData.setData('text/html', '<b>from hook</b>');
+				}));
+				await run(isCut ? CutAction : CopyAction);
+				const data = await clipboard.readData();
+				assert.deepStrictEqual({
+					text: await data?.get('text/plain')?.asString(),
+					html: await data?.get('text/html')?.asString(),
+					editorText: editor.getValue(),
+				}, {
+					text: 'from hook',
+					html: '<b>from hook</b>',
+					editorText: isCut ? '' : 'source',
+				});
+			});
+		}
+	});
+
+	test('round trips multiple selections and copy hook metadata without in-memory metadata', async () => {
+		await withClipboardEditor('one\ntwo\nthree', {}, async ({ editor, clipboard, run }) => {
+			editor.setSelections([new Selection(1, 1, 1, 4), new Selection(3, 1, 3, 6)]);
+			let copies = 0;
+			let pastes = 0;
+			let customData: string | undefined;
+			disposables.add(editor.onWillCopy(event => {
+				++copies;
+				event.clipboardData.setData('application/x-test-copy', 'from copy hook');
+			}));
+			disposables.add(editor.onWillPaste(event => {
+				++pastes;
+				customData = event.clipboardData.getData('application/x-test-copy');
+			}));
+			const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
+
+			await run(CopyAction);
+			const copiedData = await clipboard.readData();
+			const copiedText = await copiedData?.get('text/plain')?.asString();
+			const metadata = JSON.parse(await copiedData?.get('application/vnd.code.editor-data')?.asString() ?? '');
+			InMemoryClipboardMetadataManager.INSTANCE.get('clear cached clipboard metadata');
+			editor.setValue('A\nB');
+			editor.setSelections([new Selection(1, 2, 1, 2), new Selection(2, 2, 2, 2)]);
+			await run(PasteAction);
+
+			assert.deepStrictEqual({
+				copiedText,
+				multicursorText: metadata.multicursorText,
+				text: editor.getValue(),
+				copies,
+				pastes,
+				customData,
+				legacyPastes: legacyPaste.callCount,
+			}, {
+				copiedText: 'one\nthree',
+				multicursorText: ['one', 'three'],
+				text: 'Aone\nBthree',
+				copies: 1,
+				pastes: 1,
+				customData: 'from copy hook',
+				legacyPastes: 0,
+			});
+		});
+	});
+
+	test('preserves whole-line copy and paste', async () => {
+		await withClipboardEditor('first\nsecond', {}, async ({ editor, run }) => {
+			editor.setPosition({ lineNumber: 1, column: 3 });
+			await run(CopyAction);
+			editor.setPosition({ lineNumber: 2, column: 3 });
+			await run(PasteAction);
+			assert.strictEqual(editor.getValue(), 'first\nfirst\nsecond');
+		});
+	});
+
+	test('does not copy an empty selection when empty-selection clipboard is disabled', async () => {
+		await withClipboardEditor('unchanged', { emptySelectionClipboard: false }, async ({ editor, clipboard, run }) => {
+			await clipboard.writeText('previous clipboard');
+			const write = sinon.spy(clipboard, 'writeData');
+			await run(CopyAction);
+			await run(CutAction);
+			assert.deepStrictEqual({
+				text: editor.getValue(),
+				clipboard: await clipboard.readText(),
+				writes: write.callCount,
+			}, {
+				text: 'unchanged',
+				clipboard: 'previous clipboard',
+				writes: 0,
+			});
+		});
+	});
+
+	test('cuts only after the clipboard write succeeds and preserves undo', async () => {
+		await withClipboardEditor('hello world', {}, async ({ editor, clipboard, run }) => {
+			editor.setSelection(new Selection(1, 1, 1, 6));
+			const written = new DeferredPromise<void>();
+			sinon.stub(clipboard, 'writeData').returns(written.p);
+			const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+			let cuts = 0;
+			let copies = 0;
+			disposables.add(editor.onWillCut(() => ++cuts));
+			disposables.add(editor.onWillCopy(() => ++copies));
+
+			const cut = run(CutAction);
+			const beforeWrite = { text: editor.getValue(), cutCommands: cutCommand.callCount };
+			written.complete();
+			await cut;
+			const afterWrite = editor.getValue();
+			await editor.getModel().undo();
+			assert.deepStrictEqual({ beforeWrite, afterWrite, afterUndo: editor.getValue(), cuts, copies, cutCommands: cutCommand.callCount }, {
+				beforeWrite: { text: 'hello world', cutCommands: 0 },
+				afterWrite: ' world',
+				afterUndo: 'hello world',
+				cuts: 1,
+				copies: 0,
+				cutCommands: 1,
+			});
+		});
+	});
+
+	test('a failed clipboard write never deletes the selection', async () => {
+		await withClipboardEditor('keep this text', {}, async ({ editor, clipboard, instantiationService, run }) => {
+			editor.setSelection(new Selection(1, 1, 1, 5));
+			const error = new Error('Clipboard write failed');
+			sinon.stub(clipboard, 'writeData').rejects(error);
+			const writeText = sinon.spy(clipboard, 'writeText');
+			const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+			const logError = sinon.spy(instantiationService.get(ILogService), 'error');
+			await run(CutAction);
+			assert.deepStrictEqual({ text: editor.getValue(), textWrites: writeText.callCount, cutCommands: cutCommand.callCount, loggedErrors: logError.args }, {
+				text: 'keep this text',
+				textWrites: 0,
+				cutCommands: 0,
+				loggedErrors: [['Unable to write to the clipboard.', error]],
+			});
+		});
+	});
+
+	test('a selection change during a pending cut does not delete a different selection', async () => {
+		await withClipboardEditor('first second', {}, async ({ editor, clipboard, run }) => {
+			editor.setSelection(new Selection(1, 1, 1, 6));
+			const written = new DeferredPromise<void>();
+			sinon.stub(clipboard, 'writeData').returns(written.p);
+			const cut = run(CutAction);
+			editor.setSelection(new Selection(1, 7, 1, 13));
+			written.complete();
+			await cut;
+			assert.deepStrictEqual({ text: editor.getValue(), selection: editor.getSelection() }, {
+				text: 'first second',
+				selection: new Selection(1, 7, 1, 13),
+			});
+		});
+	});
+
+	test('pastes once with either input implementation', async () => {
+		for (const editContext of [false, true]) {
+			await withClipboardEditor('', { editContext }, async ({ editor, clipboard, run }) => {
+				await clipboard.writeText('paste once');
+				let willPastes = 0;
+				let pastes = 0;
+				disposables.add(editor.onWillPaste(() => ++willPastes));
+				disposables.add(editor.onDidPaste(() => ++pastes));
+				const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
+				await run(PasteAction);
+				assert.deepStrictEqual({ text: editor.getValue(), willPastes, pastes, legacyPastes: legacyPaste.callCount }, {
+					text: 'paste once',
+					willPastes: 1,
+					pastes: 1,
+					legacyPastes: 0,
+				});
+			});
+		}
+	});
+
+	test('preserves paste metadata and respects the empty-selection clipboard setting', async () => {
+		for (const emptySelectionClipboard of [false, true]) {
+			await withClipboardEditor('', { emptySelectionClipboard }, async ({ editor, clipboard, run }) => {
+				const data = textData('pasted');
+				data.replace('application/vnd.code.editor-data', createStringDataTransferItem(JSON.stringify({
+					version: 1,
+					isFromEmptySelection: true,
+					isBlock: true,
+					multicursorText: ['pasted'],
+					mode: 'typescript',
+				})));
+				await clipboard.writeData(data);
+				const trigger = sinon.spy(editor, 'trigger');
+				await run(PasteAction);
+				assert.deepStrictEqual(trigger.withArgs('keyboard', Handler.Paste, sinon.match.any).args, [
+					['keyboard', Handler.Paste, {
+						text: 'pasted',
+						pasteOnNewLine: emptySelectionClipboard,
+						multicursorText: ['pasted'],
+						isBlock: true,
+						mode: 'typescript',
+						clipboardEvent: undefined,
+					}],
+				]);
+			});
+		}
+	});
+
+	test('a handled paste is not applied a second time', async () => {
+		await withClipboardEditor('', {}, async ({ editor, clipboard, run }) => {
+			await clipboard.writeText('default');
+			disposables.add(editor.onWillPaste(event => {
+				event.setHandled();
+				editor.trigger('keyboard', Handler.Paste, { text: 'handled' });
+			}));
+			await run(PasteAction);
+			assert.strictEqual(editor.getValue(), 'handled');
+		});
+	});
+
+	test('surfaces unexpected clipboard read failures without pasting', async () => {
+		await withClipboardEditor('unchanged', {}, async ({ editor, clipboard, run }) => {
+			const error = new Error('Clipboard read failed');
+			sinon.stub(clipboard, 'readData').rejects(error);
+			const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
+			await assert.rejects(run(PasteAction), err => err === error);
+			assert.deepStrictEqual({ text: editor.getValue(), legacyPastes: legacyPaste.callCount }, {
+				text: 'unchanged',
+				legacyPastes: 0,
+			});
+		});
+	});
+
+	test('waits for prepared copy data and paste providers for Paste and Paste As', async () => {
+		for (const { customMetadataAvailable, pasteAs } of [
+			{ customMetadataAvailable: true, pasteAs: false },
+			{ customMetadataAvailable: false, pasteAs: false },
+			{ customMetadataAvailable: true, pasteAs: true },
+			{ customMetadataAvailable: false, pasteAs: true },
+		]) {
+			await withClipboardEditor('source', { pasteAs: { enabled: true, showPasteSelector: 'never' } }, async ({ editor, clipboard, run, instantiationService }) => {
+				instantiationService.stub(createDecorator<{ add(): () => void }>('IEditorCancelService'), { add: () => () => { } });
+				instantiationService.stub(ICommandService, new TestCommandService(instantiationService));
+				instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() { });
+				instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() { });
+				instantiationService.stub(IProgressService, new class extends mock<IProgressService>() {
+					override withProgress: IProgressService['withProgress'] = (_options, task) => task({ report() { } });
+				});
+				instantiationService.stub(IBulkEditService, new class extends mock<IBulkEditService>() {
+					override async apply(edit: ResourceEdit[] | WorkspaceEdit) {
+						const edits = (Array.isArray(edit) ? edit : edit.edits).map(edit => {
+							assert.ok(ResourceTextEdit.is(edit));
+							return { range: edit.textEdit.range, text: new SnippetParser().parse(edit.textEdit.text).toString() };
+						});
+						editor.executeEdits('paste-provider-test', edits);
+						return { isApplied: true, ariaSummary: '' };
+					}
+				});
+
+				const prepared = new DeferredPromise<void>();
+				const pasteStarted = new DeferredPromise<void>();
+				const finishPaste = new DeferredPromise<void>();
+				const mime = 'application/x-clipboard-test';
+				const kind = new HierarchicalKind('clipboard.test');
+				disposables.add(instantiationService.get(ILanguageFeaturesService).documentPasteEditProvider.register('*', {
+					copyMimeTypes: [mime],
+					pasteMimeTypes: [mime],
+					providedPasteEditKinds: [kind],
+					async prepareDocumentPaste(model, ranges) {
+						const value = model.getValueInRange(ranges[0]);
+						await prepared.p;
+						const data = new VSDataTransfer();
+						data.replace(mime, createStringDataTransferItem(`prepared:${value}`));
+						return data;
+					},
+					async provideDocumentPasteEdits(_model, _selections, data) {
+						pasteStarted.complete();
+						await finishPaste.p;
+						return {
+							edits: [{ title: 'Test paste', insertText: `pasted:${await data.get(mime)?.asString()}`, kind }],
+							dispose() { },
+						};
+					},
+				}));
+				const controller = editor.registerAndInstantiateContribution(CopyPasteController.ID, CopyPasteController);
+				editor.setSelection(new Selection(1, 1, 1, 7));
+				await run(CopyAction);
+				if (!customMetadataAvailable) {
+					await clipboard.writeText(await clipboard.readText());
+				}
+				editor.setValue('');
+				let pasteFinished = false;
+				const paste = (pasteAs ? controller.pasteAs({ only: kind }) : run(PasteAction)).then(() => { pasteFinished = true; });
+				prepared.complete();
+				try {
+					await Promise.race([pasteStarted.p, paste.then(() => { throw new Error('Paste completed without invoking the provider'); })]);
+					const beforeProviderFinished = { text: editor.getValue(), pasteFinished };
+					finishPaste.complete();
+					await paste;
+					assert.deepStrictEqual({ beforeProviderFinished, text: editor.getValue(), pasteFinished }, {
+						beforeProviderFinished: { text: '', pasteFinished: false },
+						text: 'pasted:prepared:source',
+						pasteFinished: true,
+					}, JSON.stringify({ customMetadataAvailable, pasteAs }));
+				} finally {
+					if (!finishPaste.isSettled) {
+						finishPaste.complete();
+					}
+					await paste;
+				}
+			});
+		}
+	});
+
+	test('empty clipboard data and empty text are no-ops without a native paste fallback', async () => {
+		for (const emptyData of [false, true]) {
+			await withClipboardEditor('keep', {}, async ({ editor, clipboard, run }) => {
+				await clipboard.writeData(emptyData ? new VSDataTransfer() : textData(''));
+				editor.setSelection(new Selection(1, 1, 1, 5));
+				const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
+				await run(PasteAction);
+				assert.deepStrictEqual({ text: editor.getValue(), legacyPastes: legacyPaste.callCount }, {
+					text: 'keep',
+					legacyPastes: 0,
+				});
+			});
+		}
+	});
+
+	test('does not paste into a read-only editor', async () => {
+		await withClipboardEditor('read only', { readOnly: true }, async ({ editor, clipboard, run }) => {
+			await clipboard.writeText('not inserted');
+			await run(PasteAction);
+			assert.strictEqual(editor.getValue(), 'read only');
+		});
+	});
+
+	test('uses the current selection when a pending clipboard read finishes', async () => {
+		await withClipboardEditor('first second', {}, async ({ editor, clipboard, run }) => {
+			editor.setSelection(new Selection(1, 1, 1, 6));
+			const read = new DeferredPromise<IReadonlyVSDataTransfer>();
+			sinon.stub(clipboard, 'readData').returns(read.p);
+			const paste = run(PasteAction);
+			editor.setSelection(new Selection(1, 7, 1, 13));
+			read.complete(textData('replacement'));
+			await paste;
+			assert.strictEqual(editor.getValue(), 'first replacement');
+		});
+	});
+
+	test('does not cancel a pending clipboard read when another paste starts', async () => {
+		await withClipboardEditor('', {}, async ({ editor, clipboard, run }) => {
+			const first = new DeferredPromise<IReadonlyVSDataTransfer>();
+			const second = new DeferredPromise<IReadonlyVSDataTransfer>();
+			sinon.stub(clipboard, 'readData').onFirstCall().returns(first.p).onSecondCall().returns(second.p);
+			const oldPaste = run(PasteAction);
+			const newPaste = run(PasteAction);
+			second.complete(textData('new'));
+			await newPaste;
+			first.complete(textData('old'));
+			await oldPaste;
+			assert.strictEqual(editor.getValue(), 'newold');
+		});
+	});
+
+	test('copy with syntax highlighting overrides the setting and the automatic size limit', async () => {
+		const text = 'x'.repeat(65537);
+		await withClipboardEditor(text, {}, async ({ editor, clipboard, instantiationService }) => {
+			disposables.add(instantiationService.get(ILanguageService).registerLanguage({ id: 'clipboard-test' }));
+			editor.getModel().setLanguage('clipboard-test');
+			sinon.stub(instantiationService.get(IContextKeyService), 'contextMatchesRules').callsFake(rules => !rules);
+			editor.setSelection(new Selection(1, 1, 1, text.length + 1));
+			const action = editor.getAction('editor.action.clipboardCopyWithSyntaxHighlightingAction');
+			assert.ok(action);
+			await action.run();
+			const data = await clipboard.readData();
+			assert.deepStrictEqual({
+				textMatches: await data?.get('text/plain')?.asString() === text,
+				hasHtml: data?.has('text/html'),
+			}, {
+				textMatches: true,
+				hasHtml: true,
+			});
+		});
+	});
+
+	test('copy with syntax highlighting does not affect other copies while its write is pending', async () => {
+		await withClipboardEditor('source', {}, async ({ editor, clipboard, instantiationService, run }) => {
+			sinon.stub(instantiationService.get(IContextKeyService), 'contextMatchesRules').callsFake(rules => !rules);
+			editor.setSelection(new Selection(1, 1, 1, 7));
+			const richText = sinon.spy(editor._getViewModel(), 'getRichTextToCopy');
+			const written = new DeferredPromise<void>();
+			const write = sinon.stub(clipboard, 'writeData').onFirstCall().returns(written.p).onSecondCall().resolves();
+			const action = editor.getAction('editor.action.clipboardCopyWithSyntaxHighlightingAction');
+			assert.ok(action);
+
+			const copy = action.run();
+			const flagWhilePending = CopyOptions.forceCopyWithSyntaxHighlighting;
+			try {
+				await run(CopyAction);
+				assert.deepStrictEqual({ flagWhilePending, richTextCopies: richText.callCount, writes: write.callCount }, {
+					flagWhilePending: false,
+					richTextCopies: 1,
+					writes: 2,
+				});
+			} finally {
+				written.complete();
+				await copy;
+			}
+		});
+	});
+
+	test('copy with syntax highlighting restores the previous flag when preparing data fails', async () => {
+		await withClipboardEditor('source', {}, async ({ editor, instantiationService }) => {
+			sinon.stub(instantiationService.get(IContextKeyService), 'contextMatchesRules').callsFake(rules => !rules);
+			const error = new Error('Copy preparation failed');
+			sinon.stub(editor, '_getViewModel').throws(error);
+			const action = editor.getAction('editor.action.clipboardCopyWithSyntaxHighlightingAction');
+			assert.ok(action);
+
+			const previousForceCopyWithSyntaxHighlighting = CopyOptions.forceCopyWithSyntaxHighlighting;
+			const restoredFlags: boolean[] = [];
+			try {
+				for (const flag of [false, true]) {
+					CopyOptions.forceCopyWithSyntaxHighlighting = flag;
+					await assert.rejects(action.run(), err => err === error);
+					restoredFlags.push(CopyOptions.forceCopyWithSyntaxHighlighting);
+				}
+			} finally {
+				CopyOptions.forceCopyWithSyntaxHighlighting = previousForceCopyWithSyntaxHighlighting;
+			}
+			assert.deepStrictEqual(restoredFlags, [false, true]);
+		});
+	});
+
+	if (isNative) {
+		test('uses the native text clipboard when Clipboard API writes are unsupported', async () => {
+			for (const isCut of [false, true]) {
+				await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
+					editor.setSelection(new Selection(1, 1, 1, 5));
+					sinon.stub(clipboard, 'supportsClipboardData').value(false);
+					const writeData = sinon.spy(clipboard, 'writeData');
+					const writeText = sinon.spy(clipboard, 'writeText');
+					await run(isCut ? CutAction : CopyAction);
+					assert.deepStrictEqual({
+						text: editor.getValue(),
+						clipboard: await clipboard.readText(),
+						richWrites: writeData.callCount,
+						nativeWrites: writeText.callCount,
+					}, {
+						text: isCut ? ' this' : 'copy this',
+						clipboard: 'copy',
+						richWrites: 0,
+						nativeWrites: 1,
+					});
+				});
+			}
+		});
+
+		test('waits for the native text clipboard write before cutting', async () => {
+			await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 5));
+				sinon.stub(clipboard, 'supportsClipboardData').value(false);
+				const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+				const writeStarted = new DeferredPromise<void>();
+				const written = new DeferredPromise<void>();
+				sinon.stub(clipboard, 'writeText').callsFake(() => {
+					writeStarted.complete();
+					return written.p;
+				});
+				let cutFinished = false;
+				const cut = run(CutAction).then(() => { cutFinished = true; });
+				try {
+					await Promise.race([writeStarted.p, cut.then(() => { throw new Error('Cut completed without starting the native text write'); })]);
+					const beforeWrite = { text: editor.getValue(), cutFinished, cutCommands: cutCommand.callCount };
+					written.complete();
+					await cut;
+					const afterWrite = editor.getValue();
+					await editor.getModel().undo();
+					assert.deepStrictEqual({ beforeWrite, afterWrite, afterUndo: editor.getValue(), cutFinished, cutCommands: cutCommand.callCount }, {
+						beforeWrite: { text: 'copy this', cutFinished: false, cutCommands: 0 },
+						afterWrite: ' this',
+						afterUndo: 'copy this',
+						cutFinished: true,
+						cutCommands: 1,
+					});
+				} finally {
+					if (!written.isSettled) {
+						written.complete();
+					}
+					await cut;
+				}
+			});
+		});
+
+		test('logs native text clipboard failures without deleting the selection', async () => {
+			for (const isCut of [false, true]) {
+				await withClipboardEditor('copy this', {}, async ({ editor, clipboard, instantiationService, run }) => {
+					await clipboard.writeText('previous clipboard');
+					editor.setSelection(new Selection(1, 1, 1, 5));
+					sinon.stub(clipboard, 'supportsClipboardData').value(false);
+					const error = new Error('Native clipboard write failed');
+					const writeText = sinon.stub(clipboard, 'writeText').rejects(error);
+					const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+					const logError = sinon.spy(instantiationService.get(ILogService), 'error');
+					await run(isCut ? CutAction : CopyAction);
+					assert.deepStrictEqual({
+						text: editor.getValue(),
+						clipboard: await clipboard.readText(),
+						nativeWrites: writeText.callCount,
+						cutCommands: cutCommand.callCount,
+						loggedErrors: logError.args,
+					}, {
+						text: 'copy this',
+						clipboard: 'previous clipboard',
+						nativeWrites: 1,
+						cutCommands: 0,
+						loggedErrors: [['Unable to write to the clipboard.', error]],
+					});
+				});
+			}
+		});
+
+		test('does not cut when Clipboard API access is denied', async () => {
+			await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 5));
+				const error = new DOMException('Document is not focused', 'NotAllowedError');
+				sinon.stub(clipboard, 'writeData').rejects(error);
+				const writeText = sinon.spy(clipboard, 'writeText');
+				const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+				await run(CutAction);
+				assert.deepStrictEqual({ text: editor.getValue(), textWrites: writeText.callCount, cutCommands: cutCommand.callCount }, {
+					text: 'copy this',
+					textWrites: 0,
+					cutCommands: 0,
+				});
+			});
+		});
+
+		test('does not retry a failed native text write when Clipboard API writes are unsupported', async () => {
+			await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 5));
+				sinon.stub(clipboard, 'supportsClipboardData').value(false);
+				const writeData = sinon.spy(clipboard, 'writeData');
+				const error = new DOMException('Native clipboard access denied', 'NotAllowedError');
+				const writeText = sinon.stub(clipboard, 'writeText').rejects(error);
+				await run(CutAction);
+				assert.deepStrictEqual({ text: editor.getValue(), richWrites: writeData.callCount, nativeWrites: writeText.callCount }, {
+					text: 'copy this',
+					richWrites: 0,
+					nativeWrites: 1,
+				});
+			});
+		});
+
+		test('uses one native paste event when Clipboard API reads are unavailable', async () => {
+			await withClipboardEditor('', {}, async ({ clipboard, run }) => {
+				sinon.stub(clipboard, 'readData').rejects(new DOMException('Document is not focused', 'NotAllowedError'));
+				const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
+				await run(PasteAction);
+				assert.strictEqual(legacyPaste.callCount, 1);
+			});
+		});
+
+		test('uses the native paste event only for unsupported native formats', async () => {
+			await withClipboardEditor('', {}, async ({ clipboard, run }) => {
+				sinon.stub(clipboard, 'readData').resolves(undefined);
+				const legacyPaste = sinon.spy(clipboard, 'triggerPaste');
+				await run(PasteAction);
+				assert.strictEqual(legacyPaste.callCount, 1);
+			});
+		});
+	}
+});
