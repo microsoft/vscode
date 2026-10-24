@@ -38,7 +38,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired = false): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = '640px';
 	container.classList.add('remotes-editor');
@@ -66,10 +66,17 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	if (pendingRefresh) {
 		disposableStore.add(toDisposable(() => pendingRefresh.complete()));
 	}
+	const pendingSignIn = signInRequired === 'pending' ? new DeferredPromise<void>() : undefined;
+	if (pendingSignIn) {
+		disposableStore.add(toDisposable(() => pendingSignIn.complete()));
+	}
 	const model = disposableStore.add(new class extends Disposable implements IRemotesModel {
 		readonly environmentsEnabled = observableValue(this, environments);
 		readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, signInRequired ? 'github' : undefined);
-		async signInToTunnels(): Promise<void> { this.tunnelAuthenticationRequired.set(undefined, undefined); }
+		async signInToTunnels(): Promise<void> {
+			await pendingSignIn?.p;
+			this.tunnelAuthenticationRequired.set(undefined, undefined);
+		}
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
 		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
 			if (pendingRefresh && refreshing) {
@@ -101,6 +108,10 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	await waitForFixtureCondition(() => refreshing
 		? content.querySelectorAll('.remotes-group-progress:not([hidden])').length === 1
 		: content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should reach its fixture state before capture');
+	if (pendingSignIn) {
+		content.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!.click();
+		await waitForFixtureCondition(() => !!content.querySelector('.remotes-signin-progress:not([hidden])'), 'Sign-in spinner should appear before capture');
+	}
 	widget.layout();
 }
 
@@ -109,6 +120,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, 'tunnel') }),
 	TunnelDiscoveryFailure: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true, 'ssh') }),
 	TunnelSignIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true) }),
+	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending') }),
 	TunnelSignInNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, ['tunnel'], true, undefined, true) }),
 	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),

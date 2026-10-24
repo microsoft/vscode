@@ -69,7 +69,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; link?: Link }
+		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'connection'; readonly label: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
@@ -191,7 +191,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				} else {
 					listRow.removeAttribute('aria-expanded');
 				}
-				listRow.setAttribute('aria-busy', String(entry.type === 'group' ? entry.refreshing : entry.type === 'remote' && entry.busy));
+				const signingIn = entry.type === 'empty' && entry.action?.enabled === false;
+				listRow.setAttribute('aria-busy', String(entry.type === 'group' ? entry.refreshing : entry.type === 'remote' ? entry.busy : signingIn));
 				template.label.textContent = entry.type === 'remote' ? entry.remote.name : entry.label;
 				template.label.classList.toggle('remotes-empty-label', entry.type === 'empty');
 				template.count.textContent = entry.type === 'group' ? String(entry.count) : '';
@@ -214,9 +215,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 								}
 							},
 						}, this.hoverService, this.openerService));
+						template.actionProgress = dom.append(template.actionContainer, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+						template.actionProgress.classList.add('remotes-signin-progress');
+						template.actionProgress.setAttribute('aria-hidden', 'true');
 					}
 					template.actionLink.link = { label: entry.action.label, href: '#' };
 					template.actionLink.enabled = entry.action.enabled;
+				}
+				if (template.actionProgress) {
+					template.actionProgress.hidden = !signingIn;
 				}
 				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: template.label.textContent }));
 				template.description.textContent = entry.type === 'empty' ? entry.description ?? '' : '';

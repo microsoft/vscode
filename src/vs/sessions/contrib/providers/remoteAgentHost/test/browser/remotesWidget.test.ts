@@ -1005,6 +1005,7 @@ suite('RemotesWidget', () => {
 	for (const hasCachedTunnels of [false, true]) {
 		test(`tunnel authentication recovery replaces generic error copy and refreshes after keyboard sign-in (cached: ${hasCachedTunnels})`, async () => {
 			const { widget, parent, model, errors, documentation } = createWidget();
+			parent.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			if (!hasCachedTunnels) {
 				model.remotes.set([], undefined);
 			}
@@ -1020,17 +1021,23 @@ suite('RemotesWidget', () => {
 				genericError: parent.textContent?.includes('Could not refresh Tunnels.'), tabbable: link.tabIndex,
 				cached: parent.querySelectorAll('[data-remote-id="tunnel:laptop"]').length,
 				accessible: widget.getAccessibilityContent().includes('Sign In'),
+				spinners: authRow.querySelectorAll('.remotes-signin-progress:not([hidden])').length,
 			};
 			model.pendingSignIn = new DeferredPromise<void>();
 			link.focus();
 			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 			link.click();
-			const busy = link.getAttribute('aria-disabled');
+			const spinner = authRow.querySelector<HTMLElement>('.monaco-link + .remotes-signin-progress')!;
+			const busy = {
+				disabled: link.getAttribute('aria-disabled'), rowBusy: authRow.getAttribute('aria-busy'),
+				spinning: !spinner.hidden && spinner.classList.contains('codicon-modifier-spin'),
+				size: dom.getWindow(spinner).getComputedStyle(spinner).fontSize,
+			};
 			await model.pendingSignIn.complete();
 			await timeout(0);
-			assert.deepStrictEqual({ before, busy, calls: model.signInCalls, refreshes: model.refreshCalls, signInLinks: parent.querySelectorAll('.remotes-empty-signin:not([hidden])').length, errors, documentation }, {
-				before: { copy: 'Sign in to allow access to your tunnels.', warnings: 0, genericError: false, tabbable: 0, cached: hasCachedTunnels ? 1 : 0, accessible: true },
-				busy: 'true', calls: 1, refreshes: 2, signInLinks: 0, errors: [], documentation: [],
+			assert.deepStrictEqual({ before, busy, calls: model.signInCalls, refreshes: model.refreshCalls, signInLinks: parent.querySelectorAll('.remotes-empty-signin:not([hidden])').length, remainingSpinners: parent.querySelectorAll('.remotes-signin-progress:not([hidden])').length, errors, documentation }, {
+				before: { copy: 'Sign in to allow access to your tunnels.', warnings: 0, genericError: false, tabbable: 0, cached: hasCachedTunnels ? 1 : 0, accessible: true, spinners: 0 },
+				busy: { disabled: 'true', rowBusy: 'true', spinning: true, size: '12px' }, calls: 1, refreshes: 2, signInLinks: 0, remainingSpinners: 0, errors: [], documentation: [],
 			});
 		});
 	}
@@ -1051,8 +1058,8 @@ suite('RemotesWidget', () => {
 				await model.pendingSignIn.error(error);
 			}
 			await timeout(0);
-			assert.deepStrictEqual({ calls: model.signInCalls, refreshes: model.refreshCalls, errors, retryEnabled: outcome === 'dispose' ? undefined : parent.querySelector('.remotes-empty-signin .monaco-link')?.getAttribute('aria-disabled') }, {
-				calls: 1, refreshes: 1, errors: outcome === 'failure' ? [error] : [], retryEnabled: outcome === 'dispose' ? undefined : 'false',
+			assert.deepStrictEqual({ calls: model.signInCalls, refreshes: model.refreshCalls, errors, spinners: parent.querySelectorAll('.remotes-signin-progress:not([hidden])').length, retryEnabled: outcome === 'dispose' ? undefined : parent.querySelector('.remotes-empty-signin .monaco-link')?.getAttribute('aria-disabled') }, {
+				calls: 1, refreshes: 1, errors: outcome === 'failure' ? [error] : [], spinners: 0, retryEnabled: outcome === 'dispose' ? undefined : 'false',
 			});
 		});
 	}

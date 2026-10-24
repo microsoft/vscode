@@ -197,8 +197,22 @@
 	white-space: nowrap;
 }
 
+.remotes-widget .remotes-empty-signin {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.remotes-widget .remotes-signin-progress.codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
 .remotes-widget .remotes-group-count[hidden],
 .remotes-widget .remotes-group-progress[hidden],
+.remotes-widget .remotes-empty-signin[hidden],
+.remotes-widget .remotes-signin-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
 .remotes-widget .remotes-empty-description[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
