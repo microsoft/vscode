@@ -71,3 +71,42 @@ export function clampChatWindowOnResize(context: IChatWindowResizeContext): numb
 export function shouldDecideChatWindowInputOnly(context: { readonly afterWindowResize: boolean; readonly pointerDown: boolean }): boolean {
 	return context.pointerDown || !context.afterWindowResize;
 }
+
+/**
+ * Whether the chat shows only its input because the window became too short for the conversation, rather than because
+ * the user chose so by dragging the split or by toggling the conversation. Any choice of the user clears it.
+ */
+export function chatWindowForcedByWindow(context: { readonly wasForced: boolean; readonly wasInputOnly: boolean; readonly inputOnly: boolean; readonly byUser: boolean }): boolean {
+	if (context.byUser || !context.inputOnly) {
+		return false;
+	}
+	return context.wasForced || !context.wasInputOnly;
+}
+
+export interface IChatWindowRestoreContext {
+	/** Whether the chat shows only its input because the window is too short, see {@link chatWindowForcedByWindow}. */
+	readonly forcedByWindow: boolean;
+	/** The height of the chat's group, as laid out. */
+	readonly groupHeight: number;
+	/** The height of the group when it shows only the chat input. */
+	readonly collapsedHeight: number;
+	/** The least height of the conversation above the input. */
+	readonly conversationMinHeight: number;
+	/** The height of the editor's group now. */
+	readonly editorHeight: number;
+	/** The height of the editor's group when the window was too short: where it gave way to its minimum. */
+	readonly editorMinimumHeight: number;
+}
+
+/**
+ * Whether a chat that shows only its input because the window was too short returns to the conversation: once the
+ * editor can give the height the conversation needs while it stays above its minimum. The chat that the user brought
+ * down to its input stays so however the window grows.
+ */
+export function shouldRestoreChatWindowConversation(context: IChatWindowRestoreContext): boolean {
+	if (!context.forcedByWindow) {
+		return false;
+	}
+	const needed = context.collapsedHeight + context.conversationMinHeight - context.groupHeight;
+	return context.editorHeight - context.editorMinimumHeight >= needed;
+}

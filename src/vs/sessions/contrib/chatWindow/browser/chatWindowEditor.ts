@@ -22,14 +22,14 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { EditorInputCapabilities, IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { GroupDirection, GroupsArrangement, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupLayoutPriority, GroupsArrangement, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import type { AbstractChatView } from '../../../browser/parts/chatView.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from './chatWindowInputOnly.js';
+import { chatWindowForcedByWindow, clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly, shouldRestoreChatWindowConversation } from './chatWindowInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -129,7 +129,17 @@ export class ChatWindowChatEditor extends EditorPane {
 	private _sizing = false;
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	/** Once a drag lets go, settles the group on the input, or on the conversation, rather than between. */
-	private readonly _settle = this._register(new RunOnceScheduler(() => this._decide(false), 0));
+	private readonly _settle = this._register(new RunOnceScheduler(() => {
+		const byUser = this._settleByUser;
+		this._settleByUser = false;
+		this._decide(false, byUser);
+	}, 0));
+	/** Whether the settle that is scheduled follows the user letting go of the sash. */
+	private _settleByUser = false;
+	/** Set while the chat shows only its input because the window is too short, see {@link chatWindowForcedByWindow}. */
+	private _forcedByWindow = false;
+	/** The height of the editor's group when it was forced, where the editor gave way to its minimum. */
+	private _forcedEditorHeight = 0;
 
 	private readonly _onDidChangeSizeConstraints = this._register(new Emitter<undefined>());
 	override readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
@@ -177,6 +187,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		const release = () => {
 			if (this._pointerDown) {
 				this._pointerDown = false;
+				this._settleByUser = true;
 				this._settle.schedule();
 			}
 		};
@@ -287,6 +298,15 @@ export class ChatWindowChatEditor extends EditorPane {
 		let arrangedTerminal: IEditorGroup | undefined;
 		/** Where the terminal row was last arranged. */
 		let arrangedTerminalPosition: ChatWindowTerminalPosition | undefined;
+		/** The editor group that gives way first when the window is resized, or when the terminal row is added. */
+		let prioritizedEditor: IEditorGroup | undefined;
+		const clearPriority = () => {
+			if (prioritizedEditor && part.groups.includes(prioritizedEditor)) {
+				part.setGroupLayoutPriority(prioritizedEditor, undefined);
+			}
+			prioritizedEditor = undefined;
+		};
+		store.add(toDisposable(clearPriority));
 
 		store.add(autorun(reader => {
 			const current = conversationOnly.read(reader);
@@ -304,6 +324,8 @@ export class ChatWindowChatEditor extends EditorPane {
 		store.add(autorun(reader => {
 			const inputOnly = state.inputOnly.read(reader);
 			if (!docked && !conversationOnly.read(reader) && view.inputOnly.read(undefined) !== inputOnly) {
+				// Toggled by the user.
+				this._forcedByWindow = false;
 				view.setInputOnly(inputOnly);
 			}
 		}));
@@ -384,6 +406,15 @@ export class ChatWindowChatEditor extends EditorPane {
 						}
 					}
 					this._arrangedSplitLayout = splitLayout;
+				}
+				// The editor gives way to the window and to the terminal row, so that the chat and the terminal keep their
+				// heights. Docked, the chat has the part's height to itself.
+				if (!docked && editor !== prioritizedEditor) {
+					clearPriority();
+					if (editor) {
+						part.setGroupLayoutPriority(editor, GroupLayoutPriority.High);
+						prioritizedEditor = editor;
+					}
 				}
 
 				// With one of the editor and the chat hidden, the other fills the chat window, above the terminal row.
@@ -515,7 +546,9 @@ export class ChatWindowChatEditor extends EditorPane {
 			}
 		} else {
 			this._afterWindowResize = true;
-			this._clampOnResize();
+			if (!this._restoreConversation()) {
+				this._clampOnResize();
+			}
 		}
 	}
 
@@ -533,6 +566,33 @@ export class ChatWindowChatEditor extends EditorPane {
 			this._measuredInsets = (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
 		}
 		return this._measuredInsets;
+	}
+
+	/** The window grew: a chat that showed only its input because it was too short shows the conversation again. */
+	private _restoreConversation(): boolean {
+		const view = this._view;
+		if (!view || !this._forcedByWindow || !view.inputOnly.get() || this._minimumHeight === undefined || this._constraintMode?.minimum !== 'input' || this._state?.docked) {
+			return false;
+		}
+		const part = this._editorGroupsService.getPart(this.group);
+		const editor = part.groups.find(group => group !== this.group && group !== this._state?.terminalGroup.get());
+		if (!editor || part.hasMaximizedGroup()) {
+			return false;
+		}
+		const restore = shouldRestoreChatWindowConversation({
+			forcedByWindow: true,
+			groupHeight: part.getSize(this.group).height,
+			collapsedHeight: this._inputOnlyHeight.get() + this._chrome + this._insets,
+			conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT,
+			editorHeight: part.getSize(editor).height,
+			editorMinimumHeight: this._forcedEditorHeight,
+		});
+		if (restore) {
+			this._forcedByWindow = false;
+			// The groups are arranged again for it, the chat at the height the user last left it.
+			view.setInputOnly(false);
+		}
+		return restore;
 	}
 
 	/** The window was resized, with this group below the editor: showing the conversation, it keeps its least height. */
@@ -563,7 +623,7 @@ export class ChatWindowChatEditor extends EditorPane {
 	 * Below the editor: at the bottom, where dragging it down stops, it shows only the input; taller, the conversation.
 	 * Dragging snaps between the two, and where the drag lets go, the group is sized to one of them.
 	 */
-	private _decide(dragging: boolean): void {
+	private _decide(dragging: boolean, byUser = dragging): void {
 		const view = this._view;
 		if (!view || this._minimumHeight === undefined || this._sizing || this._state?.docked) {
 			return;
@@ -579,9 +639,15 @@ export class ChatWindowChatEditor extends EditorPane {
 		} else {
 			this._rememberConversationHeight.cancel();
 		}
+		const wasInputOnly = view.inputOnly.get();
+		this._forcedByWindow = chatWindowForcedByWindow({ wasForced: this._forcedByWindow, wasInputOnly, inputOnly, byUser });
+		if (this._forcedByWindow && !wasInputOnly) {
+			const editor = part.groups.find(group => group !== this.group && group !== this._state?.terminalGroup.get());
+			this._forcedEditorHeight = editor ? part.getSize(editor).height : 0;
+		}
 		this._sizing = true;
 		try {
-			if (inputOnly !== view.inputOnly.get()) {
+			if (inputOnly !== wasInputOnly) {
 				view.setInputOnly(inputOnly);
 			}
 			if (settleHeight !== undefined) {

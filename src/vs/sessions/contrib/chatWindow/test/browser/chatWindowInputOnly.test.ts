@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
+import { chatWindowForcedByWindow, clampChatWindowOnResize, shouldRestoreChatWindowConversation, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
 
 suite('decideChatWindowInputOnly', () => {
 
@@ -74,6 +74,38 @@ suite('shouldDecideChatWindowInputOnly', () => {
 				{ afterWindowResize: true, pointerDown: true },
 			].map(shouldDecideChatWindowInputOnly),
 			[true, true, false, true]
+		);
+	});
+});
+
+suite('chat window forced to its input by the window', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const restore = { collapsedHeight: 100, conversationMinHeight: 120, groupHeight: 100, editorMinimumHeight: 70 };
+
+	test('forced to the input, it returns to the conversation once the editor can give the height', () => {
+		assert.deepStrictEqual(
+			[70, 150, 189, 190, 400].map(editorHeight => shouldRestoreChatWindowConversation({ ...restore, forcedByWindow: true, editorHeight })),
+			[false, false, false, true, true]
+		);
+	});
+
+	test('chosen by the user, it stays at the input however the window grows', () => {
+		assert.strictEqual(shouldRestoreChatWindowConversation({ ...restore, forcedByWindow: false, editorHeight: 1000 }), false);
+	});
+
+	test('the user dragging or toggling clears it', () => {
+		assert.deepStrictEqual(
+			[
+				{ wasForced: false, wasInputOnly: false, inputOnly: true, byUser: false },
+				{ wasForced: true, wasInputOnly: true, inputOnly: true, byUser: false },
+				{ wasForced: true, wasInputOnly: true, inputOnly: true, byUser: true },
+				{ wasForced: false, wasInputOnly: false, inputOnly: true, byUser: true },
+				{ wasForced: false, wasInputOnly: true, inputOnly: true, byUser: false },
+				{ wasForced: true, wasInputOnly: true, inputOnly: false, byUser: false },
+			].map(chatWindowForcedByWindow),
+			[true, true, false, false, false, false]
 		);
 	});
 });
