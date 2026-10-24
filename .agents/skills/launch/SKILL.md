@@ -1,6 +1,6 @@
 ---
 name: launch
-description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
+description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, record a demo or before/after video of a change, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
 ---
 
 # Code OSS Dev - Launch + Debug
@@ -79,9 +79,13 @@ $sessionTitle = '<title-from-get_current_session>'
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
 
+> On Windows, capturing the launcher with `& $launch | Select-Object -Last 1` can hang after the JSON is printed, because the launched app inherits the output pipe. Start it with `Start-Process powershell -RedirectStandardOutput <file> -RedirectStandardError <file> ...` and poll the file for `cdpPort` instead. `Start-Process -ArgumentList` splits on spaces, so wrap any argument that contains one (such as `--session-title "My title"`) in escaped quotes, or the launcher fails with `Unknown arg`.
+
 ### Handle a missing sign-in
 
 If the source profile is missing or has no stored GitHub session, **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
+
+On Windows, `launch.ps1` instead throws `Profile copy is missing auth-critical path(s)` when the source profile was never signed in (for example, `%USERPROFILE%\.vscode-oss-dev` holds only `extensions` and `argv.json`). There is no sign-in UI to continue to in that case, so go straight to the bootstrap choice below.
 
 At that point, use the questions tool with these choices:
 
@@ -104,7 +108,7 @@ If the failed launch used a custom `--source-user-data-dir`, pass the same path 
 
 The bootstrap script returns only after the persistent Code OSS window's CDP endpoint is ready. It reports a log path and fails with the log tail if the window cannot become usable. Ask the user to sign in to GitHub/Copilot in that window and close it, using **I have signed in** as the acknowledgement choice. On macOS, the user must quit Code OSS completely with Cmd+Q; closing its last window does not stop the application.
 
-After the user acknowledges, wait for the bootstrap process tree to release the persistent profile before launching again:
+After the user acknowledges, wait for the bootstrap process tree to release the persistent profile before launching again. If the wait times out because the Code OSS app is still running after its window was closed, close it gracefully (for example `Get-Process -Id <pid>` then `CloseMainWindow()`) so sign-in data is flushed, rather than killing it:
 
 ```bash
 "$BOOTSTRAP" --wait-for-exit <exitMarker-from-bootstrap-json>
@@ -414,9 +418,15 @@ On macOS, a screenshot "Permission denied" failure usually means the terminal la
 
 ### Recording a video
 
-To record a demo video, use the attached session as the Playwright `page` for a general `page.screencast` recording workflow:
+To record a demo video, use the attached session as the Playwright `page` for a general `page.screencast` recording workflow. **Read the `record-video` skill for the full workflow when it is available**; it covers dry-running, single-call recording, and the hand-off. The notes below are specific to Code OSS:
 
 - Write the whole scenario, including `page.screencast.start()` and `stop()`, as a bare `async page => { ... }` function in a file and run it with a single `npx @playwright/cli -s=$PW_SESSION run-code --filename=<file>` call. `page` is the attached workbench window.
+- The workbench enforces Trusted Types, so `page.screencast.showChapter()` and `showOverlay()` are silently blocked (the console reports `This document requires 'TrustedHTML' assignment`). `showActions()` works. For captions, add a banner with `document.createElement` and `textContent` (never `innerHTML`), set `pointer-events:none`, and remove it before `stop()`.
+- Put `showActions` titles at a corner that does not cover the control you click, for example `position: 'top-left'`; the default can intercept the click.
+- Reset to a known start state before recording. A leftover editor tab changes where views open, for example the Settings editor opens as a modal over a blank layout but as a side pane when an editor is already open. Clear tabs, toasts, and modals first, in a separate call so the pause is not recorded.
+- The Monaco-based search inputs, such as the Settings editor search box, have no accessible name. Click `.settings-editor .suggest-input-container` and use `page.keyboard.type` instead of a role locator.
+- For a before/after comparison of a change, record the same script twice, switching one `MODE` constant. Revert the changed sources (`git checkout <base> -- <files>`), rebuild with `npm run build-fast -- --client-only`, relaunch and record the "before", then restore the files and rebuild. Overlay a banner naming the build ("Before (main)" / "After (this PR)"), and assert the expected outcome in the script (for example, no toast before and a toast after) so the recording cannot misrepresent it.
+- To join two recordings into one, play them back to back in a Chromium page and record that page; Playwright's bundled ffmpeg has no concat demuxer.
 - Keep typed text short. Typing into Monaco key by key is visible but slow: about 400 characters produced a nearly four-minute video. Paste long setup text before recording starts.
 - To run a command, press `F1`, fill the `Type the name of a command to run.` textbox with `>Command Name`, and click the exact matching option. The list updates asynchronously, so pressing `Enter` right after filling can run a stale result.
 

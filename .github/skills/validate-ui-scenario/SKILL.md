@@ -11,6 +11,13 @@ Use this to reproduce a reported bug, to show that a fix works, or to attach a r
 
 A scenario is a small JavaScript file run by `test/scenario/out/runScenario.js`. Nothing else has to be configured: the runner launches VS Code, records video and a trace, captures a screenshot at every step boundary, writes the report, and captions the recording with each step and its result.
 
+## Which skill?
+
+- **This skill** for a scripted, repeatable scenario that produces a pass/fail report with per-step evidence, run against a dev build, an installed build, or the web.
+- **`launch` plus `record-video`** (when available) for a short demo video of one change in a running Code OSS window, including a before/after comparison. They attach to a window you launched, so the recording starts after startup and notifications behave as they do for users. See the "Recording a video" section of the `launch` skill.
+
+Use both when the evidence needs a report and a polished video.
+
 ## Prepare
 
 ```bash
@@ -165,6 +172,14 @@ Evidence is written to `.build/vscode-playwright-mcp/evidence/<run-id>/`:
 
 The caption band is added **above** the recorded frame rather than drawn over it, so no recorded pixel is hidden and the recording keeps its original length. Each caption carries the step number and id, its status, the step title, and the validation detail the step reported. Re-render after editing a manifest with `node test/scenario/out/renderEvidenceChapters.js <run-dir>`.
 
+## Harness behavior to know about
+
+- **Toasts are suppressed.** The runner launches VS Code with `--enable-smoke-test-driver`, and `NotificationsToasts.addToast` returns early in that mode, so a notification never appears as a toast. A scenario that must see one cannot rely on `.notifications-toasts`; use the `launch` skill instead, which does not pass that flag. (Reading the Notifications Center under the runner was not verified.)
+- **Agents Window (`extraArgs: ['--agents']`).** `userSettings` are seeded into both `User/settings.json` and `User/profiles/builtin/agents/settings.json`. When a scenario edits the settings file on disk, write both. `quickaccess.runCommand(...)` does not find commands in the Agents Window; use the keyboard shortcut instead, for example `page.keyboard.press('Control+,')` for Settings.
+- **Do not start a second screencast.** Calling `page.screencast.start()` inside a scenario writes a 0-byte file because the runner is already recording. For in-video captions, add a DOM banner built with `document.createElement` and `textContent`; `innerHTML` is blocked by Trusted Types, and so are `showChapter` and `showOverlay`.
+- **The recording includes startup.** The raw video starts when the app launches, so a scenario with a long start has a long wait at the front. `manifest.json` has `videoStartedAt` and a timestamp per step capture, so trim from the first interesting step with `ffmpeg -ss <seconds>`. Playwright ships a minimal ffmpeg at `ms-playwright/ffmpeg-<n>/` that can trim but not concatenate.
+- **Before/after for a change.** The runner has no baseline option. Run the same scenario twice with a `SCENARIO_MODE` environment variable: for the "before" run, revert the changed sources (`git checkout <base> -- <files>`), rebuild with `npm run build-fast -- --client-only`, run, then restore the files and rebuild. Make the scenario assert the expected outcome in each mode so a stale build cannot pass silently.
+
 ## What makes evidence trustworthy
 
 - Assert on DOM state, accessibility, focus, or text — screenshots support a claim, they do not establish one.
@@ -186,6 +201,7 @@ Always call out, separately from the pass/fail result:
 ## Related
 
 - **Interactive exploration.** Use the `launch` skill to drive a development window with Playwright when you need to inspect the UI before knowing what to assert.
+- **Demo videos.** Use the `launch` skill together with the `record-video` skill when available for a short before/after recording of a pull request.
 - **Automated validation on a pull request.** `microsoft/vscode-engineering` runs the same harness in CI: labelling a pull request `~requires-ui-validation` researches the change, runs a scenario against the exact merge candidate, and posts the per-step result with captioned video. Use this skill when a scenario is not yet covered there, or to iterate locally before proposing one.
 
 <example>
