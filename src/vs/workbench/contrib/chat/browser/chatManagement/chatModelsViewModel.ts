@@ -217,7 +217,7 @@ export class ChatModelsViewModel extends Disposable {
 	private doFilter(): void {
 		const viewModelEntries: IViewModelEntry[] = [];
 		const shouldShowGroupHeaders = this.languageModelGroups.length > 1
-			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && group.group.sourcePresentation !== undefined);
+			|| this.languageModelGroups.some(group => isLanguageModelProviderEntry(group.group) && (group.group.vendorEntry.modelSource !== undefined || group.group.sourcePresentation !== undefined));
 
 		for (const group of this.languageModelGroups) {
 			if (this.collapsedGroups.has(group.group.id)) {

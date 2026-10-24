@@ -381,6 +381,28 @@ suite('ChatModelsViewModel', () => {
 		});
 	});
 
+	test('shows a typed model source header even when it is the only group', async () => {
+		const service = new MockLanguageModelsService();
+		const vendor = 'agent-host-example';
+		const source = { id: 'urn:source:91', displayName: 'Native' };
+		const identifier = getSourceQualifiedModelIdentifier(vendor, source.id, 'shared');
+		const base = languageModelsService.lookupLanguageModel('copilot-gpt-4');
+		assert.ok(base);
+		service.addVendor({ vendor, displayName: 'Example', configuration: undefined, managementCommand: undefined, when: undefined });
+		service.addModel(vendor, identifier, { ...base, vendor, id: 'shared', name: 'Shared', modelSourceId: source.id, isCopilotModel: false, isBYOK: false });
+		service.setModelGroups(vendor, [{ source, modelIdentifiers: [identifier] }]);
+		const model = store.add(new ChatModelsViewModel(service));
+		await model.refresh();
+		assert.deepStrictEqual(model.filter('').map(entry => ({
+			type: entry.type,
+			label: isLanguageModelProviderEntry(entry) ? entry.label : undefined,
+			source: isLanguageModelProviderEntry(entry) ? entry.vendorEntry.modelSource : undefined,
+		})), [
+			{ type: 'vendor', label: 'Native', source },
+			{ type: 'model', label: undefined, source: undefined },
+		]);
+	});
+
 	test('should fetch all models without filters', () => {
 		const results = viewModel.filter('');
 
