@@ -28,7 +28,7 @@ import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean }) {
+	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean; readonly standalone?: boolean }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -106,6 +106,9 @@ suite('CanvasEditor', () => {
 			dispose: () => { },
 		});
 		const editor = store.add(instantiationService.createInstance(CanvasEditor, group));
+		if (harnessOptions?.standalone) {
+			editor.setStandalonePresentation('Picture-in-Picture test help', reader => ownerVisible.read(reader));
+		}
 		editor.create(parent);
 		const input = store.add(instantiationService.createInstance(CanvasInput, {
 			providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner'), canvas: URI.parse('canvas:/preview'),
@@ -118,6 +121,7 @@ suite('CanvasEditor', () => {
 			get created() { return created; },
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
 			open: () => editor.setInput(input, undefined, { newInGroup: true }, CancellationToken.None),
+			openInput: (value: CanvasInput) => editor.setInput(value, undefined, { newInGroup: true }, CancellationToken.None),
 			/** Native layouts stay pending until the returned promises are settled. */
 			deferLayouts: (): DeferredPromise<void>[] => {
 				pendingLayouts = [];
@@ -335,6 +339,49 @@ suite('CanvasEditor', () => {
 		Object.assign(harness.editor.group, { windowId: harness.editor.group.windowId + 1 });
 		await assert.rejects(harness.open(), /main window/);
 		assert.strictEqual(harness.created, 0);
+	});
+
+	test('transfers one retained model between the tab and an in-window standalone presentation', async () => {
+		const tab = createHarness();
+		await tab.open();
+		await tab.modelAttached.p;
+		tab.input.setPresentation({ reveal: () => { }, dock: () => { } });
+		const floating = createHarness({ standalone: true });
+		floating.setView(Promise.resolve(tab.model));
+		await floating.openInput(tab.input);
+		await timeout(0);
+		const during = { tabDetached: tab.attached.at(-1) === undefined, overlayAttached: floating.attached.includes(tab.model) };
+		floating.editor.clearInput();
+		tab.input.setPresentation(undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ during, restored: tab.attached.at(-1) === tab.model, disposed: tab.disposed + floating.disposed }, {
+			during: { tabDetached: true, overlayAttached: true }, restored: true, disposed: 0,
+		});
+	});
+
+	test('hides the live page behind its snapshot while native presentation is suspended', async () => {
+		const harness = createHarness();
+		await harness.show();
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const suspension = harness.editor.suspendNativePresentation();
+		const suspended = harness.visible.at(-1);
+		suspension.dispose();
+		await timeout(0);
+		assert.deepStrictEqual({ suspended, resumed: harness.visible.at(-1) }, { suspended: false, resumed: true });
+	});
+
+	test('offers Show and Return to Tab in the tab while its canvas floats, even beside another conversation', async () => {
+		const harness = createHarness();
+		await harness.open();
+		const calls: string[] = [];
+		harness.input.setPresentation({ reveal: options => calls.push(`reveal:${options?.focus}`), dock: () => calls.push('dock') });
+		harness.ownerVisible.set(false, undefined);
+		const placeholder = harness.parent.querySelector<HTMLElement>('.session-canvas-detached');
+		placeholder?.querySelectorAll<HTMLElement>('.monaco-button').forEach(button => button.click());
+		const message = harness.parent.querySelector('.session-canvas-message')?.textContent;
+		assert.deepStrictEqual({ hidden: placeholder?.hidden, message, calls }, { hidden: false, message: '', calls: ['reveal:true', 'dock'] });
 	});
 
 	test('routes external link requests through the workbench opener', async () => {

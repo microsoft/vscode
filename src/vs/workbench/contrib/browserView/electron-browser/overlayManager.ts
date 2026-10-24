@@ -30,6 +30,7 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
 	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },
+	{ className: 'canvas-picture-in-picture', type: BrowserOverlayType.Unknown },
 	// Context view is very generic, so treat the content as unknown
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
 ];
