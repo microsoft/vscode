@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../base/common/codicons.js';
-import { getWindowId } from '../../../base/browser/dom.js';
+import { getActiveWindow, getWindowId } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { URI } from '../../../base/common/uri.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -18,10 +18,11 @@ import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.j
 import { IsLinuxContext } from '../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { EditorAreaFocusContext, IsAuxiliaryWindowContext } from '../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext } from '../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
 import { Menus } from '../../browser/menus.js';
+import { getChatWindowSession, IChatWindowService, SessionTitleBarActionsShownContext } from '../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
@@ -44,12 +45,12 @@ export class OpenSessionInVSCodeAction extends Action2 {
 			id: OpenSessionInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			precondition: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(SessionTitleBarActionsShownContext, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -61,7 +62,9 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		return instantiationService.invokeFunction(openSessionInVSCode, sessionsService.activeSession.get());
+		// The session of the chat window the button is in, not the focused one's.
+		const windowSession = getChatWindowSession(accessor.get(IChatWindowService), getWindowId(getActiveWindow()));
+		return instantiationService.invokeFunction(openSessionInVSCode, windowSession ? windowSession.get() : sessionsService.activeSession.get());
 	}
 }
 

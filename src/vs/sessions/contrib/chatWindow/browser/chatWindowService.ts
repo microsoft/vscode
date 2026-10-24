@@ -38,6 +38,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatWindowCustomEditorInput } from './chatWindowCustomEditorInput.js';
@@ -393,12 +394,14 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			const editorAreaEditorContext = ChatWindowEditorAreaEditorContext.bindTo(windowContextKeyService);
 			const activeEditor = observableFromEvent(this, editorGroup.onDidActiveEditorChange, () => editorGroup.activeEditorPane?.getId() ?? '');
 			windowDisposables.add(autorun(reader => editorAreaEditorContext.set(activeEditor.read(reader))));
-			const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(windowContextKeyService);
-			windowDisposables.add(autorun(reader => {
-				const session = window.session.read(reader);
-				hasWorkspaceContext.set(!!session && !session.isQuickChat?.read(reader) && !!session.workspace.read(reader));
-			}));
 		}
+		// What the session commands of its title bar need to know about the session it shows, not the focused window's.
+		const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(windowContextKeyService);
+		windowDisposables.add(autorun(reader => {
+			const session = window.session.read(reader);
+			hasWorkspaceContext.set(!!session && !session.isQuickChat?.read(reader) && !!session.workspace.read(reader));
+			setActiveSessionContextKeys(session, windowContextKeyService, reader);
+		}));
 		windowDisposables.add(toDisposable(() => this._remove(window)));
 		Event.once(part.onWillDispose)(() => windowDisposables.dispose());
 		this._windows.set([...this._windows.get(), window], undefined);

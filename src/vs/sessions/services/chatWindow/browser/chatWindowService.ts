@@ -8,7 +8,8 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
@@ -274,6 +275,17 @@ export const ChatWindowEditorAreaEditorContext = new RawContextKey<string>('sess
 
 /** Whether the session of the chat window has a workspace and is not a quick chat, so that it has changes and files. */
 export const ChatWindowSessionHasWorkspaceContext = new RawContextKey<boolean>('sessions.chatWindowSessionHasWorkspace', false, localize('chatWindowSessionHasWorkspace', "Whether the session of the chat window has a workspace and is not a quick chat."));
+
+/** Where the session commands of the title bar show: in the main window, and in a chat window of its own that shows a session with a workspace. */
+export const SessionTitleBarActionsShownContext = ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), ChatWindowSessionHasWorkspaceContext)!;
+
+/**
+ * The session that the chat window in the window `windowId` shows, for actions that run in the title bar of that window. Undefined
+ * when that is not the window of a chat window of its own, such as the main window, in which they act on its active session.
+ */
+export function getChatWindowSession(chatWindowService: IChatWindowService, windowId: number): IObservable<IActiveSession | undefined> | undefined {
+	return chatWindowService.windows.get().find(window => !window.docked && window.windowId === windowId)?.session;
+}
 
 /** Shows or hides the editor of the active chat window, or its editor area. */
 export const CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID = 'sessions.chatWindow.toggleEditor';
