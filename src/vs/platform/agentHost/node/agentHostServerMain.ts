@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--claude-sdk-root <path>] [--codex-sdk-root <path>] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--claude-sdk-root <path>] [--codex-sdk-root <path>] [--shutdown-timeout <ms>] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -66,6 +66,8 @@ function log(msg: string): void {
 
 const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 4500;
+
 interface IServerOptions {
 	readonly port: number;
 	readonly host: string | undefined;
@@ -82,6 +84,11 @@ interface IServerOptions {
 	 * agent; empty falls through to `product.agentSdks.codex`.
 	 */
 	readonly codexSdkRoot: string;
+	/**
+	 * How long a graceful shutdown may drain requests, providers and
+	 * persistence before the process exits anyway.
+	 */
+	readonly shutdownTimeoutMs: number;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
 	readonly connectionToken: string | undefined;
@@ -106,6 +113,17 @@ async function parseServerOptions(): Promise<IServerOptions> {
 	const claudeSdkRoot = (claudeSdkRootIdx >= 0 ? argv[claudeSdkRootIdx + 1] : process.env[AgentHostClaudeSdkRootEnvVar]) ?? '';
 	const codexSdkRootIdx = argv.indexOf('--codex-sdk-root');
 	const codexSdkRoot = (codexSdkRootIdx >= 0 ? argv[codexSdkRootIdx + 1] : process.env[AgentHostCodexAgentSdkRootEnvVar]) ?? '';
+	const shutdownTimeoutIdx = argv.indexOf('--shutdown-timeout');
+	const rawShutdownTimeout = shutdownTimeoutIdx >= 0 ? argv[shutdownTimeoutIdx + 1] : undefined;
+	if (shutdownTimeoutIdx >= 0 && (rawShutdownTimeout === undefined || rawShutdownTimeout.startsWith('--'))) {
+		log(`Error: Missing value for --shutdown-timeout; expected milliseconds (e.g. ${DEFAULT_SHUTDOWN_TIMEOUT_MS})`);
+		process.exit(1);
+	}
+	const shutdownTimeoutMs = rawShutdownTimeout !== undefined ? Number(rawShutdownTimeout) : DEFAULT_SHUTDOWN_TIMEOUT_MS;
+	if (!Number.isSafeInteger(shutdownTimeoutMs) || shutdownTimeoutMs <= 0) {
+		log(`Error: --shutdown-timeout must be a positive number of milliseconds, got '${rawShutdownTimeout}'`);
+		process.exit(1);
+	}
 	const quiet = argv.includes('--quiet');
 
 	// Connection token
@@ -148,7 +166,7 @@ async function parseServerOptions(): Promise<IServerOptions> {
 		connectionToken = generateUuid();
 	}
 
-	return { port, host, enableMockAgent, claudeSdkRoot, codexSdkRoot, quiet, connectionToken };
+	return { port, host, enableMockAgent, claudeSdkRoot, codexSdkRoot, shutdownTimeoutMs, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -391,7 +409,7 @@ async function main(): Promise<void> {
 			() => protocolHandler.whenIdle(),
 			() => agentService.shutdown(),
 			() => [sessionDataService.whenIdle(), customizationEnablementService.whenIdle()],
-			4500,
+			options.shutdownTimeoutMs,
 			logService,
 		);
 		disposables.dispose();
