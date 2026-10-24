@@ -1838,6 +1838,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			try {
 				const backfill = !this.query.isEmpty() && this.query.types.size > 0
 					&& (getCatalogMediaType(this.query.types) === undefined || this.query.types.has('canvas'));
+				const exhaustCanvasPages = this.isCanvasOnlyQuery() && !this.query.text;
 				// Best-effort compatibility fallback until github/copilot-agent-runtime#29133 provides filter-only catalog retrieval.
 				const catalogQuery = this.query.text || (this.isCanvasOnlyQuery() ? 'canvas' : undefined);
 				let hasMatchingCatalogItem = false;
@@ -1865,7 +1866,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					}
 					hasMatchingCatalogItem = this.updateCatalogPage(page, append, browseRequest && !append && !this.selectedSourceId);
 					append = true;
-					if (!backfill || !page.nextCursor || hasMatchingCatalogItem) {
+					if (!backfill || !page.nextCursor || hasMatchingCatalogItem && !exhaustCanvasPages) {
 						break;
 					}
 					if (pageCount === maxFilteredCatalogPagesPerLoad - 1) {

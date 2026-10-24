@@ -1082,6 +1082,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		const cursor = { token: 'canvas-next-page' };
 		await fixture.requests[0].result.complete({
 			items: [
+				resource('first-page-canvas', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['canvas'],
+				}),
 				resource('description-only-canvas', {
 					description: 'A canvas workflow without compatibility metadata',
 					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
@@ -1114,6 +1118,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: fixture.requests.map(request => request.options),
 			canvas: lines.includes('canvas-plugin'),
 			canvasOnly: lines.includes('canvas-only-plugin'),
+			firstPageCanvas: lines.includes('first-page-canvas'),
 			descriptionOnly: lines.includes('description-only-canvas'),
 			categoryOnly: lines.includes('category-only-canvas'),
 			ariaLabel: fixture.container.querySelector('.customization-discovery-results .monaco-list')?.getAttribute('aria-label'),
@@ -1124,6 +1129,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			],
 			canvas: true,
 			canvasOnly: true,
+			firstPageCanvas: true,
 			descriptionOnly: false,
 			categoryOnly: false,
 			ariaLabel: 'Canvas extension search results',
