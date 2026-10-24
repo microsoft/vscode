@@ -49,7 +49,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -289,6 +289,21 @@ function getSourceLabel(item: IAICustomizationListItem): string | undefined {
 
 function normalizedName(value: string): string {
 	return value.trim().toLowerCase();
+}
+
+function installationStatesEqual(a: CustomizationMarketplaceInstallState, b: CustomizationMarketplaceInstallState): boolean {
+	if (a.kind === 'unavailable' && b.kind === 'unavailable') {
+		return a.message === b.message && isEqual(a.setupUrl, b.setupUrl);
+	}
+	if (hasInstallationTarget(a) && hasInstallationTarget(b)
+		&& (a.target.kind === 'skill' || a.target.kind === 'plugin')
+		&& (b.target.kind === 'skill' || b.target.kind === 'plugin')) {
+		return isEqual(a.target.uri, b.target.uri) && structuralEquals(
+			{ ...a, target: { ...a.target, uri: undefined } },
+			{ ...b, target: { ...b.target, uri: undefined } },
+		);
+	}
+	return structuralEquals(a, b);
 }
 
 function hasInstallationTarget(state: CustomizationMarketplaceInstallState): state is Extract<CustomizationMarketplaceInstallState, { target: CustomizationMarketplaceInstallationTarget }> {
@@ -851,6 +866,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly browseDisposables = this._register(new DisposableStore());
 	private readonly browsePrimaryActions = new Map<string, HTMLButtonElement>();
 	private readonly browseAlternativeActions = new Map<string, HTMLButtonElement>();
+	private readonly browseInstallStates = new Map<ICustomizationMarketplaceResource, CustomizationMarketplaceInstallState>();
 	private readonly resultAlternativeActions = new Map<string, HTMLButtonElement>();
 	private readonly resultStatusDisposables = this._register(new DisposableStore());
 	private readonly descriptionDisposables = this._register(new DisposableStore());
@@ -931,7 +947,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly pluginService: IAgentPluginService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -1085,7 +1100,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.refreshInstalledItems();
 			}
 		});
-		this._register(this.installService.onDidChange(() => this.render()));
+		this._register(this.installService.onDidChange(() => {
+			if (!this.resultListContainer.hidden || [...this.browseInstallStates].some(([resource, state]) => !installationStatesEqual(state, this.getInstallState(resource)))) {
+				this.render();
+			}
+		}));
 		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
 		if (this.marketplaceService.onDidChangeSources) {
 			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
@@ -1192,22 +1211,22 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const disposables = new DisposableStore();
 			const actions: IAction[] = [];
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Agents)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newAgent', localize('customizationDiscovery.newAgent', "New Agent"), undefined, true, () => this.createCustomization(PromptsType.agent))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newAgent', localize('customizationDiscovery.newAgent', "New Agent"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Agents))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Skills)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newSkill', localize('customizationDiscovery.newSkill', "New Skill"), undefined, true, () => this.createCustomization(PromptsType.skill))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newSkill', localize('customizationDiscovery.newSkill', "New Skill"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Skills))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Instructions)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newInstructions', localize('customizationDiscovery.newInstructions', "New Instructions"), undefined, true, () => this.createCustomization(PromptsType.instructions))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newInstructions', localize('customizationDiscovery.newInstructions', "New Instructions"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Instructions))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Prompts)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.newPrompt', localize('customizationDiscovery.newPrompt', "New Prompt"), undefined, true, () => this.createCustomization(PromptsType.prompt))));
+				actions.push(disposables.add(new Action('customizationDiscovery.newPrompt', localize('customizationDiscovery.newPrompt', "New Prompt"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Prompts))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.McpServers)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.McpServers))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addMcp', localize('customizationDiscovery.addMcp', "Add MCP Server"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.McpServers))));
 			}
 			if (this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
-				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.selectSection(AICustomizationManagementSection.Plugins))));
+				actions.push(disposables.add(new Action('customizationDiscovery.addPlugin', localize('customizationDiscovery.addPlugin', "Add Plugin"), undefined, true, () => this.callbacks.createCustomization(AICustomizationManagementSection.Plugins))));
 			}
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => addButton.element,
@@ -1219,11 +1238,6 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			});
 			addButton.element.setAttribute('aria-expanded', 'true');
 		}));
-	}
-
-	private createCustomization(type: PromptsType): Promise<void> {
-		this.callbacks.closeEditor();
-		return this.workspaceService.generateCustomization(type);
 	}
 
 	private updateDescription(): void {
@@ -2126,6 +2140,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.browseDisposables.clear();
 		this.browsePrimaryActions.clear();
 		this.browseAlternativeActions.clear();
+		this.browseInstallStates.clear();
 		DOM.clearNode(this.browseSections);
 		if (!this.isCatalogEnabled()) {
 			this.browseStatus.textContent = localize('customizationDiscovery.catalogDisabled', "Search your installed customizations, or enable a marketplace source to explore available items.");
@@ -2312,6 +2327,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const resourceKey = getCustomizationMarketplaceResourceKey(item);
 		card.dataset.resourceKey = resourceKey;
 		const state = this.getInstallState(item);
+		this.browseInstallStates.set(item, state);
 		const primaryAction = createCustomizationCardPrimaryAction(
 			card,
 			state.kind === 'installed'

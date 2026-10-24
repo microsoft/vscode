@@ -73,7 +73,9 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, ty
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -923,6 +925,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		},
 	};
 	instantiationService.stub(IAccessibilitySignalService, accessibilitySignalService as IAccessibilitySignalService);
+	instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 
 	const agentHostService = new MockAgentHostService();
 	disposables.add(toDisposable(() => agentHostService.dispose()));
@@ -1024,6 +1027,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(): void { }
+		override prompt() { return new NoOpNotification(); }
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
@@ -7478,6 +7482,42 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(capturedRoots.at(-1), []);
 		});
+
+		for (const remote of [false, true]) {
+			test(`a ${remote ? 'remote' : 'local'} quick chat keeps an empty customization scope despite persisted scratch and added folders`, async () => {
+				const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary] });
+				if (remote) {
+					agentHostService.resourceUris = createAgentHostResourceUriMapper(agentHostAuthority('cloudsandbox:quick-scope'));
+				}
+				const capturedRoots = captureScopeRoots(instantiationService);
+				const scratch = URI.parse('peer-storage://tenant/opaque-internal-directory');
+				const sessionResource = seedExistingSession(agentHostService, 'quick-scope', [scratch, secondary]);
+				const state = agentHostService.sessionStates.get(AgentSession.uri('copilot', 'quick-scope').toString())!;
+				state._meta = { workspaceless: true, 'vscode.scratchFolders': [scratch.toString()] };
+
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+
+				assert.deepStrictEqual(capturedRoots.at(-1), []);
+			});
+
+			test(`a ${remote ? 'remote' : 'local'} workspace session excludes only host-declared scratch folders from its customization scope`, async () => {
+				const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary] });
+				if (remote) {
+					agentHostService.resourceUris = createAgentHostResourceUriMapper(agentHostAuthority('cloudsandbox:workspace-scope'));
+				}
+				const capturedRoots = captureScopeRoots(instantiationService);
+				const scratch = URI.parse('peer-storage://tenant/opaque-internal-directory');
+				const sessionResource = seedExistingSession(agentHostService, 'workspace-scratch', [scratch, primary, secondary]);
+				const state = agentHostService.sessionStates.get(AgentSession.uri('copilot', 'workspace-scratch').toString())!;
+				state._meta = { 'vscode.scratchFolders': [scratch.toString()] };
+
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(toDisposable(() => chatSession.dispose()));
+
+				assert.deepStrictEqual(capturedRoots.at(-1), [primary, secondary].map(root => agentHostService.resourceUris.fromAgentHost(root).toString()));
+			});
+		}
 	});
 
 	// ---- Workspace trust gating -----------------------------------------
@@ -20793,6 +20833,57 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
+		test('keeps a quick chat on the provider customization scope through turns, idle updates and tool changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
+			const tools = observableValue<readonly ToolDefinition[]>('quickTools', []);
+			const customization: ClientPluginCustomization = {
+				type: CustomizationType.Plugin, id: 'empty-scope-plugin', uri: 'peer-plugin:/empty-scope', name: 'Quick Chat Plugin',
+			};
+			disposables.add(seedActiveClient('agent-host-copilot', {
+				customizations: constObservable([customization]),
+				tools,
+			}));
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/stable-quick-scope' });
+			const backendSession = AgentSession.uri('copilot', 'stable-quick-scope');
+			const scratch = 'peer-storage://tenant/scratch';
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(), provider: 'copilot', title: 'Quick Chat', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [scratch],
+					_meta: { workspaceless: true, 'vscode.scratchFolders': [scratch] },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [{ clientId: agentHostService.clientId, tools: [], customizations: [customization] }],
+			});
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+				fullName: 'Copilot', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+			}));
+
+			const first = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			first.fire({ type: ActionType.ChatTurnComplete, endedAt: '2025-01-01T00:00:00.000Z', session: first.session, turnId: first.turnId } as ChatAction);
+			await first.turnPromise;
+			agentHostService.fireAction({
+				channel: backendSession.toString(),
+				action: { type: ActionType.SessionActiveClientSet, activeClient: { clientId: agentHostService.clientId, tools: [], customizations: [customization] } },
+				serverSeq: 20, origin: undefined,
+			});
+			await timeout(10);
+			tools.set([{ name: 'new_tool' }], undefined);
+			await timeout(10);
+			const firstTurnActions = [...agentHostService.dispatchedActions];
+			const second = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			second.fire({ type: ActionType.ChatTurnComplete, endedAt: '2025-01-01T00:00:00.000Z', session: second.session, turnId: second.turnId } as ChatAction);
+			await second.turnPromise;
+			await timeout(10);
+
+			assert.deepStrictEqual([...firstTurnActions, ...agentHostService.dispatchedActions].flatMap(({ action }) =>
+				action.type === ActionType.SessionActiveClientSet ? [{
+					tools: action.activeClient.tools.map(tool => tool.name),
+					customizations: action.activeClient.customizations?.map(plugin => plugin.uri),
+				}] : []), [{ tools: ['new_tool'], customizations: [customization.uri] }]);
+		}));
+
 		test('dispatches customization changes only to the session with the matching working-directory scope', async () => {
 			const rootA = URI.file('c:\\scope-a');
 			const rootB = URI.file('c:\\scope-b');
@@ -22894,6 +22985,8 @@ suite('AgentHostChatContribution', () => {
 
 	suite('mcp authentication', () => {
 
+		teardown(() => sinon.restore());
+
 		// An MCP server customization stuck in the auth-required state. Empty
 		// `authorization_servers` keeps the auto-grant probe off the network so it
 		// resolves to "not authenticated" and the server stays pending.
@@ -23172,6 +23265,91 @@ suite('AgentHostChatContribution', () => {
 			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
 			assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), [['/mcp-1']]);
 		}));
+
+		test('uses an actionable notification instead of an inline hint in screen reader mode', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const customizationService = new NullAgentHostCustomizationService();
+			const authenticate = sinon.stub(customizationService, 'authenticateMcpServer');
+			authenticate.onFirstCall().resolves(false);
+			authenticate.onSecondCall().resolves(true);
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+			const accessibilityService = instantiationService.get(IAccessibilityService);
+			sinon.stub(accessibilityService, 'isScreenReaderOptimized').returns(true);
+			const notification = new NoOpNotification();
+			const close = sinon.spy(notification, 'close');
+			const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-screen-reader' });
+			const seq = { v: 1 };
+			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
+			await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
+			const [severity, message, choices, options] = prompt.firstCall.args;
+			await choices[0].run();
+			const closedAfterFailedAuthentication = close.called;
+			await choices[0].run();
+
+			assert.deepStrictEqual({
+				inlinePrompts: prompts.length,
+				notifications: prompt.callCount,
+				severity,
+				message,
+				actions: choices.map(choice => choice.label),
+				keepOpen: choices[0].keepOpen,
+				sticky: options?.sticky,
+				authentication: authenticate.args.map(([session, id]) => [session.toString(), id]),
+				closedAfterFailedAuthentication,
+				closed: close.calledOnce,
+			}, {
+				inlinePrompts: 0,
+				notifications: 1,
+				severity: Severity.Info,
+				message: 'The MCP server GitHub MCP requires authentication.',
+				actions: ['Authenticate'],
+				keepOpen: true,
+				sticky: true,
+				authentication: [[resource.toString(), '/mcp-1'], [resource.toString(), '/mcp-1']],
+				closedAfterFailedAuthentication: false,
+				closed: true,
+			});
+		}));
+
+		for (const change of ['authenticated', 'disabled', 'removed', 'routing registered', 'session disposed'] as const) {
+			test(`closes the screen reader authentication notification when the server is ${change}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const changed = disposables.add(new Emitter<void>());
+				const customizationService = new NullAgentHostCustomizationService();
+				sinon.stub(customizationService, 'onDidChangeCustomizations').value(changed.event);
+				const server = upcastPartial<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>({
+					id: '/mcp-1', name: 'GitHub MCP', enabled: true, status: McpServerStatus.AuthRequired,
+				});
+				const getServers = sinon.stub(customizationService, 'getMcpServers').returns([server]);
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+				sinon.stub(instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(true);
+				const notification = new NoOpNotification();
+				const close = sinon.spy(notification, 'close');
+				const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+				await runTurn(sessionHandler, agentHostService, chatAgentService, URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-notification-close' }), { v: 1 }, {
+					customizations: [authRequiredCustomization()],
+					routingChanges: change === 'routing registered' ? [['GitHub MCP']] : undefined,
+				});
+				const closedAfterTurn = close.called;
+				if (change === 'session disposed') {
+					sessionHandler.dispose();
+				} else if (change !== 'routing registered') {
+					getServers.returns(change === 'removed' ? [] : [
+						{ ...server, enabled: change !== 'disabled', status: change === 'authenticated' ? McpServerStatus.Ready : McpServerStatus.AuthRequired },
+					]);
+					changed.fire();
+				}
+
+				assert.deepStrictEqual({
+					notifications: prompt.callCount,
+					closedAfterTurn,
+					closed: close.calledOnce,
+				}, {
+					notifications: 1,
+					closedAfterTurn: change === 'routing registered',
+					closed: true,
+				});
+			}));
+		}
 
 		test('surfaces an authentication prompt when MCP tool routing is enabled but no routing tool is registered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {

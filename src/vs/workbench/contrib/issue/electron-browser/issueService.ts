@@ -86,6 +86,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			isInstallationPure: true,
 			isSessionsWindow: this.environmentService.isSessionsWindow,
 			githubAccessToken: '',
+			getGitHubAccessToken: dataOverrides.githubAccessToken === undefined ? async () => {
+				const sessions = await this.authenticationService.getSessions('github');
+				return sessions.find(session => session.scopes.includes('repo'))?.accessToken ?? '';
+			} : undefined,
 		}, dataOverrides);
 
 		const openPromise = this.issueFormService.openReporter(issueReporterData);
@@ -211,9 +215,9 @@ export class NativeIssueService implements IWorkbenchIssueService {
 
 		// GitHub access token — only fetch existing sessions, never prompt
 		try {
-			const githubSessions = await this.authenticationService.getSessions('github');
-			const repoSession = githubSessions.find(session => session.scopes.includes('repo'));
-			data.githubAccessToken = repoSession?.accessToken ?? '';
+			if (data.getGitHubAccessToken) {
+				data.githubAccessToken = await data.getGitHubAccessToken();
+			}
 		} catch (e) {
 			// Ignore
 		}

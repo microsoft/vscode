@@ -12,30 +12,70 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import { getIssueReporterMediaFormat, MAX_ISSUE_IMAGE_BYTES, MAX_ISSUE_VIDEO_BYTES, readIssueReporterImage, readIssueReporterMediaFile, readIssueReporterVideo, validateIssueReporterMediaFile } from '../../browser/issueReporterMedia.js';
+import { getIssueReporterScreenshotFile, MAX_ISSUE_FILE_BYTES, MAX_ISSUE_IMAGE_BYTES, MAX_ISSUE_VIDEO_BYTES, readIssueReporterImage, readIssueReporterMediaFile, readIssueReporterVideo, validateIssueReporterMediaFile } from '../../browser/issueReporterMedia.js';
 import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
 
 suite('Issue reporter media decoding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
+	test('names captures from the effective image format including annotations', () => {
+		const sources = [
+			{ dataUrl: issueReporterImageFixture },
+			{ dataUrl: issueReporterGifFixture },
+			{ dataUrl: issueReporterWebpFixture },
+			{ dataUrl: issueReporterAvifFixture, annotatedDataUrl: issueReporterImageFixture },
+		];
+		assert.deepStrictEqual(sources.map((screenshot, index) => {
+			const { dataUrl, name, format } = getIssueReporterScreenshotFile(screenshot, index + 1);
+			return { name, mimeType: format.mimeType, effectiveImage: dataUrl === (screenshot.annotatedDataUrl ?? screenshot.dataUrl) };
+		}), [
+			{ name: 'screenshot-1.png', mimeType: 'image/png', effectiveImage: true },
+			{ name: 'screenshot-2.gif', mimeType: 'image/gif', effectiveImage: true },
+			{ name: 'screenshot-3.webp', mimeType: 'image/webp', effectiveImage: true },
+			{ name: 'screenshot-4.png', mimeType: 'image/png', effectiveImage: true },
+		]);
+	});
+
 	for (const [name, type, mimeType, extension] of [
 		['image.PNG', '', 'image/png', 'png'],
-		['photo.JPEG', '', 'image/jpeg', 'jpg'],
-		['photo.jpe', 'application/octet-stream', 'image/jpeg', 'jpg'],
-		['', 'image/jpg', 'image/jpeg', 'jpg'],
-		['', 'IMAGE/WEBP', 'image/webp', 'webp'],
+		['photo.JPEG', '', 'image/jpeg', 'jpeg'],
+		['photo.jpe', 'application/octet-stream', 'image/jpeg', 'jpe'],
+		['', 'image/jpg', 'image/jpg', 'jpg'],
+		['', 'IMAGE/WEBP', 'IMAGE/WEBP', 'webp'],
 		['image.gif', 'image/gif', 'image/gif', 'gif'],
 		['image.avif', 'image/avif', 'image/avif', 'avif'],
 		['recording.MP4', '', 'video/mp4', 'mp4'],
-		['', 'video/webm;codecs=vp9', 'video/webm', 'webm'],
+		['', 'video/webm;codecs=vp9', 'video/webm;codecs=vp9', 'webm'],
 		['clip.MOV', 'application/octet-stream', 'video/quicktime', 'mov'],
+		['clip.MOV', 'APPLICATION/OCTET-STREAM; charset=binary', 'video/quicktime', 'mov'],
 	]) {
 		test(`resolves supported media metadata for ${name || type}`, () => {
 			const format = validateIssueReporterMediaFile({ name, type, size: 1 });
 			assert.deepStrictEqual({ mimeType: format.mimeType, extension: format.extension }, { mimeType, extension });
 		});
 	}
+
+	test('preserves safe original suffixes for filename-based attachment previews', () => {
+		const files = [
+			['report.ipynb', '', 'ipynb'],
+			['report.ipynb', 'application/json', 'ipynb'],
+			['report.ipynb', 'application/x-ipynb+json', 'ipynb'],
+			['report.ipynb', 'text/plain', 'ipynb'],
+			['report.PDF', 'application/pdf', 'pdf'],
+			['trace.json', 'application/json', 'json'],
+			['notes.md', 'text/plain', 'md'],
+			['source.c++', '', 'c++'],
+			['bundle.zip', 'application/octet-stream', 'zip'],
+			['unnamed', 'text/plain', 'txt'],
+			['file.txt:stream', '', 'bin'],
+			['file.bad\\suffix', '', 'bin'],
+			['file.', '', 'bin'],
+			['.env', '', 'bin'],
+			['', '', 'bin'],
+		];
+		assert.deepStrictEqual(files.map(([name, type]) => validateIssueReporterMediaFile({ name, type, size: 1 }).extension), files.map(([, , extension]) => extension));
+	});
 
 	for (const [name, type] of [
 		['document.pdf', 'application/pdf'],
@@ -45,15 +85,15 @@ suite('Issue reporter media decoding', () => {
 		['unknown', ''],
 		['', ''],
 	]) {
-		test(`rejects unsupported or unidentified media: ${name || 'unnamed'}`, () => {
-			assert.strictEqual(getIssueReporterMediaFormat(name, type), undefined);
-			assert.throws(() => validateIssueReporterMediaFile({ name, type, size: 100 }), /Cannot attach/);
+		test(`accepts files without an extension allowlist: ${name || 'unnamed'}`, () => {
+			assert.strictEqual(validateIssueReporterMediaFile({ name, type, size: 100 }).mimeType, type || 'application/octet-stream');
 		});
 	}
 
 	for (const [name, type, maximum] of [
 		['image.png', 'image/png', MAX_ISSUE_IMAGE_BYTES],
 		['video.mp4', 'video/mp4', MAX_ISSUE_VIDEO_BYTES],
+		['bundle.zip', 'application/zip', MAX_ISSUE_FILE_BYTES],
 	] as const) {
 		test(`checks exact byte boundaries for ${type} before decoding`, () => {
 			const outcomes = [0, 1, maximum - 1, maximum, maximum + 1].map(size => {
@@ -65,11 +105,27 @@ suite('Issue reporter media decoding', () => {
 				}
 			});
 			assert.deepStrictEqual({ maximum, outcomes }, {
-				maximum: type === 'image/png' ? 10485760 : 104857600,
-				outcomes: ['rejected', 'accepted', 'accepted', 'accepted', 'rejected'],
+				maximum: type === 'image/png' ? 10485760 : type === 'video/mp4' ? 104857600 : 26214400,
+				outcomes: ['accepted', 'accepted', 'accepted', 'accepted', 'rejected'],
 			});
 		});
 	}
+
+	test('reads undecodable video and generic files without inspecting or changing their contents', async () => {
+		const contents = new Uint8Array([0, 1, 2, 3]);
+		const results = [];
+		for (const [name, type] of [['broken.mov', 'video/quicktime'], ['bundle.zip', 'application/zip'], ['file.unfamiliar', 'application/x-custom']]) {
+			const file = new File([contents], name, { type });
+			const slice = spy(file, 'slice');
+			const result = await readIssueReporterMediaFile(file, CancellationToken.None);
+			results.push({ name: file.name, type: result.format.mimeType, bytes: [...result.bytes.buffer], headerReads: slice.callCount });
+		}
+		assert.deepStrictEqual(results, [
+			{ name: 'broken.mov', type: 'video/quicktime', bytes: [0, 1, 2, 3], headerReads: 0 },
+			{ name: 'bundle.zip', type: 'application/zip', bytes: [0, 1, 2, 3], headerReads: 0 },
+			{ name: 'file.unfamiliar', type: 'application/x-custom', bytes: [0, 1, 2, 3], headerReads: 0 },
+		]);
+	});
 
 	test('decodes a real PNG and removes its source and listeners', async () => {
 		const image = mainWindow.document.createElement('img');
