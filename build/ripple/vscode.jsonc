@@ -60,8 +60,9 @@
 			"!test/unit/**/*.md"
 		],
 		// `npm run gulp transpile-client-esbuild` runs build/next through these files, with the npm
-		// packages of build/package.json, such as esbuild.
+		// packages of build/package.json, such as esbuild. gulp loads the root gulpfile.mjs.
 		"transpiler": [
+			"gulpfile.mjs",
 			"build/gulpfile.ts",
 			"build/lib/esbuild.ts",
 			"build/lib/compilation.ts",
@@ -80,6 +81,7 @@
 		// .github/actions/restore-node-modules).
 		"dependency installation": [
 			"build/npm/**",
+			"build/azure-pipelines/win32/exec.ps1",
 			"build/.npmrc",
 			"build/.cachesalt",
 			"build/azure-pipelines/common/computeNodeModulesCacheKey.ts",

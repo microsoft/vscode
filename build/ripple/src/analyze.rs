@@ -8,7 +8,7 @@
 //! ignores comments, formatting and TypeScript-only syntax, the value-level references between
 //! them, the property names they use, and the module's imports, exports and load-time edges.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use oxc_allocator::Allocator;
 use oxc_ast::{AstKind, ast::*};
@@ -80,6 +80,21 @@ pub enum Heritage {
 	External,
 	/// An analyzed superclass, which may itself have such heritage.
 	Super(Ref),
+	/// A type of an analyzed module, which may come from a package: `IAddon` in
+	/// `implements IAddon` when `./types.js` re-exports it from a package, or declares an
+	/// interface that extends one.
+	Interface { spec: u32, name: String },
+}
+
+/// Where a type comes from, for the types that classes implement (see `FileFacts::type_decls`).
+#[derive(Debug, Clone)]
+pub enum TypeOrigin {
+	/// A global type, or a type of an npm package or a Node.js module.
+	External,
+	/// A type of another module: its import specifier and its name in that module.
+	Import { spec: u32, name: String },
+	/// Another type of this module.
+	Local(String),
 }
 
 #[derive(Debug, Clone)]
@@ -110,7 +125,7 @@ pub struct Decl {
 	/// Property names (as name ids) this declaration accesses: `x.name`, `{ name } = x`, 'name'.
 	pub uses: Vec<u64>,
 	/// For classes: what they extend or implement that may call their methods.
-	pub heritage: Option<Heritage>,
+	pub heritage: Vec<Heritage>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -139,6 +154,9 @@ pub struct FileFacts {
 	pub export_decls: Vec<(String, u32)>,
 	/// The node standing for the `export * from` list, if any.
 	pub star_decl: Option<u32>,
+	/// The types that the module declares or exports (interfaces, type aliases, classes and
+	/// re-exports), with the types they extend, are aliases of or re-export, sorted by name.
+	pub type_decls: Vec<(String, Vec<TypeOrigin>)>,
 	pub error: bool,
 }
 
@@ -288,6 +306,37 @@ fn runtime_names(decl: &Declaration) -> Option<Vec<String>> {
 	}
 }
 
+/// Methods of `Object` that change their first argument.
+const OBJECT_MUTATORS: &[&str] = &[
+	"assign",
+	"defineProperty",
+	"defineProperties",
+	"setPrototypeOf",
+	"freeze",
+	"seal",
+	"preventExtensions",
+];
+
+/// Whether a callee is a method of `Object` that changes its first argument.
+fn is_object_mutator(callee: &Expression) -> bool {
+	matches!(callee, Expression::StaticMemberExpression(m)
+		if matches!(&m.object, Expression::Identifier(o) if o.name == "Object")
+			&& OBJECT_MUTATORS.contains(&m.property.name.as_str()))
+}
+
+/// Whether a call changes an object through a method of `Object`: not when the object is a
+/// literal created for the call, as in `Object.freeze({ ... })`.
+fn changes_object(c: &CallExpression) -> bool {
+	is_object_mutator(&c.callee)
+		&& !matches!(
+			c.arguments
+				.first()
+				.and_then(|a| a.as_expression())
+				.map(|e| e.get_inner_expression()),
+			Some(Expression::ObjectExpression(_) | Expression::ArrayExpression(_))
+		)
+}
+
 /// Calls at load time that are known not to have observable global side effects: JavaScript
 /// built-ins, and the functions and objects the configuration declares pure.
 fn is_pure_callee(callee: &Expression, config: &Config) -> bool {
@@ -306,8 +355,7 @@ fn is_pure_callee(callee: &Expression, config: &Config) -> bool {
 					name,
 					"Object" | "Math" | "JSON" | "Array" | "Number" | "String" | "Date"
 				) || config.is_pure_object(name))
-					&& m.property.name.as_str() != "assign"
-					&& m.property.name.as_str() != "defineProperty"
+					&& !OBJECT_MUTATORS.contains(&m.property.name.as_str())
 			}
 			_ => false,
 		},
@@ -439,8 +487,10 @@ fn object_literal<'b, 'a>(
 		Expression::TSAsExpression(x) => object_literal(&x.expression, config),
 		Expression::TSSatisfiesExpression(x) => object_literal(&x.expression, config),
 		Expression::ParenthesizedExpression(x) => object_literal(&x.expression, config),
+		// `Object.freeze` and the like return their argument.
 		Expression::CallExpression(c)
-			if is_pure_callee(&c.callee, config) && c.arguments.len() == 1 =>
+			if (is_pure_callee(&c.callee, config) || is_object_mutator(&c.callee))
+				&& c.arguments.len() == 1 =>
 		{
 			match c.arguments.first() {
 				Some(Argument::ObjectExpression(o)) => Some(o),
@@ -783,8 +833,12 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	};
 
 	let mut binding_by_symbol: HashMap<SymbolId, u32> = HashMap::new();
-	// The specifier of every imported symbol, including types, which classes can implement.
-	let mut import_specs: HashMap<SymbolId, u32> = HashMap::new();
+	// The specifier and imported name of every imported symbol, including types, which classes can
+	// implement, by symbol and by local name.
+	let mut import_specs: HashMap<SymbolId, (u32, Imported)> = HashMap::new();
+	let mut import_names: HashMap<String, (u32, Imported)> = HashMap::new();
+	// `export { name as exported } from 'specifier'`, including types, as (exported, spec, name).
+	let mut re_exports: Vec<(String, u32, String)> = Vec::new();
 	// Import declarations whose load depends on whether any binding is used as a value.
 	let mut pending_imports: Vec<(u32, Vec<u32>)> = Vec::new();
 	let mut local_exports: Vec<(String, String)> = Vec::new();
@@ -814,8 +868,10 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 								}
 							};
 							if let Some(sym) = local.symbol_id.get() {
-								import_specs.insert(sym, spec);
+								import_specs.insert(sym, (spec, imported.clone()));
 							}
+							import_names
+								.insert(local.name.as_str().to_owned(), (spec, imported.clone()));
 							if type_only || is_type {
 								continue;
 							}
@@ -855,6 +911,13 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			Statement::ExportFromDeclaration(d) => {
 				let type_only = d.export_kind.is_type();
 				let spec = push_spec(&mut facts, js_str(&d.source.value), type_only);
+				for s in &d.specifiers {
+					re_exports.push((
+						s.exported.name().as_str().to_owned(),
+						spec,
+						s.local.name().as_str().to_owned(),
+					));
+				}
 				if !type_only {
 					facts.loads.push(spec);
 					for s in &d.specifiers {
@@ -1363,6 +1426,17 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	let mut order_pos = vec![u32::MAX; facts.decls.len()];
 	// Module state depends on the load-time code that writes or mutates it, as (state, writer).
 	let mut writes: Vec<(u32, u32)> = Vec::new();
+	// Load-time reads of top-level constants, as (position, symbol): order-relevant if load-time
+	// code changes what they hold.
+	let mut state_reads: Vec<(u32, SymbolId)> = Vec::new();
+	let is_function = |sym: SymbolId| {
+		scoping.symbol_flags(sym).contains(SymbolFlags::Function)
+			|| matches!(nodes.get_node(scoping.symbol_declaration(sym)).kind(),
+			AstKind::VariableDeclarator(v) if matches!(
+				v.init.as_ref().map(|e| e.get_inner_expression()),
+				Some(Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_))
+			))
+	};
 	// Module state that the function bodies (and constructors) of each declaration mutate. It
 	// depends on the load-time code that calls them.
 	let mut mutated_by: Vec<Vec<u32>> = vec![Vec::new(); facts.decls.len()];
@@ -1570,8 +1644,9 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			// mutable module state at load time.
 			let relevant = match kind {
 				AstKind::CallExpression(c) => {
-					!is_pure_callee(&c.callee, config)
-						&& !matches!(&c.callee, Expression::StaticMemberExpression(m) if PURE_METHODS.contains(&m.property.name.as_str()))
+					changes_object(c)
+						|| (!is_pure_callee(&c.callee, config)
+							&& !matches!(&c.callee, Expression::StaticMemberExpression(m) if PURE_METHODS.contains(&m.property.name.as_str())))
 				}
 				AstKind::IdentifierReference(r) => {
 					symbol_of(r).is_some_and(|sym| locals_of.contains_key(&sym) && is_mutable(sym))
@@ -1590,6 +1665,32 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				let pos = kind.span().start;
 				if let Some(n) = node_at(pos).filter(|&n| n != 0) {
 					order_pos[n as usize] = order_pos[n as usize].min(pos);
+				}
+			}
+			if let AstKind::IdentifierReference(r) = kind {
+				let value = r
+					.reference_id
+					.get()
+					.is_some_and(|rid| scoping.get_reference(rid).flags().is_value());
+				if let Some(sym) = symbol_of(r).filter(|s| value && locals_of.contains_key(s)) {
+					if !is_mutable(sym) {
+						state_reads.push((r.span.start, sym));
+					}
+					// A local function passed to a call at load time may run then, like the function
+					// expressions that load-time calls receive: `[1].map(write)`.
+					let argument = match nodes.parent_kind(id) {
+						AstKind::CallExpression(c) => c.callee.span() != r.span,
+						AstKind::NewExpression(n) => n.callee.span() != r.span,
+						_ => false,
+					};
+					let owner = stmt_index(r.span.start).and_then(|si| match owners[si] {
+						Owner::Decl(d) => Some(d as usize),
+						Owner::Init => Some(0),
+						_ => None,
+					});
+					if let (true, Some(owner)) = (argument && is_function(sym), owner) {
+						load_calls.push((owner, sym));
+					}
 				}
 			}
 		}
@@ -1644,6 +1745,11 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 					_ => Vec::new(),
 				}
 			}
+			AstKind::CallExpression(c) if changes_object(c) => c
+				.arguments
+				.first()
+				.and_then(|a| a.as_expression())
+				.map_or_else(Vec::new, |e| state_of(&facts, e, None)),
 			AstKind::CallExpression(c) if !is_pure_callee(&c.callee, config) => match &c.callee {
 				Expression::StaticMemberExpression(m)
 					if PURE_METHODS.contains(&m.property.name.as_str()) =>
@@ -1714,6 +1820,17 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		// Effects that can be observed outside this module. Effects on module-local state only
 		// reach other code through the declarations holding that state.
 		let escape = match kind {
+			AstKind::CallExpression(c) if changes_object(c) => {
+				match c
+					.arguments
+					.first()
+					.and_then(|a| a.as_expression())
+					.map(&escapes)
+				{
+					Some(Escape::Yes) => Escape::Yes,
+					_ => Escape::No,
+				}
+			}
 			AstKind::CallExpression(c) if is_pure_callee(&c.callee, config) => Escape::No,
 			AstKind::CallExpression(c) if matches!(&c.callee, Expression::StaticMemberExpression(m) if PURE_METHODS.contains(&m.property.name.as_str())) => {
 				Escape::No
@@ -1860,8 +1977,49 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			stack.extend(&member_calls[d as usize]);
 		}
 	}
+	// Moving a load-time read of module state across the load-time code that changes the state
+	// changes what it reads: both are order-relevant.
+	let written: HashSet<u32> = writes.iter().map(|&(state, _)| state).collect();
+	let decl_start = |d: u32| {
+		member_spans
+			.iter()
+			.find(|m| m.decl == d)
+			.map(|m| m.span.start)
+			.or_else(|| {
+				owners
+					.iter()
+					.position(|o| *o == Owner::Decl(d))
+					.map(|si| stmt_spans[si].start)
+			})
+			.unwrap_or(0)
+	};
+	for &(_, writer) in &writes {
+		if writer != 0 {
+			order_pos[writer as usize] = order_pos[writer as usize].min(decl_start(writer));
+		}
+	}
+	for &(pos, sym) in &state_reads {
+		let changed = locals_of[&sym].iter().any(|&d| {
+			written.contains(&d)
+				|| facts.decls[d as usize]
+					.children
+					.iter()
+					.any(|c| written.contains(c))
+		});
+		if let Some(n) = node_at(pos).filter(|&n| n != 0 && changed) {
+			order_pos[n as usize] = order_pos[n as usize].min(pos);
+		}
+	}
+	// Code reaches the members of an object directly (`config.mode`), so a write of the whole
+	// object, such as `Object.assign(config, ...)` or passing it to a call, is a write of each
+	// member.
 	for (state, writer) in writes {
-		facts.decls[state as usize].refs.push(Ref::Local(writer));
+		let children = facts.decls[state as usize].children.clone();
+		for target in std::iter::once(state).chain(children) {
+			if target != writer {
+				facts.decls[target as usize].refs.push(Ref::Local(writer));
+			}
+		}
 	}
 
 	excluded.sort_unstable_by_key(|s| (s.start, s.end));
@@ -1915,16 +2073,147 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	facts.path_segments.sort_unstable();
 	facts.path_segments.dedup();
 
-	// The heritage of each class that code outside the analysis may call (see `Heritage`): a name
-	// in `extends` or `implements` that is a global or comes from an npm package or a Node.js
-	// module, or an analyzed superclass.
-	let outside = |id: &IdentifierReference| match symbol_of(id) {
-		None => true,
-		Some(sym) => import_specs.get(&sym).is_some_and(|&spec| {
-			let specifier = &facts.specs[spec as usize].specifier;
-			!specifier.starts_with('.') && config.resolve_alias(specifier).is_none()
-		}),
+	// Where the types that classes implement come from: a global type or one of a package is
+	// external, a type of an analyzed module is resolved through that module's `type_decls`.
+	let is_package = |spec: u32| {
+		let specifier = &facts.specs[spec as usize].specifier;
+		!specifier.starts_with('.') && config.resolve_alias(specifier).is_none()
 	};
+	let imported_origin = |spec: u32, imported: &Imported, member: Option<&str>| match imported {
+		_ if is_package(spec) => TypeOrigin::External,
+		Imported::Named(n) => TypeOrigin::Import {
+			spec,
+			name: n.clone(),
+		},
+		Imported::Default => TypeOrigin::Import {
+			spec,
+			name: "default".to_owned(),
+		},
+		Imported::Namespace => match member {
+			Some(m) => TypeOrigin::Import {
+				spec,
+				name: m.to_owned(),
+			},
+			None => TypeOrigin::External,
+		},
+	};
+	let origin_of = |id: &IdentifierReference, member: Option<&str>| match symbol_of(id) {
+		None => TypeOrigin::External,
+		Some(sym) => match import_specs.get(&sym) {
+			Some((spec, imported)) => imported_origin(*spec, imported, member),
+			None => TypeOrigin::Local(id.name.as_str().to_owned()),
+		},
+	};
+	let type_origin = |name: &TSTypeName| match name {
+		TSTypeName::IdentifierReference(id) => Some(origin_of(id, None)),
+		TSTypeName::QualifiedName(q) => match &q.left {
+			TSTypeName::IdentifierReference(id) => Some(origin_of(id, Some(q.right.name.as_str()))),
+			_ => None,
+		},
+		TSTypeName::ThisExpression(_) => None,
+	};
+	fn alias_targets<'b, 'a>(t: &'b TSType<'a>, out: &mut Vec<&'b TSTypeName<'a>>) {
+		match t {
+			TSType::TSTypeReference(r) => out.push(&r.type_name),
+			TSType::TSIntersectionType(i) => i.types.iter().for_each(|x| alias_targets(x, out)),
+			TSType::TSParenthesizedType(p) => alias_targets(&p.type_annotation, out),
+			_ => {}
+		}
+	}
+	let mut type_decls: Vec<(String, Vec<TypeOrigin>)> = Vec::new();
+	for stmt in body.iter() {
+		let decl = match stmt {
+			Statement::ExportDeclaration(d) => Some(&d.declaration),
+			_ => stmt.as_declaration(),
+		};
+		match decl {
+			Some(Declaration::TSInterfaceDeclaration(i)) => type_decls.push((
+				i.id.name.as_str().to_owned(),
+				i.extends
+					.iter()
+					.filter_map(|h| type_origin(&h.type_name))
+					.collect(),
+			)),
+			Some(Declaration::TSTypeAliasDeclaration(a)) => {
+				let mut names = Vec::new();
+				alias_targets(&a.type_annotation, &mut names);
+				type_decls.push((
+					a.id.name.as_str().to_owned(),
+					names.into_iter().filter_map(type_origin).collect(),
+				));
+			}
+			Some(Declaration::ClassDeclaration(c)) => {
+				if let Some(id) = &c.id {
+					let extends = c.heritage.as_ref().and_then(|h| {
+						match h.expression.get_inner_expression() {
+							Expression::Identifier(id) => Some(origin_of(id, None)),
+							_ => None,
+						}
+					});
+					type_decls.push((
+						id.name.as_str().to_owned(),
+						c.implements
+							.iter()
+							.filter_map(|i| type_origin(&i.expression))
+							.chain(extends)
+							.collect(),
+					));
+				}
+			}
+			_ => {}
+		}
+		if let Statement::ExportNamedDeclaration(d) = stmt {
+			for s in &d.specifiers {
+				let local = s.local.name().as_str();
+				let origin = match import_names.get(local) {
+					Some((spec, imported)) => imported_origin(*spec, imported, None),
+					None => TypeOrigin::Local(local.to_owned()),
+				};
+				type_decls.push((s.exported.name().as_str().to_owned(), vec![origin]));
+			}
+		}
+	}
+	for (exported, spec, name) in re_exports {
+		let origin = imported_origin(spec, &Imported::Named(name), None);
+		type_decls.push((exported, vec![origin]));
+	}
+	// Declaration merging: a name can be declared several times.
+	type_decls.sort_by(|a, b| a.0.cmp(&b.0));
+	type_decls.dedup_by(|later, first| {
+		let same = later.0 == first.0;
+		if same {
+			first.1.append(&mut later.1);
+		}
+		same
+	});
+	// The heritage of a type of this module.
+	fn local_heritage(
+		type_decls: &[(String, Vec<TypeOrigin>)],
+		name: &str,
+		seen: &mut HashSet<String>,
+		out: &mut Vec<Heritage>,
+	) {
+		if !seen.insert(name.to_owned()) {
+			return;
+		}
+		let Ok(i) = type_decls.binary_search_by(|(n, _)| n.as_str().cmp(name)) else {
+			return;
+		};
+		for origin in &type_decls[i].1 {
+			match origin {
+				TypeOrigin::External => out.push(Heritage::External),
+				TypeOrigin::Import { spec, name } => out.push(Heritage::Interface {
+					spec: *spec,
+					name: name.clone(),
+				}),
+				TypeOrigin::Local(n) => local_heritage(type_decls, n, seen, out),
+			}
+		}
+	}
+
+	// The heritage of each class that code outside the analysis may call (see `Heritage`): what
+	// it implements, and its superclass: a global, a class of an npm package or a Node.js module,
+	// or an analyzed class.
 	let analyzed_class = |id: &IdentifierReference, member: Option<&str>| -> Option<Ref> {
 		let sym = symbol_of(id)?;
 		match binding_by_symbol.get(&sym) {
@@ -1951,38 +2240,44 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		let Owner::Decl(idx) = owners[i] else {
 			continue;
 		};
-		let interfaces = class.implements.iter().any(|i| {
-			let mut name = &i.expression;
-			loop {
-				match name {
-					TSTypeName::IdentifierReference(id) => break outside(id),
-					TSTypeName::QualifiedName(q) => name = &q.left,
-					TSTypeName::ThisExpression(_) => break false,
+		let mut heritage = Vec::new();
+		let mut seen = HashSet::new();
+		for i in &class.implements {
+			match type_origin(&i.expression) {
+				Some(TypeOrigin::External) => heritage.push(Heritage::External),
+				Some(TypeOrigin::Import { spec, name }) => {
+					heritage.push(Heritage::Interface { spec, name })
 				}
+				Some(TypeOrigin::Local(n)) => {
+					local_heritage(&type_decls, &n, &mut seen, &mut heritage)
+				}
+				None => {}
 			}
-		});
-		let extends = class.heritage.as_ref().map(|h| {
-			let (id, member) = match h.expression.get_inner_expression() {
-				Expression::Identifier(id) => (id, None),
+		}
+		if let Some(h) = &class.heritage {
+			heritage.push(match h.expression.get_inner_expression() {
+				Expression::Identifier(id) => match (origin_of(id, None), analyzed_class(id, None))
+				{
+					(TypeOrigin::External, _) | (_, None) => Heritage::External,
+					(_, Some(r)) => Heritage::Super(r),
+				},
 				Expression::StaticMemberExpression(m) => match m.object.get_inner_expression() {
-					Expression::Identifier(id) => (id, Some(m.property.name.as_str())),
-					_ => return Heritage::External,
+					Expression::Identifier(id) => {
+						let member = Some(m.property.name.as_str());
+						match (origin_of(id, member), analyzed_class(id, member)) {
+							(TypeOrigin::External, _) | (_, None) => Heritage::External,
+							(_, Some(r)) => Heritage::Super(r),
+						}
+					}
+					_ => Heritage::External,
 				},
 				// A mixin, or another computed superclass.
-				_ => return Heritage::External,
-			};
-			match analyzed_class(id, member) {
-				Some(r) if !outside(id) => Heritage::Super(r),
-				// A global, a class of an npm package, or a declared class.
 				_ => Heritage::External,
-			}
-		});
-		facts.decls[idx as usize].heritage = if interfaces {
-			Some(Heritage::External)
-		} else {
-			extends
-		};
+			});
+		}
+		facts.decls[idx as usize].heritage = heritage;
 	}
+	facts.type_decls = type_decls;
 
 	// Content hashes over the tokens of each declaration, skipping TypeScript-only spans. Comments
 	// and whitespace are not tokens, so they never affect a hash.

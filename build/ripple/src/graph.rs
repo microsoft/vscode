@@ -11,7 +11,9 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 
-use crate::analyze::{ExportTarget, FileFacts, Heritage, IMPLICIT_METHODS, Imported, Ref, name_id};
+use crate::analyze::{
+	ExportTarget, FileFacts, Heritage, IMPLICIT_METHODS, Imported, Ref, TypeOrigin, name_id,
+};
 use crate::config::{Config, Role};
 
 #[derive(Clone)]
@@ -210,8 +212,10 @@ struct Linker<'s> {
 	base: &'s [u32],
 	res: Vec<Option<Box<[Res]>>>,
 	memo: HashMap<(u32, Box<str>), Vec<u32>>,
-	/// The nodes that a reference to a whole module depends on, by module.
-	surfaces: HashMap<u32, Vec<u32>>,
+	/// The node standing for the surface of each module that code references as a whole (see
+	/// `surface`), and the ones whose edges are still to be added.
+	surfaces: HashMap<u32, u32>,
+	new_surfaces: Vec<(u32, u32)>,
 	packages: HashMap<String, u32>,
 	globals: HashMap<String, u32>,
 	dirs: Vec<Box<str>>,
@@ -406,7 +410,7 @@ impl<'s> Linker<'s> {
 					_ => {}
 				},
 				ExportTarget::Namespace(spec) => match self.spec_res(f, *spec) {
-					Res::File(t) => out.extend(self.surface(t, depth + 1)),
+					Res::File(t) => out.push(self.surface(t)),
 					Res::Pkg(p) => out.push(p),
 					_ => {}
 				},
@@ -431,39 +435,70 @@ impl<'s> Linker<'s> {
 		out
 	}
 
-	/// The nodes that a reference to a whole module depends on, such as a dynamic import or a
-	/// namespace import used as a value: the module's own nodes and what its exports bind to,
-	/// through re-exports (`export { x } from`, `export * from`, `export * as ns from`).
-	fn surface(&mut self, f: u32, depth: u32) -> Vec<u32> {
-		if let Some(v) = self.surfaces.get(&f) {
-			return v.clone();
+	/// The node that a reference to a whole module depends on, such as a dynamic import or a
+	/// namespace import used as a value. It depends on the module's own nodes and on what its
+	/// exports bind to, through re-exports (`export { x } from`, `export * from`, `export * as ns
+	/// from`), which `Graph::build` adds as its edges. A node of its own, so that a cycle of
+	/// re-exports is a cycle of the graph.
+	fn surface(&mut self, f: u32) -> u32 {
+		if let Some(&s) = self.surfaces.get(&f) {
+			return s;
 		}
-		let mut out: Vec<u32> = self.all_nodes(f).collect();
+		let s = self.next;
+		self.next += 1;
+		self.surfaces.insert(f, s);
+		self.new_surfaces.push((f, s));
+		s
+	}
+
+	/// Whether a type that `implements` names comes from a package: the type `name` of the module
+	/// that `spec` of module `f` names, followed through re-exports, aliases and the interfaces it
+	/// extends (see `FileFacts::type_decls`).
+	fn external_type(
+		&mut self,
+		f: u32,
+		spec: u32,
+		name: &str,
+		seen: &mut HashSet<(u32, Box<str>)>,
+	) -> bool {
+		match self.spec_res(f, spec) {
+			Res::File(t) => self.type_of_module_is_external(t, name, seen),
+			// A package, or a module that is not analyzed, such as a declaration file.
+			_ => true,
+		}
+	}
+
+	fn type_of_module_is_external(
+		&mut self,
+		t: u32,
+		name: &str,
+		seen: &mut HashSet<(u32, Box<str>)>,
+	) -> bool {
+		if !seen.insert((t, name.into())) {
+			return false;
+		}
 		let snap = self.snap;
-		let Some(facts) = snap.entries[f as usize].facts.as_deref() else {
-			return out;
+		let Some(facts) = snap.entries[t as usize].facts.as_deref() else {
+			return true;
 		};
-		if depth > 24 {
-			return out;
+		match facts
+			.type_decls
+			.binary_search_by(|(n, _)| n.as_str().cmp(name))
+		{
+			Ok(i) => facts.type_decls[i].1.iter().any(|origin| match origin {
+				TypeOrigin::External => true,
+				TypeOrigin::Import { spec, name } => self.external_type(t, *spec, name, seen),
+				TypeOrigin::Local(n) => self.type_of_module_is_external(t, n, seen),
+			}),
+			Err(_) => facts
+				.stars
+				.iter()
+				.any(|&star| match self.spec_res(t, star) {
+					Res::File(u) => self.type_of_module_is_external(u, name, seen),
+					Res::Pkg(_) => true,
+					_ => false,
+				}),
 		}
-		// Re-exports in a cycle see the module's own nodes.
-		self.surfaces.insert(f, out.clone());
-		for (name, target) in &facts.exports {
-			if !matches!(target, ExportTarget::Local(_)) {
-				out.extend(self.resolve_export(f, name, depth + 1));
-			}
-		}
-		for &star in &facts.stars {
-			match self.spec_res(f, star) {
-				Res::File(t) => out.extend(self.surface(t, depth + 1)),
-				Res::Pkg(p) => out.push(p),
-				_ => {}
-			}
-		}
-		out.sort_unstable();
-		out.dedup();
-		self.surfaces.insert(f, out.clone());
-		out
 	}
 
 	fn resolve_binding(&mut self, f: u32, b: u32, member: Option<&str>, depth: u32) -> Vec<u32> {
@@ -494,7 +529,7 @@ impl<'s> Linker<'s> {
 						.map(|m| self.resolve_export(t, m, depth))
 						.unwrap_or_default();
 					if r.is_empty() {
-						self.surface(t, depth + 1)
+						vec![self.surface(t)]
 					} else {
 						r
 					}
@@ -627,6 +662,7 @@ impl Graph {
 			res: vec![None; n],
 			memo: HashMap::new(),
 			surfaces: HashMap::new(),
+			new_surfaces: Vec::new(),
 			packages: HashMap::new(),
 			globals: HashMap::new(),
 			dirs: Vec::new(),
@@ -689,15 +725,13 @@ impl Graph {
 											facts.specs[binding.spec as usize].specifier
 										);
 									}
-									edges.extend(linker.surface(t, 0).into_iter().map(|v| (u, v)));
+									edges.push((u, linker.surface(t)));
 								}
 							}
 							edges.extend(targets.into_iter().map(|v| (u, v)));
 						}
 						Ref::All(spec) => match linker.spec_res(f, *spec) {
-							Res::File(t) => {
-								edges.extend(linker.surface(t, 0).into_iter().map(|v| (u, v)))
-							}
+							Res::File(t) => edges.push((u, linker.surface(t))),
 							Res::Dir(d) => dir_refs.push((d, u, f)),
 							Res::DataDir(d) => data_dir_refs.push((d, u, f)),
 							Res::Pkg(p) => edges.push((u, p)),
@@ -765,6 +799,71 @@ impl Graph {
 					.map_or(e.path.ends_with(".css"), |facts| facts.global_effects)
 		});
 		let effectful = loaders.reach(roots);
+		// What each class extends or implements (see `Heritage`): whether code outside the
+		// analysis may call its methods, or the analyzed superclasses whose methods it inherits.
+		// Resolved before linking the surfaces, as resolving can reference new ones.
+		let mut open_classes: Vec<u32> = Vec::new();
+		let mut subclasses: Vec<(u32, Vec<u32>)> = Vec::new();
+		for (f, e) in snap.entries.iter().enumerate() {
+			let Some(facts) = &e.facts else { continue };
+			for (d, decl) in facts.decls.iter().enumerate() {
+				if decl.heritage.is_empty() {
+					continue;
+				}
+				let u = base[f] + d as u32;
+				let mut open = false;
+				let mut targets = Vec::new();
+				for h in &decl.heritage {
+					match h {
+						Heritage::External => open = true,
+						Heritage::Interface { spec, name } => {
+							open |= linker.external_type(f as u32, *spec, name, &mut HashSet::new())
+						}
+						Heritage::Super(r) => {
+							let t = match r {
+								Ref::Local(t) => vec![base[f] + t],
+								Ref::Import { binding, member } => {
+									linker.resolve_binding(f as u32, *binding, member.as_deref(), 0)
+								}
+								_ => Vec::new(),
+							};
+							// A superclass that cannot be resolved is not analyzed.
+							open |= t.is_empty();
+							targets.extend(t);
+						}
+					}
+				}
+				if open {
+					open_classes.push(u);
+				} else if !targets.is_empty() {
+					subclasses.push((u, targets));
+				}
+			}
+		}
+		// The edges of the surfaces of the modules that code references as a whole (see
+		// `Linker::surface`). Linking one can reference new ones.
+		while let Some((f, s)) = linker.new_surfaces.pop() {
+			edges.extend(linker.all_nodes(f).map(|v| (s, v)));
+			let Some(facts) = snap.entries[f as usize].facts.as_deref() else {
+				continue;
+			};
+			for (name, target) in &facts.exports {
+				if !matches!(target, ExportTarget::Local(_)) {
+					let targets = linker.resolve_export(f, name, 0);
+					edges.extend(targets.into_iter().map(|v| (s, v)));
+				}
+			}
+			for &star in &facts.stars {
+				match linker.spec_res(f, star) {
+					Res::File(t) => {
+						let target = linker.surface(t);
+						edges.push((s, target));
+					}
+					Res::Pkg(p) => edges.push((s, p)),
+					_ => {}
+				}
+			}
+		}
 		let total = linker.next as usize;
 		let mut gate = vec![0u64; total];
 		let mut uses: Vec<(u32, u64)> = Vec::new();
@@ -787,37 +886,18 @@ impl Graph {
 		// Code outside the analysis may call any method of a class that extends or implements it
 		// (see `Heritage`): reaching such a class reaches all of its instance methods.
 		let mut open = vec![false; total];
-		let mut subclasses: Vec<(u32, Vec<u32>)> = Vec::new();
+		for &u in &open_classes {
+			open[u as usize] = true;
+		}
 		// A superclass that is not analyzed, such as a JavaScript file or a package class that a
 		// module re-exports.
 		let unanalyzed = |t: u32| {
 			let file = node_file[t as usize];
 			file == u32::MAX || snap.entries[file as usize].facts.is_none()
 		};
-		for (f, e) in snap.entries.iter().enumerate() {
-			let Some(facts) = &e.facts else { continue };
-			for (d, decl) in facts.decls.iter().enumerate() {
-				let u = base[f] + d as u32;
-				let r = match &decl.heritage {
-					Some(Heritage::External) => {
-						open[u as usize] = true;
-						continue;
-					}
-					Some(Heritage::Super(r)) => r,
-					None => continue,
-				};
-				let targets = match r {
-					Ref::Local(t) => vec![base[f] + t],
-					Ref::Import { binding, member } => {
-						linker.resolve_binding(f as u32, *binding, member.as_deref(), 0)
-					}
-					_ => Vec::new(),
-				};
-				if targets.is_empty() || targets.iter().any(|&t| unanalyzed(t)) {
-					open[u as usize] = true;
-				} else {
-					subclasses.push((u, targets));
-				}
+		for (u, targets) in &subclasses {
+			if targets.iter().any(|&t| unanalyzed(t)) {
+				open[*u as usize] = true;
 			}
 		}
 		// The code that calls the methods of a class also calls those of its subclasses.

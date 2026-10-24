@@ -29,8 +29,8 @@ jobs:
   # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
   # Linux runs every unit test on every push; the macOS and Windows unit test jobs download the
   # unit-test-plan artifact and run only the listed files. The artifact only exists when the
-  # plan selects files, and without it those jobs run every unit test. A ripple failure only fails
-  # the job for pull requests that change build/ripple.
+  # plan selects files, and without it those jobs run every unit test. The planning steps never
+  # fail the job: the Ripple job reports a broken ripple.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -44,6 +44,8 @@ jobs:
       agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
       agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
+      ripple-changed: ${{ steps.ripple.outputs.changed }}
+      ripple-failed: ${{ steps.ripple.outputs.failed }}
       # Linux and macOS run Agent Host E2E in the Electron integration tests job.
       electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
     steps:
@@ -115,17 +117,36 @@ jobs:
           retention-days: 7
 
       # The ripple steps above never fail the job, so that a broken ripple cannot block unrelated
-      # pull requests: their macOS and Windows unit test jobs run every unit test instead. A pull
-      # request that changes ripple fails here, before the failure reaches main. (A build that times
-      # out leaves no binary to plan with.)
-      - name: Report a ripple failure
-        if: steps.build-ripple.outcome == 'failure' || steps.plan.outcome != 'success'
+      # pull requests: their macOS and Windows unit test jobs run every unit test instead. The
+      # Ripple job reports a failure for the pull requests that change build/ripple. (A build that
+      # times out leaves no binary to plan with.)
+      - name: Check ripple
+        id: ripple
+        if: ${{ !cancelled() }}
+        env:
+          BUILD: ${{ steps.build-ripple.outcome }}
+          PLAN: ${{ steps.plan.outcome }}
         run: |
+          changed=false
           if [ -n "$(git diff --name-only HEAD^1 HEAD -- build/ripple)" ]; then
-            echo "::error::This pull request changes build/ripple, and ripple failed to build, pass its tests or plan the unit tests. See the steps above."
-            exit 1
+            changed=true
           fi
-          echo "::warning::ripple failed to build, pass its tests or plan the unit tests, so macOS and Windows run every unit test. See the steps above."
+          failed=false
+          if [ "$BUILD" = failure ] || [ "$PLAN" != success ]; then
+            failed=true
+            echo "::warning::ripple failed to build, pass its tests or plan the unit tests, so macOS and Windows run every unit test. See the steps above."
+          else
+            # A module that ripple cannot parse, for example with new syntax, disables selection.
+            reason=$(jq -r .reason .build/unit-test-plan/plan.json)
+            case "$reason" in
+              *"parse error ("*)
+                file=${reason##*parse error (}
+                echo "::warning::ripple cannot parse ${file%)}, so macOS and Windows run every unit test."
+                ;;
+            esac
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
 
   compile:
     name: Compile & Hygiene
@@ -233,6 +254,25 @@ jobs:
 
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
+
+  # Fails when a pull request that changes build/ripple breaks ripple's build, its tests or the
+  # planning of the pull request, before the failure reaches main. Skipped for the other pull
+  # requests, which a broken ripple must not block (see the Check ripple step of Detect Changes).
+  ripple:
+    name: Ripple
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check that ripple builds, passes its tests and plans the unit tests
+        env:
+          FAILED: ${{ needs.changes.outputs.ripple-failed }}
+        run: |
+          if [ "$FAILED" != false ]; then
+            echo "::error::This pull request changes build/ripple, and ripple failed to build, pass its tests or plan the unit tests. See the Detect Changes job."
+            exit 1
+          fi
+          echo "ripple built, passed its tests and planned the unit tests in Detect Changes."
 
   linux-cli-tests:
     name: Linux

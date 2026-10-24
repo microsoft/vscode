@@ -1602,6 +1602,148 @@ mod tests {
 	}
 
 	#[test]
+	fn moving_a_read_across_a_load_time_mutation_selects_its_readers() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { snapshot } from '../lib.js';\ntest('a', () => snapshot);\n",
+		);
+		let lib = |body: &str| format!("export const state = {{ items: [] as number[] }};\n{body}");
+		let case = |before: &str, after: &str| selected_by_lib(&lib(before), &lib(after), &[test]);
+		let (push, read) = (
+			"state.items.push(1);\n",
+			"export const snapshot = state.items.length;\n",
+		);
+		assert_eq!(
+			(
+				case(&format!("{push}{read}"), &format!("{read}{push}")),
+				// Without a load-time mutation, the order of reads does not matter.
+				case(
+					&format!("{read}export const other = state.items;\n"),
+					&format!("export const other = state.items;\n{read}")
+				),
+			),
+			(vec![test.0.to_owned()], vec![])
+		);
+	}
+
+	#[test]
+	fn functions_passed_to_load_time_calls_run_at_load_time() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { state } from '../lib.js';\ntest('a', () => state.count);\n",
+		);
+		let lib = |n: u32| {
+			format!(
+				"export const state = {{ count: 0 }};\nfunction write(x: number) {{ state.count += x * {n}; return x; }}\nexport const init = [1].map(write);\n"
+			)
+		};
+		assert_eq!(selected_by_lib(&lib(1), &lib(2), &[test]), vec![test.0]);
+	}
+
+	#[test]
+	fn object_methods_that_change_their_argument_write_it() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { config } from '../lib.js';\ntest('a', () => config.mode);\n",
+		);
+		// In declarations: a change of a top-level statement already selects every importer.
+		let case = |before: &str, after: &str| {
+			let lib = |call: &str| format!("export const config = {{ mode: 1 }};\n{call}");
+			selected_by_lib(&lib(before), &lib(after), &[test])
+		};
+		let a = || vec![test.0.to_owned()];
+		assert_eq!(
+			(
+				case(
+					"export const patched = Object.defineProperties(config, { mode: { value: 2 } });\n",
+					"export const patched = Object.defineProperties(config, { mode: { value: 3 } });\n"
+				),
+				case(
+					"export const merged = Object.assign(config, { mode: 2 });\n",
+					"export const merged = Object.assign(config, { mode: 3 });\n"
+				),
+				// A frozen object rejects writes to its members.
+				case("", "export const frozen = Object.freeze(config);\n"),
+				// Reading the object does not change it.
+				case(
+					"export const keys = Object.keys(config);\n",
+					"export const keys = Object.entries(config);\n"
+				),
+			),
+			(a(), a(), a(), vec![])
+		);
+	}
+
+	#[test]
+	fn whole_module_references_reach_through_cyclic_re_exports() {
+		// a and b re-export each other, and a re-exports c.
+		let files = |value: &str| -> Vec<(&str, String)> {
+			vec![
+				(
+					"src/app/a.ts",
+					"export * from './b.js';\nexport * from './c.js';\n".to_owned(),
+				),
+				(
+					"src/app/b.ts",
+					"export * from './a.js';\nexport const own = 1;\n".to_owned(),
+				),
+				("src/app/c.ts", format!("export const value = {value};\n")),
+				(
+					"src/app/test/a.test.ts",
+					"import * as ns from '../a.js';\ntest('a', () => Object.keys(ns));\n"
+						.to_owned(),
+				),
+				(
+					"src/app/test/b.test.ts",
+					"import * as ns from '../b.js';\ntest('b', () => Object.keys(ns));\n"
+						.to_owned(),
+				),
+			]
+		};
+		let (base, head) = (files("1"), files("2"));
+		assert_eq!(
+			selected(&refs(&base), &refs(&head)),
+			vec!["src/app/test/a.test.ts", "src/app/test/b.test.ts"]
+		);
+	}
+
+	#[test]
+	fn implementing_an_interface_of_a_package_through_analyzed_types_reaches_all_methods() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { C } from '../lib.js';\ntest('a', () => new C());\n",
+		);
+		let types = (
+			"src/app/types.ts",
+			"export type { IAddon } from 'xterm';\nimport type { IDisposable as D } from 'xterm';\nexport type IDisposable = D;\nexport interface IMyAddon extends IAddon { extra(): void }\nexport interface ILocal { activate(): void }\nexport * from './more.js';\n",
+		);
+		let more = (
+			"src/app/more.ts",
+			"import type { IAddon } from 'xterm';\nexport interface IFromStar extends IAddon {}\n",
+		);
+		let case = |name: &str| -> Vec<String> {
+			let lib = |value: u32| {
+				format!(
+					"import type {{ {name} }} from './types.js';\nexport class C implements {name} {{ activate() {{ return {value}; }} }}\n"
+				)
+			};
+			selected_by_lib(&lib(1), &lib(2), &[test, types, more])
+		};
+		let a = || vec![test.0.to_owned()];
+		assert_eq!(
+			(
+				case("IAddon"),
+				case("IDisposable"),
+				case("IMyAddon"),
+				case("IFromStar"),
+				// An interface declared in analyzed code: only code that uses the name reaches it.
+				case("ILocal"),
+			),
+			(a(), a(), a(), a(), vec![])
+		);
+	}
+
+	#[test]
 	fn methods_that_unanalyzed_code_calls_are_reached_with_their_class() {
 		// Node.js streams call `_flush`, the DOM calls `connectedCallback` and an npm package calls
 		// the methods of its interfaces: no analyzed code uses their names.
