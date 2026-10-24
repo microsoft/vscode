@@ -264,6 +264,9 @@ export const ChatWindowDockedResizedContext = new RawContextKey<boolean>('sessio
 /** Whether the chat window shows an editor area beside its chat, which takes the editors opened from it. */
 export const ChatWindowHasEditorAreaContext = new RawContextKey<boolean>('sessions.chatWindowHasEditorArea', false, localize('chatWindowHasEditorArea', "Whether the chat window shows an editor area beside its chat."));
 
+/** The identifier of the editor group of the chat window's editor area, or -1 outside chat windows with one. Scopes menu entries to one window. */
+export const ChatWindowEditorGroupContext = new RawContextKey<number>('sessions.chatWindowEditorGroup', -1, localize('chatWindowEditorGroup', "The identifier of the editor group of the chat window's editor area."));
+
 /** The identifier of the editor that the editor area of the chat window shows, or empty. */
 export const ChatWindowEditorAreaEditorContext = new RawContextKey<string>('sessions.chatWindowEditorAreaEditor', '', localize('chatWindowEditorAreaEditor', "The identifier of the editor that the editor area of the chat window shows."));
 

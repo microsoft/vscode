@@ -16,6 +16,9 @@ import { registerCanvasContextPicker } from '../../../../workbench/contrib/canva
 import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { registerChatWindowCanvasActions } from './chatWindowCanvasActions.js';
 import { registerSessionCanvasActions } from './sessionCanvasActions.js';
 import { SessionCanvasContextService, SessionCanvasRegistryService } from './sessionCanvasService.js';
 import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
@@ -35,9 +38,12 @@ class SessionCanvasAddTabContribution extends Disposable implements IWorkbenchCo
 		@IChatContextPickService contextPickService: IChatContextPickService,
 		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
+		@IChatWindowService chatWindowService: IChatWindowService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this._register(registerSessionCanvasActions(canvasService, registryService, contextService));
+		this._register(registerChatWindowCanvasActions(chatWindowService, canvasService, contextService, logService, notificationService));
 		this._register(registerCanvasContextPicker(contextPickService, menuService, notificationService, Menus.SessionsEditorTabsBarAddTabCanvas));
 	}
 }
