@@ -20,10 +20,9 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
-import { MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUPS } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
-const SUPPORTED_CONFIG_GROUPS: readonly string[] = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT];
 export const HYDRA_FUSION_LEARN_MORE_URL = URI.parse('https://aka.ms/hydrafusion-blog');
 
 export interface IModelPickerHoverContent {
@@ -172,7 +171,7 @@ export function getModelHoverContent(
 		const configButtons: { group: string; label: string }[] = [];
 		const seenGroups = new Set<string>();
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
-			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
+			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && MODEL_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
 				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT && !model.metadata.autoModelFusion ? localize('models.optimizeFor', "Optimize for") : propSchema.title ?? propSchema.description;
 				if (label) {
 					seenGroups.add(propSchema.group);

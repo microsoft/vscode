@@ -31,6 +31,31 @@ suite('ModelPickerHover', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('the speed configuration button opens the speed group', () => {
+		const model = createModel('codex', 'Codex');
+		model.metadata = {
+			...model.metadata,
+			configurationSchema: {
+				properties: {
+					serviceTier: { type: 'string', title: 'Speed', group: 'speed', enum: ['default', 'priority'], default: 'default' },
+				},
+			},
+		};
+		const configured: { group: string; fromKeyboard: boolean }[] = [];
+		const hover = getModelHoverContent(model, false, (group, fromKeyboard) => configured.push({ group, fromKeyboard }), NullOpenerService);
+		assert.ok(hover);
+		disposables.add(hover.disposable);
+		const buttons = Array.from(hover.element.querySelectorAll<HTMLElement>('.chat-model-hover-configurable-buttons .monaco-button'));
+		buttons.forEach(button => button.click());
+		assert.deepStrictEqual({
+			labels: buttons.map(button => button.textContent?.trim()),
+			configured,
+		}, {
+			labels: ['Speed'],
+			configured: [{ group: 'speed', fromKeyboard: false }],
+		});
+	});
+
 	test('non-positive promo models have no promo hover presentation', () => {
 		const results = [0, -10].map(discountPercent => {
 			const model = createModel(`discount-${discountPercent}`, `Discount ${discountPercent}`);

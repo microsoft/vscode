@@ -220,6 +220,52 @@ suite('ModelPickerConfiguration', () => {
 		});
 	});
 
+	test('keeps an unresolved speed-only setting reachable', () => {
+		const model = createModel();
+		model.metadata = {
+			...model.metadata,
+			maxInputTokens: 0,
+			maxOutputTokens: 0,
+			configurationSchema: { properties: { serviceTier: { type: 'string', group: 'speed', enum: ['default', 'priority'] } } },
+		};
+		assert.deepStrictEqual(render(model), {
+			visible: true,
+			label: 'Configure',
+			ariaLabel: 'Test Model details, Configure',
+		});
+	});
+
+	test('an unavailable saved speed uses the advertised default in the readout and choices', () => {
+		const model = createModel();
+		const schema: ILanguageModelConfigurationSchema = {
+			properties: {
+				...model.metadata.configurationSchema?.properties,
+				serviceTier: { type: 'string', group: 'speed', enum: ['default', 'priority'], enumItemLabels: ['Standard', 'Fast'], default: 'default' },
+			},
+		};
+		const results = [undefined, 'retired', 0, 'default', 'priority'].map(serviceTier => {
+			const configuration = { serviceTier };
+			const property = getModelConfigProperty(model, createAccess(configuration, schema), 'speed');
+			assert.ok(property);
+			return {
+				...render(model, configuration, schema),
+				selected: getModelConfigChoices(property).filter(choice => choice.checked).map(choice => choice.value),
+			};
+		});
+		const standard = {
+			visible: true,
+			label: 'Low · 32K · Standard',
+			ariaLabel: 'Test Model details, Effort Level: Low, Context: 32K, Speed: Standard',
+			selected: ['default'],
+		};
+		assert.deepStrictEqual(results, [standard, standard, standard, standard, {
+			visible: true,
+			label: 'Low · 32K · Fast',
+			ariaLabel: 'Test Model details, Effort Level: Low, Context: 32K, Speed: Fast',
+			selected: ['priority'],
+		}]);
+	});
+
 	test('links fixed context to information without adding configuration', () => {
 		const model = createModel();
 		assert.deepStrictEqual(render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }), {

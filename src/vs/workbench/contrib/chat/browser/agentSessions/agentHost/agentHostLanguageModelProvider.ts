@@ -416,6 +416,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			case 'reasoningEffort': return 'navigation';
 			case 'contextSize':
 			case 'contextTier': return 'tokens';
+			case 'serviceTier': return 'speed';
 			default: return undefined;
 		}
 	}
