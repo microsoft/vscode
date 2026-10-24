@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexBinaryTriple, codexPackageSuffix, resolveCodexDevSdkRoot } from '../../../node/codex/codexSdk.js';
+import { codexBinaryTriple, codexPackageSuffix, findCodexBinaryPath, resolveCodexDevSdkRoot } from '../../../node/codex/codexSdk.js';
 
 suite('codex package paths', () => {
 
@@ -100,6 +100,56 @@ suite('codex package paths', () => {
 
 		test('returns undefined when resolution throws (e.g. built product without the devDependency)', async () => {
 			assert.strictEqual(await resolveCodexDevSdkRoot(() => { throw new Error('Cannot find module'); }), undefined);
+		});
+	});
+
+	suite('findCodexBinaryPath', () => {
+
+		test('resolves binary from standard hoisted node_modules layout', async () => {
+			const root = join('usr', 'local', 'lib');
+			const expectedBinary = join(root, 'node_modules', '@openai', 'codex-linux-x64', 'vendor', 'x86_64-unknown-linux-musl', 'bin', 'codex');
+			const found = await findCodexBinaryPath(root, 'linux', 'x64', async path => path === expectedBinary);
+			assert.strictEqual(found, expectedBinary);
+		});
+
+		test('resolves binary from nested global npm install layout (node_modules/@openai/codex/node_modules)', async () => {
+			const root = join('usr', 'local', 'lib');
+			const expectedBinary = join(root, 'node_modules', '@openai', 'codex', 'node_modules', '@openai', 'codex-linux-x64', 'vendor', 'x86_64-unknown-linux-musl', 'bin', 'codex');
+			const found = await findCodexBinaryPath(root, 'linux', 'x64', async path => path === expectedBinary);
+			assert.strictEqual(found, expectedBinary);
+		});
+
+		test('resolves binary when sdkRoot points directly to @openai/codex package with sibling platform package', async () => {
+			const root = join('usr', 'local', 'lib', 'node_modules', '@openai', 'codex');
+			const expectedBinary = join(root, '..', 'codex-darwin-arm64', 'vendor', 'aarch64-apple-darwin', 'bin', 'codex');
+			const found = await findCodexBinaryPath(root, 'darwin', 'arm64', async path => path === expectedBinary);
+			assert.strictEqual(found, expectedBinary);
+		});
+
+		test('resolves binary from direct vendor layout inside root', async () => {
+			const root = join('opt', 'codex');
+			const expectedBinary = join(root, 'vendor', 'x86_64-pc-windows-msvc', 'bin', 'codex.exe');
+			const found = await findCodexBinaryPath(root, 'win32', 'x64', async path => path === expectedBinary);
+			assert.strictEqual(found, expectedBinary);
+		});
+
+		test('resolves binary from direct bin layout inside root', async () => {
+			const root = join('usr', 'local');
+			const expectedBinary = join(root, 'bin', 'codex');
+			const found = await findCodexBinaryPath(root, 'linux', 'x64', async path => path === expectedBinary);
+			assert.strictEqual(found, expectedBinary);
+		});
+
+		test('returns undefined when no candidate is executable', async () => {
+			const root = join('empty', 'dir');
+			const found = await findCodexBinaryPath(root, 'linux', 'x64', async () => false);
+			assert.strictEqual(found, undefined);
+		});
+
+		test('returns undefined for unsupported platforms', async () => {
+			const root = join('usr', 'local');
+			const found = await findCodexBinaryPath(root, 'freebsd' as NodeJS.Platform, 'x64', async () => true);
+			assert.strictEqual(found, undefined);
 		});
 	});
 });
