@@ -83,9 +83,12 @@ export interface ISessionLayoutModeActionsOptions {
 	current(accessor: ServicesAccessor): ISessionLayoutState | undefined;
 	/** Shows `mode` in the window the action runs in. */
 	run(accessor: ServicesAccessor, mode: SessionLayoutMode): void | Promise<void>;
+	/**
+	 * While the window shows one of the chat and the editor, arranges them as `splitLayout` the next time both show,
+	 * without showing the other: what the window remembers, and Show Chat or Show Editor uses.
+	 */
+	setSplitLayout(accessor: ServicesAccessor, splitLayout: SessionSplitLayout): void;
 }
-
-const BothShownContext = ContextKeyExpr.or(SessionLayoutModeContext.isEqualTo(SessionLayoutMode.Stacked), SessionLayoutModeContext.isEqualTo(SessionLayoutMode.SideBySide))!;
 
 /** A pane that the Layout menu shows or hides: the chat, or the editor. One of them always shows. */
 interface ISessionLayoutPaneToggle {
@@ -170,10 +173,11 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 		}));
 	});
 
-	// Checked while the two show stacked, unchecked side by side; the two can only be arranged while both show.
+	// Checked while the two show stacked, or are to show stacked as they next show together, unchecked side by side.
+	// While only one shows, it only chooses how the two show next.
 	const sideBySideAvailable = options.available?.(SessionLayoutMode.SideBySide);
 	const stacked = SessionSplitLayoutContext.isEqualTo(SessionLayoutMode.Stacked);
-	const stackedPrecondition = ContextKeyExpr.and(options.precondition, sideBySideAvailable, BothShownContext);
+	const stackedPrecondition = ContextKeyExpr.and(options.precondition, sideBySideAvailable);
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -188,8 +192,18 @@ export function registerSessionLayoutModeActions(options: ISessionLayoutModeActi
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const current = options.current(accessor);
-			if (current) {
-				await showLayoutMode(accessor, options, current.splitLayout === SessionLayoutMode.Stacked ? SessionLayoutMode.SideBySide : SessionLayoutMode.Stacked);
+			if (!current) {
+				return;
+			}
+			const splitLayout = current.splitLayout === SessionLayoutMode.Stacked ? SessionLayoutMode.SideBySide : SessionLayoutMode.Stacked;
+			if (current.mode === SessionLayoutMode.Stacked || current.mode === SessionLayoutMode.SideBySide) {
+				await showLayoutMode(accessor, options, splitLayout);
+				return;
+			}
+			options.setSplitLayout(accessor, splitLayout);
+			const choice = sessionLayoutModeChoices.find(candidate => candidate.mode === splitLayout);
+			if (choice) {
+				status(localize('sessionLayoutSplitLayoutChanged', "Layout when both show: {0}", choice.shortTitle));
 			}
 		}
 	}));

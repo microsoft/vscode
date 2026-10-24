@@ -48,8 +48,8 @@ suite('Chat window - the Layout menu in the Session Activity Bar', () => {
 					entry('toggleDocked', 'Move to New Window', false), entry('resetDockedSize', 'Reset Size', false, false),
 				]
 			}],
-			// The last pane shown cannot be hidden, and the two can only be arranged while both show.
-			editorOnly: [{ label: 'Layout', icon: 'layout', entries: [entry('toggleChat', 'Show Chat', false), entry('toggleEditor', 'Show Editor', true, false), entry('toggleArrangement', 'Stacked', true, false)] }],
+			// The last pane shown cannot be hidden; Stacked, always enabled, then chooses how both show next.
+			editorOnly: [{ label: 'Layout', icon: 'layout', entries: [entry('toggleChat', 'Show Chat', false), entry('toggleEditor', 'Show Editor', true, false), entry('toggleArrangement', 'Stacked', true)] }],
 			layoutActionsOff: [],
 			singleEditor: 1,
 			noEditor: [],

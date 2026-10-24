@@ -90,8 +90,8 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 	private readonly _focusedOwner: IObservable<IFocusedOwner | undefined>;
 	/** The chat of the main window that is focused, whose layout mode the window shows and remembers. */
 	readonly focusedOwner: IObservable<IChatLayoutOwner | undefined>;
-	/** The sizes of the editor and the panel before the chat was hidden in the center panel alignment. */
-	private _sizesBeforeChatHidden: ICenterSizesBeforeChatHidden | undefined;
+	/** The sizes of the editor and the panel before the chat was hidden in the center panel alignment, and their arrangement. */
+	private _sizesBeforeChatHidden: { readonly sizes: ICenterSizesBeforeChatHidden; readonly arrangement: SessionSplitLayout } | undefined;
 	/** The width the panel was left at alone in its column, side by side in the center panel alignment. */
 	private _panelOnlyWidth: number | undefined;
 	/** The chat that just returned from a chat window, to show in its full mode once it is focused. */
@@ -179,6 +179,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			menuWhen: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate(), IsAuxiliaryWindowContext.negate(), ContextKeyExpr.has(ChatWindowContext.key).negate())!,
 			current: () => ({ mode: this.mode.get(), splitLayout: this.splitLayout.get() }),
 			run: (_accessor, mode) => this.setMode(mode),
+			setSplitLayout: (_accessor, splitLayout) => this.setSplitLayout(splitLayout),
 		}));
 	}
 
@@ -249,7 +250,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 			this._sizesBeforeChatHidden = undefined;
 			return;
 		}
-		this._sizesBeforeChatHidden = { editor, panel };
+		this._sizesBeforeChatHidden = { sizes: { editor, panel }, arrangement: this._layoutService.getSidePaneArrangement() };
 		if (this._layoutService.getSidePaneArrangement() === SessionLayoutMode.Stacked) {
 			this._layoutService.setSize(Parts.PANEL_PART, panel);
 			this._layoutService.setSize(Parts.EDITOR_PART, { width: editor.width, height: editor.height + chat.height });
@@ -268,8 +269,10 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		if (!this._isChatHidden()) {
 			return;
 		}
-		const sizes = this._sizesBeforeChatHidden;
+		// Rearranged since, the sizes from before are another arrangement's: the grid lays the new one out.
+		const saved = this._sizesBeforeChatHidden;
 		this._sizesBeforeChatHidden = undefined;
+		const sizes = saved?.arrangement === this._layoutService.getSidePaneArrangement() ? saved.sizes : undefined;
 		const centerSideBySide = this._layoutService.getPanelAlignment() === 'center' && this._layoutService.getSidePaneArrangement() === SessionLayoutMode.SideBySide && this._layoutService.isVisible(Parts.PANEL_PART);
 		if (centerSideBySide) {
 			// The width the panel was left at alone in its column, for the next time.
@@ -293,6 +296,22 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		if (focused && this._isOwnerScoped(undefined)) {
 			this._layoutModeService.setMainWindowMode(focused.owner, focused.kind, { mode: this.mode.get(), splitLayout: this.splitLayout.get(), inputOnly });
 		}
+	}
+
+	/**
+	 * Arranges the chat and the editor as `splitLayout`: at once while both show, else the next time both show, without
+	 * showing the one that is hidden. Either way it is remembered for the focused chat, as the window shows it.
+	 */
+	setSplitLayout(splitLayout: SessionSplitLayout): void {
+		if (this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
+			return;
+		}
+		const mode = this.mode.get();
+		if (mode === SessionLayoutMode.Stacked || mode === SessionLayoutMode.SideBySide) {
+			this.setMode(splitLayout);
+			return;
+		}
+		this._layoutService.setSidePaneArrangement(splitLayout);
 	}
 
 	/** Shows `mode` in the main window, through the same operations as its other layout actions. */

@@ -79,6 +79,7 @@ registerSessionLayoutModeActions({
 		return window && { mode: window.layout.get(), splitLayout: window.splitLayout.get() };
 	},
 	run: (accessor, mode) => accessor.get(IChatWindowService).getActiveWindow()?.setLayout(mode),
+	setSplitLayout: (accessor, splitLayout) => accessor.get(IChatWindowService).getActiveWindow()?.setSplitLayout(splitLayout),
 });
 
 // One Layout button, in the title bar of a chat window of its own and in the header of a docked one, opens the Layout

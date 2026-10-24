@@ -192,6 +192,25 @@ export class ChatWindowState {
 		this._rememberedMode.set(this._remembered);
 	}
 
+	/**
+	 * Arranges the editor and the chat as `splitLayout`: at once while both show, else the next time both show, without
+	 * showing the one that is hidden. Either way it is remembered for the chat.
+	 */
+	setSplitLayout(splitLayout: SessionSplitLayout): void {
+		if (!this.layouts.includes(splitLayout)) {
+			return;
+		}
+		const layout = this._layout.get();
+		if (layout === SessionLayoutMode.Stacked || layout === SessionLayoutMode.SideBySide) {
+			this.setLayout(splitLayout);
+			return;
+		}
+		if (this._lastSplitLayout.get() !== splitLayout) {
+			this._lastSplitLayout.set(splitLayout, undefined);
+			this._remember();
+		}
+	}
+
 	/** Shows both the editor and the chat again, as they were last arranged. */
 	showBoth(): void {
 		this.setLayout(this._lastSplitLayout.get());

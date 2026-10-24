@@ -135,6 +135,8 @@ export interface IChatWindow {
 
 	/** Shows `layout`, which becomes the default of the kind. */
 	setLayout(layout: SessionLayoutMode): void;
+	/** Arranges its chat and its editor as `splitLayout`: at once while both show, else the next time both show. */
+	setSplitLayout(splitLayout: SessionSplitLayout): void;
 	/**
 	 * In {@link SessionLayoutMode.Stacked} in a window of its own: collapses the chat to its input, or expands it to
 	 * show its conversation too, as dragging the split down or up does.

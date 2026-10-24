@@ -102,6 +102,10 @@ class ChatWindow implements IChatWindow {
 		this.state.setLayout(layout);
 	}
 
+	setSplitLayout(splitLayout: SessionSplitLayout): void {
+		this.state.setSplitLayout(splitLayout);
+	}
+
 	showEditor(): void {
 		if (this.editorGroup && this.state.layout.get() === SessionLayoutMode.ChatOnly) {
 			this.state.showBoth();

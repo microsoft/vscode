@@ -140,6 +140,39 @@ suite('ChatWindowState', () => {
 		});
 	});
 
+	test('with only the chat or only the editor shown, flips how both show next, which the chat remembers and showing both uses', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const writes: IRememberedLayoutMode[] = [];
+		const window = new ChatWindowState(kind, false, true, new ChatWindowDefaults(kind, storageService), { initial: { mode: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false }, set: mode => writes.push(mode) });
+		const step = () => ({ layout: window.layout.get(), splitLayout: window.splitLayout.get() });
+		const chatOnly = step();
+		window.setSplitLayout(SessionLayoutMode.Stacked);
+		const chatOnlyStacked = step();
+		window.showBoth();
+		const bothShown = step();
+		window.setLayout(SessionLayoutMode.EditorOnly);
+		window.setSplitLayout(SessionLayoutMode.SideBySide);
+		const editorOnlySideBySide = step();
+		window.showBoth();
+		const bothShownAgain = step();
+
+		assert.deepStrictEqual({ chatOnly, chatOnlyStacked, bothShown, editorOnlySideBySide, bothShownAgain, writes }, {
+			chatOnly: { layout: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.SideBySide },
+			// Only the arrangement flips: the chat still shows alone.
+			chatOnlyStacked: { layout: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.Stacked },
+			bothShown: { layout: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked },
+			editorOnlySideBySide: { layout: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide },
+			bothShownAgain: { layout: SessionLayoutMode.SideBySide, splitLayout: SessionLayoutMode.SideBySide },
+			writes: [
+				{ mode: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.Stacked, inputOnly: false },
+				{ mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, inputOnly: false },
+				{ mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.Stacked, inputOnly: false },
+				{ mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false },
+				{ mode: SessionLayoutMode.SideBySide, splitLayout: SessionLayoutMode.SideBySide, inputOnly: false },
+			],
+		});
+	});
+
 	test('shows a remembered mode it cannot show as the closest it can, without changing what is remembered, and never remembers without an editor', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const writes: IRememberedLayoutMode[] = [];

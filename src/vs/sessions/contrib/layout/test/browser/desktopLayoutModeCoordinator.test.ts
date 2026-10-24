@@ -191,9 +191,9 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		}, {
 			sideBySide: layout([true, true], [true, true], [false, true]),
 			stacked: layout([true, true], [true, true], [true, true]),
-			// The last pane shown cannot be hidden, and the two can only be arranged while both show.
-			editorOnly: layout([false, true], [true, false], [false, false]),
-			chatOnly: layout([true, false], [false, true], [true, false]),
+			// The last pane shown cannot be hidden; Stacked, always enabled, then chooses how both show next.
+			editorOnly: layout([false, true], [true, false], [false, true]),
+			chatOnly: layout([true, false], [false, true], [true, true]),
 			layoutActionsOff: [],
 			chatWindow: [],
 			chatOnlyChatWindow: [],
@@ -239,6 +239,44 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			{ toggle: 'chat', mode: SessionLayoutMode.Stacked },
 			{ toggle: 'stacked', mode: SessionLayoutMode.SideBySide },
 		]);
+	});
+
+	test('with only the chat or only the editor shown, Stacked only flips how both show next, which the focused chat remembers and Show Chat or Show Editor uses', async () => {
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		const owner = { sessionResource: sessionA.resource, chatResource: sessionA.resource };
+		const run = (toggle: keyof typeof MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS) => harness.instaService.invokeFunction(accessor => CommandsRegistry.getCommand(MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS[toggle])!.handler(accessor));
+		const step = () => ({
+			mode: controller.layoutMode.mode.get(),
+			splitLayout: controller.layoutMode.splitLayout.get(),
+			sidePane: harness.layoutService.isSidePaneVisible(),
+			chatHidden: harness.partVisibility.get(Parts.SESSIONS_PART) === false,
+			remembered: harness.layoutModeService.getMainWindowMode(owner, LayoutModeOwnerKind.Existing)?.splitLayout,
+		});
+		controller.layoutMode.setMode(SessionLayoutMode.SideBySide);
+		controller.layoutMode.setMode(SessionLayoutMode.ChatOnly);
+		const chatOnly = step();
+		await run('stacked');
+		const chatOnlyStacked = step();
+		await run('editor');
+		const editorShown = step();
+		controller.layoutMode.setMode(SessionLayoutMode.EditorOnly);
+		const editorOnly = step();
+		await run('stacked');
+		const editorOnlySideBySide = step();
+		await run('chat');
+		const chatShown = step();
+
+		assert.deepStrictEqual({ chatOnly, chatOnlyStacked, editorShown, editorOnly, editorOnlySideBySide, chatShown }, {
+			chatOnly: { mode: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.SideBySide, sidePane: false, chatHidden: false, remembered: SessionLayoutMode.SideBySide },
+			// Only the arrangement flips: the side pane stays closed.
+			chatOnlyStacked: { mode: SessionLayoutMode.ChatOnly, splitLayout: SessionLayoutMode.Stacked, sidePane: false, chatHidden: false, remembered: SessionLayoutMode.Stacked },
+			editorShown: { mode: SessionLayoutMode.Stacked, splitLayout: SessionLayoutMode.Stacked, sidePane: true, chatHidden: false, remembered: SessionLayoutMode.Stacked },
+			editorOnly: { mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.Stacked, sidePane: true, chatHidden: true, remembered: SessionLayoutMode.Stacked },
+			// The chat stays hidden.
+			editorOnlySideBySide: { mode: SessionLayoutMode.EditorOnly, splitLayout: SessionLayoutMode.SideBySide, sidePane: true, chatHidden: true, remembered: SessionLayoutMode.SideBySide },
+			chatShown: { mode: SessionLayoutMode.SideBySide, splitLayout: SessionLayoutMode.SideBySide, sidePane: true, chatHidden: false, remembered: SessionLayoutMode.SideBySide },
+		});
 	});
 
 	test('editor only hides only the chat, keeping the sessions list and the panel, and show chat brings it back as it last showed with the editor', async () => {
