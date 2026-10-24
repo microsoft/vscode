@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StringSHA1 } from '../../../base/common/hash.js';
-import { extUriBiasedIgnorePathCase, type IExtUri } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 
 /**
@@ -37,10 +37,10 @@ export function getWorkingDirectoryScopeId(workingDirectories: readonly string[]
 /**
  * Finds the deepest working directory that contains `resource`.
  */
-export function findDeepestContainingWorkingDirectory(resource: URI, workingDirectories: readonly URI[], extUri: IExtUri = extUriBiasedIgnorePathCase): URI | undefined {
+export function findDeepestContainingWorkingDirectory(resource: URI, workingDirectories: readonly URI[]): URI | undefined {
 	let deepestMatch: URI | undefined;
 	for (const workingDirectory of workingDirectories) {
-		if (extUri.isEqualOrParent(resource, workingDirectory) && (!deepestMatch || workingDirectory.path.length > deepestMatch.path.length)) {
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(resource, workingDirectory) && (!deepestMatch || workingDirectory.path.length > deepestMatch.path.length)) {
 			deepestMatch = workingDirectory;
 		}
 	}

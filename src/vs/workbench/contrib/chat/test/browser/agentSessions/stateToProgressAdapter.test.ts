@@ -356,21 +356,6 @@ suite('stateToProgressAdapter', () => {
 		], [true, false]);
 	});
 
-	test('preserves same-connection optimistic resource wrappers without trusting another connection namespace', () => {
-		const mapper = createAgentHostResourceUriMapper('host');
-		const file = URI.file('/workspace/a.ts');
-		const owned = mapper.fromAgentHost(file);
-		const foreign = createAgentHostResourceUriMapper('other-host').fromAgentHost(file);
-		const variables = messageAttachmentsToVariableData([owned, foreign, file].map(uri => ({
-			type: MessageAttachmentKind.Resource, uri: uri.toString(), label: 'a.ts',
-		})), 'host')?.variables;
-		assert.deepStrictEqual(variables?.map(variable => URI.isUri(variable.value) ? variable.value.toString() : undefined), [
-			owned.toString(),
-			mapper.fromAgentHost(foreign).toString(),
-			mapper.fromAgentHost(file).toString(),
-		]);
-	});
-
 	test('restores transcript context attachments as their first-class kind', () => {
 		const original: IChatRequestTranscriptContextVariableEntry = {
 			kind: 'transcriptContext',
