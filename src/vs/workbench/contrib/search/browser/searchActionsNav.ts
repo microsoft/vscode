@@ -173,20 +173,24 @@ registerAction2(class OpenMatchAction extends Action2 {
 			},
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		const searchView = getSearchView(accessor.get(IViewsService));
-		if (searchView) {
-			const tree: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> = searchView.getControl();
-			const viewer = searchView.getControl();
-			const focus = tree.getFocus()[0];
+run(accessor: ServicesAccessor) {
+	const searchView = getSearchView(accessor.get(IViewsService));
+	if (searchView) {
+		const tree: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> = searchView.getControl();
+		const viewer = searchView.getControl();
+		const focus = tree.getFocus()[0];
 
-			if (isSearchTreeFolderMatch(focus)) {
-				viewer.toggleCollapsed(focus);
-			} else {
-				searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, false, true);
-			}
+		if (!focus) {
+			return;
+		}
+
+		if (isSearchTreeFolderMatch(focus)) {
+			viewer.toggleCollapsed(focus);
+		} else {
+			searchView.open(<FileMatchOrMatch>focus, false, false, true);
 		}
 	}
+}
 });
 
 registerAction2(class OpenMatchToSideAction extends Action2 {
