@@ -259,7 +259,8 @@ interface ILastMcpAuthRequirement {
 }
 
 interface ICopilotActiveToolCall {
-	readonly turnId: string;
+	/** Reassigned when steering hands a running Fusion tool call to its successor turn. */
+	turnId: string;
 	readonly startedAt?: string;
 	readonly toolName: string;
 	readonly displayName: string;
@@ -2545,9 +2546,12 @@ export class CopilotAgentSession extends Disposable {
 			turn.messageCharLen = steering.pendingMessage.message.text.length;
 			turn.markRunning();
 		}
-		const resumedPhase = continuesFusionWorkflow ? this._fusionProgress.resumeRunningPhase() : undefined;
-		if (resumedPhase) {
-			this._emitFusionProgress(resumedPhase);
+		if (continuesFusionWorkflow) {
+			const resumedPhase = this._fusionProgress.resumeRunningPhase();
+			if (resumedPhase) {
+				this._emitFusionProgress(resumedPhase);
+			}
+			this._transferProvisionalFusionToolCalls(previousTurnId, newTurnId);
 		}
 		if (activeSdkTurnId && turn) {
 			turn.activeSdkTurnId = activeSdkTurnId;
@@ -3329,6 +3333,41 @@ export class CopilotAgentSession extends Disposable {
 					owners.set(key, toTurnId);
 				}
 			}
+		}
+	}
+
+	/**
+	 * Re-homes running provisional Fusion tool calls into the steering turn. Ending
+	 * the preempted turn cancelled their rows, and their completion is only shown
+	 * in the turn that owns them.
+	 */
+	private _transferProvisionalFusionToolCalls(fromTurnId: string, toTurnId: string): void {
+		for (const [toolCallId, toolCall] of this._activeToolCalls) {
+			if (toolCall.turnId !== fromTurnId || toolCall.parentToolCallId || !this._surfacedProvisionalFusionToolCallIds.has(toolCallId) || this._pendingPermissions.has(toolCallId)) {
+				continue;
+			}
+			toolCall.turnId = toTurnId;
+			this._emitAction({
+				type: ActionType.ChatToolCallStart,
+				turnId: toTurnId,
+				toolCallId,
+				toolName: toolCall.toolName,
+				displayName: toolCall.displayName,
+				intention: toolCall.intention,
+				contributor: toolCall.contributor,
+				_meta: toolCall.meta && toToolCallMeta(toolCall.meta),
+			});
+			this._emitAction({
+				type: ActionType.ChatToolCallReady,
+				turnId: toTurnId,
+				toolCallId,
+				...(toolCall.contributor ? { contributor: toolCall.contributor } : {}),
+				...(toolCall.intention !== undefined ? { intention: toolCall.intention } : {}),
+				invocationMessage: getInvocationMessage(toolCall.toolName, toolCall.displayName, toolCall.parameters, path => this._resolveEditFilePath(path), this._resolveAgentName),
+				toolInput: getToolInputString(toolCall.toolName, toolCall.parameters, tryStringify(toolCall.parameters)),
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				_meta: toolCall.meta && toToolCallMeta(toolCall.meta),
+			});
 		}
 	}
 

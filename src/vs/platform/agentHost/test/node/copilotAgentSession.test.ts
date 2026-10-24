@@ -21046,6 +21046,35 @@ Use the attached image as context.
 			assert.strictEqual(session.getFusionTurnId(fusionTestData.resolved.fusionId), steeringTurnId);
 		});
 
+		test('steering during a Fusion phase hands a running provisional tool call to the steering turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			mockSession.fire('tool.execution_start', { toolCallId: 'spans-steering', toolName: 'bash', arguments: { command: 'git branch' }, fusion }, { ephemeral: true });
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
+			const beforeSteering = signals.length;
+			mockSession.fire('user.message', { content: 'use the other branch', interactionId: 'interaction-steer', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			const steeringTurnId = session.currentTurnId;
+
+			mockSession.fire('tool.execution_complete', { toolCallId: 'spans-steering', success: true, result: { content: 'main' }, fusion }, { ephemeral: true });
+			mockSession.fire('tool.execution_start', { toolCallId: 'spans-steering', toolName: 'bash', arguments: { command: 'git branch' }, fusion: { ...fusion, commitId: 'commit-1' } });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'spans-steering', success: true, result: { content: 'main' }, fusion: { ...fusion, commitId: 'commit-1' } });
+
+			assert.deepStrictEqual(signals.slice(beforeSteering).flatMap(signal => signal.kind === 'action'
+				&& (signal.action.type === ActionType.ChatToolCallStart || signal.action.type === ActionType.ChatToolCallReady || signal.action.type === ActionType.ChatToolCallComplete)
+				? [{ type: signal.action.type, toolCallId: signal.action.toolCallId, steeringTurn: signal.action.turnId === steeringTurnId }]
+				: []), [
+				{ type: ActionType.ChatToolCallStart, toolCallId: 'spans-steering', steeringTurn: true },
+				{ type: ActionType.ChatToolCallReady, toolCallId: 'spans-steering', steeringTurn: true },
+				{ type: ActionType.ChatToolCallComplete, toolCallId: 'spans-steering', steeringTurn: true },
+			]);
+		});
+
 		test('provisional Fusion messages and tool calls stay out of the parent transcript', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');
