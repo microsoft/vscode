@@ -409,8 +409,11 @@ export class ChatWindowChatEditor extends EditorPane {
 				}
 				// The editor gives way to the window and to the terminal row, so that the chat and the terminal keep their
 				// heights. Docked, the chat has the part's height to itself.
-				if (!docked && editor !== prioritizedEditor) {
-					clearPriority();
+				// It is applied on every arrange: restoring the editor part's state drops it.
+				if (!docked) {
+					if (editor !== prioritizedEditor) {
+						clearPriority();
+					}
 					if (editor) {
 						part.setGroupLayoutPriority(editor, GroupLayoutPriority.High);
 						prioritizedEditor = editor;
