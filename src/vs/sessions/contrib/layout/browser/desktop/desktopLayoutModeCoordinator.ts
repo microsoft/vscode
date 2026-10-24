@@ -41,6 +41,30 @@ export const MAIN_WINDOW_LAYOUT_TOGGLE_COMMAND_IDS = {
 	stacked: 'workbench.action.agentSessions.layout.toggleStacked',
 } as const;
 
+/** The sizes of the editor and the panel before the chat was hidden in the center panel alignment. */
+export interface ICenterSizesBeforeChatHidden {
+	readonly editor: IDimension;
+	readonly panel: IDimension;
+}
+
+/**
+ * Restores the sizes from before the chat was hidden in the center panel alignment, as the chat shows again, only in
+ * the dimension hiding it changed. Stacked, the heights of the editor and the panel in the chat's column; side by side,
+ * the width of the chat's column, which the editor beside it gives or takes. The other dimension is the window's,
+ * which may have changed since; restoring it would resize the grid's other parts, such as the sidebar.
+ */
+export function restoreCenterSizes(layoutService: Pick<IAgentWorkbenchLayoutService, 'getSize' | 'setSize' | 'isVisible'>, arrangement: SessionSplitLayout, sizes: ICenterSizesBeforeChatHidden): void {
+	if (arrangement === SessionLayoutMode.Stacked) {
+		layoutService.setSize(Parts.EDITOR_PART, { width: layoutService.getSize(Parts.EDITOR_PART).width, height: sizes.editor.height });
+		// The panel may have been hidden since, such as by the session switched to.
+		if (layoutService.isVisible(Parts.PANEL_PART)) {
+			layoutService.setSize(Parts.PANEL_PART, { width: layoutService.getSize(Parts.PANEL_PART).width, height: sizes.panel.height });
+		}
+	} else {
+		layoutService.setSize(Parts.SESSIONS_PART, { width: sizes.panel.width, height: layoutService.getSize(Parts.SESSIONS_PART).height });
+	}
+}
+
 interface IFocusedOwner {
 	readonly owner: IChatLayoutOwner;
 	readonly kind: LayoutModeOwnerKind;
@@ -67,7 +91,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 	/** The chat of the main window that is focused, whose layout mode the window shows and remembers. */
 	readonly focusedOwner: IObservable<IChatLayoutOwner | undefined>;
 	/** The sizes of the editor and the panel before the chat was hidden in the center panel alignment. */
-	private _sizesBeforeChatHidden: { readonly editor: IDimension; readonly panel: IDimension } | undefined;
+	private _sizesBeforeChatHidden: ICenterSizesBeforeChatHidden | undefined;
 	/** The width the panel was left at alone in its column, side by side in the center panel alignment. */
 	private _panelOnlyWidth: number | undefined;
 	/** The chat that just returned from a chat window, to show in its full mode once it is focused. */
@@ -253,11 +277,7 @@ export class DesktopLayoutModeCoordinator extends Disposable {
 		}
 		this._layoutService.setPartHidden(false, Parts.SESSIONS_PART);
 		if (sizes && this._layoutService.getPanelAlignment() === 'center') {
-			this._layoutService.setSize(Parts.EDITOR_PART, sizes.editor);
-			// The panel may have been hidden since, such as by the session switched to.
-			if (this._layoutService.isVisible(Parts.PANEL_PART)) {
-				this._layoutService.setSize(Parts.PANEL_PART, sizes.panel);
-			}
+			restoreCenterSizes(this._layoutService, this._layoutService.getSidePaneArrangement(), sizes);
 		}
 	}
 

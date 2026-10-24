@@ -303,7 +303,7 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		// The session switched back to keeps its panel as it left it.
 		const panelVisible = harness.partVisibility.get(Parts.PANEL_PART);
 		await toggleChat();
-		const sideBySideShown = sizes();
+		const sideBySideShown = { ...sizes(), chat: harness.partSizes.get(Parts.SESSIONS_PART) };
 
 		assert.deepStrictEqual({ stackedHidden, stackedShown, sideBySideHidden, otherSession, backHidden, panelVisible, sideBySideShown }, {
 			// The editor takes the chat's height; the panel keeps its own.
@@ -315,8 +315,9 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 			otherSession: { editor: { width: 592, height: 752 }, panel: { width: 320, height: 410 } },
 			backHidden: { editor: { width: 592, height: 752 }, panel: { width: 320, height: 410 }, mode: SessionLayoutMode.EditorOnly },
 			panelVisible: false,
-			// The editor's width as before; the hidden panel is left to show as the grid lays it out.
-			sideBySideShown: { editor: { width: 300, height: 752 }, panel: { width: 320, height: 410 } },
+			// The chat's column takes its width from before, also with its panel hidden since, and the editor beside it gives
+			// it (in the grid; see stackedChatColumnResize.test.ts), rather than the window's width being restored.
+			sideBySideShown: { editor: { width: 592, height: 752 }, panel: { width: 320, height: 410 }, chat: { width: 612, height: 336 } },
 		});
 	});
 
