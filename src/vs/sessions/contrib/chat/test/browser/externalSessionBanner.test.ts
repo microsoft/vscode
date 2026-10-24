@@ -167,6 +167,40 @@ suite('Sessions - External Session Banner', () => {
 		});
 	});
 
+	test('hides external automation sessions reactively', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const layoutChanges: boolean[] = [];
+		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {
+			onDidChangeLayout: visible => layoutChanges.push(visible),
+		}));
+		const isAutomation = observableValue('automation', false);
+		const session = new class extends mock<ISession>() {
+			override readonly resource = URI.parse('test://external-automation');
+			override readonly isAutomation = isAutomation;
+			override readonly isExternal = constObservable(true);
+			override readonly updatedAt = constObservable(new Date());
+		};
+
+		layoutChanges.length = 0;
+		banner.setSession(session);
+		const before = { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') };
+		isAutomation.set(true, undefined);
+		const automation = { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') };
+		isAutomation.set(false, undefined);
+
+		assert.deepStrictEqual({
+			before,
+			automation,
+			after: { visible: banner.visible, hidden: banner.domNode.classList.contains('hidden') },
+			layoutChanges,
+		}, {
+			before: { visible: true, hidden: false },
+			automation: { visible: false, hidden: true },
+			after: { visible: true, hidden: false },
+			layoutChanges: [true, false, true],
+		});
+	});
+
 	test('selects the configured external session visibility mode', () => {
 		assert.deepStrictEqual({
 			configuredRecent: getExternalSessionBannerSelectedMode(undefined, ChatExternalSessionsMode.Recent),
