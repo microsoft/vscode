@@ -237,6 +237,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	/** Availability before applying a user's hidden preference. Defaults to available. */
+	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
 	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
@@ -461,6 +463,11 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
 	return isAgentHostProviderId(provider.id);
+}
+
+/** Whether this provider can appear as an individual remote environment, independent of visibility. */
+export function isRemoteSessionCreationEnvironment(provider: ISessionsProvider): provider is IAgentHostSessionsProvider & { readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> } {
+	return isAgentHostProvider(provider) && provider.supportsWorkspaceSelection !== false && !!provider.connectionStatus && !provider.hostGroup;
 }
 
 export function getSessionConfigProvider(provider: ISessionsProvider): ISessionConfigProvider | undefined {

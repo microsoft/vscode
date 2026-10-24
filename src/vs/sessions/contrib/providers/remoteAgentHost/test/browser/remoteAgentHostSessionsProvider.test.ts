@@ -521,7 +521,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 			provider.seedSessions([createSession('retained-session')]);
 			const beforeSessions = provider.getSessions();
-			const snapshot = () => ({ visible: provider.isVisibleInEnvironmentPicker?.get(), entries: getSessionCreationEnvironments([provider]).length });
+			const snapshot = () => ({ available: provider.isAvailableInEnvironmentPicker?.get(), visible: provider.isVisibleInEnvironmentPicker?.get(), entries: getSessionCreationEnvironments([provider]).length });
 			const hidden = snapshot();
 			preference.setHidden(key, false);
 			const shown = snapshot();
@@ -536,9 +536,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				sessionsUnchanged: provider.getSessions().length === beforeSessions.length && provider.getSessions()[0] === beforeSessions[0],
 				connectionStatus: provider.connectionStatus.get().kind,
 			}, {
-				hidden: { visible: false, entries: 0 }, shown: { visible: true, entries: 1 },
-				offline: { visible: false, entries: 0 }, hiddenAgain: { visible: false, entries: 0 },
-				final: { visible: true, entries: 1 }, sessionsUnchanged: true, connectionStatus: 'connected',
+				hidden: { available: true, visible: false, entries: 0 }, shown: { available: true, visible: true, entries: 1 },
+				offline: { available: false, visible: false, entries: 0 }, hiddenAgain: { available: true, visible: false, entries: 0 },
+				final: { available: true, visible: true, entries: 1 }, sessionsUnchanged: true, connectionStatus: 'connected',
 			});
 		});
 	}

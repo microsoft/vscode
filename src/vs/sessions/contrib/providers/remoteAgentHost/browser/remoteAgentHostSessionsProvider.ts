@@ -192,6 +192,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	readonly isAvailableInEnvironmentPicker?: IObservable<boolean>;
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
 	readonly canRemove?: boolean;
@@ -344,8 +345,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.hostDescription = config.hostDescription;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
+		this.isAvailableInEnvironmentPicker = config.isVisibleInEnvironmentPicker;
 		this.isVisibleInEnvironmentPicker = derived(this, reader =>
-			!pickerVisibility.isHidden(pickerKey, reader) && config.isVisibleInEnvironmentPicker?.read(reader) !== false);
+			!pickerVisibility.isHidden(pickerKey, reader) && this.isAvailableInEnvironmentPicker?.read(reader) !== false);
 		this.removeLabel = config.removeLabel;
 		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;

@@ -251,12 +251,12 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('hidden remotes keep the Show eye visible at rest and offline remotes can be hidden', () => {
+	test('hidden eligible remotes keep the Show eye visible at rest', () => {
 		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
-			id: 'environment:offline', kind: 'environment', name: 'Offline host', detail: 'offline', canRemove: false,
-			unavailableReason: 'Start the owning application.', connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+			id: 'environment:online', kind: 'environment', name: 'Online host', detail: 'online', canRemove: false,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
 		}], undefined);
 		const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
 		const toolbar = row.querySelector<HTMLElement>('.remotes-gutter-column .monaco-toolbar')!;
@@ -266,8 +266,53 @@ suite('RemotesWidget', () => {
 			idle, hiddenOpacity: dom.getWindow(toolbar).getComputedStyle(toolbar).opacity,
 			connection: row.querySelector('.remotes-connection-state')?.textContent,
 			visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
-		}, { idle: '0', hiddenOpacity: '1', connection: 'Offline', visibilityChanges: [{ id: 'environment:offline', hidden: true }], connectionChanges: [] });
+		}, { idle: '0', hiddenOpacity: '1', connection: 'Disconnected', visibilityChanges: [{ id: 'environment:online', hidden: true }], connectionChanges: [] });
 	});
+
+	for (const hidden of [false, true]) {
+		test(`unavailable remotes explain their absence instead of offering a visibility toggle (hidden: ${hidden})`, () => {
+			const { parent, model, widget } = createWidget(OperatingSystem.Windows);
+			const remote: ICustomizationRemote = {
+				id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, hidden,
+				connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+				pickerUnavailableReason: 'Connect once to add this remote to the picker.',
+			};
+			model.remotes.set([remote], undefined);
+			const row = parent.querySelector<HTMLElement>('[data-remote-id]')!;
+			const action = row.querySelector<HTMLElement>('.remotes-gutter-column [role="button"]')!;
+			const unavailable = {
+				label: action.getAttribute('aria-label'), disabled: action.getAttribute('aria-disabled'),
+				icon: action.classList.contains('codicon-circle-slash'),
+				opacity: dom.getWindow(action).getComputedStyle(action.closest('.monaco-toolbar')!).opacity,
+				accessible: widget.getAccessibilityContent().includes('not shown in Environment picker: Connect once'),
+			};
+			action.click();
+			for (const key of [{ key: 'Enter', keyCode: 13 }, { key: ' ', keyCode: 32 }]) {
+				for (const type of ['keydown', 'keyup']) {
+					action.dispatchEvent(new KeyboardEvent(type, { ...key, bubbles: true, cancelable: true }));
+				}
+			}
+			model.remotes.set([{ ...remote, pickerUnavailableReason: undefined }], undefined);
+			assert.deepStrictEqual({
+				unavailable,
+				restored: {
+					label: action.getAttribute('aria-label'), disabled: action.getAttribute('aria-disabled'),
+					unavailableClass: row.classList.contains('remotes-row-picker-unavailable'),
+				},
+				visibilityChanges: model.visibilityChanges, connectionChanges: model.connectionChanges,
+			}, {
+				unavailable: {
+					label: 'Debian is not shown in the Environment picker. Connect once to add this remote to the picker.',
+					disabled: 'true', icon: true, opacity: '1', accessible: true,
+				},
+				restored: {
+					label: hidden ? 'Show Debian in Environment Picker' : 'Hide Debian from Environment Picker',
+					disabled: null, unavailableClass: false,
+				},
+				visibilityChanges: [], connectionChanges: [],
+			});
+		});
+	}
 
 	test('group keyboard collapse and expansion preserves rows through refresh', () => {
 		const { parent, model } = createWidget();

@@ -439,7 +439,9 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
-		const name = remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
+		const name = remote.pickerUnavailableReason
+			? localize('remotes.unavailablePickerName', "{0} (not shown in Environment picker: {1})", remote.name, remote.pickerUnavailableReason)
+			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
 		const label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;

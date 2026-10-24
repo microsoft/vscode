@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -31,6 +31,7 @@ import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } 
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { RemotesModel } from '../../browser/remotesModel.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
+import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 
 suite('RemotesModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -168,9 +169,17 @@ suite('RemotesModel', () => {
 			addWorkspace: (workspaceUri, name) => { workspaces = [{ workspaceUri, name }]; },
 			removeWorkspace: async () => { workspaces = []; removals.push('container'); },
 		});
+		const pickerVisibility = store.add(new RemoteAgentHostPickerVisibility(storage));
 		const createProvider = (address: string) => new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = `agenthost-${address}`;
 			override readonly remoteAddress = address;
+			override readonly environment = { id: 'remote', label: 'Remote' };
+			override supportsWorkspaceSelection = true;
+			override hostGroup: IAgentHostSessionsProvider['hostGroup'];
+			override readonly isAvailableInEnvironmentPicker = observableValue(this, true);
+			private readonly pickerKey = getRemoteAgentHostPickerKey(address, address.startsWith('cloudsandbox:') ? environmentState.account : undefined);
+			override readonly isVisibleInEnvironmentPicker = derived(reader =>
+				this.isAvailableInEnvironmentPicker.read(reader) && !pickerVisibility.isHidden(this.pickerKey, reader));
 			override canRemove = true;
 			override get label(): string {
 				return displayNames.get(address) ?? (address === 'ssh:build' ? 'build' : address === 'wsl:Ubuntu' ? 'Ubuntu' : 'Laptop');
@@ -213,6 +222,7 @@ suite('RemotesModel', () => {
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
 		return {
 			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects,
+			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			failConnection: (error: Error) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
@@ -493,7 +503,7 @@ suite('RemotesModel', () => {
 		});
 	});
 
-	test('visibility persists for discovery-only remotes without registration, connection, or removal', async () => {
+	test('visibility persists for eligible remotes without changing registration, connection, or removal', async () => {
 		const { model, storage, connectionChanges, reconnects, removals, setRenameInput } = setup();
 		await model.refresh(CancellationToken.None);
 		const preference = store.add(new RemoteAgentHostPickerVisibility(storage));
@@ -513,43 +523,118 @@ suite('RemotesModel', () => {
 	});
 
 	test('offline environment visibility is account-scoped and cannot bypass availability', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, environmentState, environmentConnections } = setup();
+		const { model, configuration, environmentAvailable, environmentHosts, environmentState, environmentConnections, addEnvironmentProvider } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
-		const hosts = [{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'offline' }] as const;
-		environmentHosts.set(hosts, undefined);
+		const host = { id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' } as const;
+		environmentHosts.set([host], undefined);
+		addEnvironmentProvider(host.id);
 		const id = cloudSandboxAddress('desktop');
 		model.setHidden(id, true);
+		const hosts = [{ ...host, status: 'offline' }] as const;
+		environmentHosts.set(hosts, undefined);
 		const hidden = model.remotes.get().find(remote => remote.id === id)?.hidden;
+		assert.throws(() => model.setHidden(id, false), /when the owning application is online/);
+		const reason = model.remotes.get().find(remote => remote.id === id)?.pickerUnavailableReason;
 		environmentState.account = 'account-two';
 		environmentHosts.set([...hosts], undefined);
 		const otherAccount = model.remotes.get().find(remote => remote.id === id)?.hidden;
 		environmentState.account = 'account-one';
 		environmentHosts.set([...hosts], undefined);
 		const restored = model.remotes.get().find(remote => remote.id === id)?.hidden;
-		model.setHidden(id, false);
 		await assert.rejects(model.setConnected(id, true), /not online/);
-		assert.deepStrictEqual({ hidden, otherAccount, restored, environmentConnections }, {
-			hidden: true, otherAccount: false, restored: true, environmentConnections: [],
+		environmentHosts.set([host], undefined);
+		model.setHidden(id, false);
+		assert.deepStrictEqual({ hidden, otherAccount, restored, reason, environmentConnections }, {
+			hidden: true, otherAccount: false, restored: true, reason: 'Available in the picker when the owning application is online.', environmentConnections: [],
 		});
 		environmentHosts.set([], undefined);
 		assert.throws(() => model.setHidden(id, true), /no longer available/);
 	});
 
 	test('SSH picker visibility uses the stable host key rather than the forwarded endpoint', () => {
-		const { model, storage } = setup();
+		const { model, storage, providers, providersChanged, createProvider } = setup();
 		addSSHRemoteAgentHostEntry(storage, {
 			name: 'Forwarded SSH', connection: {
 				type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', sshConfigHost: 'remote',
 				hostName: 'remote.example.com', user: 'user', port: 22,
 			},
 		});
+		providers.set('localhost:4321', createProvider('localhost:4321'));
+		providersChanged.fire({ added: [], removed: [] });
 		model.setHidden('localhost:4321', true);
 		const preference = store.add(new RemoteAgentHostPickerVisibility(storage));
 		assert.deepStrictEqual({
 			hostHidden: preference.isHidden(getRemoteAgentHostPickerKey('ssh:remote')),
 			endpointHidden: preference.isHidden(getRemoteAgentHostPickerKey('localhost:4321')),
 		}, { hostHidden: true, endpointHidden: false });
+	});
+
+	for (const id of ['ssh:build', 'tunnel:laptop', ...(isWindows ? ['wsl:Ubuntu'] : [])]) {
+		test(`picker state follows discovery, provider registration, availability and visibility (${id})`, async () => {
+			const { model, providers, providersChanged, setCachedDistros, connectionChanges, reconnects, removals } = setup();
+			const provider = providers.get(id)!;
+			providers.delete(id);
+			setCachedDistros([]);
+			providersChanged.fire({ added: [], removed: [] });
+			await model.refresh(CancellationToken.None);
+			const snapshot = () => {
+				const remote = model.remotes.get().find(remote => remote.id === id)!;
+				return {
+					hidden: remote.hidden, reason: remote.pickerUnavailableReason,
+					inPicker: getSessionCreationEnvironments([...providers.values()]).some(environment => environment.providerIds.includes(provider.id)),
+				};
+			};
+			const discovered = snapshot();
+			assert.throws(() => model.setHidden(id, false), /Connect once/);
+			assert.throws(() => model.setHidden(id, true), /Connect once/);
+			providers.set(id, provider);
+			providersChanged.fire({ added: [], removed: [] });
+			const registered = snapshot();
+			model.setHidden(id, true);
+			const hidden = snapshot();
+			provider.isAvailableInEnvironmentPicker.set(false, undefined);
+			const unavailable = snapshot();
+			assert.throws(() => model.setHidden(id, false), /currently unavailable/);
+			provider.isAvailableInEnvironmentPicker.set(true, undefined);
+			const availableAgain = snapshot();
+			model.setHidden(id, false);
+			const shown = snapshot();
+			providers.delete(id);
+			providersChanged.fire({ added: [], removed: [] });
+			assert.deepStrictEqual({
+				discovered, registered, hidden, unavailable, availableAgain, shown, withdrawn: snapshot(), connectionChanges, reconnects, removals,
+			}, {
+				discovered: { hidden: false, reason: 'Connect once to add this remote to the picker.', inPicker: false },
+				registered: { hidden: false, reason: undefined, inPicker: true },
+				hidden: { hidden: true, reason: undefined, inPicker: false },
+				unavailable: { hidden: true, reason: 'This remote is currently unavailable in the picker.', inPicker: false },
+				availableAgain: { hidden: true, reason: undefined, inPicker: false },
+				shown: { hidden: false, reason: undefined, inPicker: true },
+				withdrawn: { hidden: false, reason: 'Connect once to add this remote to the picker.', inPicker: false },
+				connectionChanges: [], reconnects: [], removals: [],
+			});
+		});
+	}
+
+	test('grouped providers and providers without workspace selection cannot be shown independently', async () => {
+		const { model, providers, providersChanged } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('ssh:build')!;
+		provider.supportsWorkspaceSelection = false;
+		providersChanged.fire({ added: [], removed: [] });
+		const unsupported = model.remotes.get().find(remote => remote.id === 'ssh:build')?.pickerUnavailableReason;
+		assert.throws(() => model.setHidden('ssh:build', false), /does not support/);
+		provider.supportsWorkspaceSelection = true;
+		provider.hostGroup = { id: 'group', label: 'Group' };
+		providersChanged.fire({ added: [], removed: [] });
+		assert.deepStrictEqual({
+			unsupported, grouped: model.remotes.get().find(remote => remote.id === 'ssh:build')?.pickerUnavailableReason,
+			inPicker: getSessionCreationEnvironments([...providers.values()]).some(environment => environment.providerIds.includes(provider.id)),
+		}, {
+			unsupported: 'This remote does not support a separate entry in the Environment picker.',
+			grouped: 'This remote does not support a separate entry in the Environment picker.', inPicker: false,
+		});
 	});
 
 	test('disabled AI or remote hosts reject visibility changes', async () => {

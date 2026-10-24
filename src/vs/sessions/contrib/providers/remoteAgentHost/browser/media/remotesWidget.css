@@ -167,17 +167,18 @@
 .remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-actions-column .monaco-toolbar,
 .remotes-widget .monaco-list-row:is(:hover, .hovered, :focus-within) .remotes-visibility-column .monaco-toolbar,
 .remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-visibility-column .monaco-toolbar,
-.remotes-widget .remotes-row-hidden .remotes-visibility-column .monaco-toolbar {
+.remotes-widget .remotes-row-hidden .remotes-visibility-column .monaco-toolbar,
+.remotes-widget .remotes-row-picker-unavailable .remotes-visibility-column .monaco-toolbar {
 	opacity: 1;
 	pointer-events: auto;
 }
 
-.remotes-widget .remotes-row-hidden .remotes-name {
+.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name {
 	opacity: 0.55;
 }
 
-.hc-black .remotes-widget .remotes-row-hidden .remotes-name,
-.hc-light .remotes-widget .remotes-row-hidden .remotes-name {
+.hc-black .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name,
+.hc-light .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name {
 	opacity: 1;
 }
 

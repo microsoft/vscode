@@ -25,7 +25,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Menus } from '../../../browser/menus.js';
-import { getAgentHostConnectionStatusLabel, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { getAgentHostConnectionStatusLabel, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -61,7 +61,7 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
 	}
 	for (const provider of visible) {
-		if (!isAgentHostProvider(provider) || !provider.connectionStatus || provider.hostGroup) {
+		if (!isRemoteSessionCreationEnvironment(provider)) {
 			continue;
 		}
 		const connection = provider.connectionStatus.get();

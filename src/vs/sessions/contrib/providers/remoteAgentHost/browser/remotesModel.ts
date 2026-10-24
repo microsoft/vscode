@@ -23,7 +23,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
-import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { reconnectRemoteHost, removeRemoteHost, renameRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
@@ -49,6 +49,7 @@ export interface ICustomizationRemote {
 	readonly unavailableReason?: string;
 	readonly removeUnavailableReason?: string;
 	readonly hidden?: boolean;
+	readonly pickerUnavailableReason?: string;
 }
 
 export interface IRemotesModel extends IDisposable {
@@ -341,7 +342,31 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (target.kind === 'environment') {
 			this.checkEnvironment(target);
 		}
-		this.pickerVisibility.setHidden(this.getPickerKey(target), hidden);
+		const key = this.getPickerKey(target);
+		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
+		const reason = this.getPickerUnavailableReason(target, provider, this.pickerVisibility.isHidden(key));
+		if (reason) {
+			throw new Error(reason);
+		}
+		this.pickerVisibility.setHidden(key, hidden);
+	}
+
+	private getPickerUnavailableReason(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, hidden: boolean, reader?: IReader): string | undefined {
+		if (target.kind === 'environment' && target.host.status !== 'online') {
+			return localize('remotes.pickerOffline', "Available in the picker when the owning application is online.");
+		}
+		if (!provider) {
+			return target.kind !== 'environment' && !this.registered.has(this.getId(target))
+				? localize('remotes.pickerConnectFirst', "Connect once to add this remote to the picker.")
+				: localize('remotes.pickerNotReady', "This remote is not ready for the picker. Try refreshing.");
+		}
+		if (!isRemoteSessionCreationEnvironment(provider)) {
+			return localize('remotes.pickerUnsupported', "This remote does not support a separate entry in the Environment picker.");
+		}
+		if (provider.isAvailableInEnvironmentPicker?.read(reader) === false || !hidden && provider.isVisibleInEnvironmentPicker?.read(reader) === false) {
+			return localize('remotes.pickerUnavailable', "This remote is currently unavailable in the picker.");
+		}
+		return undefined;
 	}
 
 	private getPickerKey(target: RemoteTarget): string {
@@ -437,9 +462,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? provider?.label ?? name;
 			}
 			const canRemove = target.kind !== 'environment' && this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
+			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, unavailableReason, removeUnavailableReason,
-				hidden: this.pickerVisibility.isHidden(this.getPickerKey(target), reader),
+				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
 				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,
 			});
 		}

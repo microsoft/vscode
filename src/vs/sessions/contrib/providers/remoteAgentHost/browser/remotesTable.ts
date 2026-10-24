@@ -173,6 +173,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				rowElement.classList.toggle('remotes-group-row', entry.type === 'group');
 				rowElement.classList.toggle('remotes-empty-row', entry.type === 'empty');
 				rowElement.classList.toggle('remotes-row-hidden', entry.type === 'remote' && entry.remote.hidden === true);
+				rowElement.classList.toggle('remotes-row-picker-unavailable', entry.type === 'remote' && !!entry.remote.pickerUnavailableReason);
 				if (entry.type === 'remote') {
 					rowElement.dataset.remoteId = entry.remote.id;
 				} else {
@@ -249,10 +250,13 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.action.label = entry.collapsed ? localize('remotes.expandGroup', "Expand {0}", entry.label) : localize('remotes.collapseGroup', "Collapse {0}", entry.label);
 					template.action.class = ThemeIcon.asClassName(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown);
 				} else if (showVisibility) {
-					template.action.label = entry.remote.hidden
+					template.action.enabled = !entry.remote.pickerUnavailableReason;
+					template.action.label = entry.remote.pickerUnavailableReason
+						? localize('remotes.notInPicker', "{0} is not shown in the Environment picker. {1}", entry.remote.name, entry.remote.pickerUnavailableReason)
+						: entry.remote.hidden
 						? localize('remotes.showInPicker', "Show {0} in Environment Picker", entry.remote.name)
 						: localize('remotes.hideFromPicker', "Hide {0} from Environment Picker", entry.remote.name);
-					template.action.class = ThemeIcon.asClassName(entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
+					template.action.class = ThemeIcon.asClassName(entry.remote.pickerUnavailableReason ? Codicon.circleSlash : entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
 				} else if (showConfig) {
 					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
 						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open Environment Settings")
