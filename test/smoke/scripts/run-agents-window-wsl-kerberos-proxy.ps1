@@ -26,7 +26,7 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
 	[string]$Distribution = 'Ubuntu',
-	# A Linux VS Code server, or a source checkout set up with `npm run install-fast` and `npm run build-fast -- --client-only`.
+	# A Linux VS Code server, or a source checkout set up with `pnpm run install-fast` and `pnpm run build-fast --client-only`.
 	[Parameter(Mandatory)][string]$WslServerPath,
 	# The Linux Node for a source checkout, which has no bundled Node.
 	[string]$WslNodePath,
@@ -469,7 +469,7 @@ if ((Get-Service seclogon).StartType -eq 'Disabled') {
 }
 $pacServer = Join-Path $RepositoryRoot 'test\smoke\out\networkProxy\pacServer.js'
 if (-not (Test-Path $pacServer)) {
-	throw "Missing $pacServer; compile the smoke tests first (cd test\smoke; npm run compile)."
+	throw "Missing $pacServer; compile the smoke tests first (cd test\smoke; pnpm run compile)."
 }
 if (Test-TcpPort '127.0.0.1' $PacPort) {
 	throw "Port $PacPort must be available for the PAC server."
@@ -679,7 +679,7 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts" "`$WSL_ROOT/
 	$environment['VSCODE_SMOKE_TEST_MOCK_KEY'] = Join-Path $TempRoot 'server.key'
 	$environmentBlock = [string[]]($environment.Keys | Sort-Object { $_.ToUpperInvariant() } | ForEach-Object { "$_=$($environment[$_])" })
 
-	$smokeArguments = @('run', 'smoketest-no-compile', '--', '--tracing', '-g', $SmokeTestGrep, '--fail-zero') + $SmokeTestArguments
+	$smokeArguments = @('run', 'smoketest-no-compile', '--tracing', '-g', $SmokeTestGrep, '--fail-zero') + $SmokeTestArguments
 	$netOnlyScript = Join-Path $TempRoot 'netonly.ps1'
 	[IO.File]::WriteAllText($netOnlyScript, @"
 `$ErrorActionPreference = 'Continue'
@@ -690,7 +690,7 @@ if (`$LASTEXITCODE -ne 0) {
 	Write-Output 'Windows could not obtain a Kerberos ticket for $ServicePrincipal with the $Realm credentials.'
 	exit 1
 }
-& npm.cmd $(($smokeArguments | ForEach-Object { ConvertTo-PowerShellLiteral $_ }) -join ' ')
+& pnpm.cmd $(($smokeArguments | ForEach-Object { ConvertTo-PowerShellLiteral $_ }) -join ' ')
 exit `$LASTEXITCODE
 "@, [Text.UTF8Encoding]::new($true))
 	$smokeLog = Join-Path $TempRoot 'smoke-test.log'

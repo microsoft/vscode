@@ -5,13 +5,14 @@
 import path from 'path';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
+import { getPnpmCommand } from './pnpm.ts';
 
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootDir = path.resolve(import.meta.dirname, '..', '..');
 
-function runProcess(command: string, args: ReadonlyArray<string> = []) {
+function runPnpm(args: ReadonlyArray<string>) {
+	const pnpm = getPnpmCommand();
 	return new Promise<void>((resolve, reject) => {
-		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env, shell: process.platform === 'win32' });
+		const child = spawn(pnpm.command, [...pnpm.args, ...args], { cwd: rootDir, stdio: 'inherit', env: process.env, shell: pnpm.shell });
 		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
 		child.on('error', reject);
 	});
@@ -28,20 +29,20 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runProcess(npm, ['ci']);
+		await runPnpm(['install', '--frozen-lockfile']);
 	}
 }
 
 async function getElectron() {
 	const { shouldDownloadElectron } = await import('./electronVersion.ts');
 	if (shouldDownloadElectron(rootDir)) {
-		await runProcess(npm, ['run', 'electron']);
+		await runPnpm(['run', 'electron']);
 	}
 }
 
 async function ensureCompiled() {
 	if (!(await exists('out'))) {
-		await runProcess(npm, ['run', 'compile']);
+		await runPnpm(['run', 'compile']);
 	}
 }
 

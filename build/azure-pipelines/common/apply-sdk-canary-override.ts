@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
+import { getLockedVersion } from '../../lib/pnpmLock.ts';
 
 /**
  * Stage 3 of the Copilot SDK -> VS Code integration pipeline.
@@ -30,7 +31,7 @@ const ROOT = path.join(import.meta.dirname, '../../../');
  *      spawn a `.cmd`/`.bat` without it.
  */
 const IS_WINDOWS = process.platform === 'win32';
-const NPM = IS_WINDOWS ? 'npm.cmd' : 'npm';
+const PNPM = IS_WINDOWS ? 'pnpm.cmd' : 'pnpm';
 
 /**
  * Allowlist for npm versions and dist-tags before they are interpolated into
@@ -60,7 +61,7 @@ interface CopilotOverride {
 }
 
 function resolveSdkRuntimeVersion(sdkVersion: string): string {
-	const versionRaw = execFileSync(NPM, ['view', `@github/copilot-sdk@${sdkVersion}`, 'copilotCliVersion', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
+	const versionRaw = execFileSync(PNPM, ['view', `@github/copilot-sdk@${sdkVersion}`, 'copilotCliVersion', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
 	const version = JSON.parse(versionRaw || 'null');
 	if (typeof version !== 'string' || !version) {
 		throw new Error(`[canary-override] @github/copilot-sdk@${sdkVersion} does not declare copilotCliVersion.`);
@@ -79,7 +80,7 @@ function resolveSdkRuntimeVersion(sdkVersion: string): string {
  * `[X, Y, Z, N]` tuple (numeric, so `canary.9` < `canary.10`).
  */
 function resolveLatestCanary(): string {
-	const versionsRaw = execFileSync(NPM, ['view', '@github/copilot-sdk', 'versions', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
+	const versionsRaw = execFileSync(PNPM, ['view', '@github/copilot-sdk', 'versions', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
 	const parsed = JSON.parse(versionsRaw || '[]');
 	const versions: string[] = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
 	const canaryRe = /^(\d+)\.(\d+)\.(\d+)-canary\.(\d+)\b/;
@@ -172,11 +173,12 @@ function applyOverrides(dir: string, override: CopilotOverride): Override[] {
 }
 
 function refreshLockfile(dir: string): void {
-	// Refresh only the lockfile (no node_modules writes, no lifecycle scripts)
-	// so `npm ci` in the product build resolves the overridden versions. This
-	// contacts the configured registry, so npm auth for the private feed must
-	// already be established in the ambient environment.
-	execFileSync(NPM, ['install', '--package-lock-only', '--ignore-scripts'], {
+	// Refresh only the lockfile of the install root (no node_modules writes, no
+	// lifecycle scripts) so `pnpm install --frozen-lockfile` in the product
+	// build resolves the overridden versions. This contacts the configured
+	// registry, so npm auth for the private feed must already be established in
+	// the ambient environment.
+	execFileSync(PNPM, ['install', '--lockfile-only', '--no-frozen-lockfile', '--ignore-scripts'], {
 		cwd: path.join(ROOT, dir),
 		stdio: 'inherit',
 		shell: IS_WINDOWS
@@ -190,18 +192,16 @@ function refreshLockfile(dir: string): void {
  * caught here rather than surfacing as a confusing downstream build error.
  */
 function verifyResolved(dir: string, overrides: Override[]): void {
-	const lockPath = path.join(ROOT, dir, 'package-lock.json');
-	const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
-	const packages = lock.packages ?? {};
+	const lockPath = path.join(dir, 'pnpm-lock.yaml');
 	for (const { name, version } of overrides) {
-		const entry = packages[`node_modules/${name}`];
-		if (!entry) {
-			throw new Error(`[canary-override] ${path.join(dir, 'package-lock.json')}: ${name} not found after lockfile refresh — is ${name}@${version} published to the feed and is npm auth configured?`);
+		const locked = getLockedVersion(dir, name, ROOT);
+		if (!locked) {
+			throw new Error(`[canary-override] ${lockPath}: ${name} not found after lockfile refresh — is ${name}@${version} published to the feed and is npm auth configured?`);
 		}
-		if (entry.version !== version) {
-			throw new Error(`[canary-override] ${path.join(dir, 'package-lock.json')}: ${name} resolved to ${entry.version}, expected ${version}`);
+		if (locked !== version) {
+			throw new Error(`[canary-override] ${lockPath}: ${name} resolved to ${locked}, expected ${version}`);
 		}
-		console.log(`[canary-override] verified ${path.join(dir, 'package-lock.json')}: ${name}@${entry.version} (resolved ${entry.resolved ?? '<no url>'})`);
+		console.log(`[canary-override] verified ${lockPath}: ${name}@${locked}`);
 	}
 }
 
