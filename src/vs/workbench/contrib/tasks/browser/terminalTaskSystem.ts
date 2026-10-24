@@ -1628,8 +1628,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: IShellConfiguration | undefined, command: CommandString, originalCommand: CommandString | undefined, args: CommandString[]): string {
 		const basename = path.parse(shellExecutable).name.toLowerCase();
 		const shellQuoteOptions = this._getQuotingOptions(basename, shellOptions, platform);
+		const shell = basename === 'pwsh' ? 'powershell' : TerminalTaskSystem._shellQuotes[basename] ? basename : platform === Platform.Platform.Windows ? 'powershell' : 'bash';
+		const shellSignificantCharacters = shell === 'cmd' ? /[\s"&|<>()^%!]/ : shell === 'powershell' ? /[\s"'`;&|<>$(){}[\],#@%]/ : /[\s"'`;&|<>$\\(){}[\]#*?~!]/;
+		const escapeChar = (Types.isString(shellQuoteOptions.escape) ? shellQuoteOptions.escape : shellQuoteOptions.escape?.escapeChar) ?? (shell === 'cmd' ? '^' : undefined);
 
-		function needsQuotes(value: string): boolean {
+		function needsQuotes(value: string, onlyWhitespace = false): boolean {
+			if (!onlyWhitespace && value.length === 0) {
+				return true;
+			}
 			if (value.length >= 2) {
 				const first = value[0] === shellQuoteOptions.strong ? shellQuoteOptions.strong : value[0] === shellQuoteOptions.weak ? shellQuoteOptions.weak : undefined;
 				if (first === value[value.length - 1]) {
@@ -1638,27 +1644,34 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 			let quote: string | undefined;
 			for (let i = 0; i < value.length; i++) {
-				// We found the end quote.
 				const ch = value[i];
-				if (ch === quote) {
+				if (quote !== undefined && quote === shellQuoteOptions.weak && ch === escapeChar) {
+					i++;
+				} else if (ch === quote) {
 					quote = undefined;
 				} else if (quote !== undefined) {
-					// skip the character. We are quoted.
 					continue;
-				} else if (ch === shellQuoteOptions.escape) {
-					// Skip the next character
+				} else if (ch === escapeChar) {
+					if (!onlyWhitespace && i === value.length - 1) {
+						return true;
+					}
 					i++;
 				} else if (ch === shellQuoteOptions.strong || ch === shellQuoteOptions.weak) {
 					quote = ch;
-				} else if (ch === ' ') {
+				} else if (onlyWhitespace ? ch === ' ' : shellSignificantCharacters.test(ch)) {
 					return true;
 				}
 			}
-			return false;
+			return !onlyWhitespace && quote !== undefined;
 		}
 
 		function quote(value: string, kind: ShellQuoting): [string, boolean] {
 			if (kind === ShellQuoting.Strong && shellQuoteOptions.strong) {
+				if (shellQuoteOptions.strong === '\'') {
+					value = value.replace(/'/g, shell === 'powershell' ? '\'\'' : '\'\\\'\'');
+				} else if (shell === 'cmd' && shellQuoteOptions.strong === '"') {
+					value = value.replace(/(?<backslashes>\\*)"/g, '$<backslashes>$<backslashes>""').replace(/\\+$/, match => match + match);
+				}
 				return [shellQuoteOptions.strong + value + shellQuoteOptions.strong, true];
 			} else if (kind === ShellQuoting.Weak && shellQuoteOptions.weak) {
 				return [shellQuoteOptions.weak + value + shellQuoteOptions.weak, true];
@@ -1693,7 +1706,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// If we have no args and the command is a string then use the command to stay backwards compatible with the old command line
 		// model. To allow variable resolving with spaces we do continue if the resolved value is different than the original one
 		// and the resolved one needs quoting.
-		if ((!args || args.length === 0) && Types.isString(command) && (command === originalCommand as string || needsQuotes(originalCommand as string))) {
+		if ((!args || args.length === 0) && Types.isString(command) && (command === originalCommand as string || needsQuotes(originalCommand as string, true))) {
 			return command;
 		}
 
@@ -1713,12 +1726,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		let commandLine = result.join(' ');
 		// There are special rules quoted command line in cmd.exe
-		if (platform === Platform.Platform.Windows) {
-			if (basename === 'cmd' && commandQuoted && argQuoted) {
-				commandLine = '"' + commandLine + '"';
-			} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
-				commandLine = '& ' + commandLine;
-			}
+		if (basename === 'cmd' && platform === Platform.Platform.Windows && commandQuoted && argQuoted) {
+			commandLine = '"' + commandLine + '"';
+		} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
+			commandLine = '& ' + commandLine;
 		}
 
 		return commandLine;
@@ -1728,7 +1739,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (shellOptions && shellOptions.quoting) {
 			return shellOptions.quoting;
 		}
-		return TerminalTaskSystem._shellQuotes[shellBasename] || TerminalTaskSystem._osShellQuotes[Platform.PlatformToString(platform)];
+		return TerminalTaskSystem._shellQuotes[shellBasename === 'pwsh' ? 'powershell' : shellBasename] || TerminalTaskSystem._osShellQuotes[Platform.PlatformToString(platform)];
 	}
 
 	private _collectTaskVariables(variables: Set<string>, task: CustomTask | ContributedTask): void {
