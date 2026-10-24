@@ -43,6 +43,10 @@ Use `--rerun-failed-files <count>` to rerun failures, each time in a fresh proce
 
 A rerun must exit normally with an exit code matching its reported results. A startup failure, signal, or inconsistent exit code fails the run, even if the rerun wrote a passing report.
 
+## Disabling a flaky test
+
+To unblock CI, disable the test in a pull request that changes nothing else: insert `.skip` after `test`, `suite`, `it` or `describe`, optionally with `//` comments that link the tracking issue. The pull request checks prove that the pull request only disables tests and then skip the tests, so the required checks pass in a minute or two. [detect.ts](../../.github/actions/detect-test-disable-only/detect.ts) has the exact rules.
+
 ## Coverage
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:

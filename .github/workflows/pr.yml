@@ -29,17 +29,20 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-24.04
     outputs:
-      cli: ${{ steps.detect.outputs.cli }}
-      copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
-      copilot: ${{ steps.detect.outputs.copilot }}
-      unit-tests: ${{ steps.detect.outputs.unit-tests }}
-      browser-integration: ${{ steps.detect.outputs.browser-integration }}
-      product-tests: ${{ steps.detect.outputs.product-tests }}
-      agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
+      # 'true' when the pull request only disables tests (see .github/actions/detect-test-disable-only/detect.ts).
+      # The outputs below are then 'false', so that the test jobs skip and required-checks reports them as passed.
+      test-disable-only: ${{ steps.test-disable-only.outputs.verified == 'true' }}
+      cli: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.cli }}
+      copilot-shim: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.copilot-shim }}
+      copilot: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.copilot }}
+      unit-tests: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.unit-tests }}
+      browser-integration: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.browser-integration }}
+      product-tests: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.product-tests }}
+      agent-host-e2e: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect-agent-host-e2e.outputs.affected }}
       agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
       # Linux and macOS run Agent Host E2E in the Electron integration tests job.
-      electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
+      electron-tests: ${{ steps.test-disable-only.outputs.verified != 'true' && (steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true') }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,8 +63,27 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # The test-disable check runs from the pull request base, so that a pull request cannot change
+      # how it is judged. When it fails, all checks run.
+      - name: Checkout the pull request base
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .base
+          filter: blob:none
+          sparse-checkout: .github/actions/detect-test-disable-only
+
+      - name: Detect test-disable-only changes
+        id: test-disable-only
+        continue-on-error: true
+        uses: ./.base/.github/actions/detect-test-disable-only
+
   compile:
     name: Compile & Hygiene
+    needs: changes
+    # A pull request that only disables tests cannot affect compilation, hygiene or ESLint.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.test-disable-only != 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
@@ -520,12 +542,15 @@ jobs:
         run: |
           set -euo pipefail
           detection=$(jq -r '.changes.result' <<< "$NEEDS")
+          test_disable_only=$(jq -r '.changes.outputs["test-disable-only"] // "false"' <<< "$NEEDS")
           status=0
           while read -r job output; do
             result=$(jq -r --arg job "$job" '.[$job].result' <<< "$NEEDS")
             affected=$(jq -r --arg output "$output" '.changes.outputs[$output] // "true"' <<< "$NEEDS")
             if [[ "$result" == success ]]; then
               echo "$job succeeded."
+            elif [[ "$result" == skipped && "$detection" == success && "$affected" == false && "$test_disable_only" == true ]]; then
+              echo "$job was skipped because the pull request only disables tests."
             elif [[ "$result" == skipped && "$detection" == success && "$affected" == false ]]; then
               echo "$job was skipped because the changes cannot affect it ($output: false)."
             else

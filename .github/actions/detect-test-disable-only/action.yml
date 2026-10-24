@@ -1,0 +1,44 @@
+name: Detect test-disable-only changes
+description: Determines whether a pull request only disables tests, so that its checks can skip the tests (see detect.ts). Run it from a checkout of the pull request base, so that a pull request cannot change how it is judged.
+
+outputs:
+  verified:
+    description: "'true' when the pull request only disables tests."
+    value: ${{ steps.detect.outputs.verified }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect test-disable-only changes
+      id: detect
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      with:
+        script: |
+          const { execFileSync } = require('child_process');
+          const fs = require('fs');
+          const { createRequire } = require('module');
+          const path = require('path');
+          const { pathToFileURL } = require('url');
+          const repository = path.resolve(process.env.ACTION_PATH, '../../..');
+          const { detectTestDisableOnly } = await import(pathToFileURL(path.join(process.env.ACTION_PATH, 'detect.ts')).href);
+          await detectTestDisableOnly({
+            git: args => execFileSync('git', ['-C', repository, ...args], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }),
+            github,
+            // Installs the TypeScript release that the base uses, only when the pull request changes nothing but test files.
+            loadTypeScript: async () => {
+              const { packages } = JSON.parse(fs.readFileSync(path.join(repository, 'package-lock.json'), 'utf8'));
+              const release = ['node_modules/@typescript/old', 'node_modules/typescript']
+                .map(name => packages[name])
+                .find(entry => /\/typescript\/-\/typescript-[^/]+\.tgz$/.test(entry?.resolved ?? ''));
+              if (!release) {
+                throw new Error('package-lock.json has no TypeScript release');
+              }
+              const prefix = path.join(process.env.RUNNER_TEMP, 'detect-test-disable-only');
+              await exec.exec('npm', ['install', '--prefix', prefix, '--no-save', '--no-package-lock', '--no-audit', '--no-fund', '--ignore-scripts', `typescript@${release.version}`]);
+              return createRequire(path.join(prefix, 'package.json'))('typescript');
+            },
+            context,
+            core,
+          });
