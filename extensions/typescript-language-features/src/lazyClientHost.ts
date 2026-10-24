@@ -54,6 +54,7 @@ export function lazilyActivateClient(
 	onActivate: () => Promise<void> = () => Promise.resolve(),
 ): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
+	let isDisposed = false;
 
 	const supportedLanguage = [
 		...standardLanguageDescriptions.map(x => x.languageIds),
@@ -66,6 +67,10 @@ export function lazilyActivateClient(
 			hasActivated = true;
 
 			onActivate().then(() => {
+				if (isDisposed) {
+					return;
+				}
+
 				// Force activation
 				void lazyClientHost.value;
 
@@ -87,6 +92,7 @@ export function lazilyActivateClient(
 	}
 
 	return new vscode.Disposable(() => {
+		isDisposed = true;
 		disposables.forEach(d => d.dispose());
 	});
 }
