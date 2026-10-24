@@ -888,6 +888,87 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		]);
 	});
 
+	for (const auxiliaryFirst of [true, false]) {
+		test(`result attributes the answer independently of modelUsage order (auxiliary first: ${auxiliaryFirst})`, () => {
+			const state = new ClaudeMapperState();
+			const registry = r();
+			const log = new NullLogService();
+			const assistant = makeAssistantMessage(SESSION_ID, [{ type: 'text', text: 'ok', citations: null }]);
+			assistant.message.model = 'claude-opus-5-5';
+			mapSDKMessageToAgentSignals(assistant, SESSION, TURN_ID, state, log, registry);
+			const result = makeResultSuccess(SESSION_ID);
+			const usage = { inputTokens: 2, outputTokens: 4, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 1_000_000, maxOutputTokens: 128_000 };
+			const entries = [['claude-haiku-5-5', usage], ['claude-opus-5-5', usage]] as const;
+			result.modelUsage = Object.fromEntries(auxiliaryFirst ? entries : [...entries].reverse());
+			result.usage.input_tokens = 2;
+			result.usage.output_tokens = 4;
+			const [signal] = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, state, log, registry);
+			assert.ok(signal.kind === 'action' && signal.action.type === ActionType.ChatUsage);
+			assert.deepStrictEqual(signal.action.usage, { inputTokens: 2, outputTokens: 4, cacheReadTokens: 0, model: 'claude-opus-5-5' });
+		});
+	}
+
+	test('the final top-level assistant model wins after a model change', () => {
+		const state = new ClaudeMapperState();
+		const registry = r();
+		const log = new NullLogService();
+		const assistant = makeAssistantMessage(SESSION_ID, []);
+		assistant.message.model = 'claude-opus';
+		mapSDKMessageToAgentSignals(assistant, SESSION, TURN_ID, state, log, registry);
+		assistant.message.model = 'claude-sonnet';
+		mapSDKMessageToAgentSignals(assistant, SESSION, TURN_ID, state, log, registry);
+		const [signal] = mapSDKMessageToAgentSignals(makeResultSuccess(SESSION_ID), SESSION, TURN_ID, state, log, registry);
+		assert.ok(signal.kind === 'action' && signal.action.type === ActionType.ChatUsage);
+		assert.strictEqual(signal.action.usage.model, 'claude-sonnet');
+	});
+
+	test('ambiguous modelUsage without an assistant message does not invent a model or per-model totals', () => {
+		const result = makeResultSuccess(SESSION_ID);
+		const usage = { inputTokens: 2, outputTokens: 4, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 200_000, maxOutputTokens: 8192 };
+		result.modelUsage = { 'claude-haiku': usage, 'claude-opus': usage };
+		const [signal] = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
+		assert.ok(signal.kind === 'action' && signal.action.type === ActionType.ChatUsage);
+		assert.deepStrictEqual(signal.action.usage, { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 });
+	});
+
+	test('subagent, aborted and synthetic messages do not overwrite the answering model', () => {
+		const state = new ClaudeMapperState();
+		const registry = r();
+		const log = new NullLogService();
+		const assistant = makeAssistantMessage(SESSION_ID, []);
+		assistant.message.model = 'claude-opus';
+		mapSDKMessageToAgentSignals(assistant, SESSION, TURN_ID, state, log, registry);
+		const subagent = makeAssistantMessage(SESSION_ID, []);
+		subagent.message.model = 'claude-haiku';
+		subagent.parent_tool_use_id = 'toolu_subagent';
+		mapSDKMessageToAgentSignals(subagent, SESSION, TURN_ID, state, log, registry);
+		const aborted = makeAssistantMessage(SESSION_ID, []);
+		aborted.aborted = true;
+		mapSDKMessageToAgentSignals(aborted, SESSION, TURN_ID, state, log, registry);
+		const synthetic = makeAssistantMessage(SESSION_ID, []);
+		synthetic.message.model = '<synthetic>';
+		mapSDKMessageToAgentSignals(synthetic, SESSION, TURN_ID, state, log, registry);
+		const [signal] = mapSDKMessageToAgentSignals(makeResultSuccess(SESSION_ID), SESSION, TURN_ID, state, log, registry);
+		assert.ok(signal.kind === 'action' && signal.action.type === ActionType.ChatUsage);
+		assert.strictEqual(signal.action.usage.model, 'claude-opus');
+	});
+
+	for (const boundary of ['success', 'error', 'new-turn'] as const) {
+		test(`answering model does not leak after ${boundary}`, () => {
+			const state = new ClaudeMapperState();
+			const registry = r();
+			const log = new NullLogService();
+			mapSDKMessageToAgentSignals(makeAssistantMessage(SESSION_ID, []), SESSION, TURN_ID, state, log, registry);
+			if (boundary !== 'new-turn') {
+				const result = boundary === 'success' ? makeResultSuccess(SESSION_ID) : makeResultError(SESSION_ID, ['failure']);
+				mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, state, log, registry);
+			}
+			const [signal] = mapSDKMessageToAgentSignals(makeResultSuccess(SESSION_ID), SESSION, boundary === 'new-turn' ? 'turn-2' : TURN_ID, state, log, registry);
+			assert.ok(signal.kind === 'action' && signal.action.type === ActionType.ChatUsage);
+			assert.strictEqual(signal.action.usage.model, undefined);
+		});
+	}
+
 	test('result success does not derive credits from total_cost_usd', () => {
 		// Per-turn credits come from CAPI `copilot_usage` via the proxy, not
 		// from the SDK's Anthropic-list-price `total_cost_usd`. The mapper
