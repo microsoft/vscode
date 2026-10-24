@@ -19,6 +19,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -37,6 +38,7 @@ suite('Chat window - Add Tab watermark', () => {
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		ChatWindowHasEditorAreaContext.bindTo(contextKeyService).set(hasEditorArea);
 		ChatWindowSessionHasWorkspaceContext.bindTo(contextKeyService).set(true);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		const element = append(mainWindow.document.body, $('.editor-group-container.empty'));
 		disposables.add(toDisposable(() => element.remove()));
 		disposables.add(instantiationService.createInstance(EmptyEditorGroupAddTab, {

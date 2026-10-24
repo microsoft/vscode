@@ -12,6 +12,7 @@ import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/act
 import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -111,7 +112,7 @@ function getChatWindowForGroup(chatWindowService: IChatWindowService, context: I
 for (const entry of chatWindowTabEntries) {
 	// Checked while the editor area shows its tab; clicking it then hides the editor area.
 	const shown = ContextKeyExpr.and(ChatWindowEditorAreaEditorContext.isEqualTo(entry.editorId), ChatWindowLayoutContext.notEqualsTo(ChatWindowLayout.ChatOnly));
-	const when = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, entry.when);
+	const when = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatContextKeys.enabled, entry.when);
 	// The same entries as the Add Tab actions of the main window, in its menus, for the empty editor area of a chat window.
 	for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab]) {
 		MenuRegistry.appendMenuItem(menu, {
@@ -194,12 +195,12 @@ registerAction2(class AddChatWindowTerminalAction extends Action2 {
 			id: CHAT_WINDOW_ADD_TERMINAL_COMMAND_ID,
 			title: localize2('chatWindowAddTerminal', "Terminal"),
 			icon: Codicon.terminal,
-			precondition: ChatWindowHasEditorAreaContext,
+			precondition: ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatContextKeys.enabled),
 			menu: [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab].map(id => ({
 				id,
 				group: 'navigation',
 				order: 3,
-				when: ChatWindowHasEditorAreaContext,
+				when: ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatContextKeys.enabled),
 			})),
 		});
 	}

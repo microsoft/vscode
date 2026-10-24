@@ -11,12 +11,14 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuItem, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowEditorGroupContext, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { registerChatWindowCanvasActions } from '../../electron-browser/chatWindowCanvasActions.js';
 
 suite('Chat window - canvases in the Add Tab list', () => {
@@ -27,6 +29,7 @@ suite('Chat window - canvases in the Add Tab list', () => {
 	function createFixture(sessions: readonly string[]) {
 		const opened: unknown[] = [];
 		const reopened: ICanvasReference[] = [];
+		const revealed: ICanvasReference[] = [];
 		const activeSession = observableValue('activeSession', 'main');
 		const windows = sessions.map((name, index) => {
 			const session = URI.parse(`test://session/${name}`);
@@ -44,23 +47,27 @@ suite('Chat window - canvases in the Add Tab list', () => {
 				}(),
 			};
 		});
-		const contexts: ICanvasContext[] = windows.map(({ owner }) => ({
+		const canvasLists = windows.map(() => observableValue<readonly ICanvas[]>('canvases', []));
+		const contexts: ICanvasContext[] = windows.map(({ owner }, index) => ({
 			owner,
-			canvases: observableValue('canvases', []),
+			canvases: canvasLists[index],
 			definitionProvider: {
 				onDidChangeDefinitions: Event.None,
 				listCanvases: async () => [definition],
 				openCanvas: async (canvas, instanceId) => { opened.push([owner.session.toString(), canvas.canvasId, instanceId]); },
 			},
 		}));
+		const windowList = observableValue<readonly IChatWindow[]>('windows', windows.map(entry => entry.window));
+		const reopenable = observableValue('reopenable', windows.map(({ owner, canvas }) => ({ reference: { ...owner, canvas: canvas.resource }, canvas })));
 		const registration = store.add(registerChatWindowCanvasActions(
 			new class extends mock<IChatWindowService>() {
-				override readonly windows = observableValue<readonly IChatWindow[]>('windows', windows.map(entry => entry.window));
+				override readonly windows = windowList;
 			}(),
 			new class extends mock<ICanvasService>() {
 				override readonly enabled = observableValue('enabled', true);
-				override readonly reopenableCanvases = observableValue('reopenable', windows.map(({ owner, canvas }) => ({ reference: { ...owner, canvas: canvas.resource }, canvas })));
+				override readonly reopenableCanvases = reopenable;
 				override async reopenCanvas(reference: ICanvasReference) { reopened.push(reference); }
+				override async revealCanvas(reference: ICanvasReference) { revealed.push(reference); }
 			}(),
 			new class extends mock<ICanvasContextService>() {
 				override readonly contexts = observableValue('contexts', contexts);
@@ -68,7 +75,7 @@ suite('Chat window - canvases in the Add Tab list', () => {
 			new NullLogService() as ILogService,
 			new class extends mock<INotificationService>() { }(),
 		));
-		return { registration, opened, reopened, activeSession, windows };
+		return { registration, opened, reopened, revealed, activeSession, windows, windowList, reopenable, canvasLists };
 	}
 
 	async function entries(count: number) {
@@ -79,7 +86,7 @@ suite('Chat window - canvases in the Add Tab list', () => {
 		return getItems();
 	}
 
-	const whenGroup = (id: number) => `sessions.chatWindowEditorGroup == '${id}'`;
+	const whenGroup = (id: number) => ContextKeyExpr.and(ChatWindowEditorGroupContext.isEqualTo(id), ChatContextKeys.enabled)!.serialize();
 
 	const describe = (item: IMenuItem) => [typeof item.command.title === 'string' ? item.command.title : item.command.title.value, item.when?.serialize()];
 
@@ -118,5 +125,45 @@ suite('Chat window - canvases in the Add Tab list', () => {
 			reopened: ['canvas://one/old'],
 			activeSession: 'main',
 		});
+	});
+
+	test('opening a canvas that is already open reveals it and only asks the provider again when it has no source', async () => {
+		const { opened, revealed, canvasLists } = createFixture(['one']);
+		const items = await entries(2);
+		const instanceId = getCanvasDefinitionInstanceId(definition);
+		const existing: ICanvas = { resource: URI.parse('canvas://one/plan'), instanceId, title: 'Plan', source: undefined };
+
+		canvasLists[0].set([existing], undefined);
+		await CommandsRegistry.getCommand(items[0].command.id)!.handler(undefined!);
+		canvasLists[0].set([{ ...existing, source: {} as never }], undefined);
+		await CommandsRegistry.getCommand(items[0].command.id)!.handler(undefined!);
+
+		assert.deepStrictEqual({ revealed: revealed.map(reference => reference.canvas.toString()), opened: opened.length }, { revealed: ['canvas://one/plan', 'canvas://one/plan'], opened: 1 });
+	});
+
+	test('closing a chat window removes its canvas menu items and commands', async () => {
+		const baseline = CommandsRegistry.getCommands().size;
+		const { windowList, registration } = createFixture(['one', 'two']);
+		const items = await entries(4);
+		const ids = items.map(item => item.command.id);
+
+		windowList.set([], undefined);
+
+		assert.deepStrictEqual({
+			items: MenuRegistry.getMenuItems(Menus.ChatWindowAddTabCanvas).length,
+			commands: ids.filter(id => CommandsRegistry.getCommand(id)).length,
+			count: CommandsRegistry.getCommands().size,
+		}, { items: 0, commands: 0, count: baseline });
+		registration.dispose();
+	});
+
+	test('a canvas change that leaves a window\'s entries as they are does not register them again', async () => {
+		const { reopenable } = createFixture(['one', 'two']);
+		const before = (await entries(4)).map(item => item.command.id);
+
+		reopenable.set([...reopenable.get()], undefined);
+		const after = MenuRegistry.getMenuItems(Menus.ChatWindowAddTabCanvas).filter(isIMenuItem).map(item => item.command.id);
+
+		assert.deepStrictEqual(after, before);
 	});
 });
