@@ -258,7 +258,7 @@ export class SessionEnvironmentPicker extends Disposable {
 			getAriaLabel: item => typeof item.description === 'string' && item.description
 				? localize('environmentPicker.item', "{0}, {1}", item.label ?? '', item.description) : item.label ?? '',
 			getWidgetAriaLabel: () => localize('environmentPicker.title', "Environment"),
-		}, { className: 'sessions-new-chat-picker-list', minWidth: 240 });
+		}, { className: 'sessions-new-chat-picker-list', minWidth: 240, hideDefaultKeybindingTooltip: true });
 	}
 
 	private isManagedInRemotes(environment: ISessionCreationEnvironment): boolean {

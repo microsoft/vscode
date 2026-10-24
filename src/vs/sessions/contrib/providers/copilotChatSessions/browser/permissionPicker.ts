@@ -26,6 +26,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { AgentSandboxEnabledSettingValue, isAgentSandboxEnabledValue } from '../../../../../platform/sandbox/common/settings.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { getOrganizationDefaultApprovalLevel } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { equalsUnavailablePermissionLevels, getOfferedPermissionLevels, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IPermissionLevelUnavailablePresentation, IUnavailablePermissionLevel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 
@@ -322,6 +323,8 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _getActionItems(): IActionListItem<IPermissionItem>[] {
+		// Only pickers seeded from `chat.defaultConfiguration` start from the organization's default.
+		const organizationDefault = this._delegate.defaultSettingKey === ChatConfiguration.DefaultConfiguration ? getOrganizationDefaultApprovalLevel(this.configurationService) : undefined;
 		const items: IActionListItem<IPermissionItem>[] = this._getOfferedLevels().map(level => {
 			const meta = this._getPermissionLevelMeta(level);
 			const unavailable = this._getUnavailablePresentation(level);
@@ -329,7 +332,7 @@ export class PermissionPicker extends Disposable {
 			const hover = unavailable ? unavailable.hover : this._getPermissionLevelHover(level, meta);
 			return {
 				kind: ActionListItemKind.Action,
-				...getPermissionLevelBadge(level, disabled),
+				...getPermissionLevelBadge(level, disabled, organizationDefault),
 				group: { kind: ActionListItemKind.Header, title: '', icon: meta.icon },
 				item: {
 					level,

@@ -24,6 +24,8 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHos
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
+import { AgentHostWorktreeCleanupCapabilityMetaKey } from './meta/agentHostWorktreeCleanupMeta.js';
+import { SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator, type IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
 import { AgentHostCreateSessionImportCapabilityMetaKey, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport } from './meta/agentHostCreateSessionImportMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
@@ -113,6 +115,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostArtifactIntegrationsCapabilityMetaKey]?: 1;
 	readonly [AgentHostArtifactNoticesCapabilityMetaKey]?: 1;
 	readonly [AgentHostWorktreeDiskUsageCapabilityMetaKey]?: true;
+	readonly [AgentHostWorktreeCleanupCapabilityMetaKey]?: true;
 	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostChatUrisCapabilityMetaKey]?: true;
@@ -254,6 +257,10 @@ export interface IAgentHostAgentExtensionInventoryResult {
 }
 
 export interface IAgentHostExtensionCommandMap {
+	[SessionWorktreeCleanupExtensionMethod]: {
+		params: ValidatorType<typeof sessionWorktreeCleanupParamsValidator>;
+		result: IAgentHostWorktreeCleanupStatus;
+	};
 	[MeasureWorktreeDiskUsageExtensionMethod]: {
 		params: ValidatorType<typeof measureWorktreeDiskUsageParamsValidator>;
 		/** Allocated regular-file bytes on the root volume, excluding files with links outside the measured worktree. */

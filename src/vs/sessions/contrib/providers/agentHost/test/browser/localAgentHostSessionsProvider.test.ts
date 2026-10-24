@@ -9236,6 +9236,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession applies a managed default approval over remembered and configured picks while keeping the configured mode', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.AutoApprove]: 'default',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				if (key === 'chat.defaultConfiguration') {
+					// Managed settings project only the approval default.
+					return { ...base, policyValue: { approvals: 'assisted' } as unknown as T };
+				}
+				return base;
+			}
+		}({ 'chat.defaultConfiguration': { mode: 'plan', approvals: 'manual' } });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config, storageService });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+			mode: 'plan',
+			autoApprove: 'assisted',
+			isolation: 'worktree',
+		});
+	});
+
+	test('createNewSession applies a managed default approval over a remembered host-native approvalMode', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ approvalMode: 'manual' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const base = super.inspect<T>(key);
+				return key === 'chat.defaultConfiguration' ? { ...base, policyValue: { approvals: 'assisted' } as unknown as T } : base;
+			}
+		}();
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'manual', sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+				}
+			},
+			values: { approvalMode: 'manual', availableApprovalModes: ['manual', 'assisted', 'allow-all'] },
+		};
+		agentHost.resolveSessionConfigHandler = request => ({
+			...agentHost.resolveSessionConfigResult,
+			values: { ...agentHost.resolveSessionConfigResult.values, approvalMode: request.config?.approvalMode ?? 'manual' },
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, storageService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session, config => config?.values.approvalMode === 'assisted');
+
+		assert.deepStrictEqual(provider.getCreateSessionConfig(session.sessionId), { approvalMode: 'assisted' });
+	});
+
 	test('getSessionByResource resolves current new session without listing it', () => {
 		const provider = createProvider(disposables, agentHost);
 		const workspaceUri = URI.parse('file:///home/user/my-project');

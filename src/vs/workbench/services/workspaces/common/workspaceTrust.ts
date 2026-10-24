@@ -203,6 +203,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}));
 	}
 
+	private normalizeTrustUri(uri: URI): URI {
+		// Match the drive-letter casing used by serialized remote resource URIs.
+		return uri.scheme === AGENT_HOST_SCHEME || uri.scheme === Schemas.vscodeRemote ? URI.parse(uri.toString()) : uri;
+	}
+
 	private async getCanonicalUri(uri: URI): Promise<URI> {
 		let canonicalUri = uri;
 		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
@@ -214,8 +219,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			}
 		}
 
-		// ignore query and fragent section of uris always
-		return canonicalUri.with({ query: null, fragment: null });
+		// Ignore query and fragment sections of URIs.
+		return this.normalizeTrustUri(canonicalUri).with({ query: null, fragment: null });
 	}
 
 	private async resolveCanonicalUris(): Promise<void> {
@@ -272,7 +277,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			result.uriTrustInfo = [];
 		}
 
-		result.uriTrustInfo = result.uriTrustInfo.map(info => { return { uri: URI.revive(info.uri), trusted: info.trusted }; });
+		result.uriTrustInfo = result.uriTrustInfo.map(info => ({ uri: this.normalizeTrustUri(URI.revive(info.uri)), trusted: info.trusted }));
 		result.uriTrustInfo = result.uriTrustInfo.filter(info => info.trusted);
 
 		return result;

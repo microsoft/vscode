@@ -83,6 +83,7 @@ import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/p
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginGitService } from '../../../../contrib/chat/common/plugins/pluginGitService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IChatAgentData, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
@@ -502,6 +503,7 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
+		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly activeSessionResource = activeSessionResource;
 		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -788,6 +790,25 @@ const fixtureToolSets: readonly IToolSet[] = [
 		],
 	},
 ];
+
+const userReviewToolSet: IToolSet = {
+	id: 'user-review-tools',
+	referenceName: 'review-tools',
+	description: 'Review tools',
+	icon: Codicon.tools,
+	source: { type: 'user', label: 'User', file: URI.file('/home/dev/.vscode/prompts/review.toolsets.jsonc') },
+	getTools: () => [],
+};
+
+const codeReviewParticipant: IChatAgentData = new class extends mock<IChatAgentData>() {
+	override readonly id = 'example.code-review.participant';
+	override readonly name = 'code-review';
+	override readonly extensionId = new ExtensionIdentifier('example.code-review');
+	override readonly extensionDisplayName = 'Code Review Extension';
+	override readonly isCore = false;
+	override readonly isDefault = false;
+	override readonly isDynamic = false;
+}();
 
 const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8 }, (_, index) => {
 	const toolSetNumber = index + 1;
@@ -1201,6 +1222,10 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly openFirstMigrationItem?: boolean;
+	/** Adds a user tool set and an extension chat participant that need manual migration. */
+	readonly migrationGuidance?: boolean;
+	/** Opens the migration item with this label from the dashboard. */
+	readonly openMigrationItemLabel?: string;
 	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning' | 'pluginMarketplaces';
 	readonly migrationActivity?: boolean;
 	readonly pluginMarketplaceMigration?: boolean;
@@ -1268,7 +1293,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...(options.mcpWorkbenchServers ?? [...mcpWorkspaceServers, ...mcpUserServers])];
-	const toolSets = options.toolSets ?? fixtureToolSets;
+	const toolSets = [...options.toolSets ?? fixtureToolSets, ...options.migrationGuidance ? [userReviewToolSet] : []];
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
 			: options.selectedSection === AICustomizationManagementSection.Instructions ? PromptsType.instructions
@@ -1757,12 +1782,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			if (activeDescriptor) {
 				Object.assign(activeDescriptor, { mcpServerMigrationProvider: activeMcpServerMigrationProvider });
 			}
-			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
-				promptsService,
-				harnessService,
-				configurationService,
-				mcpService,
-			));
+			reg.define(ICustomizationMigrationService, CustomizationMigrationService);
+			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() {
+				override readonly onDidChangeAgents = Event.None;
+				override getAgents() { return options.migrationGuidance ? [codeReviewParticipant] : []; }
+			}());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
@@ -2504,6 +2528,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			},
 			'Prompt migration detail warning did not appear',
 		);
+	}
+
+	if (options.openMigrationItemLabel) {
+		const label = options.openMigrationItemLabel;
+		const findRow = () => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-item')]
+			.find(row => row.querySelector('.migration-tree-item-label')?.textContent === label);
+		await waitForFixtureCondition(() => findRow() !== undefined, `Migration item ${label} did not appear`);
+		// Clicking the Review button avoids a virtualized row selection being canceled during teardown.
+		const row = findRow()!;
+		const review = row.querySelector<HTMLElement>('.migration-tree-item-review');
+		(review && review.style.display !== 'none' ? review : row).click();
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.migration-guidance-detail') !== null,
+			`Migration detail did not open for ${label}`,
+		);
+		await DOM.getWindow(ctx.container).document.fonts.ready;
 	}
 
 	if (options.migrationConfirmation === 'promptFiles') {
@@ -4031,6 +4071,63 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			openFirstMigrationItem: true,
 			width: 550,
 			height: 500,
+		}),
+	}),
+
+	MigrationGuidanceDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The migrations dashboard lists Chat Participants (Extensions) and Tool Sets (User) groups below the MCP server migration. Guidance groups show Ignore and Learn More actions, and their read-only rows show the item source and a Review button.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+		}),
+	}),
+
+	MigrationToolSetGuidanceDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The user tool-set migration detail uses the shared detail header with an arrow back button and a linked source file, followed by a migration warning card that explains why the tool set needs replacement and links to guidance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: 'review-tools',
+		}),
+	}),
+
+	MigrationParticipantGuidanceDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The chat-participant migration detail uses the shared detail header with an arrow back button and a linked contributing extension, followed by a migration warning card with publisher-facing guidance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: '@code-review',
+		}),
+	}),
+
+	MigrationToolSetGuidanceDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: 'review-tools',
+			// Omits the extension tool set so the user tool set row is rendered in the short viewport.
+			toolSets: [],
+			width: 550,
+			height: 560,
 		}),
 	}),
 
