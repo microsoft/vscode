@@ -1238,6 +1238,47 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual(serialized?.selectedModel?.modelConfiguration, legacyConfig);
 		assert.strictEqual((serialized as { modelConfiguration?: unknown }).modelConfiguration, undefined);
 	});
+
+	test('round-trips custom agent pin overrides through serialization and drops malformed ones', () => {
+		const create = (agentPinOverrides: unknown) => testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{
+				value: {
+					version: 3,
+					sessionId: 'agent-pin-overrides-session',
+					creationDate: Date.now(),
+					customTitle: undefined,
+					initialLocation: ChatAgentLocation.Chat,
+					responderUsername: 'bot',
+					requests: [],
+					inputState: {
+						attachments: [],
+						contrib: {},
+						inputText: '',
+						selections: [],
+						mode: { id: 'reviewer', kind: undefined },
+						selectedModel: undefined,
+						agentPinOverrides,
+					} as unknown as ISerializableChatModelInputState,
+				} satisfies ISerializableChatData3,
+				serializer: undefined!,
+			},
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		const overrides = { modeId: 'reviewer', model: true, configKeys: ['reasoningEffort'] };
+		const reloaded = create(JSON.parse(JSON.stringify(create(overrides).inputModel.toJSON()?.agentPinOverrides)));
+
+		assert.deepStrictEqual({
+			reloaded: reloaded.inputModel.state.get()?.agentPinOverrides,
+			malformed: create({ model: true }).inputModel.state.get()?.agentPinOverrides,
+			filtered: create({ modeId: 'reviewer', model: 'yes', configKeys: ['reasoningEffort', 1] }).inputModel.state.get()?.agentPinOverrides,
+		}, {
+			reloaded: overrides,
+			malformed: undefined,
+			filtered: { modeId: 'reviewer', configKeys: ['reasoningEffort'] },
+		});
+	});
 });
 
 suite('Response', () => {

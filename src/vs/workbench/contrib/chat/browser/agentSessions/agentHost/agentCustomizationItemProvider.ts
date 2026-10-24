@@ -249,7 +249,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const agents = this.getCustomAgents(sessionResource);
 		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => {
-			const isAsk = readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask';
+			const meta = readAgentCustomizationMeta(agent);
+			const isAsk = meta['vscode.chatMode'] === 'ask';
 			return {
 				id: agent.uri,
 				kind: isAsk ? ChatModeKind.Ask : undefined,
@@ -266,11 +267,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				argumentHint: undefined,
 				handOffs: undefined,
 				hooks: undefined,
-				model: undefined,
+				// Selecting the agent switches the picker to these so the host doesn't override the agent's pins.
+				model: meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined),
+				...(meta['vscode.reasoningEffort'] ? { reasoningEffort: meta['vscode.reasoningEffort'] } : {}),
 				agentInstructions: { content: '', toolReferences: [] },
 				visibility: {
 					agentInvocable: true,
-					userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false
+					userInvocable: meta.userInvocable !== false
 				},
 				target: Target.Undefined
 			} satisfies ICustomAgent;

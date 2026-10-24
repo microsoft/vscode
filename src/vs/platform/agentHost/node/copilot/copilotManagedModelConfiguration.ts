@@ -121,8 +121,11 @@ export function createCopilotModelConfigurationReport(
 				continue;
 			}
 			config[key] = value;
+			const requestedSource = requested && requested.id === currentModelId ? requested.config?.[modelConfigurationSourceKey(key)] : undefined;
 			config[modelConfigurationSourceKey(key)] = options[currentModelId]?.readOnly.includes(key) ? 'managed'
-				: requested?.id === currentModelId && requested.config?.[key] !== undefined && !isModelConfigurationDefault(requested.config, key) ? 'explicit' : 'default';
+				// A client's transient overlay (e.g. a custom agent's reasoning effort) keeps its provenance so the client never adopts it as a preference.
+				: requestedSource === 'agent' && requested?.config?.[key] === value ? 'agent'
+					: requested?.id === currentModelId && requested.config?.[key] !== undefined && !isModelConfigurationDefault(requested.config, key) ? 'explicit' : 'default';
 		}
 	}
 	return { models: options, ...(currentModelId ? { current: { id: currentModelId, config } } : {}) };

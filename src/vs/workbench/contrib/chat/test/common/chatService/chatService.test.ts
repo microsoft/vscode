@@ -2984,6 +2984,49 @@ suite('ChatService', () => {
 			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, selectedMode);
 		});
 
+		test('carries agent pin overrides with the advertised mode to the materialized session, and clears them on late sends', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-pin-overrides' });
+			// A remote agent's advertised id differs from the wrapped instruction URI the widget submits.
+			const advertisedMode = { id: 'agent://reviewer', kind: ChatModeKind.Agent };
+			const overrides = { modeId: advertisedMode.id, configKeys: ['reasoningEffort'] };
+			const modeInfo = {
+				kind: ChatModeKind.Agent,
+				isBuiltin: false,
+				modeId: advertisedMode.id,
+				modeInstructions: { uri: URI.parse('vscode-remote://wsl%2Bubuntu/home/user/.github/agents/reviewer.agent.md'), name: 'Reviewer', content: '', toolReferences: [] },
+				telemetryModeId: 'custom' as const,
+				applyCodeBlockSuggestionId: undefined,
+			};
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+			testDisposables.add(untitledRef);
+			const realState = () => (service.getSession(realResource) as ChatModel).inputModel.state.get();
+			// The user explicitly chose an effort over the agent's pin before the first send.
+			untitledRef.object.inputModel.setState({ mode: advertisedMode, agentPinOverrides: overrides });
+
+			const first = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo });
+			ChatSendResult.assertSent(first);
+			await first.data.responseCompletePromise;
+			const materialized = { mode: realState()?.mode, agentPinOverrides: realState()?.agentPinOverrides };
+
+			// The user re-armed the pin (switched agents and back) before a late send through the stale untitled URI.
+			untitledRef.object.inputModel.setState({ agentPinOverrides: undefined });
+			const direct = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme, modeInfo });
+			ChatSendResult.assertSent(direct);
+			await direct.data.responseCompletePromise;
+			const afterDirect = realState()?.agentPinOverrides;
+
+			(service.getSession(realResource) as ChatModel).inputModel.setState({ agentPinOverrides: overrides });
+			await service.sendRequest(untitledResource, 'third', { agentId: remoteScheme, modeInfo, queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+
+			assert.deepStrictEqual({ materialized, afterDirect, afterQueued: realState()?.agentPinOverrides }, {
+				materialized: { mode: advertisedMode, agentPinOverrides: overrides },
+				afterDirect: undefined,
+				afterQueued: undefined,
+			});
+		});
 		test('carries the untitled mode when the materialized request is queued', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-queued-mode' });
 			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
@@ -6510,6 +6553,53 @@ suite('ChatService', () => {
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
 		});
 
+		test('custom agent pin overrides survive reloading a remote session from a transferred draft', async () => {
+			const { resource, provided } = setupRemoteProvider({ history: [] });
+			const testService = createChatService();
+			const overrides = { modeId: 'custom-agent-uri', model: true, configKeys: ['reasoningEffort'] };
+
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({ inputText: 'unsent draft', mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, agentPinOverrides: overrides });
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			// The agent host transfers its draft, which carries the mode and model but not the overrides.
+			provided.transferredState = {
+				editingSession: undefined,
+				inputState: { attachments: [], mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, selectedModel: undefined, inputText: 'from host', selections: [], contrib: {} },
+			};
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+
+			assert.deepStrictEqual({ inputText: restored?.inputText, agentPinOverrides: restored?.agentPinOverrides }, { inputText: 'from host', agentPinOverrides: overrides });
+		});
+
+		test('a transferred draft that synced no pin overrides keeps them cleared on reload', async () => {
+			const { resource, provided } = setupRemoteProvider({ history: [] });
+			const testService = createChatService();
+
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({ inputText: 'unsent draft', mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, agentPinOverrides: { modeId: 'custom-agent-uri', configKeys: ['reasoningEffort'] } });
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			// While this client was closed, a peer re-armed the agent's pins: its draft explicitly syncs that there are none.
+			provided.transferredState = {
+				editingSession: undefined,
+				inputState: { attachments: [], mode: { id: 'custom-agent-uri', kind: ChatModeKind.Agent }, selectedModel: undefined, inputText: 'from host', selections: [], contrib: {}, agentPinOverrides: null },
+			};
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+
+			assert.deepStrictEqual({ inputText: restored?.inputText, agentPinOverrides: restored?.agentPinOverrides }, { inputText: 'from host', agentPinOverrides: undefined });
+		});
+
 		test('restored draft uses the session history model, not the persisted (stale) one', async () => {
 			const historyModelId = 'history-model';
 			const historyMetadata: ILanguageModelChatMetadata = {
@@ -6927,6 +7017,25 @@ suite('backfillRestoredPickerState', () => {
 	test('returns the chosen state unchanged when there is no stored state', () => {
 		const chosen = state(AGENT, undefined);
 		assert.strictEqual(backfillRestoredPickerState(chosen, undefined, AGENT), chosen);
+	});
+
+	test('recovers saved custom agent pin overrides only for the restored agent, never replacing the transferred ones', () => {
+		const saved = { ...state('custom-uri', model('agent-host-claude:haiku')), agentPinOverrides: { modeId: 'custom-uri', model: true, configKeys: ['reasoningEffort'] } };
+		const transferredOverrides = { modeId: 'custom-uri', configKeys: ['thinkingLevel'] };
+		const transferred = backfillRestoredPickerState(state(AGENT, model('agent-host-claude:opus')), saved, AGENT);
+		assert.deepStrictEqual({
+			recovered: transferred?.agentPinOverrides,
+			keptModel: transferred?.selectedModel?.identifier,
+			otherAgent: backfillRestoredPickerState(state('other-uri', undefined), saved, AGENT)?.agentPinOverrides,
+			newer: backfillRestoredPickerState({ ...state('custom-uri', undefined), agentPinOverrides: transferredOverrides }, saved, AGENT)?.agentPinOverrides,
+			syncedNone: backfillRestoredPickerState({ ...state('custom-uri', undefined), agentPinOverrides: null }, saved, AGENT)?.agentPinOverrides,
+		}, {
+			recovered: saved.agentPinOverrides,
+			keptModel: 'agent-host-claude:opus',
+			otherAgent: undefined,
+			newer: transferredOverrides,
+			syncedNone: null,
+		});
 	});
 });
 

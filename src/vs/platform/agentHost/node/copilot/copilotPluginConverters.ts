@@ -110,6 +110,23 @@ function isCustomAgentReasoningEffort(value: string | undefined): value is Custo
 	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
+/** Reads the `model` preferences (in order) and `reasoning-effort` pinned by an agent file's frontmatter. */
+export function parseAgentFileModelPins(raw: string): { readonly models?: readonly string[]; readonly reasoningEffort?: string } {
+	const md = parseFrontMatter(raw);
+	if (!md) {
+		return {};
+	}
+	const scalarModel = md.getStringValue('model')?.trim();
+	const models = (scalarModel ? [scalarModel] : md.getStringArrayValue('model') ?? [])
+		.map(model => model.trim())
+		.filter(model => model.length > 0);
+	const reasoningEffort = md.getStringValue('reasoning-effort')?.trim();
+	return {
+		...(models.length > 0 ? { models } : {}),
+		...(reasoningEffort ? { reasoningEffort } : {}),
+	};
+}
+
 function yamlNodeToValue(node: YamlNode): unknown {
 	if (node.type === 'scalar') {
 		if (node.format !== 'none') {
