@@ -2255,7 +2255,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
-	readonly onDidChange = this._onDidChange.event;
+	private readonly _onDidChangeLayoutInsets = this._register(new Emitter<undefined>());
+	/** Fires `undefined` when the size constraints change: those of the editor pane, or the layout insets. */
+	readonly onDidChange = Event.any<{ width: number; height: number } | undefined>(this._onDidChange.event, this._onDidChangeLayoutInsets.event);
 
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
@@ -2324,6 +2326,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.style.height = '';
 		}
 
+		// The insets are part of the minimum and maximum sizes, which the grid reads when told they changed
+		this._onDidChangeLayoutInsets.fire(undefined);
 		this.relayout();
 	}
 
