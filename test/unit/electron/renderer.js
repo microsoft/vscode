@@ -361,7 +361,10 @@ function serializeRunnable(runnable) {
 		// the test file (module path) for the main process to rerun. Root-level hooks
 		// have none on purpose: their failure stops the whole run, so rerunning a single
 		// file would not cover the tests that never ran
-		file: runnable.file
+		file: runnable.file,
+		// a failed test is rerun by itself, a failed hook with the rest of its suite
+		type: runnable.type,
+		parentTitle: runnable.parent?.fullTitle()
 	};
 }
 

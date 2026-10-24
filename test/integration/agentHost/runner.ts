@@ -382,7 +382,9 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 }
 
 function extractFailureDetails(output: string): string | undefined {
-	const lines = output.split(/\r?\n/);
+	// The suite's output is printed in full before the details, so CI commands in it, such as
+	// annotations, must not repeat.
+	const lines = output.split(/\r?\n/).filter(line => !/^(::[a-z-]+[ :]|##(vso)?\[)/.test(line.replace(/\x1b\[[0-9;]*m/g, '')));
 	for (let index = lines.length - 1; index >= 0; index--) {
 		const line = lines[index].replace(/\x1b\[[0-9;]*m/g, '').trim();
 		if (/^\d+ failing$/.test(line)) {
@@ -390,7 +392,7 @@ function extractFailureDetails(output: string): string | undefined {
 		}
 	}
 
-	const trimmed = output.trim();
+	const trimmed = lines.join('\n').trim();
 	return trimmed.length > 0 ? `${trimmed}\n` : undefined;
 }
 
