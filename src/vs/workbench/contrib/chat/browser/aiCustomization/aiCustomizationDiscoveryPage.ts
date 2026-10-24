@@ -465,6 +465,7 @@ function getInstallationStateLabel(state: CustomizationMarketplaceInstallState, 
 		case 'repairing': return localize('customizationDiscovery.repairing', "Repairing");
 		case 'uninstalling': return localize('customizationDiscovery.uninstallingState', "Uninstalling");
 		case 'error': return localize('customizationDiscovery.verificationFailed', "Could not verify installation");
+		case 'installed': return state.uninstallUnavailableMessage ?? localize('customizationDiscovery.installed', "Installed");
 		default: return localize('customizationDiscovery.installed', "Installed");
 	}
 }
@@ -543,6 +544,7 @@ function renderRecordedCustomizationActions(
 	}
 
 	const cancellable = isCancellableConnectorOperation(resource, state);
+	const uninstallUnavailableMessage = state.kind === 'installed' ? state.uninstallUnavailableMessage : undefined;
 	const button = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
 	button.label = cancellable
 		? localize('customizationDiscovery.connectorCancel', "Cancel")
@@ -552,21 +554,23 @@ function renderRecordedCustomizationActions(
 				? localize('customizationDiscovery.checkingProgress', "Checking...")
 				: state.kind === 'uninstalling'
 					? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-					: operationError && state.kind === 'installed'
+					: operationError && state.kind === 'installed' && !uninstallUnavailableMessage
 						? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
 						: connector
 							? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
 							: localize('customizationDiscovery.uninstall', "Uninstall");
-	button.enabled = cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error';
-	button.setAriaLabel(cancellable
-		? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", name)
-		: connector
-			? localize('customizationDiscovery.disconnectConnectorLabel', "Disconnect {0}", name)
-			: localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, name));
+	button.enabled = !uninstallUnavailableMessage && (cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error');
+	button.setAriaLabel(uninstallUnavailableMessage
+		? localize('customizationDiscovery.uninstallUnavailableLabel', "Uninstall {0}. {1}", name, uninstallUnavailableMessage)
+		: cancellable
+			? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", name)
+			: connector
+				? localize('customizationDiscovery.disconnectConnectorLabel', "Disconnect {0}", name)
+				: localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, name));
 	button.element.setAttribute('aria-busy', String(!cancellable && (state.kind === 'uninstalling' || state.kind === 'repairing' || state.kind === 'checking')));
 	disposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
 	disposables.add(button.onDidClick(cancellable ? onCancel : onUninstall));
-	const uninstallError = state.kind === 'error' ? state.message : state.kind === 'installed' ? operationError : undefined;
+	const uninstallError = uninstallUnavailableMessage ?? (state.kind === 'error' ? state.message : state.kind === 'installed' ? operationError : undefined);
 	if (uninstallError) {
 		disposables.add(hoverService.setupDelayedHover(button.element, { content: uninstallError }));
 	}
@@ -697,7 +701,9 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const resource = installed ? element.catalogResource : element.resource;
 		const marketplaceState = installed && element.catalogResource ? this.getInstallState(element.catalogResource) : undefined;
 		const opensInstalled = installed && (!marketplaceState || marketplaceState.kind === 'installed');
-		const installationDetail = marketplaceState && marketplaceState.kind !== 'installed' ? getInstallationStateLabel(marketplaceState, isCopilotConnectorResource(resource)) : undefined;
+		const installationDetail = marketplaceState?.kind === 'installed'
+			? marketplaceState.uninstallUnavailableMessage
+			: marketplaceState ? getInstallationStateLabel(marketplaceState, isCopilotConnectorResource(resource)) : undefined;
 		const detail = [
 			type ? getTypeLabel(type) : !installed ? element.resource.mediaType : undefined,
 			installed ? element.sourceLabel : this.getSourceLabel(element.resource),

@@ -743,7 +743,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall' | 'list'> & {
+		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall' | 'list' | 'enable' | 'disable'> & {
 			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
 		};
 		readonly extensions: {
@@ -892,6 +892,20 @@ class TestCopilotClient implements ITestCopilotClient {
 		},
 		plugins: {
 			list: async () => ({ plugins: this.pluginInstallations }),
+			enable: async ({ names }) => {
+				for (const plugin of this.pluginInstallations) {
+					if (names.includes(plugin.directSourceId ?? `${plugin.name}@${plugin.marketplace}`)) {
+						plugin.enabled = true;
+					}
+				}
+			},
+			disable: async ({ names }) => {
+				for (const plugin of this.pluginInstallations) {
+					if (names.includes(plugin.directSourceId ?? `${plugin.name}@${plugin.marketplace}`)) {
+						plugin.enabled = false;
+					}
+				}
+			},
 			install: async params => {
 				this.pluginInstallRequests.push(params);
 				return {} as Awaited<ReturnType<CopilotPluginsInstall>>;
@@ -2095,6 +2109,100 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('toggles direct installations by source identity without changing same-name installations', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [
+			{ name: 'canvas', marketplace: '', directSourceId: 'source-id', enabled: false },
+			{ name: 'canvas', marketplace: 'awesome-copilot', enabled: false },
+		];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'plugin-enablement');
+		const reloads: string[] = [];
+		setPeerChatStub(agent, URI.parse(buildChatUri(session, 'peer')), {
+			reloadPlugins: async (reason: string) => { reloads.push(reason); },
+		}, 'sdk-plugin-peer');
+		try {
+			await agent.setPluginEnabled('source-id', true);
+			const enabled = client.pluginInstallations.map(plugin => plugin.enabled);
+			await agent.setPluginEnabled('source-id', false);
+			assert.deepStrictEqual({ enabled, disabled: client.pluginInstallations.map(plugin => plugin.enabled), reloads }, {
+				enabled: [true, false],
+				disabled: [false, false],
+				reloads: ['enablement', 'enablement'],
+			});
+
+			await assert.rejects(agent.setPluginEnabled('canvas', true), /not installed/);
+			const refuse = stub(client.rpc.plugins, 'enable').resolves();
+			try {
+				await assert.rejects(agent.setPluginEnabled('source-id', true), /did not change enablement/);
+			} finally {
+				refuse.restore();
+			}
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('reloads live chats after uninstalling a plugin from the root inventory', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'plugin-removal');
+		const reloads: string[] = [];
+		for (const peer of ['first', 'second']) {
+			setPeerChatStub(agent, URI.parse(buildChatUri(session, peer)), {
+				reloadPlugins: async (reason: string) => { reloads.push(`${peer}:${reason}`); },
+			}, `sdk-${peer}`);
+		}
+		try {
+			await agent.uninstallPlugin({ name: 'token-pacman', marketplace: '', directSourceId: 'opaque-source' });
+			assert.deepStrictEqual({ requests: client.pluginUninstallRequests, reloads: reloads.sort() }, {
+				requests: [{ name: 'token-pacman', directSourceId: 'opaque-source' }],
+				reloads: ['first:uninstall', 'second:uninstall'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('waits for peer reloads when the selected chat reload fails after plugin removal', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'plugin-removal-failure');
+		const selected = URI.parse(buildChatUri(session, 'selected'));
+		const peerReloadStarted = new DeferredPromise<void>();
+		const finishPeerReload = new DeferredPromise<void>();
+		const calls: string[] = [];
+		setPeerChatStub(agent, selected, {
+			uninstallPlugin: async () => { calls.push('uninstall'); },
+			reloadPlugins: async () => { calls.push('selected reload'); throw new Error('selected reload failed'); },
+		});
+		setPeerChatStub(agent, URI.parse(buildChatUri(session, 'peer')), {
+			reloadPlugins: async () => {
+				calls.push('peer reload');
+				await peerReloadStarted.complete();
+				await finishPeerReload.p;
+				calls.push('peer reloaded');
+			},
+		});
+		try {
+			let completed = false;
+			const removal = agent.uninstallPlugin({ name: 'canvas', marketplace: '', directSourceId: 'source' }, session, selected);
+			const result = assert.rejects(removal, /selected reload failed/).then(() => { completed = true; });
+			await peerReloadStarted.p;
+			await timeout(0);
+			const completedBeforePeerReload = completed;
+			await finishPeerReload.complete();
+			await result;
+			assert.deepStrictEqual({ completedBeforePeerReload, calls }, {
+				completedBeforePeerReload: false,
+				calls: ['uninstall', 'selected reload', 'peer reload', 'peer reloaded'],
+			});
+		} finally {
+			await finishPeerReload.complete();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('discovers extensions, persists preferences, and reconciles the selected live chat', async () => {
 		const client = new TestCopilotClient([]);
 		client.extensionInventory = {
@@ -2534,6 +2642,7 @@ suite('CopilotAgent', () => {
 			ownerSessionUri: session,
 			installPlugin: async (source: string) => { calls.push(['install', source]); },
 			uninstallPlugin: async (name: string, directSourceId?: string) => { calls.push(['uninstall', name, directSourceId]); },
+			reloadPlugins: async (reason: string) => { calls.push(['reload', reason]); },
 			listPluginMarketplaces: async () => [{
 				name: 'marketplace',
 				source: 'GitHub: owner/repository',
@@ -2606,6 +2715,7 @@ suite('CopilotAgent', () => {
 				calls: [
 					['install', 'plugin@marketplace'],
 					['uninstall', 'plugin@marketplace', undefined],
+					['reload', 'uninstall'],
 					['add', 'owner/repository'],
 					['browse', 'marketplace'],
 					['remove', 'marketplace', true],

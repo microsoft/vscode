@@ -13,7 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export type CustomizationMarketplaceInstallState =
 	| { readonly kind: 'available' | 'installing' }
-	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget }
+	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget; readonly uninstallUnavailableMessage?: string }
 	| { readonly kind: 'missing'; readonly target: CustomizationMarketplaceInstallationTarget; readonly repairUnavailableMessage?: string }
 	| { readonly kind: 'error'; readonly target: CustomizationMarketplaceInstallationTarget; readonly message: string }
 	| { readonly kind: 'unavailable'; readonly message: string; readonly setupUrl?: URI };
