@@ -7,9 +7,10 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
+import { agentsPanelBackground } from '../../../../common/theme.js';
 import { ChatWindowCards, ChatWindowCardsPart, CHAT_WINDOW_CARD_CLASS, } from '../../browser/chatWindowCards.js';
 
 class FakePart implements ChatWindowCardsPart {
@@ -56,8 +57,9 @@ suite('Chat window cards', () => {
 		const part = new FakePart();
 		store.add({ dispose: () => part.dispose() });
 		const first = part.addGroup(1);
-		const cards = store.add(new ChatWindowCards(part, root, new TestThemeService()));
-		return { root, part, first, cards };
+		const themeService = new TestThemeService();
+		const cards = store.add(new ChatWindowCards(part, root, themeService));
+		return { root, part, first, cards, themeService };
 	}
 
 	// A class change on the root is delivered as a microtask, queued before this one.
@@ -94,5 +96,21 @@ suite('Chat window cards', () => {
 		await settle();
 		part.removeGroup(1);
 		assert.deepStrictEqual({ gaps: part.gaps, card: first.classList.contains(CHAT_WINDOW_CARD_CLASS) }, { gaps: [AGENTS_FLOATING_PANEL_GAP], card: false });
+	});
+
+	test('a theme change re-applies the card styles', () => {
+		const { first, themeService } = create(false);
+		themeService.setTheme(new TestColorTheme({ [agentsPanelBackground]: '#112233' }));
+		assert.strictEqual(first.style.getPropertyValue('--part-background'), '#112233');
+	});
+
+	test('disposing makes the groups flush again and removes the card and its styles', () => {
+		const { part, first, cards } = create(false);
+		cards.dispose();
+		assert.deepStrictEqual({
+			gaps: part.gaps,
+			card: first.classList.contains(CHAT_WINDOW_CARD_CLASS) || first.classList.contains('agents-part-card'),
+			background: first.style.getPropertyValue('--part-background'),
+		}, { gaps: [AGENTS_FLOATING_PANEL_GAP, 0], card: false, background: '' });
 	});
 });

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorGroupView } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroup, IEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { AGENTS_PART_CARD_CLASS, applyAgentsPartCardStyles } from '../../../browser/parts/agentsPartCard.js';
+import { AGENTS_PART_CARD_CLASS, applyAgentsPartCardStyles, clearAgentsPartCardStyles } from '../../../browser/parts/agentsPartCard.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../common/layoutConstants.js';
 
 /** Marks a group of a standalone chat window that is a card: the gaps are in the layout, so it has no margin of its own. */
@@ -46,9 +46,11 @@ export class ChatWindowCards extends Disposable {
 
 		const observer = new (getWindow(_root).MutationObserver)(() => this._update());
 		observer.observe(_root, { attributes: true, attributeFilter: ['class'] });
-		this._register({ dispose: () => observer.disconnect() });
+		this._register(toDisposable(() => observer.disconnect()));
 
 		_part.setGroupGap(this._enabled ? AGENTS_FLOATING_PANEL_GAP : 0);
+		// Last, so that the groups are flush again, and no longer cards, once this is disposed.
+		this._register(toDisposable(() => _part.setGroupGap(0)));
 	}
 
 	/** Whether the groups are cards: not while Layout Density is compact. */
@@ -72,9 +74,11 @@ export class ChatWindowCards extends Disposable {
 		const element = (group as IEditorGroupView).element;
 		element.classList.add(AGENTS_PART_CARD_CLASS, CHAT_WINDOW_CARD_CLASS);
 		applyAgentsPartCardStyles(element, this._themeService.getColorTheme());
-		this._cards.set(group.id, {
-			dispose: () => element.classList.remove(AGENTS_PART_CARD_CLASS, CHAT_WINDOW_CARD_CLASS)
-		});
+		this._cards.set(group.id, toDisposable(() => {
+			element.classList.remove(AGENTS_PART_CARD_CLASS, CHAT_WINDOW_CARD_CLASS);
+			clearAgentsPartCardStyles(element);
+			element.style.removeProperty('--part-foreground');
+		}));
 	}
 
 	private _applyTheme(): void {
