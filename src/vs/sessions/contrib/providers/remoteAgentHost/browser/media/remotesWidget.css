@@ -147,6 +147,12 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
+.remotes-widget .remotes-group-progress {
+	display: flex;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
 .remotes-widget .remotes-gutter-column,
 .remotes-widget .remotes-actions-column {
 	padding-inline: var(--vscode-spacing-size40);
@@ -168,6 +174,15 @@
 	pointer-events: auto;
 }
 
+.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name {
+	opacity: 0.55;
+}
+
+.hc-black .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name,
+.hc-light .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name {
+	opacity: 1;
+}
+
 .remotes-widget .remotes-cell-action-hidden .monaco-toolbar {
 	visibility: hidden;
 }
@@ -179,6 +194,7 @@
 }
 
 .remotes-widget .remotes-group-count[hidden],
+.remotes-widget .remotes-group-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
 .remotes-widget .remotes-empty-description[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {

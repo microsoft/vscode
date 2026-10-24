@@ -57,6 +57,7 @@ import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getDefaultSessionCreationEnvironment, ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -3143,6 +3144,47 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(results, [true, false, false, false, false, false]);
 	});
 
+	for (const quickChat of [false, true]) {
+		test(`hiding a selected remote preserves submission but offline and disconnected hosts remain blocked (quick chat: ${quickChat})`, () => {
+			const folder = URI.parse('vscode-agent-host://remote/project');
+			const workspace = upcastPartial<ISessionWorkspace>({
+				folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }],
+			});
+			const visible = observableValue('visible', true);
+			const available = observableValue('available', true);
+			const connection = observableValue<RemoteAgentHostConnectionStatus>('connection', RemoteAgentHostConnectionStatus.connected);
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-selected', isAvailableInEnvironmentPicker: available,
+				isVisibleInEnvironmentPicker: visible, connectionStatus: connection, resolveWorkspace: () => workspace,
+			});
+			const session = upcastPartial<ISession>({
+				providerId: provider.id, workspace: constObservable(quickChat ? undefined : workspace), isQuickChat: constObservable(quickChat),
+			});
+			const environment: ISessionCreationEnvironment = {
+				id: provider.id, kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: [provider.id],
+			};
+			const canSend = derived(reader => canSendRequestToWorkspace.call({
+				_workspacePicker: {
+					selectedFolderUri: quickChat ? undefined : folder, matchesSelectedWorkspace: () => true,
+					getDevContainerWorkspaceAvailability: () => true,
+				},
+				sessionsProvidersService: { getProviders: () => [provider] },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			}, session, environment, reader));
+			const states: boolean[] = [];
+			disposables.add(autorun(reader => states.push(canSend.read(reader))));
+			visible.set(false, undefined);
+			const hiddenCanSend = canSend.get();
+			available.set(false, undefined);
+			available.set(true, undefined);
+			connection.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			connection.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			assert.deepStrictEqual({ hiddenCanSend, states, remainsHidden: !visible.get() }, {
+				hiddenCanSend: true, states: [true, false, true, false, true], remainsHidden: true,
+			});
+		});
+	}
+
 	test('workspace-less submission requires an available quick-chat target, including in Cloud', () => {
 		const session = upcastPartial<ISession>({
 			providerId: 'default-copilot', sessionType: 'cloud',
@@ -3163,7 +3205,7 @@ suite('NewChatWidget', () => {
 						matchesSelectedWorkspace: () => assert.fail('A quick chat has no repository to resolve'),
 						getDevContainerWorkspaceAvailability: () => true,
 					},
-					sessionsProvidersService: { getProviders: () => [] },
+					sessionsProvidersService: { getProviders: () => [upcastPartial<ISessionsProvider>({ id: session.providerId })] },
 					sessionsManagementService: {
 						isQuickChatTargetAvailable: options => supportsQuickChats
 							&& options?.providerId === session.providerId && options.sessionTypeId === session.sessionType,

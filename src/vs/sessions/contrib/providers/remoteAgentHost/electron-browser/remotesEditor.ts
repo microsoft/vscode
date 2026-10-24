@@ -25,6 +25,7 @@ import { IEditorGroup } from '../../../../../workbench/services/editor/common/ed
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesModel } from '../browser/remotesModel.js';
 import { RemotesWidget } from '../browser/remotesWidget.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/constants.js';
 
 export const RemotesEditorFocusedContext = new RawContextKey<boolean>('remotesEditorFocused', false);
 
@@ -50,7 +51,7 @@ export class RemotesEditor extends EditorPane {
 	) {
 		super(RemotesEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures')) {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
 				this.updateWidget();
 			}
 		}));
@@ -91,8 +92,12 @@ export class RemotesEditor extends EditorPane {
 		if (!this.content || !this.disabledMessage || !this.widgetInstantiationService || !this.input) {
 			return;
 		}
-		const enabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+		const managementEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+		const enabled = managementEnabled && this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures');
+		this.disabledMessage.textContent = managementEnabled
+			? localize('remotes.editorDisabled', "Remote agent hosts are disabled.")
+			: localize('remotes.managementDisabled', "Remote Environments management is disabled.");
 		this.disabledMessage.hidden = enabled;
 		this.content.hidden = !enabled;
 		if (!enabled) {
