@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { chatWindowForcedByWindow, clampChatWindowOnResize, shouldRestoreChatWindowConversation, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
+import { chatWindowConversationFits, chatWindowForcedByWindow, clampChatWindowOnResize, shouldRestoreChatWindowConversation, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
 
 suite('decideChatWindowInputOnly', () => {
 
@@ -88,6 +88,13 @@ suite('chat window forced to its input by the window', () => {
 		assert.deepStrictEqual(
 			[70, 150, 189, 190, 400].map(editorHeight => shouldRestoreChatWindowConversation({ ...restore, forcedByWindow: true, editorHeight })),
 			[false, false, false, true, true]
+		);
+	});
+
+	test('the conversation does not fit when the editor is at its minimum', () => {
+		assert.deepStrictEqual(
+			[{ groupHeight: 100, editorHeight: 70 }, { groupHeight: 100, editorHeight: 200 }, { groupHeight: 250, editorHeight: 70 }].map(c => chatWindowConversationFits({ ...restore, ...c })),
+			[false, true, true]
 		);
 	});
 

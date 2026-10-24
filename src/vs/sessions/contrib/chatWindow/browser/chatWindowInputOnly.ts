@@ -94,8 +94,17 @@ export interface IChatWindowRestoreContext {
 	readonly conversationMinHeight: number;
 	/** The height of the editor's group now. */
 	readonly editorHeight: number;
-	/** The height of the editor's group when the window was too short: where it gave way to its minimum. */
+	/** The least height of the editor's group. */
 	readonly editorMinimumHeight: number;
+}
+
+/**
+ * Whether the conversation fits above the chat's input once the editor gives way down to its minimum. The terminal row
+ * keeps its height, so the chat and the editor share what the window has beside it.
+ */
+export function chatWindowConversationFits(context: Pick<IChatWindowRestoreContext, 'groupHeight' | 'collapsedHeight' | 'conversationMinHeight' | 'editorHeight' | 'editorMinimumHeight'>): boolean {
+	const needed = context.collapsedHeight + context.conversationMinHeight - context.groupHeight;
+	return context.editorHeight - context.editorMinimumHeight >= needed;
 }
 
 /**
@@ -104,9 +113,5 @@ export interface IChatWindowRestoreContext {
  * down to its input stays so however the window grows.
  */
 export function shouldRestoreChatWindowConversation(context: IChatWindowRestoreContext): boolean {
-	if (!context.forcedByWindow) {
-		return false;
-	}
-	const needed = context.collapsedHeight + context.conversationMinHeight - context.groupHeight;
-	return context.editorHeight - context.editorMinimumHeight >= needed;
+	return context.forcedByWindow && chatWindowConversationFits(context);
 }

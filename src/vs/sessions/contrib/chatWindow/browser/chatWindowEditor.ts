@@ -19,6 +19,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../../workbench/browser/parts/editor/editor.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { EditorInputCapabilities, IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
@@ -29,7 +30,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { chatWindowForcedByWindow, clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly, shouldRestoreChatWindowConversation } from './chatWindowInputOnly.js';
+import { chatWindowConversationFits, chatWindowForcedByWindow, clampChatWindowOnResize, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly, shouldRestoreChatWindowConversation } from './chatWindowInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
 import './media/chatWindowEditor.css';
 
@@ -138,8 +139,6 @@ export class ChatWindowChatEditor extends EditorPane {
 	private _settleByUser = false;
 	/** Set while the chat shows only its input because the window is too short, see {@link chatWindowForcedByWindow}. */
 	private _forcedByWindow = false;
-	/** The height of the editor's group when it was forced, where the editor gave way to its minimum. */
-	private _forcedEditorHeight = 0;
 
 	private readonly _onDidChangeSizeConstraints = this._register(new Emitter<undefined>());
 	override readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
@@ -588,7 +587,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			collapsedHeight: this._inputOnlyHeight.get() + this._chrome + this._insets,
 			conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT,
 			editorHeight: part.getSize(editor).height,
-			editorMinimumHeight: this._forcedEditorHeight,
+			editorMinimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 		});
 		if (restore) {
 			this._forcedByWindow = false;
@@ -614,9 +613,16 @@ export class ChatWindowChatEditor extends EditorPane {
 		if (height === undefined) {
 			return;
 		}
+		const editor = part.groups.find(group => group !== this.group && group !== this._state?.terminalGroup.get());
 		this._sizing = true;
 		try {
-			part.setSize(this.group, { width, height });
+			if (editor && !chatWindowConversationFits({ groupHeight, collapsedHeight, conversationMinHeight: CHAT_WINDOW_CONVERSATION_MIN_HEIGHT, editorHeight: part.getSize(editor).height, editorMinimumHeight: DEFAULT_EDITOR_MIN_DIMENSIONS.height })) {
+				// The editor gives way first; the terminal row keeps its height, so the chat shows only its input.
+				this._forcedByWindow = true;
+				view.setInputOnly(true);
+			} else {
+				part.setSize(this.group, { width, height });
+			}
 		} finally {
 			this._sizing = false;
 		}
@@ -644,10 +650,6 @@ export class ChatWindowChatEditor extends EditorPane {
 		}
 		const wasInputOnly = view.inputOnly.get();
 		this._forcedByWindow = chatWindowForcedByWindow({ wasForced: this._forcedByWindow, wasInputOnly, inputOnly, byUser });
-		if (this._forcedByWindow && !wasInputOnly) {
-			const editor = part.groups.find(group => group !== this.group && group !== this._state?.terminalGroup.get());
-			this._forcedEditorHeight = editor ? part.getSize(editor).height : 0;
-		}
 		this._sizing = true;
 		try {
 			if (inputOnly !== wasInputOnly) {
