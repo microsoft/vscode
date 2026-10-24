@@ -169,7 +169,7 @@ export function isChatWindowTerminalKeysWindow(windows: readonly { readonly dock
 	return windows.some(window => !window.docked && window.hasEditorArea && window.windowId === focusedWindowId);
 }
 
-export const ChatWindowTerminalKeysContext = new RawContextKey<boolean>('sessions.chatWindowTerminalKeys', false, localize('chatWindowTerminalKeys', "Whether the focused window is a chat window of its own with an editor area, where the keys of the panel toggle its terminal."));
+export const ChatWindowTerminalKeysContext = new RawContextKey<boolean>('sessions.chatWindowTerminalKeys', false, localize('chatWindowTerminalKeys', "Whether the focused window is a chat window of its own with an editor area, where the keys of the panel toggle its terminal and the key of the side panel its editor area."));
 
 class ChatWindowTerminalKeysContribution extends Disposable {
 
@@ -199,6 +199,38 @@ class ChatWindowTerminalKeysContribution extends Disposable {
 }
 
 registerWorkbenchContribution2(ChatWindowTerminalKeysContribution.ID, ChatWindowTerminalKeysContribution, WorkbenchPhase.AfterRestored);
+
+export const CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID = 'sessions.chatWindow.toggleEditor';
+
+// The key of the side panel, which toggles the editor area of the main window, toggles the editor area of the chat window.
+registerAction2(class ToggleChatWindowEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID,
+			title: localize2('chatWindowToggleEditor', "Toggle Editor in Chat Window"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.or(ChatWindowHasEditorAreaContext, ChatWindowTerminalKeysContext),
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB,
+				weight: KeybindingWeight.SessionsContrib + 10,
+				when: ChatWindowTerminalKeysContext,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const window = accessor.get(IChatWindowService).getActiveWindow();
+		if (window?.editorGroup) {
+			// Hiding the editor leaves the chat, so the window is never empty; showing it brings back the layout it had.
+			if (window.layout.get() === ChatWindowLayout.ChatOnly) {
+				window.showEditor();
+			} else {
+				window.setLayout(ChatWindowLayout.ChatOnly);
+			}
+		}
+	}
+});
 
 // The terminal: shown in the row across the bottom of the window, as the panel of the main window shows it.
 registerAction2(class ToggleChatWindowTerminalAction extends Action2 {

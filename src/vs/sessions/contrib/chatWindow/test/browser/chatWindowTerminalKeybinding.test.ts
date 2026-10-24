@@ -7,10 +7,10 @@ import assert from 'assert';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { isChatWindowTerminalKeysWindow } from '../../browser/chatWindowActivityBar.js';
+import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowTerminalKeysContext, isChatWindowTerminalKeysWindow } from '../../browser/chatWindowActivityBar.js';
 
 suite('Chat window terminal keybinding', () => {
 
@@ -42,6 +42,15 @@ suite('Chat window terminal keybinding', () => {
 	});
 
 	test('is not sent to the shell while the focus is in the terminal', () => {
-		assert.ok(DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID));
+		assert.deepStrictEqual([CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID].map(id => DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(id)), [true, true]);
+	});
+
+	test('the key of the side panel toggles the editor area of the focused chat window, above the rule of the main window', () => {
+		const found = KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID);
+
+		assert.deepStrictEqual(found.map(rule => {
+			const chord = rule.keybinding?.chords[0] as KeyCodeChord | undefined;
+			return { key: chord?.keyCode, ctrlCmd: chord?.ctrlKey || chord?.metaKey, alt: chord?.altKey, above: rule.weight1 > KeybindingWeight.SessionsContrib, followsFocusedWindow: !!rule.when?.keys().includes(ChatWindowTerminalKeysContext.key) };
+		}), [{ key: KeyCode.KeyB, ctrlCmd: true, alt: true, above: true, followsFocusedWindow: true }]);
 	});
 });
