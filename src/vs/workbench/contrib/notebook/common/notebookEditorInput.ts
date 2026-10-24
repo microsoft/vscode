@@ -46,8 +46,22 @@ export interface NotebookEditorInputOptions {
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
+	private static readonly editorCache = new Map<string, NotebookEditorInput>();
+	private cacheKey: string | undefined;
+	private _isDisposing = false;
+
 	static getOrCreate(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
-		const editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+		const cacheKey = JSON.stringify([resource.toString(), viewType]);
+		let editor = NotebookEditorInput.editorCache.get(cacheKey);
+		if (!editor) {
+			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+			editor.cacheKey = cacheKey;
+			NotebookEditorInput.editorCache.set(cacheKey, editor);
+		} else if (!editor.editorModelReference) {
+			// Restoration can supply initialization options after an ordinary open request.
+			Object.assign(editor.options, options);
+			editor._defaultDirtyState = !!editor.options.startDirty;
+		}
 		if (preferredResource) {
 			editor.setPreferredResource(preferredResource);
 		}
@@ -116,6 +130,16 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override dispose() {
+		if (this.isDisposed() || this._isDisposing) {
+			return;
+		}
+		this._isDisposing = true;
+
+		// Evict before model teardown can trigger another request for the same notebook.
+		if (this.cacheKey !== undefined && NotebookEditorInput.editorCache.get(this.cacheKey) === this) {
+			NotebookEditorInput.editorCache.delete(this.cacheKey);
+		}
+
 		this._sideLoadedListener.dispose();
 		this.editorModelReference?.dispose();
 		this.editorModelReference = null;

@@ -98,7 +98,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, 'interactive', {});
+		const input = instantiationService.createInstance(NotebookEditorInput, resource, undefined, 'interactive', {});
 		super();
 		this.isScratchpad = configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 		this._notebookEditorInput = input;
