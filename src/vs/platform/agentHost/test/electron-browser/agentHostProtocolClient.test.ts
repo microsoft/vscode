@@ -43,7 +43,7 @@ import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
-import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, ProtocolError, type AhpClientNotification, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
@@ -4481,6 +4481,43 @@ suite('AgentHostProtocolClient', () => {
 					{ address: 'test.example:1234', uri: 'file:///other/bar' },
 				],
 			);
+		});
+
+		test('remote directory attachments are unwrapped only after grants and do not authorize same-path client reads', async () => {
+			const granted: URI[] = [];
+			const service = createResourceServiceStub({
+				granted: (_identity, uri, mode) => mode === AgentHostPermissionMode.Read && granted.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root)),
+				onGrantImplicitRead: (_identity, uri) => granted.push(uri),
+			});
+
+			const { client, transport } = createClient(undefined, service);
+			await connectClient(client, transport);
+			const hostDirectory = URI.file('/source');
+			const clientDirectory = client.resourceUris.fromAgentHost(hostDirectory);
+			client.dispatch('copilot-chat:/test', {
+				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2026-07-23T00:00:00.000Z',
+				message: {
+					text: 'Review the remote directory', origin: { kind: MessageKind.User },
+					attachments: [{ type: MessageAttachmentKind.Resource, uri: clientDirectory.toString(), label: 'source', displayKind: 'directory' }],
+				},
+			});
+			await flushMicrotasks();
+			const sent = transport.sentMessages.filter((message): message is AhpClientNotification<'dispatchAction'> => hasKey(message, { method: true }) && message.method === 'dispatchAction').find(message => message.params.action.type === ActionType.ChatTurnStarted);
+			const localFile = URI.file('/source/private.txt').toString();
+			transport.fireMessage({ jsonrpc: '2.0', id: 42, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: localFile } });
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				granted: granted.map(uri => uri.toString()),
+				attachment: sent?.params.action.type === ActionType.ChatTurnStarted ? sent.params.action.message.attachments : undefined,
+				read: transport.sentMessages.at(-1),
+			}, {
+				granted: [clientDirectory.toString()],
+				attachment: [{ type: MessageAttachmentKind.Resource, uri: hostDirectory.toString(), label: 'source', displayKind: 'directory' }],
+				read: {
+					jsonrpc: '2.0', id: 42,
+					error: { code: AhpErrorCodes.PermissionDenied, message: `Access to ${localFile} is not granted.`, data: { request: { channel: ROOT_STATE_URI, uri: localFile, read: true } } },
+				},
+			});
 		});
 
 		test('ChatTurnStarted grants attachment access before reverse resourceRead', async () => {

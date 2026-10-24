@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationEnablementKind, CustomizationType, MessageKind, PendingMessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type ChatSummary, type ClientPluginCustomization, type Message, type SessionActiveClient, type SessionSummary, type Snapshot, type Turn } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type ChatSummary, type ClientPluginCustomization, type Message, type SessionActiveClient, type SessionSummary, type Snapshot, type Turn } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, ReconnectResultType, type AhpRequest, type AhpServerNotification, type AhpSuccessResponse, type ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SESSION_META_FOLDER_PICKER_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getProtocolMessageSize, parseProtocolMessage, IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -148,31 +148,32 @@ function envelope(action: StateAction, index: number): ActionEnvelope {
 	};
 }
 
-function agentMessage(uri: string | undefined): Message {
+function agentMessage(uri: string | undefined, attachments?: Message['attachments']): Message {
 	return {
 		text: opaqueText,
 		origin: { kind: MessageKind.User },
 		model: { id: fileDirectory },
 		_meta: { uri: fileDirectory, text: opaqueText },
 		...(uri ? { agent: { uri } } : {}),
+		...(attachments ? { attachments } : {}),
 	};
 }
 
-function agentTurn(uri: string | undefined): Turn {
+function agentTurn(uri: string | undefined, attachments?: Message['attachments']): Turn {
 	return {
-		id: 'turn', startedAt: timestamp, message: agentMessage(uri),
+		id: 'turn', startedAt: timestamp, message: agentMessage(uri, attachments),
 		responseParts: [], usage: undefined, state: TurnState.Complete,
 	};
 }
 
-function messageActions(uri: string | undefined): StateAction[] {
+function messageActions(uri: string | undefined, attachments?: Message['attachments']): StateAction[] {
 	return [
-		{ type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: timestamp, message: agentMessage(uri) },
-		{ type: ActionType.ChatPendingMessageSet, id: 'queued', kind: PendingMessageKind.Queued, message: agentMessage(uri) },
-		{ type: ActionType.ChatPendingMessageSet, id: 'steering', kind: PendingMessageKind.Steering, message: agentMessage(uri) },
-		{ type: ActionType.ChatDraftChanged, draft: agentMessage(uri) },
+		{ type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: timestamp, message: agentMessage(uri, attachments) },
+		{ type: ActionType.ChatPendingMessageSet, id: 'queued', kind: PendingMessageKind.Queued, message: agentMessage(uri, attachments) },
+		{ type: ActionType.ChatPendingMessageSet, id: 'steering', kind: PendingMessageKind.Steering, message: agentMessage(uri, attachments) },
+		{ type: ActionType.ChatDraftChanged, draft: agentMessage(uri, attachments) },
 		{ type: ActionType.ChatDraftChanged },
-		{ type: ActionType.ChatTurnsLoaded, turns: [agentTurn(uri)], turnsNextCursor: fileDirectory },
+		{ type: ActionType.ChatTurnsLoaded, turns: [agentTurn(uri, attachments)], turnsNextCursor: fileDirectory },
 	];
 }
 
@@ -340,6 +341,59 @@ suite('EditorRemoteAgentHostTransport', () => {
 			sent: [{ ...request, params: { ...request.params, initialMessage: agentMessage(fileAgent) } }],
 			original,
 		});
+	});
+
+	test('maps only same-host resource attachments in outgoing initial, draft, queued, and turn messages', () => {
+		const { underlying, transport } = createTransport('wsl+Ubuntu');
+		const attachments = (uri: string): Message['attachments'] => [
+			{ type: MessageAttachmentKind.Resource, uri, label: 'file', displayKind: 'document', _meta: { uri: remoteDirectory } },
+			{ type: MessageAttachmentKind.Resource, uri, label: 'folder', displayKind: 'directory' },
+			{ type: MessageAttachmentKind.Resource, uri, label: 'selection', displayKind: 'selection', selection: { range: { start: { line: 0, character: 1 }, end: { line: 2, character: 3 } } } },
+			{ type: MessageAttachmentKind.Resource, uri: otherRemoteDirectory, label: 'other remote' },
+			{ type: MessageAttachmentKind.Resource, uri: 'file:///c:/client/file.ts', label: 'client file' },
+			{ type: MessageAttachmentKind.Resource, uri: 'untitled:Untitled-1', label: 'unsaved' },
+			{ type: MessageAttachmentKind.EmbeddedResource, label: 'inline', data: 'dGVzdA==', contentType: 'text/plain', _meta: { uri: remoteDirectory } },
+			{ type: MessageAttachmentKind.Simple, label: 'opaque', modelRepresentation: remoteDirectory, _meta: { uri: remoteDirectory } },
+			{ type: MessageAttachmentKind.Chat, label: 'chat', resource: remoteDirectory },
+		];
+		const messages = (uri: string): ProtocolMessage[] => [
+			{ jsonrpc: '2.0', id: 1, method: 'createChat', params: { channel: session, chat, initialMessage: agentMessage(remoteAgent, attachments(uri)) } },
+			...messageActions(undefined, attachments(uri)).map((action, index): ProtocolMessage => ({
+				jsonrpc: '2.0', method: 'dispatchAction', params: { channel: chat, clientSeq: index + 1, action },
+			})),
+		];
+		const input = messages(remoteDirectory);
+		const original = structuredClone(input);
+		const expected = messages(fileDirectory);
+		expected[0] = { jsonrpc: '2.0', id: 1, method: 'createChat', params: { channel: session, chat, initialMessage: agentMessage(fileAgent, attachments(fileDirectory)) } };
+
+		input.forEach(message => transport.send(message));
+
+		assert.deepStrictEqual({ sent: underlying.messages, original: input }, { sent: expected, original });
+	});
+
+	test('preserves attachment ownership in incoming actions and snapshots', () => {
+		const { underlying, transport, received } = createTransport();
+		const message = agentMessage(undefined, [
+			{ type: MessageAttachmentKind.Resource, uri: 'file:///c:/client/file.ts', label: 'client file' },
+			{ type: MessageAttachmentKind.Resource, uri: fileDirectory, label: 'host file' },
+			{ type: MessageAttachmentKind.Resource, uri: otherRemoteDirectory, label: 'other remote' },
+		]);
+		const action: AhpServerNotification<'action'> = {
+			jsonrpc: '2.0', method: 'action', params: envelope({ type: ActionType.ChatDraftChanged, draft: message }, 0),
+		};
+		const response: AhpSuccessResponse<'subscribe'> = {
+			jsonrpc: '2.0', id: 1, result: { snapshot: { ...messageSnapshot(fileAgent), state: { ...messageSnapshot(fileAgent).state, draft: message } } },
+		};
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'subscribe', params: { channel: chat } });
+
+		underlying.messageEmitter.fire(action);
+		underlying.messageEmitter.fire(response);
+
+		assert.deepStrictEqual(received, [
+			action,
+			{ ...response, result: { snapshot: { ...messageSnapshot(remoteAgent), state: { ...messageSnapshot(remoteAgent).state, draft: message } } } },
+		]);
 	});
 
 	for (const [name, hostUri, clientUri] of [
