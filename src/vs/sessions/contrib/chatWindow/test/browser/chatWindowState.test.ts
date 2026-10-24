@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ChatWindowLayout, ChatWindowTerminalPosition, IChatWindowKind } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowTerminalPosition, IChatWindowKind } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutMode } from '../../../../common/sessionLayoutMode.js';
 import { ChatWindowDefaults, ChatWindowState } from '../../browser/chatWindowState.js';
 
 suite('ChatWindowState', () => {
@@ -24,15 +25,15 @@ suite('ChatWindowState', () => {
 
 		const window = createState(storageService, false, true);
 		const firstWindowLayout = window.layout.get();
-		window.setLayout(ChatWindowLayout.SideBySide);
-		window.setLayout(ChatWindowLayout.ChatOnly);
+		window.setLayout(SessionLayoutMode.SideBySide);
+		window.setLayout(SessionLayoutMode.ChatOnly);
 		const splitWhileChatOnly = window.splitLayout.get();
 		window.showBoth();
 
 		const docked = createState(storageService, true, true);
-		docked.setLayout(ChatWindowLayout.SideBySide);
+		docked.setLayout(SessionLayoutMode.SideBySide);
 		const dockedAfterSideBySide = docked.layout.get();
-		docked.setLayout(ChatWindowLayout.EditorOnly);
+		docked.setLayout(SessionLayoutMode.EditorOnly);
 
 		assert.deepStrictEqual({
 			layouts: { window: window.layouts, docked: docked.layouts, withoutEditor: createState(storageService, false, false).layouts },
@@ -43,35 +44,35 @@ suite('ChatWindowState', () => {
 			reopened: { window: createState(storageService, false, true).layout.get(), docked: createState(storageService, true, true).layout.get() },
 		}, {
 			layouts: {
-				window: [ChatWindowLayout.EditorAboveChat, ChatWindowLayout.SideBySide, ChatWindowLayout.EditorOnly, ChatWindowLayout.ChatOnly],
-				docked: [ChatWindowLayout.EditorAboveChat, ChatWindowLayout.EditorOnly, ChatWindowLayout.ChatOnly],
-				withoutEditor: [ChatWindowLayout.ChatOnly],
+				window: [SessionLayoutMode.Stacked, SessionLayoutMode.SideBySide, SessionLayoutMode.EditorOnly, SessionLayoutMode.ChatOnly],
+				docked: [SessionLayoutMode.Stacked, SessionLayoutMode.EditorOnly, SessionLayoutMode.ChatOnly],
+				withoutEditor: [SessionLayoutMode.ChatOnly],
 			},
-			firstWindowLayout: ChatWindowLayout.EditorAboveChat,
-			splitWhileChatOnly: ChatWindowLayout.SideBySide,
-			afterShowBoth: ChatWindowLayout.SideBySide,
-			dockedAfterSideBySide: ChatWindowLayout.EditorAboveChat,
-			reopened: { window: ChatWindowLayout.SideBySide, docked: ChatWindowLayout.EditorOnly },
+			firstWindowLayout: SessionLayoutMode.Stacked,
+			splitWhileChatOnly: SessionLayoutMode.SideBySide,
+			afterShowBoth: SessionLayoutMode.SideBySide,
+			dockedAfterSideBySide: SessionLayoutMode.Stacked,
+			reopened: { window: SessionLayoutMode.SideBySide, docked: SessionLayoutMode.EditorOnly },
 		});
 	});
 
 	test('opens with the default layout of its kind until one is chosen, where the layout is available', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
-		const sideBySideKind: IChatWindowKind = { id: 'sideBySide', title: 'Side by Side', defaultLayout: ChatWindowLayout.SideBySide };
+		const sideBySideKind: IChatWindowKind = { id: 'sideBySide', title: 'Side by Side', defaultLayout: SessionLayoutMode.SideBySide };
 		const create = (docked: boolean) => new ChatWindowState(sideBySideKind, docked, true, new ChatWindowDefaults(sideBySideKind, storageService));
 
 		const before = { window: create(false).layout.get(), docked: create(true).layout.get() };
-		create(false).setLayout(ChatWindowLayout.EditorOnly);
+		create(false).setLayout(SessionLayoutMode.EditorOnly);
 
 		assert.deepStrictEqual({ before, after: create(false).layout.get() }, {
-			before: { window: ChatWindowLayout.SideBySide, docked: ChatWindowLayout.EditorAboveChat },
-			after: ChatWindowLayout.EditorOnly,
+			before: { window: SessionLayoutMode.SideBySide, docked: SessionLayoutMode.Stacked },
+			after: SessionLayoutMode.EditorOnly,
 		});
 	});
 
 	test('keeps the chat to its input when docked, and remembers it otherwise', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
-		storageService.store('sessions.chatWindow.test.dockedLayout', ChatWindowLayout.SideBySide, StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store('sessions.chatWindow.test.dockedLayout', SessionLayoutMode.SideBySide, StorageScope.PROFILE, StorageTarget.USER);
 
 		const window = createState(storageService, false, true);
 		const initiallyInputOnly = window.inputOnly.get();
@@ -86,7 +87,7 @@ suite('ChatWindowState', () => {
 		}, {
 			initiallyInputOnly: true,
 			reopenedInputOnly: false,
-			docked: { inputOnly: true, layoutFromSideBySide: ChatWindowLayout.EditorAboveChat },
+			docked: { inputOnly: true, layoutFromSideBySide: SessionLayoutMode.Stacked },
 		});
 	});
 

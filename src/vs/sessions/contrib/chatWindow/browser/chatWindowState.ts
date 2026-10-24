@@ -6,7 +6,8 @@
 import { IObservable, ISettableObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowTerminalPosition, IChatWindowKind } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutMode, SessionSplitLayout } from '../../../common/sessionLayoutMode.js';
 
 /**
  * The defaults of a kind of chat window, kept in the profile: what its chat windows were last left as, which a new one
@@ -24,12 +25,12 @@ export class ChatWindowDefaults {
 	}
 
 	/** The layout of its chat windows, docked or in windows of their own, with an editor. */
-	getLayout(docked: boolean): ChatWindowLayout | undefined {
+	getLayout(docked: boolean): SessionLayoutMode | undefined {
 		const value = this._storageService.get(`${this._prefix}.${docked ? 'dockedLayout' : 'layout'}`, StorageScope.PROFILE);
-		return value === ChatWindowLayout.EditorAboveChat || value === ChatWindowLayout.SideBySide || value === ChatWindowLayout.EditorOnly || value === ChatWindowLayout.ChatOnly ? value : undefined;
+		return value === SessionLayoutMode.Stacked || value === SessionLayoutMode.SideBySide || value === SessionLayoutMode.EditorOnly || value === SessionLayoutMode.ChatOnly ? value : undefined;
 	}
 
-	setLayout(docked: boolean, layout: ChatWindowLayout): void {
+	setLayout(docked: boolean, layout: SessionLayoutMode): void {
 		this._storageService.store(`${this._prefix}.${docked ? 'dockedLayout' : 'layout'}`, layout, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
@@ -81,23 +82,23 @@ export class ChatWindowDefaults {
  */
 export class ChatWindowState {
 
-	private readonly _layout: ISettableObservable<ChatWindowLayout>;
-	readonly layout: IObservable<ChatWindowLayout>;
+	private readonly _layout: ISettableObservable<SessionLayoutMode>;
+	readonly layout: IObservable<SessionLayoutMode>;
 
 	private readonly _inputOnly: ISettableObservable<boolean>;
-	/** In {@link ChatWindowLayout.EditorAboveChat} in a window of its own: whether the chat shows only its input. */
+	/** In {@link SessionLayoutMode.Stacked} in a window of its own: whether the chat shows only its input. */
 	readonly inputOnly: IObservable<boolean>;
 
-	private readonly _lastSplitLayout: ISettableObservable<ChatWindowSplitLayout>;
+	private readonly _lastSplitLayout: ISettableObservable<SessionSplitLayout>;
 	/** How the editor and the chat are arranged while both show, or last showed. */
-	readonly splitLayout: IObservable<ChatWindowSplitLayout>;
+	readonly splitLayout: IObservable<SessionSplitLayout>;
 
 	private readonly _terminalPosition: ISettableObservable<ChatWindowTerminalPosition>;
 	/** Where the terminal row shows. */
 	readonly terminalPosition: IObservable<ChatWindowTerminalPosition>;
 
 	/** The layouts it can show; see {@link IChatWindow.layouts}. */
-	readonly layouts: readonly ChatWindowLayout[];
+	readonly layouts: readonly SessionLayoutMode[];
 
 	/** The group of the terminal row across the bottom of the window, while it shows; see {@link IChatWindow.terminalGroup}. */
 	readonly terminalGroup = observableValue<IEditorGroup | undefined>(this, undefined);
@@ -109,17 +110,17 @@ export class ChatWindowState {
 		private readonly _defaults: ChatWindowDefaults,
 	) {
 		this.layouts = !hasEditor
-			? [ChatWindowLayout.ChatOnly]
+			? [SessionLayoutMode.ChatOnly]
 			: docked
-				? [ChatWindowLayout.EditorAboveChat, ChatWindowLayout.EditorOnly, ChatWindowLayout.ChatOnly]
-				: [ChatWindowLayout.EditorAboveChat, ChatWindowLayout.SideBySide, ChatWindowLayout.EditorOnly, ChatWindowLayout.ChatOnly];
+				? [SessionLayoutMode.Stacked, SessionLayoutMode.EditorOnly, SessionLayoutMode.ChatOnly]
+				: [SessionLayoutMode.Stacked, SessionLayoutMode.SideBySide, SessionLayoutMode.EditorOnly, SessionLayoutMode.ChatOnly];
 		const layout = [_defaults.getLayout(docked), kind.defaultLayout].find(candidate => candidate !== undefined && this.layouts.includes(candidate)) ?? this.layouts[0];
 		this._layout = observableValue(this, layout);
 		this.layout = this._layout;
-		this._lastSplitLayout = observableValue<ChatWindowSplitLayout>(this, layout === ChatWindowLayout.SideBySide ? ChatWindowLayout.SideBySide : ChatWindowLayout.EditorAboveChat);
+		this._lastSplitLayout = observableValue<SessionSplitLayout>(this, layout === SessionLayoutMode.SideBySide ? SessionLayoutMode.SideBySide : SessionLayoutMode.Stacked);
 		this.splitLayout = derived(this, reader => {
 			const current = this._layout.read(reader);
-			return current === ChatWindowLayout.EditorAboveChat || current === ChatWindowLayout.SideBySide ? current : this._lastSplitLayout.read(reader);
+			return current === SessionLayoutMode.Stacked || current === SessionLayoutMode.SideBySide ? current : this._lastSplitLayout.read(reader);
 		});
 		// Docked, the chat keeps to its input below the editor.
 		this._inputOnly = observableValue(this, docked || _defaults.getInputOnly());
@@ -136,11 +137,11 @@ export class ChatWindowState {
 		this._defaults.setTerminalPosition(position);
 	}
 
-	setLayout(layout: ChatWindowLayout): void {
+	setLayout(layout: SessionLayoutMode): void {
 		if (!this.layouts.includes(layout) || this._layout.get() === layout) {
 			return;
 		}
-		if (layout === ChatWindowLayout.EditorAboveChat || layout === ChatWindowLayout.SideBySide) {
+		if (layout === SessionLayoutMode.Stacked || layout === SessionLayoutMode.SideBySide) {
 			this._lastSplitLayout.set(layout, undefined);
 		}
 		this._layout.set(layout, undefined);

@@ -28,7 +28,8 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../common/sessionLayoutMode.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { InFlightOperations, IChatWindowOpening, openCleaningUpOnFailure } from './chatWindowOpening.js';
@@ -87,21 +88,21 @@ class ChatWindow implements IChatWindow {
 
 	get kind(): IChatWindowKind { return this.state.kind; }
 	get docked(): boolean { return this.state.docked; }
-	get layout(): IObservable<ChatWindowLayout> { return this.state.layout; }
-	get splitLayout(): IObservable<ChatWindowSplitLayout> { return this.state.splitLayout; }
-	get layouts(): readonly ChatWindowLayout[] { return this.state.layouts; }
+	get layout(): IObservable<SessionLayoutMode> { return this.state.layout; }
+	get splitLayout(): IObservable<SessionSplitLayout> { return this.state.splitLayout; }
+	get layouts(): readonly SessionLayoutMode[] { return this.state.layouts; }
 
 	/** The group that shows: focusing or revealing a hidden group would show it. */
 	get visibleGroup(): IEditorGroup {
-		return this.state.layout.get() === ChatWindowLayout.EditorOnly && this.editorGroup ? this.editorGroup : this.chatGroup;
+		return this.state.layout.get() === SessionLayoutMode.EditorOnly && this.editorGroup ? this.editorGroup : this.chatGroup;
 	}
 
-	setLayout(layout: ChatWindowLayout): void {
+	setLayout(layout: SessionLayoutMode): void {
 		this.state.setLayout(layout);
 	}
 
 	showEditor(): void {
-		if (this.editorGroup && this.state.layout.get() === ChatWindowLayout.ChatOnly) {
+		if (this.editorGroup && this.state.layout.get() === SessionLayoutMode.ChatOnly) {
 			this.state.showBoth();
 		}
 	}
@@ -129,7 +130,7 @@ class ChatWindow implements IChatWindow {
 	}
 
 	toggleConversation(): void {
-		if (!this.docked && this.state.layout.get() === ChatWindowLayout.EditorAboveChat) {
+		if (!this.docked && this.state.layout.get() === SessionLayoutMode.Stacked) {
 			this.state.setInputOnly(!this.state.inputOnly.get());
 		}
 	}
@@ -309,9 +310,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		ChatWindowDockedContext.bindTo(windowContextKeyService).set(docked);
 		ChatWindowHasEditorContext.bindTo(windowContextKeyService).set(!!content.editor || !!content.editorArea);
 		const editorViewTypeContext = ChatWindowEditorViewTypeContext.bindTo(windowContextKeyService);
-		const layoutContext = ChatWindowLayoutContext.bindTo(windowContextKeyService);
+		const layoutContext = SessionLayoutModeContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => layoutContext.set(state.layout.read(reader))));
-		const splitLayoutContext = ChatWindowSplitLayoutContext.bindTo(windowContextKeyService);
+		const splitLayoutContext = SessionSplitLayoutContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => splitLayoutContext.set(state.splitLayout.read(reader))));
 		const terminalPositionContext = ChatWindowTerminalPositionContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => terminalPositionContext.set(state.terminalPosition.read(reader))));

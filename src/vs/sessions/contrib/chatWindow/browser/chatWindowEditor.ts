@@ -28,7 +28,8 @@ import type { AbstractChatView } from '../../../browser/parts/chatView.js';
 import { SessionView } from '../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { ChatWindowLayout, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowTerminalPosition } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutMode, SessionSplitLayout } from '../../../common/sessionLayoutMode.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly, clampStackedChatOnResize, decideStackedChatInputOnly, shouldDecideStackedChatInputOnly, shouldRestoreStackedChatConversation } from '../../../browser/parts/stackedChatInputOnly.js';
 import { ChatWindowState } from './chatWindowState.js';
@@ -128,7 +129,7 @@ export class ChatWindowChatEditor extends EditorPane {
 	private readonly _restoreConversationScheduler = this._register(new RunOnceScheduler(() => this._view?.setInputOnly(false), 0));
 	private readonly _recoverTerminalScheduler = this._register(new RunOnceScheduler(() => this._recoverTerminal(), 0));
 	/** How the groups were last arranged: the editor above or beside this group. */
-	private _arrangedSplitLayout: ChatWindowSplitLayout | undefined;
+	private _arrangedSplitLayout: SessionSplitLayout | undefined;
 	/** Set while this editor is laid out, or while it sizes its group, so that sizes then do not switch what it shows. */
 	private _sizing = false;
 	private readonly _inputDisposables = this._register(new DisposableStore());
@@ -273,7 +274,7 @@ export class ChatWindowChatEditor extends EditorPane {
 		// Side by side, or with the editor hidden, the chat has room for its conversation.
 		const conversationOnly = derived(this, reader => {
 			const layout = state.layout.read(reader);
-			return layout === ChatWindowLayout.SideBySide || layout === ChatWindowLayout.ChatOnly;
+			return layout === SessionLayoutMode.SideBySide || layout === SessionLayoutMode.ChatOnly;
 		});
 		const partChanged = observableSignalFromEvent(this, Event.any<unknown>(part.onDidLayout, part.onDidAddGroup, part.onDidRemoveGroup));
 		// Showing only the input, the chat shows no session header either.
@@ -292,7 +293,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			return measuredInputOnlyHeight;
 		}), 0);
 		store.add(toDisposable(() => this._inputOnlyHeight = constObservable(0)));
-		let arranged: ChatWindowLayout | undefined;
+		let arranged: SessionLayoutMode | undefined;
 		let wasInputOnly: boolean | undefined;
 		let wasConversationOnly: boolean | undefined;
 		/** The group this editor maximized to hide the other one. */
@@ -359,7 +360,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			const collapsedHeight = inputOnlyHeight + this._chrome + this._insets;
 			const canCollapse = view.canShowInputOnly.read(reader);
 			// Below the editor, the group is sized to the input, so not before the input is measured.
-			if (part.count < 2 || (layout === ChatWindowLayout.EditorAboveChat && inputOnlyHeight === 0)) {
+			if (part.count < 2 || (layout === SessionLayoutMode.Stacked && inputOnlyHeight === 0)) {
 				return;
 			}
 			// Sized again when what shows changes.
@@ -367,8 +368,8 @@ export class ChatWindowChatEditor extends EditorPane {
 			const previousInputOnly = wasInputOnly;
 			arranged = layout;
 			wasInputOnly = inputOnly;
-			const sideBySide = splitLayout === ChatWindowLayout.SideBySide;
-			if (layout === ChatWindowLayout.EditorAboveChat) {
+			const sideBySide = splitLayout === SessionLayoutMode.SideBySide;
+			if (layout === SessionLayoutMode.Stacked) {
 				// Dragged to, or switched to by the chat: the chat window opens so next time, unless the window forced it.
 				state.setInputOnly(stackedChatPersistedInputOnly({ inputOnly, forcedByWindow: this._forcedByWindow, lastUserChoice: state.inputOnly.read(undefined) }));
 			}
@@ -435,7 +436,7 @@ export class ChatWindowChatEditor extends EditorPane {
 				}
 
 				// With one of the editor and the chat hidden, the other fills the chat window, above the terminal row.
-				const shown = layout === ChatWindowLayout.EditorOnly ? editor : layout === ChatWindowLayout.ChatOnly ? this.group : undefined;
+				const shown = layout === SessionLayoutMode.EditorOnly ? editor : layout === SessionLayoutMode.ChatOnly ? this.group : undefined;
 				if (shown !== maximized || (shown && terminal !== maximizedBeside)) {
 					if (maximized) {
 						part.toggleMaximizeGroup();
