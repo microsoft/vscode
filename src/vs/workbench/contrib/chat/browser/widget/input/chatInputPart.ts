@@ -279,6 +279,7 @@ export interface IChatPetHorizontalPlatformProvider {
 	readonly onDidChange: Event<void>;
 	getElements(): readonly HTMLElement[];
 	getBaseElement?(): HTMLElement | undefined;
+	getJumpGameElement?(): HTMLElement | undefined;
 }
 
 export interface IChatInputPartOptions {
@@ -734,10 +735,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const platforms = [getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer)];
 		const inputTop = this.inputContainer.getBoundingClientRect().top;
 		const elements = new Set<HTMLElement>();
+		const jumpGameElements = new Set<HTMLElement>();
 		const containers: HTMLElement[] = [];
 		for (const provider of this._chatPetHorizontalPlatformProviders) {
 			for (const element of provider.getElements()) {
 				elements.add(element);
+			}
+			const jumpGameElement = provider.getJumpGameElement?.();
+			if (jumpGameElement) {
+				jumpGameElements.add(jumpGameElement);
 			}
 			const baseElement = provider.getBaseElement?.();
 			if (baseElement) {
@@ -751,7 +757,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			const bounds = element.getBoundingClientRect();
 			if (bounds.width > 0 && bounds.height > 0 && bounds.top <= inputTop) {
-				platforms.push({ left: bounds.left, right: bounds.right, top: bounds.top, element, isDefault: containers.includes(element) });
+				platforms.push({ left: bounds.left, right: bounds.right, top: bounds.top, element, isDefault: containers.includes(element), ...(jumpGameElements.has(element) ? { supportsJumpGame: true } : {}) });
 			}
 		}
 		return platforms;
