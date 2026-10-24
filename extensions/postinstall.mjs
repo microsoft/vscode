@@ -7,7 +7,21 @@ import * as fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), 'node_modules', 'typescript');
+const extensionsDir = path.dirname(fileURLToPath(import.meta.url));
+const root = path.join(extensionsDir, 'node_modules', 'typescript');
+
+/**
+ * Only the TypeScript copy of extensions/ may be trimmed. With pnpm's hoisted layout it is in
+ * extensions/node_modules only while the repository root uses another TypeScript; with the same
+ * version, pnpm installs it once in the root node_modules, which the build needs complete.
+ */
+function assertOwnCopy() {
+	const stat = fs.lstatSync(root, { throwIfNoEntry: false });
+	const isOwnCopy = stat?.isDirectory() && fs.realpathSync(root) === path.join(fs.realpathSync(extensionsDir), 'node_modules', 'typescript');
+	if (!isOwnCopy) {
+		throw new Error(`${root} is not a folder of its own (pnpm installed the TypeScript of extensions/package.json elsewhere, for example once in the root node_modules because the root uses the same version). Not trimming TypeScript: the built-in extensions need their own copy, so keep the versions apart.`);
+	}
+}
 
 function processRoot() {
 	const toKeep = new Set([
@@ -56,5 +70,6 @@ function processLib() {
 	}
 }
 
+assertOwnCopy();
 processRoot();
 processLib();

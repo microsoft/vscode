@@ -6,24 +6,38 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import path from 'path';
-import { dirs } from './dirs.ts';
+import { dirs, separateRoots, distroRoots } from './dirs.ts';
 
 export const root = fs.realpathSync.native(path.dirname(path.dirname(import.meta.dirname)));
 export const stateFile = path.join(root, 'node_modules', '.postinstall-state');
 export const stateContentsFile = path.join(root, 'node_modules', '.postinstall-state-contents');
 export const forceInstallMessage = 'Run \x1b[36mnode build/npm/fast-install.ts --force\x1b[0m to force a full install.';
 
+/**
+ * The files that decide whether dependencies need to be installed again: the `package.json` of
+ * every project, the lockfile, workspace settings, `.npmrc` and pnpmfile of every install root,
+ * and the dependency patches (`patchedDependencies`).
+ */
 export function collectInputFiles(): string[] {
 	const files: string[] = [];
+	const installRoots = new Set(['', ...separateRoots, ...distroRoots]);
 
 	for (const dir of dirs) {
 		const base = dir === '' ? root : path.join(root, dir);
-		for (const file of ['package.json', 'package-lock.json', '.npmrc']) {
+		const names = installRoots.has(dir)
+			? ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', '.pnpmfile.mts']
+			: ['package.json'];
+		for (const file of names) {
 			const filePath = path.join(base, file);
 			if (fs.existsSync(filePath)) {
 				files.push(filePath);
 			}
 		}
+	}
+
+	const patchesDir = path.join(root, 'build', 'npm', 'patches');
+	if (fs.existsSync(patchesDir)) {
+		files.push(...fs.readdirSync(patchesDir).filter(name => name.endsWith('.patch')).sort().map(name => path.join(patchesDir, name)));
 	}
 
 	files.push(path.join(root, '.nvmrc'));
@@ -43,14 +57,11 @@ const packageJsonRelevantKeys = new Set([
 	'optionalDependencies',
 	'peerDependencies',
 	'peerDependenciesMeta',
-	'overrides',
 	'engines',
-	'workspaces',
 	'bundledDependencies',
 	'bundleDependencies',
+	'packageManager',
 ]);
-
-const packageLockJsonIgnoredKeys = new Set(['version']);
 
 function normalizeFileContent(filePath: string): string {
 	const raw = fs.readFileSync(filePath, 'utf8');
@@ -65,18 +76,6 @@ function normalizeFileContent(filePath: string): string {
 			}
 		}
 		return JSON.stringify(filtered, null, '\t') + '\n';
-	}
-	if (basename === 'package-lock.json') {
-		const json = JSON.parse(raw);
-		for (const key of packageLockJsonIgnoredKeys) {
-			delete json[key];
-		}
-		if (json.packages?.['']) {
-			for (const key of packageLockJsonIgnoredKeys) {
-				delete json.packages[''][key];
-			}
-		}
-		return JSON.stringify(json, null, '\t') + '\n';
 	}
 	return raw;
 }
