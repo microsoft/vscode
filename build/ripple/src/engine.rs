@@ -1003,6 +1003,34 @@ mod tests {
 	}
 
 	#[test]
+	fn loading_a_module_that_writes_to_built_in_globals_selects_the_importers() {
+		// lib.ts starts loading patch.ts, which changes what the tests that load lib.ts run with.
+		let case = |patch: &str| -> Vec<String> {
+			let lib = |imports: &str| format!("{imports}export const a = 1;\n");
+			let (before, after) = (lib(""), lib("import './patch.js';\n"));
+			let patch = ("src/app/patch.ts", patch);
+			selected(
+				&[("src/app/lib.ts", &before), patch, TEST_A],
+				&[("src/app/lib.ts", &after), patch, TEST_A],
+			)
+		};
+		let a = || vec!["src/app/test/a.test.ts".to_owned()];
+		assert_eq!(
+			(
+				case("Error.stackTraceLimit = 0;\n"),
+				case("console.log = () => { };\n"),
+				case("Error.stackTraceLimit++;\n"),
+				case("(Array.prototype as any).last = function () { return this.at(-1); };\n"),
+				case("Object.defineProperty(Error, 'stackTraceLimit', { value: 0 });\n"),
+				case("function quiet() { console['warn'] = () => { }; }\nquiet();\n"),
+				// Calling their methods changes nothing.
+				case("console.log(Object.keys({ a: 1 }));\n"),
+			),
+			(a(), a(), a(), a(), a(), a(), vec![])
+		);
+	}
+
+	#[test]
 	fn whole_module_references_reach_re_exported_declarations() {
 		let case = |barrel: &str, test: &str| -> Vec<String> {
 			let files = |value: &str| -> Vec<(&str, String)> {
@@ -1220,6 +1248,61 @@ mod tests {
 			TEST_A,
 		];
 		assert_eq!(selected(&base, &head), vec!["src/app/test/a.test.ts"]);
+	}
+
+	#[test]
+	fn removing_an_export_selects_the_tests_that_used_it() {
+		let mid = (
+			"src/app/mid.ts",
+			"import { a } from './lib.js';\nexport function g() { return a(); }\n",
+		);
+		let test = (
+			"src/app/test/g.test.ts",
+			"import { g } from '../mid.js';\ntest('g', () => g());\n",
+		);
+		let base = [
+			(
+				"src/app/lib.ts",
+				"export function a() { return 1; }\nexport function b() { return 2; }\n",
+			),
+			mid,
+			test,
+		];
+		let head = [
+			("src/app/lib.ts", "export function b() { return 2; }\n"),
+			mid,
+			test,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/app/test/g.test.ts"]);
+	}
+
+	#[test]
+	fn removing_a_method_selects_the_tests_that_called_it() {
+		let mid = (
+			"src/app/mid.ts",
+			"import { C } from './lib.js';\nexport function g() { return new C().m(); }\n",
+		);
+		let test = (
+			"src/app/test/g.test.ts",
+			"import { g } from '../mid.js';\ntest('g', () => g());\n",
+		);
+		let base = [
+			(
+				"src/app/lib.ts",
+				"export class C {\n\tm() { return 1; }\n\tn() { return 2; }\n}\n",
+			),
+			mid,
+			test,
+		];
+		let head = [
+			(
+				"src/app/lib.ts",
+				"export class C {\n\tn() { return 2; }\n}\n",
+			),
+			mid,
+			test,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/app/test/g.test.ts"]);
 	}
 
 	#[test]
