@@ -93,7 +93,7 @@ suite('Dev Container Agent Host Connector', () => {
 			));
 			const target = await connector.createConnection(devContainerSampleUri(devContainerSamples[0]), 'devcontainer:sample', CancellationToken.None, { resume: true, sandboxEnabled });
 			store.add(target.transportDisposable!);
-			assert.deepStrictEqual(await target.resolveClientCertificates?.(), ['CLIENT CA']);
+			assert.deepStrictEqual({ enabled: target.clientCertificates?.isEnabled(), certificates: await target.clientCertificates?.loadCertificates() }, { enabled: true, certificates: ['CLIENT CA'] });
 			const first = store.add(target.transportFactory());
 			assert.ok(isClientTransport(first));
 			await first.connect();
@@ -531,7 +531,7 @@ suite('Dev Container Agent Host Connector', () => {
 			dockerAvailable = true;
 			await connector.showLog(workspaceUri);
 			const target = await connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None);
-			assert.strictEqual(target.resolveClientCertificates, undefined);
+			assert.strictEqual(target.clientCertificates, undefined);
 			await connector.showLog(workspaceUri);
 			assert.deepStrictEqual(shownChannels, [writtenChannels[0], writtenChannels[0]]);
 			target.transportDisposable?.dispose();

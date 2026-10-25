@@ -87,6 +87,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		onDidApplyAction: Event.None,
 	};
 	private _connectStarted = false;
+	private _useHostProxy = false;
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -121,6 +122,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 				undefined,
 				AgentHostClientConnectionKind.RemoteExtensionHost,
 				async () => {
+					this._useHostProxy = (await this._remoteAgentService.getRawEnvironment())?.useHostProxy === true;
 					let resolverResult: ResolverResult;
 					try {
 						resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
@@ -140,15 +142,11 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		const clientInfo = environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo;
 		this._protocolClient = this._register(instantiationService.createInstance(AgentHostProtocolClient, address, createTransport, {
 			clientInfo,
-			resolveClientCertificates: async () => {
-				if (!['wsl', 'dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority))) {
-					return undefined;
-				}
-				const remoteEnvironment = await this._remoteAgentService.getRawEnvironment();
-				if (!remoteEnvironment?.useHostProxy) {
-					return undefined;
-				}
-				return configurationService.getValue<boolean>('http.systemCertificates') ? requestService.loadCertificates() : [];
+			clientCertificates: {
+				isEnabled: () => this._useHostProxy
+					&& ['wsl', 'dev-container', 'attached-container'].includes(getRemoteName(connection.remoteAuthority))
+					&& configurationService.getValue<boolean>('http.systemCertificates') === true,
+				loadCertificates: () => requestService.loadCertificates(),
 			},
 		}));
 		// Resources this client hands out (e.g. debug-log artifacts) are stamped with the

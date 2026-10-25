@@ -96,10 +96,12 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
 			[IConfigurationService, new TestConfigurationService({ 'http.systemCertificates': certificates?.systemCertificates ?? false })],
-			[IRequestService, upcastPartial<IRequestService>({ loadCertificates: async () => {
-				assert.ok(certificates?.useHostProxy && certificates.systemCertificates);
-				return ['LOCAL CA'];
-			} })],
+			[IRequestService, upcastPartial<IRequestService>({
+				loadCertificates: async () => {
+					assert.ok(certificates?.useHostProxy && certificates.systemCertificates);
+					return ['LOCAL CA'];
+				}
+			})],
 			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({ resolveAuthority })],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
 			[ILogService, logService],
@@ -135,12 +137,13 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 					},
 					listen: () => Event.None,
 				};
-				let resolveCertificates: IAgentHostProtocolClientOptions['resolveClientCertificates'];
-				const createTransport = createTransportFactory(channel, async () => upcastPartial<ResolverResult>({}), false, new NullLogService(), { useHostProxy, systemCertificates }, options => resolveCertificates = options.resolveClientCertificates);
+				let provider: IAgentHostProtocolClientOptions['clientCertificates'];
+				const createTransport = createTransportFactory(channel, async () => upcastPartial<ResolverResult>({}), false, new NullLogService(), { useHostProxy, systemCertificates }, options => provider = options.clientCertificates);
 				await disposables.add(createTransport()).connect();
-				assert.deepStrictEqual({ calls, certificates: await resolveCertificates?.() }, {
+				assert.deepStrictEqual({ calls, enabled: provider?.isEnabled(), certificates: provider?.isEnabled() ? await provider.loadCertificates() : undefined }, {
 					calls: [{ env: {}, debugEnv: { GITHUB_TOKEN: 'debug-token', DEBUG_ENV: 'debug-value' } }],
-					certificates: useHostProxy ? systemCertificates ? ['LOCAL CA'] : [] : undefined,
+					enabled: useHostProxy && systemCertificates,
+					certificates: useHostProxy && systemCertificates ? ['LOCAL CA'] : undefined,
 				});
 			});
 		}
@@ -149,11 +152,12 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 	for (const authority of ['wsl+test', 'dev-container+test', 'attached-container+test', 'ssh-remote+test', 'tunnel+test', 'codespaces+test']) {
 		test(`limits the client certificate API to WSL and local container authorities (${authority})`, async () => {
 			const channel: IChannel = { call: async <T>() => undefined as T, listen: () => Event.None };
-			let resolveCertificates: IAgentHostProtocolClientOptions['resolveClientCertificates'];
-			createTransportFactory(channel, async () => upcastPartial<ResolverResult>({}), false, new NullLogService(), {
+			let provider: IAgentHostProtocolClientOptions['clientCertificates'];
+			const createTransport = createTransportFactory(channel, async () => upcastPartial<ResolverResult>({}), false, new NullLogService(), {
 				authority, useHostProxy: true, systemCertificates: true,
-			}, options => resolveCertificates = options.resolveClientCertificates);
-			assert.deepStrictEqual(await resolveCertificates?.(), ['wsl+test', 'dev-container+test', 'attached-container+test'].includes(authority) ? ['LOCAL CA'] : undefined);
+			}, options => provider = options.clientCertificates);
+			await disposables.add(createTransport()).connect();
+			assert.deepStrictEqual(provider?.isEnabled() ? await provider.loadCertificates() : undefined, ['wsl+test', 'dev-container+test', 'attached-container+test'].includes(authority) ? ['LOCAL CA'] : undefined);
 		});
 	}
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { InitializeResult } from '../../state/protocol/common/commands.js';
+import type { InitializeParams, ReconnectParams } from '../../state/protocol/common/commands.js';
 
 export const AgentHostClientCertificatesCapabilityMetaKey = 'vscode.clientCertificates';
 
-export function supportsAgentHostClientCertificates(result: InitializeResult | undefined): boolean {
-	return result?._meta?.[AgentHostClientCertificatesCapabilityMetaKey] === true;
+export function supportsAgentHostClientCertificates(params: InitializeParams | ReconnectParams): boolean {
+	return params._meta?.[AgentHostClientCertificatesCapabilityMetaKey] === true;
 }

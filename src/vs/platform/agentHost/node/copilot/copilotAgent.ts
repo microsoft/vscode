@@ -3963,13 +3963,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const startupStopWatch = StopWatch.create();
 		const startClient = async (computerUseRestarted = false): Promise<CopilotClient> => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
+			await this._proxyResolver.loadClientCertificates();
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const appliedProxy = this._readCopilotProxyState();
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget, scoped !== undefined, appliedProxy, startupConfig.executionSubagent, startupConfig.executionSubagentModel);
 			if (appliedProxy.certificates.length) {
-				await configureNodeExtraCaCerts(env, join(this._environmentService.userDataPath, 'certificates'), appliedProxy.certificates);
+				await configureNodeExtraCaCerts(env, join(this._environmentService.userDataPath, 'certificates'), appliedProxy.certificates, this._logService);
 			}
 			env['COPILOT_HOME'] = this._copilotHomeService.home.fsPath;
 			// Family aliases are host-side (prompt and tool-profile routing) and
@@ -8591,6 +8592,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _refreshProxy(): void {
 		const generation = ++this._proxyResolutionGeneration;
 		const refresh = this._resolveProxyForSdk().then(async proxy => {
+			if (this._client || this._clientStarting || this._scopedClients.size > 0) {
+				await this._proxyResolver.loadClientCertificates();
+			}
 			if (generation !== this._proxyResolutionGeneration) {
 				return;
 			}

@@ -483,11 +483,9 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
 				sandboxSupported: result.sandboxSupported,
-				resolveClientCertificates: remoteService ? undefined : async () => {
-					if (!result.forwardClientCertificates) {
-						return undefined;
-					}
-					return this._configurationService.getValue<boolean>('http.systemCertificates') !== false ? this._requestService.loadCertificates() : [];
+				clientCertificates: remoteService ? undefined : {
+					isEnabled: () => result.forwardClientCertificates === true && this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
+					loadCertificates: () => this._requestService.loadCertificates(),
 				},
 				transportFactory,
 				transportDisposable: combinedDisposable(

@@ -6,8 +6,8 @@
 import { createChatUriError } from '../common/agentHostChatMinting.js';
 import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
-import { SetClientCertificatesExtensionMethod, setClientCertificatesParamsValidator } from '../common/clientCertificatesProtocol.js';
-import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
+import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from '../common/clientCertificatesProtocol.js';
+import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -1050,6 +1050,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._attachConnection(params.clientId, client);
 		try {
 			this._initializeClientExtensions(client);
+			this._registerClientCertificates(client, params);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1101,7 +1102,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					} : {
 						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true, !!client.artifactIntegrations),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
-						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -1325,6 +1325,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._attachConnection(params.clientId, client);
 		try {
 			this._initializeClientExtensions(client);
+			this._registerClientCertificates(client, params);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -1370,6 +1371,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._rollbackFailedInitialization(client, existingRecord);
 			throw error;
 		}
+	}
+
+	private _registerClientCertificates(client: IConnectedClient, params: InitializeParams | ReconnectParams): void {
+		if (this._config.relayRoots || this._config.relayRootMeta || client.transport.relayClientId !== undefined || client.transport.relayPassive) {
+			return;
+		}
+		const id = this._managedSettingsContributionId(client.clientId);
+		client.initializationDisposables.add(this._proxyResolver.registerCertificateProvider(id, supportsAgentHostClientCertificates(params) ? async () => {
+			const response = await this._sendReverseRequestToConnection<unknown>(client, LoadClientCertificatesExtensionMethod, {}, 30_000);
+			return loadClientCertificatesResultValidator.validateOrThrow(response).certificates;
+		} : undefined));
 	}
 
 	/**
@@ -3586,18 +3598,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
-		if (method === SetClientCertificatesExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
-			const validated = setClientCertificatesParamsValidator.validate(params);
-			if (validated.error) {
-				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
-			}
-			try {
-				this._proxyResolver.setClientCertificates(this._managedSettingsContributionId(client.clientId), validated.content.certificates);
-			} catch {
-				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid client CA certificate'));
-			}
-			return Promise.resolve();
-		}
 		if ((method === MeasureWorktreeDiskUsageExtensionMethod || method === CancelWorktreeDiskUsageExtensionMethod)
 			&& !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
 			if (method === MeasureWorktreeDiskUsageExtensionMethod) {

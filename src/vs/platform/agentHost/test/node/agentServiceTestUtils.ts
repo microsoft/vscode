@@ -183,6 +183,8 @@ export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetc
 	return {
 		_serviceBrand: undefined,
 		clientCertificates: [],
+		registerCertificateProvider: () => Disposable.None,
+		loadClientCertificates: async () => [],
 		setClientCertificates: () => { },
 		loadCertificates: async () => [],
 		onDidRegisterConnection: Event.None,

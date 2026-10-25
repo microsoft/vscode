@@ -9,8 +9,7 @@ import assert from 'assert';
 import { rootCertificates } from 'tls';
 import { AgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { SetClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
-import { supportsAgentHostClientCertificates } from '../../common/meta/agentHostClientCertificatesMeta.js';
+import { LoadClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
@@ -652,34 +651,90 @@ suite('ProtocolServerHandler', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('client certificate API installs trust without changing the AH environment', async () => {
+	test('pulls client certificates lazily over reverse RPC without changing the AH environment', async () => {
 		const environment = { ...process.env };
-		const transport = connectClient('certificates');
-		const initialized = findResponse(transport.sent, 1);
-		assert.ok(initialized && hasKey(initialized, { result: true }) && supportsAgentHostClientCertificates(initialized.result as InitializeResult));
-		const response = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, SetClientCertificatesExtensionMethod, { certificates: [rootCertificates[0]] }));
-		await response;
+		const transport = connectClient('certificates', undefined, undefined, { 'vscode.clientCertificates': true });
+		assert.strictEqual(findRequest(transport.sent, LoadClientCertificatesExtensionMethod), undefined);
+		const requested = Event.toPromise(Event.filter(transport.onDidSend, message => !!findRequest([message], LoadClientCertificatesExtensionMethod)));
+		const certificates = proxyResolver.loadClientCertificates();
+		const requestMessage = await requested;
+		assert.ok(hasKey(requestMessage, { id: true }));
+		transport.simulateMessage({ jsonrpc: '2.0', id: requestMessage.id, result: { certificates: [rootCertificates[0]] } });
+		await certificates;
+		await proxyResolver.loadClientCertificates();
 		assert.deepStrictEqual({
 			count: proxyResolver.clientCertificates.length,
+			requests: transport.sent.filter(message => !!findRequest([message], LoadClientCertificatesExtensionMethod)).length,
 			environmentUnchanged: JSON.stringify(process.env) === JSON.stringify(environment),
-		}, { count: 1, environmentUnchanged: true });
+		}, { count: 1, requests: 1, environmentUnchanged: true });
 		handler.dispose();
 		assert.deepStrictEqual(proxyResolver.clientCertificates, []);
 	});
 
-	test('client certificate API rejects malformed payloads and invalid PEM', async () => {
-		const transport = connectClient('certificates');
-		for (const certificates of [null, 'not-an-array', [12], ['invalid PEM']]) {
-			const response = waitForResponse(transport, 2);
-			transport.simulateMessage(request(2, SetClientCertificatesExtensionMethod, { certificates }));
-			const result = await response;
-			assert.ok(hasKey(result, { error: true }) && result.error.code === JsonRpcErrorCodes.InvalidParams);
+	test('invalid client certificate responses warn and remain retryable without failing the connection', async () => {
+		const warnings = sinon.spy(logService, 'warn');
+		disposables.add(toDisposable(() => warnings.restore()));
+		const transport = connectClient('certificates', undefined, undefined, { 'vscode.clientCertificates': true });
+		for (const value of [null, 'not-an-array', [12], [rootCertificates[0], 'invalid-secret-PEM']]) {
+			const requested = Event.toPromise(Event.filter(transport.onDidSend, message => !!findRequest([message], LoadClientCertificatesExtensionMethod)));
+			const loaded = proxyResolver.loadClientCertificates();
+			const requestMessage = await requested;
+			assert.ok(hasKey(requestMessage, { id: true }));
+			transport.simulateMessage({ jsonrpc: '2.0', id: requestMessage.id, result: { certificates: value } });
+			await loaded;
 		}
-		assert.deepStrictEqual(proxyResolver.clientCertificates, []);
+		const response = waitForResponse(transport, 30);
+		transport.simulateMessage(request(30, 'ping', { channel: ROOT_STATE_URI }));
+		assert.deepStrictEqual({
+			certificateCount: proxyResolver.clientCertificates.length,
+			pingSucceeded: hasKey(await response, { result: true }),
+			warnings: warnings.getCalls().map(call => call.args),
+		}, {
+			certificateCount: 1,
+			pingSucceeded: true,
+			warnings: [
+				...Array.from({ length: 3 }, () => ['[AgentHost] Failed to load client CA certificates; retaining previously loaded trust.']),
+				['[Certificates] Ignored 1 invalid CA certificate(s).'],
+			],
+		});
 	});
 
-	test('client certificate API is neither advertised nor accepted over the relay data plane', async () => {
+	test('reconnect invalidates the certificate cache without requesting certificates during the handshake', async () => {
+		const meta = { 'vscode.clientCertificates': true };
+		const first = connectClient('certificates', undefined, undefined, meta);
+		const pull = async (transport: MockProtocolTransport, certificates: string[]) => {
+			const requestSent = Event.toPromise(Event.filter(transport.onDidSend, message => !!findRequest([message], LoadClientCertificatesExtensionMethod)));
+			const loaded = proxyResolver.loadClientCertificates();
+			const message = await requestSent;
+			assert.ok(hasKey(message, { id: true }));
+			transport.simulateMessage({ jsonrpc: '2.0', id: message.id, result: { certificates } });
+			return loaded;
+		};
+		const prior = await pull(first, [rootCertificates[0]]);
+		const second = disposables.add(new MockProtocolTransport());
+		server.simulateConnection(second);
+		const reconnected = waitForResponse(second, 100);
+		second.simulateMessage(request(100, 'reconnect', { clientId: 'certificates', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [], _meta: meta }));
+		await reconnected;
+		assert.strictEqual(findRequest(second.sent, LoadClientCertificatesExtensionMethod), undefined);
+		const next = await pull(second, [rootCertificates[1]]);
+		assert.deepStrictEqual({
+			oldCount: prior.length,
+			newCount: next.length,
+			changed: prior[0] !== next[0],
+			firstRequests: first.sent.filter(message => !!findRequest([message], LoadClientCertificatesExtensionMethod)).length,
+		}, { oldCount: 1, newCount: 1, changed: true, firstRequests: 1 });
+	});
+
+	for (const capability of [undefined, false, 'true']) {
+		test(`does not request certificates from clients without a valid capability (${capability})`, async () => {
+			const transport = connectClient('certificates', undefined, undefined, { 'vscode.clientCertificates': capability });
+			await proxyResolver.loadClientCertificates();
+			assert.strictEqual(findRequest(transport.sent, LoadClientCertificatesExtensionMethod), undefined);
+		});
+	}
+
+	test('does not pull client certificates over the relay data plane', async () => {
 		const relayServer = disposables.add(new MockProtocolServer());
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relayServer, { allowExtensionMethods: false, relayRoots: ['/workspace'] },
@@ -690,16 +745,13 @@ suite('ProtocolServerHandler', () => {
 		const transport = disposables.add(new MockProtocolTransport());
 		relayServer.simulateConnection(transport);
 		const initialized = waitForResponse(transport, 1);
-		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-certificates' }));
-		const initializeResponse = await initialized;
-		const rejected = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, SetClientCertificatesExtensionMethod, { certificates: [rootCertificates[0]] }));
-		const response = await rejected;
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-certificates', _meta: { 'vscode.clientCertificates': true } }));
+		await initialized;
+		await proxyResolver.loadClientCertificates();
 		assert.deepStrictEqual({
-			advertised: hasKey(initializeResponse, { result: true }) && supportsAgentHostClientCertificates(initializeResponse.result as InitializeResult),
-			error: hasKey(response, { error: true }) ? response.error.code : undefined,
+			request: findRequest(transport.sent, LoadClientCertificatesExtensionMethod),
 			certificates: proxyResolver.clientCertificates,
-		}, { advertised: false, error: JsonRpcErrorCodes.MethodNotFound, certificates: [] });
+		}, { request: undefined, certificates: [] });
 	});
 
 	test('handshake returns initialize response', () => {
@@ -725,7 +777,6 @@ suite('ProtocolServerHandler', () => {
 				'vscode.createChatWorkspace': true,
 				'vscode.createSessionImport': true,
 				'vscode.worktreeDiskUsage': true,
-				'vscode.clientCertificates': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,

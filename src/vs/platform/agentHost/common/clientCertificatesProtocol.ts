@@ -5,5 +5,10 @@
 
 import { vArray, vObj, vString } from '../../../base/common/validation.js';
 
-export const SetClientCertificatesExtensionMethod = 'vscode/setClientCertificates';
-export const setClientCertificatesParamsValidator = vObj({ certificates: vArray(vString()) });
+export const LoadClientCertificatesExtensionMethod = 'vscode/loadCertificates';
+export const loadClientCertificatesResultValidator = vObj({ certificates: vArray(vString()) });
+
+export interface IAgentHostClientCertificatesProvider {
+	isEnabled(): boolean;
+	loadCertificates(): Promise<readonly string[]>;
+}

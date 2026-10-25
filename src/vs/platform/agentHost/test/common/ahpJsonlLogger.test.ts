@@ -412,11 +412,11 @@ suite('AhpJsonlLogger', () => {
 		}, { bytesWithinBudget: true, fileCount: 1, latest: 2 });
 	});
 
-	test('redacts client certificate payloads without modifying the live request', () => {
-		const request = { method: 'vscode/setClientCertificates', params: { certificates: ['PRIVATE CLIENT CA'] } };
+	test('redacts client certificate responses without modifying the live result', () => {
+		const response = { jsonrpc: '2.0', id: 1, result: { certificates: ['PRIVATE CLIENT CA'] } };
 		assert.deepStrictEqual({
-			logged: JSON.parse(stringifyAhpLogEntry(request)).params.certificates,
-			live: request.params.certificates,
+			logged: JSON.parse(stringifyAhpLogEntry(response)).result.certificates,
+			live: response.result.certificates,
 		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
 	});
 

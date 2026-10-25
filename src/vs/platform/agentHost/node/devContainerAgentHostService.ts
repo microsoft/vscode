@@ -892,9 +892,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		if (certificates.length === 0) {
 			return environment;
 		}
+		const path = await this._writeCertificatesFile(certificates);
 		return {
 			...environment,
-			NODE_EXTRA_CA_CERTS: await this._writeCertificatesFile(certificates),
+			...(path ? { NODE_EXTRA_CA_CERTS: path } : {}),
 		};
 	}
 
@@ -910,10 +911,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string> {
+	protected async _writeCertificatesFile(certificates: readonly string[]): Promise<string | undefined> {
 		const directory = this._getCertificatesDirectory();
 		await prepareOwnerOnlyDirectory(directory);
-		return writeCertificatesFile(certificates, directory);
+		return writeCertificatesFile(certificates, directory, this._logService);
 	}
 
 	protected _getCertificatesDirectory(): string {

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { X509Certificate } from 'crypto';
+import { rootCertificates } from 'tls';
 import { EventEmitter as NodeEventEmitter } from 'events';
 import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
@@ -184,7 +186,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve('/tmp/vscode-dev-container/certificates.pem');
 	}
 
-	writeCertificatesFile(certificates: readonly string[]): Promise<string> {
+	writeCertificatesFile(certificates: readonly string[]): Promise<string | undefined> {
 		return super._writeCertificatesFile(certificates);
 	}
 
@@ -528,10 +530,12 @@ suite('Dev Container Agent Host Main Service', () => {
 		const testTmpDir = await mkdtemp(join(tmpdir(), 'vscode-dev-container-certificates-'));
 		try {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), testTmpDir));
+			const certificates = rootCertificates.slice(0, 2).map(certificate => new X509Certificate(certificate).toString()).sort();
 			const paths = await Promise.all([
-				service.writeCertificatesFile(['CERT A', 'CERT B']),
-				service.writeCertificatesFile(['CERT A', 'CERT B']),
+				service.writeCertificatesFile(certificates),
+				service.writeCertificatesFile([...certificates].reverse()),
 			]);
+			assert.ok(paths[0]);
 			const directory = service.getCertificatesDirectory();
 			const directoryStat = await lstat(directory);
 			const fileStat = await lstat(paths[0]);
@@ -546,7 +550,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				fileMode: process.platform === 'win32' ? undefined : fileStat.mode & 0o777,
 			}, {
 				samePath: true,
-				content: `CERT A${process.platform === 'win32' ? '\r\n' : '\n'}CERT B`,
+				content: certificates.join('\n'),
 				entries: [paths[0].slice(directory.length + 1)],
 				directoryIsSymlink: false,
 				directoryMode: process.platform === 'win32' ? undefined : 0o700,

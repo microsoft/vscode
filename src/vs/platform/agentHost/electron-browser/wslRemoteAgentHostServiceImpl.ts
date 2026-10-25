@@ -131,7 +131,10 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		};
 		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
 			clientInfo: agentsWindowAgentHostClientInfo,
-			resolveClientCertificates: async () => this._configurationService.getValue<boolean>('http.systemCertificates') !== false ? this._requestService.loadCertificates() : [],
+			clientCertificates: {
+				isEnabled: () => this._configurationService.getValue<boolean>('http.systemCertificates') !== false,
+				loadCertificates: () => this._requestService.loadCertificates(),
+			},
 			onDispose: () => {
 				disposed = true;
 				void releaseRelay(activeConnectionId);

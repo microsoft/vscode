@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ValidatorBase, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
-import { SetClientCertificatesExtensionMethod, setClientCertificatesParamsValidator } from './clientCertificatesProtocol.js';
+import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
@@ -337,7 +337,7 @@ export interface IAgentHostMcpAuthenticationRequest {
 }
 
 export interface IAgentHostExtensionServerCommandMap {
-	[SetClientCertificatesExtensionMethod]: { params: ValidatorType<typeof setClientCertificatesParamsValidator>; result: void };
+	[LoadClientCertificatesExtensionMethod]: { params: Record<string, never>; result: ValidatorType<typeof loadClientCertificatesResultValidator> };
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };
