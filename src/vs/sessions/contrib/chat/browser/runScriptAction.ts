@@ -10,7 +10,7 @@ import { Action, IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -119,6 +119,39 @@ interface IRunScriptActionContext {
 	readonly pinnedBrowser: boolean;
 }
 
+/** One value per chat window key, however often it is asked for, disposed when the key leaves `keys`. */
+export class WindowScopedCache<K, V> extends Disposable {
+
+	private readonly _entries = new Map<K, DisposableStore>();
+	private readonly _values = new Map<K, V>();
+
+	constructor(keys: IObservable<readonly K[]>, private readonly _create: (key: K, store: DisposableStore) => V) {
+		super();
+		this._register(autorun(reader => {
+			const current = new Set(keys.read(reader));
+			for (const [key, store] of this._entries) {
+				if (!current.has(key)) {
+					store.dispose();
+					this._entries.delete(key);
+					this._values.delete(key);
+				}
+			}
+		}));
+		this._register(toDisposable(() => this._entries.forEach(store => store.dispose())));
+	}
+
+	get(key: K): V {
+		let value = this._values.get(key);
+		if (value === undefined) {
+			const store = new DisposableStore();
+			value = this._create(key, store);
+			this._entries.set(key, store);
+			this._values.set(key, value);
+		}
+		return value;
+	}
+}
+
 type TaskConfigurationMode = 'add' | 'configure';
 
 /**
@@ -130,6 +163,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentSessions.runScript';
 
 	private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>;
+	private readonly _windowRunStates: WindowScopedCache<IObservable<IActiveSession | undefined>, IObservable<IRunScriptActionContext | undefined>>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
@@ -147,6 +181,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		super();
 
 		this._activeRunState = this._createRunState(this._sessionsService.activeSession).recomputeInitiallyAndOnChange(this._store);
+
+		this._windowRunStates = this._register(new WindowScopedCache(
+			this._chatWindowService.windows.map(this, windows => windows.map(window => window.session)),
+			(session, store) => this._createRunState(session).recomputeInitiallyAndOnChange(store)));
 
 		this._registerActionViewItemProvider();
 		this._registerActions();
@@ -189,7 +227,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	/** What the Run button in the window `windowId` runs: for the session of its chat window, else for the active session. */
 	private _runStateOf(windowId: number): IObservable<IRunScriptActionContext | undefined> {
 		const windowSession = getChatWindowSession(this._chatWindowService, windowId);
-		return windowSession ? this._createRunState(windowSession) : this._activeRunState;
+		if (!windowSession) {
+			return this._activeRunState;
+		}
+		return this._windowRunStates.get(windowSession);
 	}
 
 	private _registerActionViewItemProvider(): void {

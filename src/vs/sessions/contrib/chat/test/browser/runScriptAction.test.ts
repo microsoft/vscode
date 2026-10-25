@@ -12,7 +12,9 @@ import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/ac
 // avoid chat.contribution.js and sessionsTerminalContribution.js which
 // bootstrap heavy workbench contributions and leak disposables from
 // KeybindingsRegistry in this lightweight test context.
-import '../../browser/runScriptAction.js';
+import { WindowScopedCache } from '../../browser/runScriptAction.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 
 const titleBarCenterRightMenu = MenuId.for('SessionsTitleBarCenterRight');
 
@@ -27,5 +29,26 @@ suite('RunScriptContribution', () => {
 
 		assert.ok(runAction, 'run dropdown should be contributed to TitleBarCenterRight');
 		assert.strictEqual(runAction.order, 6);
+	});
+
+	test('window run states are created once per window and disposed when the window closes', () => {
+		const keys = observableValue<readonly string[]>('keys', ['a', 'b']);
+		const disposed: string[] = [];
+		let created = 0;
+		const cache = new WindowScopedCache<string, object>(keys, (key, store) => {
+			created++;
+			store.add(toDisposable(() => disposed.push(key)));
+			return {};
+		});
+
+		const first = cache.get('a');
+		const again = cache.get('a');
+		cache.get('b');
+		keys.set(['b'], undefined);
+
+		assert.deepStrictEqual({ same: first === again, created, disposed }, { same: true, created: 2, disposed: ['a'] });
+
+		cache.dispose();
+		assert.deepStrictEqual(disposed, ['a', 'b']);
 	});
 });
