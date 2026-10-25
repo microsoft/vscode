@@ -51,6 +51,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { getOuterEditor } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { quickDiffDecorationCount } from './quickDiffDecorator.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
+import { DiffAlgorithmName } from '../../../../editor/common/services/editorWorker.js';
 
 export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
@@ -163,7 +164,8 @@ class QuickDiffWidget extends PeekViewWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
@@ -384,7 +386,7 @@ class QuickDiffWidget extends PeekViewWidget {
 
 	protected _fillBody(container: HTMLElement): void {
 		const options: IDiffEditorOptions = {
-			diffAlgorithm: 'advanced',
+			diffAlgorithm: this.configurationService.getValue<DiffAlgorithmName>('scm.diffDecorationsAlgorithm'),
 			fixedOverflowWidgets: true,
 			ignoreTrimWhitespace: false,
 			minimap: { enabled: false },
