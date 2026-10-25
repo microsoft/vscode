@@ -110,6 +110,37 @@ suite('Chat editing editor actions', () => {
 		assert.deepStrictEqual(opened, []);
 	});
 
+	for (const replacement of [false, true]) {
+		test(`deferred decisions navigate to newly published entries (replacement: ${replacement})`, async () => {
+			const instantiation = store.add(new TestInstantiationService());
+			instantiation.stub(IInstantiationService, instantiation);
+			instantiation.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.RevealNextChangeOnResolve]: true }));
+			const opened: string[] = [];
+			instantiation.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(input: IUntypedEditorInput) {
+					if (isResourceEditorInput(input)) {
+						opened.push(input.resource.path);
+					}
+					return undefined;
+				}
+			});
+			const first = entry('/first.ts');
+			const third = entry('/third.ts');
+			const review = session(replacement ? [first, entry('/second.ts'), third] : [first]);
+			const gate = new DeferredPromise<void>();
+			review.accept = async () => {
+				await gate.p;
+				review.entries.set([entry('/second.ts'), third], undefined);
+			};
+			const pending = instantiation.invokeFunction(accessor => new AcceptAction().runChatEditingCommand(accessor, review, first, new class extends mock<IModifiedFileEntryEditorIntegration>() { }()));
+			await timeout(0);
+			const beforeCompletion = [...opened];
+			gate.complete();
+			await pending;
+			assert.deepStrictEqual({ beforeCompletion, opened }, { beforeCompletion: [], opened: ['/second.ts'] });
+		});
+	}
+
 	test('resolving the last hunk does not reopen the same entry while its state is settling', async () => {
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IInstantiationService, instantiation);

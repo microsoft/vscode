@@ -5,6 +5,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -139,12 +140,14 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	const editorService = accessor.get(IEditorService);
 
 	const entries = session.entries.get();
+	const candidates = previousEntries.map(previous => entries.find(current => isEqual(current.modifiedURI, previous.modifiedURI)) ?? previous);
+	candidates.push(...entries.filter(current => !candidates.includes(current)));
 	const index = previousEntries.indexOf(entry);
 
 	let newEntry: IModifiedFileEntry | undefined;
-	for (let offset = 1; offset <= previousEntries.length; offset++) {
-		const candidate = previousEntries[(index + (next ? offset : -offset) + previousEntries.length) % previousEntries.length];
-		if (candidate !== entry && entries.includes(candidate) && candidate.state.get() === ModifiedFileEntryState.Modified) {
+	for (let offset = 1; offset <= candidates.length; offset++) {
+		const candidate = candidates[(index + (next ? offset : -offset) + candidates.length) % candidates.length];
+		if (!isEqual(candidate.modifiedURI, entry.modifiedURI) && entries.includes(candidate) && candidate.state.get() === ModifiedFileEntryState.Modified) {
 			newEntry = candidate;
 			break;
 		}

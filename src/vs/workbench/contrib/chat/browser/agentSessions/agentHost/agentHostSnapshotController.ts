@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedOpts, disposableObservableValue, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
@@ -17,6 +18,7 @@ import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/f
 import { FileEditKind, ToolCallStatus, type ISessionFileDiff, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../../common/chatService/chatService.js';
 import { ChatEditingSessionState, IChatEditingSession, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits } from '../../../common/editing/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -112,6 +114,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		} | undefined,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
 		super();
 		this.checkpointReview = this._register(new AgentHostCheckpointReview(_fileService, _logService));
@@ -281,11 +284,20 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		// A failed fetch must leave every file and the checkpoint cursor at the original boundary.
 		await Promise.all(crossed.map(checkpoint => this._resolveCheckpointEdits(checkpoint)));
 		const undo = targetIdx < currentIdx;
+		const affectedResources = crossed.flatMap(checkpoint => checkpoint.edits.flatMap(edit => edit.originalResource ? [edit.resource, edit.originalResource] : [edit.resource]));
 		const updateReview = await this.checkpointReview.prepareRestore(
 			undo ? this._checkpoints.slice(targetIdx + 1) : crossed,
 			undo,
-			crossed.flatMap(checkpoint => checkpoint.edits.map(edit => edit.resource)),
+			affectedResources,
 		);
+		const getDirtyError = () => {
+			const resource = affectedResources.find(resource => this._workingCopyService.isDirty(resource));
+			return resource ? new Error(localize('agentHostSnapshot.dirtyFile', "Save or revert unsaved changes to '{0}' before restoring a checkpoint.", basename(resource))) : undefined;
+		};
+		const beforeRestoreError = getDirtyError();
+		if (beforeRestoreError) {
+			throw beforeRestoreError;
+		}
 		const failures: Error[] = [];
 		for (const checkpoint of undo ? [...crossed].reverse() : crossed) {
 			try {
@@ -293,6 +305,10 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			} catch (error) {
 				failures.push(error instanceof Error ? error : new Error(String(error)));
 			}
+		}
+		const afterRestoreError = getDirtyError();
+		if (afterRestoreError) {
+			failures.push(afterRestoreError);
 		}
 
 		transaction(tx => {
@@ -532,11 +548,26 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			if (!(error instanceof FileOperationError) || error.fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				throw error;
 			}
+			if (await this._checkpointFileExists(resource)) {
+				throw new Error(localize('agentHostSnapshot.deleteFailed', "Could not delete '{0}'.", basename(resource)), { cause: error });
+			}
+		}
+	}
+
+	private async _checkpointFileExists(resource: URI): Promise<boolean> {
+		try {
+			await this._fileService.resolve(resource);
+			return true;
+		} catch (error) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return false;
+			}
+			throw error;
 		}
 	}
 
 	private async _moveCheckpointFile(source: URI, target: URI, snapshot: URI | undefined): Promise<void> {
-		if (snapshot && !await this._fileService.exists(source)) {
+		if (snapshot && !await this._checkpointFileExists(source)) {
 			const expected = (await this._fileService.readFile(snapshot)).value;
 			if ((await this._readCheckpointFile(target))?.equals(expected)) {
 				return;

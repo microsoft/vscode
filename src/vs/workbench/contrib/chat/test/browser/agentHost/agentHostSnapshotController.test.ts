@@ -7,15 +7,19 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ISessionFileDiff, ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { emptySessionEntryDiff, IModifiedFileEntry } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { AgentHostEditReview } from '../../../browser/agentSessions/agentHost/agentHostEditReview.js';
@@ -77,6 +81,10 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 			}
 		}
 		override async exists(uri: URI) { return contentMap.has(uri.toString()); }
+		override async resolve(uri: URI): Promise<IFileStatWithMetadata> {
+			await this.readFile(uri);
+			return upcastPartial<IFileStatWithMetadata>({ resource: uri });
+		}
 		override async move(source: URI, target: URI): Promise<any> {
 			const data = contentMap.get(source.toString());
 			if (data !== undefined) {
@@ -96,6 +104,7 @@ function createController(store: DisposableStore, contentMap: Map<string, string
 		turnEdits,
 		new NullLogService(),
 		makeMockFileService(contentMap),
+		store.add(new WorkingCopyService()),
 	);
 	store.add(controller);
 	return controller;
@@ -583,7 +592,7 @@ suite('AgentHostSnapshotController', () => {
 			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after']]);
 			const files = makeMockFileService(content);
 			files.writeFile = async () => { throw new Error('write failed'); };
-			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/failure'), 'local', undefined, new NullLogService(), files));
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/failure'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 			const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: true, files: [{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'first' }] });
 			store.add(controller.checkpointReview.registerSource(source));
@@ -606,7 +615,7 @@ suite('AgentHostSnapshotController', () => {
 					}
 					return write(resource, value);
 				};
-				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/successive-undo'), 'local', undefined, new NullLogService(), files));
+				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/successive-undo'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 				for (const file of [first, second]) {
 					controller.addToolCallEdits(file.path, makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 				}
@@ -654,7 +663,7 @@ suite('AgentHostSnapshotController', () => {
 				}
 				return write(resource, value);
 			};
-			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/partial'), 'local', undefined, new NullLogService(), files));
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/partial'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 			controller.addToolCallEdits('request', {
 				...makeToolCall({ toolCallId: 'create', filePath: created.fsPath, beforeURI: before.toString(), afterURI: after.toString() }),
 				content: [{ type: ToolResultContentType.FileEdit, after: { uri: created.toString(), content: { uri: after.toString() } } }],
@@ -684,6 +693,45 @@ suite('AgentHostSnapshotController', () => {
 			await controller.redoInteraction();
 			assert.deepStrictEqual({ redo, content: content.get(file.toString()) }, { redo: true, content: 'created' });
 		});
+
+		for (const retryFails of [false, true]) {
+			test(`Start Over does not mistake a failed delete stat for absence (resolve also fails: ${retryFails})`, async () => {
+				const file = URI.file('/created.ts');
+				const after = URI.file('/snapshot.ts');
+				let statFailures = 0;
+				const provider = store.add(new class extends InMemoryFileSystemProvider {
+					override async stat(resource: URI) {
+						if (resource.path === file.path && statFailures > 0) {
+							statFailures--;
+							throw createFileSystemProviderError('stat unavailable', FileSystemProviderErrorCode.Unavailable);
+						}
+						return super.stat(resource);
+					}
+				}());
+				const files = store.add(new FileService(new NullLogService()));
+				store.add(files.registerProvider(Schemas.file, provider));
+				await files.writeFile(after, VSBuffer.fromString('created'));
+				await files.writeFile(file, VSBuffer.fromString('created'));
+				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/delete-stat'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+				controller.addToolCallEdits('request', {
+					...makeToolCall({ toolCallId: 'create', filePath: file.fsPath, beforeURI: after.toString(), afterURI: after.toString() }),
+					content: [{ type: ToolResultContentType.FileEdit, after: { uri: file.toString(), content: { uri: after.toString() } } }],
+				});
+				const source = constObservable({
+					channel: URI.parse('changeset:/working-set'), ready: true,
+					files: [{ diff: { ...emptySessionEntryDiff(after, file), modifiedSnapshotURI: after, isCreated: true }, nonce: 'created' }],
+				});
+				store.add(controller.checkpointReview.registerSource(source));
+				statFailures = retryFails ? Number.POSITIVE_INFINITY : 1;
+				await assert.rejects(controller.undoInteraction(), /Could not restore every file/);
+				statFailures = 0;
+				assert.deepStrictEqual({
+					disk: (await files.readFile(file)).value.toString(),
+					visible: controller.checkpointReview.project(source.get().channel, source.get().files).length,
+					redo: controller.canRedo.get(),
+				}, { disk: 'created', visible: 1, redo: true });
+			});
+		}
 
 		for (const initiallyPublished of [false, true]) {
 			test(`Start Over waits for the working-set snapshot before projecting it (initially published: ${initiallyPublished})`, async () => {
@@ -750,7 +798,7 @@ suite('AgentHostSnapshotController', () => {
 			const after = URI.file('/snapshots/after.ts');
 			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [first.toString(), 'after'], [second.toString(), 'after']]);
 			const files = makeMockFileService(content);
-			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/redo-failure'), 'local', undefined, new NullLogService(), files));
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/redo-failure'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 			for (const file of [first, second]) {
 				controller.addToolCallEdits('request', makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 			}

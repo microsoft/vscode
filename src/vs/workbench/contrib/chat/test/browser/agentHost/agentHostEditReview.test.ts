@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { autorun, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -35,7 +36,7 @@ import { ChangesetKind } from '../../../../../../platform/agentHost/common/chang
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetFile, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, FileEditKind, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperation, IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -47,6 +48,7 @@ import { DiffEditorInput } from '../../../../../common/editor/diffEditorInput.js
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAutoSaveConfiguration, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService, TextFileReconcileResult } from '../../../../../services/textfile/common/textfiles.js';
+import { IWorkingCopyService, WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { TestFileEditorInput, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
@@ -342,7 +344,7 @@ suite('AgentHostEditReview', () => {
 		const type = () => {
 			model.textEditorModel.pushEditOperations(null, [EditOperation.insert(new Position(2, 1), 'user ')], () => null);
 		};
-		return { model, files, type, warning };
+		return { model, files, type, warning, workingCopyService: instantiation.get(IWorkingCopyService) };
 	}
 
 	setup(() => {
@@ -537,7 +539,7 @@ suite('AgentHostEditReview', () => {
 	test('hiding review releases editor restrictions and re-enabling reviews the latest host changes', async () => {
 		review.dispose();
 		const enabled = observableValue('reviewEnabled', true);
-		const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, undefined, new NullLogService(), new class extends mock<IFileService>() { }()));
+		const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, undefined, new NullLogService(), new class extends mock<IFileService>() { }(), store.add(new WorkingCopyService())));
 		controller.attachReview(enabled, () => review = createReview());
 		hostWrites('/a.ts', 'A\nb\n');
 		const first = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
@@ -741,6 +743,44 @@ suite('AgentHostEditReview', () => {
 			hidden: ['/b.ts'], sameEntry: true, observed: ['/a.ts', '/b.ts'], content: 'replacement\n',
 		});
 	});
+
+	for (const duringWrite of [false, true]) {
+		test(`checkpoint restoration retains dirty-document review (typing during write: ${duringWrite})`, async () => {
+			const baseline = 'first\nmiddle\nlast\n';
+			const agentContent = 'FIRST\nmiddle\nLAST\n';
+			const { model, files, type, workingCopyService } = await useRealTextFiles(agentContent);
+			const file = workingSetFile('/dirty.ts', baseline, agentContent, 'shown');
+			host.setWorkingSet([file]);
+			await waitForEntries('/dirty.ts');
+			await getChanges(getEntry('/dirty.ts'));
+			const controller = store.add(new AgentHostSnapshotController(chatSessionResource, connectionAuthority, {
+				getChanges: () => undefined,
+				resolve: async () => [file.edit],
+			}, new NullLogService(), files, workingCopyService));
+			controller.ensureRequestCheckpoint('request');
+			review.setCheckpointReview(controller.checkpointReview);
+			if (duringWrite) {
+				store.add(Event.once(Event.filter(files.onDidRunOperation, event => event.operation === FileOperation.WRITE && isEqual(event.resource, model.resource)))(() => type()));
+			} else {
+				type();
+			}
+			await assert.rejects(controller.restoreSnapshot('request', undefined), /unsaved changes/);
+			await getChanges(getEntry('/dirty.ts'));
+			assert.deepStrictEqual({
+				dirty: model.isDirty(),
+				buffer: model.textEditorModel.getValue(),
+				disk: (await files.readFile(model.resource)).value.toString(),
+				visible: review.entries.get().map(entry => entry.modifiedURI.path),
+				redo: controller.canRedo.get(),
+			}, {
+				dirty: true,
+				buffer: 'FIRST\nuser middle\nLAST\n',
+				disk: duringWrite ? baseline : agentContent,
+				visible: ['/dirty.ts'],
+				redo: duringWrite,
+			});
+		});
+	}
 
 	test('shows the agent\'s changes when the Working Set updates before an open document reloads what the agent wrote', async () => {
 		// The document is open when the agent edits the file.

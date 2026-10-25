@@ -61,6 +61,7 @@ import { IChatWidgetService, type IChatWidgetViewModelChangeEvent } from '../../
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
+import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
@@ -2869,7 +2870,7 @@ suite('AgentHostSessionInputPills', () => {
 		await harness.setWorkingSetEnabled(true);
 		const controller = store.add(new AgentHostSnapshotController(harness.sessionResource, 'remote-test', undefined, new NullLogService(), upcastPartial<IFileService>({
 			readFile: async () => upcastPartial<IFileContent>({ value: VSBuffer.fromString('baseline') }),
-		})));
+		}), store.add(new WorkingCopyService())));
 		harness.showModel(upcastPartial<IChatModel>({}));
 		harness.addEditingSession(controller);
 		const [diff] = harness.workingSetChanges()!;
