@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -95,7 +96,7 @@ function bindChangesetOperationContextKeys(source: ISessionActionContextKeysSour
 	// Publish the Agent Merge title-menu inputs together after the incoming changes state resolves.
 	const primaryPullRequestOperationKey = SessionPrimaryPullRequestOperationContext.bindTo(contextKeyService);
 	const hasOpenPullRequestKey = SessionHasOpenPullRequestContext.bindTo(contextKeyService);
-	const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+	const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
 		DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 	let lastPullRequestOperation: string | undefined;
 	store.add(autorun(reader => {
