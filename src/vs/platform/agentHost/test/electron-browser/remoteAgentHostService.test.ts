@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -597,7 +597,7 @@ suite('RemoteAgentHostService', () => {
 		}, {
 			connection: undefined,
 			clientId: undefined,
-			status: RemoteAgentHostConnectionStatus.disconnected,
+			status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Connection refused'),
 		});
 	});
 
@@ -988,6 +988,40 @@ suite('RemoteAgentHostService', () => {
 				disposable: { dispose: () => { disposed = true; } },
 				disposed: () => disposed,
 			};
+		}
+
+		for (const phase of ['factory', 'handshake'] as const) {
+			for (const cancelled of [false, true]) {
+				test(`${phase} failures ${cancelled ? 'omit cancelled errors' : 'retain the error'} in disconnected status`, async () => {
+					const factory = createFactory();
+					const entry = cloudSandboxEntry('Host', 'cloudsandbox:failed');
+					const address = getEntryAddress(entry);
+					const error = cancelled ? new CancellationError() : new Error('Connection refused');
+					let client: MockProtocolClient | undefined;
+					if (phase === 'factory') {
+						factory.stageFailure(entry, error);
+					} else {
+						client = disposables.add(new MockProtocolClient(address));
+						factory.stage(entry, client);
+					}
+					service.reconnect(address, true);
+					const rejected = assert.rejects(service.waitForConnection(address), error);
+					if (client) {
+						await waitForFactoryConnection(factory, 1);
+						client.connectDeferred.error(error);
+					}
+					await rejected;
+					const failedStatus = service.connections.find(connection => connection.address === address)?.status;
+					const replacement = disposables.add(new MockProtocolClient(address));
+					await reconnectStagedConnection(factory, entry, replacement);
+					assert.deepStrictEqual({
+						failed: failedStatus, recovered: service.connections.find(connection => connection.address === address)?.status,
+					}, {
+						failed: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, cancelled ? undefined : error.message),
+						recovered: RemoteAgentHostConnectionStatus.connected,
+					});
+				});
+			}
 		}
 
 		function createFactory(kind = RemoteAgentHostEntryType.CloudSandbox): TestConnectionFactory {
@@ -1547,7 +1581,7 @@ suite('RemoteAgentHostService', () => {
 			}, {
 				connection: undefined,
 				clientId: undefined,
-				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning, `WSL distro 'Ubuntu' is not running.`),
 			});
 		});
 
@@ -2042,8 +2076,8 @@ suite('RemoteAgentHostService', () => {
 					createdConnections: factory.createdConnectionCount,
 					newObservations: factory.observations.slice(initialObservations.length),
 				}, {
-					initialStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
-					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+					initialStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning, 'Host is offline'),
+					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning, 'Host is offline'),
 					connectionChanges: 0,
 					pendingChanges: 0,
 					displayNameChanges: [

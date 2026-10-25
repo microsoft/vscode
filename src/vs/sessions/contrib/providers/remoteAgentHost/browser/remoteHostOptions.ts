@@ -276,6 +276,11 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverReconnecting', "The remote agent host connection dropped and is being restored automatically.");
 		case 'disconnected':
+			if (status.message) {
+				return address
+					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", status.message, address)
+					: status.message;
+			}
 			return address
 				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected.");

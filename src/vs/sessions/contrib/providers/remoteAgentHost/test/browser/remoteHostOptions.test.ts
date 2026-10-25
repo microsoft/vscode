@@ -9,6 +9,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -37,6 +38,18 @@ import {
 
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('disconnected hovers retain the connection error with an optional address', () => {
+		const status = RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Connection refused');
+		assert.deepStrictEqual({
+			error: getStatusHover(status),
+			withAddress: getStatusHover(status, 'ssh:host'),
+			plain: getStatusHover(RemoteAgentHostConnectionStatus.disconnected),
+		}, {
+			error: 'Connection refused', withAddress: 'Remote agent host is disconnected: Connection refused\n\nAddress: ssh:host',
+			plain: 'Remote agent host is disconnected.',
+		});
+	});
 
 	test('inventory-owned hosts offer disconnect and rename without local removal or SSH location controls', () => {
 		const snapshot = (isConnected: boolean) => buildRemoteHostOptionItems({

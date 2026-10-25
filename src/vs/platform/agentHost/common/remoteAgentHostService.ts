@@ -45,7 +45,7 @@ export type RemoteAgentHostConnectionStatus =
 		/** When the next automatic attempt fires, if one is scheduled. Absent while an attempt is in flight. */
 		readonly nextAttemptAt?: number;
 	}
-	| { readonly kind: 'disconnected'; readonly reason: AgentHostTransportFailureReason }
+	| { readonly kind: 'disconnected'; readonly reason: AgentHostTransportFailureReason; readonly message?: string }
 	| {
 		readonly kind: 'incompatible';
 		/** Human-readable reason from the host (or a synthesised one when the host did not send one). */
@@ -78,11 +78,11 @@ export namespace RemoteAgentHostConnectionStatus {
 	}
 	/** Singleton "disconnected" status. */
 	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected', reason: AgentHostTransportFailureReason.Unknown });
-	/** Build a disconnected status with a machine-readable reason. */
-	export function disconnectedBecause(reason: AgentHostTransportFailureReason): RemoteAgentHostConnectionStatus {
-		return reason === AgentHostTransportFailureReason.Unknown
+	/** Build a disconnected status with a machine-readable reason and optional display error. */
+	export function disconnectedBecause(reason: AgentHostTransportFailureReason, message?: string): RemoteAgentHostConnectionStatus {
+		return reason === AgentHostTransportFailureReason.Unknown && !message
 			? disconnected
-			: Object.freeze({ kind: 'disconnected', reason });
+			: Object.freeze({ kind: 'disconnected', reason, ...(message ? { message } : {}) });
 	}
 	/** Build an "incompatible" status from a host-supplied message and the versions involved. */
 	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[], vscodeUpgradeMethod?: string): RemoteAgentHostConnectionStatus {

@@ -70,9 +70,11 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	},
 };
 
+const horizontalScrollbarSize = 10;
+
 export class RemotesWidget extends Disposable {
 	readonly domNode: HTMLElement;
-	private readonly table: WorkbenchTable<IRemoteTableRow>;
+	protected readonly table: WorkbenchTable<IRemoteTableRow>;
 	private readonly tableContainer: HTMLElement;
 	private readonly tableInner: HTMLElement;
 	private readonly tableScrollable: DomScrollableElement;
@@ -146,6 +148,7 @@ export class RemotesWidget extends Disposable {
 			vertical: ScrollbarVisibility.Hidden,
 			useShadows: false,
 			scrollYToX: true,
+			horizontalScrollbarSize,
 		}));
 		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
@@ -155,9 +158,9 @@ export class RemotesWidget extends Disposable {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
 		const columnDefinitions = [
-			{ id: 'gutter', label: '', weight: 0, minimumWidth: 28, maximumWidth: 28 },
+			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
-			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 112 },
+			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 144 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
@@ -170,7 +173,7 @@ export class RemotesWidget extends Disposable {
 		this.tableMinWidth = columns.reduce((sum, column) => sum + column.minimumWidth, 0);
 		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
 			'RemotesTable', this.tableInner, {
-			headerRowHeight: 30,
+			headerRowHeight: 31, // Includes the header's bottom border.
 			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 76 : 26,
 		}, columns, renderers, {
 			identityProvider: { getId: row => row.id },
@@ -549,8 +552,11 @@ export class RemotesWidget extends Disposable {
 		const name = remote.pickerUnavailableReason
 			? localize('remotes.unavailablePickerName', "{0} (not shown in Environment picker: {1})", remote.name, remote.pickerUnavailableReason)
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
-		const label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
+		let label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
+		if (!this.pendingConnections.has(remote.id) && remote.connectionStatus.kind === 'disconnected' && remote.connectionStatus.message) {
+			label = localize('remotes.accessibleConnectionError', "{0}. Connection error: {1}", label, remote.connectionStatus.message);
+		}
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}
 
@@ -605,9 +611,11 @@ export class RemotesWidget extends Disposable {
 			const contentOffset = Math.max(0, this.tableContainer.getBoundingClientRect().top - this.domNode.getBoundingClientRect().top);
 			const height = Math.max(0, this.domNode.clientHeight - contentOffset);
 			const width = Math.max(this.tableMinWidth, this.tableContainer.clientWidth);
+			const tableHeight = Math.max(0, height - (width > this.tableContainer.clientWidth ? horizontalScrollbarSize : 0));
 			this.tableContainer.style.height = `${height}px`;
+			this.tableInner.style.height = `${tableHeight}px`;
 			this.tableInner.style.width = `${width}px`;
-			this.table.layout(height, width);
+			this.table.layout(tableHeight, width);
 			this.tableScrollable.scanDomNode();
 		}
 	}

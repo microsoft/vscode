@@ -13,6 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
@@ -38,9 +39,9 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string } = {}): Promise<void> {
 	container.style.width = `${width}px`;
-	container.style.height = '640px';
+	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
 	const content = dom.append(container, dom.$('.remotes-editor-content'));
 	const instantiationService = createEditorServices(disposableStore, {
@@ -77,7 +78,10 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			await pendingSignIn?.p;
 			this.tunnelAuthenticationRequired.set(undefined, undefined);
 		}
-		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
+		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes.map(remote =>
+			remote.id === 'ssh:build' && options.connectionError
+				? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, options.connectionError) }
+				: remote));
 		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
 			if (pendingRefresh && refreshing) {
 				progress?.report({ kind: refreshing, refreshing: true });
@@ -116,6 +120,18 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
+	ConnectionError: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' }),
+	}),
+	ShortEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 700, OperatingSystem.Linux, true, ['tunnel'], false, undefined, false, { height: 220 }),
+	}),
+	ShortEmptyNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => render(context, 360, OperatingSystem.Linux, true, ['tunnel'], false, undefined, false, { height: 220 }),
+	}),
 	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true) }),
 	EnvironmentActions: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],

@@ -8,7 +8,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +18,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgress } from '../../../../../../platform/progress/common/progress.js';
@@ -97,6 +98,12 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	}
 }
 
+class TestRemotesWidget extends RemotesWidget {
+	scrollToBottom(): void {
+		this.table.scrollTop = this.table.scrollHeight;
+	}
+}
+
 suite('RemotesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -108,6 +115,7 @@ suite('RemotesWidget', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const errors: Parameters<INotificationService['error']>[0][] = [];
 		const hoverContents = new Map<HTMLElement, string>();
+		const mouseHoverTargets = new Set<HTMLElement>();
 		const opened: { input: IResourceEditorInput; group: PreferredGroup | undefined }[] = [];
 		const documentation: string[] = [];
 		const settings: Parameters<IPreferencesService['openSettings']>[0][] = [];
@@ -139,11 +147,15 @@ suite('RemotesWidget', () => {
 					hoverContents.delete(args[0]);
 				});
 			}
+			override setupDelayedHoverAtMouse(...args: Parameters<IHoverService['setupDelayedHoverAtMouse']>) {
+				mouseHoverTargets.add(args[0]);
+				return combinedDisposable(this.setupDelayedHover(...args), toDisposable(() => mouseHoverTargets.delete(args[0])));
+			}
 		}());
 		const model = store.add(new TestRemotesModel());
-		const widget = store.add(instantiationService.createInstance(RemotesWidget, parent, model, operatingSystem));
+		const widget = store.add(instantiationService.createInstance(TestRemotesWidget, parent, model, operatingSystem));
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function getManagementAction(parent: HTMLElement, id: string, action: 'rename' | 'delete'): HTMLElement {
@@ -214,6 +226,78 @@ suite('RemotesWidget', () => {
 			values: ['Build server', 'Connected'], aligned: true,
 			rowHeight: 26, groupHeight: 30, headerHeight: 30, actionsWidth: true, sashes: true,
 		});
+	});
+
+	test('group chevrons and row visibility actions occupy distinct gutter positions', () => {
+		const { parent } = createWidget();
+		parent.style.setProperty('--vscode-spacing-size80', '8px');
+		const group = parent.querySelector<HTMLElement>('.remotes-group-row .remotes-gutter-column .action-label')!;
+		const visibility = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-gutter-column .action-label')!;
+		assert.deepStrictEqual({
+			offset: visibility.getBoundingClientRect().left - group.getBoundingClientRect().left,
+			width: parent.querySelector('.monaco-table-th')!.getBoundingClientRect().width,
+		}, { offset: 26, width: 64 });
+	});
+
+	test('shows disconnected error details in a warning hover, row label and accessible view', async () => {
+		const { parent, widget, model, hoverContents } = createWidget();
+		parent.style.setProperty('--vscode-spacing-size60', '6px');
+		const error = 'connect ECONNREFUSED 127.0.0.1:43192';
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? {
+			...remote, connectionStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, error),
+		} : remote), undefined);
+		const warning = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!;
+		const row = warning.closest('.monaco-list-row')!;
+		const label = parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')!;
+		assert.deepStrictEqual({
+			visible: !warning.hidden, hover: hoverContents.get(warning), aria: row.getAttribute('aria-label')?.includes(error),
+			accessible: widget.getAccessibilityContent().includes(error),
+			afterLabel: warning.getBoundingClientRect().left > label.getBoundingClientRect().right,
+		}, { visible: true, hover: error, aria: true, accessible: true, afterLabel: true });
+		model.pendingConnection = new DeferredPromise<void>();
+		getConnectionAction(parent, 'ssh:build').click();
+		const connecting = { hidden: warning.hidden, hover: hoverContents.get(warning), accessible: widget.getAccessibilityContent().includes(error) };
+		await model.pendingConnection.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ connecting, connected: warning.hidden, hover: hoverContents.get(warning) }, {
+			connecting: { hidden: true, hover: undefined, accessible: false }, connected: true, hover: undefined,
+		});
+		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.disconnected })), undefined);
+		assert.strictEqual(warning.hidden, true);
+	});
+
+	for (const width of [700, 360]) {
+		test(`can scroll the complete final empty row above the bottom scrollbar at width ${width}`, async () => {
+			const { parent, widget, model } = createWidget(OperatingSystem.Linux);
+			parent.style.width = `${width}px`;
+			parent.style.height = '220px';
+			model.remotes.set(Array.from({ length: 20 }, (_, i) => ({
+				id: `ssh:${i}`, kind: 'ssh' as const, name: `Host ${i}`, detail: `${i}`, canRemove: false,
+				connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+			})), undefined);
+			widget.setVisible(true);
+			await timeout(0);
+			widget.layout();
+			widget.scrollToBottom();
+			await timeout(0);
+			const empty = parent.querySelector<HTMLElement>('.remotes-empty-row')!;
+			assert.ok(empty, 'The final empty tunnels row is rendered after scrolling');
+			const bottom = parent.querySelector('.remotes-table-container')!.getBoundingClientRect().bottom - (width === 360 ? 10 : 0);
+			assert.ok(empty.getBoundingClientRect().bottom <= bottom, 'The entire empty row is inside the visible viewport');
+			const link = empty.querySelector<HTMLElement>('.monaco-link')!;
+			link.focus();
+			link.click();
+			assert.ok(link.getBoundingClientRect().bottom <= bottom, 'The setup link remains visible and reachable');
+		});
+	}
+
+	test('empty row text hovers are mouse-positioned so they do not cover the wheel target', async () => {
+		const { parent, widget, model, mouseHoverTargets } = createWidget();
+		model.remotes.set([], undefined);
+		widget.setVisible(true);
+		await timeout(0);
+		const text = [...parent.querySelectorAll<HTMLElement>('.remotes-empty-row .remotes-name, .remotes-empty-row .remotes-empty-description')];
+		assert.ok(text.length > 0 && text.every(target => mouseHoverTargets.has(target)));
 	});
 
 	test('row actions are left aligned and revealed on hover or keyboard focus', () => {

@@ -70,7 +70,7 @@ type RemoteCellTemplate = {
 	row?: IRemoteTableRow;
 } & (
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement }
+		| { readonly column: 'connection'; readonly label: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
@@ -123,7 +123,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'connection': {
 				const label = dom.append(container, dom.$('.remotes-connection-state'));
-				template = { ...base, column: this.column, label };
+				const warning = dom.append(container, dom.$('.remotes-connection-warning'));
+				dom.append(warning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
+				template = { ...base, column: this.column, label, warning };
 				break;
 			}
 			default: {
@@ -230,11 +232,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				if (template.actionProgress) {
 					template.actionProgress.hidden = !signingIn;
 				}
-				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: template.label.textContent }));
+				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
+					content: template.label.textContent, style: HoverStyle.Mouse,
+				}, { groupId: this.hoverGroupId }));
 				template.description.textContent = entry.type === 'empty' ? entry.description ?? '' : '';
 				template.description.hidden = !template.description.textContent;
 				if (template.description.textContent) {
-					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.description, { content: template.description.textContent }));
+					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.description, {
+						content: template.description.textContent, style: HoverStyle.Mouse,
+					}, { groupId: this.hoverGroupId }));
 				}
 				if (entry.type === 'empty' && entry.documentation) {
 					if (!template.link) {
@@ -249,9 +255,17 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'connection': {
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
+				const error = entry.type === 'remote' && entry.connecting === undefined && entry.remote.connectionStatus.kind === 'disconnected'
+					? entry.remote.connectionStatus.message : undefined;
+				template.warning.hidden = !error;
+				if (error) {
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.warning, {
+						content: error, style: HoverStyle.Pointer,
+					}, { groupId: this.hoverGroupId }));
+				}
 				if (entry.type === 'remote') {
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
-						content: entry.connecting === undefined ? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
+						content: entry.connecting === undefined ? error ?? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
 						style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}

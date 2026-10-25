@@ -9,6 +9,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { autorun, derived, IObservable, observableValue } from '../../../base/common/observable.js';
@@ -791,7 +792,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				store: new DisposableStore(),
 				observer,
 				connected: false,
-				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason),
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, isCancellationError(err) ? undefined : toErrorMessage(err)),
 				reconnectTransfersTransportOwnership: false,
 			});
 			this._rejectPendingConnectionWait(address, err);
@@ -993,7 +994,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
-			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
+			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, isCancellationError(err) ? undefined : toErrorMessage(err));
 			entry.client = undefined;
 			// Clean up the failed client while retaining its entry and status.
 			disposeEntry(entry);
