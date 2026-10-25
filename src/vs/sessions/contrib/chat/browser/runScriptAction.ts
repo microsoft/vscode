@@ -10,7 +10,7 @@ import { Action, IAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -119,6 +119,40 @@ interface IRunScriptActionContext {
 	readonly pinnedBrowser: boolean;
 }
 
+/** One value per chat window key, however often it is asked for, disposed when the key leaves `keys`. */
+export class WindowScopedCache<K, V> extends Disposable {
+
+	private readonly _entries = new Map<K, DisposableStore>();
+	private readonly _values = new Map<K, V>();
+
+	constructor(keys: IObservable<readonly K[]>, private readonly _create: (key: K, store: DisposableStore) => V, eager = false) {
+		super();
+		this._register(autorun(reader => {
+			const current = new Set(keys.read(reader));
+			for (const [key, store] of this._entries) {
+				if (!current.has(key)) {
+					store.dispose();
+					this._entries.delete(key);
+					this._values.delete(key);
+				}
+			}
+			if (eager) {
+				current.forEach(key => this.get(key));
+			}
+		}));
+		this._register(toDisposable(() => this._entries.forEach(store => store.dispose())));
+	}
+
+	get(key: K): V {
+		if (!this._values.has(key)) {
+			const store = new DisposableStore();
+			this._entries.set(key, store);
+			this._values.set(key, this._create(key, store));
+		}
+		return this._values.get(key)!;
+	}
+}
+
 type TaskConfigurationMode = 'add' | 'configure';
 
 /**
@@ -130,6 +164,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentSessions.runScript';
 
 	private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>;
+	private readonly _windowRunStates: WindowScopedCache<IObservable<IActiveSession | undefined>, IObservable<IRunScriptActionContext | undefined>>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
@@ -147,6 +182,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		super();
 
 		this._activeRunState = this._createRunState(this._sessionsService.activeSession).recomputeInitiallyAndOnChange(this._store);
+
+		this._windowRunStates = this._register(new WindowScopedCache(
+			this._chatWindowService.windows.map(this, windows => windows.map(window => window.session)),
+			(session, store) => this._createRunState(session).recomputeInitiallyAndOnChange(store)));
 
 		this._registerActionViewItemProvider();
 		this._registerActions();
@@ -189,7 +228,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	/** What the Run button in the window `windowId` runs: for the session of its chat window, else for the active session. */
 	private _runStateOf(windowId: number): IObservable<IRunScriptActionContext | undefined> {
 		const windowSession = getChatWindowSession(this._chatWindowService, windowId);
-		return windowSession ? this._createRunState(windowSession) : this._activeRunState;
+		if (!windowSession) {
+			return this._activeRunState;
+		}
+		return this._windowRunStates.get(windowSession);
 	}
 
 	private _registerActionViewItemProvider(): void {
@@ -259,61 +301,51 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 		}));
 
-		this._register(autorun(reader => {
-			const activeState = this._activeRunState.read(reader);
-			if (!activeState) {
-				return;
+		// Registered once, in one fixed group and without state-dependent conditions: they only keep the submenu
+		// non-empty (the Run view item builds its own dropdown), and any change to the menu would rebuild every
+		// toolbar showing it.
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
+					title: localize2('configureDefaultRunAction', "Add Task..."),
+					category: SessionsCategories.Sessions,
+					icon: Codicon.add,
+					menu: { id: RunScriptDropdownMenuId, group: '1_configure', order: 0 }
+				});
 			}
 
-			const { session, chat, tasks } = activeState;
-			const folder = chat.workspace.read(reader)?.folders[0];
-			const configureScriptPrecondition = folder?.workingDirectory ? ContextKeyExpr.true() : ContextKeyExpr.false();
-
-			reader.store.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
-						title: localize2('configureDefaultRunAction', "Add Task..."),
-						category: SessionsCategories.Sessions,
-						icon: Codicon.add,
-						precondition: configureScriptPrecondition,
-						menu: [{
-							id: RunScriptDropdownMenuId,
-							group: tasks.length === 0 ? 'navigation' : '1_configure',
-							order: 0
-						}]
-					});
+			async run(): Promise<void> {
+				const state = that._runStateOf(getWindowId(getActiveWindow())).get();
+				if (!state) {
+					return;
 				}
-
-				async run(): Promise<void> {
-					logSessionsInteraction(that._telemetryService, 'addTask', 'menu');
-					const task = await that._showConfigureQuickPick(session, chat);
-					if (task) {
-						await that._sessionsConfigService.runTask(task, session, chat);
-					}
+				logSessionsInteraction(that._telemetryService, 'addTask', 'menu');
+				const task = await that._showConfigureQuickPick(state.session, state.chat);
+				if (task) {
+					await that._sessionsConfigService.runTask(task, state.session, state.chat);
 				}
-			}));
+			}
+		}));
 
-			reader.store.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: GENERATE_RUN_ACTION_ID,
-						title: localize2('generateRunAction', "Generate New Task..."),
-						category: SessionsCategories.Sessions,
-						precondition: SessionWorkspaceIsVirtualContext.toNegated(),
-						menu: [{
-							id: RunScriptDropdownMenuId,
-							group: tasks.length === 0 ? 'navigation' : '1_configure',
-							order: 1
-						}]
-					});
-				}
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: GENERATE_RUN_ACTION_ID,
+					title: localize2('generateRunAction', "Generate New Task..."),
+					category: SessionsCategories.Sessions,
+					menu: { id: RunScriptDropdownMenuId, group: '1_configure', order: 1 }
+				});
+			}
 
-				async run(): Promise<void> {
-					logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
-					await that._generateNewTask(session, chat);
+			async run(): Promise<void> {
+				const state = that._runStateOf(getWindowId(getActiveWindow())).get();
+				if (!state) {
+					return;
 				}
-			}));
+				logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
+				await that._generateNewTask(state.session, state.chat);
+			}
 		}));
 	}
 

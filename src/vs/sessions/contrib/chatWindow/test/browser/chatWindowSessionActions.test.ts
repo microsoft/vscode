@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatWindowSessionHasWorkspaceContext, getChatWindowSession, IChatWindow, IChatWindowService, SessionTitleBarActionsShownContext } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { bindChatWindowTitleBarContext } from '../../browser/chatWindowService.js';
+import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 
 suite('Chat window session actions', () => {
 
@@ -52,6 +54,42 @@ suite('Chat window session actions', () => {
 			chatWindow: true,
 			mainWindow: undefined,
 			unknown: undefined,
+		});
+	});
+
+	test('the keys of the title bar change with the workspace of the session only, not with its chats or their stats', () => {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const workspace = observableValue<{ isVirtualWorkspace: boolean } | undefined>('workspace', { isVirtualWorkspace: false });
+		const chatStats = observableValue('chatStats', 0);
+		const chat = { workspace };
+		const session = observableValue<IActiveSession | undefined>('session', {
+			isQuickChat: constObservable(false),
+			workspace: constObservable({}),
+			activeChat: derived(reader => { chatStats.read(reader); return chat; }),
+		} as unknown as IActiveSession);
+		store.add(bindChatWindowTitleBarContext(session, contextKeyService));
+
+		const changes: string[] = [];
+		store.add(contextKeyService.onDidChangeContext(e => {
+			for (const key of [ChatWindowSessionHasWorkspaceContext.key, SessionWorkspaceIsVirtualContext.key, IsQuickChatSessionContext.key]) {
+				if (e.affectsSome(new Set([key]))) {
+					changes.push(key);
+				}
+			}
+		}));
+		const read = () => ({ hasWorkspace: ChatWindowSessionHasWorkspaceContext.getValue(contextKeyService), isVirtual: SessionWorkspaceIsVirtualContext.getValue(contextKeyService) });
+
+		const initial = read();
+		chatStats.set(1, undefined);
+		chatStats.set(2, undefined);
+		const afterStats = { values: read(), changes: [...changes] };
+		workspace.set({ isVirtualWorkspace: true }, undefined);
+
+		assert.deepStrictEqual({ initial, afterStats, afterVirtual: read(), changes }, {
+			initial: { hasWorkspace: true, isVirtual: false },
+			afterStats: { values: { hasWorkspace: true, isVirtual: false }, changes: [] },
+			afterVirtual: { hasWorkspace: true, isVirtual: true },
+			changes: [SessionWorkspaceIsVirtualContext.key],
 		});
 	});
 });

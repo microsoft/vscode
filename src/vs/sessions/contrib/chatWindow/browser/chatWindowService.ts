@@ -6,7 +6,7 @@
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { timeout } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -22,6 +22,7 @@ import { EditorInput } from '../../../../workbench/common/editor/editorInput.js'
 import { completeTerminalReturn, decideTerminalRowMove, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionWorkspaceIsVirtualContext } from '../../../common/contextkeys.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { DeepPartial } from '../../../../base/common/types.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -38,7 +39,6 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatWindowCustomEditorInput } from './chatWindowCustomEditorInput.js';
@@ -51,6 +51,32 @@ const CHAT_WINDOW_DEFAULT_SIZE = { width: 720, height: 760 };
 
 /** The least size a docked chat window can be resized to, unless its kind has one: room for an editor above the chat input. */
 const CHAT_WINDOW_DOCKED_MINIMUM_SIZE = { width: 320, height: 320 };
+
+/**
+ * Binds on `contextKeyService` what the menus of a chat window read about the session it shows. Only those values are read, and
+ * compared by value: a streaming response or a stats change leaves the keys alone, so the title bar does not re-render.
+ */
+export function bindChatWindowTitleBarContext(session: IObservable<IActiveSession | undefined>, contextKeyService: IContextKeyService): IDisposable {
+	const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(contextKeyService);
+	const workspaceIsVirtualContext = SessionWorkspaceIsVirtualContext.bindTo(contextKeyService);
+	const isQuickChatContext = IsQuickChatSessionContext.bindTo(contextKeyService);
+	const state = derivedOpts<{ readonly hasWorkspace: boolean; readonly isVirtual: boolean; readonly isQuickChat: boolean }>({
+		equalsFn: (a, b) => a.hasWorkspace === b.hasWorkspace && a.isVirtual === b.isVirtual && a.isQuickChat === b.isQuickChat
+	}, reader => {
+		const active = session.read(reader);
+		const workspace = active?.activeChat.read(reader).workspace.read(reader);
+		const isQuickChat = !!active?.isQuickChat?.read(reader);
+		return { hasWorkspace: !!active && !isQuickChat && !!active.workspace.read(reader), isVirtual: workspace?.isVirtualWorkspace ?? true, isQuickChat };
+	});
+	return autorun(reader => {
+		const { hasWorkspace, isVirtual, isQuickChat } = state.read(reader);
+		contextKeyService.bufferChangeEvents(() => {
+			isQuickChatContext.set(isQuickChat);
+			hasWorkspaceContext.set(hasWorkspace);
+			workspaceIsVirtualContext.set(isVirtual);
+		});
+	});
+}
 
 /**
  * An open chat window: its editor part, the group of its chat, and the group of its editor, above or beside the chat,
@@ -396,12 +422,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			windowDisposables.add(autorun(reader => editorAreaEditorContext.set(activeEditor.read(reader))));
 		}
 		// What the session commands of its title bar need to know about the session it shows, not the focused window's.
-		const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(windowContextKeyService);
-		windowDisposables.add(autorun(reader => {
-			const session = window.session.read(reader);
-			hasWorkspaceContext.set(!!session && !session.isQuickChat?.read(reader) && !!session.workspace.read(reader));
-			setActiveSessionContextKeys(session, windowContextKeyService, reader);
-		}));
+		windowDisposables.add(bindChatWindowTitleBarContext(window.session, windowContextKeyService));
 		windowDisposables.add(toDisposable(() => this._remove(window)));
 		Event.once(part.onWillDispose)(() => windowDisposables.dispose());
 		this._windows.set([...this._windows.get(), window], undefined);

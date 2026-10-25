@@ -174,6 +174,38 @@ suite('SessionsTasksService', () => {
 
 	// --- getSessionTasks ---
 
+	test('getSessionTasks of two sessions with different folders reads each tasks.json once, however often and in whatever order they are asked', async () => {
+		const otherRepo = URI.parse('file:///other');
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		const first = makeSession({ repository: repoUri });
+		const second = makeSession({ repository: otherRepo });
+
+		const a = service.getSessionTasks(first);
+		const b = service.getSessionTasks(second);
+		for (let i = 0; i < 5; i++) {
+			service.getSessionTasks(first);
+			service.getSessionTasks(second);
+		}
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => t.task.label),
+			b: b.get().map(t => t.task.label),
+			sameObservable: service.getSessionTasks(first) === a,
+			reads: readFileCalls.map(uri => uri.toString()).sort(),
+		}, {
+			a: ['a'],
+			b: ['b'],
+			sameObservable: true,
+			reads: [
+				'file:///other/.vscode/tasks.json',
+				'file:///repo/.vscode/tasks.json',
+				'file:///user/tasks.json',
+			],
+		});
+	});
+
 	test('getSessionTasks returns tasks with inAgents: true from worktree', async () => {
 		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
 		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
