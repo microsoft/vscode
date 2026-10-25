@@ -153,23 +153,40 @@ suite('diffing fixtures', () => {
 		}
 	}
 
+	async function loadExternalComputer(useWasm: boolean) {
+		// Import by file URL: the electron test runner cannot resolve this ESM-only package by name.
+		const externalModuleUrl = FileAccess.asFileUri(`${nodeModulesPath}/@vscode/diff/dist/index.js`).toString(true);
+		const externalModule: typeof import('@vscode/diff') = await import(externalModuleUrl);
+		return createExternalLinesDiffComputer(externalModule, useWasm);
+	}
+
 	// The wasm loader of @vscode/diff takes its node code path in the electron renderer, which cannot import `node:fs`.
 	for (const useWasm of isElectron ? [false] : [false, true]) {
 		test(`@vscode/diff (${useWasm ? 'advanced-wasm' : 'advanced-external'}) matches advanced on all fixtures`, async () => {
-			// Import by file URL: the electron test runner cannot resolve this ESM-only package by name.
-			const externalModuleUrl = FileAccess.asFileUri(`${nodeModulesPath}/@vscode/diff/dist/index.js`).toString(true);
-			const externalModule: typeof import('@vscode/diff') = await import(externalModuleUrl);
-			const external = await createExternalLinesDiffComputer(externalModule, useWasm);
+			const external = await loadExternalComputer(useWasm);
 			const mismatches = folders.filter(folder => {
-				const { firstContentLines, secondContentLines, ignoreTrimWhitespace } = readFixture(folder);
-				const options = { ignoreTrimWhitespace, maxComputationTimeMs: 0, computeMoves: false };
+				const { firstContentLines, secondContentLines } = readFixture(folder);
+				const options = { ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false };
 				const expected = formatChanges(new DefaultLinesDiffComputer().computeDiff(firstContentLines, secondContentLines, options));
 				const actual = formatChanges(external.computeDiff(firstContentLines, secondContentLines, options));
 				return JSON.stringify(actual) !== JSON.stringify(expected);
 			});
-			assert.deepStrictEqual(mismatches, []);
+			// `advanced` replaces an empty document as a whole, while the string edit maps to a pure insertion.
+			// Both are valid; the diff editor handles empty documents before calling any algorithm.
+			assert.deepStrictEqual(mismatches, ['invalid-ranges']);
 		});
 	}
+
+	test('@vscode/diff: ignoreTrimWhitespace hides only leading/trailing whitespace changes', async () => {
+		const external = await loadExternalComputer(false);
+		const original = ['if (a) {', '\tfoo();  ', '}', 'bar(x, y);', '  ', 'let a = 1;'];
+		const modified = ['if (a) {', '    foo();', '}', 'bar(x,  y);', '\t', 'let  a = 2;'];
+		const diff = external.computeDiff(original, modified, { ignoreTrimWhitespace: true, maxComputationTimeMs: 0, computeMoves: false });
+		assert.deepStrictEqual(formatChanges(diff), [
+			'[4,5)->[4,5) {[4,7 -> 4,7]->[4,7 -> 4,8]}',
+			'[6,7)->[6,7) {[6,4 -> 6,4]->[6,4 -> 6,5]} {[6,9 -> 6,10]->[6,10 -> 6,11]}',
+		]);
+	});
 });
 
 function formatChanges(diff: LinesDiff): string[] {
