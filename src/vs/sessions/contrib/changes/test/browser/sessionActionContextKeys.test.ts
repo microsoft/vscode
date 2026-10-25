@@ -83,7 +83,7 @@ suite('Session Action Context Keys', () => {
 		};
 		disposables.add(bindSessionActionContextKeys(instantiationService, createSource({}), scoped));
 
-		const unrelated = scoped.createKey('unrelatedKey', 0);
+		const unrelated = scoped.createKey<number>('unrelatedKey', 0);
 		const afterBind = reads;
 		unrelated.set(1);
 		unrelated.set(2);
