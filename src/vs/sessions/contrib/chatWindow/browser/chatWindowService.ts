@@ -626,8 +626,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				}
 			}));
 			window.state.terminalGroup.set(row, undefined);
-			await this._terminalHost?.show(window, row, focus);
-			this._hideEmptyTerminalRow(window, row);
+			if (this._terminalHost && !await this._terminalHost.show(window, row, focus)) {
+				this._hideEmptyTerminalRow(window, row);
+			}
 		} else if (group) {
 			this._emptyTerminalRow(window, host => host.hide(window));
 			window.state.terminalGroup.set(undefined, undefined);
@@ -656,11 +657,15 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	showTerminalAgain(window: ChatWindow): void {
 		const group = window.state.terminalGroup.get();
 		if (group?.isEmpty) {
-			void this._terminalHost?.show(window, group, false).then(() => this._hideEmptyTerminalRow(window, group));
+			void this._terminalHost?.show(window, group, false).then(shown => {
+				if (!shown) {
+					this._hideEmptyTerminalRow(window, group);
+				}
+			});
 		}
 	}
 
-	/** An empty row hides, whatever left it empty: also when there was no terminal to show in it, which closes no editor. */
+	/** An empty row hides, also when there was no terminal to show in it, which closes no editor to tell. A terminal on its way to the row is not for this to judge: see {@link IChatWindowTerminalHost.show}. */
 	private _hideEmptyTerminalRow(window: ChatWindow, row: IEditorGroup): void {
 		if (shouldHideTerminalRow({ hostRegistered: !!this._terminalHost, rowIsEmpty: row.isEmpty, isCurrent: window.state.terminalGroup.get() === row, isEmptying: this._emptyingTerminalRows.has(window) })) {
 			void this.setTerminalShown(window, false, false);

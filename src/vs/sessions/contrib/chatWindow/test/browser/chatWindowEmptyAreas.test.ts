@@ -59,7 +59,7 @@ suite('Chat window - empty terminal row', () => {
 	test('a row shown with no terminal to show hides, also when the host returns early', async () => {
 		const disposables = store.add(new DisposableStore());
 		const service = createService(disposables);
-		const host: IChatWindowTerminalHost = { show: async () => { }, hide: () => { }, release: () => { } };
+		const host: IChatWindowTerminalHost = { show: async () => false, hide: () => { }, release: () => { } };
 		disposables.add(service.registerTerminalHost(host));
 		const { window, terminalGroup, removed, row } = createWindow();
 
@@ -77,11 +77,26 @@ suite('Chat window - empty terminal row', () => {
 
 		const shows: boolean[] = [];
 		service.showTerminalAgain(window as never);
-		disposables.add(service.registerTerminalHost({ show: async () => { shows.push(true); }, hide: () => { }, release: () => { } }));
+		disposables.add(service.registerTerminalHost({ show: async () => { shows.push(true); return false; }, hide: () => { }, release: () => { } }));
 		service.showTerminalAgain(window as never);
 		await Promise.resolve();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({ shows: shows.length, shown: terminalGroup.get() === row, removed: removed.length }, { shows: 1, shown: false, removed: 1 });
+	});
+
+	test('a row whose terminal opens a moment after the host handed it over stays', async () => {
+		const disposables = store.add(new DisposableStore());
+		const service = createService(disposables);
+		disposables.add(service.registerTerminalHost({ show: async () => true, hide: () => { }, release: () => { } }));
+		const { window, terminalGroup, removed, row } = createWindow();
+
+		await service.setTerminalShown(window as never, true, false);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		const result = { shown: terminalGroup.get() === row, removed: removed.length };
+		await service.setTerminalShown(window as never, false, false);
+
+		assert.deepStrictEqual(result, { shown: true, removed: 0 });
 	});
 });

@@ -971,10 +971,10 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 		return getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
 	}
 
-	async show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<void> {
+	async show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<boolean> {
 		const session = window.session.get();
 		if (!session) {
-			return;
+			return false;
 		}
 		const terminals = this._getTerminals(window);
 		for (const instance of [...terminals]) {
@@ -986,7 +986,7 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 			const instance = await this._contribution.getChatWindowTerminal(session);
 			// Hidden meanwhile, or the terminal could not start.
 			if (!instance || instance.isDisposed || window.terminalGroup.get() !== group) {
-				return;
+				return false;
 			}
 			terminals.add(instance);
 		}
@@ -1007,6 +1007,7 @@ class ChatWindowTerminalHost implements IChatWindowTerminalHost {
 			}
 			first = false;
 		}
+		return true;
 	}
 
 	hide(window: IChatWindow): void {
