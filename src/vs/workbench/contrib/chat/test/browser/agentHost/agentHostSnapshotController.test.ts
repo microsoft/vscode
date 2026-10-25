@@ -591,6 +591,55 @@ suite('AgentHostSnapshotController', () => {
 			assert.deepStrictEqual({ disabled: controller.requestDisablement.get(), redo: controller.canRedo.get(), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length }, { disabled: [{ requestId: 'request' }], redo: true, visible: 1 });
 		});
 
+		for (const failed of [false, true]) {
+			test(`Undo only suppresses files restored by the crossed checkpoints (previous Undo failed: ${failed})`, async () => {
+				const first = URI.file('/first.ts');
+				const second = URI.file('/second.ts');
+				const before = URI.file('/snapshots/before.ts');
+				const after = URI.file('/snapshots/after.ts');
+				const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [first.toString(), 'after'], [second.toString(), 'after']]);
+				const files = makeMockFileService(content);
+				const write = files.writeFile;
+				files.writeFile = async (resource, value) => {
+					if (failed && resource.path === second.path) {
+						throw new Error('read only');
+					}
+					return write(resource, value);
+				};
+				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/successive-undo'), 'local', undefined, new NullLogService(), files));
+				for (const file of [first, second]) {
+					controller.addToolCallEdits(file.path, makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+				}
+				const source = constObservable({
+					channel: URI.parse('changeset:/working-set'),
+					ready: true,
+					files: [first, second].map(file => ({ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: file.path })),
+				});
+				store.add(controller.checkpointReview.registerSource(source));
+				if (failed) {
+					await assert.rejects(controller.undoInteraction(), /read only/);
+				} else {
+					await controller.undoInteraction();
+				}
+				await controller.undoInteraction();
+				const undone = {
+					content: [content.get(first.toString()), content.get(second.toString())],
+					visible: controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path),
+				};
+				await controller.redoInteraction();
+				await controller.redoInteraction();
+				assert.deepStrictEqual({
+					undone,
+					redone: [content.get(first.toString()), content.get(second.toString())],
+					visible: controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path),
+				}, {
+					undone: { content: ['before', failed ? 'after' : 'before'], visible: failed ? ['/second.ts'] : [] },
+					redone: ['after', 'after'],
+					visible: ['/first.ts', '/second.ts'],
+				});
+			});
+		}
+
 		test('Redo recovers successful partial restoration without rewriting a file that could not be undone', async () => {
 			const created = URI.file('/created.ts');
 			const existing = URI.file('/existing.ts');
@@ -637,25 +686,25 @@ suite('AgentHostSnapshotController', () => {
 		});
 
 		for (const initiallyPublished of [false, true]) {
-		test(`Start Over waits for the working-set snapshot before projecting it (initially published: ${initiallyPublished})`, async () => {
-			const file = URI.file('/file.ts');
-			const before = URI.file('/snapshots/before.ts');
-			const after = URI.file('/snapshots/after.ts');
-			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [file.toString(), 'after']]);
-			const controller = createController(store, content);
-			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
-			const files = [{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'shown' }];
-			const source = observableValue('working set', { channel: URI.parse('changeset:/working-set'), ready: false, files: initiallyPublished ? files : [] });
-			store.add(controller.checkpointReview.registerSource(source));
-			const restoring = controller.restoreSnapshot('request', undefined);
-			await timeout(0);
-			const whileComputing = content.get(file.toString());
-			source.set({ ...source.get(), ready: true, files }, undefined);
-			await restoring;
-			assert.deepStrictEqual({ whileComputing, restored: content.get(file.toString()), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length }, {
-				whileComputing: 'after', restored: 'before', visible: 0,
+			test(`Start Over waits for the working-set snapshot before projecting it (initially published: ${initiallyPublished})`, async () => {
+				const file = URI.file('/file.ts');
+				const before = URI.file('/snapshots/before.ts');
+				const after = URI.file('/snapshots/after.ts');
+				const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [file.toString(), 'after']]);
+				const controller = createController(store, content);
+				controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
+				const files = [{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'shown' }];
+				const source = observableValue('working set', { channel: URI.parse('changeset:/working-set'), ready: false, files: initiallyPublished ? files : [] });
+				store.add(controller.checkpointReview.registerSource(source));
+				const restoring = controller.restoreSnapshot('request', undefined);
+				await timeout(0);
+				const whileComputing = content.get(file.toString());
+				source.set({ ...source.get(), ready: true, files }, undefined);
+				await restoring;
+				assert.deepStrictEqual({ whileComputing, restored: content.get(file.toString()), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length }, {
+					whileComputing: 'after', restored: 'before', visible: 0,
+				});
 			});
-		});
 		}
 
 		test('an unavailable review baseline does not prevent restoring valid checkpoint contents', async () => {
@@ -667,11 +716,13 @@ suite('AgentHostSnapshotController', () => {
 			const controller = createController(store, content);
 			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'other', filePath: other.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
-			const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: true, files: [{
-				diff: { ...emptySessionEntryDiff(URI.file('/unavailable/baseline'), file), modifiedSnapshotURI: after }, nonce: 'shown',
-			}, {
-				diff: { ...emptySessionEntryDiff(before, other), modifiedSnapshotURI: after }, nonce: 'other',
-			}] });
+			const source = constObservable({
+				channel: URI.parse('changeset:/working-set'), ready: true, files: [{
+					diff: { ...emptySessionEntryDiff(URI.file('/unavailable/baseline'), file), modifiedSnapshotURI: after }, nonce: 'shown',
+				}, {
+					diff: { ...emptySessionEntryDiff(before, other), modifiedSnapshotURI: after }, nonce: 'other',
+				}]
+			});
 			store.add(controller.checkpointReview.registerSource(source));
 			await controller.restoreSnapshot('request', undefined);
 			assert.deepStrictEqual({ restored: [content.get(file.toString()), content.get(other.toString())], redo: controller.canRedo.get(), visible: controller.checkpointReview.project(source.get().channel, source.get().files).map(file => file.diff.modifiedURI.path) }, {
@@ -703,9 +754,11 @@ suite('AgentHostSnapshotController', () => {
 			for (const file of [first, second]) {
 				controller.addToolCallEdits('request', makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 			}
-			const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: true, files: [first, second].map(file => ({
-				diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: file.path,
-			})) });
+			const source = constObservable({
+				channel: URI.parse('changeset:/working-set'), ready: true, files: [first, second].map(file => ({
+					diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: file.path,
+				}))
+			});
 			store.add(controller.checkpointReview.registerSource(source));
 			await controller.restoreSnapshot('request', undefined);
 			const write = files.writeFile;
@@ -730,9 +783,11 @@ suite('AgentHostSnapshotController', () => {
 				...makeToolCall({ toolCallId: 'delete', filePath: file.fsPath, beforeURI: middle.toString(), afterURI: middle.toString() }),
 				content: [{ type: ToolResultContentType.FileEdit, before: { uri: file.toString(), content: { uri: middle.toString() } } }],
 			});
-			const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: true, files: [{
-				diff: { ...emptySessionEntryDiff(before, file), isDeleted: true }, nonce: 'deleted',
-			}] });
+			const source = constObservable({
+				channel: URI.parse('changeset:/working-set'), ready: true, files: [{
+					diff: { ...emptySessionEntryDiff(before, file), isDeleted: true }, nonce: 'deleted',
+				}]
+			});
 			store.add(controller.checkpointReview.registerSource(source));
 			await controller.restoreSnapshot('first', undefined);
 			const restored = { content: content.get(file.toString()), visible: controller.checkpointReview.project(source.get().channel, source.get().files).length };

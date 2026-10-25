@@ -1099,12 +1099,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		}
 	});
 	const editingSessionProviders = new Map<string, IChatEditingSessionProvider>();
+	const createEditingSession = () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } });
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: (scheme: string, provider: IChatEditingSessionProvider) => {
 			editingSessionProviders.set(scheme, provider);
 			return toDisposable(() => editingSessionProviders.delete(scheme));
 		},
-		createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
+		createEditingSession,
+		startOrContinueGlobalEditingSession: createEditingSession,
 	});
 	const textFileRetention = { active: 0 };
 	instantiationService.stub(ITextFileService, {
@@ -2006,9 +2008,6 @@ suite('AgentHostChatContribution', () => {
 						usage: undefined,
 					}],
 				},
-			});
-			instantiationService.stub(IChatEditingService, {
-				createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
 			});
 			const createModel = (resource: URI) => disposables.add(instantiationService.createInstance(
 				ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true },

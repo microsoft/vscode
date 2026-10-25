@@ -739,7 +739,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				return state?.status === ChangesetStatus.Ready && (!current || !isSameWorkingSetFile(current, shown));
 			};
 			if (!isUpdated(workingSet.subscription.value)) {
-				const updated = Event.toPromise(Event.filter(workingSet.subscription.onDidChange, isUpdated));
+				const updated = Event.toPromise(Event.filter(Event.any(workingSet.subscription.onDidChange, workingSet.subscription.onDidError ?? Event.None), () => isUpdated(workingSet.subscription.value)));
 				try {
 					await raceCancellationError(raceTimeout(updated, WORKING_SET_READY_TIMEOUT_MS, () => updated.cancel()), this._lifetimeToken);
 				} finally {
@@ -997,8 +997,13 @@ async function whenReady(subscription: IAgentSubscription<ChangesetState>): Prom
 	const isSettled = (state: ChangesetState | Error | undefined) => state instanceof Error || state?.status === ChangesetStatus.Ready || state?.status === ChangesetStatus.Error;
 	let state = subscription.value;
 	if (!isSettled(state)) {
-		const settled = Event.toPromise(Event.filter(subscription.onDidChange, isSettled));
-		state = await raceTimeout(settled, WORKING_SET_READY_TIMEOUT_MS, () => settled.cancel());
+		const settled = Event.toPromise(Event.filter(Event.any(subscription.onDidChange, subscription.onDidError ?? Event.None), () => isSettled(subscription.value)));
+		try {
+			await raceTimeout(settled, WORKING_SET_READY_TIMEOUT_MS, () => settled.cancel());
+		} finally {
+			settled.cancel();
+		}
+		state = subscription.value;
 	}
 	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
 }

@@ -86,7 +86,7 @@ export interface IChangesSummaryFileList extends IDisposable {
 export function openChatFileChangeDiff(editorService: IEditorService, diff: IEditSessionEntryDiff, options?: IEditorOptions, sideBySide = false): void {
 	const editorResource = toChatFileChangeEditorResource(diff);
 	if (!editorResource.original.resource || !editorResource.modified.resource) {
-		openChatFileChanges(editorService, localize('chat.fileChanges', "File Changes"), [diff], sideBySide);
+		openChatFileChanges(editorService, localize('chat.fileChanges', "File Changes"), [diff], sideBySide, options);
 		return;
 	}
 	editorService.openEditor({

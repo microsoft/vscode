@@ -547,6 +547,23 @@ suite('ChatSessionWorkingSet', () => {
 		});
 	});
 
+	for (const kind of ['created', 'deleted'] as const) {
+		test(`preserves preview focus and double-click pinning for ${kind} file diffs`, () => {
+			const { rows, opened } = createWorkingSet([{
+				...emptySessionEntryDiff(URI.parse('snapshot:/before/file.ts'), URI.file('/file.ts')),
+				modifiedSnapshotURI: URI.parse('snapshot:/after/file.ts'),
+				isCreated: kind === 'created',
+				isDeleted: kind === 'deleted',
+			}]);
+			rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+			assert.deepStrictEqual(opened.map(input => isResourceMultiDiffEditorInput(input) ? input.options : undefined), [
+				{ preserveFocus: true, pinned: false, revealIfVisible: true },
+				{ preserveFocus: false, pinned: true, revealIfVisible: true },
+			]);
+		});
+	}
+
 	test('View All Edits preserves Session Changes when the host has no live Working Set', async () => {
 		const snapshot = { ...emptySessionEntryDiff(URI.parse('snapshot:/before/file.ts'), URI.file('/file.ts')), modifiedSnapshotURI: URI.parse('snapshot:/after/file.ts') };
 		let liveOpened = false;

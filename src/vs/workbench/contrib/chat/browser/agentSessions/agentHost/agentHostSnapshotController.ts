@@ -281,7 +281,11 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		// A failed fetch must leave every file and the checkpoint cursor at the original boundary.
 		await Promise.all(crossed.map(checkpoint => this._resolveCheckpointEdits(checkpoint)));
 		const undo = targetIdx < currentIdx;
-		const updateReview = await this.checkpointReview.prepareRestore(undo ? this._checkpoints.slice(targetIdx + 1) : crossed, undo);
+		const updateReview = await this.checkpointReview.prepareRestore(
+			undo ? this._checkpoints.slice(targetIdx + 1) : crossed,
+			undo,
+			crossed.flatMap(checkpoint => checkpoint.edits.map(edit => edit.resource)),
+		);
 		const failures: Error[] = [];
 		for (const checkpoint of undo ? [...crossed].reverse() : crossed) {
 			try {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { equals } from '../../../../../../base/common/arrays.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
@@ -79,7 +79,9 @@ class TestAgentHost extends mock<IAgentConnection>() {
 	operationGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
 	afterOperation: ((params: InvokeChangesetOperationParams) => void) | undefined;
 	workingSet: ChangesetState = { status: ChangesetStatus.Ready, files: [], operations: createOperations() };
+	workingSetError: Error | undefined;
 	readonly onDidChangeWorkingSet = new Emitter<ChangesetState>();
+	readonly onDidErrorWorkingSet = new Emitter<Error>();
 	session = upcastPartial<SessionState>({
 		provider: 'copilot',
 		changesets: [{ label: 'Working Set', uriTemplate: 'changeset/working-set', changeKind: ChangesetKind.WorkingSet }],
@@ -87,11 +89,19 @@ class TestAgentHost extends mock<IAgentConnection>() {
 
 	override getSubscription<T extends StateComponents>(kind: T, _resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
 		const getValue = () => (kind === StateComponents.Session ? this.session : this.workingSet) as ComponentToState[T];
+		const getError = () => kind === StateComponents.Changeset ? this.workingSetError : undefined;
 		return {
 			object: {
-				get value() { return getValue(); },
-				get verifiedValue() { return getValue(); },
+				get value() { return getError() ?? getValue(); },
+				get verifiedValue() {
+					const error = getError();
+					if (error) {
+						throw error;
+					}
+					return getValue();
+				},
 				onDidChange: (kind === StateComponents.Changeset ? this.onDidChangeWorkingSet.event : Event.None) as Event<ComponentToState[T]>,
+				onDidError: kind === StateComponents.Changeset ? this.onDidErrorWorkingSet.event : Event.None,
 				onWillApplyAction: Event.None,
 				onDidApplyAction: Event.None,
 			},
@@ -101,8 +111,14 @@ class TestAgentHost extends mock<IAgentConnection>() {
 
 	/** The host updates the Working Set, as at the end of a turn or after an operation. */
 	setWorkingSet(files: ChangesetFile[], operations = createOperations(), status = ChangesetStatus.Ready): void {
+		this.workingSetError = undefined;
 		this.workingSet = { status, files, operations };
 		this.onDidChangeWorkingSet.fire(this.workingSet);
+	}
+
+	setWorkingSetError(error: Error): void {
+		this.workingSetError = error;
+		this.onDidErrorWorkingSet.fire(error);
 	}
 
 	override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
@@ -343,6 +359,7 @@ suite('AgentHostEditReview', () => {
 		connectionAuthority = 'local';
 		backendSession = URI.parse('copilot:/session');
 		store.add(host.onDidChangeWorkingSet);
+		store.add(host.onDidErrorWorkingSet);
 
 		class TestDelayedWorkerService extends TestWorkerService {
 			override async computeStringEditFromDiffWithMetadata(...args: Parameters<IEditorWorkerService['computeStringEditFromDiffWithMetadata']>) {
@@ -655,13 +672,15 @@ suite('AgentHostEditReview', () => {
 		}(), new NullLogService()));
 		review.setCheckpointReview(projection);
 		const [diff] = review.fileChanges.get();
-		const update = await projection.prepareRestore([{ edits: [{
-			kind: FileEditKind.Edit,
-			resource: entry.modifiedURI,
-			beforeContentUri: diff.originalURI,
-			afterContentUri: diff.modifiedSnapshotURI,
-			undoStopId: 'request',
-		}] }], true);
+		const update = await projection.prepareRestore([{
+			edits: [{
+				kind: FileEditKind.Edit,
+				resource: entry.modifiedURI,
+				beforeContentUri: diff.originalURI,
+				afterContentUri: diff.modifiedSnapshotURI,
+				undoStopId: 'request',
+			}]
+		}], true, [entry.modifiedURI]);
 		transaction(update);
 		const immediatelyHidden = !review.getEntry(entry.modifiedURI) && review.entries.get().length === 0 && review.fileChanges.get().length === 0;
 		await review.accept(entry.modifiedURI);
@@ -787,6 +806,40 @@ suite('AgentHostEditReview', () => {
 		assert.deepStrictEqual({ beforePublication, beforeDiff, result, changes: entry.changesCount.get() }, {
 			beforePublication: false, beforeDiff: false, result: true, changes: 1,
 		});
+	});
+
+	for (const operation of ['keep', 'undo'] as const) {
+		test(`a hunk ${operation} reports a subscription error without waiting for the publication timeout`, async () => {
+			hostWrites('/a.ts', 'A\nb\nC\n');
+			host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nc\n', 'A\nb\nC\n', 'initial')]);
+			await waitForEntries('/a.ts');
+			const entry = getEntry('/a.ts');
+			await getChanges(entry);
+			const invoked = new DeferredPromise<void>();
+			host.afterOperation = () => { invoked.complete(); };
+			const diff = entry.diffInfo.get();
+			const pending = operation === 'keep' ? diff.keep(diff.changes[0]) : diff.undo(diff.changes[0]);
+			await invoked.p;
+			await settle();
+			host.setWorkingSetError(new Error('connection lost'));
+			const result = await raceTimeout(pending, 1000);
+			host.setWorkingSet([], createOperations(), ChangesetStatus.Error);
+			await pending;
+			assert.deepStrictEqual({ result, reported: errors.some(error => error.includes('The decision was sent')), signals }, {
+				result: false, reported: true, signals: [],
+			});
+		});
+	}
+
+	test('resolving a live entry reports a subscription error without waiting for readiness timeout', async () => {
+		host.setWorkingSet([], createOperations(), ChangesetStatus.Computing);
+		const rejected = assert.rejects(review.resolveEntry(URI.file('/a.ts')), /couldn't be checked/).then(() => true);
+		await settle();
+		host.setWorkingSetError(new Error('connection lost'));
+		const result = await raceTimeout(rejected, 1000);
+		host.setWorkingSet([], createOperations(), ChangesetStatus.Error);
+		await rejected;
+		assert.strictEqual(result, true);
 	});
 
 	test('echoes the nonce of the changes it showed in the operation target', async () => {

@@ -2873,13 +2873,15 @@ suite('AgentHostSessionInputPills', () => {
 		harness.showModel(upcastPartial<IChatModel>({}));
 		harness.addEditingSession(controller);
 		const [diff] = harness.workingSetChanges()!;
-		const update = await controller.checkpointReview.prepareRestore([{ edits: [{
-			kind: FileEditKind.Edit,
-			resource: diff.modifiedURI,
-			beforeContentUri: diff.originalURI,
-			afterContentUri: diff.modifiedSnapshotURI,
-			undoStopId: 'request',
-		}] }], true);
+		const update = await controller.checkpointReview.prepareRestore([{
+			edits: [{
+				kind: FileEditKind.Edit,
+				resource: diff.modifiedURI,
+				beforeContentUri: diff.originalURI,
+				afterContentUri: diff.modifiedSnapshotURI,
+				undoStopId: 'request',
+			}]
+		}], true, [diff.modifiedURI]);
 		transaction(update);
 		const afterRestore = { changes: harness.workingSetChanges(), pill: harness.labels().some(label => label.includes('File')) };
 		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], 'new-edit');

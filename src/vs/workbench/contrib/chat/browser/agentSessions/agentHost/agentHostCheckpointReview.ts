@@ -61,8 +61,8 @@ export class AgentHostCheckpointReview extends Disposable {
 			&& previous.nonce === file.nonce));
 	}
 
-	/** Prepares the preview change; the caller publishes it only after every file was restored successfully. */
-	async prepareRestore(checkpoints: readonly { readonly edits: readonly IToolCallFileEdit[] }[], undo: boolean): Promise<(tx: ITransaction) => void> {
+	/** Prepares visibility for the affected resources, using cumulative history to recognize fully restored revisions. */
+	async prepareRestore(checkpoints: readonly { readonly edits: readonly IToolCallFileEdit[] }[], undo: boolean, affectedResources: readonly URI[]): Promise<(tx: ITransaction) => void> {
 		const targets = new ResourceMap<IToolCallFileEdit>();
 		const endpoints = new ResourceMap<IToolCallFileEdit>();
 		const chains = new ResourceMap<IToolCallFileEdit[]>();
@@ -88,7 +88,8 @@ export class AgentHostCheckpointReview extends Disposable {
 				targets.set(edit.resource, edit);
 			}
 		}
-		const restored = this._restored.get().filter(file => !targets.has(file.diff.modifiedURI));
+		const affected = new ResourceSet(affectedResources);
+		const restored = this._restored.get().filter(file => !affected.has(file.diff.modifiedURI));
 		if (undo) {
 			const sources = await Promise.all([...this._sources].map(source => this._whenReady(source)));
 			for (const current of sources) {
@@ -99,7 +100,7 @@ export class AgentHostCheckpointReview extends Disposable {
 					try {
 						const target = targets.get(file.diff.modifiedURI);
 						const endpoint = endpoints.get(file.diff.modifiedURI);
-						if (!target || !endpoint || renamed.has(file.diff.modifiedURI)) {
+						if (!target || !endpoint || !affected.has(file.diff.modifiedURI) || renamed.has(file.diff.modifiedURI)) {
 							continue;
 						}
 						// A peer's or a newer revision must not disappear with this chat's checkpoint.
