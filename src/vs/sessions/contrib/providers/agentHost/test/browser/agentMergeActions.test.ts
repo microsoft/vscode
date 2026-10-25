@@ -4,20 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService, Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { AgentHostPullRequestOperationId } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { AgentMergeSettingId } from '../../../../../../platform/agentHost/common/agentMerge.js';
 import { ArtifactIntegrationsSettingId } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionIsArchivedContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext } from '../../../../../common/contextkeys.js';
+import { ISessionChangeset } from '../../../../../services/sessions/common/session.js';
+import { GitHubPullRequestCIModel } from '../../../../github/browser/models/githubPullRequestCIModel.js';
+import { ActiveSessionState } from '../../../../changes/common/changesViewService.js';
+import { bindSessionActionContextKeys } from '../../../../changes/browser/sessionActionContextKeys.js';
 import '../../browser/agentMergeActions.js';
 
 suite('Agent Merge Actions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A session where Agent Merge applies: agent host provider, live, with an open pull request. */
 	function createContext(options: { readonly primaryOperation: string; readonly agentMergeEnabled: boolean; readonly featureEnabled?: boolean; readonly artifactIntegrationsEnabled?: boolean; readonly archived?: boolean; readonly hasOpenPullRequest?: boolean }): Context {
@@ -163,5 +171,38 @@ suite('Agent Merge Actions', () => {
 			],
 			submenus: Array(3).fill(Menus.ChangesAgentMergeMergePullRequest.id),
 		});
+	});
+
+	test('the context key binder does not re-read the editor transition key for unrelated context changes', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const scoped = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		let reads = 0;
+		const getContextKeyValue = scoped.getContextKeyValue.bind(scoped);
+		scoped.getContextKeyValue = <T>(key: string) => {
+			if (key === DesktopChangesEditorTransitionContext.key) {
+				reads++;
+			}
+			return getContextKeyValue<T>(key);
+		};
+		disposables.add(bindSessionActionContextKeys(instantiationService, {
+			session: constObservable(undefined),
+			changes: {
+				changesObs: constObservable([]),
+				changesetsLoadingObs: constObservable(false),
+				loadingObs: constObservable(false),
+				changesetObs: constObservable(upcastPartial<ISessionChangeset>({ operations: constObservable([]) })),
+				stateObs: constObservable(upcastPartial<ActiveSessionState>({})),
+			},
+			pullRequest: {
+				pullRequestCIObs: constObservable(upcastPartial<GitHubPullRequestCIModel>({ checks: constObservable([]), fixRequested: observableValue('fixRequested', false) })),
+			},
+		}, scoped));
+
+		const unrelated = scoped.createKey<number>('unrelatedKey', 0);
+		const afterBind = reads;
+		unrelated.set(1);
+		unrelated.set(2);
+
+		assert.strictEqual(reads - afterBind, 0);
 	});
 });
