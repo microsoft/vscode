@@ -89,7 +89,8 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				new class extends mock<IFileService>() { }(),
 				new class extends mock<IRemoteAgentHostService>() { }(),
-				new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			));
 			const target = await connector.createConnection(devContainerSampleUri(devContainerSamples[0]), 'devcontainer:sample', CancellationToken.None, { resume: true, sandboxEnabled });
 			store.add(target.transportDisposable!);
@@ -169,7 +170,8 @@ suite('Dev Container Agent Host Connector', () => {
 				override async exists(): Promise<never> { throw new Error('Samples do not have a host path'); }
 			}(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
-			new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 		));
 		const source = devContainerSampleUri(devContainerSamples[0]);
 		await connector.isAvailable(source);
@@ -240,7 +242,8 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				new class extends mock<IFileService>() { }(),
 				new class extends mock<IRemoteAgentHostService>() { }(),
-				new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			));
 			const workspace = URI.file('/unsupported-project');
 			const observed: { workspace: string; supported: boolean }[] = [];
@@ -520,7 +523,8 @@ suite('Dev Container Agent Host Connector', () => {
 					override readonly configuredEntries = [entry];
 					override getConnection(): IAgentConnection { return connection; }
 				}(),
-				new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			));
 			const available = await connector.isAvailable(workspaceUri);
 			supported = false;
@@ -746,7 +750,8 @@ suite('Dev Container Agent Host Connector', () => {
 			outputService,
 			new class extends mock<IFileService>() { }(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
-			new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 		));
 
 		await assert.rejects(
