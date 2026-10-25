@@ -33,7 +33,13 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
 	\tdisables --base REV [--head REV]: whether a change only disables tests, so that no check needs to run\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
+	\twhy --test PATH --base REV [--head REV]: how a change reaches a test that it selects\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
+
+/// The commands of `USAGE`.
+const COMMANDS: &[&str] = &[
+	"stats", "affected", "analyze", "plan", "disables", "blame", "why", "replay",
+];
 
 /// The options of all commands. Each one takes a value.
 const OPTIONS: &[&str] = &[
@@ -89,11 +95,7 @@ fn weight<S: AsRef<str>>(snap: &Snapshot, files: impl Iterator<Item = S>) -> f64
 fn main() -> Result<()> {
 	let args = Args::parse(std::env::args().skip(1))?;
 	let command = args.command.as_str();
-	if ![
-		"stats", "affected", "analyze", "plan", "disables", "blame", "replay",
-	]
-	.contains(&command)
-	{
+	if !COMMANDS.contains(&command) {
 		bail!("{USAGE}");
 	}
 	let config = args
@@ -141,6 +143,13 @@ fn main() -> Result<()> {
 			args.get("test").context("--test is required")?,
 			args.get("since").context("--since is required")?,
 			args.get("until").unwrap_or("HEAD"),
+		),
+		"why" => why(
+			&config,
+			repo,
+			args.get("test").context("--test is required")?,
+			args.get("base").context("--base is required")?,
+			args.get("head").unwrap_or("HEAD"),
 		),
 		"replay" => replay(
 			&config,
@@ -300,6 +309,17 @@ fn affected(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()
 			.filter(|e| e.role.is_test())
 			.map(|e| &e.path)
 			.collect()
+	} else if sel.run_all_integration.is_some() {
+		hs.entries
+			.iter()
+			.filter(|e| e.role == Role::IntegrationTest)
+			.map(|e| &e.path)
+			.chain(
+				sel.decl
+					.iter()
+					.filter(|p| hs.role(p) != Role::IntegrationTest),
+			)
+			.collect()
 	} else {
 		sel.decl.iter().collect()
 	};
@@ -314,22 +334,25 @@ fn affected(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()
 		files.len(),
 		sel.file_all.len(),
 		sel.file_runtime.len(),
-		sel.run_all
-			.as_ref()
-			.map(|r| format!("; run everything: {r}"))
-			.unwrap_or_default(),
+		match (&sel.run_all, &sel.run_all_integration) {
+			(Some(r), _) => format!("; run everything: {r}"),
+			(None, Some(r)) => format!("; run every integration test: {r}"),
+			(None, None) => String::new(),
+		},
 		t.elapsed().as_millis()
 	);
 	Ok(())
 }
 
-/// Plans which unit test files a change needs and prints the plan as JSON. Selection is off only
-/// when a change reaches outside the module graph (`Selection::run_all`), so callers then run
-/// every unit test; otherwise the plan selects the files the change can affect, however many. With
-/// `out_dir`, also writes the plan to `<out_dir>/plan.json` and, when selection is on and selects
-/// any file, the selected files to `<out_dir>/unit.txt`, one per line. Each test runner runs the
-/// listed files it would run by default. On GitHub Actions it writes the output `select` (whether
-/// to run only the listed files) and a job summary.
+/// Plans which unit and integration test files a change needs and prints the plan as JSON.
+/// Selection is off only when a change reaches outside the module graph (`Selection::run_all`,
+/// and for the integration tests also `Selection::run_all_integration`), so callers then run every
+/// test of the kind; otherwise the plan selects the files the change can affect, however many.
+/// With `out_dir`, also writes the plan to `<out_dir>/plan.json` and, when selection is on and
+/// selects any file, the selected files to `<out_dir>/unit.txt` and `<out_dir>/integration.txt`,
+/// one per line. Each test runner runs the listed files it would run by default. On GitHub Actions
+/// it writes the output `select` (whether to run only the listed unit test files; the integration
+/// tests can only be selected when it is true) and a job summary.
 fn plan(
 	config: &Config,
 	repo: PathBuf,
@@ -345,23 +368,30 @@ fn plan(
 	let changes = git::diff_tree(&repo, base, head)?;
 	let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
 
-	let all: Vec<&str> = hs
-		.entries
-		.iter()
-		.filter(|e| e.role == Role::UnitTest)
-		.map(|e| &*e.path)
-		.collect();
-	let mut selected: Vec<&str> = sel
-		.decl
-		.iter()
-		.map(|p| &**p)
-		.filter(|p| hs.role(p) == Role::UnitTest)
-		.collect();
-	selected.sort_unstable();
+	let all = |role: Role| -> Vec<&str> {
+		hs.entries
+			.iter()
+			.filter(|e| e.role == role)
+			.map(|e| &*e.path)
+			.collect()
+	};
+	let selected = |role: Role| -> Vec<&str> {
+		let mut files: Vec<&str> = sel
+			.decl
+			.iter()
+			.map(|p| &**p)
+			.filter(|p| hs.role(p) == role)
+			.collect();
+		files.sort_unstable();
+		files
+	};
+	let (all_unit, unit) = (all(Role::UnitTest), selected(Role::UnitTest));
+	let (all_integration, integration) =
+		(all(Role::IntegrationTest), selected(Role::IntegrationTest));
 	let share = {
-		let total = weight(&hs, all.iter());
+		let total = weight(&hs, all_unit.iter());
 		if total > 0.0 {
-			weight(&hs, selected.iter()) / total
+			weight(&hs, unit.iter()) / total
 		} else {
 			0.0
 		}
@@ -370,11 +400,19 @@ fn plan(
 		Some(r) => format!("running every unit test: {r}"),
 		None => format!(
 			"running the {} unit test files the change can affect ({:.1}% of the unit test work)",
-			selected.len(),
+			unit.len(),
 			share * 100.0
 		),
 	};
 	let select_only = sel.run_all.is_none();
+	let integration_reason = match sel.run_all.as_ref().or(sel.run_all_integration.as_ref()) {
+		Some(r) => format!("running every integration test: {r}"),
+		None => format!(
+			"running the {} integration test files the change can affect",
+			integration.len()
+		),
+	};
+	let select_integration = select_only && sel.run_all_integration.is_none();
 
 	let json = serde_json::json!({
 		"select": select_only,
@@ -382,22 +420,28 @@ fn plan(
 		"share": (share * 10000.0).round() / 10000.0,
 		"changedFiles": changes.len(),
 		"changedDeclarations": sel.changed_decls,
-		"unit": selected,
+		"unit": unit,
+		"integration": {
+			"select": select_integration,
+			"reason": integration_reason,
+			"files": integration,
+		},
 	})
 	.to_string();
 	println!("{json}");
 	eprintln!("{reason}");
+	eprintln!("{integration_reason}");
 
 	if let Some(dir) = out_dir {
 		let dir = Path::new(dir);
 		std::fs::create_dir_all(dir)?;
 		std::fs::write(dir.join("plan.json"), &json)?;
-		let list = dir.join("unit.txt");
-		if select_only && !selected.is_empty() {
-			std::fs::write(list, selected.join("\n") + "\n")?;
-		} else if list.exists() {
-			std::fs::remove_file(list)?;
-		}
+		write_list(&dir.join("unit.txt"), select_only, &unit)?;
+		write_list(
+			&dir.join("integration.txt"),
+			select_integration,
+			&integration,
+		)?;
 	}
 	if let Some(path) = std::env::var_os("GITHUB_OUTPUT") {
 		let mut out = std::fs::OpenOptions::new().append(true).open(path)?;
@@ -411,18 +455,48 @@ fn plan(
 			changes.len(),
 			sel.changed_decls
 		)?;
-		if select_only && !selected.is_empty() {
-			writeln!(
-				out,
-				"<details><summary>Selected {} of {} unit test files</summary>\n",
-				selected.len(),
-				all.len()
-			)?;
-			for f in &selected {
-				writeln!(out, "- `{f}`")?;
-			}
-			writeln!(out, "\n</details>\n")?;
+		write_selected_files(&mut out, select_only, &unit, all_unit.len(), "unit")?;
+		writeln!(out, "### Integration test plan\n\n{integration_reason}.\n")?;
+		write_selected_files(
+			&mut out,
+			select_integration,
+			&integration,
+			all_integration.len(),
+			"integration",
+		)?;
+	}
+	Ok(())
+}
+
+/// Writes the selected test files to `path`, one per line, when selection is on and selects any
+/// file, and otherwise removes the list that an earlier plan left there.
+fn write_list(path: &Path, select: bool, files: &[&str]) -> Result<()> {
+	if select && !files.is_empty() {
+		std::fs::write(path, files.join("\n") + "\n")?;
+	} else if path.exists() {
+		std::fs::remove_file(path)?;
+	}
+	Ok(())
+}
+
+/// Lists the selected test files of a kind in a collapsed section of a job summary.
+fn write_selected_files(
+	out: &mut impl Write,
+	select: bool,
+	files: &[&str],
+	total: usize,
+	kind: &str,
+) -> Result<()> {
+	if select && !files.is_empty() {
+		writeln!(
+			out,
+			"<details><summary>Selected {} of {total} {kind} test files</summary>\n",
+			files.len()
+		)?;
+		for f in files {
+			writeln!(out, "- `{f}`")?;
 		}
+		writeln!(out, "\n</details>\n")?;
 	}
 	Ok(())
 }
@@ -533,15 +607,24 @@ fn blame(config: &Config, repo: PathBuf, test: &str, since: &str, until: &str) -
 		let head = engine.apply(&base, &changes)?;
 		let hg = Graph::build(&head, config);
 		let sel = select(config, &mut blobs, &base, &bg, &head, &hg, &changes)?;
-		if sel.run_all.is_some() || sel.decl.iter().any(|p| &**p == test) {
+		let run_all = sel
+			.run_all
+			.as_ref()
+			.map(|r| ("run everything", r))
+			.or_else(|| {
+				sel.run_all_integration
+					.as_ref()
+					.filter(|_| head.role(test) == Role::IntegrationTest)
+					.map(|r| ("run every integration test", r))
+			});
+		if run_all.is_some() || sel.decl.iter().any(|p| &**p == test) {
 			hits += 1;
 			println!(
 				"{} {}{}",
 				&sha[..12],
 				subject,
-				sel.run_all
-					.as_ref()
-					.map(|r| format!("  [run everything: {r}]"))
+				run_all
+					.map(|(what, r)| format!("  [{what}: {r}]"))
 					.unwrap_or_default()
 			);
 		}
@@ -554,6 +637,65 @@ fn blame(config: &Config, repo: PathBuf, test: &str, since: &str, until: &str) -
 		t.elapsed().as_millis()
 	);
 	Ok(())
+}
+
+/// Explains why a change selects a test: a path from the test's code to what the change changed,
+/// through the declarations, whole modules, packages and globals in between.
+fn why(config: &Config, repo: PathBuf, test: &str, base: &str, head: &str) -> Result<()> {
+	let mut engine = Engine::new(repo.clone(), config);
+	let mut blobs = blob_texts(&repo)?;
+	let bs = engine.snapshot(base)?;
+	let hs = engine.snapshot(head)?;
+	let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
+	let changes = git::diff_tree(&repo, base, head)?;
+	let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
+	if let Some(reason) = &sel.run_all {
+		println!("every unit test runs: {reason}");
+		return Ok(());
+	}
+	if !sel.decl.iter().any(|p| &**p == test) {
+		println!("the change does not select {test}");
+		return Ok(());
+	}
+	// Only the base graph has the code that the change removed.
+	for (snap, graph, seeds) in [(&hs, &hg, &sel.head_seeds), (&bs, &bg, &sel.base_seeds)] {
+		let Some(f) = snap.find(test) else {
+			continue;
+		};
+		let mut targets = vec![false; graph.node_count()];
+		for &s in seeds {
+			targets[s as usize] = true;
+		}
+		let roots: Vec<u32> = graph.file_nodes(f as usize).collect();
+		let Some(path) = graph.path_from(&roots, &[], &targets) else {
+			continue;
+		};
+		let seed = path[path.len() - 1].0;
+		let data = |p: &str| !bs.role(p).is_module() && !hs.role(p).is_module();
+		let read: Vec<&str> = changes
+			.iter()
+			.map(|c| c.path.as_str())
+			.filter(|p| graph.readers(p, data(p)).0.contains(&seed))
+			.collect();
+		for (i, &(v, opener)) in path.iter().enumerate() {
+			let mut line = format!(
+				"{}{}",
+				if i == 0 { "" } else { "  -> " },
+				graph.label(snap, v)
+			);
+			if let Some(o) = opener {
+				line += &format!("  (method opened by its name in {})", graph.label(snap, o));
+			}
+			if v == seed && read.is_empty() {
+				line += "  (changed)";
+			} else if v == seed {
+				line += &format!("  (reads {} by path)", read.join(", "));
+			}
+			println!("{line}");
+		}
+		return Ok(());
+	}
+	bail!("found no path from {test} to the change")
 }
 
 /// Replays first-parent history and compares the share of unit test work that file-level and
@@ -677,6 +819,11 @@ fn replay(
 				.iter()
 				.filter(|p| head.role(p) == Role::UnitTest)
 				.count();
+			let decl_integration_tests = sel
+				.decl
+				.iter()
+				.filter(|p| head.role(p) == Role::IntegrationTest)
+				.count();
 			writeln!(
 				out,
 				"{}",
@@ -688,11 +835,13 @@ fn replay(
 					"modules": touches_modules,
 					"packages": sel.packages,
 					"runAll": sel.run_all,
+					"runAllIntegration": sel.run_all_integration,
 					"changedDecls": sel.changed_decls,
 					"fileAll": row[1],
 					"fileRuntime": row[2],
 					"decl": row[3],
 					"declTestFiles": decl_tests,
+					"declIntegrationTestFiles": decl_integration_tests,
 				})
 			)?;
 		}

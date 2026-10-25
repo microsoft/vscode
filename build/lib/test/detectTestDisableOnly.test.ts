@@ -102,10 +102,10 @@ suite('Detect Test-Disable-Only Changes', () => {
 		assert.deepStrictEqual(detection(pr.changes), detects);
 		// Every output that selects jobs must be 'false' when the pull request only disables tests.
 		const forced = '${{ steps.test-disable-only.outputs.verified == \'true\' && \'false\' || ';
-		const notSelecting = ['test-disable-only', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests', 'selected-unit-tests', 'selected-browser-unit-tests', 'ripple-changed', 'ripple-failed'];
+		const notSelecting = ['test-disable-only', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e', 'ripple-changed', 'ripple-failed'];
 		const selecting = Object.entries(pr.changes.outputs ?? {}).filter(([name]) => !notSelecting.includes(name));
 		assert.deepStrictEqual(selecting.filter(([, value]) => !value.startsWith(forced)), []);
-		for (const output of ['electron-tests', 'selected-unit-tests', 'selected-browser-unit-tests']) {
+		for (const output of ['electron-tests', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e']) {
 			assert.ok(pr.changes.outputs?.[output].startsWith('${{ steps.test-disable-only.outputs.verified != \'true\' && '), output);
 		}
 		assert.deepStrictEqual([pr.compile.needs, pr.compile.if], ['changes', '${{ !cancelled() && (needs.changes.result != \'success\' || needs.changes.outputs.test-disable-only != \'true\') }}']);
