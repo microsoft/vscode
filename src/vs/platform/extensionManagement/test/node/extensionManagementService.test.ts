@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ChildProcess, spawn } from 'child_process';
 import { once } from 'events';
+import { writeSync } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import sinon from 'sinon';
@@ -47,6 +48,7 @@ suite('Extension extraction recovery', () => {
 	let root: URI;
 	let extensions: URI;
 	let fileService: FileService;
+	let diskProvider: DiskFileSystemProvider;
 	let instantiationService: TestInstantiationService;
 
 	const manifest: IExtensionManifest = { publisher: 'test', name: 'recovery', version: '1.0.0', engines: { vscode: '*' } };
@@ -56,7 +58,8 @@ suite('Extension extraction recovery', () => {
 		extensions = joinPath(root, 'extensions');
 		const logService = disposables.add(new NullLogService());
 		fileService = disposables.add(new FileService(logService));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+		diskProvider = disposables.add(new DiskFileSystemProvider(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, diskProvider));
 		await fileService.createFolder(extensions);
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IEnvironmentService, { extensionTestsLocationURI: root });
@@ -369,16 +372,17 @@ suite('Extension extraction recovery', () => {
 			}
 		});
 		const locationOfVsix = await vsix();
+		const installer = scanner();
 		try {
-			await assert.rejects(scanner().extractUserExtension(new ExtensionKey({ id: 'test.recovery' }, '1.0.0'), locationOfVsix.fsPath, false, CancellationToken.None));
+			await assert.rejects(installer.extractUserExtension(new ExtensionKey({ id: 'test.recovery' }, '1.0.0'), locationOfVsix.fsPath, false, CancellationToken.None));
 			assert.ok(failed);
-			assert.strictEqual((JSON.parse(await fs.readFile(`${failed.fsPath}.vscinstall`, 'utf8'))).readyToDelete, true);
+			assert.deepStrictEqual(JSON.parse(await fs.readFile(`${failed.fsPath}.vscinstall`, 'utf8')), { pid: process.pid, hostname: os.hostname(), platform: process.platform });
 			assert.strictEqual(await fileService.exists(failed), true);
 		} finally {
 			await fs.chmod(extensions.fsPath, 0o700);
 			if (failed) { await fs.chmod(failed.fsPath, 0o700); }
 		}
-		await scanner().extractUserExtension(new ExtensionKey({ id: 'test.recovery' }, '1.0.0'), locationOfVsix.fsPath, false, CancellationToken.None);
+		await installer.extractUserExtension(new ExtensionKey({ id: 'test.recovery' }, '1.0.0'), locationOfVsix.fsPath, false, CancellationToken.None);
 		assert.deepStrictEqual(await fs.readdir(extensions.fsPath), ['test.recovery-1.0.0']);
 	});
 
@@ -410,6 +414,87 @@ suite('Extension extraction recovery', () => {
 		await stop(child);
 		await scanner().cleanUp();
 		assert.deepStrictEqual(await fs.readdir(extensions.fsPath), ['test.recovery-1.0.0']);
+	});
+
+
+	test('retries cleanup without another installation when the completion record cannot be written', async () => {
+		const active = await extraction(process.pid);
+		let failed: URI | undefined;
+		instantiationService.stub(IExtensionsScannerService, 'updateManifestMetadata', async (location: URI) => {
+			failed = location;
+			throw new Error('injected metadata failure');
+		});
+		const installer = scanner();
+		const deletion = sinon.stub(fileService, 'del').callThrough();
+		deletion.withArgs(sinon.match((resource: URI) => resource.toString() === failed?.toString()), { recursive: true, atomic: { postfix: '.vsctmp' } }).rejects(new FileOperationError('injected handoff failure', FileOperationResult.FILE_PERMISSION_DENIED));
+		const writing = sinon.stub(fileService, 'writeFile').callThrough();
+		writing.withArgs(sinon.match((resource: URI) => !!failed && resource.fsPath === `${failed.fsPath}.vscinstall`), sinon.match.any).rejects(new FileOperationError('injected completion write failure', FileOperationResult.FILE_PERMISSION_DENIED));
+
+		await assert.rejects(installer.extractUserExtension(new ExtensionKey({ id: 'test.recovery' }, '1.0.0'), (await vsix()).fsPath, false, CancellationToken.None));
+		assert.ok(failed);
+		assert.deepStrictEqual(JSON.parse(await fs.readFile(`${failed.fsPath}.vscinstall`, 'utf8')), { pid: process.pid, hostname: os.hostname(), platform: process.platform });
+		writing.restore();
+		deletion.restore();
+
+		await installer.cleanUp();
+
+		assert.deepStrictEqual((await fs.readdir(extensions.fsPath)).sort(), [path.basename(active.fsPath), `${path.basename(active.fsPath)}.vscinstall`].sort());
+	});
+
+	test('preserves ownership through a partial completion write and later removes its staging file', async () => {
+		const active = await extraction(process.pid);
+		let failed: URI | undefined;
+		const writing = sinon.stub(diskProvider, 'write').callThrough();
+		instantiationService.stub(IExtensionsScannerService, 'updateManifestMetadata', async (location: URI) => {
+			failed = location;
+			writing.callsFake(async (fd, pos, data, offset, length) => {
+				writeSync(fd, data, offset, Math.min(1, length), pos);
+				throw new Error('injected failure after writing the first byte');
+			});
+			throw new Error('injected metadata failure');
+		});
+		const installer = scanner();
+		const deletion = sinon.stub(fileService, 'del').callThrough();
+		deletion.withArgs(sinon.match((resource: URI) => resource.toString() === failed?.toString()), { recursive: true, atomic: { postfix: '.vsctmp' } }).rejects(new FileOperationError('injected handoff failure', FileOperationResult.FILE_PERMISSION_DENIED));
+
+		await assert.rejects(installer.extractUserExtension(new ExtensionKey({ id: 'test.recovery' }, '1.0.0'), (await vsix()).fsPath, false, CancellationToken.None));
+		assert.ok(failed);
+		assert.deepStrictEqual(JSON.parse(await fs.readFile(`${failed.fsPath}.vscinstall`, 'utf8')), { pid: process.pid, hostname: os.hostname(), platform: process.platform });
+		assert.strictEqual(await fs.readFile(`${failed.fsPath}.vscinstall.tmp`, 'utf8'), '{');
+		writing.restore();
+		deletion.restore();
+
+		await installer.cleanUp();
+
+		assert.deepStrictEqual((await fs.readdir(extensions.fsPath)).sort(), [path.basename(active.fsPath), `${path.basename(active.fsPath)}.vscinstall`].sort());
+	});
+
+	(isWindows ? test.skip : test)('recovers without another installation after real completion-write and removal permissions are restored', async () => {
+		const active = await extraction(process.pid);
+		let failed: URI | undefined;
+		instantiationService.stub(IExtensionsScannerService, 'updateManifestMetadata', async (location: URI) => {
+			failed = location;
+			await fs.chmod(`${location.fsPath}.vscinstall`, 0o400);
+			await fs.chmod(location.fsPath, 0o500);
+			await fs.chmod(extensions.fsPath, 0o500);
+			throw new Error('injected metadata failure with blocked cleanup and completion write');
+		});
+		const installer = scanner();
+		try {
+			await assert.rejects(installer.extractUserExtension(new ExtensionKey({ id: 'test.recovery' }, '1.0.0'), (await vsix()).fsPath, false, CancellationToken.None));
+			assert.ok(failed);
+			assert.deepStrictEqual(JSON.parse(await fs.readFile(`${failed.fsPath}.vscinstall`, 'utf8')), { pid: process.pid, hostname: os.hostname(), platform: process.platform });
+		} finally {
+			await fs.chmod(extensions.fsPath, 0o700);
+			if (failed) {
+				await fs.chmod(failed.fsPath, 0o700);
+				await fs.chmod(`${failed.fsPath}.vscinstall`, 0o600);
+			}
+		}
+
+		await installer.cleanUp();
+
+		assert.deepStrictEqual((await fs.readdir(extensions.fsPath)).sort(), [path.basename(active.fsPath), `${path.basename(active.fsPath)}.vscinstall`].sort());
 	});
 
 });

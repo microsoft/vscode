@@ -538,6 +538,7 @@ export class ExtensionsScanner extends Disposable {
 
 	private readonly obsoletedResource: URI;
 	private readonly obsoleteFileLimiter: Queue<IStringDictionary<boolean>>;
+	private readonly extractionsPendingCleanup = new Set<string>();
 
 	private readonly _onExtract = this._register(new Emitter<URI>());
 	readonly onExtract = this._onExtract.event;
@@ -1027,8 +1028,9 @@ export class ExtensionsScanner extends Disposable {
 			}
 			// This extraction has finished, but even handing it to .vsctmp failed. Retain a retryable record.
 			try {
-				await this.fileService.writeFile(metadata, VSBuffer.fromString(JSON.stringify({ ...owner, readyToDelete: true })));
+				await this.fileService.writeFile(metadata, VSBuffer.fromString(JSON.stringify({ ...owner, readyToDelete: true })), { atomic: { postfix: '.tmp' } });
 			} catch (metadataError) {
+				this.extractionsPendingCleanup.add(location.toString());
 				this.logService.warn('Could not record failed extraction cleanup', metadata.toString(), getErrorMessage(metadataError));
 			}
 			this.logService.warn('Could not delete failed extraction folder', location.toString(), getErrorMessage(error));
@@ -1083,13 +1085,14 @@ export class ExtensionsScanner extends Disposable {
 			return;
 		}
 
+		const location = joinPath(this.extensionsScannerService.userExtensionsLocation, folderName);
 		try {
 			const owner: ExtractionMetadata = JSON.parse((await this.fileService.readFile(metadata.resource)).value.toString());
 			if (!owner || !Number.isSafeInteger(owner.pid) || owner.pid <= 0 || owner.hostname !== os.hostname() || owner.platform !== process.platform) {
 				return;
 			}
 
-			if (owner.readyToDelete !== true) {
+			if (owner.readyToDelete !== true && !(owner.pid === process.pid && this.extractionsPendingCleanup.has(location.toString()))) {
 				try {
 					process.kill(owner.pid, 0);
 					return;
@@ -1101,7 +1104,6 @@ export class ExtensionsScanner extends Disposable {
 				}
 			}
 
-			const location = joinPath(this.extensionsScannerService.userExtensionsLocation, folderName);
 			try {
 				await this.fileService.del(location, { recursive: true, atomic: { postfix: DELETED_FOLDER_POSTFIX } });
 			} catch (error) {
@@ -1109,7 +1111,15 @@ export class ExtensionsScanner extends Disposable {
 					throw error; // Keep the ownership record so a later cleanup can retry.
 				}
 			}
+			try {
+				await this.fileService.del(metadata.resource.with({ path: `${metadata.resource.path}.tmp` }));
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
+			}
 			await this.fileService.del(metadata.resource);
+			this.extractionsPendingCleanup.delete(location.toString());
 			this.logService.trace('Deleted abandoned extension extraction folder', location.toString());
 		} catch (error) {
 			// An incomplete or unreadable ownership record is not evidence that extraction was abandoned.
