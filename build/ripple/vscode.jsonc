@@ -19,9 +19,9 @@
 		"vs/": "src/vs/"
 	},
 
-	// Test files, which must also be modules. `ripple plan` selects unit tests; `ripple affected` and
-	// `ripple blame` also report integration tests. Each test runner then runs the selected files it
-	// would run by default (see `--runList` in test/unit/README.md).
+	// Test files, which must also be modules. `ripple plan` selects the unit and the integration
+	// tests, and so do `ripple affected` and `ripple blame`. Each test runner then runs the selected
+	// files it would run by default (see `--runList` in test/unit/README.md).
 	"tests": {
 		"unit": [
 			"src/**/test/**/*.test.ts"
@@ -39,7 +39,8 @@
 	},
 
 	// Files outside the module graph that every unit test depends on, by the reason the plan reports:
-	// changing one of them runs every unit test.
+	// changing one of them runs every unit test, and every integration test, which the unit test
+	// runners run too.
 	"runEverything": {
 		// remote/.npmrc has the Node.js version that the node.js test runner requires.
 		"runtime version": [
@@ -100,6 +101,28 @@
 		"test planner": [
 			"build/ripple/**",
 			"!build/ripple/**/*.md"
+		]
+	},
+
+	// Files outside the module graph that only the integration tests depend on, by the reason the
+	// plan reports: changing one of them runs every integration test, but no unit test. As for
+	// `runEverything`, so do the scripts that the listed scripts load through relative imports, and
+	// the npm packages they load. Modules that integration tests load by a path that ripple cannot
+	// resolve can be listed too.
+	"runEveryIntegrationTest": {
+		// The scripts that run the node.js integration tests and the Agent Host E2E suites.
+		"integration test launcher": [
+			"scripts/test-integration.sh",
+			"scripts/test-integration.bat",
+			"scripts/test-agent-host-e2e.sh",
+			"scripts/test-agent-host-e2e.bat",
+			"test/integration/agentHost/**"
+		],
+		// Modules, unlike the files above: integration tests fork src/bootstrap-fork.ts through
+		// `FileAccess.asFileUri('bootstrap-fork')`, which ripple cannot resolve (see README.md), so a
+		// change to it or to the bootstrap files it loads would select none of them.
+		"forked process bootstrap": [
+			"src/bootstrap-*.ts"
 		]
 	},
 
