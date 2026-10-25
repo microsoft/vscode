@@ -197,7 +197,7 @@ suite('Detect Changes', () => {
 			browserOutput: jobs.changes.outputs?.['selected-browser-unit-tests'],
 			skippable: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-unit-tests').map(([id]) => id).sort(),
 			skippableBrowser: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-browser-unit-tests').map(([id]) => id).sort(),
-			planned: Object.entries(jobs).filter(([, job]) => job.with?.unit_test_selection === true).map(([id]) => id).sort(),
+			planned: Object.entries(jobs).filter(([, job]) => job.with?.test_selection === true).map(([id]) => id).sort(),
 		}, {
 			output: `\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
 			browserOutput: `\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}`,
