@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { IReader } from '../../../../base/common/observable.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
@@ -200,10 +200,12 @@ export class DesktopLayoutController extends BaseLayoutController {
 	 * A session-switch restore closes/opens the docked editors (empty working-set
 	 * apply, managed-tab reconciliation), so suppress editor-part auto-visibility
 	 * for the whole restore to avoid closing the side pane or mistaking a
-	 * layout-driven close for a user dismissing a managed tab.
+	 * layout-driven close for a user dismissing a managed tab. Likewise, a side
+	 * pane the restore hides on its way to the next composition does not show the
+	 * hidden chat (Editor only) again; that is checked once the restore ends.
 	 */
-	protected override _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
-		return this._layoutService.suppressEditorPartAutoVisibility();
+	protected override _suppressDuringSessionLayoutRestore(): IDisposable | undefined {
+		return combinedDisposable(this._layoutService.suppressEditorPartAutoVisibility(), this._layoutService.suppressShowChatOnHiddenSidePane());
 	}
 
 	protected override get _isEditorPartVisibilityPerSession(): boolean {

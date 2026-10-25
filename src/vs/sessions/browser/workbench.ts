@@ -234,6 +234,12 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	isEditorPartAutoVisibilitySuppressed(): boolean;
 
 	/**
+	 * Holds off showing the hidden chat (Editor only) again while the side pane is hidden too, such as while a session's
+	 * layout is restored part by part: that is checked once the last hold is released. Calls nest via a counter.
+	 */
+	suppressShowChatOnHiddenSidePane(): IDisposable;
+
+	/**
 	 * Changes docked detail visibility in response to a sash resize without
 	 * persisting it as an explicit user visibility preference.
 	 */
@@ -476,6 +482,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private _editorLastNonMaximizedSize: IViewSize | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
 	protected _editorPartAutoVisibilitySuppressionCount = 0;
+	private _showChatOnHiddenSidePaneSuppressionCount = 0;
 	protected _hasAppliedInitialEditorSplit = false;
 	private _sidePaneStateBeforeHide: ISidePaneState | undefined;
 	private _restoreSidePaneEditorMaximizedOnShow = false;
@@ -1368,6 +1375,27 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this._editorPartAutoVisibilitySuppressionCount--;
 		});
 	}
+
+	suppressShowChatOnHiddenSidePane(): IDisposable {
+		this._showChatOnHiddenSidePaneSuppressionCount++;
+		let disposed = false;
+		return toDisposable(() => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			if (--this._showChatOnHiddenSidePaneSuppressionCount === 0) {
+				this._onDidReleaseShowChatOnHiddenSidePane();
+			}
+		});
+	}
+
+	protected get _isShowChatOnHiddenSidePaneSuppressed(): boolean {
+		return this._showChatOnHiddenSidePaneSuppressionCount > 0;
+	}
+
+	/** Called as the last hold of {@link suppressShowChatOnHiddenSidePane} is released; the desktop layout checks then. */
+	protected _onDidReleaseShowChatOnHiddenSidePane(): void { }
 
 	protected rememberAttachedEditorMaximizedState(): void {
 		this._restoreAttachedEditorMaximizedOnShow = this._editorMaximized && this.partVisibility.auxiliaryBar;

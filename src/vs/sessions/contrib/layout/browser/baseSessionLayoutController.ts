@@ -939,7 +939,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected _withSessionLayoutRestore(work: () => void | Promise<unknown>): void {
 		this._restoringSessionLayoutDepth++;
-		const suppression = this._suppressEditorVisibilityDuringRestore();
+		const suppression = this._suppressDuringSessionLayoutRestore();
 		let settledSync = true;
 		try {
 			const result = work();
@@ -965,11 +965,12 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	/**
-	 * Hook to suppress editor-part auto-visibility for the whole session-switch
-	 * restore. The base restore causes no layout-driven editor closes, so it
-	 * returns `undefined`.
+	 * Hook to suppress, for the whole session-switch restore, what the restore's
+	 * intermediate part visibility would otherwise trigger, such as editor-part
+	 * auto-visibility. The base restore causes no layout-driven editor closes, so
+	 * it returns `undefined`.
 	 */
-	protected _suppressEditorVisibilityDuringRestore(): IDisposable | undefined {
+	protected _suppressDuringSessionLayoutRestore(): IDisposable | undefined {
 		return undefined;
 	}
 

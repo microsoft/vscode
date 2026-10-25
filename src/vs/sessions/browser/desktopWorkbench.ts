@@ -66,19 +66,31 @@ export class DesktopWorkbench extends Workbench {
 	/**
 	 * With the chat hidden (Editor only), a side pane that ends up hidden by other means than the side pane toggle,
 	 * such as its last editor closing, would leave nothing showing: the chat shows again. Checked once the visibility
-	 * settles, as a composition changes its parts one at a time.
+	 * settles, as a composition changes its parts one at a time, and not while it is held off, such as while a session's
+	 * layout is restored: then once the hold is released.
 	 */
 	protected override _fireDidChangePartVisibility(partId: Parts, visible: boolean, source?: 'resize'): void {
 		super._fireDidChangePartVisibility(partId, visible, source);
-		if (!visible && (partId === Parts.EDITOR_PART || partId === Parts.AUXILIARYBAR_PART) && !this._showChatScheduled) {
-			this._showChatScheduled = true;
-			queueMicrotask(() => {
-				this._showChatScheduled = false;
-				if (!this.partVisibility.sessions && !this.isSidePaneVisible() && !this.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
-					this.setPartHidden(false, Parts.SESSIONS_PART);
-				}
-			});
+		if (!visible && (partId === Parts.EDITOR_PART || partId === Parts.AUXILIARYBAR_PART)) {
+			this._scheduleShowChatOnHiddenSidePane();
 		}
+	}
+
+	protected override _onDidReleaseShowChatOnHiddenSidePane(): void {
+		this._scheduleShowChatOnHiddenSidePane();
+	}
+
+	private _scheduleShowChatOnHiddenSidePane(): void {
+		if (this._showChatScheduled) {
+			return;
+		}
+		this._showChatScheduled = true;
+		queueMicrotask(() => {
+			this._showChatScheduled = false;
+			if (!this._isShowChatOnHiddenSidePaneSuppressed && !this.partVisibility.sessions && !this.isSidePaneVisible() && !this.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
+				this.setPartHidden(false, Parts.SESSIONS_PART);
+			}
+		});
 	}
 
 	/**

@@ -263,6 +263,31 @@ suite('Sessions - Sessions Part', () => {
 		});
 	});
 
+	test('changes its height limits and size in one change of the grid, and changes nothing when neither does', () => {
+		const { part } = createSessionsPartTestHarness(store);
+		part.layout(1202, 802, 0, 0);
+		const changes: unknown[] = [];
+		store.add(part.onDidChange(size => changes.push(size ?? 'limits')));
+		const step = (minimum: number, height?: number) => {
+			changes.length = 0;
+			part.setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY }, height);
+			return [...changes];
+		};
+
+		assert.deepStrictEqual({
+			limits: step(100),
+			limitsAndHeight: step(150, 150),
+			sameHeight: step(150, 802),
+			unchanged: step(150),
+		}, {
+			limits: ['limits'],
+			limitsAndHeight: [{ width: 1202, height: 150 }],
+			// Already that height: only the limits, which did not change.
+			sameHeight: [],
+			unchanged: [],
+		});
+	});
+
 	test('reorders and removes created sessions without rebinding surviving chat views', () => {
 		const { part, chatViews } = createSessionsPartTestHarness(store);
 		const [a, b, c] = ['a', 'b', 'c'].map(id => createTestActiveSession(id));

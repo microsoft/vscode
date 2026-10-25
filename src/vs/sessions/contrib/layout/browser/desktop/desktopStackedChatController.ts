@@ -183,8 +183,11 @@ export class DesktopStackedChatController extends Disposable {
 			}
 			const collapsed = height + this._sessionsPartService.chromeHeight;
 			const minimum = view.canShowInputOnly.read(reader) ? collapsed : collapsed + STACKED_CHAT_CONVERSATION_MIN_HEIGHT;
+			const inputOnly = view.inputOnly.read(reader);
 			// Showing only its input, the chat keeps its height as the window resizes, rather than growing to be sized back.
-			this._setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY, keepHeight: view.inputOnly.read(reader) });
+			// Not dragged, it is sized to its input in the same layout as its new limits, such as as the input wraps to
+			// another line, rather than in a second one: the switch below then finds it sized.
+			this._setHeightConstraints({ minimum, maximum: Number.POSITIVE_INFINITY, keepHeight: inputOnly }, inputOnly && !this._sizing ? collapsed : undefined);
 		}));
 
 		// Switched to, rather than dragged to: sized to the input, or to the conversation as the user last left it.
@@ -234,13 +237,16 @@ export class DesktopStackedChatController extends Disposable {
 		return store;
 	}
 
-	/** While the chat keeps its height, the editor above it takes the resizes of their column instead. */
-	private _setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
-		this._sessionsPartService.setHeightConstraints(constraints);
+	/**
+	 * While the chat keeps its height, the editor above it takes the resizes of their column instead. Set first, so that
+	 * the layout the constraints and `height` cause already resizes by it.
+	 */
+	private _setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined, height?: number): void {
 		const editorPart = this._editorGroupsService.mainPart;
 		if (editorPart instanceof MainEditorPart) {
 			editorPart.setTakesStackedColumnResizes(!!constraints?.keepHeight);
 		}
+		this._sessionsPartService.setHeightConstraints(constraints, height);
 	}
 
 	private _collapsedHeight(): number {
