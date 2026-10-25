@@ -21,6 +21,8 @@ fi
 
 VSCODECRASHDIR=$ROOT/.build/crashes
 
+# Live test of ripple's run-everything rules (not to be merged): changing this launcher runs every unit test.
+
 # Node modules
 test -d node_modules || npm i
 
