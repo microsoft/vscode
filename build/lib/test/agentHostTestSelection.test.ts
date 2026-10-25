@@ -196,7 +196,8 @@ suite('Agent Host PR test selection', () => {
 		});
 		assert.deepStrictEqual({
 			actionProfile: action.outputs.profile.value,
-			checksOutDetection: checkout?.with?.['sparse-checkout']?.split('\n').includes('.github/actions/detect-agent-host-e2e-changes'),
+			// A checkout without a sparse-checkout list checks out every file.
+			checksOutDetection: checkout?.with?.['sparse-checkout']?.split('\n').includes('.github/actions/detect-agent-host-e2e-changes') ?? !!checkout,
 			detection: { id: detection?.id, token: detection?.with?.token },
 			outputs: {
 				affected: changes.outputs?.['agent-host-e2e'],
@@ -231,7 +232,7 @@ suite('Agent Host PR test selection', () => {
 				{
 					agentHost: {
 						needs: 'changes',
-						// Runs when detection fails; required-checks reports it as part of "Windows / Electron".
+						// Runs when detection fails.
 						if: '${{ !cancelled() && (needs.changes.result != \'success\' || needs.changes.outputs.agent-host-e2e == \'true\') }}',
 						agentHostTests: true,
 						integrationTests: false,

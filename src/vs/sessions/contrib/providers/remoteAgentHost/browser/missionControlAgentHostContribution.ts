@@ -32,6 +32,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
+import { getRemoteAgentHostPickerKey } from './remoteAgentHostPickerVisibility.js';
 
 /** User-local MC hosts use the native provider, never the sandbox's task-history adapter. */
 export class MissionControlAgentHostContribution extends EntryDrivenProviderContribution {
@@ -255,6 +256,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			readOnlyWhenDisconnected: true,
 			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
+			pickerVisibilityKey: getRemoteAgentHostPickerKey(cloudSandboxAddress(id), account),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {
 				const hosts = this._inventory.hosts.read(reader);

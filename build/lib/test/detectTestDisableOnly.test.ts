@@ -297,9 +297,10 @@ suite('Detect Test-Disable-Only Changes', () => {
 		assertDetectsFromBase(pr.changes);
 		// Every output that selects jobs must be 'false' when the pull request only disables tests.
 		const forced = '${{ steps.test-disable-only.outputs.verified == \'true\' && \'false\' || ';
-		const selecting = Object.entries(pr.changes.outputs ?? {}).filter(([name]) => !['test-disable-only', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'].includes(name));
+		const selecting = Object.entries(pr.changes.outputs ?? {}).filter(([name]) => !['test-disable-only', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests', 'selected-unit-tests', 'ripple-changed', 'ripple-failed'].includes(name));
 		assert.deepStrictEqual(selecting.filter(([, value]) => !value.startsWith(forced)), []);
 		assert.ok(pr.changes.outputs?.['electron-tests'].startsWith('${{ steps.test-disable-only.outputs.verified != \'true\' && ('));
+		assert.ok(pr.changes.outputs?.['selected-unit-tests'].startsWith('${{ steps.test-disable-only.outputs.verified != \'true\' && '));
 		assert.deepStrictEqual([pr.compile.needs, pr.compile.if], ['changes', '${{ !cancelled() && (needs.changes.result != \'success\' || needs.changes.outputs.test-disable-only != \'true\') }}']);
 
 		for (const [workflow, aggregator] of [['component-fixtures.yml', 'component-fixtures'], ['monaco-editor.yml', undefined]] as const) {

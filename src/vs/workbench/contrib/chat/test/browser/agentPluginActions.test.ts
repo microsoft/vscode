@@ -42,6 +42,7 @@ suite('AgentPluginActions', () => {
 
 	function createAgentPluginService(calls: unknown[][]): IAgentPluginService {
 		return {
+			plugins: constObservable([{ ...createPlugin(), uri: URI.file('/plugins/client-plugin') }]),
 			enablementModel: {
 				setEnabled: (...args: unknown[]) => calls.push(args),
 			},
@@ -190,7 +191,7 @@ suite('AgentPluginActions', () => {
 		assert.deepStrictEqual(calls, [[URI.parse('vscode-agent-session:///session-1'), 'host-plugin', customization.enablement, CustomizationEnablementKind.Workspace, true]]);
 	});
 
-	test('writes client-published global plugin enablement locally', () => {
+	test('writes client-published global plugin enablement locally', async () => {
 		const customization = {
 			type: CustomizationType.Plugin,
 			id: 'client-plugin',
@@ -206,7 +207,7 @@ suite('AgentPluginActions', () => {
 			setCustomizationEnablement: (...args: unknown[]) => hostCalls.push(args),
 		} as unknown as IAgentHostCustomizationService, createAgentPluginService(clientCalls), URI.parse('vscode-agent-session:///session-1'), customization, true);
 
-		actions[0].run();
+		await actions[0].run();
 
 		assert.deepStrictEqual({ clientCalls, hostCalls }, {
 			clientCalls: [[customization.uri.toString(), ContributionEnablementState.EnabledProfile]],

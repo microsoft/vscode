@@ -173,6 +173,12 @@ async function loadTestModules(opts) {
 		const excludedFiles = new Set(await globAsync(opts.excludeRunGlob, { cwd: loadFn._out }));
 		files = files.filter(file => !excludedFiles.has(file));
 	}
+	if (opts.runList) {
+		// --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
+		const runList = new Set(fs.readFileSync(opts.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js')));
+		files = files.filter(file => runList.has(file));
+		console.log(`Running the ${files.length} test files of the ${runList.size} files listed in ${opts.runList}`);
+	}
 	let modules = files.map(file => file.replace(/\.js$/, ''));
 	if (opts.testSplit) {
 		const [i, n] = opts.testSplit.split('/').map(Number);
