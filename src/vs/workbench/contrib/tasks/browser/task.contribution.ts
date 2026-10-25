@@ -8,6 +8,7 @@ import * as nls from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 
 import { ProblemMatcherRegistry } from '../common/problemMatcher.js';
@@ -460,6 +461,25 @@ export class TaskRegistryContribution extends Disposable implements IWorkbenchCo
 	}
 }
 registerWorkbenchContribution2(TaskRegistryContribution.ID, TaskRegistryContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Blocks an unattended restart while any task (including background and watch tasks) is running.
+ */
+class TaskUnattendedRestartParticipant extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.taskUnattendedRestartParticipant';
+
+	constructor(
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
+		@ITaskService taskService: ITaskService,
+	) {
+		super();
+
+		this._register(unattendedRestartService.registerParticipant({
+			check: async () => (await taskService.getActiveTasks()).length > 0 ? 'tasks.running' : undefined
+		}));
+	}
+}
+registerWorkbenchContribution2(TaskUnattendedRestartParticipant.ID, TaskUnattendedRestartParticipant, WorkbenchPhase.AfterRestored);
 
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

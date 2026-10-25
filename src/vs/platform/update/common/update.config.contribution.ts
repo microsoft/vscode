@@ -71,6 +71,24 @@ configurationRegistry.registerConfiguration({
 			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
 			included: isWindows && !isWeb
 		},
+		'update.restartWhenIdle': {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('restartWhenIdle', "Controls whether to restart automatically to apply a downloaded update after the screen has been locked for 15 minutes. The restart only happens if VS Code was the active application when the screen was locked and every window can be restored exactly as it was, for example when no terminal process, task, debug session, or chat request is running. Only supported on macOS, and on Windows when background updates are enabled."),
+			policy: {
+				name: 'UpdateRestartWhenIdle',
+				category: PolicyCategory.Update,
+				minimumVersion: '1.144',
+				localization: {
+					description: {
+						key: 'restartWhenIdle',
+						value: localize('restartWhenIdle', "Controls whether to restart automatically to apply a downloaded update after the screen has been locked for 15 minutes. The restart only happens if VS Code was the active application when the screen was locked and every window can be restored exactly as it was, for example when no terminal process, task, debug session, or chat request is running. Only supported on macOS, and on Windows when background updates are enabled."),
+					}
+				},
+			}
+		},
 		'update.showReleaseNotes': {
 			type: 'boolean',
 			default: true,

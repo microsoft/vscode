@@ -180,6 +180,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ExtensionGalleryServiceUrl: { status: 'enforced' },
 	EnableFeedback: { status: 'enforced' },
 	UpdateMode: { status: 'enforced' },
+	UpdateRestartWhenIdle: { status: 'enforced' },
 	// Windows setup, the Linux DEB/RPM scripts, and the `copilot` command on every platform read the
 	// policy themselves, so it applies to shells of every session type.
 	CopilotCliCommand: { status: 'enforced' },

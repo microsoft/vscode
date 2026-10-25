@@ -138,6 +138,7 @@ import '../workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import '../workbench/services/treeSitter/browser/treeSitter.contribution.js';
 import '../workbench/services/userActivity/common/userActivityService.js';
 import '../workbench/services/userActivity/browser/userActivityBrowser.js';
+import '../workbench/services/lifecycle/common/unattendedRestart.js';
 import '../workbench/services/userAttention/browser/userAttentionBrowser.js';
 import '../workbench/services/editor/browser/editorPaneService.js';
 import '../workbench/services/editor/common/customEditorLabelService.js';

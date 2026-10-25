@@ -171,6 +171,7 @@ import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService, UnattendedRestartService } from '../../services/lifecycle/common/unattendedRestart.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ICopilotHomeService } from '../../../platform/environment/common/copilotHome.js';
@@ -290,6 +291,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IEnvironmentService, environmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IUnattendedRestartService, new UnattendedRestartService(new NullLogService()));
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(IProgressService, new TestProgressService());
