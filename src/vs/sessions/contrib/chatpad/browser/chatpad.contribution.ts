@@ -16,8 +16,11 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, waitForState } from '../../../../base/common/observable.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { autorun, derivedOpts, waitForState } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -101,13 +104,29 @@ export class ChatpadFeedbackExclusion extends Disposable implements IWorkbenchCo
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
 	) {
 		super();
-		this._register(autorun(reader => {
+		// The notes of the open Chatpads, which changes only when one opens, closes or shows another note.
+		const notes = derivedOpts<readonly URI[]>({ owner: this, equalsFn: (a, b) => equals(a, b, isEqual) }, reader => {
+			const result: URI[] = [];
 			for (const window of chatWindowService.windows.read(reader)) {
-				if (window.kind === CHATPAD_CHAT_WINDOW_KIND) {
-					const note = window.content.read(reader).editor?.resource;
-					if (note) {
-						reader.store.add(agentFeedbackService.registerFeedbackResourceExclusion(note));
-					}
+				const note = window.kind === CHATPAD_CHAT_WINDOW_KIND ? window.content.read(reader).editor?.resource : undefined;
+				if (note) {
+					result.push(note);
+				}
+			}
+			return result;
+		});
+		// One registration per note, kept while the note is, so that a note that stays is never briefly un-excluded.
+		const registrations = this._register(new DisposableMap<string>());
+		this._register(autorun(reader => {
+			const current = new Map(notes.read(reader).map(note => [note.toString(), note]));
+			for (const key of [...registrations.keys()]) {
+				if (!current.has(key)) {
+					registrations.deleteAndDispose(key);
+				}
+			}
+			for (const [key, note] of current) {
+				if (!registrations.has(key)) {
+					registrations.set(key, agentFeedbackService.registerFeedbackResourceExclusion(note));
 				}
 			}
 		}));
@@ -332,6 +351,9 @@ registerAction2(class AppendToChatpadAction extends Action2 {
 /** Whether the Chatpad was open when the window last closed. */
 const CHATPAD_OPEN_STORAGE_KEY = 'sessions.chatpad.open';
 
+/** The context keys that decide whether the Chatpad is available. */
+const CHATPAD_AVAILABLE_KEYS = new Set(ChatpadAvailableContext.keys());
+
 /** How long restoring the Chatpad waits for an agent host that provides it. */
 const CHATPAD_RESTORE_TIMEOUT = 30_000;
 
@@ -383,9 +405,14 @@ export class ChatpadRestoration extends Disposable implements IWorkbenchContribu
 			}
 			// Once a provider offers it, and then once it can resolve it; context changes only matter while a provider is there.
 			const changed = getChatpadProvider(this._providersService)
-				? Event.any<unknown>(this._providersService.onDidChangeProviders, this._contextKeyService.onDidChangeContext)
+				? Event.any<unknown>(this._providersService.onDidChangeProviders, Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(CHATPAD_AVAILABLE_KEYS)))
 				: this._providersService.onDidChangeProviders;
-			await raceTimeout(Event.toPromise(changed), Math.max(0, deadline - Date.now()));
+			const change = Event.toPromise(changed);
+			try {
+				await raceTimeout(change, Math.max(0, deadline - Date.now()));
+			} finally {
+				change.cancel();
+			}
 		}
 	}
 }
