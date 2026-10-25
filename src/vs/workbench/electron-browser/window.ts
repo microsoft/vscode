@@ -30,6 +30,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService } from '../services/lifecycle/common/unattendedRestart.js';
 import { IUnattendedRestartReadinessProvider, UnattendedRestartChannelName } from '../../platform/lifecycle/common/unattendedRestart.js';
+import { RESTART_WHEN_IDLE_SETTING } from '../../platform/update/common/update.js';
 import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
@@ -410,7 +411,10 @@ export class NativeWindow extends BaseWindow {
 
 		// Unattended restart (e.g. to apply an update while the user is away)
 		this.mainProcessService.registerChannel(UnattendedRestartChannelName, ProxyChannel.fromService({
-			canRestartUnattended: () => this.unattendedRestartService.canRestartUnattended()
+			canRestartUnattended: async () => ({
+				...await this.unattendedRestartService.canRestartUnattended(),
+				enabled: this.configurationService.getValue<boolean>(RESTART_WHEN_IDLE_SETTING) === true
+			})
 		} satisfies IUnattendedRestartReadinessProvider, this._store));
 		this._register(this.unattendedRestartService.registerParticipant({
 			check: () => this.pendingWaitMarkerFiles > 0 ? 'cli.waitingForEditorClose' : undefined

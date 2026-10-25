@@ -15,6 +15,7 @@ import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchPr
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { WorkbenchUnattendedRestartParticipants } from './unattendedRestartParticipants.js';
+import { UnattendedRestartExperimentTriggerContribution } from './unattendedRestartExperimentTrigger.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -39,6 +40,7 @@ workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, Lifecy
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
 registerWorkbenchContribution2(WorkbenchUnattendedRestartParticipants.ID, WorkbenchUnattendedRestartParticipants, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(UnattendedRestartExperimentTriggerContribution.ID, UnattendedRestartExperimentTriggerContribution, WorkbenchPhase.AfterRestored);
 
 // Release notes
 

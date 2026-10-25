@@ -109,7 +109,6 @@ export interface NativeParsedArgs {
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
 	'skip-release-notes'?: boolean;
-	'open-in-background'?: boolean;
 	'skip-welcome'?: boolean;
 	'disable-telemetry'?: boolean;
 	'telemetry-level'?: string;

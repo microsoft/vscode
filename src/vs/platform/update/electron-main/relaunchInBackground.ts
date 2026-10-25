@@ -7,19 +7,27 @@ import { ChildProcess, spawn } from 'child_process';
 import { dirname, join } from '../../../base/common/path.js';
 
 /**
- * How long to wait for the update to be installed before relaunching anyway.
+ * How long Squirrel's installer (ShipIt) must be gone before relaunching. Its launchd
+ * job restarts it 2 seconds after a failed attempt.
  */
-const INSTALL_TIMEOUT_SECONDS = 300;
+const INSTALLER_GONE_SECONDS = 5;
 
 /**
- * Waits for process `$1` to exit and for `$3` (`product.json`) to contain commit `$2`,
- * then launches bundle `$5` with `$4` (`open`) without activating it.
+ * Waits for process `$1` to exit, then until `$3` (`product.json`) contains commit `$2`,
+ * or until ShipIt, whose launchd job is named after bundle identifier `$4`, has not run
+ * for `$7` seconds. Then launches bundle `$6` with `$5` (`open`) without activating it.
+ * Seconds only count while the machine is awake, and there is no timeout: if the machine
+ * sleeps, the script continues where it left off.
  */
 const RELAUNCH_SCRIPT = [
 	'while kill -0 "$1" 2>/dev/null; do sleep 1; done',
-	'i=0',
-	`while [ "$i" -lt ${INSTALL_TIMEOUT_SECONDS} ] && ! grep -qF -- "$2" "$3" 2>/dev/null; do sleep 1; i=$((i+1)); done`,
-	'exec "$4" -g -a "$5" --args --open-in-background',
+	'gone=0',
+	'while [ "$gone" -lt "$7" ]; do',
+	'  if [ -n "$2" ] && grep -qF -- "$2" "$3" 2>/dev/null; then break; fi',
+	'  if pgrep -f -- "/ShipIt $4.ShipIt" >/dev/null; then gone=0; else gone=$((gone+1)); fi',
+	'  sleep 1',
+	'done',
+	'exec "$5" -g -a "$6"',
 ].join('\n');
 
 export interface IBackgroundRelaunchOptions {
@@ -30,16 +38,22 @@ export interface IBackgroundRelaunchOptions {
 	readonly pid: number;
 
 	/**
-	 * The commit of the update that gets installed once the process exits.
+	 * The commit of the update that gets installed once the process exits, if known.
 	 */
-	readonly commit: string;
+	readonly commit: string | undefined;
 
 	/**
 	 * The `appRoot` of the application, inside its `.app` bundle.
 	 */
 	readonly appRoot: string;
 
+	/**
+	 * The bundle identifier of the application, which names the launchd job of ShipIt.
+	 */
+	readonly bundleIdentifier: string;
+
 	readonly openCommand?: string;
+	readonly installerGoneSeconds?: number;
 }
 
 /**
@@ -50,13 +64,22 @@ export function isCommit(value: string | undefined): value is string {
 }
 
 /**
- * macOS: launches the application without activating it once the process has exited
- * and the update, which Squirrel installs when the application quits, is in place.
- * If the update does not get installed in time, the current version is launched.
+ * macOS: launches the application without activating it once the process has exited and
+ * Squirrel has installed the update, which it does when the application quits. If the
+ * installation fails, the current version is launched once the installer gave up.
  */
 export function relaunchInBackground(options: IBackgroundRelaunchOptions): ChildProcess {
 	const bundlePath = dirname(dirname(dirname(options.appRoot)));
-	const child = spawn('/bin/sh', ['-c', RELAUNCH_SCRIPT, 'code-relaunch', String(options.pid), options.commit, join(options.appRoot, 'product.json'), options.openCommand ?? '/usr/bin/open', bundlePath], {
+	const child = spawn('/bin/sh', [
+		'-c', RELAUNCH_SCRIPT, 'code-relaunch',
+		String(options.pid),
+		isCommit(options.commit) ? options.commit : '',
+		join(options.appRoot, 'product.json'),
+		options.bundleIdentifier,
+		options.openCommand ?? '/usr/bin/open',
+		bundlePath,
+		String(options.installerGoneSeconds ?? INSTALLER_GONE_SECONDS)
+	], {
 		detached: true,
 		stdio: 'ignore'
 	});

@@ -13,25 +13,24 @@ import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-mai
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
-import { IUnattendedRestartReadiness } from '../../lifecycle/common/unattendedRestart.js';
+import { IUnattendedRestartWindowReadiness } from '../../lifecycle/common/unattendedRestart.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { SystemIdleState, ThermalState } from '../../native/common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
+import { IBaseWindow, ICodeWindow, WindowMode } from '../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { IUpdateService, StateType } from '../common/update.js';
-import { isCommit } from './relaunchInBackground.js';
+import { isUnattendedRestartSupported, IUpdateService, RESTART_WHEN_IDLE_SETTING, StateType } from '../common/update.js';
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
 
 /**
  * How long the screen must stay locked, with the machine awake, before restarting.
  */
-export const UNATTENDED_RESTART_LOCKED_DURATION = 15 * 60 * 1000;
+export const UNATTENDED_RESTART_LOCKED_DURATION = 2 * 60 * 1000;
 
-const RETRY_INTERVAL = 5 * 60 * 1000;
+const RETRY_INTERVAL = 60 * 1000;
 const WINDOW_READINESS_TIMEOUT = 10 * 1000;
 
 /**
@@ -92,7 +91,7 @@ function createElectronHost(): IUnattendedRestartHost {
 }
 
 export interface IUnattendedRestartSchedulerOptions {
-	readonly getWindowReadiness: (window: ICodeWindow) => Promise<IUnattendedRestartReadiness>;
+	readonly getWindowReadiness: (window: ICodeWindow) => Promise<IUnattendedRestartWindowReadiness>;
 	readonly host?: IUnattendedRestartHost;
 	readonly os?: OperatingSystem;
 	readonly argv?: readonly string[];
@@ -120,20 +119,20 @@ export function hasArgumentsLostOnRelaunch(args: NativeParsedArgs, argv: readonl
 }
 
 /**
- * Returns the reasons why the windows could not be restored exactly as they are.
+ * Returns the reasons why the windows could not be restored exactly as they are. In the
+ * background, windows are shown without taking focus and enter fullscreen once they get
+ * focus, in the foreground they are restored like after any update restart.
  */
-export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWindows: readonly IBaseWindow[], os: OperatingSystem): string[] {
+export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWindows: readonly IBaseWindow[], os: OperatingSystem, inBackground: boolean): string[] {
 	if (windows.length === 0) {
 		return ['window.none']; // the relaunch would open a new window
 	}
 
 	const blockers = new Set<string>();
+	const displaysWithFullScreenWindow = new Set<number | undefined>();
 	for (const window of windows) {
 		if (!window.isReady) {
 			blockers.add('window.notReady');
-		}
-		if (window.config?.isSessionsWindow) {
-			blockers.add('window.agents');
 		}
 		if (window.remoteAuthority) {
 			blockers.add('window.remote');
@@ -147,16 +146,24 @@ export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWind
 		if (window.config && hasSessionArguments(window.config)) {
 			blockers.add('window.launchArguments');
 		}
+
+		// macOS can only restore one native fullscreen window per display at once
+		if (os === OperatingSystem.Macintosh && !inBackground && window.isFullScreen && !window.win?.isSimpleFullScreen()) {
+			const { mode, display } = window.serializeWindowState();
+			if (mode === WindowMode.Fullscreen && displaysWithFullScreenWindow.has(display)) {
+				blockers.add('window.fullScreenSameDisplay');
+			}
+			displaysWithFullScreenWindow.add(display);
+		}
 	}
 
-	for (const window of [...windows, ...auxiliaryWindows]) {
+	// Floating windows do not remember being minimized, and restore fullscreen as maximized
+	for (const window of auxiliaryWindows) {
 		if (window.win?.isMinimized()) {
-			blockers.add('window.minimized');
-		} else if (!window.win?.isVisible()) {
-			blockers.add('window.hidden');
+			blockers.add('window.auxiliaryMinimized');
 		}
-		if (os === OperatingSystem.Macintosh && window.isFullScreen) {
-			blockers.add('window.fullScreen'); // restoring creates a new Space
+		if (!inBackground && window.isFullScreen) {
+			blockers.add('window.auxiliaryFullScreen');
 		}
 	}
 
@@ -197,9 +204,10 @@ function isPendingUnattendedRestart(value: unknown): value is IPendingUnattended
 
 /**
  * Restarts to apply a downloaded update while the user is away, but only when every
- * window reports that it can be restored exactly as it is. The restart does not change
- * which application has focus: unless VS Code was the active application when the
- * screen got locked, it relaunches in the background. When `update.restartWhenIdle`
+ * window reports that it can be restored exactly as it is. The windows are restored
+ * as they were, for example minimized, and the restart does not change which
+ * application has focus: unless VS Code was the active application when the screen
+ * got locked, the windows are restored in the background. When `update.restartWhenIdle`
  * is disabled, the same checks run to measure how often a restart would apply.
  */
 export class UnattendedRestartScheduler extends Disposable {
@@ -294,10 +302,15 @@ export class UnattendedRestartScheduler extends Disposable {
 
 	private onDidVetoRestart(): void {
 		this.logService.info('update#unattendedRestart - the restart was vetoed');
-		this.pendingRestart = undefined;
+		this.cancelRestart();
 		this.isDone = false;
 		this.lastBlockers = ['shutdown.vetoed'];
 		this.scheduleEvaluation(RETRY_INTERVAL);
+	}
+
+	private cancelRestart(): void {
+		this.pendingRestart = undefined;
+		this.windowsMainService.restoreExactlyOnNextStartup(undefined);
 	}
 
 	private onDidLockScreen(): void {
@@ -333,15 +346,7 @@ export class UnattendedRestartScheduler extends Disposable {
 	}
 
 	private isSupported(): boolean {
-		switch (this.os) {
-			case OperatingSystem.Macintosh:
-				return true;
-			case OperatingSystem.Windows:
-				// Only user setup applies updates in the background without elevation or installer UI
-				return this.productService.target === 'user' && this.configurationService.getValue<boolean>('update.enableWindowsBackgroundUpdates') === true;
-			default:
-				return false;
-		}
+		return isUnattendedRestartSupported(this.os, this.productService, this.configurationService);
 	}
 
 	private async evaluate(): Promise<void> {
@@ -351,7 +356,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		}
 
 		if (!this.isEnabled() && this.telemetryService.telemetryLevel < TelemetryLevel.USAGE) {
-			return; // nothing to restart and nothing to learn
+			return; // nothing to restart and nothing to learn (experiments that enable it need telemetry too)
 		}
 
 		const remaining = lockedSince + UNATTENDED_RESTART_LOCKED_DURATION - Date.now();
@@ -363,7 +368,8 @@ export class UnattendedRestartScheduler extends Disposable {
 		this.isEvaluating = true;
 		try {
 			this.attempts++;
-			const blockers = await this.getBlockers();
+			const inBackground = !this.activeWhenLocked;
+			const { blockers, enabled } = await this.getBlockers(inBackground);
 			if (this.lockedSince !== lockedSince || !this.hasUpdateState(StateType.Ready)) {
 				return; // unlocked or update changed while checking
 			}
@@ -376,18 +382,19 @@ export class UnattendedRestartScheduler extends Disposable {
 			}
 
 			this.isDone = true;
-			if (!this.isEnabled()) {
+			if (!enabled) {
 				this.reportOutcome('eligible', []);
 				return;
 			}
 
-			this.logService.info(`update#unattendedRestart - restarting ${this.activeWhenLocked ? 'in the foreground' : 'in the background'} to apply the update while the screen is locked`);
-			this.pendingRestart = { fromCommit: this.productService.commit, inBackground: !this.activeWhenLocked, attempts: this.attempts, lockedMinutes: this.getLockedMinutes() };
-			await this.updateService.quitAndInstall({ relaunchInBackground: this.pendingRestart.inBackground });
+			this.logService.info(`update#unattendedRestart - restarting ${inBackground ? 'in the background' : 'in the foreground'} to apply the update while the screen is locked`);
+			this.pendingRestart = { fromCommit: this.productService.commit, inBackground, attempts: this.attempts, lockedMinutes: this.getLockedMinutes() };
+			this.windowsMainService.restoreExactlyOnNextStartup({ inBackground });
+			await this.updateService.quitAndInstall({ relaunchInBackground: inBackground });
 
 			// The shutdown can still be vetoed, which is handled when the update service restores `Ready`
 			if (!this.hasUpdateState(StateType.Restarting)) {
-				this.pendingRestart = undefined;
+				this.cancelRestart();
 				this.isDone = false; // a newer update postponed the restart
 			}
 		} finally {
@@ -399,19 +406,17 @@ export class UnattendedRestartScheduler extends Disposable {
 		return this.updateService.state.type === type;
 	}
 
+	/**
+	 * Whether `update.restartWhenIdle` is enabled in user settings or by policy.
+	 * Experiments only change the default in windows (see {@link getBlockers}).
+	 */
 	private isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('update.restartWhenIdle') === true;
+		return this.configurationService.getValue<boolean>(RESTART_WHEN_IDLE_SETTING) === true;
 	}
 
-	private async getBlockers(): Promise<string[]> {
+	private async getBlockers(inBackground: boolean): Promise<{ readonly blockers: string[]; readonly enabled: boolean }> {
 		const windows = this.windowsMainService.getWindows();
-		const auxiliaryWindows = this.auxiliaryWindowsMainService.getWindows();
-		const blockers = new Set(getWindowBlockers(windows, auxiliaryWindows, this.os));
-		if (!this.activeWhenLocked) {
-			for (const blocker of this.getBackgroundRelaunchBlockers(auxiliaryWindows)) {
-				blockers.add(blocker);
-			}
-		}
+		const blockers = new Set(getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os, inBackground));
 		if (this.dialogMainService.hasOpenDialogs()) {
 			blockers.add('app.dialogOpen');
 		}
@@ -429,52 +434,36 @@ export class UnattendedRestartScheduler extends Disposable {
 			blockers.add('app.launchArguments');
 		}
 
+		let enabled = this.isEnabled();
 		if (blockers.size === 0) {
-			const windowBlockers = await Promise.all(windows.map(window => this.getWindowReadinessBlockers(window)));
-			for (const blocker of windowBlockers.flat()) {
+			const readiness = await Promise.all(windows.map(window => this.getWindowReadiness(window)));
+			for (const blocker of readiness.flatMap(windowReadiness => windowReadiness.blockers)) {
 				blockers.add(blocker);
 			}
+
+			// Windows resolve experiments, which can enable the setting by default
+			enabled = readiness.every(windowReadiness => windowReadiness.enabled);
 		}
 
-		return Array.from(blockers).sort();
+		return { blockers: Array.from(blockers).sort(), enabled };
 	}
 
-	/**
-	 * Returns why relaunching without taking focus from the active application is not possible.
-	 */
-	private getBackgroundRelaunchBlockers(auxiliaryWindows: readonly IBaseWindow[]): string[] {
-		if (this.os !== OperatingSystem.Macintosh) {
-			return ['app.backgroundRelaunchUnsupported'];
-		}
-
-		const blockers: string[] = [];
-		if (auxiliaryWindows.length > 0) {
-			blockers.push('window.auxiliary'); // floating windows are restored by showing them, which activates the application
-		}
-		const state = this.updateService.state;
-		if (state.type === StateType.Ready && !isCommit(state.update.version)) {
-			blockers.push('update.unknownVersion'); // the relaunch waits for this commit to be installed
-		}
-
-		return blockers;
-	}
-
-	private async getWindowReadinessBlockers(window: ICodeWindow): Promise<readonly string[]> {
+	private async getWindowReadiness(window: ICodeWindow): Promise<IUnattendedRestartWindowReadiness> {
 		try {
 			const readiness = await raceTimeout(this.options.getWindowReadiness(window), WINDOW_READINESS_TIMEOUT);
 			if (!readiness) {
-				return ['window.noResponse'];
+				return { blockers: ['window.noResponse'], enabled: false };
 			}
 
-			if (!Array.isArray(readiness.blockers) || !readiness.blockers.every(blocker => typeof blocker === 'string' && /^[\w.]+$/.test(blocker))) {
-				return ['window.invalidResponse'];
+			if (!Array.isArray(readiness.blockers) || !readiness.blockers.every(blocker => typeof blocker === 'string' && /^[\w.]+$/.test(blocker)) || typeof readiness.enabled !== 'boolean') {
+				return { blockers: ['window.invalidResponse'], enabled: false };
 			}
 
-			return readiness.blockers;
+			return readiness;
 		} catch (error) {
 			this.logService.error('update#unattendedRestart - failed to ask window whether it can restart', error);
 
-			return ['window.noResponse'];
+			return { blockers: ['window.noResponse'], enabled: false };
 		}
 	}
 

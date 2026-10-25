@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
 import { upcast } from '../../../base/common/types.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IProductService } from '../../product/common/productService.js';
 
 export interface IUpdate {
 	version: string; // Build commit ID
@@ -107,11 +110,33 @@ export interface IAutoUpdater extends Event.NodeEventEmitter {
 
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
+/**
+ * Restarts to apply a downloaded update while the screen is locked.
+ */
+export const RESTART_WHEN_IDLE_SETTING = 'update.restartWhenIdle';
+
+/**
+ * Whether a downloaded update can be applied by restarting while the screen is locked. On Windows,
+ * only user setup with background updates installs updates without elevation or installer UI.
+ * Linux reports no screen locks and does not install updates on restart.
+ */
+export function isUnattendedRestartSupported(os: OperatingSystem, productService: IProductService, configurationService: IConfigurationService): boolean {
+	switch (os) {
+		case OperatingSystem.Macintosh:
+			return true;
+		case OperatingSystem.Windows:
+			return productService.target === 'user' && configurationService.getValue<boolean>('update.enableWindowsBackgroundUpdates') === true;
+		default:
+			return false;
+	}
+}
+
 export interface IQuitAndInstallOptions {
 
 	/**
-	 * Relaunch without activating the application, so that the restart does
-	 * not take focus. Only supported on macOS; ignored on other platforms.
+	 * Relaunch without activating the application, so that the restart does not take
+	 * focus. Only macOS activates a relaunched application, the windows restore without
+	 * focus on every platform (see `IWindowsMainService.restoreExactlyOnNextStartup`).
 	 */
 	readonly relaunchInBackground?: boolean;
 }

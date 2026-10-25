@@ -29,10 +29,24 @@ import { isCommit, relaunchInBackground } from '../../electron-main/relaunchInBa
 		}
 	}
 
-	test('launches the updated application without activating it once the process exited and the update is installed', async function () {
-		this.timeout(20000);
+	function kill(process: ChildProcess | undefined): void {
+		if (process?.pid && process.exitCode === null) {
+			try {
+				process.kill();
+			} catch {
+				// already exited
+			}
+		}
+	}
 
+	/**
+	 * Quits a process while a fake installer runs, relaunches in the background once the process
+	 * exited, and returns whether it launched before `install` was called and how it launched.
+	 */
+	async function relaunch(commit: string | undefined, install: (productJsonPath: string, installer: ChildProcess) => Promise<void>): Promise<{ launchedWhileInstalling: boolean; openArgs: string[]; bundlePath: string }> {
 		const root = await fs.mkdtemp(join(tmpdir(), 'vscode-relaunch-'));
+		const bundleIdentifier = `com.example.relaunch${process.pid}${Date.now()}`;
+		let installer: ChildProcess | undefined;
 		let relauncher: ChildProcess | undefined;
 		try {
 			const bundlePath = join(root, 'Code.app');
@@ -44,35 +58,48 @@ import { isCommit, relaunchInBackground } from '../../electron-main/relaunchInBa
 			await fs.writeFile(productJsonPath, JSON.stringify({ commit: oldCommit }));
 			await fs.writeFile(openCommand, `#!/bin/sh\nprintf '%s\\n' "$@" > '${openArgsPath}'\n`, { mode: 0o755 });
 
+			// Like ShipIt, which launchd runs as `<path>/ShipIt <bundle identifier>.ShipIt <state path>`
+			// (`; true` keeps the shell from replacing itself, and its command line, with `sleep`)
+			installer = spawn('/bin/sh', ['-c', 'sleep 30; true', join(root, 'Squirrel.framework', 'Resources', 'ShipIt'), `${bundleIdentifier}.ShipIt`, join(root, 'ShipItState.plist')]);
+
 			const quitting = spawn('/bin/sh', ['-c', 'sleep 0.5']);
 			const quit = new Promise(resolve => quitting.once('exit', resolve));
-			const currentRelauncher = relauncher = relaunchInBackground({ pid: quitting.pid!, commit: newCommit, appRoot, openCommand });
+			const currentRelauncher = relauncher = relaunchInBackground({ pid: quitting.pid!, commit, appRoot, bundleIdentifier, openCommand, installerGoneSeconds: 1 });
 			const relaunched = new Promise(resolve => currentRelauncher.once('exit', resolve)); // the script runs `open` with `exec`
 
 			await quit;
-			await timeout(1500);
-			const launchedBeforeInstall = currentRelauncher.exitCode !== null || await exists(openArgsPath);
+			await timeout(2000);
+			const launchedWhileInstalling = currentRelauncher.exitCode !== null || await exists(openArgsPath);
 
-			await fs.writeFile(productJsonPath, JSON.stringify({ commit: newCommit }));
+			await install(productJsonPath, installer);
 			await relaunched;
 
-			assert.deepStrictEqual({
-				launchedBeforeInstall,
-				openArgs: (await fs.readFile(openArgsPath, 'utf8')).trim().split('\n'),
-			}, {
-				launchedBeforeInstall: false,
-				openArgs: ['-g', '-a', bundlePath, '--args', '--open-in-background'],
-			});
+			return { launchedWhileInstalling, openArgs: (await fs.readFile(openArgsPath, 'utf8')).trim().split('\n'), bundlePath };
 		} finally {
-			if (relauncher?.pid && relauncher.exitCode === null) {
-				try {
-					process.kill(relauncher.pid);
-				} catch {
-					// already exited
-				}
-			}
+			kill(relauncher);
+			kill(installer);
 			await fs.rm(root, { recursive: true, force: true });
 		}
+	}
+
+	test('launches without activating once the update is installed', async function () {
+		this.timeout(20000);
+
+		const { bundlePath, ...result } = await relaunch(newCommit, productJsonPath => fs.writeFile(productJsonPath, JSON.stringify({ commit: newCommit })));
+
+		assert.deepStrictEqual(result, { launchedWhileInstalling: false, openArgs: ['-g', '-a', bundlePath] });
+	});
+
+	test('launches without activating once the installer is gone, if the update is unknown', async function () {
+		this.timeout(20000);
+
+		const { bundlePath, ...result } = await relaunch(undefined, async (_productJsonPath, installer) => {
+			const exited = new Promise(resolve => installer.once('exit', resolve));
+			installer.kill();
+			await exited;
+		});
+
+		assert.deepStrictEqual(result, { launchedWhileInstalling: false, openArgs: ['-g', '-a', bundlePath] });
 	});
 
 	test('isCommit', () => {
