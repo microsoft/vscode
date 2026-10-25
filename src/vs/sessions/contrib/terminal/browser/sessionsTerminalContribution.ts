@@ -146,7 +146,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		const profileOverride = derived(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			if (!session || session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
 				return; // no need to override local default profiles with the local AH
 			}
@@ -173,7 +173,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// so that "New Terminal" uses it automatically.
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
 			const remoteHostAvailable = remoteConnectionStatus === undefined || remoteConnectionStatus.kind === 'connected';
 			if (session?.loading.read(reader) || session?.isArchived.read(reader) || session?.worktreePending?.read(reader) || !remoteHostAvailable) {
@@ -186,7 +186,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
+			const session = this._sessionsService.mainWindowActiveSession.read(reader);
 			const isArchived = session?.isArchived.read(reader);
 			const worktreePending = session?.worktreePending?.read(reader);
 			const remoteConnectionStatus = session?.remoteConnectionStatus?.read(reader);
@@ -865,7 +865,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private async _ensureActiveSessionTerminalAfterLateArchiveCleanup(sessionId: string): Promise<void> {
-		const activeSession = this._sessionsService.activeSession.get();
+		const activeSession = this._sessionsService.mainWindowActiveSession.get();
 		if (!activeSession
 			|| activeSession.sessionId !== sessionId
 			|| activeSession.isArchived.get()

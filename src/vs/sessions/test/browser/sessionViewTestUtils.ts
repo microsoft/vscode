@@ -98,6 +98,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	}());
 	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+		override readonly mainWindowActiveSession = this.activeSession;
 		override async openChat(): Promise<void> { }
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {

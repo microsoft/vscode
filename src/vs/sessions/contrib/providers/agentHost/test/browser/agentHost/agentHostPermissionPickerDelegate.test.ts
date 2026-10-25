@@ -216,6 +216,8 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	const managedSettingsChanged = store.add(new Emitter<void>());
 	const sessionsManagementService = new (class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObs;
+		override readonly mainWindowActiveSession = this.activeSession;
+		override readonly windowSessions = constObservable<readonly IActiveSession[]>([]);
 	})();
 
 	const insta = store.add(new TestInstantiationService());
@@ -285,6 +287,29 @@ function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
 
 suite('AgentHostPermissionPickerDelegate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a picker of a session that is not the active one, as in a chat window, shows and changes only that session', async () => {
+		const active = makeActiveSession();
+		const { instantiationService, delegate: activeDelegate, provider } = setup(store, active);
+		const windowResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/s2' });
+		const windowSession = { providerId: PROVIDER_ID, sessionId: 'session-2', sessionType: 'copilotcli', resource: windowResource, activeChat: constObservable({ resource: windowResource }) } as unknown as IActiveSession;
+		provider.sessionConfigs.set(SESSION_ID, makeWellKnownConfig('default'));
+		provider.sessionConfigs.set('session-2', makeWellKnownConfig('autoApprove'));
+		const windowDelegate = store.add(instantiationService.createInstance(AgentHostPermissionPickerDelegate, constObservable(windowSession)));
+		const shown = { window: windowDelegate.currentPermissionLevel.get(), active: activeDelegate.currentPermissionLevel.get() };
+
+		await windowDelegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+
+		assert.deepStrictEqual({
+			shown,
+			setCalls: provider.setCalls,
+			after: { window: windowDelegate.currentPermissionLevel.get(), active: activeDelegate.currentPermissionLevel.get() },
+		}, {
+			shown: { window: ChatPermissionLevel.AutoApprove, active: ChatPermissionLevel.Default },
+			setCalls: [['session-2', 'autoApprove', 'assisted']],
+			after: { window: ChatPermissionLevel.Assisted, active: ChatPermissionLevel.Default },
+		});
+	});
 
 	test('uses Copilot approval keys, effective posture and host-available choices', async () => {
 		const { delegate, provider } = setup(store, makeActiveSession('copilot'));

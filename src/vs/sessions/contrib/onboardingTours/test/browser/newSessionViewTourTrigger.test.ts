@@ -35,6 +35,7 @@ suite('NewSessionViewTourTrigger', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
+			override readonly mainWindowActiveSession = this.activeSession;
 			override readonly initialRestoreComplete = initialRestoreComplete;
 		}();
 		const entitlement = observableValue('entitlement', options.entitlement ?? ChatEntitlement.Available);

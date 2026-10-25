@@ -421,6 +421,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 class FakeSessionsService extends mock<ISessionsService>() {
 	override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+	override readonly mainWindowActiveSession = this.activeSession;
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;
 	error: Error | undefined;

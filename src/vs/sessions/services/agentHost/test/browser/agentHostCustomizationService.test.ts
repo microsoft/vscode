@@ -59,6 +59,7 @@ suite('AgentHostCustomizationService', () => {
 			}(),
 			new class extends mock<ISessionsService>() {
 				override readonly activeSession = observableValue<IActiveSession | undefined>(this, session);
+				override readonly mainWindowActiveSession = this.activeSession;
 			}(),
 			new class extends mock<ISessionsProvidersService>() {
 				constructor(private readonly _provider: ISessionsProvider) { super(); }
@@ -87,6 +88,7 @@ suite('AgentHostCustomizationService', () => {
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = observableValue(this, undefined);
+			override readonly mainWindowActiveSession = this.activeSession;
 		};
 		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 			constructor(private readonly _provider: ISessionsProvider) {
