@@ -256,7 +256,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			case 'connection': {
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
 				const error = entry.type === 'remote' && entry.connecting === undefined
-					? RemoteAgentHostConnectionStatus.getErrorMessage(entry.remote.connectionStatus) : undefined;
+					? entry.remote.lastConnectionError : undefined;
 				template.warning.hidden = !error;
 				if (error) {
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.warning, {

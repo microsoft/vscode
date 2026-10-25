@@ -554,7 +554,7 @@ export class RemotesWidget extends Disposable {
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
 		let label = localize('remotes.accessibleRow', "{0}. Connection: {1}", name,
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
-		const error = RemoteAgentHostConnectionStatus.getErrorMessage(remote.connectionStatus);
+		const error = remote.lastConnectionError;
 		if (!this.pendingConnections.has(remote.id) && error) {
 			label = localize('remotes.accessibleConnectionError', "{0}. Connection error: {1}", label, error);
 		}

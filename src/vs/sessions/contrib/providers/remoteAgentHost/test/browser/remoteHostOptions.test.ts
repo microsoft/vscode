@@ -9,7 +9,6 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -40,10 +39,10 @@ suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('disconnected hovers retain the connection error with an optional address', () => {
-		const status = RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Connection refused');
+		const status = RemoteAgentHostConnectionStatus.disconnected;
 		assert.deepStrictEqual({
-			error: getStatusHover(status),
-			withAddress: getStatusHover(status, 'ssh:host'),
+			error: getStatusHover(status, undefined, 'Connection refused'),
+			withAddress: getStatusHover(status, 'ssh:host', 'Connection refused'),
 			plain: getStatusHover(RemoteAgentHostConnectionStatus.disconnected),
 		}, {
 			error: 'Connection refused', withAddress: 'Remote agent host is disconnected: Connection refused\n\nAddress: ssh:host',
@@ -53,9 +52,9 @@ suite('remoteHostOptions', () => {
 
 	test('automatic retry hovers retain the last error without changing the status label', () => {
 		assert.deepStrictEqual([
-			RemoteAgentHostConnectionStatus.connectingWithError('Connection refused'),
-			RemoteAgentHostConnectionStatus.reconnectingUntil(undefined, 'Connection refused'),
-		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status), withAddress: getStatusHover(status, 'ssh:host') })), [
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.reconnecting,
+		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status, undefined, 'Connection refused'), withAddress: getStatusHover(status, 'ssh:host', 'Connection refused') })), [
 			{ label: 'Connecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
 			{ label: 'Reconnecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
 		]);

@@ -261,11 +261,11 @@ export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string 
 	}
 }
 
-export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
-	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && status.message) {
+export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string, lastConnectionError?: string): string {
+	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && lastConnectionError) {
 		return address
-			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", status.message, address)
-			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", status.message);
+			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", lastConnectionError, address)
+			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", lastConnectionError);
 	}
 	switch (status.kind) {
 		case 'connected':
@@ -281,10 +281,10 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 				? localize('workspacePicker.hoverReconnectingAddr', "The remote agent host connection dropped and is being restored automatically.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverReconnecting', "The remote agent host connection dropped and is being restored automatically.");
 		case 'disconnected':
-			if (status.message) {
+			if (lastConnectionError) {
 				return address
-					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", status.message, address)
-					: status.message;
+					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", lastConnectionError, address)
+					: lastConnectionError;
 			}
 			return address
 				? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected.\n\nAddress: {0}", address)

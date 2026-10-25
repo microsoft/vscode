@@ -10,7 +10,6 @@ import { autorun, observableValue } from '../../../../../../base/common/observab
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import {
 	IRemoteAgentHostConnectionInfo,
 	IRemoteAgentHostService,
@@ -166,10 +165,10 @@ class StubRemoteAgentHostService extends Disposable {
 		this._onDidChangeConnections.fire();
 	}
 
-	setConnectionStatus(address: string, status: RemoteAgentHostConnectionStatus): void {
+	setConnectionStatus(address: string, status: RemoteAgentHostConnectionStatus, lastConnectionError?: string): void {
 		const index = this._connections.findIndex(connection => connection.address === address);
 		if (index >= 0) {
-			this._connections[index] = { ...this._connections[index], status };
+			this._connections[index] = { ...this._connections[index], status, lastConnectionError };
 			this._onDidChangeConnections.fire();
 		}
 	}
@@ -313,24 +312,28 @@ suite('TunnelAgentHostContribution', () => {
 			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 			remoteService.addConnection({
 				address, name: tunnel.name, clientId: undefined,
-				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'First failure'),
+				status: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: 'First failure',
 			}, new class extends mock<IAgentConnection>() { }());
 			const provider = contribution.stubProviders.get(address)!;
 			const warnings: (string | undefined)[] = [];
-			const listener = store.add(autorun(reader => warnings.push(RemoteAgentHostConnectionStatus.getErrorMessage(provider.connectionStatus.read(reader)))));
+			const lastError = () => remoteService.connections.find(connection => connection.address === address)?.lastConnectionError;
+			const listener = store.add(autorun(reader => {
+				provider.connectionStatus.read(reader);
+				warnings.push(lastError());
+			}));
 			remoteService.pendingConnections.push({ address, startedAt: Date.now(), userInitiated: false });
 			remoteService.firePendingChange();
 			await discover();
-			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connectingWithError('First failure'));
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connecting, 'First failure');
 			await discover();
 			listener.dispose();
 			remoteService.pendingConnections.length = 0;
-			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Retry failed'));
-			const afterFailure = RemoteAgentHostConnectionStatus.getErrorMessage(provider.connectionStatus.get());
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.disconnected, 'Retry failed');
+			const afterFailure = lastError();
 			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connected);
 			assert.deepStrictEqual({
 				retained: warnings.length > 0 && warnings.every(warning => warning === 'First failure'),
-				afterFailure, afterSuccess: RemoteAgentHostConnectionStatus.getErrorMessage(provider.connectionStatus.get()),
+				afterFailure, afterSuccess: lastError(),
 			}, { retained: true, afterFailure: 'Retry failed', afterSuccess: undefined });
 		});
 	}

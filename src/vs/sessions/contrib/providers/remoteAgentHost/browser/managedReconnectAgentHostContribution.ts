@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { type IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
@@ -224,8 +223,7 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 				}
 				const failed = this._remoteAgentHostService.connections.find(connection => connection.address === opts.address)?.status;
 				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnectedBecause(
-					failed?.kind === 'disconnected' ? failed.reason : AgentHostTransportFailureReason.Unknown,
-					opts.userInitiated ? toErrorMessage(err) : failed?.kind === 'disconnected' ? failed.message : undefined));
+					failed?.kind === 'disconnected' ? failed.reason : AgentHostTransportFailureReason.Unknown));
 				// Host is unreachable — unpublish any cached sessions we were
 				// showing so the UI doesn't list stale entries for a host we
 				// cannot currently reach.

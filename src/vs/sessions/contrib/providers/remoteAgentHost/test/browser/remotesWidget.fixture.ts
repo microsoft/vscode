@@ -13,7 +13,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
@@ -81,8 +80,8 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes.map(remote =>
 			remote.id === 'ssh:build' && options.connectionError
 				? {
-					...remote, connectionStatus: options.retrying ? RemoteAgentHostConnectionStatus.connectingWithError(options.connectionError)
-						: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, options.connectionError),
+					...remote, lastConnectionError: options.connectionError,
+					connectionStatus: options.retrying ? RemoteAgentHostConnectionStatus.connecting : RemoteAgentHostConnectionStatus.disconnected,
 				}
 				: remote));
 		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
@@ -106,7 +105,8 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		}
 		async setConnected(id: string, connected: boolean) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? {
-				...remote, canRemove: remote.kind === 'environment' || connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
+				...remote, canRemove: remote.kind === 'environment' || connected, lastConnectionError: undefined,
+				connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
 			} : remote), undefined);
 		}
 	}());

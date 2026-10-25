@@ -10,7 +10,6 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { DEFAULT_RECONNECT_POLICY } from '../../../../../../platform/agentHost/common/reconnectPolicy.js';
-import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -81,11 +80,10 @@ suite('ManagedReconnectAgentHostContribution', () => {
 		]);
 	});
 
-	test('retains an actionable SSH error on the provider after a failed reconnect', async () => {
+	test('provider status does not embed the last connection error', async () => {
 		const { contribution, statuses } = setup();
 		await contribution.attempt(new Error('connect ECONNREFUSED 127.0.0.1:43192'));
-		assert.deepStrictEqual(statuses.at(-1), RemoteAgentHostConnectionStatus.disconnectedBecause(
-			AgentHostTransportFailureReason.Unknown, 'connect ECONNREFUSED 127.0.0.1:43192'));
+		assert.deepStrictEqual(statuses.at(-1), RemoteAgentHostConnectionStatus.disconnected);
 	});
 
 	test('user cancellation keeps a plain disconnected status without an error warning', async () => {

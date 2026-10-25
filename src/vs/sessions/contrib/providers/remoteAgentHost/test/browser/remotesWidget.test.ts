@@ -18,7 +18,6 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgress } from '../../../../../../platform/progress/common/progress.js';
@@ -93,7 +92,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.connectionChanges.push({ id, connected });
 		await this.pendingConnection?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? {
-			...remote, canRemove: connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
+			...remote, canRemove: connected, lastConnectionError: undefined,
+			connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
 		} : remote), undefined);
 	}
 }
@@ -244,7 +244,7 @@ suite('RemotesWidget', () => {
 		parent.style.setProperty('--vscode-spacing-size60', '6px');
 		const error = 'connect ECONNREFUSED 127.0.0.1:43192';
 		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? {
-			...remote, connectionStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, error),
+			...remote, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, lastConnectionError: error,
 		} : remote), undefined);
 		const warning = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!;
 		const row = warning.closest('.monaco-list-row')!;
@@ -293,8 +293,8 @@ suite('RemotesWidget', () => {
 
 	test('automatic retries retain the warning and update it only on completion', () => {
 		const { parent, widget, model, hoverContents } = createWidget();
-		const update = (connectionStatus: RemoteAgentHostConnectionStatus) => {
-			model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus } : remote), undefined);
+		const update = (connectionStatus: RemoteAgentHostConnectionStatus, lastConnectionError?: string) => {
+			model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus, lastConnectionError } : remote), undefined);
 			const warning = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!;
 			return {
 				visible: !warning.hidden, hover: hoverContents.get(warning),
@@ -302,10 +302,10 @@ suite('RemotesWidget', () => {
 			};
 		};
 		assert.deepStrictEqual([
-			update(RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'First failure')),
-			update(RemoteAgentHostConnectionStatus.connectingWithError('First failure')),
-			update(RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Second failure')),
-			update(RemoteAgentHostConnectionStatus.reconnectingUntil(undefined, 'Second failure')),
+			update(RemoteAgentHostConnectionStatus.disconnected, 'First failure'),
+			update(RemoteAgentHostConnectionStatus.connecting, 'First failure'),
+			update(RemoteAgentHostConnectionStatus.disconnected, 'Second failure'),
+			update(RemoteAgentHostConnectionStatus.reconnecting, 'Second failure'),
 			update(RemoteAgentHostConnectionStatus.connected),
 			update(RemoteAgentHostConnectionStatus.disconnected),
 		], [
@@ -326,11 +326,11 @@ suite('RemotesWidget', () => {
 			parent.style.setProperty('--vscode-spacing-size60', '6px');
 			widget.layout();
 			const positions = [
-				RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Connection refused'),
-				RemoteAgentHostConnectionStatus.connectingWithError('Connection refused'),
-				RemoteAgentHostConnectionStatus.reconnectingUntil(undefined, 'Connection refused'),
+				RemoteAgentHostConnectionStatus.disconnected,
+				RemoteAgentHostConnectionStatus.connecting,
+				RemoteAgentHostConnectionStatus.reconnecting,
 			].map(connectionStatus => {
-				model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus } : remote), undefined);
+				model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus, lastConnectionError: 'Connection refused' } : remote), undefined);
 				const cell = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-column')!;
 				const warning = cell.querySelector<HTMLElement>('.remotes-connection-warning')!;
 				const label = cell.querySelector<HTMLElement>('.remotes-connection-state')!;

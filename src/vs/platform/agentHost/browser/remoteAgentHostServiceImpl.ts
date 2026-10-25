@@ -78,6 +78,7 @@ interface IConnectionEntry {
 	connected: boolean;
 	/** Current connection status for UI display. */
 	status: RemoteAgentHostConnectionStatus;
+	lastConnectionError?: string;
 	operatingSystemResolved?: boolean;
 	operatingSystemRequest?: Promise<void>;
 	operatingSystemRetryRequested?: boolean;
@@ -366,6 +367,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				clientId: entry.client?.clientId,
 				defaultDirectory: entry.client?.defaultDirectory,
 				status: entry.status,
+				...(entry.lastConnectionError ? { lastConnectionError: entry.lastConnectionError } : {}),
 				...(operatingSystem === undefined ? {} : { operatingSystem }),
 			});
 		}
@@ -484,7 +486,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		// Tear down existing connection if present
 		const entry = this._entries.get(normalized);
-		if (entry && (userInitiated || !RemoteAgentHostConnectionStatus.getErrorMessage(entry.status))) {
+		if (entry && (userInitiated || !entry.lastConnectionError)) {
 			this._entries.delete(normalized);
 			// An explicit redial can still belong to the pending connect/recovery.
 			if (entry.connected) {
@@ -725,7 +727,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const factory = this._connectionFactories.get(entryToCreate.connection.type);
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
 		const observer = factory?.getConnectionObserver?.(entryToCreate);
-		const previousError = !userInitiated ? RemoteAgentHostConnectionStatus.getErrorMessage(this._entries.get(address)?.status) : undefined;
+		const previousError = !userInitiated ? this._entries.get(address)?.lastConnectionError : undefined;
 		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError };
 		this._pendingConnects.set(address, attempt);
 		observer?.('connecting');
@@ -773,7 +775,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const existingEntry = this._entries.get(address);
 		if (existingEntry) {
 			if (attempt.previousError) {
-				existingEntry.status = RemoteAgentHostConnectionStatus.connectingWithError(attempt.previousError);
+				existingEntry.status = RemoteAgentHostConnectionStatus.connecting;
 			} else {
 				this._entries.delete(address);
 			}
@@ -805,7 +807,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				store: new DisposableStore(),
 				observer,
 				connected: false,
-				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined),
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason),
+				lastConnectionError: attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined,
 				reconnectTransfersTransportOwnership: false,
 			});
 			this._rejectPendingConnectionWait(address, err);
@@ -861,7 +864,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			transportDisposable: createdConnection.transportDisposable,
 			reconnectTransfersTransportOwnership: createdConnection.reconnectTransfersTransportOwnership ?? false,
 			connected: false,
-			status: RemoteAgentHostConnectionStatus.connectingWithError(attempt.previousError),
+			status: RemoteAgentHostConnectionStatus.connecting,
+			lastConnectionError: attempt.previousError,
 		};
 		this._entries.set(address, entry);
 
@@ -877,6 +881,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			observer?.('reconnecting');
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
+			entry.lastConnectionError = undefined;
 			entry.client = undefined;
 			disposeEntry(entry);
 			this._onDidChangeConnections.fire();
@@ -900,7 +905,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (!isCurrentEntry() || entry.status.kind !== 'reconnecting') {
 				return;
 			}
-			entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt, RemoteAgentHostConnectionStatus.getErrorMessage(entry.status));
+			entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt);
 			this._onDidChangeConnections.fire();
 		}));
 		store.add(client.onDidChangeConnectionState(state => {
@@ -911,7 +916,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				case 'reconnecting':
 					observer?.('reconnecting');
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt, RemoteAgentHostConnectionStatus.getErrorMessage(entry.status));
+					entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt);
 					this._onDidChangeConnections.fire();
 					break;
 				case 'connected':
@@ -919,6 +924,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					this._resolveHostOperatingSystem(address, entry, client, true);
 					entry.connected = true;
 					entry.status = RemoteAgentHostConnectionStatus.connected;
+					entry.lastConnectionError = undefined;
 					// A soft reconnect that restores the transport settles any
 					// wait started before the drop, which would otherwise sit
 					// until its timeout even though the host is reachable again.
@@ -934,6 +940,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					observer?.('failed');
 					entry.connected = false;
 					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', getAgentHostSupportedProtocolVersions());
+					entry.lastConnectionError = undefined;
 					this._reconnectAttempts.delete(address);
 					if (wasReconnecting) {
 						this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
@@ -959,6 +966,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._resolveHostOperatingSystem(address, entry, client);
 			entry.connected = true;
 			entry.status = RemoteAgentHostConnectionStatus.connected;
+			entry.lastConnectionError = undefined;
 			this._reconnectAttempts.delete(address);
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
@@ -984,6 +992,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				observer?.('failed');
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
 				entry.status = incompatible;
+				entry.lastConnectionError = undefined;
 				this._reconnectAttempts.delete(address);
 				this._rejectPendingConnectionWait(address, err);
 				this._onDidChangeConnections.fire();
@@ -1007,7 +1016,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
-			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined);
+			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
+			entry.lastConnectionError = attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined;
 			entry.client = undefined;
 			// Clean up the failed client while retaining its entry and status.
 			disposeEntry(entry);
