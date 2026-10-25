@@ -317,15 +317,15 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
     runs-on: ubuntu-24.04
     steps:
-      - name: Check that ripple builds, passes its tests and plans the unit tests
+      - name: Check that ripple builds, passes its tests and plans the tests
         env:
           FAILED: ${{ needs.changes.outputs.ripple-failed }}
         run: |
           if [ "$FAILED" != false ]; then
-            echo "::error::This pull request changes build/ripple, and ripple failed to build, pass its tests or plan the unit tests. See the Detect Changes job."
+            echo "::error::This pull request changes build/ripple, and ripple failed to build, pass its tests or plan the tests. See the Detect Changes job."
             exit 1
           fi
-          echo "ripple built, passed its tests and planned the unit tests in Detect Changes."
+          echo "ripple built, passed its tests and planned the tests in Detect Changes."
 
   linux-cli-tests:
     name: Linux

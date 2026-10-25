@@ -107,7 +107,8 @@
 	// Files outside the module graph that only the integration tests depend on, by the reason the
 	// plan reports: changing one of them runs every integration test, but no unit test. As for
 	// `runEverything`, so do the scripts that the listed scripts load through relative imports, and
-	// the npm packages they load.
+	// the npm packages they load. Modules that integration tests load by a path that ripple cannot
+	// resolve can be listed too.
 	"runEveryIntegrationTest": {
 		// The scripts that run the node.js integration tests and the Agent Host E2E suites.
 		"integration test launcher": [
@@ -116,6 +117,12 @@
 			"scripts/test-agent-host-e2e.sh",
 			"scripts/test-agent-host-e2e.bat",
 			"test/integration/agentHost/**"
+		],
+		// Modules, unlike the files above: integration tests fork src/bootstrap-fork.ts through
+		// `FileAccess.asFileUri('bootstrap-fork')`, which ripple cannot resolve (see README.md), so a
+		// change to it or to the bootstrap files it loads would select none of them.
+		"forked process bootstrap": [
+			"src/bootstrap-*.ts"
 		]
 	},
 
