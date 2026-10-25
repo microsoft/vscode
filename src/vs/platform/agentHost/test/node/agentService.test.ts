@@ -3979,22 +3979,39 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [['copilot', undefined], ['other', undefined], ['copilot', 'mail'], ['other', 'mail']]);
 		});
 
-		test('installs and uninstalls plugins through the owning provider', async () => {
+		test('installs, toggles, and uninstalls plugins through the owning provider', async () => {
 			const calls: unknown[] = [];
 			const session = URI.parse('agent-host-copilotcli:/session');
+			const chat = URI.parse('vendor-chat://opaque/peer');
 			const provider: IAgent = copilotAgent;
 			provider.installPlugin = async (request, operationSession) => { calls.push(['install', request, operationSession?.toString()]); };
 			provider.uninstallPlugin = async (request, operationSession) => { calls.push(['uninstall', request, operationSession?.toString()]); };
+			provider.setPluginEnabled = async (plugin, enabled) => { calls.push(['enablement', plugin, enabled]); };
+			provider.listPluginInstallations = async (operationSession, operationChat) => {
+				calls.push(['inventory', operationSession?.toString(), operationChat?.toString()]);
+				return [{ name: 'spark', marketplace: 'copilot-plugins' }];
+			};
 			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), new AgentHostSystemWakeService(), new AgentHostMacAccessibilityTrustService());
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
+			await managementService.setPluginEnabled(provider.id, 'direct-source', true);
+			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', false);
+			const inventory = await managementService.listPluginInstallations(provider.id, session, chat);
 
-			assert.deepStrictEqual(calls, [
-				['install', { source: 'spark@copilot-plugins' }, session.toString()],
-				['uninstall', { name: 'spark', marketplace: 'copilot-plugins' }, session.toString()],
-			]);
+			assert.deepStrictEqual({ inventory, calls }, {
+				inventory: [{ name: 'spark', marketplace: 'copilot-plugins' }],
+				calls: [
+					['install', { source: 'spark@copilot-plugins' }, session.toString()],
+					['uninstall', { name: 'spark', marketplace: 'copilot-plugins' }, session.toString()],
+					['enablement', 'direct-source', true],
+					['enablement', 'spark@copilot-plugins', false],
+					['inventory', session.toString(), chat.toString()],
+				],
+			});
+			provider.setPluginEnabled = async () => { throw new Error('managed policy refused'); };
+			await assert.rejects(managementService.setPluginEnabled(provider.id, 'direct-source', true), /managed policy refused/);
 		});
 
 		test('manages plugin marketplaces through the owning provider', async () => {
@@ -12114,6 +12131,7 @@ suite('AgentService (node dispatcher)', () => {
 			const git: IAgentHostGitService = {
 				...createNoopGitService(),
 				branchExists: async () => true,
+				isWorktreeRegistered: async () => false,
 				removeWorktree: async (_root, worktree) => rmSync(worktree.fsPath, { recursive: true, force: true }),
 			};
 			const gitService = new Proxy(git, {
@@ -22870,6 +22888,7 @@ suite('AgentService (node dispatcher)', () => {
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
+				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },
@@ -22987,6 +23006,7 @@ suite('AgentService (node dispatcher)', () => {
 				copyWorktreeIncludeFiles: async () => { },
 				symlinkWorktreeFolders: async () => [],
 				addExistingWorktree: async () => { },
+				isWorktreeRegistered: async () => true,
 				removeWorktree: async () => { },
 				branchExists: async () => false,
 				createBranch: async () => { },

@@ -26,6 +26,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			selectSectionWithMarketplace() { },
 			openMarketplaceItem() { },
 			closeEditor() { },
+			async createCustomization() { },
 			reviewMigrations: () => reviewedMigrations = true,
 			prefillChat() { },
 		};
@@ -85,6 +86,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 				selectSectionWithMarketplace() { },
 				openMarketplaceItem() { },
 				closeEditor() { },
+				async createCustomization() { },
 				reviewMigrations() { },
 				prefillChat() { },
 			},

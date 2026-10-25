@@ -23,6 +23,8 @@ import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
+import { supportsAgentHostWorktreeCleanup } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupStatusValidator, type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
@@ -90,7 +92,7 @@ import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectA
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
 import { isWorktreeUnderRepository } from '../common/worktreePaths.js';
-import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type IConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
+import { getConnectionDiagnosticError, sanitizeConnectionDiagnosticText, traceConnectionOperation, type IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../common/connectionDiagnostics.js';
 import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgentHostProtocolClient.js';
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
@@ -411,14 +413,32 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _onDidConnectionDiagnostic = this._register(new Emitter<IConnectionDiagnosticEvent>());
 	readonly onDidConnectionDiagnostic = this._onDidConnectionDiagnostic.event;
 	private _diagnosticAttemptId = generateUuid();
+	private _lastSuccessfulResponseAt: number | undefined;
+
+	getConnectionDiagnosticState(): IConnectionDiagnosticState {
+		const reconnect = this._state.kind === AgentHostClientState.Reconnecting ? this._state.reconnect : undefined;
+		return {
+			connectionState: this._state.kind,
+			authenticationRestorePending: this._authenticationRestorePending,
+			lastSuccessfulResponseAgeMs: this._lastSuccessfulResponseAt === undefined ? undefined : Math.max(0, Date.now() - this._lastSuccessfulResponseAt),
+			reconnectAttempt: reconnect?.attempt,
+			reconnectScheduled: reconnect?.timeoutHandle !== undefined,
+			reconnectDelayMs: reconnect?.nextAttemptAt === undefined ? undefined : Math.max(0, reconnect.nextAttemptAt - Date.now()),
+		};
+	}
 
 	private _diagnostic(phase: string, detail: string): void {
 		this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase, outcome: 'info', timestamp: Date.now(), detail });
 	}
 
-	private _traceConnection<T>(phase: string, operation: () => Promise<T>): Promise<T> {
-		const attemptId = this._diagnosticAttemptId;
-		return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId }), phase, operation);
+	private _traceConnection<T>(phase: string, operation: () => Promise<T>, session?: URI): Promise<T> {
+		const attemptId = phase.startsWith('session.') || phase.startsWith('repository.') ? undefined : this._diagnosticAttemptId;
+		return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, ...(session ? { sessionResource: session.toString() } : {}) }), phase, operation);
+	}
+
+	/** Adds content-free diagnostics for client-side repository preparation on this connection. */
+	traceRepositoryPreparation<T>(phase: 'repository.prepare' | 'repository.clone', operation: () => Promise<T>): Promise<T> {
+		return this._traceConnection(phase, operation);
 	}
 
 	/**
@@ -675,6 +695,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * transport-level reconnect.
 	 */
 	private _installTransport(transport: IProtocolTransport): void {
+		this._lastSuccessfulResponseAt = undefined;
 		const listeners = new DisposableStore();
 		listeners.add(transport);
 		listeners.add(transport.onMessage(msg => this._handleMessage(msg)));
@@ -1820,14 +1841,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		const isSession = this._subscriptionManager.getSubscriptionKind(resource) === StateComponents.Session;
+		const subscribe = () => isSession ? this._traceConnection('session.subscribe', () => this._subscribe(resource), resource) : this._subscribe(resource);
 		if (this._firstSessionOpenPending && this._state.kind === AgentHostClientState.Connected
-			&& this._subscriptionManager.getActiveSubscriptions().some(subscription => subscription.kind === StateComponents.Session && subscription.resource.toString() === resource.toString())) {
+			&& isSession) {
 			this._firstSessionOpenPending = false;
 			const connectionOperation = this._connectionOperation;
 			const attemptId = this._diagnosticAttemptId;
-			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind: 'subscribeSession' }), 'protocol.sessionOpen', () => this._subscribe(resource));
+			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind: 'subscribeSession' }), 'protocol.sessionOpen', subscribe);
 		}
-		return this._subscribe(resource);
+		return subscribe();
 	}
 
 	private async _subscribe(resource: URI): Promise<IStateSnapshot> {
@@ -1866,6 +1889,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
+		if (action.type === ActionType.ChatTurnStarted) {
+			this._onDidConnectionDiagnostic.fire({
+				phase: 'turn.submit', operationId: generateUuid(), attemptId: this._diagnosticAttemptId,
+				chatResource: channel, turnId: action.turnId, timestamp: Date.now(), outcome: 'info',
+			});
+		}
 		this._sendNotification('dispatchAction', { channel, clientSeq, action });
 	}
 
@@ -1887,7 +1916,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		const sendCreateSession = (meta: Record<string, unknown> | undefined) => this._sendRequest('createSession', {
+		const sendCreateSession = (meta: Record<string, unknown> | undefined) => this._traceConnection('session.create', () => this._sendRequest('createSession', {
 			channel: session.toString(),
 			_meta: meta,
 			provider,
@@ -1895,7 +1924,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
-		}).then(() => session);
+		}), session).then(() => session);
 		if (config?.importConversation) {
 			const serialized = JSON.stringify(serializeCreateSessionImport(config.importConversation));
 			if (serialized.length > AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS) {
@@ -1962,6 +1991,21 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		} finally {
 			cancellation.dispose();
 		}
+	}
+
+	async sessionWorktreeCleanup(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined> {
+		if (!supportsAgentHostWorktreeCleanup(this.initializeResult.get())) {
+			if (retry) {
+				throw new Error('This agent host does not support retrying worktree cleanup.');
+			}
+			return undefined;
+		}
+		const result = await this._sendExtensionRequest(SessionWorktreeCleanupExtensionMethod, { session: session.toString(), retry });
+		const validated = sessionWorktreeCleanupStatusValidator.validate(result);
+		if (validated.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid worktree cleanup status');
+		}
+		return validated.content;
 	}
 
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
@@ -2466,7 +2510,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Dispose a session on the remote agent host.
 	 */
 	async disposeSession(session: URI): Promise<void> {
-		await this._sendRequest('disposeSession', { channel: session.toString() });
+		await this._traceConnection('session.dispose', () => this._sendRequest('disposeSession', { channel: session.toString() }), session);
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
@@ -2608,7 +2652,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/** {@link _withOlderHostDefaultChat} for the session state of a snapshot; other snapshots pass through. */
 	private _withOlderHostSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
 		const state = readSessionStateSnapshot(snapshot);
-		return state ? { ...snapshot, state: this._withOlderHostDefaultChat(snapshot.resource, state) } : snapshot;
+		const normalized = state ? this._withOlderHostDefaultChat(snapshot.resource, state) : undefined;
+		if (normalized) {
+			const operationId = generateUuid();
+			this._onDidConnectionDiagnostic.fire({
+				phase: 'session.snapshot', operationId, attemptId: this._diagnosticAttemptId,
+				sessionResource: snapshot.resource, sessionState: normalized.lifecycle, timestamp: Date.now(), outcome: 'info',
+			});
+			const chats = new Set(normalized.chats.map(chat => chat.resource));
+			if (normalized.defaultChat) {
+				chats.add(normalized.defaultChat);
+			}
+			for (const chatResource of chats) {
+				this._onDidConnectionDiagnostic.fire({
+					phase: 'chat.binding', operationId, attemptId: this._diagnosticAttemptId,
+					sessionResource: snapshot.resource, chatResource, timestamp: Date.now(), outcome: 'info',
+				});
+			}
+		}
+		return normalized ? { ...snapshot, state: normalized } : snapshot;
 	}
 
 	private _toClientUri(uri: URI): URI {
@@ -2775,6 +2837,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				} else {
 					try {
 						pending.acceptResult?.(msg.result);
+						this._lastSuccessfulResponseAt = Date.now();
 						pending.deferred.complete(msg.result);
 					} catch (error) {
 						pending.deferred.error(error);

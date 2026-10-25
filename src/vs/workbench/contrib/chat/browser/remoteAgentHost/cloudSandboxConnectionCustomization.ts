@@ -97,8 +97,9 @@ export function createCloudSandboxConnectionCustomization(
 			store.add(Event.once(connection.onDidClose)(() => store.dispose()));
 			return createCloudSandboxSessionPreparation(
 				connection.rootState,
-				(method, params) => connection.sendHostExtensionRequest(method, params),
+				(method, params) => connection.traceRepositoryPreparation('repository.clone', () => connection.sendHostExtensionRequest(method, params)),
 				store,
+				operation => connection.traceRepositoryPreparation('repository.prepare', operation),
 			);
 		},
 	};

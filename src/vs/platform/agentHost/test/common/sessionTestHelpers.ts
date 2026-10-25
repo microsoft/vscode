@@ -825,6 +825,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		copyWorktreeIncludeFiles: async () => { },
 		symlinkWorktreeFolders: async () => [],
 		addExistingWorktree: async () => { },
+		isWorktreeRegistered: async () => true,
 		removeWorktree: async () => { },
 		branchExists: async () => false,
 		createBranch: async () => { },

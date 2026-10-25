@@ -1312,6 +1312,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.getSessionWorktreeDiskUsage?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
+	async sessionWorktreeCleanup(session: ISession, retry: boolean) {
+		const provider = this._getProvider(session);
+		if (retry && !provider?.sessionWorktreeCleanup) {
+			throw new Error(localize('sessions.worktreeCleanupUnavailable', "Retrying worktree cleanup is unavailable for this session."));
+		}
+		return provider?.sessionWorktreeCleanup?.(session.sessionId, retry);
+	}
+
 	async unarchiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.unarchiveSession(session.sessionId);
 		this._onDidUnarchiveSession.fire(session);

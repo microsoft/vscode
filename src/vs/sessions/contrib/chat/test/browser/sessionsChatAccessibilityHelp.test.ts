@@ -70,9 +70,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 				assert.deepStrictEqual({
 					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					describesWebSocketManagement: content.includes('configured WebSocket hosts, keep their per-entry Manage submenu'),
 					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
 				}, {
 					describesManage: !isWeb && remotesEnabled && manageEnabled === true,
+					describesWebSocketManagement: !isWeb && remotesEnabled && manageEnabled === true,
 					triggers: !isWeb && remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
 				});
 			});
