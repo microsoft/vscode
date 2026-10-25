@@ -405,6 +405,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			},
 		}));
 
+		const compileTimeOnlyError: number = 'compile-time error';
+		void compileTimeOnlyError;
+
 		this._codeEditorService.addCodeEditor(this);
 	}
 
