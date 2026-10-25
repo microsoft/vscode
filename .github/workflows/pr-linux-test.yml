@@ -307,24 +307,51 @@ jobs:
           done
 
       - name: 🧪 Run unit tests (Electron)
+        id: electron-unit-tests
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 25
         run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
+          VSCODE_TEST_FAILURE_REPORT: .build/unit-test-failures/electron.json
 
       - name: 🧪 Run unit tests (node.js)
+        id: node-unit-tests
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 25
         run: npm run test-node -- --rerun-failed-files 2
+        env:
+          VSCODE_TEST_FAILURE_REPORT: .build/unit-test-failures/node.json
 
       - name: 🧪 Run unit tests (Browser, Chromium)
+        id: browser-unit-tests
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 30
         run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests" --rerun-failed-files 2
         env:
           DEBUG: "*browser*"
+          VSCODE_TEST_FAILURE_REPORT: .build/unit-test-failures/browser.json
+
+      # Linux runs every unit test, while macOS and Windows only run the unit test files that the
+      # unit-test-plan artifact of the Detect Changes job in pr.yml selects. A test file that fails
+      # here but that the plan did not select is a failure that macOS and Windows missed: these
+      # steps warn about it, which measures the plan's recall. They only run after the unit tests
+      # failed and never change the result of the job.
+      - name: Download unit test plan
+        id: download-unit-test-plan
+        if: ${{ !cancelled() && (steps.electron-unit-tests.outcome == 'failure' || steps.node-unit-tests.outcome == 'failure' || steps.browser-unit-tests.outcome == 'failure') }}
+        # A pattern, unlike a name, downloads nothing instead of failing when there is no plan.
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: unit-test-plan
+          path: .build/unit-test-plan
+
+      - name: Compare failed unit tests with the unit test plan
+        if: ${{ !cancelled() && steps.download-unit-test-plan.outcome == 'success' }}
+        continue-on-error: true
+        run: node build/lib/unitTestPlanRecall.ts .build/unit-test-plan .build/unit-test-failures
 
       - name: Compile extensions for integration tests & smoke tests
         if: ${{ inputs.integration_tests || inputs.smoke_tests }}

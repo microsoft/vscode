@@ -53,6 +53,8 @@ All three runners accept `--runList=<file>`: a file listing test files (such as 
     build/ripple/target/release/ripple affected --config build/ripple/vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head "${head:-HEAD}" > .build/affected-tests.txt
     ./scripts/test.sh --runList=.build/affected-tests.txt
 
+When the `VSCODE_TEST_FAILURE_REPORT` environment variable names a file, each runner writes to it, when its run ends, the test files that still failed after the reruns (`failed`), the ones whose failures all passed when rerun (`flaky`), and the titles of the failures that do not belong to a test file (`unattributed`), as JSON. Test files are listed like in `--runList`. A run that aborts, for example because a test file fails to load, writes none. In pull requests, when unit tests fail on Linux, the job compares the failed test files with the ones that ripple selected and warns about each one that it did not select, a failure that macOS and Windows missed (see [unitTestPlanRecall.ts](../../build/lib/unitTestPlanRecall.ts)).
+
 ## Coverage
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:

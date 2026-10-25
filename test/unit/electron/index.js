@@ -24,7 +24,7 @@ const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
-const { applyReporter, importMochaReporter } = require('../reporter');
+const { applyReporter, importMochaReporter, writeFailureReport } = require('../reporter');
 
 const minimist = require('minimist');
 
@@ -644,6 +644,8 @@ app.on('ready', async () => {
 	let targets = new Map();
 	/** @type {IRerunPlan | undefined} what the current attempt reruns, unless it is the first */
 	let plan;
+	/** @type {string[]} the failures of the last attempt that do not belong to a test file */
+	let unattributedFailures = [];
 	let runArgs = args;
 	let previousWindow;
 	let exitCode = 0;
@@ -655,6 +657,7 @@ app.on('ready', async () => {
 
 		const runner = await done;
 		runner.dispose();
+		unattributedFailures = runner.unattributedFailures;
 
 		if (!plan && !runner.didFail) {
 			break;
@@ -696,6 +699,11 @@ app.on('ready', async () => {
 	}
 
 	reportFlakyTests(records);
+	writeFailureReport({
+		failed: [...targets.values()].map(target => target.file),
+		flaky: [...records.values()].filter(record => record.passedInAttempt !== undefined).map(record => record.target.file),
+		unattributed: unattributedFailures,
+	});
 
 	await new Promise(resolve => remoteResourceServer.close(resolve));
 	app.exit(exitCode);

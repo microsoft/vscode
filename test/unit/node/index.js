@@ -20,6 +20,7 @@ import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
+import { FAILURE_REPORT_ENV, writeFailureReport } from '../reporter.js';
 
 /**
  * @type {{ build: boolean; run: string; runList: string; runGlob: string; grep?: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; 'rerun-failed-files'?: string; }}
@@ -301,7 +302,7 @@ function main() {
 					fs.writeFileSync(reportPath, JSON.stringify(result));
 				}
 
-				process.exit(failureCount ? rerunFailedTests(result) : 0);
+				process.exit(rerunFailedTests(result));
 			});
 
 			mochaRunner.on('pass', test => passed.push({ title: test.fullTitle(), file: test.file }));
@@ -374,8 +375,9 @@ function includeOwnTests(grep) {
 
 /**
  * Reruns the failed tests, each time in a fresh process, up to `--rerun-failed-files`
- * more times. Returns the exit code for the whole run.
- * @param {IAttemptResult} result the result of the first attempt, which failed
+ * more times, and reports the test files that failed (see writeFailureReport). Returns
+ * the exit code for the whole run.
+ * @param {IAttemptResult} result the result of the first attempt
  * @returns {number}
  */
 function rerunFailedTests(result) {
@@ -410,6 +412,7 @@ function rerunFailedTests(result) {
 
 			if (targets.size === 0 && current.unattributedFailures.length === 0) {
 				reportFlakyTests(records);
+				reportFailedTestFiles(targets, records, current.unattributedFailures);
 				return 0;
 			}
 
@@ -429,6 +432,7 @@ function rerunFailedTests(result) {
 			console.error(`\n${targets.size} failed test(s) did not pass in ${attempt} attempts:\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}`);
 		}
 		reportFlakyTests(records);
+		reportFailedTestFiles(targets, records, current?.unattributedFailures ?? []);
 		return 1;
 	}
 }
@@ -455,7 +459,8 @@ function runInFreshProcess(plan) {
 			...plan.files.flatMap(file => ['--run', path.join(src, `${file}.js`)]),
 		], {
 			stdio: 'inherit',
-			env: { ...process.env, [RESULT_REPORT_ENV]: reportPath, [CHECK_LOADER_ENV]: checkLoader ? '1' : '0' },
+			// the run reports the test files that failed once its reruns are done
+			env: { ...process.env, [RESULT_REPORT_ENV]: reportPath, [CHECK_LOADER_ENV]: checkLoader ? '1' : '0', [FAILURE_REPORT_ENV]: undefined },
 		});
 
 		if (child.error) {
@@ -594,6 +599,21 @@ function reportFlakyTests(records) {
 			console.log(`##vso[task.logissue type=warning]Flaky node.js unit test: ${message}`);
 		}
 	}
+}
+
+/**
+ * Reports the test files of the failures that did not pass and of the flaky failures
+ * (see writeFailureReport).
+ * @param {Map<string, IRerunTarget>} targets the failures that did not pass
+ * @param {Map<string, IRerunRecord>} records
+ * @param {string[]} unattributedFailures
+ */
+function reportFailedTestFiles(targets, records, unattributedFailures) {
+	writeFailureReport({
+		failed: [...targets.values()].map(target => target.file),
+		flaky: [...records.values()].filter(record => record.passedInAttempt !== undefined).map(record => record.target.file),
+		unattributed: unattributedFailures,
+	});
 }
 
 /**

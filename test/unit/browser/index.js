@@ -16,7 +16,7 @@ const url = require('url');
 const minimatch = require('minimatch');
 const fs = require('fs');
 const playwright = require('@playwright/test');
-const { applyReporter } = require('../reporter');
+const { applyReporter, writeFailureReport } = require('../reporter');
 const yaserver = require('yaserver');
 const http = require('http');
 const { randomBytes } = require('crypto');
@@ -629,6 +629,13 @@ class EchoRunner extends events.EventEmitter {
  */
 
 /**
+ * The failure report of all browsers (see writeFailureReport): the test files of the failures
+ * that did not pass and of the flaky ones, and the failures that do not belong to a test file.
+ * @type {{ failed: Set<string>; flaky: Set<string>; unattributed: string[] }}
+ */
+const failureReport = { failed: new Set(), flaky: new Set(), unattributed: [] };
+
+/**
  * Runs the tests in a browser, and reruns the failed ones, each time in a freshly launched
  * browser, up to `--rerun-failed-files` more times. Returns the failure message of the last
  * attempt when failures remain.
@@ -678,6 +685,7 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 
 		if (targets.size === 0 && result.unattributedFailures.length === 0) {
 			reportFlakyTests(records, browserName);
+			recordFailedTestFiles(targets, records, result.unattributedFailures);
 			return undefined;
 		}
 
@@ -697,6 +705,7 @@ async function runTestsWithReruns(modules, browserType, browserChannel) {
 			console.error(`\n[${browserName}] ${targets.size} failed test(s) did not pass in ${attempt} attempts:\n${[...targets.values()].map(target => `  ${describeTarget(target)}`).join('\n')}`);
 		}
 		reportFlakyTests(records, browserName);
+		recordFailedTestFiles(targets, records, result.unattributedFailures);
 		// the last attempt need not fail any test, for example when it did not run a failed test whose title changed
 		return result.message ?? `[${browserName}] ${targets.size} failed test(s) did not pass in ${attempt} attempts\n`;
 	}
@@ -822,6 +831,25 @@ function reportFlakyTests(records, browserName) {
 }
 
 /**
+ * Adds the test files of the failures that did not pass and of the flaky failures of a
+ * browser to the failure report.
+ * @param {Map<string, IRerunTarget>} targets the failures that did not pass
+ * @param {Map<string, IRerunRecord>} records
+ * @param {string[]} unattributedFailures
+ */
+function recordFailedTestFiles(targets, records, unattributedFailures) {
+	for (const target of targets.values()) {
+		failureReport.failed.add(target.file);
+	}
+	for (const record of records.values()) {
+		if (record.passedInAttempt !== undefined) {
+			failureReport.flaky.add(record.target.file);
+		}
+	}
+	failureReport.unattributed.push(...unattributedFailures);
+}
+
+/**
  * Describes a rerun target on one line, so that a title with line breaks stays in one
  * list entry and one CI annotation.
  * @param {IRerunTarget} target
@@ -881,6 +909,7 @@ testModules.then(async modules => {
 			console.log(msg);
 		}
 	}
+	writeFailureReport(failureReport);
 	if (!isDebug) {
 		process.exit(didFail ? 1 : 0);
 	}
