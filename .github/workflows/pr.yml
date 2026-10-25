@@ -56,7 +56,7 @@ jobs:
       # they also skip when the plan of a working ripple selects none (see the Check ripple step).
       selected-unit-tests: ${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}
     steps:
-      - name: "[DO NOT MERGE] Fail Detect Changes before it plans anything"
+      - name: "[DO NOT MERGE] Fail Detect Changes on purpose"
         run: exit 1
 
       - name: Checkout microsoft/vscode
