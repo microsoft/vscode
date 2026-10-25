@@ -13,6 +13,8 @@ import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { cloudSandboxAddress } from '../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -144,6 +146,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
 	) {
 		super();
 	}
@@ -280,6 +283,10 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 			return false;
 		}
+		if (this.environmentService.enabled && this.environmentService.accountKey
+			&& this.environmentService.hosts.get().some(host => host.kind === 'user-local' && cloudSandboxAddress(host.id) === provider.remoteAddress)) {
+			return true;
+		}
 		const connection = this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === provider.remoteAddress)?.connection;
 		switch (connection?.type) {
 			case RemoteAgentHostEntryType.SSH:
@@ -287,8 +294,6 @@ export class SessionEnvironmentPicker extends Disposable {
 				return true;
 			case RemoteAgentHostEntryType.WSL:
 				return isWindows;
-			case RemoteAgentHostEntryType.CloudSandbox:
-				return connection.environmentKind === 'user-local';
 			default:
 				return false;
 		}
