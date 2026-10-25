@@ -152,73 +152,15 @@ function matchesAny(path: string, patterns: readonly string[]): boolean {
 			return true;
 		}
 		if (pattern.includes('*')) {
-			// 1. Tüm regex özel karakterlerini escape ediyoruz (metacharacter güvenliği)
-			const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+			// 1. Tüm regex özel karakterlerini (ve ? karakterini) escape ediyoruz
+			const escaped = pattern.replace(/[.+^${}()|[\]\\?]/g, '\\$&');
 
 			// 2. Tek geçişte (one-pass) glob desenlerini güvenli regex parçalarına dönüştürüyoruz:
-			// - **/ -> sıfır veya daha fazla dizini destekler (örn: src/**/test/ -> src/test/ veya src/a/b/test/)
-			// - **  -> herhangi bir karakter dizisi (.*)
-			// - *   -> aynı dizin içindeki karakterler ([^/]*)
+			// - Baştaki **/ -> göreli ve mutlak yolları destekleyecek şekilde (?:[^/]+/)* olarak işlenir
+			// - İçiçe **/   -> sıfır veya daha fazla dizini destekler (örn: src/**/test/ -> src/test/ veya src/a/b/test/)
+			// - **        -> herhangi bir karakter dizisi (.*)
+			// - *         -> aynı dizin içindeki karakterler ([^/]*)
 			const regexString = '^' + escaped
+				.replace(/^\*\*\//, '(?:[^/]+/)*')
 				.replace(/(?:^|\/)\*\*\//g, '(?:/.+)?/')
-				.replace(/\*\*/g, '.*')
-				.replace(/\*/g, '[^/]*') + '$';
-
-			return new RegExp(regexString).test(path);
-		}
-		return false;
-	});
-}
-
-async function listChangedPaths(github: IGitHub, context: IContext, core: ICore): Promise<readonly string[] | undefined> {
-	let files: readonly IChangedFile[];
-	try {
-		files = await github.paginate(github.rest.pulls.listFiles, {
-			owner: context.repo.owner,
-			repo: context.repo.repo,
-			pull_number: context.issue.number,
-			per_page: 100,
-		});
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		core.warning(`Unable to list pull request files; running all checks. ${message}`);
-		return undefined;
-	}
-
-	const expectedFileCount = context.payload.pull_request?.changed_files;
-	if (typeof expectedFileCount === 'number' && files.length < expectedFileCount) {
-		core.warning(`GitHub returned ${files.length} of ${expectedFileCount} changed files; running all checks.`);
-		return undefined;
-	}
-
-	return files.flatMap(file =>
-		file.previous_filename ? [file.filename, file.previous_filename] : [file.filename]);
-}
-
-export async function detectChanges(github: IGitHub, context: IContext, core: ICore): Promise<void> {
-	const paths = await listChangedPaths(github, context, core);
-
-	for (const rule of rules) {
-		const changedPath = paths?.find(path => matchesAny(path, sharedPaths) || matchesAny(path, rule.paths));
-		const affected = paths === undefined || changedPath !== undefined;
-		const reason = paths === undefined ? 'changed files unavailable'
-			: changedPath !== undefined ? `changed ${changedPath}`
-				: 'no relevant changes';
-
-		core.info(`${rule.output}: ${affected ? 'run' : 'skip'} (${reason})`);
-		core.setOutput(rule.output, affected ? 'true' : 'false');
-	}
-
-	for (const rule of coreTestRules) {
-		const changedPath = paths?.find(path => !rule.canSkip(path));
-		// An empty file list carries no evidence that the checks are unaffected.
-		const affected = paths === undefined || paths.length === 0 || changedPath !== undefined;
-		const reason = paths === undefined ? 'changed files unavailable'
-			: paths.length === 0 ? 'no changed files reported'
-				: changedPath !== undefined ? `changed ${changedPath}`
-					: 'only changes the tests cannot read';
-
-		core.info(`${rule.output}: ${affected ? 'run' : 'skip'} (${reason})`);
-		core.setOutput(rule.output, affected ? 'true' : 'false');
-	}
-}
+				.replace(/\*\*/g,
