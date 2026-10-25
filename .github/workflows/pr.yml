@@ -146,6 +146,12 @@ jobs:
           if [ "$BUILD" = failure ] || [ "$PLAN" != success ]; then
             failed=true
             echo "::warning::ripple failed to build, pass its tests or plan the unit tests, so macOS and Windows run every unit test. See the steps above."
+            # Ripple writes its own plan line only after a successful plan.
+            {
+              echo "### Unit test plan"
+              echo
+              echo "running every unit test: ripple failed to build, pass its tests or plan the unit tests (see the Check ripple step)."
+            } >> "$GITHUB_STEP_SUMMARY"
           else
             # A module that ripple cannot parse, for example with new syntax, disables selection.
             reason=$(jq -r .reason .build/unit-test-plan/plan.json)
