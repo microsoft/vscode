@@ -74,8 +74,8 @@ export class Position {
 			return true;
 		}
 		return (
-			!!a &&
 			!!b &&
+			!!a &&
 			a.lineNumber === b.lineNumber &&
 			a.column === b.column
 		);
