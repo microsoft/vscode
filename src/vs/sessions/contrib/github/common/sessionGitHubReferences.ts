@@ -9,7 +9,7 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, isSessionArtifactVisibleInChat, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 
 export interface ISessionGitHubReferences {
 	readonly pullRequests: readonly IGitHubPullRequestRef[];
@@ -66,7 +66,7 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 		? chatWorkspace.folders.map(folder => folder.gitRepository?.gitHubInfo.read(reader)).filter(isDefined)
 		: [];
 	const gitHubInfo = chatWorkspace ? folderGitHubInfos[0] : session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-	const artifacts = (session?.artifacts?.read(reader) ?? []).filter(artifact => !chat || !artifact.chat || isEqual(artifact.chat, chat.resource));
+	const artifacts = (session?.artifacts?.read(reader) ?? []).filter(artifact => isSessionArtifactVisibleInChat(artifact, chat));
 	const restrictPullRequestsToChat = !!chat && !autoAssociatePullRequests;
 	const chatPullRequestArtifacts = artifacts.filter(artifact => artifact.kind === SessionArtifactKind.PullRequest && artifact.isArtifact && parseGitHubArtifactLink(artifact)
 		&& (!restrictPullRequestsToChat || (artifact.chat ? isEqual(artifact.chat, chat.resource) : isEqual(session?.mainChat?.read(reader)?.resource, chat.resource))));
