@@ -65,7 +65,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false) {
 		const artifacts = observableValue('artifacts', entries);
 		const loading = observableValue('loading', false);
 		const removed: string[] = [];
@@ -107,11 +107,13 @@ suite('Session Artifacts', () => {
 		}());
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		// Like the chat input toolbar, `followChat` resolves the dedicated GitHub pills for the focused chat.
+		const gitHubReferences = derived(reader => getSessionGitHubReferences(session.read(reader), reader, followChat ? chat.read(reader) : fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined));
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			chat,
 			constObservable(new Set<string>()),
-			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined)),
+			gitHubReferences,
 			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
 			new class extends mock<IClipboardService>() { }(),
 			configurationService,
@@ -173,7 +175,7 @@ suite('Session Artifacts', () => {
 			new NullSharedWebContentExtractorService(),
 		));
 		return {
-			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, downloadedResources, savedImages,
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, gitHubReferences, removed, errors, telemetryEvents, downloadedResources, savedImages,
 			setRemovalError: (error: Error | undefined) => { removalError = error; },
 			setCancelDownload: () => { cancelDownload = true; },
 			setDownloadError: (error: Error) => { downloadError = error; },
@@ -777,6 +779,37 @@ suite('Session Artifacts', () => {
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: [],
 			references: [],
+		});
+	});
+
+	test('shows only the focused chat\'s own and unowned records, so peer pull requests never fall back into the artifacts pill', () => {
+		const pullRequest = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
+		const mainChat = URI.parse('chat-session://test/images');
+		const peerChat = URI.parse('chat-session://test/peer');
+		const { presentation, chat, gitHubReferences } = createPresentation([
+			{ id: 'main-pr', chat: mainChat, kind: SessionArtifactKind.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: pullRequest(1) },
+			{ id: 'peer-pr', chat: peerChat, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: pullRequest(2) },
+			{ id: 'main-file', chat: mainChat, kind: SessionArtifactKind.File, label: 'Main plan', isArtifact: true, uri: URI.file('/repo/main.md') },
+			{ id: 'peer-file', chat: peerChat, kind: SessionArtifactKind.File, label: 'Peer plan', isArtifact: true, uri: URI.file('/repo/peer.md') },
+			{ id: 'unowned-file', kind: SessionArtifactKind.File, label: 'Session plan', isArtifact: true, uri: URI.file('/repo/session.md') },
+			{ id: 'main-reference', chat: mainChat, kind: SessionArtifactKind.Website, label: 'Main docs', isArtifact: false, link: URI.parse('https://example.com/main') },
+			{ id: 'peer-reference', chat: peerChat, kind: SessionArtifactKind.Website, label: 'Peer docs', isArtifact: false, link: URI.parse('https://example.com/peer') },
+		], { owner: 'owner', repo: 'repo' }, undefined, undefined, false, undefined, true);
+		const snapshot = () => ({
+			pullRequestPill: gitHubReferences.get().pullRequests.map(ref => ref.recordedReferenceId),
+			...visibleEntries(presentation),
+		});
+
+		const main = snapshot();
+		chat.set(upcastPartial<IChat>({ resource: peerChat }), undefined);
+		const peer = snapshot();
+		chat.set(undefined, undefined);
+		const sessionWide = snapshot();
+
+		assert.deepStrictEqual({ main, peer, sessionWide }, {
+			main: { pullRequestPill: ['main-pr'], artifacts: ['main-file', 'unowned-file'], references: ['main-reference'] },
+			peer: { pullRequestPill: ['peer-pr'], artifacts: ['peer-file', 'unowned-file'], references: ['peer-reference'] },
+			sessionWide: { pullRequestPill: ['main-pr', 'peer-pr'], artifacts: ['main-file', 'peer-file', 'unowned-file'], references: ['main-reference', 'peer-reference'] },
 		});
 	});
 

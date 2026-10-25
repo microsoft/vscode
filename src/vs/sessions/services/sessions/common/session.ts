@@ -314,6 +314,14 @@ export interface ISessionArtifact {
 }
 
 /**
+ * Whether a chat-scoped surface for `chat` shows `artifact`: entries the chat recorded, plus unowned
+ * session-level entries. Without a chat, every entry of the session is shown.
+ */
+export function isSessionArtifactVisibleInChat(artifact: ISessionArtifact, chat: IChat | undefined): boolean {
+	return !chat || !artifact.chat || isEqual(artifact.chat, chat.resource);
+}
+
+/**
  * GitHub information associated with a session.
  */
 export interface IGitHubInfo {
