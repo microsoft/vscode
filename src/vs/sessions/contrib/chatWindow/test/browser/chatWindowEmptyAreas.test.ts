@@ -99,4 +99,15 @@ suite('Chat window - empty terminal row', () => {
 
 		assert.deepStrictEqual(result, { shown: true, removed: 0 });
 	});
+
+	test('a row hides when the host fails to show its terminal', async () => {
+		const disposables = store.add(new DisposableStore());
+		const service = createService(disposables);
+		disposables.add(service.registerTerminalHost({ show: async () => { throw new Error('no terminal'); }, hide: () => { }, release: () => { } }));
+		const { window, terminalGroup, removed } = createWindow();
+
+		await assert.rejects(service.setTerminalShown(window as never, true, false), /no terminal/);
+
+		assert.deepStrictEqual({ shown: !!terminalGroup.get(), removed: removed.length }, { shown: false, removed: 1 });
+	});
 });

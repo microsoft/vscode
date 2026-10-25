@@ -586,7 +586,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (shown) {
 			if (group) {
 				if (group.isEmpty) {
-					await this._terminalHost?.show(window, group, focus);
+					await this._showTerminal(window, group, focus);
 				} else if (focus) {
 					group.focus();
 				}
@@ -626,9 +626,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 				}
 			}));
 			window.state.terminalGroup.set(row, undefined);
-			if (this._terminalHost && !await this._terminalHost.show(window, row, focus)) {
-				this._hideEmptyTerminalRow(window, row);
-			}
+			await this._showTerminal(window, row, focus);
 		} else if (group) {
 			this._emptyTerminalRow(window, host => host.hide(window));
 			window.state.terminalGroup.set(undefined, undefined);
@@ -657,11 +655,22 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	showTerminalAgain(window: ChatWindow): void {
 		const group = window.state.terminalGroup.get();
 		if (group?.isEmpty) {
-			void this._terminalHost?.show(window, group, false).then(shown => {
-				if (!shown) {
-					this._hideEmptyTerminalRow(window, group);
-				}
-			});
+			void this._showTerminal(window, group, false);
+		}
+	}
+
+	/** Shows the terminal in the row, which hides if the host has none to show, or fails to. */
+	private async _showTerminal(window: ChatWindow, row: IEditorGroup, focus: boolean): Promise<void> {
+		if (!this._terminalHost) {
+			return;
+		}
+		let shown = false;
+		try {
+			shown = await this._terminalHost.show(window, row, focus);
+		} finally {
+			if (!shown) {
+				this._hideEmptyTerminalRow(window, row);
+			}
 		}
 	}
 
