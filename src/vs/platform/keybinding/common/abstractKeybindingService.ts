@@ -9,7 +9,7 @@ import { IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
 import { illegalState } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IME } from '../../../base/common/ime.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
+import { isModifierKey, KeyCode } from '../../../base/common/keyCodes.js';
 import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
@@ -62,6 +62,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _ignoreSingleModifiers: KeybindingModifierSet;
 	private _currentSingleModifier: SingleModifierChord | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
+	private readonly _releasedModifierKeys = new Set<string | KeyCode>();
 	protected _currentlyDispatchingCommandId: string | null;
 
 	protected _logging: boolean;
@@ -243,12 +244,24 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			this._log(`+ Ignoring keybinding dispatch because an IME composition is in progress.`);
 			return false;
 		}
+		if (isModifierKey(e.keyCode)) {
+			this._releasedModifierKeys.delete(e.code || e.keyCode);
+		}
 		return this._doDispatch(this.resolveKeyboardEvent(e), target, /*isSingleModiferChord*/false);
 	}
 
 	protected _singleModifierDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		if (isKeyInComposition(e)) {
 			return false;
+		}
+		if (isModifierKey(e.keyCode)) {
+			const modifierKey = e.code || e.keyCode;
+			if (this._releasedModifierKeys.has(modifierKey)) {
+				this._log(`+ Ignoring duplicate modifier keyup ${modifierKey}.`);
+				return false;
+			}
+			// Universal Control can deliver multiple releases for the same physical modifier.
+			this._releasedModifierKeys.add(modifierKey);
 		}
 		const keybinding = this.resolveKeyboardEvent(e);
 		const [singleModifier,] = keybinding.getSingleModifierDispatchChords();
