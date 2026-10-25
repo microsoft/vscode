@@ -839,7 +839,7 @@ suite('PullRequestMutationService', () => {
 				bytesRead: log.bytesRead, maximumBytes: log.maximumBytes, cancelled, locked: stream.locked,
 			}, {
 				textIsSafePrefix: true, truncated: true,
-				bytesRead: maximumBytes, maximumBytes, cancelled: true, locked: true,
+				bytesRead: maximumBytes, maximumBytes, cancelled: true, locked: false,
 			});
 		});
 	});
