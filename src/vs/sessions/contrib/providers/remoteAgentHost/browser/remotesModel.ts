@@ -48,6 +48,7 @@ export interface ICustomizationRemote {
 	readonly detail: string;
 	readonly canRemove: boolean;
 	readonly connectionStatus: RemoteAgentHostConnectionStatus;
+	readonly lastConnectionError?: string;
 	readonly unavailableReason?: string;
 	readonly hidden?: boolean;
 	readonly pickerUnavailableReason?: string;
@@ -452,9 +453,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const providers = this.providersService.getProviders().filter(isAgentHostProvider);
 		const providersByAddress = new Map(providers.map(provider => [provider.remoteAddress, provider]));
 		const connectionStatuses = new Map(providers.map(provider => [provider.remoteAddress, provider.connectionStatus?.read(reader)]));
+		const connectionErrors = new Map<string, string>();
 		for (const connection of this.remoteAgentHostService.connections) {
 			if (!connectionStatuses.get(connection.address)) {
 				connectionStatuses.set(connection.address, connection.status);
+			}
+			if (connection.lastConnectionError) {
+				connectionErrors.set(connection.address, connection.lastConnectionError);
 			}
 		}
 		const registered: RemoteTarget[] = [
@@ -514,6 +519,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				id, kind: target.kind, name, detail, canRemove, unavailableReason,
 				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
 				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,
+				...(connectionErrors.has(id) ? { lastConnectionError: connectionErrors.get(id) } : {}),
 			});
 		}
 		transaction(tx => {

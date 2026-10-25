@@ -95,6 +95,10 @@
 	cursor: default;
 }
 
+.remotes-widget .monaco-table > .monaco-split-view2 {
+	box-sizing: border-box;
+}
+
 .remotes-widget .remotes-group-row {
 	background-color: var(--vscode-keybindingTable-headerBackground);
 	cursor: pointer;
@@ -145,10 +149,15 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
-.remotes-widget .remotes-refresh-warning {
+.remotes-widget .remotes-refresh-warning,
+.remotes-widget .remotes-connection-warning {
 	display: flex;
 	flex-shrink: 0;
 	color: var(--vscode-editorWarning-foreground);
+}
+
+.remotes-widget .remotes-connection-warning {
+	margin-inline-start: auto;
 }
 
 .remotes-widget .remotes-group-progress {
@@ -165,6 +174,15 @@
 
 .remotes-widget .remotes-actions-column {
 	justify-content: flex-start;
+}
+
+.remotes-widget .remotes-gutter-column {
+	justify-content: flex-start;
+	padding-inline: var(--vscode-spacing-size80);
+}
+
+.remotes-widget .remotes-visibility-column {
+	justify-content: flex-end;
 }
 
 .remotes-widget .remotes-actions-column .monaco-toolbar {
@@ -214,6 +232,7 @@
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
+.remotes-widget .remotes-connection-warning[hidden],
 .remotes-widget .remotes-empty-description[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
 	display: none;
