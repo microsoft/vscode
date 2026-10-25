@@ -25,10 +25,12 @@ interface IWorkflowJob {
 }
 
 /**
- * Returns the change detection output that a job reads in its `if:` to skip when the changes cannot affect it.
+ * Returns the change detection output that a job reads to skip when the changes cannot affect it: in its `if:`, or, for a
+ * job that calls a reusable workflow, in the `affected` input with which that workflow skips its job.
  */
 function skipOutput(job: IWorkflowJob): string | undefined {
-	return /needs\.changes\.outputs\.(?<output>[\w-]+) == 'true'/.exec(job.if ?? '')?.groups?.output;
+	const condition = typeof job.with?.affected === 'string' ? job.with.affected : job.if;
+	return /needs\.changes\.outputs\.(?<output>[\w-]+) == 'true'/.exec(condition ?? '')?.groups?.output;
 }
 
 async function detect(files: readonly { filename: string; previous_filename?: string }[], expectedCount = files.length, failure?: Error) {
@@ -59,8 +61,8 @@ async function detectCoreTests(...filenames: string[]): Promise<string[]> {
 	return coreTestOutputs.map(output => outputs[output]);
 }
 
-function loadWorkflow(): { readonly jobs: Record<string, IWorkflowJob> } {
-	return load(readFileSync(path.join(repositoryRoot, '.github/workflows/pr.yml'), 'utf8')) as { readonly jobs: Record<string, IWorkflowJob> };
+function loadWorkflow(file = 'pr.yml'): { readonly jobs: Record<string, IWorkflowJob> } {
+	return load(readFileSync(path.join(repositoryRoot, '.github/workflows', file), 'utf8')) as { readonly jobs: Record<string, IWorkflowJob> };
 }
 
 /** Names of the built-in extensions whose files the core tests import or read by repository path. */
@@ -241,13 +243,16 @@ suite('Detect Changes', () => {
 		const { jobs } = loadWorkflow();
 		const testJobs = Object.entries(jobs).filter(([, job]) => /^\.\/\.github\/workflows\/pr-(linux|darwin|win32)-test\.yml$/.test(job.uses ?? ''));
 		const declaredOutputs = Object.keys(jobs.changes.outputs ?? {});
+		// The calling jobs always run, and the job of their reusable workflow skips (see the test jobs in pr.yml).
 		const skipsWhenUnaffected = (output: string) => ({
 			needs: 'changes',
-			if: `\${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true') }}`,
+			if: '${{ !cancelled() }}',
+			affected: `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`,
 		});
 		assert.deepStrictEqual({
-			jobs: Object.fromEntries(testJobs.map(([id, job]) => [id, { needs: job.needs, if: job.if }])),
+			jobs: Object.fromEntries(testJobs.map(([id, job]) => [id, { needs: job.needs, if: job.if, affected: job.with?.affected }])),
 			undeclaredOutputs: testJobs.map(([, job]) => skipOutput(job)).filter(output => !output || !declaredOutputs.includes(output)),
+			reusableWorkflowJobs: ['linux', 'darwin', 'win32'].flatMap(platform => Object.values(loadWorkflow(`pr-${platform}-test.yml`).jobs).map(job => ({ name: job.name, if: job.if }))),
 		}, {
 			jobs: {
 				'linux-electron-unit-tests': skipsWhenUnaffected('unit-tests'),
@@ -271,7 +276,22 @@ suite('Detect Changes', () => {
 				'windows-remote-tests': skipsWhenUnaffected('product-tests'),
 			},
 			undeclaredOutputs: [],
+			reusableWorkflowJobs: [
+				{ name: 'Linux', if: '${{ inputs.affected }}' },
+				{ name: 'macOS', if: '${{ inputs.affected }}' },
+				{ name: 'Windows', if: '${{ inputs.affected }}' },
+			],
 		});
+	});
+
+	test('a job that the changes can skip has a name without expressions', () => {
+		// GitHub neither expands the matrix of a skipped job nor evaluates the expressions in its name, so a skipped
+		// "chat-lib tests (${{ matrix.os }})" job would report under that name.
+		const alwaysRun = ['${{ !cancelled() }}', '${{ always() }}'];
+		const workflows = ['pr.yml', 'pr-linux-test.yml', 'pr-darwin-test.yml', 'pr-win32-test.yml', 'pr-linux-cli-test.yml'];
+		assert.deepStrictEqual(workflows.flatMap(workflow => Object.entries(loadWorkflow(workflow).jobs)
+			.filter(([, job]) => job.if !== undefined && !alwaysRun.includes(job.if) && job.name?.includes('${{'))
+			.map(([id, job]) => `${workflow}: ${id}: ${job.name}`)), []);
 	});
 
 	test('PR Gate reports the result of every other job of the workflow', () => {
