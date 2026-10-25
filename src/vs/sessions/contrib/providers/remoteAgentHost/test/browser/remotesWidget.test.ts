@@ -146,9 +146,9 @@ suite('RemotesWidget', () => {
 		return { widget, parent, model, errors, hoverContents, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
-	function getManagementAction(parent: HTMLElement, id: string, action: 'rename'): HTMLElement {
+	function getManagementAction(parent: HTMLElement, id: string, action: 'rename' | 'delete'): HTMLElement {
 		const row = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].find(row => row.dataset.remoteId === id);
-		const control = row?.querySelector<HTMLElement>('.codicon-edit');
+		const control = row?.querySelector<HTMLElement>(action === 'rename' ? '.codicon-edit' : '.codicon-trash');
 		assert.ok(control, `Missing ${action} action for ${id}`);
 		return control;
 	}
@@ -380,11 +380,11 @@ suite('RemotesWidget', () => {
 		}, { changes: [{ id: 'ssh:build', action: 'rename' }], sameControl: true, focused: true, name: 'Renamed remote' });
 	});
 
-	test('remote rows offer only connection and rename actions, including after refresh', async () => {
+	test('only environment rows offer Delete, including after refresh', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
-			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: false,
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
 		}], undefined);
 		const actions = () => [...parent.querySelectorAll('[data-remote-id]')].map(row =>
@@ -393,12 +393,60 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		await timeout(0);
 		const expected = [
-			['Connect to Desktop', 'Rename Desktop...'],
+			['Connect to Desktop', 'Rename Desktop...', 'Delete Desktop'],
 			['Disconnect Build server', 'Rename Build server...'],
 			['Connect to Laptop', 'Rename Laptop...'],
 			['Connect to Ubuntu', 'Rename Ubuntu...'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
+	});
+
+	test('Delete works offline, prevents duplicate actions and restores keyboard focus', async () => {
+		const { parent, model } = createWidget();
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: true,
+			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Offline',
+		}], undefined);
+		const control = getManagementAction(parent, 'environment:desktop', 'delete');
+		control.focus();
+		control.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		model.pendingManagement = new DeferredPromise<void>();
+		for (const type of ['keydown', 'keyup']) {
+			control.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		assert.deepStrictEqual(model.managementChanges, [{ id: 'environment:desktop', action: 'remove' }]);
+		control.click();
+		const busy = {
+			deletion: control.getAttribute('aria-disabled'),
+			rename: getManagementAction(parent, 'environment:desktop', 'rename').getAttribute('aria-disabled'),
+		};
+		await model.pendingManagement.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			busy, changes: model.managementChanges,
+			remaining: parent.querySelector('[data-remote-id="environment:desktop"]') !== null,
+			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+		}, { busy: { deletion: 'true', rename: 'true' }, changes: [{ id: 'environment:desktop', action: 'remove' }], remaining: false, focused: true });
+	});
+
+	test('failed Delete retains the row, reports the error and allows retry', async () => {
+		const { parent, model, errors } = createWidget();
+		model.environmentsEnabled.set(true, undefined);
+		model.remotes.set([{
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'env-desktop', canRemove: true,
+			connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+		model.pendingManagement = new DeferredPromise<void>();
+		getManagementAction(parent, 'environment:desktop', 'delete').click();
+		const error = new Error('Deletion failed');
+		await model.pendingManagement.error(error);
+		await timeout(0);
+		assert.deepStrictEqual({
+			errors,
+			disabled: getManagementAction(parent, 'environment:desktop', 'delete').getAttribute('aria-disabled'),
+			changes: model.managementChanges,
+		}, { errors: [error], disabled: null, changes: [{ id: 'environment:desktop', action: 'remove' }] });
 	});
 
 	test('renaming a sorted row does not leave keyboard focus on another remote action', async () => {
@@ -828,21 +876,21 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('offline environment connection explains its disabled state while Rename stays available', () => {
+	test('offline environment connection explains its disabled state while Rename and Delete stay available', () => {
 		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{
-			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: false,
+			id: 'environment:desktop', kind: 'environment', name: 'Desktop', detail: 'desktop', canRemove: true,
 			connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'Start the owning application.',
-			removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.',
 		}], undefined);
 		const connect = getConnectionAction(parent, 'environment:desktop');
 		assert.deepStrictEqual({
 			connect: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled'),
 			renameDisabled: getManagementAction(parent, 'environment:desktop', 'rename').getAttribute('aria-disabled'),
+			deleteDisabled: getManagementAction(parent, 'environment:desktop', 'delete').getAttribute('aria-disabled'),
 		}, {
 			connect: 'Connect to Desktop: Start the owning application.', disabled: 'true',
-			renameDisabled: null,
+			renameDisabled: null, deleteDisabled: null,
 		});
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
 		assert.deepStrictEqual({ label: connect.getAttribute('aria-label'), disabled: connect.getAttribute('aria-disabled') }, {

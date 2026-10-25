@@ -1237,6 +1237,35 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			called_directly = false;
 		}
 	};
+	// Whether changing an expression or its members (assigning, updating, or changing it with a
+	// method of `Object`) can be observed outside this module: as for calling it, and also when it
+	// is a global or a member of one, pure or not. Calling `console.log` changes nothing, but
+	// assigning it, `Error.stackTraceLimit` or `Array.prototype.last` changes what every module
+	// that uses them does. What a pure global's method returns is taken as a new value: changing
+	// `Object.create(proto)` stays local.
+	let write_escapes = |e: &Expression| -> Escape {
+		let mut cur = e;
+		loop {
+			match cur {
+				Expression::StaticMemberExpression(m) => cur = &m.object,
+				Expression::ComputedMemberExpression(m) => cur = &m.object,
+				Expression::ParenthesizedExpression(p) => cur = &p.expression,
+				Expression::TSAsExpression(x) => cur = &x.expression,
+				Expression::TSSatisfiesExpression(x) => cur = &x.expression,
+				Expression::TSNonNullExpression(x) => cur = &x.expression,
+				Expression::Identifier(id)
+					if id
+						.reference_id
+						.get()
+						.and_then(|r| scoping.get_reference(r).symbol_id())
+						.is_none() =>
+				{
+					return Escape::Yes;
+				}
+				_ => return escapes(e),
+			}
+		}
+	};
 	// `if (DEBUG_FLAG)` blocks guarded by a top-level `const DEBUG_FLAG = false` never run.
 	let false_consts: Vec<&str> = body
 		.iter()
@@ -1825,7 +1854,7 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 					.arguments
 					.first()
 					.and_then(|a| a.as_expression())
-					.map(&escapes)
+					.map(&write_escapes)
 				{
 					Some(Escape::Yes) => Escape::Yes,
 					_ => Escape::No,
@@ -1838,15 +1867,21 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			AstKind::CallExpression(c) => escapes(&c.callee),
 			AstKind::NewExpression(n) => escapes(&n.callee),
 			AstKind::AssignmentExpression(a) => match &a.left {
+				AssignmentTarget::AssignmentTargetIdentifier(t) if symbol_of(t).is_none() => {
+					Escape::Yes
+				}
 				AssignmentTarget::AssignmentTargetIdentifier(_) => Escape::No,
-				AssignmentTarget::StaticMemberExpression(m) => escapes(&m.object),
-				AssignmentTarget::ComputedMemberExpression(m) => escapes(&m.object),
+				AssignmentTarget::StaticMemberExpression(m) => write_escapes(&m.object),
+				AssignmentTarget::ComputedMemberExpression(m) => write_escapes(&m.object),
 				_ => Escape::Yes,
 			},
 			AstKind::UpdateExpression(u) => match &u.argument {
+				SimpleAssignmentTarget::AssignmentTargetIdentifier(t) if symbol_of(t).is_none() => {
+					Escape::Yes
+				}
 				SimpleAssignmentTarget::AssignmentTargetIdentifier(_) => Escape::No,
-				SimpleAssignmentTarget::StaticMemberExpression(m) => escapes(&m.object),
-				SimpleAssignmentTarget::ComputedMemberExpression(m) => escapes(&m.object),
+				SimpleAssignmentTarget::StaticMemberExpression(m) => write_escapes(&m.object),
+				SimpleAssignmentTarget::ComputedMemberExpression(m) => write_escapes(&m.object),
 				_ => Escape::Yes,
 			},
 			AstKind::TaggedTemplateExpression(t) => escapes(&t.tag),
@@ -2721,6 +2756,32 @@ mod tests {
 		assert_eq!(
 			(&product.decls[1].refs, &product.decls[2].refs),
 			(&vec![Ref::Global("_PRODUCT".into())], &vec![])
+		);
+	}
+
+	#[test]
+	fn writes_to_built_in_globals_are_global_effects() {
+		let effects = |source: &str| analyze("a.ts", source).global_effects;
+		assert_eq!(
+			[
+				"Error.stackTraceLimit = 0;\n",
+				"(Error as any).prepareStackTrace ??= undefined;\n",
+				"(Object.prototype as any)['last'] = undefined;\n",
+				"Error.stackTraceLimit--;\n",
+				"Object.freeze(Array.prototype);\n",
+				"delete (console as any).log;\n",
+				"Promise = class { } as any;\n",
+				"class Quiet { constructor() { console.warn = () => { }; } }\nnew Quiet();\n",
+				// Calling their methods, or changing what calls return or local values, is not.
+				"console.log(Error.stackTraceLimit);\n",
+				"Object.assign(Object.create(null), { a: 1 });\n",
+				"const o: any = {};\no.max = Math.max(1, 2);\n",
+				"export function quiet() { console.warn = () => { }; }\n",
+			]
+			.map(effects),
+			[
+				true, true, true, true, true, true, true, true, false, false, false, false
+			]
 		);
 	}
 

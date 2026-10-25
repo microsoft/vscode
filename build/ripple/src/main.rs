@@ -29,24 +29,13 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\tstats [--rev REV]: graph statistics of a commit\n\
 	\taffected --base REV [--head REV]: the test files a change can affect\n\
 	\tanalyze --file PATH: analysis summary of one module\n\
-	\tplan --base REV [--head REV] [--max-share N] [--out-dir DIR]: the unit test files to run for a change\n\
+	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
 
 /// The options of all commands. Each one takes a value.
 const OPTIONS: &[&str] = &[
-	"config",
-	"repo",
-	"rev",
-	"base",
-	"head",
-	"file",
-	"max-share",
-	"out-dir",
-	"test",
-	"since",
-	"until",
-	"out",
+	"config", "repo", "rev", "base", "head", "file", "out-dir", "test", "since", "until", "out",
 	"hubs",
 ];
 
@@ -132,9 +121,6 @@ fn main() -> Result<()> {
 			repo,
 			args.get("base").context("--base is required")?,
 			args.get("head").unwrap_or("HEAD"),
-			args.get("max-share")
-				.map_or(Ok(0.5), |s| s.parse())
-				.context("--max-share must be a number")?,
 			args.get("out-dir"),
 		),
 		"blame" => blame(
@@ -325,19 +311,18 @@ fn affected(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()
 	Ok(())
 }
 
-/// Plans which unit test files a change needs and prints the plan as JSON. Selection is off when
-/// a change reaches outside the module graph or selects more than `max_share` of the unit test
-/// work, so callers then run every unit test. With `out_dir`, also writes the plan to
-/// `<out_dir>/plan.json` and, when selection is on and selects any file, the selected files to
-/// `<out_dir>/unit.txt`, one per line. Each test runner runs the listed files it would run by
-/// default. On GitHub Actions it writes the output `select` (whether to run only the listed files)
-/// and a job summary.
+/// Plans which unit test files a change needs and prints the plan as JSON. Selection is off only
+/// when a change reaches outside the module graph (`Selection::run_all`), so callers then run
+/// every unit test; otherwise the plan selects the files the change can affect, however many. With
+/// `out_dir`, also writes the plan to `<out_dir>/plan.json` and, when selection is on and selects
+/// any file, the selected files to `<out_dir>/unit.txt`, one per line. Each test runner runs the
+/// listed files it would run by default. On GitHub Actions it writes the output `select` (whether
+/// to run only the listed files) and a job summary.
 fn plan(
 	config: &Config,
 	repo: PathBuf,
 	base: &str,
 	head: &str,
-	max_share: f64,
 	out_dir: Option<&str>,
 ) -> Result<()> {
 	let mut engine = Engine::new(repo.clone(), config);
@@ -371,18 +356,13 @@ fn plan(
 	};
 	let reason = match &sel.run_all {
 		Some(r) => format!("running every unit test: {r}"),
-		None if share > max_share => format!(
-			"running every unit test: the change affects {:.0}% of the unit test work (limit {:.0}%)",
-			share * 100.0,
-			max_share * 100.0
-		),
 		None => format!(
 			"running the {} unit test files the change can affect ({:.1}% of the unit test work)",
 			selected.len(),
 			share * 100.0
 		),
 	};
-	let select_only = sel.run_all.is_none() && share <= max_share;
+	let select_only = sel.run_all.is_none();
 
 	let json = serde_json::json!({
 		"select": select_only,
