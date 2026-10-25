@@ -77,6 +77,25 @@ class CanvasMenuActionRegistration extends Disposable {
 	}
 }
 
+/**
+ * A menu registration that is replaced only when its shape changes. Every registration change rebuilds each toolbar
+ * that shows the menu, in every window, so re-runs with an unchanged shape must not re-register.
+ */
+class KeyedMenuRegistration extends Disposable {
+
+	private readonly registration = this._register(new MutableDisposable<IDisposable>());
+	private key: string | undefined;
+
+	/** Registers with `register` when `key` changes; `undefined` removes the registration. */
+	update(key: string | undefined, register: () => IDisposable): void {
+		if (this.key === key) {
+			return;
+		}
+		this.key = key;
+		this.registration.value = key === undefined ? undefined : register();
+	}
+}
+
 function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation', submenu = Menus.SessionsEditorTabsBarAddTabCanvas): IDisposable {
 	return MenuRegistry.appendMenuItem(menu, {
 		submenu,
@@ -98,7 +117,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 		: []);
 	store.add(registerSessionCanvasActivityBarActions(canvasService, activeCanvases));
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
-	const submenuRegistration = store.add(new MutableDisposable<IDisposable>());
+	const submenuRegistration = store.add(new KeyedMenuRegistration());
 	let commandSequence = 0;
 	store.add(autorun(reader => {
 		const definitions = registryService.availableCanvases.read(reader);
@@ -145,15 +164,13 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 				registrations.deleteAndDispose(key);
 			}
 		}
-		submenuRegistration.value = activeKeys.size > 0
-			? combinedDisposable(
-				appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
-				appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
-				inActivityBar
-					? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas)
-					: Disposable.None,
-			)
-			: undefined;
+		submenuRegistration.update(activeKeys.size > 0 ? `addTab:${inActivityBar}` : undefined, () => combinedDisposable(
+			appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
+			appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
+			inActivityBar
+				? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas)
+				: Disposable.None,
+		));
 	}));
 	return store;
 }
@@ -161,7 +178,7 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, activeCanvases: IObservable<readonly ICanvasReopenTarget[]>): IDisposable {
 	const store = new DisposableStore();
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
-	const activityBarRegistration = store.add(new MutableDisposable<IDisposable>());
+	const activityBarRegistration = store.add(new KeyedMenuRegistration());
 	let commandSequence = 0;
 	// Match the submenu ID so persisted toolbar hiding survives single/multiple canvas transitions.
 	store.add(CommandsRegistry.registerCommand(Menus.SessionActivityBarCanvas.id, async () => {
@@ -194,16 +211,17 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 				registrations.deleteAndDispose(key);
 			}
 		}
-		activityBarRegistration.value = targets.length === 1
-			? MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-				command: { id: Menus.SessionActivityBarCanvas.id, title: labels[0], icon: Codicon.preview },
+		if (targets.length === 1) {
+			const title = labels[0];
+			activityBarRegistration.update(`single:${title}`, () => MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+				command: { id: Menus.SessionActivityBarCanvas.id, title, icon: Codicon.preview },
 				group: SessionActivityBarGroup.SidePanel,
 				order: 4,
 				when: canvasAvailableWhen,
-			})
-			: targets.length > 1
-				? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas)
-				: undefined;
+			}));
+		} else {
+			activityBarRegistration.update(targets.length > 1 ? 'multiple' : undefined, () => appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas));
+		}
 	}));
 	return store;
 }
