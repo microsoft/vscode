@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -129,7 +129,9 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	}
 
 	presentsOutsideWorkingSets(owner: ICanvasOwner, reader?: IReader): boolean {
-		return !!this.getChatWindow(owner, reader);
+		const presented = this.chatWindowPresentedOwners.read(reader);
+		return presented.keys.has(canvasOwnerKey(owner))
+			|| presented.opening.some(opening => isEqual(opening.session, owner.session) && (!opening.chat || isEqual(opening.chat, owner.chat)));
 	}
 
 	/** The session of the main window, or a session shown in a chat window, that owns `owner`: preferably one that shows its chat. */
@@ -143,6 +145,26 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			.find(session => ownsSession(owner, session) && isEqual(session.activeChat.read(reader).resource, owner.chat));
 		return windowSession ?? (active && ownsSession(owner, active) ? active : undefined);
 	}
+
+	/** The owners shown in chat windows beside an editor area, compared by content so that window changes that keep them do not re-run the readers. */
+	private readonly chatWindowPresentedOwners = derivedOpts<IChatWindowPresentedOwners>({
+		owner: this,
+		equalsFn: (a, b) => a.keys.size === b.keys.size && [...a.keys].every(key => b.keys.has(key))
+			&& a.opening.length === b.opening.length && a.opening.every((opening, index) => isEqual(opening.session, b.opening[index].session) && isEqual(opening.chat, b.opening[index].chat)),
+	}, reader => {
+		const keys = new Set<string>();
+		const opening: { session: URI | undefined; chat: URI | undefined }[] = [];
+		for (const window of this.getChatWindowsWithEditorArea(reader)) {
+			const session = window.session.read(reader);
+			if (!session) {
+				const content = window.content.read(reader);
+				opening.push({ session: content.session, chat: content.chat });
+			} else if (session.capabilities.read(reader).supportsCanvases === true) {
+				keys.add(canvasOwnerKey({ providerId: session.providerId, session: session.resource, chat: session.activeChat.read(reader).resource }));
+			}
+		}
+		return { keys, opening };
+	});
 
 	private getChatWindowsWithEditorArea(reader?: IReader): readonly IChatWindow[] {
 		return this.chatWindowService.windows.read(reader).filter(window => !!window.editorGroup && !!window.content.read(reader).editorArea);
@@ -172,6 +194,11 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			}
 		}
 	}
+}
+
+interface IChatWindowPresentedOwners {
+	readonly keys: ReadonlySet<string>;
+	readonly opening: readonly { readonly session: URI | undefined; readonly chat: URI | undefined }[];
 }
 
 export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {

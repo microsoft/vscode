@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -1004,6 +1004,37 @@ suite('SessionCanvasService', () => {
 			outsideWorkingSets: [true, false],
 			frontendSession: owner.session.toString(),
 		});
+	});
+
+	test('a window change that keeps the owners shown in chat windows does not re-run the readers of presentsOutsideWorkingSets', () => {
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/window') };
+		const chat = upcastPartial<IChat>({ resource: owner.chat, canvases: constObservable([]) });
+		const windowSession = upcastPartial<IActiveSession>({
+			providerId: owner.providerId,
+			resource: owner.session,
+			activeChat: constObservable(chat),
+			chats: constObservable([chat]),
+			capabilities: constObservable<ISessionCapabilities>({ supportsCanvases: true, supportsMultipleChats: false }),
+		});
+		const createWindow = () => upcastPartial<IChatWindow>({ session: constObservable(windowSession), editorGroup: upcastPartial<IEditorGroup>({ id: 2, windowId: 2 }), content: constObservable({ session: owner.session, chat: owner.chat, editorArea: {} }) });
+		const windows = observableValue<readonly IChatWindow[]>('windows', [createWindow()]);
+		const contextService = store.add(new SessionCanvasContextService(
+			upcastPartial<ISessionsService>({ activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), mainWindowActiveSession: constObservable<IActiveSession | undefined>(undefined), windowSessions: constObservable([windowSession]) }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<IEditorGroupsService>({}),
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }),
+			upcastPartial<IChatWindowService>({ windows }),
+		));
+		const results: boolean[] = [];
+		store.add(autorun(reader => { results.push(contextService.presentsOutsideWorkingSets(owner, reader)); }));
+
+		windows.set([createWindow()], undefined);
+		windows.set([createWindow(), createWindow()], undefined);
+		windows.set([], undefined);
+
+		assert.deepStrictEqual(results, [true, false]);
 	});
 
 	test('presents the canvases of the chat of the main window and of a chat window whichever window has focus', () => {
