@@ -12,7 +12,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../../../common/contextkeys.js';
 import { ISessionChangeset, ISessionChangesetOperation } from '../../../../services/sessions/common/session.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../../github/common/types.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
@@ -68,6 +68,28 @@ suite('Session Action Context Keys', () => {
 			scoped: { primary: AgentHostPullRequestOperationId.Merge, open: true, failed: true, fixRequested: false, reviewed: [] },
 			global: { primary: undefined, open: undefined, failed: undefined, fixRequested: undefined, reviewed: undefined },
 		});
+	});
+
+	test('does not re-read the editor transition key for unrelated context changes', () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const scoped = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		let reads = 0;
+		const getContextKeyValue = scoped.getContextKeyValue.bind(scoped);
+		scoped.getContextKeyValue = <T>(key: string) => {
+			if (key === DesktopChangesEditorTransitionContext.key) {
+				reads++;
+			}
+			return getContextKeyValue<T>(key);
+		};
+		disposables.add(bindSessionActionContextKeys(instantiationService, createSource({}), scoped));
+
+		const unrelated = scoped.createKey('unrelatedKey', 0);
+		const afterBind = reads;
+		unrelated.set(1);
+		unrelated.set(2);
+		const afterUnrelated = reads;
+		DesktopChangesEditorTransitionContext.bindTo(scoped).set(true);
+		assert.deepStrictEqual({ unrelatedReads: afterUnrelated - afterBind, relatedTriggersRead: reads > afterUnrelated }, { unrelatedReads: 0, relatedTriggersRead: true });
 	});
 
 	test('runs registered binders for each bound source', () => {

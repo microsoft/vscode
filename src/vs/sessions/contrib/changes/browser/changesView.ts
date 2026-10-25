@@ -189,7 +189,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 		});
 
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
-		const sessionIsActiveObs = observableFromEvent(contextKeyService.onDidChangeContext, () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
+		const sessionIsActiveObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionIsActiveContext.key]))), () => SessionIsActiveContext.getValue(contextKeyService) ?? false);
 
 		// Clear the running label override
 		this._register(autorun(reader => {
@@ -384,9 +384,9 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			return getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		});
 
-		const agentMergeEnabledObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
-		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
 			workspaceContextService.getWorkspace().folders);
@@ -631,7 +631,7 @@ export class ChangesActionsBar extends Disposable {
 		container.classList.add('changes-actions-bar');
 		this._register(markOnboardingTarget(container, 'sessions.changes.actions'));
 
-		const hasGitOperationInProgressGlobalObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+		const hasGitOperationInProgressGlobalObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(['sessions.hasGitOperationInProgress']))), () =>
 			contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true);
 		const hasGitOperationInProgressObs = derived(reader => {
 			if (hasGitOperationInProgressGlobalObs.read(reader)) {
@@ -880,7 +880,7 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		// Git operation in progress set in the global context key service by the extension
-		const hasGitOperationInProgressGlobalContextObs = observableFromEvent(this.contextKeyService.onDidChangeContext, () => {
+		const hasGitOperationInProgressGlobalContextObs = observableFromEvent(Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(['sessions.hasGitOperationInProgress']))), () => {
 			return this.contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true;
 		});
 
