@@ -78,7 +78,7 @@ suite('Chat window - canvases in the Add Tab list', () => {
 			new NullLogService() as ILogService,
 			new class extends mock<INotificationService>() { }(),
 		));
-		return { registration, listed, rebuildContexts: () => contexts.set(createContexts(), undefined), opened, reopened, revealed, activeSession, windows, windowList, reopenable, canvasLists };
+		return { registration, listed, rebuildContexts: () => contexts.set(createContexts(), undefined), replaceCanvases: (index: number) => { canvasLists[index] = observableValue<readonly ICanvas[]>('canvases', []); contexts.set(createContexts(), undefined); }, opened, reopened, revealed, activeSession, windows, windowList, reopenable, canvasLists };
 	}
 
 	async function entries(count: number) {
@@ -120,6 +120,17 @@ suite('Chat window - canvases in the Add Tab list', () => {
 		}
 
 		assert.deepStrictEqual(listed.slice().sort(), ['test://session/one', 'test://session/two']);
+	});
+
+	test('the same owner with a new source of canvases is listed again once', async () => {
+		const { listed, rebuildContexts, replaceCanvases } = createFixture(['one']);
+		await entries(2);
+		replaceCanvases(0);
+		await timeout(0);
+		rebuildContexts();
+		await timeout(0);
+
+		assert.deepStrictEqual(listed, ['test://session/one', 'test://session/one']);
 	});
 
 	test('opening a canvas targets the window the entry belongs to and leaves the active session alone', async () => {

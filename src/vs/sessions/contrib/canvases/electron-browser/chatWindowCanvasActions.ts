@@ -79,7 +79,8 @@ class ChatWindowCanvasMenu extends Disposable {
 		// Keyed on the owner: the context is rebuilt for unrelated changes (any chat model, any window's session), and each rebuild would list the canvases again.
 		const definitionSource = derivedOpts<ICanvasContext | undefined>({
 			owner: this,
-			equalsFn: (a, b) => a === b || (!!a && !!b && !!a.definitionProvider === !!b.definitionProvider && canvasOwnerKey(a.owner) === canvasOwnerKey(b.owner))
+			// The provider is a new object on every rebuild, so its source of changes (the canvases of the chat, new after a reconnect) tells whether it is another one.
+			equalsFn: (a, b) => a === b || (!!a && !!b && !!a.definitionProvider === !!b.definitionProvider && a.canvases === b.canvases && canvasOwnerKey(a.owner) === canvasOwnerKey(b.owner))
 		}, reader => context.read(reader));
 		const definitions = this._register(new CanvasDefinitionStore(reader => {
 			const current = definitionSource.read(reader);
