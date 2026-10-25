@@ -45,9 +45,9 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			registerEditorToRetain: input => editorWorkingSetService.registerEditorToRetain(input),
 			suppressEditorPartAutoVisibility: () => layoutService.suppressEditorPartAutoVisibility(),
 		};
-		// The active session's chat, and the chats that chat windows show beside an editor area, where their canvases show.
+		// The chat of the main window's session (not of the focused window), and the chats that chat windows show beside an editor area, where their canvases show.
 		this.contexts = derived<readonly ICanvasContext[]>(this, reader => {
-			const sessions = [sessionsService.activeSession.read(reader), ...this.getChatWindowsWithEditorArea(reader).map(window => window.session.read(reader))];
+			const sessions = [sessionsService.mainWindowActiveSession.read(reader), ...this.getChatWindowsWithEditorArea(reader).map(window => window.session.read(reader))];
 			const contexts: ICanvasContext[] = [];
 			for (const session of sessions) {
 				const chat = session?.activeChat.read(reader);
@@ -85,7 +85,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	}
 
 	isOwnerVisible(owner: ICanvasOwner, reader?: IReader): boolean {
-		const session = this.sessionsService.activeSession.read(reader);
+		const session = this.sessionsService.mainWindowActiveSession.read(reader);
 		const shows = (candidate: IActiveSession | undefined) => !!candidate
 			&& candidate.capabilities.read(reader).supportsCanvases === true
 			&& ownsSession(owner, candidate)
@@ -132,9 +132,9 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		return !!this.getChatWindow(owner, reader);
 	}
 
-	/** The active session, or a session shown in a chat window, that owns `owner`: preferably one that shows its chat. */
+	/** The session of the main window, or a session shown in a chat window, that owns `owner`: preferably one that shows its chat. */
 	private getOwnerSession(owner: ICanvasOwner, reader?: IReader): IActiveSession | undefined {
-		const active = this.sessionsService.activeSession.read(reader);
+		const active = this.sessionsService.mainWindowActiveSession.read(reader);
 		if (active && ownsSession(owner, active) && isEqual(active.activeChat.read(reader).resource, owner.chat)) {
 			return active;
 		}

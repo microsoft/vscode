@@ -17,11 +17,13 @@ import { EmptyEditorGroupAddTab } from '../../../browser/parts/emptyEditorGroupA
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { EditorsOrder, GroupModelChangeKind } from '../../../../workbench/common/editor.js';
+import { EditorsOrder, GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { completeTerminalReturn, decideTerminalRowMove, TerminalRowMoveAction } from './chatWindowTerminalRowPolicy.js';
 import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { EditorPartFixedGroupsContext } from '../../../../workbench/common/contextkeys.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { DeepPartial } from '../../../../base/common/types.js';
 import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IFloatingEditorPart } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorResolverService } from '../../../../workbench/services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -36,6 +38,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatWindowCustomEditorInput } from './chatWindowCustomEditorInput.js';
@@ -64,6 +67,10 @@ class ChatWindow implements IChatWindow {
 
 	/** Keeps the editor the chat window shows from being closed on its own. */
 	readonly editorKept = new MutableDisposable<IDisposable>();
+
+	get windowId(): number {
+		return this.part.windowId;
+	}
 
 	private _closed = false;
 
@@ -172,6 +179,19 @@ class ChatWindow implements IChatWindow {
 	}
 }
 
+/**
+ * The options a chat window enforces on its editor part. An editor area stays when its last editor closes, and its tabs follow
+ * `workbench.editor.showTabs`, live, as does the terminal row. The setting `none` shows as `single`, because it would also hide
+ * the title of the terminal row, which holds its New Terminal action. Double-clicking a tab must not maximize or expand a group:
+ * the window arranges its groups. Editor actions stay on every group, so that the terminal row keeps its New Terminal action while
+ * another group has focus. A window without an editor area shows no tabs.
+ */
+export function chatWindowPartOptions(hasEditorArea: boolean, showTabs?: string): DeepPartial<IEditorPartOptions> {
+	return hasEditorArea
+		? { closeEmptyGroups: false, alwaysShowEditorActions: true, doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) }
+		: { showTabs: 'none', showBreadcrumbs: false, editorActionsLocation: 'hidden', doubleClickTabToToggleEditorGroupSizes: 'off' };
+}
+
 export class ChatWindowService extends Disposable implements IChatWindowService {
 
 	declare readonly _serviceBrand: undefined;
@@ -205,6 +225,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IChatService private readonly _chatService: IChatService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
 	) {
 		super();
@@ -320,12 +341,14 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		windowDisposables.add(autorun(reader => splitLayoutContext.set(state.splitLayout.read(reader))));
 		const terminalPositionContext = ChatWindowTerminalPositionContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => terminalPositionContext.set(state.terminalPosition.read(reader))));
-		// An editor area shows its editors in tabs, and stays when its last editor closes. Tabs show for the whole part.
-		// Double-clicking a tab must not maximize or expand a group: the window arranges its groups.
-		// Editor actions stay on every group, so that the terminal row keeps its New Terminal action while another group has focus.
-		windowDisposables.add(part.enforcePartOptions(content.editorArea
-			? { showTabs: 'multiple', closeEmptyGroups: false, alwaysShowEditorActions: true, doubleClickTabToToggleEditorGroupSizes: 'off' }
-			: { showTabs: 'none', showBreadcrumbs: false, editorActionsLocation: 'hidden', doubleClickTabToToggleEditorGroupSizes: 'off' }));
+		const partOptions = windowDisposables.add(new MutableDisposable());
+		const enforcePartOptions = () => partOptions.value = part.enforcePartOptions(chatWindowPartOptions(!!content.editorArea, this._configurationService.getValue<string>('workbench.editor.showTabs')));
+		enforcePartOptions();
+		windowDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (content.editorArea && e.affectsConfiguration('workbench.editor.showTabs')) {
+				enforcePartOptions();
+			}
+		}));
 		// The chat shows as a chat view, not as an editor: no tab, lock or editor actions.
 		windowDisposables.add(part.hideGroupTitle(chatGroup));
 		chatGroup.lock(true);
@@ -371,12 +394,14 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			const editorAreaEditorContext = ChatWindowEditorAreaEditorContext.bindTo(windowContextKeyService);
 			const activeEditor = observableFromEvent(this, editorGroup.onDidActiveEditorChange, () => editorGroup.activeEditorPane?.getId() ?? '');
 			windowDisposables.add(autorun(reader => editorAreaEditorContext.set(activeEditor.read(reader))));
-			const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(windowContextKeyService);
-			windowDisposables.add(autorun(reader => {
-				const session = window.session.read(reader);
-				hasWorkspaceContext.set(!!session && !session.isQuickChat?.read(reader) && !!session.workspace.read(reader));
-			}));
 		}
+		// What the session commands of its title bar need to know about the session it shows, not the focused window's.
+		const hasWorkspaceContext = ChatWindowSessionHasWorkspaceContext.bindTo(windowContextKeyService);
+		windowDisposables.add(autorun(reader => {
+			const session = window.session.read(reader);
+			hasWorkspaceContext.set(!!session && !session.isQuickChat?.read(reader) && !!session.workspace.read(reader));
+			setActiveSessionContextKeys(session, windowContextKeyService, reader);
+		}));
 		windowDisposables.add(toDisposable(() => this._remove(window)));
 		Event.once(part.onWillDispose)(() => windowDisposables.dispose());
 		this._windows.set([...this._windows.get(), window], undefined);

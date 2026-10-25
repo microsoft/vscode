@@ -5,10 +5,13 @@
 
 import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Menus } from '../../../../browser/menus.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -17,6 +20,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
+import { NEW_SESSION_ACTION_ID } from '../../common/constants.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -103,5 +107,21 @@ suite('NewChatInSessionsWindowAction', () => {
 	test('surfaces failure to create an explicitly targeted session', async () => {
 		const fixture = createCommand({ creationFailed: true });
 		await assert.rejects(async () => fixture.run({ noWorkspace: true, agentHostProvider: 'copilotcli' }), /Could not create a session/);
+	});
+
+	test('offers New Session in the title bar of the main window and not of an auxiliary window', () => {
+		const store2 = new DisposableStore();
+		if (!CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID)) {
+			store2.add(registerAction2(NewChatInSessionsWindowAction));
+		}
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarLeftLayout).filter(isIMenuItem).find(candidate => candidate.command.id === NEW_SESSION_ACTION_ID);
+		const shownIn = (values: Record<string, boolean>) => !!item?.when?.evaluate(<IContext>{ getValue: (key: string) => values[key] });
+		const hiddenSideBar = { sideBarVisible: false, sessionsTitleBarNewSessionEnabled: true };
+		store2.dispose();
+
+		assert.deepStrictEqual({
+			main: shownIn({ ...hiddenSideBar, isAuxiliaryWindow: false }),
+			auxiliary: shownIn({ ...hiddenSideBar, isAuxiliaryWindow: true }),
+		}, { main: true, auxiliary: false });
 	});
 });
