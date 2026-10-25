@@ -142,6 +142,7 @@ suite('Agent Host PR test selection', () => {
 				agentHost: agentHost && {
 					needs: agentHost.needs,
 					if: agentHost.if,
+					affected: agentHost.with?.affected,
 					agentHostTests: agentHost.with?.agent_host_e2e_tests,
 					integrationTests: agentHost.with?.integration_tests,
 					profile: agentHost.with?.agent_host_test_profile,
@@ -150,6 +151,7 @@ suite('Agent Host PR test selection', () => {
 				// Provider integration tests in the serial node.js run also read the profile.
 				integration: {
 					if: integration?.if,
+					affected: integration?.with?.affected,
 					agentHostTests: integration?.with?.agent_host_e2e_tests,
 					profile: integration?.with?.agent_host_test_profile,
 					reason: integration?.with?.agent_host_test_profile_reason,
@@ -229,7 +231,8 @@ suite('Agent Host PR test selection', () => {
 				...['agent-host-e2e', 'selected-agent-host-e2e'].map(output => ({
 					agentHost: undefined,
 					integration: {
-						if: '${{ !cancelled() && (needs.changes.result != \'success\' || needs.changes.outputs.electron-tests == \'true\') }}',
+						if: '${{ !cancelled() }}',
+						affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.electron-tests == \'true\' }}',
 						agentHostTests: `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`,
 						profile,
 						reason,
@@ -238,15 +241,17 @@ suite('Agent Host PR test selection', () => {
 				{
 					agentHost: {
 						needs: 'changes',
+						if: '${{ !cancelled() }}',
 						// Runs when detection fails.
-						if: '${{ !cancelled() && (needs.changes.result != \'success\' || needs.changes.outputs.selected-agent-host-e2e == \'true\') }}',
+						affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.selected-agent-host-e2e == \'true\' }}',
 						agentHostTests: true,
 						integrationTests: false,
 						profile,
 						reason,
 					},
 					integration: {
-						if: '${{ !cancelled() && (needs.changes.result != \'success\' || needs.changes.outputs.product-tests == \'true\') }}',
+						if: '${{ !cancelled() }}',
+						affected: '${{ needs.changes.result != \'success\' || needs.changes.outputs.product-tests == \'true\' }}',
 						agentHostTests: undefined,
 						profile,
 						reason,
