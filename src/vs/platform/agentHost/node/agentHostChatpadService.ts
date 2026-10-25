@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { extUri, extUriIgnorePathCase, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
-import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from '../../files/common/files.js';
+import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, toFileOperationResult, type IFileStatWithPartialMetadata } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
@@ -23,8 +23,11 @@ export const IAgentHostChatpadService = createDecorator<IAgentHostChatpadService
  * it, or before its first request while it is live; an unused chat that is collected stops existing.
  */
 export interface IAgentHostChatpadSessions {
-	/** The session `session`, with its agent provider when known; `undefined` when it doesn't exist. */
-	find(session: string): Promise<{ readonly provider: string | undefined } | undefined>;
+	/**
+	 * The session `session`, with its agent provider when known; `undefined` when it isn't available now, and
+	 * `'removed'` when the host no longer knows it, such as after it was deleted. Looks up that one session only.
+	 */
+	find(session: string): Promise<{ readonly provider: string | undefined } | 'removed' | undefined>;
 }
 
 /**
@@ -123,7 +126,7 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 	getChatpad(sessions: IAgentHostChatpadSessions): Promise<IAgentHostChatpad | undefined> {
 		return this._sequencer.queue(async () => {
 			const session = this.session;
-			const found = session === undefined ? undefined : await sessions.find(session);
+			const found = session === undefined ? undefined : await this._find(sessions, session);
 			if (session === undefined || !found) {
 				return undefined;
 			}
@@ -183,21 +186,46 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 	}
 
 	private async _exists(sessions: IAgentHostChatpadSessions, session: string): Promise<boolean> {
-		return !!await sessions.find(session);
+		return !!await this._find(sessions, session);
+	}
+
+	/** Looks up `session`; forgets it as the Chatpad chat once the host no longer knows it, so later calls look up nothing. */
+	private async _find(sessions: IAgentHostChatpadSessions, session: string): Promise<{ readonly provider: string | undefined } | undefined> {
+		const found = await sessions.find(session);
+		if (found !== 'removed') {
+			return found;
+		}
+		if (this.session === session) {
+			this._logService.info(`[AgentHostChatpad] Chatpad chat ${session} was removed; the host has no Chatpad until another chat claims it`);
+			this._storageService.delete(CHATPAD_SESSION_STORAGE_KEY);
+		}
+		return undefined;
 	}
 
 	private async _ensureNote(note: URI): Promise<void> {
+		let stat: IFileStatWithPartialMetadata | undefined;
 		try {
-			await this._fileService.createFile(note, VSBuffer.fromString(NOTE_TEMPLATE), { overwrite: false });
+			stat = await this._fileService.stat(note);
 		} catch (error) {
-			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				throw error;
+			}
+		}
+		if (!stat) {
+			try {
+				stat = await this._fileService.createFile(note, VSBuffer.fromString(NOTE_TEMPLATE), { overwrite: false });
+			} catch (error) {
+				if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
+					throw error;
+				}
+				// Created meanwhile, by the Chatpad chat or another client's request.
+				stat = await this._fileService.stat(note);
 			}
 		}
 		// A link at the note's path would redirect appends to another file. A process of the same user, such as the
 		// chat's own shell, could still swap in a link between this check and a write, or link the scratch folder;
 		// that is accepted, as it could write the target directly. Approving the chat's edits resolves links anyway.
-		if ((await this._fileService.stat(note)).isSymbolicLink) {
+		if (stat.isSymbolicLink) {
 			throw new Error(`The Chatpad note ${note.fsPath} is a symbolic link.`);
 		}
 	}
