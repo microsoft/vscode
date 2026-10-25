@@ -618,6 +618,11 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, removeIfExists: boolean, token: CancellationToken): Promise<ILocalExtension> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		await this.removeTemporarilyDeletedFolders();
+
 		const folderName = extensionKey.toString();
 		const tempLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`));
 		const extensionLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName));
@@ -679,7 +684,7 @@ export class ExtensionsScanner extends Disposable {
 			} catch (error) {
 				if (error.code === 'ENOTEMPTY') {
 					this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
-					try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
+					try { await this.fileService.del(tempLocation, { recursive: true, atomic: { postfix: DELETED_FOLDER_POSTFIX } }); } catch (e) { /* ignore */ }
 				} else {
 					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempLocation);
 					throw error;
@@ -689,7 +694,7 @@ export class ExtensionsScanner extends Disposable {
 			this._onExtract.fire(extensionLocation);
 
 		} catch (error) {
-			try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
+			try { await this.fileService.del(tempLocation, { recursive: true, atomic: { postfix: DELETED_FOLDER_POSTFIX } }); } catch (e) { /* ignore */ }
 			throw error;
 		}
 
@@ -1021,7 +1026,8 @@ export class ExtensionsScanner extends Disposable {
 				}
 				this.logService.trace('Deleting the temporarily deleted folder', child.resource.toString());
 				try {
-					await this.fileService.del(child.resource, { recursive: true });
+					// Keep failed deletions under their marker so the next cleanup can retry.
+					await pfs.Promises.rm(child.resource.fsPath, pfs.RimRafMode.UNLINK);
 					this.logService.trace('Deleted the temporarily deleted folder', child.resource.toString());
 				} catch (error) {
 					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
