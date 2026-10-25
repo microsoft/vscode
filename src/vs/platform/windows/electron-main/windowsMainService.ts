@@ -132,6 +132,14 @@ interface IFilesToOpen {
 	filesToWait?: IPathsToWaitFor;
 }
 
+/**
+ * Whether these are the windows that the application opens on startup after it
+ * was launched in the background, where opening them must not take focus.
+ */
+function isInitialOpenInBackground(options: { readonly initialStartup?: boolean; readonly cli?: NativeParsedArgs }): boolean {
+	return !!options.initialStartup && !!options.cli?.['open-in-background'];
+}
+
 interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 
 	/**
@@ -423,7 +431,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, maybeOpenEmptyWindow: ${maybeOpenEmptyWindow})`);
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
-		if (usedWindows.length > 1) {
+		if (usedWindows.length > 1 && !isInitialOpenInBackground(openConfig)) {
 
 			// 1.) focus window we opened files in always with highest priority
 			if (filesOpenedInWindow) {
@@ -1520,7 +1528,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
 			window = options.windowToUse || (lastActiveWindow?.config?.isSessionsWindow ? undefined : lastActiveWindow);
-			if (window) {
+			if (window && !isInitialOpenInBackground(options)) {
 				window.focus();
 			}
 		}
@@ -1609,7 +1617,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				isSessionsWindow: configuration.isSessionsWindow
+				isSessionsWindow: configuration.isSessionsWindow,
+				showInBackground: isInitialOpenInBackground(options)
 			});
 			mark('code/didCreateCodeWindow');
 

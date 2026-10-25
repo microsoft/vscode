@@ -54,6 +54,12 @@ export interface IWindowCreationOptions {
 	readonly extensionDevelopmentPath?: string[];
 	readonly isExtensionTestHost?: boolean;
 	readonly isSessionsWindow?: boolean;
+
+	/**
+	 * Show the window without activating the application and, on macOS,
+	 * behind the windows of the active application.
+	 */
+	readonly showInBackground?: boolean;
 }
 
 interface ITouchBarSegment extends electron.SegmentedControlSegment {
@@ -310,7 +316,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}));
 	}
 
-	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
+	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0, showInBackground = false): void {
 
 		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 		// to open the window has a larger resolution than the primary display, the window will not size
@@ -349,7 +355,29 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
-			this._win?.show();
+			if (!showInBackground) {
+				this._win?.show();
+			}
+		}
+
+		if (showInBackground) {
+			this.showInBackground();
+		}
+	}
+
+	private showInBackground(): void {
+		const win = this._win;
+		if (!win) {
+			return;
+		}
+
+		if (!win.isVisible()) {
+			win.showInactive();
+		}
+
+		// macOS: order the window behind the windows of the active application
+		if (isMacintosh) {
+			win.blur();
 		}
 	}
 
@@ -794,6 +822,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
+			if (config.showInBackground) {
+				options.show = false; // a window that is created visible activates the application
+			}
 			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
 			if (iconPath) {
 				options.icon = iconPath;
@@ -809,7 +840,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.setWin(this._win, options);
 
 			// Apply some state after window creation
-			this.applyState(this.windowState, hasMultipleDisplays);
+			this.applyState(this.windowState, hasMultipleDisplays, config.showInBackground);
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 		}
