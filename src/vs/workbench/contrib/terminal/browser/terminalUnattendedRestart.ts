@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { PromptInputState } from '../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { GeneralShellType, PosixShellType, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
-import { ITerminalConfigurationService, ITerminalService } from './terminal.js';
+import { ITerminalConfigurationService, ITerminalInstance, ITerminalService } from './terminal.js';
 
 /**
  * Shells whose state is limited to what reviving a terminal restores. Any other process in
@@ -52,8 +54,11 @@ export class TerminalUnattendedRestartParticipant extends Disposable implements 
 			return undefined;
 		}
 
-		if (instances.some(instance => instance.hasChildProcesses || !INTERACTIVE_SHELLS.has(instance.shellType))) {
-			return 'terminal.runningProcess';
+		for (const instance of instances) {
+			const blocker = getTerminalInstanceBlocker(instance);
+			if (blocker) {
+				return blocker;
+			}
 		}
 
 		const { enablePersistentSessions, persistentSessionReviveProcess, confirmOnExit } = this._terminalConfigurationService.config;
@@ -67,4 +72,35 @@ export class TerminalUnattendedRestartParticipant extends Disposable implements 
 
 		return undefined;
 	}
+}
+
+/**
+ * Returns why restarting would interrupt the terminal: it must be an interactive shell that shell
+ * integration reports as idle at a prompt with nothing typed. A command made only of shell
+ * builtins (e.g. `while :; do :; done`, or a script waiting at `read`) has no child process.
+ */
+export function getTerminalInstanceBlocker(instance: Pick<ITerminalInstance, 'hasChildProcesses' | 'shellType' | 'capabilities'>): string | undefined {
+	if (instance.hasChildProcesses || !INTERACTIVE_SHELLS.has(instance.shellType)) {
+		return 'terminal.runningProcess';
+	}
+
+	const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+	if (!commandDetection) {
+		return 'terminal.idleUnknown';
+	}
+
+	if (commandDetection.executingCommandObject) {
+		return 'terminal.runningProcess';
+	}
+
+	const { state, prefix, suffix } = commandDetection.promptInputModel;
+	if (state !== PromptInputState.Input) {
+		return 'terminal.idleUnknown';
+	}
+
+	if ((prefix + suffix).trim().length > 0) {
+		return 'terminal.pendingInput'; // typed but not run, the revived shell starts with an empty prompt
+	}
+
+	return undefined;
 }
