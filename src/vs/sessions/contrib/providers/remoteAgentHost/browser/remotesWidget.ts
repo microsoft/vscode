@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -78,6 +79,8 @@ export class RemotesWidget extends Disposable {
 	private readonly tableMinWidth: number;
 	private readonly message: HTMLElement;
 	private readonly searchInput: InputBox;
+	private readonly clearSearchAction: Action;
+	private readonly collapseAllAction: Action;
 	private readonly refreshAction: Action;
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly refreshingKinds = new Set<RemoteKind>();
@@ -90,6 +93,7 @@ export class RemotesWidget extends Disposable {
 	private query = '';
 	private failedKinds: readonly RemoteKind[] = [];
 	private hasRefreshed = false;
+	private signingInToTunnels = false;
 
 	constructor(
 		container: HTMLElement,
@@ -111,10 +115,23 @@ export class RemotesWidget extends Disposable {
 		this.kinds = getVisibleRemoteKinds(operatingSystem);
 		this.domNode = dom.append(container, dom.$('.remotes-widget'));
 		const searchRow = dom.append(this.domNode, dom.$('.remotes-search-row'));
+		const actionHoverDelegate = this._register(createInstantHoverDelegate());
+		this.clearSearchAction = this._register(new Action('remotes.clearSearch', localize('remotes.clearSearch', "Clear Search"), ThemeIcon.asClassName(Codicon.clearAll), false, () => {
+			this.setSearchQuery('');
+			this.searchInput.focus();
+		}));
+		this.collapseAllAction = this._register(new Action('remotes.collapseAll', localize('remotes.collapseAll', "Collapse All"), ThemeIcon.asClassName(Codicon.collapseAll), true, () => {
+			for (const kind of this.kinds) {
+				this.collapsedKinds.add(kind);
+			}
+			this.render();
+		}));
 		this.searchInput = this._register(new InputBox(dom.append(searchRow, dom.$('.remotes-search-container')), contextViewService, {
 			placeholder: localize('remotes.searchPlaceholder', "Type to search..."),
 			ariaLabel: localize('remotes.searchLabel', "Search remotes"),
 			inputBoxStyles: defaultInputBoxStyles,
+			actions: [this.clearSearchAction, this.collapseAllAction],
+			actionViewItemProvider: (action, options) => new ActionViewItem(undefined, action, { ...options, hoverDelegate: actionHoverDelegate }),
 		}));
 		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
 		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
@@ -143,7 +160,6 @@ export class RemotesWidget extends Disposable {
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 112 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
 		] as const;
-		const actionHoverDelegate = this._register(createInstantHoverDelegate());
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
 			instantiationService, hoverService, openerService,
@@ -171,7 +187,7 @@ export class RemotesWidget extends Disposable {
 							? localize('remotes.groupWarningLabel', "{0}, {1} remotes. Warning: {2}", entry.label, entry.count, entry.warning)
 							: localize('remotes.groupLabel', "{0}, {1} remotes", entry.label, entry.count)
 						: entry.type === 'empty'
-							? [entry.label, entry.description, entry.documentation?.label].filter(Boolean).join(' ')
+							? [entry.label, entry.description, entry.action?.label, entry.documentation?.label].filter(Boolean).join(' ')
 							: this.getRemoteAriaLabel(entry.remote);
 				},
 			},
@@ -220,13 +236,16 @@ export class RemotesWidget extends Disposable {
 		this._register(resizeObserver.observe(this.domNode));
 		this._register(autorun(reader => {
 			this.model.remotes.read(reader);
+			this.model.tunnelAuthenticationRequired.read(reader);
 			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader));
 			this.render();
 		}));
 	}
 
 	private runRowAction(entry: RemoteTableEntry, action: RemoteRowAction): void {
-		if (entry.type === 'group') {
+		if (entry.type === 'empty' && action === 'signIn') {
+			void this.signInToTunnels();
+		} else if (entry.type === 'group') {
 			if (action === 'toggleGroup') {
 				this.toggleGroup(entry.kind);
 			} else if (action === 'configure') {
@@ -247,6 +266,29 @@ export class RemotesWidget extends Disposable {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'rename') {
 				void this.renameRemote(entry.remote.id);
+			}
+		}
+	}
+
+	private async signInToTunnels(): Promise<void> {
+		if (this.signingInToTunnels || !this.model.tunnelAuthenticationRequired.get()) {
+			return;
+		}
+		this.signingInToTunnels = true;
+		this.render();
+		try {
+			await this.model.signInToTunnels();
+			if (!this._store.isDisposed && this.visible) {
+				await this.refresh();
+			}
+		} catch (error) {
+			if (!isCancellationError(error) && !this._store.isDisposed) {
+				this.notificationService.error(error);
+			}
+		} finally {
+			this.signingInToTunnels = false;
+			if (!this._store.isDisposed) {
+				this.render();
 			}
 		}
 	}
@@ -300,6 +342,7 @@ export class RemotesWidget extends Disposable {
 		const changed = this.query !== normalizedQuery;
 		this.query = normalizedQuery;
 		this.searchInput.value = query;
+		this.clearSearchAction.enabled = !!query;
 		if (changed) {
 			if (this.query) {
 				this.collapsedKinds.clear();
@@ -345,7 +388,7 @@ export class RemotesWidget extends Disposable {
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
 				this.failedKinds = failedKinds;
 				this.hasRefreshed = true;
-				if (failedKinds.some(kind => this.kinds.includes(kind))) {
+				if (failedKinds.some(kind => this.kinds.includes(kind) && this.getRefreshWarning(kind))) {
 					status(localize('remotes.refreshWarnings', "Some remote locations could not be refreshed. Check the warnings on the remote groups for details."));
 				}
 			}
@@ -374,6 +417,14 @@ export class RemotesWidget extends Disposable {
 
 	private getEmptyEntry(kind: RemoteKind): IRemoteEmptyEntry {
 		const id = `remote-empty-${kind}`;
+		if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
+			return {
+				type: 'empty', id,
+				label: localize('remotes.tunnels.signInRequired', "Sign in to allow access to your tunnels."),
+				action: { label: localize('remotes.tunnels.signIn', "Sign In"), enabled: !this.signingInToTunnels },
+				documentation: remoteSetup.tunnel.documentation,
+			};
+		}
 		if (this.failedKinds.includes(kind)) {
 			return {
 				type: 'empty', id, label: localize('remotes.empty.failed', "Could not refresh {0}.", remoteKindLabels[kind]),
@@ -400,13 +451,17 @@ export class RemotesWidget extends Disposable {
 				documentation: remoteSetup[kind].documentation,
 			});
 			if (!collapsed) {
+				if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
+					entries.push(this.getEmptyEntry(kind));
+				}
 				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
 					busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
-				})) : this.hasRefreshed || this.failedKinds.includes(kind) ? [this.getEmptyEntry(kind)] : []));
+				})) : kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get() ? [] : this.hasRefreshed || this.failedKinds.includes(kind) ? [this.getEmptyEntry(kind)] : []));
 			}
 		}
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
+		this.collapseAllAction.enabled = entries.some(entry => entry.type === 'group' && !entry.collapsed);
 		this.table.splice(0, this.table.length, this.rows);
 		if (!this.table.getFocus().length) {
 			this.table.focusFirst();
@@ -471,6 +526,9 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRefreshWarning(kind: RemoteKind): string | undefined {
+		if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
+			return undefined;
+		}
 		if (!this.failedKinds.includes(kind)) {
 			return undefined;
 		}
@@ -494,14 +552,15 @@ export class RemotesWidget extends Disposable {
 			if (this.query && entries.length === 0) {
 				return [];
 			}
-			const empty = entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
+			const empty = kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()
+				? this.getEmptyEntry(kind) : entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
 			const documentation = remoteSetup[kind].documentation;
 			return [
 				remoteKindLabels[kind],
 				...(this.refreshingKinds.has(kind) ? [localize('remotes.refreshingGroup', "Refreshing.")] : []),
 				...(warning ? [warning] : []),
 				...entries.map(remote => this.getRemoteAriaLabel(remote)),
-				...(empty ? [empty.label, empty.description ?? ''] : []),
+				...(empty ? [empty.label, empty.description ?? '', empty.action?.label ?? ''] : []),
 				...(documentation ? [`${documentation.label}: ${documentation.href}`] : []),
 			];
 		}).join('\n');
@@ -512,6 +571,7 @@ export class RemotesWidget extends Disposable {
 	}
 
 	layout(): void {
+		this.searchInput.paddingRight = this.searchInput.actionsWidth + 4;
 		if (this.domNode.clientWidth > 0 && this.domNode.clientHeight > 0) {
 			const contentOffset = Math.max(0, this.tableContainer.getBoundingClientRect().top - this.domNode.getBoundingClientRect().top);
 			const height = Math.max(0, this.domNode.clientHeight - contentOffset);

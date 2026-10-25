@@ -18,7 +18,7 @@ import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -56,6 +56,7 @@ suite('RemotesModel', () => {
 		const removals: string[] = [];
 		const connectionChanges: { id: string; connected: boolean }[] = [];
 		const reconnects: string[] = [];
+		const signIns: string[] = [];
 		const displayNames = new Map<string, string>();
 		const displayNamesChanged = store.add(new Emitter<string>());
 		const renameInputs: IInputOptions[] = [];
@@ -152,6 +153,7 @@ suite('RemotesModel', () => {
 			clearTunnelDismissal: id => { dismissed.delete(id); },
 			cacheTunnel: (value, authProvider) => { tunnels = [{ ...value, authProvider }]; },
 			connect: async value => { reconnects.push(`tunnel:${value.tunnelId}`); },
+			signIn: async provider => { signIns.push(provider); },
 		});
 		instantiationService.stub(IDevContainerAgentHostService, {
 			onDidChangeAvailability: Event.None,
@@ -222,7 +224,7 @@ suite('RemotesModel', () => {
 		});
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
 		return {
-			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects,
+			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			failConnection: (error: Error) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
@@ -369,6 +371,43 @@ suite('RemotesModel', () => {
 			tunnelProgress: [{ kind: 'tunnel', refreshing: true }, { kind: 'tunnel', refreshing: false, failed: true }],
 			logEntries: [{ message: '[Remotes] tunnel discovery failed', args: [error] }],
 		});
+	});
+
+	test('only authentication failures offer sign-in and recovery never connects or forgets cached hosts', async () => {
+		const { model, setTunnelDiscovery, setTunnelAuthentication, reconnects, signIns, setConfiguration } = setup();
+		await model.refresh(CancellationToken.None);
+		setTunnelAuthentication(async () => undefined);
+		setTunnelDiscovery(async () => { throw new TunnelAuthenticationRequiredError('github'); });
+		await model.refresh(CancellationToken.None);
+		const required = model.tunnelAuthenticationRequired.get();
+		await model.signInToTunnels();
+		const retained = model.remotes.get().some(remote => remote.id === 'tunnel:laptop');
+		setTunnelDiscovery(async () => { throw new Error('Network unavailable'); });
+		await model.refresh(CancellationToken.None);
+		const network = model.tunnelAuthenticationRequired.get();
+		await assert.rejects(model.signInToTunnels(), isCancellationError);
+		setTunnelDiscovery(async () => { throw new TunnelAuthenticationRequiredError('microsoft'); });
+		await model.refresh(CancellationToken.None);
+		await setConfiguration('chat.disableAIFeatures', true);
+		await assert.rejects(model.signInToTunnels(), isCancellationError);
+		await setConfiguration('chat.disableAIFeatures', false);
+		setTunnelDiscovery(async () => [tunnel]);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ required, retained, network, recovered: model.tunnelAuthenticationRequired.get(), reconnects, signIns }, {
+			required: 'github', retained: true, network: undefined, recovered: undefined, reconnects: [], signIns: ['github'],
+		});
+	});
+
+	test('canceled discovery does not publish an authentication prompt', async () => {
+		const { model, setTunnelDiscovery } = setup();
+		const pending = new DeferredPromise<ITunnelInfo[]>();
+		setTunnelDiscovery(() => pending.p);
+		const cancellation = store.add(new CancellationTokenSource());
+		const refresh = model.refresh(cancellation.token);
+		cancellation.cancel();
+		await pending.error(new TunnelAuthenticationRequiredError('github'));
+		await refresh;
+		assert.strictEqual(model.tunnelAuthenticationRequired.get(), undefined);
 	});
 
 	test('successful refresh replaces discovered rows and removes obsolete connection targets', async () => {

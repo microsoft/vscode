@@ -21,6 +21,7 @@ interface IWorkflowJob {
 	readonly uses?: string;
 	readonly with?: Record<string, unknown>;
 	readonly outputs?: Record<string, string>;
+	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly 'continue-on-error'?: boolean }[];
 	readonly strategy?: { readonly matrix: { readonly include?: readonly IRequiredCheck[] } };
 }
 
@@ -168,7 +169,22 @@ suite('Detect Changes', () => {
 		// The changes job also passes on the outputs of the Agent Host E2E change detection, and combines both for the
 		// Linux and macOS Electron jobs, which also run Agent Host E2E.
 		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
-		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs].sort());
+		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job.
+		const rippleOutputs = ['ripple-changed', 'ripple-failed'];
+		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs].sort());
+	});
+
+	test('the Ripple check runs for the pull requests that change ripple, and the planning never fails Detect Changes', () => {
+		const { jobs } = loadWorkflow();
+		assert.deepStrictEqual({
+			outputs: [jobs.changes.outputs?.['ripple-changed'], jobs.changes.outputs?.['ripple-failed']],
+			ripple: { name: jobs.ripple?.name, needs: jobs.ripple?.needs, if: jobs.ripple?.if },
+			failingSteps: (jobs.changes.steps ?? []).filter(step => /ripple|plan/i.test(step.name ?? '') && step['continue-on-error'] !== true && step.id !== 'ripple').map(step => step.name),
+		}, {
+			outputs: ['${{ steps.ripple.outputs.changed }}', '${{ steps.ripple.outputs.failed }}'],
+			ripple: { name: 'Ripple', needs: 'changes', if: `\${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}` },
+			failingSteps: [],
+		});
 	});
 
 	test('the required core test checks report from jobs that skip only when the changes cannot affect them', () => {

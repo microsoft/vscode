@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
@@ -30,6 +31,15 @@ import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly environmentsEnabled = observableValue(this, false);
+	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
+	pendingSignIn: DeferredPromise<void> | undefined;
+	signInCalls = 0;
+	async signInToTunnels(): Promise<void> {
+		this.signInCalls++;
+		await this.pendingSignIn?.p;
+		this.tunnelAuthenticationRequired.set(undefined, undefined);
+		this.failedKinds = this.failedKinds.filter(kind => kind !== 'tunnel');
+	}
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
@@ -950,6 +960,109 @@ suite('RemotesWidget', () => {
 			expanded: 'true',
 		});
 	});
+
+	test('search actions are vertically centered inside wide and narrow search fields', () => {
+		const { widget, parent } = createWidget();
+		for (const width of [900, 360]) {
+			parent.style.width = `${width}px`;
+			widget.layout();
+			const search = parent.querySelector<HTMLElement>('.remotes-search-container .monaco-inputbox')!;
+			const inputBounds = search.getBoundingClientRect();
+			for (const action of search.querySelectorAll<HTMLElement>('[role="button"]')) {
+				const bounds = action.getBoundingClientRect();
+				const offset = bounds.top + bounds.height / 2 - inputBounds.top - inputBounds.height / 2;
+				assert.ok(Math.abs(offset) < 0.5, `${action.getAttribute('aria-label')} is offset by ${offset}px at width ${width}`);
+			}
+		}
+	});
+
+	test('search actions clear and collapse without changing connections or clearing the query on collapse', async () => {
+		const { widget, parent, model } = createWidget();
+		const input = parent.querySelector<HTMLInputElement>('input')!;
+		const clear = parent.querySelector<HTMLElement>('.remotes-search-container .codicon-clear-all')!;
+		const collapse = parent.querySelector<HTMLElement>('.remotes-search-container .codicon-collapse-all')!;
+		const initial = { clear: clear.getAttribute('aria-disabled'), collapse: collapse.getAttribute('aria-disabled') };
+		widget.setSearchQuery('build');
+		collapse.click();
+		const collapsed = { query: input.value, rows: parent.querySelectorAll('[data-remote-id]').length, disabled: collapse.getAttribute('aria-disabled') };
+		clear.focus();
+		clear.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		for (const type of ['keydown', 'keyup']) {
+			clear.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		const cleared = { query: input.value, focus: dom.getActiveElement() === input, disabled: clear.getAttribute('aria-disabled') };
+		widget.setSearchQuery('missing');
+		const noGroups = collapse.getAttribute('aria-disabled');
+		widget.setSearchQuery('laptop');
+		widget.setVisible(true);
+		await timeout(0);
+		assert.deepStrictEqual({ initial, collapsed, cleared, noGroups, searchRetained: input.value, connections: model.connectionChanges }, {
+			initial: { clear: 'true', collapse: null }, collapsed: { query: 'build', rows: 0, disabled: 'true' },
+			cleared: { query: '', focus: true, disabled: 'true' }, noGroups: 'true', searchRetained: 'laptop', connections: [],
+		});
+	});
+
+	for (const hasCachedTunnels of [false, true]) {
+		test(`tunnel authentication recovery replaces generic error copy and refreshes after keyboard sign-in (cached: ${hasCachedTunnels})`, async () => {
+			const { widget, parent, model, errors, documentation } = createWidget();
+			parent.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+			if (!hasCachedTunnels) {
+				model.remotes.set([], undefined);
+			}
+			model.tunnelAuthenticationRequired.set('github', undefined);
+			model.failedKinds = ['tunnel'];
+			widget.setVisible(true);
+			await timeout(0);
+			const authRow = [...parent.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.textContent?.includes('Sign in to allow access'))!;
+			authRow.click();
+			const link = authRow.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!;
+			const before = {
+				copy: authRow.querySelector('.remotes-name')?.textContent, warnings: parent.querySelectorAll('.remotes-refresh-warning:not([hidden])').length,
+				genericError: parent.textContent?.includes('Could not refresh Tunnels.'), tabbable: link.tabIndex,
+				cached: parent.querySelectorAll('[data-remote-id="tunnel:laptop"]').length,
+				accessible: widget.getAccessibilityContent().includes('Sign In'),
+				spinners: authRow.querySelectorAll('.remotes-signin-progress:not([hidden])').length,
+			};
+			model.pendingSignIn = new DeferredPromise<void>();
+			link.focus();
+			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			link.click();
+			const spinner = authRow.querySelector<HTMLElement>('.monaco-link + .remotes-signin-progress')!;
+			const busy = {
+				disabled: link.getAttribute('aria-disabled'), rowBusy: authRow.getAttribute('aria-busy'),
+				spinning: !spinner.hidden && spinner.classList.contains('codicon-modifier-spin'),
+				size: dom.getWindow(spinner).getComputedStyle(spinner).fontSize,
+			};
+			await model.pendingSignIn.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ before, busy, calls: model.signInCalls, refreshes: model.refreshCalls, signInLinks: parent.querySelectorAll('.remotes-empty-signin:not([hidden])').length, remainingSpinners: parent.querySelectorAll('.remotes-signin-progress:not([hidden])').length, errors, documentation }, {
+				before: { copy: 'Sign in to allow access to your tunnels.', warnings: 0, genericError: false, tabbable: 0, cached: hasCachedTunnels ? 1 : 0, accessible: true, spinners: 0 },
+				busy: { disabled: 'true', rowBusy: 'true', spinning: true, size: '12px' }, calls: 1, refreshes: 2, signInLinks: 0, remainingSpinners: 0, errors: [], documentation: [],
+			});
+		});
+	}
+
+	for (const outcome of ['cancel', 'failure', 'dispose'] as const) {
+		test(`tunnel sign-in handles ${outcome} without a late refresh or silent errors`, async () => {
+			const { widget, parent, model, errors } = createWidget();
+			model.tunnelAuthenticationRequired.set('github', undefined);
+			model.pendingSignIn = new DeferredPromise<void>();
+			widget.setVisible(true);
+			await timeout(0);
+			parent.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!.click();
+			const error = outcome === 'cancel' ? new CancellationError() : new Error('Sign-in failed');
+			if (outcome === 'dispose') {
+				widget.dispose();
+				await model.pendingSignIn.complete();
+			} else {
+				await model.pendingSignIn.error(error);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ calls: model.signInCalls, refreshes: model.refreshCalls, errors, spinners: parent.querySelectorAll('.remotes-signin-progress:not([hidden])').length, retryEnabled: outcome === 'dispose' ? undefined : parent.querySelector('.remotes-empty-signin .monaco-link')?.getAttribute('aria-disabled') }, {
+				calls: 1, refreshes: 1, errors: outcome === 'failure' ? [error] : [], spinners: 0, retryEnabled: outcome === 'dispose' ? undefined : 'false',
+			});
+		});
+	}
 
 	test('section info actions open the same setup links for populated, collapsed, and empty groups', async () => {
 		const { widget, parent, model, documentation } = createWidget(OperatingSystem.Windows);

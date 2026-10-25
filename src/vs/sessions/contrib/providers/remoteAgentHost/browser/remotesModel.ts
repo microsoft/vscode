@@ -16,7 +16,7 @@ import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cl
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -60,6 +60,8 @@ export type IRemoteRefreshProgress =
 export interface IRemotesModel extends IDisposable {
 	readonly remotes: IObservable<readonly ICustomizationRemote[]>;
 	readonly environmentsEnabled: IObservable<boolean>;
+	readonly tunnelAuthenticationRequired: IObservable<'github' | 'microsoft' | undefined>;
+	signInToTunnels(): Promise<void>;
 	/** Returns the kinds that failed to refresh; diagnostic details are written to the log. */
 	refresh(token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>): Promise<readonly RemoteKind[]>;
 	setConnected(id: string, connected: boolean): Promise<void>;
@@ -91,6 +93,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = this._remotes;
 	private readonly _environmentsEnabled = observableValue(this, false);
 	readonly environmentsEnabled = this._environmentsEnabled;
+	private readonly _tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
+	readonly tunnelAuthenticationRequired = this._tunnelAuthenticationRequired;
 	private readonly pickerVisibility: RemoteAgentHostPickerVisibility;
 
 	constructor(
@@ -150,10 +154,16 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					for (const target of targets) {
 						this.targets.set(this.getId(target), target);
 					}
+					if (kind === 'tunnel') {
+						this._tunnelAuthenticationRequired.set(undefined, undefined);
+					}
 					this.update();
 				}
 			} catch (error) {
 				if (!token.isCancellationRequested && !isCancellationError(error)) {
+					if (kind === 'tunnel' && !this._store.isDisposed && this.enabled) {
+						this._tunnelAuthenticationRequired.set(error instanceof TunnelAuthenticationRequiredError ? error.authProvider : undefined, undefined);
+					}
 					this.logService.warn(`[Remotes] ${kind} discovery failed`, error);
 					failed = true;
 					return kind;
@@ -187,6 +197,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				})) : []),
 		]);
 		return errors.filter((error): error is RemoteKind => error !== undefined);
+	}
+
+	async signInToTunnels(): Promise<void> {
+		const authProvider = this.tunnelAuthenticationRequired.get();
+		if (!authProvider || !this.enabled || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		if (!this.tunnelService.signIn) {
+			throw new Error(localize('remotes.tunnelSignInUnsupported', "Tunnel sign-in is not supported by this application."));
+		}
+		await this.tunnelService.signIn(authProvider);
 	}
 
 	private async registerRemote(id: string): Promise<void> {
