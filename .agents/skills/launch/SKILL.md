@@ -79,13 +79,9 @@ $sessionTitle = '<title-from-get_current_session>'
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
 
-> On Windows, capturing the launcher with `& $launch | Select-Object -Last 1` can hang after the JSON is printed, because the launched app inherits the output pipe. Start it with `Start-Process powershell -RedirectStandardOutput <file> -RedirectStandardError <file> ...` and poll the file for `cdpPort` instead. `Start-Process -ArgumentList` splits on spaces, so wrap any argument that contains one (such as `--session-title "My title"`) in escaped quotes, or the launcher fails with `Unknown arg`.
-
 ### Handle a missing sign-in
 
-If the source profile is missing or has no stored GitHub session, **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
-
-On Windows, `launch.ps1` instead throws `Profile copy is missing auth-critical path(s)` when the source profile was never signed in (for example, `%USERPROFILE%\.vscode-oss-dev` holds only `extensions` and `argv.json`). There is no sign-in UI to continue to in that case, so go straight to the bootstrap choice below.
+If the source profile is missing or has no usable stored GitHub session (the launcher prints a `WARNING` on stderr), **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
 
 At that point, use the questions tool with these choices:
 
@@ -108,7 +104,7 @@ If the failed launch used a custom `--source-user-data-dir`, pass the same path 
 
 The bootstrap script returns only after the persistent Code OSS window's CDP endpoint is ready. It reports a log path and fails with the log tail if the window cannot become usable. Ask the user to sign in to GitHub/Copilot in that window and close it, using **I have signed in** as the acknowledgement choice. On macOS, the user must quit Code OSS completely with Cmd+Q; closing its last window does not stop the application.
 
-After the user acknowledges, wait for the bootstrap process tree to release the persistent profile before launching again. If the wait times out because the Code OSS app is still running after its window was closed, close it gracefully (for example `Get-Process -Id <pid>` then `CloseMainWindow()`) so sign-in data is flushed, rather than killing it:
+After the user acknowledges, wait for the bootstrap process tree to release the persistent profile before launching again:
 
 ```bash
 "$BOOTSTRAP" --wait-for-exit <exitMarker-from-bootstrap-json>
@@ -116,6 +112,17 @@ After the user acknowledges, wait for the bootstrap process tree to release the 
 
 ```powershell
 & $bootstrap -WaitForExit -ExitMarker <exitMarker-from-bootstrap-json>
+```
+
+If the wait times out, Code OSS is still running. On macOS, ask the user to quit it with Cmd+Q. On Windows, the bootstrap window is usually still open: close it gracefully rather than killing it, so pending sign-in data is written, then wait again. The `processId` in the bootstrap JSON is the `cmd.exe` wrapper, so find the window by its profile:
+
+```powershell
+. (Join-Path $skillDir 'scripts\cleanup\windows-process-arguments.ps1')
+Get-CimInstance Win32_Process -Filter "Name = 'Code - OSS.exe'" |
+	Where-Object { $_.CommandLine -and (Test-CommandLineHasPathArgument $_.CommandLine '--user-data-dir' '<userDataDir-from-bootstrap-json>') } |
+	ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
+	Where-Object { $_.MainWindowHandle -ne 0 } |
+	ForEach-Object { [void]$_.CloseMainWindow() }
 ```
 
 Use the same profile path that bootstrap reported; omit the explicit path only when using the default profile. Once the wait succeeds, run the normal launcher again. Its isolated copy will inherit the stored authentication without racing files still held by the bootstrap window.
@@ -135,7 +142,7 @@ Windows has no shared per-app keychain for these secrets, so they live in files 
 | Encrypted GitHub session blob | `<shared-data-dir>/sharedStorage/state.vscdb` |
 | DPAPI-wrapped decryption key (`os_crypt.encrypted_key`) | `<user-data-dir>/Local State` |
 
-The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir into the run's throwaway `shared-data` dir. The source resolves the same way `IEnvironmentService.appSharedDataHome` does - `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` if set, else `$env:VSCODE_PORTABLE\shared-data` when running portable, else `~/<product.sharedDataFolderName>` (i.e. `%USERPROFILE%\.vscode-oss-shared`). It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if neither database holds a GitHub session.
+The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir into the run's throwaway `shared-data` dir. The source resolves the same way `IEnvironmentService.appSharedDataHome` does - `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` if set, else `$env:VSCODE_PORTABLE\shared-data` when running portable, else `~/<product.sharedDataFolderName>` (i.e. `%USERPROFILE%\.vscode-oss-shared`). It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if neither database holds a GitHub session. When the source profile itself lacks those files, a stored session cannot be decrypted (its key lives in `Local State`), so the launcher warns and continues to the sign-in UI instead of failing; this is the usual state of `%USERPROFILE%\.vscode-oss-dev` before a bootstrap.
 
 > This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is a shared-data-dir problem, **not** a profile problem: signing in against the source profile writes a perfectly good session, but before this seeding existed every launch handed Code OSS an empty shared dir and threw it away.
 
@@ -425,7 +432,18 @@ To record a demo video, use the attached session as the Playwright `page` for a 
 - Put `showActions` titles at a corner that does not cover the control you click, for example `position: 'top-left'`; the default can intercept the click.
 - Reset to a known start state before recording. A leftover editor tab changes where views open, for example the Settings editor opens as a modal over a blank layout but as a side pane when an editor is already open. Clear tabs, toasts, and modals first, in a separate call so the pause is not recorded.
 - The Monaco-based search inputs, such as the Settings editor search box, have no accessible name. Click `.settings-editor .suggest-input-container` and use `page.keyboard.type` instead of a role locator.
-- For a before/after comparison of a change, record the same script twice, switching one `MODE` constant. Revert the changed sources (`git checkout <base> -- <files>`), rebuild with `npm run build-fast -- --client-only`, relaunch and record the "before", then restore the files and rebuild. Overlay a banner naming the build ("Before (main)" / "After (this PR)"), and assert the expected outcome in the script (for example, no toast before and a toast after) so the recording cannot misrepresent it.
+- For a before/after comparison of a change, record the same script twice, switching one `MODE` constant, and build the "before" from the merge base. Do not revert files with `git checkout <base> -- <files>`: it discards uncommitted edits, which may be the change you are demoing. Commit the change first so that `git status --short` is empty; otherwise uncommitted edits either block the switch or leak into the "before" build:
+
+  ```bash
+  git switch --detach "$(git merge-base HEAD origin/main)"   # "before"; works in bash and PowerShell
+  npm run build-fast -- --client-only                        # drop `-- --client-only` if the change touches extensions/
+  # relaunch, record the "before", close the window
+  git switch -                                               # back to the change
+  npm run build-fast -- --client-only
+  # relaunch and record the "after"
+  ```
+
+  Overlay a banner naming the build ("Before (main)" / "After (this PR)"), and assert the expected outcome in the script (for example, no toast before and a toast after) so the recording cannot misrepresent it.
 - To join two recordings into one, play them back to back in a Chromium page and record that page; Playwright's bundled ffmpeg has no concat demuxer.
 - Keep typed text short. Typing into Monaco key by key is visible but slow: about 400 characters produced a nearly four-minute video. Paste long setup text before recording starts.
 - To run a command, press `F1`, fill the `Type the name of a command to run.` textbox with `>Command Name`, and click the exact matching option. The list updates asynchronously, so pressing `Enter` right after filling can run a stale result.
