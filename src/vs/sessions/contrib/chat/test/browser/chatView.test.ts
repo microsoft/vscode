@@ -124,6 +124,29 @@ suite('Sessions - Chat View', () => {
 		}, { arrowReceivesPointer: true, timelineStillReceivesPointer: true });
 	});
 
+	test('keeps the scroll arrow inside a short transcript left by a tall composer', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: fixed; top: 0; left: 0; --vscode-spacing-size80: 8px; --vscode-spacing-size120: 12px; --vscode-spacing-size240: 24px;';
+		const session = dom.append(workbench, dom.$('.interactive-session'));
+		session.style.cssText = 'width: 480px; --vscode-chat-persistent-content-height: 28px;';
+		const list = dom.append(session, dom.$('.interactive-list'));
+		const button = dom.append(list, dom.$('button.chat-scroll-down'));
+		button.style.display = 'flex';
+
+		const offsets = (listHeight: number) => {
+			list.style.height = `${listHeight}px`;
+			const listBounds = list.getBoundingClientRect();
+			const bounds = button.getBoundingClientRect();
+			return { top: bounds.top - listBounds.top, bottom: listBounds.bottom - bounds.bottom };
+		};
+		assert.deepStrictEqual({ short: offsets(50), tall: offsets(300) }, {
+			// The arrow's usual 36px bottom offset would put its top 10px above the list.
+			short: { top: 0, bottom: 26 },
+			tall: { top: 240, bottom: 36 },
+		});
+	});
+
 	test('dims inactive composer drawers without hiding actions or double-dimming transcript notices', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => workbench.remove()));

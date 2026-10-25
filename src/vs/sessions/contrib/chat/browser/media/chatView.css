@@ -163,6 +163,8 @@
 }
 
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
+	/* Keep the arrow inside a short transcript (`.interactive-list` is its containing block) when a tall composer leaves little room. */
+	bottom: max(0px, min(calc(var(--vscode-spacing-size80) + var(--vscode-chat-persistent-content-height, 0px)), calc(100% - var(--vscode-spacing-size240))));
 	/* Keep the arrow clickable above the prompt timeline rail (15). */
 	z-index: 16;
 }
