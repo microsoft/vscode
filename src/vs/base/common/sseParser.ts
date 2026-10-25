@@ -110,7 +110,7 @@ export class SSEParser {
 			for (const buf of this.buffer) {
 				str += this.decoder.decode(buf, { stream: true });
 			}
-			// Decode the terminator to flush incomplete UTF-8 without resetting stream-wide BOM handling.
+			// Decode the terminator to replace incomplete UTF-8 without resetting stream-wide BOM handling.
 			str += this.decoder.decode(chunk.subarray(offset, index + 1), { stream: true }).slice(0, -1);
 			this.processLine(str);
 
