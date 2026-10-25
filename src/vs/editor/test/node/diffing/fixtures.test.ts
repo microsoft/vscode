@@ -7,7 +7,8 @@ import assert from 'assert';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from '../../../../base/common/path.js';
 import { setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, nodeModulesPath } from '../../../../base/common/network.js';
+import { isElectron } from '../../../../base/common/platform.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
 import { LegacyLinesDiffComputer } from '../../../common/diff/legacyLinesDiffComputer.js';
 import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
@@ -16,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
 import { AbstractText, ArrayText } from '../../../common/core/text/abstractText.js';
 import { LinesDiff } from '../../../common/diff/linesDiffComputer.js';
+import { createExternalLinesDiffComputer } from '../../../common/diff/externalLinesDiffComputer.js';
 
 suite('diffing fixtures', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,7 +35,7 @@ suite('diffing fixtures', () => {
 	const fixturesSrcDir = resolve(fixturesOutDir).replaceAll('\\', '/').replace('/out/vs/editor/', '/src/vs/editor/');
 	const folders = readdirSync(fixturesSrcDir);
 
-	function runTest(folder: string, diffingAlgoName: 'legacy' | 'advanced') {
+	function readFixture(folder: string) {
 		const folderPath = join(fixturesSrcDir, folder);
 		const files = readdirSync(folderPath);
 
@@ -41,13 +43,19 @@ suite('diffing fixtures', () => {
 		const secondFileName = files.find(f => f.startsWith('2.'))!;
 
 		const firstContent = readFileSync(join(folderPath, firstFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-		const firstContentLines = firstContent.split(/\n/);
 		const secondContent = readFileSync(join(folderPath, secondFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-		const secondContentLines = secondContent.split(/\n/);
+		return {
+			folderPath, firstFileName, secondFileName, firstContent, secondContent,
+			firstContentLines: firstContent.split(/\n/),
+			secondContentLines: secondContent.split(/\n/),
+			ignoreTrimWhitespace: folder.indexOf('trimws') >= 0,
+		};
+	}
+
+	function runTest(folder: string, diffingAlgoName: 'legacy' | 'advanced') {
+		const { folderPath, firstFileName, secondFileName, firstContent, secondContent, firstContentLines, secondContentLines, ignoreTrimWhitespace } = readFixture(folder);
 
 		const diffingAlgo = diffingAlgoName === 'legacy' ? new LegacyLinesDiffComputer() : new DefaultLinesDiffComputer();
-
-		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
 		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: true });
 
 		if (diffingAlgoName === 'advanced' && !ignoreTrimWhitespace) {
@@ -144,7 +152,29 @@ suite('diffing fixtures', () => {
 			});
 		}
 	}
+
+	// The wasm loader of @vscode/diff takes its node code path in the electron renderer, which cannot import `node:fs`.
+	for (const useWasm of isElectron ? [false] : [false, true]) {
+		test(`@vscode/diff (${useWasm ? 'advanced-wasm' : 'advanced-external'}) matches advanced on all fixtures`, async () => {
+			// Import by file URL: the electron test runner cannot resolve this ESM-only package by name.
+			const externalModuleUrl = FileAccess.asFileUri(`${nodeModulesPath}/@vscode/diff/dist/index.js`).toString(true);
+			const externalModule: typeof import('@vscode/diff') = await import(externalModuleUrl);
+			const external = await createExternalLinesDiffComputer(externalModule, useWasm);
+			const mismatches = folders.filter(folder => {
+				const { firstContentLines, secondContentLines, ignoreTrimWhitespace } = readFixture(folder);
+				const options = { ignoreTrimWhitespace, maxComputationTimeMs: 0, computeMoves: false };
+				const expected = formatChanges(new DefaultLinesDiffComputer().computeDiff(firstContentLines, secondContentLines, options));
+				const actual = formatChanges(external.computeDiff(firstContentLines, secondContentLines, options));
+				return JSON.stringify(actual) !== JSON.stringify(expected);
+			});
+			assert.deepStrictEqual(mismatches, []);
+		});
+	}
 });
+
+function formatChanges(diff: LinesDiff): string[] {
+	return diff.changes.map(c => `${c.original}->${c.modified} ${c.innerChanges?.map(i => i.toString()).join(' ')}`);
+}
 
 interface DiffingResult {
 	original: { content: string; fileName: string };

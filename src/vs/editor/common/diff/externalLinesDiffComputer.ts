@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IDiffComputer as IExternalDiffComputer, createDiffComputer as createExternalDiffComputer } from '@vscode/diff';
+import type * as ExternalDiff from '@vscode/diff';
 import { resolveAmdNodeModulePath } from '../../../amdX.js';
+import { Range } from '../core/range.js';
 import { LineRange } from '../core/ranges/lineRange.js';
-import { OffsetRange } from '../core/ranges/offsetRange.js';
-import { StringText } from '../core/text/abstractText.js';
-import { ensureDependenciesAreSet } from '../core/text/positionToOffset.js';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from './linesDiffComputer.js';
-import { lineRangeMappingFromRangeMappings, LineRangeMapping, RangeMapping } from './rangeMapping.js';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from './rangeMapping.js';
 
-type ExternalDiffModule = { createDiffComputer: typeof createExternalDiffComputer };
+type ExternalDiffModule = typeof ExternalDiff;
 
 let externalModulePromise: Promise<ExternalDiffModule> | undefined;
-let externalDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
-let externalWasmDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
 
 function loadExternalModule(): Promise<ExternalDiffModule> {
 	if (!externalModulePromise) {
@@ -27,72 +23,97 @@ function loadExternalModule(): Promise<ExternalDiffModule> {
 	return externalModulePromise;
 }
 
-function loadExternalComputer(useWasm: boolean): Promise<IExternalDiffComputer> {
-	if (useWasm) {
-		if (!externalWasmDiffComputerPromise) {
-			externalWasmDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: true }));
-		}
-		return externalWasmDiffComputerPromise;
-	}
-	if (!externalDiffComputerPromise) {
-		externalDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: false }));
-	}
-	return externalDiffComputerPromise;
-}
-
 export async function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
-	const computer = await loadExternalComputer(useWasm);
-	return new ExternalLinesDiffComputer(computer);
+	return createExternalLinesDiffComputer(await loadExternalModule(), useWasm);
 }
 
-class ExternalLinesDiffComputer implements ILinesDiffComputer {
-	constructor(private readonly _computer: IExternalDiffComputer) { }
+export async function createExternalLinesDiffComputer(externalModule: ExternalDiffModule, useWasm: boolean): Promise<ILinesDiffComputer> {
+	if (useWasm) {
+		await externalModule._initWasm();
+		return new ExternalWasmLinesDiffComputer(externalModule);
+	}
+	return new ExternalTsLinesDiffComputer(externalModule);
+}
+
+/**
+ * Uses the line-based diff of `@vscode/diff` instead of its string-edit API:
+ * string edits cannot represent diffs that ignore trim whitespace, as applying them does not reproduce the modified text.
+ */
+class ExternalTsLinesDiffComputer implements ILinesDiffComputer {
+	constructor(private readonly _module: ExternalDiffModule) { }
 
 	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
-		ensureDependenciesAreSet();
+		const result = new this._module._DefaultLinesDiffComputer().computeDiff(originalLines, modifiedLines, {
+			ignoreTrimWhitespace: options.ignoreTrimWhitespace,
+			maxComputationTimeMs: options.maxComputationTimeMs,
+			computeMoves: options.computeMoves,
+			extendToSubwords: options.extendToSubwords ?? false,
+		});
+		return new LinesDiff(
+			result.changes.map(toDetailedLineRangeMapping),
+			result.moves.map(m => new MovedText(
+				new LineRangeMapping(toLineRange(m.lineRangeMapping.original), toLineRange(m.lineRangeMapping.modified)),
+				m.changes.map(toDetailedLineRangeMapping),
+			)),
+			result.hitTimeout,
+		);
+	}
+}
 
-		const originalText = new StringText(originalLines.join('\n'));
-		const modifiedText = new StringText(modifiedLines.join('\n'));
+class ExternalWasmLinesDiffComputer implements ILinesDiffComputer {
+	constructor(private readonly _module: ExternalDiffModule) { }
 
-		const result = this._computer.computeDiff(originalText.value, modifiedText.value, {
-			// TODO: this currently throws
-			ignoreTrimWhitespace: true,
-			// ignoreTrimWhitespace: options.ignoreTrimWhitespace,
+	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
+		// serde-wasm-bindgen rejects properties that are present but `undefined`, so all options must be defined.
+		const result = this._module._getWasm().computeDiffLines(originalLines, modifiedLines, {
+			ignoreTrimWhitespace: options.ignoreTrimWhitespace,
 			// TODO: support this. Currently throws with "Time is not implemented in this environment."
 			// maxComputationTimeMs: options.maxComputationTimeMs,
 			computeMoves: options.computeMoves,
-			extendToSubwords: options.extendToSubwords,
+			extendToSubwords: options.extendToSubwords ?? false,
 		});
-
-		const originalTransformer = originalText.getTransformer();
-		const modifiedTransformer = modifiedText.getTransformer();
-
-		const rangeMappings: RangeMapping[] = [];
-		let delta = 0;
-		for (const r of result.edits.replacements) {
-			const modifiedStart = r.range.start + delta;
-			const modifiedEndExclusive = modifiedStart + r.newText.length;
-			const originalRange = originalTransformer.getRange(new OffsetRange(r.range.start, r.range.endExclusive));
-			const modifiedRange = modifiedTransformer.getRange(new OffsetRange(modifiedStart, modifiedEndExclusive));
-			rangeMappings.push(new RangeMapping(originalRange, modifiedRange));
-			delta += r.newText.length - (r.range.endExclusive - r.range.start);
-		}
-
-		const changes = lineRangeMappingFromRangeMappings(rangeMappings, originalText, modifiedText);
-
-		const moves: MovedText[] = [];
-		if (options.computeMoves) {
-			for (const move of result.moves) {
-				const originalStartPos = originalTransformer.getPosition(move.range.original.start);
-				const originalEndPos = originalTransformer.getPosition(move.range.original.endExclusive);
-				const modifiedStartPos = modifiedTransformer.getPosition(move.range.modified.start);
-				const modifiedEndPos = modifiedTransformer.getPosition(move.range.modified.endExclusive);
-				const originalLineRange = new LineRange(originalStartPos.lineNumber, originalEndPos.lineNumber);
-				const modifiedLineRange = new LineRange(modifiedStartPos.lineNumber, modifiedEndPos.lineNumber);
-				moves.push(new MovedText(new LineRangeMapping(originalLineRange, modifiedLineRange), []));
-			}
-		}
-
-		return new LinesDiff(changes, moves, result.hitTimeout);
+		const changes = result.changes.map(c => new DetailedLineRangeMapping(
+			toLineRange(c.original),
+			toLineRange(c.modified),
+			c.innerChanges?.map(i => new RangeMapping(
+				new Range(i.originalStartLine, i.originalStartColumn, i.originalEndLine, i.originalEndColumn),
+				new Range(i.modifiedStartLine, i.modifiedStartColumn, i.modifiedEndLine, i.modifiedEndColumn),
+			)),
+		));
+		return new LinesDiff(changes, [], result.hitTimeout);
 	}
+}
+
+interface IExternalLineRange {
+	readonly startLineNumber: number;
+	readonly endLineNumberExclusive: number;
+}
+
+interface IExternalRange {
+	readonly startLineNumber: number;
+	readonly startColumn: number;
+	readonly endLineNumber: number;
+	readonly endColumn: number;
+}
+
+interface IExternalDetailedLineRangeMapping {
+	readonly original: IExternalLineRange;
+	readonly modified: IExternalLineRange;
+	readonly innerChanges: readonly { readonly originalRange: IExternalRange; readonly modifiedRange: IExternalRange }[] | undefined;
+}
+
+function toLineRange(r: IExternalLineRange): LineRange {
+	return new LineRange(r.startLineNumber, r.endLineNumberExclusive);
+}
+
+function toRange(r: IExternalRange): Range {
+	return new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn);
+}
+
+function toDetailedLineRangeMapping(c: IExternalDetailedLineRangeMapping): DetailedLineRangeMapping {
+	return new DetailedLineRangeMapping(
+		toLineRange(c.original),
+		toLineRange(c.modified),
+		c.innerChanges?.map(i => new RangeMapping(toRange(i.originalRange), toRange(i.modifiedRange))),
+	);
 }
