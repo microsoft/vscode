@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -269,6 +269,16 @@ suite('AgentHostEditReview', () => {
 	async function settle(): Promise<void> {
 		await timeout(0);
 		await timeout(0);
+	}
+
+	function createCheckpointReview(): AgentHostCheckpointReview {
+		return store.add(new AgentHostCheckpointReview(new class extends mock<IFileService>() {
+			override async readFile(resource: URI): Promise<IFileContent> {
+				const content = recorded.get(resource);
+				assert.notStrictEqual(content, undefined);
+				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(content!) });
+			}
+		}(), new NullLogService()));
 	}
 
 	/** Opens a diff editor that compares the original of `entry` with its document, as Toggle Diff does. */
@@ -663,13 +673,7 @@ suite('AgentHostEditReview', () => {
 		await waitForEntries('/a.ts');
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
-		const projection = store.add(new AgentHostCheckpointReview(new class extends mock<IFileService>() {
-			override async readFile(resource: URI): Promise<IFileContent> {
-				const content = recorded.get(resource);
-				assert.notStrictEqual(content, undefined);
-				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(content!) });
-			}
-		}(), new NullLogService()));
+		const projection = createCheckpointReview();
 		review.setCheckpointReview(projection);
 		const [diff] = review.fileChanges.get();
 		const update = await projection.prepareRestore([{
@@ -692,6 +696,49 @@ suite('AgentHostEditReview', () => {
 		await waitForEntries('/a.ts');
 		assert.deepStrictEqual({ immediatelyHidden, staysHidden, operations: host.invoked, newContent: getEntry('/a.ts').modifiedModel.getValue() }, {
 			immediatelyHidden: true, staysHidden: true, operations: [], newContent: 'new\n',
+		});
+	});
+
+	test('a replacement revision republishes a retained entry when checkpoint removal was queued behind an update', async () => {
+		hostWrites('/a.ts', 'A\n');
+		hostWrites('/b.ts', 'B\n');
+		const first = workingSetFile('/a.ts', 'a\n', 'A\n', 'shown');
+		host.setWorkingSet([first, workingSetFile('/b.ts', 'b\n', 'B\n')]);
+		await waitForEntries('/a.ts', '/b.ts');
+		const entry = getEntry('/a.ts');
+		await Promise.all([getChanges(entry), getChanges(getEntry('/b.ts'))]);
+		const projection = createCheckpointReview();
+		review.setCheckpointReview(projection);
+		let observed: string[] = [];
+		store.add(autorun(reader => {
+			observed = review.entries.read(reader).map(entry => entry.modifiedURI.path);
+		}));
+		const [diff] = review.fileChanges.get();
+		const update = await projection.prepareRestore([{
+			edits: [{
+				kind: FileEditKind.Edit,
+				resource: entry.modifiedURI,
+				beforeContentUri: diff.originalURI,
+				afterContentUri: diff.modifiedSnapshotURI,
+				undoStopId: 'request',
+			}]
+		}], true, [entry.modifiedURI]);
+		const gate = diffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		hostWritesWithoutReload('/b.ts', 'updated\n');
+		const second = workingSetFile('/b.ts', 'b\n', 'updated\n');
+		host.setWorkingSet([second, first]);
+		await gate.started.p;
+		transaction(update);
+		const hidden = [...observed];
+		diffGate = undefined;
+		hostWrites('/a.ts', 'replacement\n');
+		host.setWorkingSet([second, workingSetFile('/a.ts', 'a\n', 'replacement\n', 'replacement')]);
+		gate.release.complete();
+		const resolved = await review.resolveEntry(entry.modifiedURI);
+		assert.deepStrictEqual({
+			hidden, sameEntry: resolved === entry, observed, content: entry.modifiedModel.getValue(),
+		}, {
+			hidden: ['/b.ts'], sameEntry: true, observed: ['/a.ts', '/b.ts'], content: 'replacement\n',
 		});
 	});
 

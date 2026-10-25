@@ -512,6 +512,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			const prepared = await this._prepareFile(file, entry.modifiedModel, token);
 			await entry.update(file, prepared.original, prepared.edit);
 			entry.updateTelemetryInfo(this._getTelemetryInfo());
+			this._entriesObs.set([...this._entries.values()], undefined);
 			return;
 		}
 		if (entry) {
