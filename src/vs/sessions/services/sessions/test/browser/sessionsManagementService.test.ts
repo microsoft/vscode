@@ -6114,6 +6114,22 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('an explicit source harness override does not query an unrelated session resource', () => {
+		const folderUri = URI.parse('test:///source');
+		const session = stubSession({ sessionId: 'container-session', providerId: 'test' });
+		let sourceLookups = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return upcastPartial<ISessionWorkspace>({ uri: folderUri }); }
+			override getNewSessionTarget() {
+				sourceLookups++;
+				return undefined;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		const target = inheritableSessionTarget(service, { providerId: 'test', sessionType: 'test' }, folderUri);
+		assert.deepStrictEqual({ target, sourceLookups }, { target: { providerId: 'test', sessionTypeId: 'test' }, sourceLookups: 0 });
+	});
+
 	for (const available of [true, false]) {
 		test(`inheritableSessionTarget uses an available provider creation workspace (${available})`, () => {
 			const session = stubSession({ sessionId: 'backend-session', providerId: 'test', sessionType: 'backend' });

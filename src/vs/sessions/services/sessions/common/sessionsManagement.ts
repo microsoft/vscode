@@ -681,13 +681,13 @@ export const ISessionsManagementService = createDecorator<ISessionsManagementSer
 /** Returns an available creation target to inherit, including the provider's alternate workspace when supplied. */
 export function inheritableSessionTarget(
 	sessionsManagementService: ISessionsManagementService,
-	session: Pick<ISession, 'providerId' | 'sessionType' | 'resource'> | undefined,
+	session: (Pick<ISession, 'providerId' | 'sessionType'> & { readonly resource?: URI }) | undefined,
 	folderUri: URI | undefined,
 ): Partial<ISessionCreationTarget> {
 	if (!session || !folderUri) {
 		return {};
 	}
-	const creationTarget = sessionsManagementService.getNewSessionTarget(session.providerId, session.resource);
+	const creationTarget = session.resource && sessionsManagementService.getNewSessionTarget(session.providerId, session.resource);
 	if (creationTarget && sessionsManagementService.isNewSessionTargetAvailable(creationTarget.folderUri, creationTarget)) {
 		return creationTarget;
 	}
