@@ -39,7 +39,7 @@ import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js
 import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
-import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
+import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent, WebviewWindowDragEvent } from './webviewMessages.js';
 
 interface WebviewContent {
 	readonly html: string;
@@ -163,6 +163,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 
 	private _disposed = false;
+	private _windowDrag: WebviewWindowDragEvent | undefined;
+	private _windowDragId = 0;
+	private _windowDragDropEffect: DataTransfer['dropEffect'] = 'copy';
 
 
 	public extension: WebviewExtensionDescription | undefined;
@@ -338,6 +341,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._register(this.on('drag', (event) => {
 			this.handleDragEvent('drag', event);
+		}));
+		this._register(this.on('did-window-drag', event => {
+			if (event.id === this._windowDrag?.id && ['none', 'copy', 'link', 'move'].includes(event.dropEffect)) {
+				this._windowDragDropEffect = event.dropEffect;
+			}
 		}));
 
 		this._register(this.on('updated-intrinsic-content-size', (event) => {
@@ -794,7 +802,52 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	windowDidDragEnd(): void {
+		this.clearWindowDrag();
 		this._stopBlockingIframeDragEvents();
+	}
+
+	windowDidDrag(event: DragEvent): void {
+		const element = this.element;
+		const transfer = event.dataTransfer;
+		if (!element || !transfer) {
+			return;
+		}
+
+		const bounds = element.getBoundingClientRect();
+		const isOver = event.shiftKey && event.type !== EventType.DRAG_LEAVE
+			&& event.clientX >= bounds.left && event.clientX < bounds.right
+			&& event.clientY >= bounds.top && event.clientY < bounds.bottom
+			&& event.target instanceof getWindow(element).Node && element.parentElement?.contains(event.target);
+		if (!isOver) {
+			this.clearWindowDrag();
+			return;
+		}
+
+		if (!this._windowDrag) {
+			++this._windowDragId;
+			this._windowDragDropEffect = 'copy';
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		transfer.dropEffect = this._windowDragDropEffect;
+		const type = event.type === EventType.DROP ? 'drop' : 'dragover';
+		const data: WebviewWindowDragEvent = {
+			id: this._windowDragId, type,
+			clientX: event.clientX - bounds.left, clientY: event.clientY - bounds.top,
+			shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey,
+			// Drag data is protected until the user drops. Never expose its contents on hover.
+			data: Array.from(transfer.types, mime => [mime, type === 'drop' ? transfer.getData(mime) : '']),
+			effectAllowed: transfer.effectAllowed, dropEffect: this._windowDragDropEffect,
+		};
+		this._send('window-drag', data);
+		this._windowDrag = type === 'drop' ? undefined : data;
+	}
+
+	private clearWindowDrag(): void {
+		if (this._windowDrag) {
+			this._send('window-drag', { ...this._windowDrag, type: 'dragleave' });
+			this._windowDrag = undefined;
+		}
 	}
 
 	public selectAll() {

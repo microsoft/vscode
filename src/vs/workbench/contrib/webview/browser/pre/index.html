@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-r276TsHbdWJnsWBkBVhoPNK3PT9ng29r81o15iXB+vA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-GMd+vBO2cdPbFRcPJnj6E1CItPdQXLeM3EMexU27yrg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1280,6 +1280,49 @@
 				}
 
 			});
+
+			// #region Window drag forwarding
+			/** @type {Element | null} */
+			let windowDragTarget = null;
+			hostMessaging.onMessage('window-drag', (_event, data) => {
+				const frame = getActiveFrame();
+				const contentDocument = frame?.contentDocument;
+				if (!contentDocument) {
+					windowDragTarget = null;
+					return;
+				}
+				const transfer = new DataTransfer();
+				for (const [type, value] of data.data) {
+					transfer.setData(type, value);
+				}
+				// A constructed DataTransfer has no native drag operation. Track the target's
+				// dropEffect explicitly so its acceptance can be applied to the host drag.
+				let dropEffect = data.type === 'dragover' ? 'copy' : data.dropEffect;
+				Object.defineProperties(transfer, {
+					effectAllowed: { value: data.effectAllowed },
+					dropEffect: {
+						get: () => dropEffect,
+						set: value => { if (['none', 'copy', 'link', 'move'].includes(value)) { dropEffect = value; } },
+					},
+				});
+				/** @type {DragEventInit} */
+				const init = { ...data, dataTransfer: transfer, bubbles: true, cancelable: true, composed: true };
+				const target = data.type === 'dragleave' ? null : contentDocument.elementFromPoint(data.clientX, data.clientY);
+				if (windowDragTarget !== target) {
+					target?.dispatchEvent(new DragEvent('dragenter', { ...init, relatedTarget: windowDragTarget }));
+					windowDragTarget?.dispatchEvent(new DragEvent('dragleave', { ...init, relatedTarget: target }));
+					windowDragTarget = target;
+				}
+				if (target && data.type !== 'dragleave') {
+					const event = new DragEvent(data.type, init);
+					target.dispatchEvent(event);
+					hostMessaging.postMessage('did-window-drag', { id: data.id, dropEffect: event.defaultPrevented ? transfer.dropEffect : 'none' });
+				}
+				if (data.type === 'drop') {
+					windowDragTarget = null;
+				}
+			});
+			// #endregion Window drag forwarding
 
 			// propagate vscode-context-menu-visible class
 			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {

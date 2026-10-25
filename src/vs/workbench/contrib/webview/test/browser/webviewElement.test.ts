@@ -141,6 +141,117 @@ suite('WebviewElement', () => {
 		screenX: 120, screenY: 80,
 	};
 
+	suite('window resource drag forwarding', () => {
+		async function setupDrag() {
+			const { webview, frame, container, port } = await createWebview();
+			sinon.stub(frame, 'getBoundingClientRect').returns(new DOMRect(10, 20, 200, 100));
+			for (const type of ['dragover', 'dragleave', 'drop']) {
+				store.add(addDisposableListener(container, type, event => webview.windowDidDrag(event)));
+			}
+			const transfer = new DataTransfer();
+			transfer.setData('ResourceURLs', '["file:///project/a%20b.txt"]');
+			transfer.setData('text/uri-list', 'file:///project/a%20b.txt');
+			transfer.effectAllowed = 'copyMove';
+			const dispatch = (type: string, init: DragEventInit = {}, target = container) => {
+				const event = new DragEvent(type, { bubbles: true, cancelable: true, shiftKey: true, clientX: 40, clientY: 50, dataTransfer: transfer, ...init });
+				target.dispatchEvent(event);
+				return event;
+			};
+			const nextMessage = () => {
+				const response = new DeferredPromise<ToWebviewMessage['window-drag']>();
+				const listener = addDisposableListener(port, 'message', (event: MessageEvent<WebviewMessage>) => {
+					if (event.data.channel === 'window-drag') {
+						listener.dispose();
+						response.complete(event.data.args);
+					}
+				});
+				store.add(listener);
+				return response.p;
+			};
+			return { webview, port, container, transfer, dispatch, nextMessage };
+		}
+
+		test('forwards types on hover and resource contents only on drop', async () => {
+			const { dispatch, nextMessage } = await setupDrag();
+			const hoverMessage = nextMessage();
+			const hover = dispatch('dragover', { altKey: true });
+			const hoverData = await hoverMessage;
+			const dropMessage = nextMessage();
+			const drop = dispatch('drop');
+			const dropData = await dropMessage;
+			assert.deepStrictEqual({
+				prevented: [hover.defaultPrevented, drop.defaultPrevented],
+				coordinates: [hoverData.clientX, hoverData.clientY],
+				altKey: hoverData.altKey,
+				hover: hoverData.data,
+				drop: dropData.data,
+				sameDrag: hoverData.id === dropData.id,
+			}, {
+				prevented: [true, true], coordinates: [30, 30], altKey: true,
+				hover: [['resourceurls', ''], ['text/uri-list', '']],
+				drop: [['resourceurls', '["file:///project/a%20b.txt"]'], ['text/uri-list', 'file:///project/a%20b.txt']],
+				sameDrag: true,
+			});
+		});
+
+		test('leaves unmodified drags, covered views and out-of-bounds drops to the workbench', async () => {
+			const { dispatch, container } = await setupDrag();
+			const covered = document.createElement('div');
+			container.parentElement!.appendChild(covered);
+			store.add(toDisposable(() => covered.remove()));
+			assert.deepStrictEqual([
+				dispatch('dragover', { shiftKey: false }).defaultPrevented,
+				dispatch('drop', { clientX: 210 }).defaultPrevented,
+				dispatch('drop', { clientY: 120 }).defaultPrevented,
+				dispatch('drop', {}, covered).defaultPrevented,
+			], [false, false, false, false]);
+		});
+
+		for (const end of ['dragleave', 'release-shift', 'dragend'] as const) {
+			test(`clears the drop target on ${end} and starts the next drag independently`, async () => {
+				const { webview, dispatch, nextMessage } = await setupDrag();
+				const first = nextMessage();
+				dispatch('dragover');
+				const firstData = await first;
+				const leave = nextMessage();
+				if (end === 'dragend') {
+					webview.windowDidDragEnd();
+				} else {
+					dispatch(end === 'dragleave' ? 'dragleave' : 'dragover', { shiftKey: false });
+				}
+				const leaveData = await leave;
+				const next = nextMessage();
+				dispatch('dragover');
+				const nextData = await next;
+				assert.deepStrictEqual({ type: leaveData.type, sameDrag: leaveData.id === firstData.id, newDrag: nextData.id > firstData.id }, {
+					type: 'dragleave', sameDrag: true, newDrag: true,
+				});
+			});
+		}
+
+		test('uses drop feedback only from the current drag', async () => {
+			const { webview, port, dispatch, nextMessage } = await setupDrag();
+			const first = nextMessage();
+			dispatch('dragover');
+			const { id } = await first;
+			await sendWebviewMessage(webview, port, 'did-window-drag', { id, dropEffect: 'none' });
+			const rejection = nextMessage();
+			dispatch('dragover');
+			const rejected = (await rejection).dropEffect;
+			const leave = nextMessage();
+			webview.windowDidDragEnd();
+			await leave;
+			const restarted = nextMessage();
+			dispatch('dragover');
+			await restarted;
+			await sendWebviewMessage(webview, port, 'did-window-drag', { id, dropEffect: 'none' });
+			const nextHover = nextMessage();
+			dispatch('dragover');
+			const next = (await nextHover).dropEffect;
+			assert.deepStrictEqual({ rejected, next }, { rejected: 'none', next: 'copy' });
+		});
+	});
+
 	async function sendWebviewMessage<K extends keyof FromWebviewMessage>(webview: WebviewElement, port: MessagePort, channel: K, data: FromWebviewMessage[K]): Promise<void> {
 		const disposables = new DisposableStore();
 		try {

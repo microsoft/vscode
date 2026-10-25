@@ -280,6 +280,7 @@ export interface IWebview extends IDisposable {
 	redo(): void;
 
 	windowDidDragStart(): void;
+	windowDidDrag(event: DragEvent): void;
 	windowDidDragEnd(): void;
 
 	setContextKeyService(scopedContextKeyService: IContextKeyService): void;
