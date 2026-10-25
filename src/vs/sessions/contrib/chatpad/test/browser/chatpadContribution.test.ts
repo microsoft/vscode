@@ -64,6 +64,7 @@ suite('Chatpad contribution', () => {
 	let deleted: string[];
 	let deleteFails: boolean;
 	let excluded: string[];
+	let excludedRegistrations: string[];
 
 	function localProvider(calls: string[], options?: { fails?: boolean; unavailable?: boolean }): IFakeProvider {
 		return {
@@ -94,6 +95,7 @@ suite('Chatpad contribution', () => {
 		deleted = [];
 		deleteFails = false;
 		excluded = [];
+		excludedRegistrations = [];
 		onDidChangeProviders = store.add(new Emitter<void>());
 		windows = observableValue('windows', []);
 		storage = store.add(new InMemoryStorageService());
@@ -127,6 +129,7 @@ suite('Chatpad contribution', () => {
 		instantiationService.stub(IAgentFeedbackService, {
 			registerFeedbackResourceExclusion: (resource: URI) => {
 				excluded.push(resource.toString());
+				excludedRegistrations.push(resource.toString());
 				return toDisposable(() => excluded.splice(excluded.indexOf(resource.toString()), 1));
 			},
 		} as unknown as Partial<IAgentFeedbackService>);
@@ -270,6 +273,19 @@ suite('Chatpad contribution', () => {
 		windows.set([session], undefined);
 
 		assert.deepStrictEqual({ before, whileOpen, afterClose: excluded }, { before: [], whileOpen: [note.toString()], afterClose: [] });
+	});
+
+	test('a note that stays open is not re-registered when another window opens or the note editor changes', () => {
+		const content = observableValue('content', { editor: { resource: note, viewType: 'a' } });
+		const chatpad = { kind: CHATPAD_CHAT_WINDOW_KIND, content };
+		store.add(instantiationService.createInstance(ChatpadFeedbackExclusion));
+		windows.set([chatpad], undefined);
+		const registrations = excludedRegistrations.length;
+
+		windows.set([{ kind: { id: 'session' }, content: observableValue('content', {}) }, chatpad], undefined);
+		content.set({ editor: { resource: note, viewType: 'b' } }, undefined);
+
+		assert.deepStrictEqual({ registrations, after: excludedRegistrations.length, excluded }, { registrations: 1, after: 1, excluded: [note.toString()] });
 	});
 
 	suite('restore', () => {
