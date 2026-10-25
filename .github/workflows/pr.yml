@@ -28,7 +28,7 @@ jobs:
   # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
   # Linux runs every unit test on every push; the macOS and Windows unit test jobs download the
   # unit-test-plan artifact and run only the listed files, and are skipped when the plan selects
-  # no file. The artifact only exists when the plan selects files, and without it those jobs run
+  # no file; the Browser ones also when it selects no browser test. The artifact only exists when the plan selects files, and without it those jobs run
   # every unit test. The planning steps never fail the job: the Ripple job reports a broken ripple.
   #
   # And whether the pull request only disables tests (see `ripple disables` in build/ripple/README.md):
@@ -61,6 +61,8 @@ jobs:
       # The macOS and Windows unit test jobs run only the unit test files that the plan selects, so
       # they also skip when the plan of a working ripple selects none (see the Check ripple step).
       selected-unit-tests: ${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}
+      # The Browser unit test jobs also skip when none of the selected files is a browser test.
+      selected-browser-unit-tests: ${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -139,13 +141,16 @@ jobs:
       # pull requests: their macOS and Windows unit test jobs run every unit test instead. The
       # Ripple job reports a failure for the pull requests that change build/ripple. (A build that
       # times out leaves no binary to plan with.) Only the plan of a working ripple can skip the
-      # macOS and Windows unit test jobs, by selecting no unit test file.
+      # macOS and Windows unit test jobs, by selecting no unit test file, or only files that the
+      # browser test runner does not load (it does not load the test files that match the
+      # excludeGlob of test/unit/browser/index.js, which BROWSER_EXCLUDED_FOLDERS must match).
       - name: Check ripple
         id: ripple
         if: ${{ !cancelled() }}
         env:
           BUILD: ${{ steps.build-ripple.outcome }}
           PLAN: ${{ steps.plan.outcome }}
+          BROWSER_EXCLUDED_FOLDERS: node|electron-browser|electron-main|electron-utility
         run: |
           changed=false
           if [ -n "$(git diff --name-only HEAD^1 HEAD -- build/ripple)" ]; then
@@ -153,9 +158,16 @@ jobs:
           fi
           failed=false
           selects_nothing=false
+          selects_no_browser_tests=false
           if [ "$BUILD" = failure ] || [ "$PLAN" != success ]; then
             failed=true
             echo "::warning::ripple failed to build, pass its tests or plan the unit tests, so macOS and Windows run every unit test. See the steps above."
+            # Ripple writes its own plan line only after a successful plan.
+            {
+              echo "### Unit test plan"
+              echo
+              echo "running every unit test: ripple failed to build, pass its tests or plan the unit tests (see the Check ripple step)."
+            } >> "$GITHUB_STEP_SUMMARY"
           else
             # A module that ripple cannot parse, for example with new syntax, disables selection.
             reason=$(jq -r .reason .build/unit-test-plan/plan.json)
@@ -169,11 +181,16 @@ jobs:
             if jq -e '.select == true and .unit == []' .build/unit-test-plan/plan.json > /dev/null; then
               selects_nothing=true
             fi
+            # Selected files that the browser runner never loads: all of them are in a folder it excludes.
+            if jq -e --arg folders "$BROWSER_EXCLUDED_FOLDERS" '.select == true and (.unit | all(test("/(" + $folders + ")/(.*/)?[^/]*\\.test\\.ts$")))' .build/unit-test-plan/plan.json > /dev/null; then
+              selects_no_browser_tests=true
+            fi
           fi
           {
             echo "changed=$changed"
             echo "failed=$failed"
             echo "selects-nothing=$selects_nothing"
+            echo "selects-no-browser-tests=$selects_no_browser_tests"
           } >> "$GITHUB_OUTPUT"
 
   compile:
@@ -451,7 +468,7 @@ jobs:
   macos-browser-unit-tests:
     name: macOS (unit)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Browser
@@ -544,7 +561,7 @@ jobs:
   windows-browser-unit-tests:
     name: Windows (unit)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Browser

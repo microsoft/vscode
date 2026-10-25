@@ -21,7 +21,7 @@ interface IWorkflowJob {
 	readonly uses?: string;
 	readonly with?: Record<string, unknown>;
 	readonly outputs?: Record<string, string>;
-	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly 'continue-on-error'?: boolean }[];
+	readonly steps?: readonly { readonly id?: string; readonly name?: string; readonly 'continue-on-error'?: boolean; readonly env?: Record<string, string> }[];
 }
 
 /**
@@ -172,8 +172,8 @@ suite('Detect Changes', () => {
 		// disables tests (see detectTestDisableOnly.test.ts).
 		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
 		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job, and whether
-		// the macOS and Windows unit test jobs have planned files to run.
-		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests'];
+		// the macOS and Windows unit test jobs have planned files to run, and the Browser ones a planned browser test.
+		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests'];
 		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs, 'test-disable-only'].sort());
 	});
 
@@ -195,14 +195,27 @@ suite('Detect Changes', () => {
 		const macOSAndWindowsUnitTestJobs = ['macos-browser-unit-tests', 'macos-electron-unit-tests', 'windows-browser-unit-tests', 'windows-electron-unit-tests'];
 		assert.deepStrictEqual({
 			output: jobs.changes.outputs?.['selected-unit-tests'],
+			browserOutput: jobs.changes.outputs?.['selected-browser-unit-tests'],
 			skippable: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-unit-tests').map(([id]) => id).sort(),
+			skippableBrowser: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-browser-unit-tests').map(([id]) => id).sort(),
 			planned: Object.entries(jobs).filter(([, job]) => job.with?.unit_test_selection === true).map(([id]) => id).sort(),
 		}, {
 			// A pull request that only disables tests skips them too (see detectTestDisableOnly.test.ts).
 			output: `\${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
-			skippable: macOSAndWindowsUnitTestJobs,
+			browserOutput: `\${{ steps.test-disable-only.outputs.verified != 'true' && steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}`,
+			skippable: ['macos-electron-unit-tests', 'windows-electron-unit-tests'],
+			skippableBrowser: ['macos-browser-unit-tests', 'windows-browser-unit-tests'],
 			planned: macOSAndWindowsUnitTestJobs,
 		});
+	});
+
+	test('the folders that Check ripple treats as not browser tests are the ones the browser runner excludes', () => {
+		const runner = readFileSync(path.join(repositoryRoot, 'test/unit/browser/index.js'), 'utf8');
+		const excludeGlob = /const excludeGlob = '(?<glob>[^']+)';/.exec(runner)?.groups!.glob;
+		const folders = /^\*\*\/\{(?<folders>[^{}]+)\}\/\*\*\/\*\.test\.js$/.exec(excludeGlob ?? '')?.groups!.folders;
+		assert.ok(folders, `unexpected excludeGlob in test/unit/browser/index.js: ${excludeGlob}`);
+		const checkRipple = loadWorkflow().jobs.changes.steps?.find(step => step.id === 'ripple');
+		assert.deepStrictEqual(checkRipple?.env?.BROWSER_EXCLUDED_FOLDERS, folders.split(',').join('|'));
 	});
 
 	test('the core test jobs skip only when the changes cannot affect them', () => {
@@ -227,14 +240,14 @@ suite('Detect Changes', () => {
 				'macos-electron-unit-tests': skipsWhenUnaffected('selected-unit-tests'),
 				'macos-electron-tests': skipsWhenUnaffected('electron-tests'),
 				'macos-electron-smoke-test-shards': skipsWhenUnaffected('product-tests'),
-				'macos-browser-unit-tests': skipsWhenUnaffected('selected-unit-tests'),
+				'macos-browser-unit-tests': skipsWhenUnaffected('selected-browser-unit-tests'),
 				'macos-browser-integration-tests': skipsWhenUnaffected('browser-integration'),
 				'macos-remote-tests': skipsWhenUnaffected('product-tests'),
 				'windows-electron-unit-tests': skipsWhenUnaffected('selected-unit-tests'),
 				'windows-electron-tests': skipsWhenUnaffected('product-tests'),
 				'windows-agent-host-e2e-tests': skipsWhenUnaffected('agent-host-e2e'),
 				'windows-electron-smoke-test-shards': skipsWhenUnaffected('product-tests'),
-				'windows-browser-unit-tests': skipsWhenUnaffected('selected-unit-tests'),
+				'windows-browser-unit-tests': skipsWhenUnaffected('selected-browser-unit-tests'),
 				'windows-browser-integration-tests': skipsWhenUnaffected('browser-integration'),
 				'windows-remote-tests': skipsWhenUnaffected('product-tests'),
 			},
