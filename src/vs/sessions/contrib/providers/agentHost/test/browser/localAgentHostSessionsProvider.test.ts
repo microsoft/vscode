@@ -11195,8 +11195,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 					owners: [['peer-pr', peer.resource.toString()], ['main-pr', main.resource.toString()]],
 					restrictedMain: [1],
 					restrictedPeer: [2],
-					automaticMain: [1, 2],
-					automaticPeer: [2, 1],
+					// Each PR was recorded by one chat, so only that chat shows it.
+					automaticMain: [1],
+					automaticPeer: [2],
 				});
 			});
 		}
