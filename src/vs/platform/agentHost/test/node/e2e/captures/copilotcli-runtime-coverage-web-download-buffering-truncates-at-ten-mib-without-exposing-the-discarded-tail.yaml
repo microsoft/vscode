@@ -1,0 +1,48 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/oversized","raw":true,"start_index":10485748,"max_length":1000}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: web_fetch
+          input:
+            url: ${url_web}/oversized
+            raw: true
+            start_index: 10485748
+            max_length: 1000
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/oversized","raw":true,"start_index":10485748,"max_length":1000}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/oversized
+                raw: true
+                start_index: 10485748
+                max_length: 1000
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Here is the raw content:
+                Contents of ${url_web}/oversized:
+                ZZZZZZZZZZZZ
+
+                [Content truncated: exceeded 10485760 byte limit]
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn

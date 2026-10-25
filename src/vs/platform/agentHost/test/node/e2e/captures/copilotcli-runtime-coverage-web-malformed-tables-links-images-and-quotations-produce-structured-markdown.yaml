@@ -1,0 +1,51 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/structure"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: web_fetch
+          input:
+            url: ${url_web}/structure
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/structure"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/structure
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Contents of ${url_web}/structure:
+                This synthetic article describes a local fixture used to verify extraction of useful documentation. It contains several sentences, with enough ordinary prose for the reader to retain the article rather than the surrounding navigation. Nothing on this page requires another network request.
+
+                # STRUCTURED\_ARTICLE
+
+                | Column                                        | Value                                           |
+                | --------------------------------------------- | ----------------------------------------------- |
+                | ROW\_ALPHA records the first synthetic entry. | βeta records the corresponding synthetic value. |
+
+                [LOCAL\_LINK](/unrequested-link) and ![IMAGE_DESCRIPTION](/unrequested-image)
+
+                > QUOTATION\_MARKER gives useful explanation of the table.
+
+                This synthetic article describes a local fixture used to verify extraction of useful documentation. It contains several sentences, with enough ordinary prose for the reader to retain the article rather than the surrounding navigation. Nothing on this page requires another network request.
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn

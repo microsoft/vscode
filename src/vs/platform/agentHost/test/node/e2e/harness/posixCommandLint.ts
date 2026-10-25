@@ -91,7 +91,7 @@ const POSIX_PATTERNS: readonly IPosixPattern[] = [
  * POSIX variable expansions but are rewritten before replay, so they must not
  * be reported.
  */
-const RECORDER_PLACEHOLDER_RE = /\$\{(?:workdir|homedir|workspace|temp|user|timestamp|shell|read_shell|write_shell|stop_shell|list_shell|shell_shutdown)\}/g;
+const RECORDER_PLACEHOLDER_RE = /\$\{(?:workdir|homedir|workspace|temp|user|timestamp|shell|read_shell|write_shell|stop_shell|list_shell|shell_shutdown|saved_output_\d+)\}/g;
 
 /** Reports every POSIX-only construct found in the given commands. */
 export function findPosixOnlyCommands(commands: readonly IRecordedCommand[]): IPosixCommandFinding[] {

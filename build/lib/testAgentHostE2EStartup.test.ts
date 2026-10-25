@@ -46,7 +46,7 @@ test('Agent Host E2E startup reuses, repairs, forces and explicitly skips Electr
 			writeFileSync(${JSON.stringify(executable)}, 'runtime', { mode: 0o755 });
 			writeFileSync('.build/electron/version', '42.9.3');
 		`);
-		const testScript = process.platform === 'win32' ? 'scripts/test-integration.bat' : 'scripts/test-integration.sh';
+		const testScript = process.platform === 'win32' ? 'scripts/test.bat' : 'scripts/test-integration.sh';
 		await fs.writeFile(path.join(repoRoot, testScript), process.platform === 'win32'
 			? '@echo off\r\necho 1 passing\r\nexit /b 0\r\n'
 			: '#!/usr/bin/env bash\necho "1 passing"\n', { mode: 0o755 });
@@ -86,7 +86,7 @@ test('Agent Host E2E startup reuses, repairs, forces and explicitly skips Electr
 			defaultFullProfile: firstRun.includes('Agent Host test profile: full (default)'),
 			prProfile: prRun.includes('Agent Host test profile: pr (default)'),
 			preparations: await fs.readFile(path.join(repoRoot, '.build/preparations'), 'utf8'),
-		}, { reused: true, suitesPassed: 6, defaultFullProfile: true, prProfile: true, preparations: 'prepared\nprepared\n' });
+		}, { reused: true, suitesPassed: 7, defaultFullProfile: true, prProfile: true, preparations: 'prepared\nprepared\n' });
 	} finally {
 		await fs.rm(repoRoot, { recursive: true, force: true });
 	}

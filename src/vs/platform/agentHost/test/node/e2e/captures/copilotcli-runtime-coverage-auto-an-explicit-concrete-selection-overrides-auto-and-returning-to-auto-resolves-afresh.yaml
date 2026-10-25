@@ -1,0 +1,52 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word AUTO_OVERRIDE_HISTORY. Do not use tools. Reply exactly READY.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word AUTO_OVERRIDE_HISTORY. Do not use tools. Reply exactly READY.
+        - role: assistant
+          content: READY
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            The model has been switched from claude-sonnet-5 to claude-opus-4.6.
+            </tools_changed_notice>
+
+            Do not use tools. Reply with only the exact code word I asked you to remember.
+    response:
+      content: AUTO_OVERRIDE_HISTORY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the exact code word AUTO_OVERRIDE_HISTORY. Do not use tools. Reply exactly READY.
+        - role: assistant
+          content: READY
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            The model has been switched from claude-sonnet-5 to claude-opus-4.6.
+            </tools_changed_notice>
+
+            Do not use tools. Reply with only the exact code word I asked you to remember.
+        - role: assistant
+          content: AUTO_OVERRIDE_HISTORY
+        - role: user
+          content: Do not use tools. Reply with only the exact code word I asked you to remember.
+    response:
+      content: AUTO_OVERRIDE_HISTORY
+      stopReason: end_turn

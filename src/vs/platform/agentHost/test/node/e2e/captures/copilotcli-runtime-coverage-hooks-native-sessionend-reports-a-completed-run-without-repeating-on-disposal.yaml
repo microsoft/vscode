@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly HOOK_DISPOSAL_READY. Do not use any tools.
+    response:
+      content: HOOK_DISPOSAL_READY
+      stopReason: end_turn

@@ -1,0 +1,104 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch with this exact input: {"url":"${url_deniedorigin}/probe"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: web_fetch
+          input:
+            url: ${url_deniedorigin}/probe
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch with this exact input: {"url":"${url_deniedorigin}/probe"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_deniedorigin}/probe
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Permission to access this URL was denied.
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch with this exact input: {"url":"${url_deniedorigin}/probe"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_deniedorigin}/probe
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Permission to access this URL was denied.
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call web_fetch with this exact input: {"url":"${url_allowedorigin}/probe"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: web_fetch
+          input:
+            url: ${url_allowedorigin}/probe
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch with this exact input: {"url":"${url_deniedorigin}/probe"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_deniedorigin}/probe
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Permission to access this URL was denied.
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call web_fetch with this exact input: {"url":"${url_allowedorigin}/probe"}. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_allowedorigin}/probe
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Content type text/plain cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_allowedorigin}/probe:
+                SYNTHETIC_DIAGNOSTICS_HTTP_CONTENT
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn

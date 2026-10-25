@@ -1,0 +1,17 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Do not use tools. Acknowledge the attached synthetic image by replying exactly CAPABILITY_IMAGE_ACCEPTED.
+            - type: text
+              text: Image file at path ${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/capability.png
+            - type: image
+    response:
+      content: CAPABILITY_IMAGE_ACCEPTED
+      stopReason: end_turn

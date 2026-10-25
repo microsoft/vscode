@@ -33,6 +33,8 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platfor
 
 Plugin hook fixtures run their `.cjs` helper scripts with the Node executable supplied by npm (`npm_node_execpath`), or `node` from the pinned development toolchain's `PATH` when invoking the shell scripts directly. The Electron test process's `process.execPath` is not used for these shell commands: it would start Chromium, require a GUI sandbox, and generate unnecessary background network traffic.
 
+GitHub and Azure validation use dedicated Agent Host E2E entrypoints. The general integration entrypoint excludes these suites, so they execute once per platform rather than being repeated in the remaining integration job. Azure records separate `integration-agent-host-e2e` and `integration-electron` checkpoints. Both jobs are required, with their upstream deadlines; Linux retains its tmpfs and disk-backed lifecycle passes.
+
 ---
 
 ## Mental model
@@ -122,14 +124,28 @@ GitHub PR jobs use the existing broad affected-file check to skip the parallel E
 
 New tests remain in PR coverage by default. Use `fullOnlyTest(...)` from `../../agentHostTestProfile.js` (relative to an E2E suite) for native-runtime stress or redundant variations, preserving existing capability gates. Existing file-operation and peer registrars accept a final `'full'` profile argument. Do not rename tests to classify them: titles identify committed fixtures.
 
-The initial full-only list is deliberately small:
+Pre-existing tests also reserve native-runtime depth and redundant variations for Full:
 
-- File operations: nested read, JSON read, line count, workspace listing, and Git status.
-- Peer chats: nested read and nested file creation.
-- Copilot native tools: view range, grep, and glob variations.
-- Provider integration: the two native OTel concurrency stress cases.
+- File operations: nested read, JSON read, line count, workspace listing, Git status, and shell-only nested creation/rename/deletion. Basic read/create/edit, missing-file handling, path quoting, and approval flows remain in PR.
+- Peer chats: nested read/creation plus duplicate edit, missing-file, and spaced-filename variations. Representative peer reads/writes, independent contexts, tool ownership, and lifecycle remain in PR.
+- Copilot native tools: view range, grep/glob, repeated-warning compaction, zero-byte patch parsing, GPT prompt defaults, and printing public metadata. Host terminal-output persistence, exit-code projection, deferred/client-tool dispatch, and tool ownership remain in PR.
+- Plugin hooks: event-by-event prompt/tool/end-hook and malformed/failure variations. Representative SessionStart forwarding, customization enablement, MCP execution, elicitation answer conversion, and cancellation remain in PR.
+- Provider integration: the native approval-mode restriction matrix and two native OTel concurrency stress cases. Host-managed permission translation/removal and sandbox/trust integration remain in PR.
 
-Permission enforcement, routing, persistence, checkpoints, customizations, managed telemetry, and the prompt matrix remain in PR coverage. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability.
+The 207 runtime-coverage additions retain only 35 high-value host regressions in PR and classify 172 scenarios as Full-only. Their registrars default to Full; a PR exception is explicit and its exact title is pinned by the test-selection regression.
+
+| Area | PR profile | Full-only depth |
+| --- | --- | --- |
+| Enterprise | 18 scenarios covering client-layer ownership, replacement/removal, reconnect/restart, idle policy refresh, malformed wire input, and host approval/configuration enforcement | Native Read/Write/Shell/Domain matching, path/command/port boundaries, repeated permission variations, and additional input-validation permutations |
+| Customizations | One supporting plugin skill resource and one forwarded plugin hook | Sibling skill resource isolation, native hook matching, prompt/result rewriting, environment expansion, and failure semantics |
+| Native tools | Representative file/tool behavior in the existing provider suites | SQL, file-reading/search variations, shell builds, output compaction, and saved-output recovery |
+| Networking | Structured MCP side-channel results, text/binary AHP resources, stdio launch configuration, hot disable/re-enable, OAuth client projection, and credential refresh actions | MCP HTTP/SSE framing, catalog pagination, metadata/scope permutations, transport recovery, native web extraction, and download/pagination boundaries |
+| Model routing/configuration | Auto choice/usage projection, picker preference forwarding, client-tool schema/dispatch, empty tool filters, unsupported effort rejection, and image attachment mapping | Auto cache/Hydra/drift/fallback behavior, legacy model endpoints, wildcard precedence, prompt YAML parsing, and native reasoning budgets |
+| Context | Embedded attachment snapshot mapping and compacted-history recovery after a host restart | Other compaction/checkpoint, repository instruction/skill retention, SQL state, fork/truncation, and cold-resubscription variations |
+| Resilience | One representative AHP provider error and subsequent-turn recovery | Additional HTTP/SSE errors, native retry-header rules, token-continuation rules, cancellation stress, and malformed native-tool inputs |
+| Telemetry | Host and managed telemetry in the existing telemetry suites | Native span hierarchy, counters, content attributes, and exporter transport variations |
+
+Representative provider/conformance coverage of routing, configuration forwarding, attachment mapping, persistence, checkpoints, hooks, managed telemetry, and the prompt matrix remains in PR. A new scenario belongs in PR only when it protects a distinct VS Code-owned translation, state, or lifecycle path; merely exercising an SDK feature through AHP does not qualify. Automatic-compaction and cancellation stress retain their additional record-only gates in Full. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability; it does not change titles, recorded fixtures, assertions, or existing platform/capability gates.
 
 ## Organization
 
@@ -160,6 +176,8 @@ Use these deterministic E2E tests when the value comes from running the bundled 
 The Codex-specific entry point also checks that invalid workspace skills remain visible with their source paths and grouped validation diagnostics. The worktree scenario checks that existing subscribers receive the resolved directory before the first turn completes, and that the session announcement, subscription, and catalog agree on the materialized workspace.
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
+
+Runtime fixtures allocate canonical temporary workspaces outside the checkout. Repository skills and instructions must not enter synthetic model requests: an unrelated documentation edit must not invalidate a fixture or change which tools it calls. Tests that exercise instructions or skills create those files explicitly inside their own workspace. Resource-snapshot compaction scenarios prove that the native file tool actually read the attachment before asserting that its contents survive summarization.
 
 Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with telemetry enabled and disabled while four producers send concurrent session events. It asserts successful tool output, bounded event delivery, native tool spans when enabled, and clean runtime shutdown.
 
@@ -248,6 +266,26 @@ exchanges:
 
   UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 
+Local fixture servers can register an ephemeral base URL through `context.registerFixtureUrl(name, url)`. Captures use `${url_name}` and replay binds it to the current server address, including model-generated tool arguments. Register the returned disposable immediately, keep it alive until the turn drains, and dispose it with the fixture server. Bindings reset between tests; an unbound URL placeholder fails replay rather than reaching a stale address.
+
+Provider-managed spill files under the OS temporary directory, including runtime-owned `copilot-<UUID>` subdirectories, use `${saved_output_N}` references. The proxy recognizes their generated filenames, normalizes the whole path rather than just its UUID, and rebinds it from the live tool result before replaying a model request to read that file. This preserves saved-output recovery without freezing a timestamp, process ID, or temporary path. References reset between fixtures and fail explicitly if no live output has supplied the binding.
+
+Tests that require a provider environment override register it by exact title with `context.registerTestEnvironment(title, environment)`. The lease recycles the shared server when overrides change and restores the default environment for the next ordinary test. Do not mutate the test process's environment to configure a shared provider.
+
+Cross-platform prompts refer to native shell tools by role, such as "the shell tool" or "the shell stop tool", rather than interpolating `powershell` or `bash`. Tool-call names are mapped to platform-neutral fixture placeholders, but ordinary prompt text remains asserted verbatim. Keep commands portable and assert the actual shell tool and external side effects separately.
+
+Managed bypass restrictions remove Allow All from the available effective modes without disabling Assisted. Assisted approval can resolve a managed ask according to its runtime verdict, but cannot override a managed deny. The bypass/Assisted scenario verifies the available modes and repeated native read denials. Manual and Allow All scenarios separately prove human, one-time managed approval.
+
+Scenarios that require an otherwise unsupported reasoning effort advertise it in their scoped model catalog. Legacy transport probes advertise `none` while constraining the selected models to `/chat/completions`. Native telemetry privacy coverage requires tool definitions, as well as message and tool content, to be absent when content capture is disabled.
+
+MCP enablement scenarios distinguish configured eligibility from a live SDK disable: re-enabling a live-disabled server must restart it, while passive refreshes must not start merely stopped servers. Tests wait for the real `Ready` state before calling tools. Tool-focused capability and MCP snapshots omit incidental residency, changeset, and customization-state notifications; direct assertions still verify tool inventories, server states, authentication transitions, and external effects.
+
+Code-driven tool snapshots can omit helper `subscribe` and `resourceRead` RPCs using `ignoredMethods`, including their responses. Those helpers may run concurrently or poll until a real prerequisite is met; their scheduling and poll count are not the contract. Tool and authentication actions remain ordered and asserted, and the helpers' returned state/content is checked directly.
+
+An ancillary routing scenario can use `context.setAncillaryResponse(method, path, response)` to replace an already recognized bootstrap response for that test. Own the returned disposable and inspect `observedAncillaryRequests` to assert selection or caching behavior. Model endpoints cannot be overridden this way: their turns retain normal recording and strict replay. Overrides and observations reset between fixtures.
+
+Auto-routing responses that mint a synthetic session token pass that exact token as the fourth argument. The proxy validates it against the response body, and excludes only that marked `Copilot-Session-Token` from live model forwarding during recording. Primary authentication and genuine session tokens are preserved; the runtime still receives and caches the synthetic token during both record and replay. Marked tokens remain recognized until the fixture ends so cached follow-up turns can be recorded.
+
 ---
 
 ## Asserting the model request
@@ -296,7 +334,11 @@ npm run test-agent-host-e2e -- --jobs 2
 
 The complete-suite runner reuses Electron when its installed version matches the repository configuration and the platform's executable is present (and executable on POSIX). Missing or incompatible installations are refreshed. `VSCODE_FORCE_PRELAUNCH=1` forces a refresh; `VSCODE_SKIP_PRELAUNCH=1` explicitly bypasses preparation and takes precedence over the force flag. Output refresh and Electron preparation do not type-check the sources.
 
-The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
+The complete-suite runner runs isolated workers for conformance, Claude, Codex, Copilot, Copilot runtime coverage, Copilot OTel, and managed-settings diagnostics. The two Copilot workers share an entrypoint but use complementary title filters: `runtime coverage ` cases run in the runtime worker, and all other cases, including enterprise permissions, run in the ordinary Copilot worker. Both workers are mandatory and inherit the selected profile; focused and inverted user selections intersect each partition. Either worker failing fails the test run.
+
+`AGENT_HOST_E2E_JOBS` or `--jobs` can lower concurrency. The two long Copilot workers start first so smaller worker pools leave time for the required disk-backed lifecycle pass. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
+
+Windows workers invoke the filtered Electron Node test runner directly so composed regular-expression filters are not interpreted by the general integration batch parser. The remaining integration phase continues to use the general integration entrypoint.
 
 The complete suite is not part of `./scripts/test-integration.sh` or `.\scripts\test-integration.bat`; those only exclude these entrypoints from their serial node.js run. Run it with `./scripts/test-agent-host-e2e.sh` or `.\scripts\test-agent-host-e2e.bat`. They take the runner's options (`--jobs`, `--grep`, `--build`, `--tfs`) and are what CI calls. `npm run test-agent-host-e2e` runs the same runner. In GitHub pull request CI it is the `🧪 Run Agent Host E2E tests (Electron)` step. On Windows, where it is the slowest part of the Electron job, it runs in the `Windows (agent host) / Agent-Host-E2E` job on its own machine, in parallel with the `Windows (run) / Electron` integration tests job, and the `required-checks` job reports both as the required `Windows / Electron` check. When the changes cannot affect these tests, the job is skipped and shows as `Windows (agent host)`. On Linux and macOS it runs in the `<OS> (run) / Electron` job, before `🧪 Run integration tests (Electron)` and `🧪 Run extension host integration tests (Electron)`, which also run after an Agent Host E2E failure. In Azure DevOps it is the `integration-agent-host-e2e` test ID, which runs in its own `Agent Host E2E Tests (Electron)` job on each platform, in parallel with the `Integration Tests (Electron)` job that runs `integration-electron`. Each passed ADO test ID is checkpointed, so a rerun of a job skips the tests that already passed.
 
@@ -635,7 +677,7 @@ Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input 
 
 - `GET /models` — a curated stub catalog (keeps unreleased models out of fixtures).
 - `GET /responses` — the SDK's WebSocket transport probe; returns `400` so it falls back to recorded `POST /responses` turns.
-- `POST /models/session`, `POST /models/session/intent` — auto-mode selection. Deliberately answered with a `500 + x-should-retry:false` so the SDK falls back to the configured model (auto-mode isn't wanted in replay). Not counted as a cache miss.
+- `POST /auto`, `POST /models/session`, `POST /models/session/intent` — auto-mode routing and token bootstrap, not model turns. By default they return `500 + x-should-retry:false` so the SDK falls back to the configured model. Auto-selection tests scope a response override to their own fixture window. Not counted as a cache miss.
 - `/copilot_internal/*token*`, `/copilot_internal/*user*` — fake token + generic user/identity.
 - `GET /copilot_internal/managed_settings` — empty by default. Managed-telemetry tests set a mutable local response in both record and replay, invalidate only their isolated policy cache, and verify that the runtime fetches the new response. Policy bodies and collector URLs never enter model fixtures; resetting the proxy between tests restores the empty response and request count.
 - `GET /copilot/mcp_registry` — enterprise MCP registry policy. The Copilot CLI fetches this only when the developer has local MCP servers configured (`~/.copilot/mcp-config.json`) on an org/enterprise plan, so whether it's called varies per machine. Served as an empty registry (`{ mcp_registries: [] }`) so a developer's local MCP config never breaks replay (issue #325248).

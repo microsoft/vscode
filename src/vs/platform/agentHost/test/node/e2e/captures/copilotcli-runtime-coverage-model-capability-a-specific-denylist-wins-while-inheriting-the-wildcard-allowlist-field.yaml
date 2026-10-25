@@ -1,0 +1,37 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use view exactly once to read capability.txt. Do not use other tools. Then reply exactly CAPABILITY_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/capability.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use view exactly once to read capability.txt. Do not use other tools. Then reply exactly CAPABILITY_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/capability.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: CAPABILITY_NATIVE_FILE
+    response:
+      content: CAPABILITY_COMPLETE
+      stopReason: end_turn

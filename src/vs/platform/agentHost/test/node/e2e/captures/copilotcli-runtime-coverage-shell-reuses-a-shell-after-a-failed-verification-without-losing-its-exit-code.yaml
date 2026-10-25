@@ -1,0 +1,159 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node verify.cjs rejected` synchronously with the shell tool and shellId runtime-verify. The expected exit code is 17. Then run `node verify.cjs accepted` with the same shellId. Stop runtime-verify with the shell stop tool.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node verify.cjs rejected
+            description: Run verify.cjs with rejected argument
+            shellId: runtime-verify
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node verify.cjs rejected` synchronously with the shell tool and shellId runtime-verify. The expected exit code is 17. Then run `node verify.cjs accepted` with the same shellId. Stop runtime-verify with the shell stop tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node verify.cjs rejected
+                description: Run verify.cjs with rejected argument
+                shellId: runtime-verify
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                VERIFICATION_REJECTED
+                <shellId: runtime-verify completed with exit code 17>
+    response:
+      content:
+        - type: text
+          text: Exit code 17 as expected.
+        - type: tool_use
+          id: toolcall_1
+          name: ${shell}
+          input:
+            command: node verify.cjs accepted
+            description: Run verify.cjs with accepted argument
+            shellId: runtime-verify
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node verify.cjs rejected` synchronously with the shell tool and shellId runtime-verify. The expected exit code is 17. Then run `node verify.cjs accepted` with the same shellId. Stop runtime-verify with the shell stop tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node verify.cjs rejected
+                description: Run verify.cjs with rejected argument
+                shellId: runtime-verify
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                VERIFICATION_REJECTED
+                <shellId: runtime-verify completed with exit code 17>
+        - role: assistant
+          content:
+            - type: text
+              text: Exit code 17 as expected.
+            - type: tool_use
+              name: powershell
+              input:
+                command: node verify.cjs accepted
+                description: Run verify.cjs with accepted argument
+                shellId: runtime-verify
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                VERIFICATION_ACCEPTED
+                <shellId: runtime-verify completed with exit code 0>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: ${stop_shell}
+          input:
+            shellId: runtime-verify
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node verify.cjs rejected` synchronously with the shell tool and shellId runtime-verify. The expected exit code is 17. Then run `node verify.cjs accepted` with the same shellId. Stop runtime-verify with the shell stop tool.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node verify.cjs rejected
+                description: Run verify.cjs with rejected argument
+                shellId: runtime-verify
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                VERIFICATION_REJECTED
+                <shellId: runtime-verify completed with exit code 17>
+        - role: assistant
+          content:
+            - type: text
+              text: Exit code 17 as expected.
+            - type: tool_use
+              name: powershell
+              input:
+                command: node verify.cjs accepted
+                description: Run verify.cjs with accepted argument
+                shellId: runtime-verify
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                VERIFICATION_ACCEPTED
+                <shellId: runtime-verify completed with exit code 0>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: stop_powershell
+              input:
+                shellId: runtime-verify
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: '<command with id: runtime-verify stopped>'
+    response:
+      content: |-
+        Both commands ran as specified:
+
+        1. `node verify.cjs rejected` → output `VERIFICATION_REJECTED`, exit code **17** (matches expected).
+        2. `node verify.cjs accepted` → output `VERIFICATION_ACCEPTED`, exit code **0**.
+
+        The `runtime-verify` shell has been stopped.
+      stopReason: end_turn

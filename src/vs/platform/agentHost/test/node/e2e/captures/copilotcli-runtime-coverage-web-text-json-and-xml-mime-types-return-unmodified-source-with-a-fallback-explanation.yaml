@@ -1,0 +1,223 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/text"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: web_fetch
+          input:
+            url: ${url_web}/text
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/text"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/text
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Content type text/plain; charset=utf-8 cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/text:
+                PLAIN_MARKER <b>not HTML</b>
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/text"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/text
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Content type text/plain; charset=utf-8 cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/text:
+                PLAIN_MARKER <b>not HTML</b>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/json"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: web_fetch
+          input:
+            url: ${url_web}/json
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/text"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/text
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Content type text/plain; charset=utf-8 cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/text:
+                PLAIN_MARKER <b>not HTML</b>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/json"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/json
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Content type application/json cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/json:
+                {"marker":"JSON_MARKER","items":[1,2]}
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/text"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/text
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Content type text/plain; charset=utf-8 cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/text:
+                PLAIN_MARKER <b>not HTML</b>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/json"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/json
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Content type application/json cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/json:
+                {"marker":"JSON_MARKER","items":[1,2]}
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/xml"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: web_fetch
+          input:
+            url: ${url_web}/xml
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/text"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/text
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Content type text/plain; charset=utf-8 cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/text:
+                PLAIN_MARKER <b>not HTML</b>
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/json"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/json
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Content type application/json cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/json:
+                {"marker":"JSON_MARKER","items":[1,2]}
+        - role: assistant
+          content: WEB_CHECKED
+        - role: user
+          content: 'Call web_fetch exactly once with this exact JSON input: {"url":"${url_web}/xml"}. Do not use any other tools, retry, or follow links. If the tool fails, do not use a fallback. Then reply exactly WEB_CHECKED.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: web_fetch
+              input:
+                url: ${url_web}/xml
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: |-
+                Content type application/xml cannot be simplified to markdown. Here is the raw content:
+                Contents of ${url_web}/xml:
+                <fixture><marker>XML_MARKER</marker></fixture>
+    response:
+      content: WEB_CHECKED
+      stopReason: end_turn
