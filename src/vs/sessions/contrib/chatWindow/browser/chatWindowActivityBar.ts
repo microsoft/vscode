@@ -225,10 +225,10 @@ registerAction2(class ToggleChatWindowEditorAction extends Action2 {
 		const window = accessor.get(IChatWindowService).getActiveWindow();
 		if (window?.editorGroup) {
 			// Hiding the editor leaves the chat, so the window is never empty; showing it brings back the layout it had.
-			if (window.layout.get() === ChatWindowLayout.ChatOnly) {
+			if (window.layout.get() === SessionLayoutMode.ChatOnly) {
 				window.showEditor();
 			} else {
-				window.setLayout(ChatWindowLayout.ChatOnly);
+				window.setLayout(SessionLayoutMode.ChatOnly);
 			}
 		}
 	}
