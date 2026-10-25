@@ -58,9 +58,9 @@ suite('ManagedReconnectAgentHostContribution', () => {
 
 			protected _getProviderOptions() { return {}; }
 
-			attempt(error: Error, pause = false): Promise<void> {
+			attempt(error: Error, pause = false, userInitiated = true): Promise<void> {
 				return this._attemptManagedReconnect({
-					kind: 'SSH', key: 'machine', address: 'ssh:machine', userInitiated: true,
+					kind: 'SSH', key: 'machine', address: 'ssh:machine', userInitiated,
 					reconnectPolicy: DEFAULT_RECONNECT_POLICY,
 					shouldPause: () => pause,
 					doConnect: async () => { throw error; },
@@ -92,6 +92,12 @@ suite('ManagedReconnectAgentHostContribution', () => {
 		const { contribution, statuses } = setup();
 		await contribution.attempt(new CancellationError(), true);
 		assert.deepStrictEqual(statuses, [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.disconnected]);
+	});
+
+	test('automatic reconnect failures do not surface an error message', async () => {
+		const { contribution, statuses } = setup();
+		await contribution.attempt(new Error('connect ECONNREFUSED 127.0.0.1:43192'), false, false);
+		assert.deepStrictEqual(statuses, [RemoteAgentHostConnectionStatus.disconnected]);
 	});
 });
 

@@ -224,7 +224,8 @@ export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenP
 				}
 				const failed = this._remoteAgentHostService.connections.find(connection => connection.address === opts.address)?.status;
 				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnectedBecause(
-					failed?.kind === 'disconnected' ? failed.reason : AgentHostTransportFailureReason.Unknown, toErrorMessage(err)));
+					failed?.kind === 'disconnected' ? failed.reason : AgentHostTransportFailureReason.Unknown,
+					opts.userInitiated ? toErrorMessage(err) : failed?.kind === 'disconnected' ? failed.message : undefined));
 				// Host is unreachable — unpublish any cached sessions we were
 				// showing so the UI doesn't list stale entries for a host we
 				// cannot currently reach.

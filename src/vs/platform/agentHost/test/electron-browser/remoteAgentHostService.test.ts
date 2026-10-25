@@ -580,7 +580,7 @@ suite('RemoteAgentHostService', () => {
 		assert.deepStrictEqual(entry.status, RemoteAgentHostConnectionStatus.disconnected);
 	});
 
-	test('retains an unknown disconnected entry on connect failure', async () => {
+	test('retains a plain disconnected entry on automatic connect failure', async () => {
 		configService.setEntries([{ name: 'Bad', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://bad:9999' } }]);
 		await waitForCreatedClients(1);
 		assert.strictEqual(createdClients.length, 1);
@@ -597,7 +597,7 @@ suite('RemoteAgentHostService', () => {
 		}, {
 			connection: undefined,
 			clientId: undefined,
-			status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Connection refused'),
+			status: RemoteAgentHostConnectionStatus.disconnected,
 		});
 	});
 
@@ -902,6 +902,7 @@ suite('RemoteAgentHostService', () => {
 			while (service.pendingConnections.length) {
 				await Event.toPromise(service.onDidChangePendingConnections);
 			}
+			const manualStatus = service.connections[0]?.status;
 			pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
 			started = new DeferredPromise<void>();
 			service.reconnect(getEntryAddress(entry), false);
@@ -911,7 +912,11 @@ suite('RemoteAgentHostService', () => {
 			while (service.pendingConnections.length) {
 				await Event.toPromise(service.onDidChangePendingConnections);
 			}
-			assert.deepStrictEqual({ manual, automatic }, { manual: true, automatic: false });
+			assert.deepStrictEqual({ manual, automatic, manualStatus, automaticStatus: service.connections[0]?.status }, {
+				manual: true, automatic: false,
+				manualStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'setup failed'),
+				automaticStatus: RemoteAgentHostConnectionStatus.disconnected,
+			});
 		});
 
 		for (const outcome of ['success', 'failure', 'removed', 'disabled', 'disposed'] as const) {
@@ -992,36 +997,82 @@ suite('RemoteAgentHostService', () => {
 
 		for (const phase of ['factory', 'handshake'] as const) {
 			for (const cancelled of [false, true]) {
-				test(`${phase} failures ${cancelled ? 'omit cancelled errors' : 'retain the error'} in disconnected status`, async () => {
-					const factory = createFactory();
-					const entry = cloudSandboxEntry('Host', 'cloudsandbox:failed');
-					const address = getEntryAddress(entry);
-					const error = cancelled ? new CancellationError() : new Error('Connection refused');
-					let client: MockProtocolClient | undefined;
-					if (phase === 'factory') {
-						factory.stageFailure(entry, error);
-					} else {
-						client = disposables.add(new MockProtocolClient(address));
-						factory.stage(entry, client);
-					}
-					service.reconnect(address, true);
-					const rejected = assert.rejects(service.waitForConnection(address), error);
-					if (client) {
-						await waitForFactoryConnection(factory, 1);
-						client.connectDeferred.error(error);
-					}
-					await rejected;
-					const failedStatus = service.connections.find(connection => connection.address === address)?.status;
-					const replacement = disposables.add(new MockProtocolClient(address));
-					await reconnectStagedConnection(factory, entry, replacement);
-					assert.deepStrictEqual({
-						failed: failedStatus, recovered: service.connections.find(connection => connection.address === address)?.status,
-					}, {
-						failed: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, cancelled ? undefined : error.message),
-						recovered: RemoteAgentHostConnectionStatus.connected,
+				for (const userInitiated of [false, true]) {
+					test(`${phase} failure warnings require a user request and exclude cancellation (userInitiated=${userInitiated}, cancelled=${cancelled})`, async () => {
+						const factory = createFactory();
+						const entry = cloudSandboxEntry('Host', 'cloudsandbox:failed');
+						const address = getEntryAddress(entry);
+						const error = cancelled ? new CancellationError() : new Error('Connection refused');
+						let client: MockProtocolClient | undefined;
+						if (phase === 'factory') {
+							factory.stageFailure(entry, error);
+						} else {
+							client = disposables.add(new MockProtocolClient(address));
+							factory.stage(entry, client);
+						}
+						service.reconnect(address, userInitiated);
+						const rejected = assert.rejects(service.waitForConnection(address), error);
+						if (client) {
+							await waitForFactoryConnection(factory, 1);
+							client.connectDeferred.error(error);
+						}
+						await rejected;
+						const failedStatus = service.connections.find(connection => connection.address === address)?.status;
+						const replacement = disposables.add(new MockProtocolClient(address));
+						await reconnectStagedConnection(factory, entry, replacement);
+						assert.deepStrictEqual({
+							failed: failedStatus, recovered: service.connections.find(connection => connection.address === address)?.status,
+						}, {
+							failed: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, userInitiated && !cancelled ? error.message : undefined),
+							recovered: RemoteAgentHostConnectionStatus.connected,
+						});
 					});
-				});
+				}
 			}
+		}
+
+		for (const kind of [RemoteAgentHostEntryType.SSH, RemoteAgentHostEntryType.Tunnel]) {
+			test(`joining one automatic ${kind} attempt shows only that host's failure`, async () => {
+				const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+				const started = new DeferredPromise<void>();
+				let calls = 0;
+				const factory = disposables.add(new class extends TestConnectionFactory {
+					override createConnection(): Promise<IRemoteAgentHostCreatedConnection> {
+						if (++calls === 2) {
+							void started.complete();
+						}
+						return pending.p;
+					}
+				}(kind));
+				disposables.add(service.registerConnectionFactory(factory));
+				const entries: IRemoteAgentHostEntry[] = ['selected', 'other'].map(name => ({
+					name,
+					connection: kind === RemoteAgentHostEntryType.SSH
+						? { type: RemoteAgentHostEntryType.SSH, address: `ssh:${name}`, sshConfigHost: name, hostName: name }
+						: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: name, clusterId: 'test' },
+				}));
+				for (const entry of entries) {
+					factory.publishEntry(entry);
+				}
+				await started.p;
+				const selected = getEntryAddress(entries[0]);
+				service.reconnect(selected, true);
+				const error = new NonReconnectableTransportError('Connection refused');
+				const rejected = assert.rejects(service.waitForConnection(selected), error);
+				await pending.error(error);
+				await rejected;
+				while (service.pendingConnections.length) {
+					await Event.toPromise(service.onDidChangePendingConnections);
+				}
+				assert.deepStrictEqual({
+					calls, statuses: entries.map(entry => service.connections.find(connection => connection.address === getEntryAddress(entry))?.status),
+					loggedFailures: service.getConnectionDiagnostics().filter(event => event.error?.message === error.message).length,
+				}, {
+					calls: 2,
+					statuses: [RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, error.message), RemoteAgentHostConnectionStatus.disconnected],
+					loggedFailures: 2,
+				});
+			});
 		}
 
 		function createFactory(kind = RemoteAgentHostEntryType.CloudSandbox): TestConnectionFactory {
@@ -1581,7 +1632,7 @@ suite('RemoteAgentHostService', () => {
 			}, {
 				connection: undefined,
 				clientId: undefined,
-				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning, `WSL distro 'Ubuntu' is not running.`),
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
 			});
 		});
 
@@ -2076,8 +2127,8 @@ suite('RemoteAgentHostService', () => {
 					createdConnections: factory.createdConnectionCount,
 					newObservations: factory.observations.slice(initialObservations.length),
 				}, {
-					initialStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning, 'Host is offline'),
-					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning, 'Host is offline'),
+					initialStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
+					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning),
 					connectionChanges: 0,
 					pendingChanges: 0,
 					displayNameChanges: [

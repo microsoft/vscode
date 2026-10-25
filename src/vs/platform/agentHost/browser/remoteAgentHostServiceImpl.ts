@@ -87,6 +87,8 @@ interface IPendingConnectionAttempt {
 	readonly promise: Promise<void>;
 	readonly info: IRemoteAgentHostPendingConnection;
 	readonly observer?: RemoteAgentHostConnectionObserver;
+	/** Also set when a user explicitly joins an automatic attempt already in flight. */
+	showError: boolean;
 }
 
 function disposeEntry(entry: IConnectionEntry): void {
@@ -443,8 +445,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// bootstraps. Join it instead. A user-initiated request still restores
 		// the retry budget, so pressing reconnect while a slow bootstrap runs
 		// is not silently useless if that bootstrap ultimately fails.
-		if (this._pendingConnects.has(normalized)) {
+		const pending = this._pendingConnects.get(normalized);
+		if (pending) {
 			if (userInitiated) {
+				pending.showError = true;
 				this._failedReconnects.delete(normalized);
 				this._cancelReconnect(normalized);
 				this._reconnectAttempts.delete(normalized);
@@ -720,7 +724,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const factory = this._connectionFactories.get(entryToCreate.connection.type);
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
 		const observer = factory?.getConnectionObserver?.(entryToCreate);
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer };
+		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, showError: userInitiated };
 		this._pendingConnects.set(address, attempt);
 		observer?.('connecting');
 		this._onDidChangePendingConnections.fire();
@@ -792,7 +796,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				store: new DisposableStore(),
 				observer,
 				connected: false,
-				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, isCancellationError(err) ? undefined : toErrorMessage(err)),
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined),
 				reconnectTransfersTransportOwnership: false,
 			});
 			this._rejectPendingConnectionWait(address, err);
@@ -994,7 +998,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
-			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, isCancellationError(err) ? undefined : toErrorMessage(err));
+			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason, attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined);
 			entry.client = undefined;
 			// Clean up the failed client while retaining its entry and status.
 			disposeEntry(entry);
