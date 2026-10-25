@@ -3,24 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IDebugConfiguration, IDebugService } from './debug.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 
-export class DebugLifecycle implements IWorkbenchContribution {
-	private disposable: IDisposable;
+export class DebugLifecycle extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
-		this.disposable = lifecycleService.onBeforeShutdown(async e => e.veto(this.shouldVetoShutdown(e.reason), 'veto.debug'));
+		super();
+
+		this._register(lifecycleService.onBeforeShutdown(async e => e.veto(this.shouldVetoShutdown(e.reason), 'veto.debug')));
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this.debugService.getModel().getSessions().length > 0 ? 'debug.sessionActive' : undefined
+		}));
 	}
 
 	private shouldVetoShutdown(_reason: ShutdownReason): boolean | Promise<boolean> {
@@ -35,10 +41,6 @@ export class DebugLifecycle implements IWorkbenchContribution {
 		}
 
 		return this.showWindowCloseConfirmation(rootSessions.length);
-	}
-
-	public dispose() {
-		return this.disposable.dispose();
 	}
 
 	private async showWindowCloseConfirmation(numSessions: number): Promise<boolean> {

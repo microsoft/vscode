@@ -28,6 +28,10 @@ import { getFlatActionBarActions } from '../../platform/actions/browser/menuEntr
 import { RunOnceScheduler } from '../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../services/lifecycle/common/unattendedRestart.js';
+import { IUnattendedRestartReadinessProvider, UnattendedRestartChannelName } from '../../platform/lifecycle/common/unattendedRestart.js';
+import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
+import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
 import { isWindows, isMacintosh } from '../../base/common/platform.js';
@@ -91,6 +95,8 @@ export class NativeWindow extends BaseWindow {
 
 	private isDocumentedEdited = false;
 
+	private pendingWaitMarkerFiles = 0;
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -130,6 +136,8 @@ export class NativeWindow extends BaseWindow {
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
 		@IHostService hostService: IHostService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IUnattendedRestartService private readonly unattendedRestartService: IUnattendedRestartService,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 	) {
 		super(mainWindow, undefined, hostService, nativeEnvironmentService, contextMenuService, layoutService);
 
@@ -399,6 +407,14 @@ export class NativeWindow extends BaseWindow {
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
+
+		// Unattended restart (e.g. to apply an update while the user is away)
+		this.mainProcessService.registerChannel(UnattendedRestartChannelName, ProxyChannel.fromService({
+			canRestartUnattended: () => this.unattendedRestartService.canRestartUnattended()
+		} satisfies IUnattendedRestartReadinessProvider, this._store));
+		this._register(this.unattendedRestartService.registerParticipant({
+			check: () => this.pendingWaitMarkerFiles > 0 ? 'cli.waitingForEditorClose' : undefined
+		}));
 
 		// macOS OS integration: represented file name
 		if (isMacintosh) {
@@ -1054,12 +1070,17 @@ export class NativeWindow extends BaseWindow {
 	}
 
 	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
+		this.pendingWaitMarkerFiles++;
+		try {
 
-		// Wait for the resources to be closed in the text editor...
-		await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
+			// Wait for the resources to be closed in the text editor...
+			await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
 
-		// ...before deleting the wait marker file
-		await this.fileService.del(waitMarkerFile);
+			// ...before deleting the wait marker file
+			await this.fileService.del(waitMarkerFile);
+		} finally {
+			this.pendingWaitMarkerFiles--;
+		}
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean, mergeMode: boolean): Promise<readonly IEditorPane[]> {
