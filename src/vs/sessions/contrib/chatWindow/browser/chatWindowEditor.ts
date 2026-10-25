@@ -574,7 +574,7 @@ export class ChatWindowChatEditor extends EditorPane {
 			if (!this._restoreConversation()) {
 				this._clampOnResize();
 			}
-			if (this._terminalNeedsRecovery()) {
+			if (!this._recoverTerminalScheduler.isScheduled() && this._terminalNeedsRecovery()) {
 				this._recoverTerminalScheduler.schedule();
 			}
 		}
