@@ -22,27 +22,41 @@ on:
       smoke_tests:
         type: boolean
         default: true
+      smoke_shard_index:
+        description: 1-based index of the Electron smoke test shard to run
+        type: number
+        default: 1
+      smoke_shard_total:
+        description: Number of shards the Electron smoke tests are split into
+        type: number
+        default: 1
+      agent_host_e2e_tests:
+        description: Whether to run the Agent Host E2E tests
+        type: boolean
+        default: false
+      agent_host_test_profile:
+        description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
+        type: string
+        default: full
+      agent_host_test_profile_reason:
+        description: Reason for selecting the Agent Host test profile
+        type: string
+        default: Change detection unavailable
 
 jobs:
   macOS-test:
     name: ${{ inputs.job_name }}
     runs-on: macos-26-xlarge
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
+      VSCODE_SKIP_PRELAUNCH: '1'
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
-
-      - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        id: agent-host-e2e-changes
-        uses: ./.github/actions/detect-agent-host-e2e-changes
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -107,25 +121,11 @@ jobs:
       - name: Transpile client and extensions
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
-      - name: Download Electron
+      - name: Setup Electron
         if: ${{ inputs.electron_tests || inputs.remote_tests }}
-        run: |
-          set -e
-
-          for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
-            if npm run electron -- ${{ env.VSCODE_ARCH }}; then
-              echo "Download successful on attempt $i"
-              break
-            fi
-
-            if [ $i -eq 3 ]; then
-              echo "Download failed after 3 attempts" >&2
-              exit 1
-            fi
-
-            echo "Download failed on attempt $i, retrying..."
-            sleep 5 # optional: add a small delay between retries
-          done
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -156,15 +156,15 @@ jobs:
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        timeout-minutes: 25
+        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: npm run test-node
+        timeout-minutes: 25
+        run: npm run test-node -- --rerun-failed-files 2
 
       - name: 🧪 Run unit tests (Browser, Webkit)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
@@ -186,6 +186,7 @@ jobs:
             compile-extension:html-language-features-server \
             compile-extension:ipynb \
             compile-extension:notebook-renderers \
+            compile-extension:json-language-features-client \
             compile-extension:json-language-features-server \
             compile-extension:markdown-language-features \
             compile-extension-media \
@@ -196,12 +197,35 @@ jobs:
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
 
-      - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        timeout-minutes: 20
-        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+      - name: 🧪 Run Agent Host E2E tests (Electron)
+        id: agent-host-e2e
+        if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
+        timeout-minutes: 25
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2
         env:
-          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when Agent Host E2E failed in the same job, so that one does not hide the other.
+      # Reruns the failed tests in a fresh window.
+      - name: 🧪 Run integration tests (Electron)
+        id: node-integration-tests
+        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        timeout-minutes: 25
+        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
+        env:
+          AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
+      # The extension host suites are not rerun.
+      - name: 🧪 Run extension host integration tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        timeout-minutes: 15
+        run: ./scripts/test-integration.sh --only-extension-host-tests
+        env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Webkit)
@@ -222,7 +246,7 @@ jobs:
         run: npm run compile
 
       - name: Compile Copilot Chat extension for smoke tests
-        if: ${{ inputs.smoke_tests }}
+        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
         working-directory: extensions/copilot
         run: npm run compile
 
@@ -234,19 +258,23 @@ jobs:
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+        run: npm run smoketest-no-compile -- --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
+        env:
+          VSCODE_SMOKE_TEST_POLICY: '1'
 
+      # The proxy runs are separate Agents Window invocations, so only the last shard runs them.
+      # test/smoke/src/shard.ts reserves time for them in the last shard when balancing.
       - name: Install Squid for network-isolated smoke tests
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == inputs.smoke_shard_total }}
         run: brew list squid >/dev/null 2>&1 || brew install squid
 
       - name: 🧪 Run Agents Window smoke tests through macOS PAC proxy
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == inputs.smoke_shard_total }}
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh
 
       - name: 🧪 Run Agents Window smoke tests through Kerberos-authenticated macOS PAC proxy
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == inputs.smoke_shard_total }}
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos
 

@@ -226,7 +226,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true));
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true));
 
 			// Editor container
 			this.editorContainer = $('.editor-container');
@@ -754,7 +754,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (URI.isUri(resource)) {
-			descriptor['resource'] = this.toResourceTelemetryDescriptor(resource);
+			descriptor.resource = this.toResourceTelemetryDescriptor(resource);
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
@@ -764,10 +764,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return descriptor;
 		} else if (resource) {
 			if (resource.primary) {
-				descriptor['resource'] = this.toResourceTelemetryDescriptor(resource.primary);
+				descriptor.resource = this.toResourceTelemetryDescriptor(resource.primary);
 			}
 			if (resource.secondary) {
-				descriptor['resourceSecondary'] = this.toResourceTelemetryDescriptor(resource.secondary);
+				descriptor.resourceSecondary = this.toResourceTelemetryDescriptor(resource.secondary);
 			}
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
@@ -2157,7 +2157,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (menuId === MenuId.EditorTitle) {
 				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService);
 				if (available) {
-					const editorTypeActions = createEditorTypeActions(available, this.editorResolverService, this.commandService, this.editorService);
+					const editorTypeActions = createEditorTypeActions(available, this, this.editorResolverService, this.commandService, this.editorService);
 					const reopenWithSubmenu = new SubmenuAction('editor.reopenWith', localize('reopenWith', "Reopen Editor With"), editorTypeActions);
 					if (actions.secondary.length) {
 						actions.secondary.push(new Separator());
@@ -2201,7 +2201,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		const { showTabs } = this.groupsView.partOptions;
-		this.titleContainer.style.backgroundColor = this.getColor(showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
+		const titleBackground = this.getColor(showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || 'transparent';
+		this.titleContainer.style.backgroundColor = `var(--modern-ui-editor-title-background, ${titleBackground})`;
 
 		// Editor container
 		this.editorContainer.style.backgroundColor = this.getColor(editorBackground) || '';
@@ -2233,18 +2234,20 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		// Keep title content full-width while the editor pane follows the content inset.
+		const contentWidth = Math.max(0, width - this._contentRightInset);
+		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
+
+		// Keep tabs full-width while the header and editor pane follow the content inset.
 		const titleControlSize = this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		});
+		}, contentWidth);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;
 
 		// The editor pane is inset on the right by `_contentRightInset` so a docked
 		// panel can sit beside it under the full-width title (0 = fill the group).
-		const contentWidth = Math.max(0, width - this._contentRightInset);
 		const editorHeight = Math.max(0, height - titleControlSize.height);
 		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
@@ -2252,7 +2255,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	/**
-	 * Sets the right inset reserved beside the breadcrumbs and editor pane while tabs remain full-width.
+	 * Sets the right inset reserved beside the editor header and pane while tabs remain full-width.
 	 * `0` restores the default full-width content.
 	 */
 	setContentRightInset(inset: number): void {

@@ -147,6 +147,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/mediaPreview",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/mergeEditor",
 			"project": "vscode-workbench"
 		},
@@ -156,6 +160,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/logs",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/opener",
 			"project": "vscode-workbench"
 		},
 		{
@@ -435,6 +443,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/github",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/history",
 			"project": "vscode-workbench"
 		},
@@ -460,6 +472,10 @@
 		},
 		{
 			"name": "vs/workbench/services/language",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/mcp",
 			"project": "vscode-workbench"
 		},
 		{
@@ -607,6 +623,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/canvases",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/dropOrPasteInto",
 			"project": "vscode-workbench"
 		},
@@ -665,6 +685,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/openAgentsWindow",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -690,6 +714,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/changes",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/canvases",
 			"project": "vscode-sessions"
 		},
 		{
@@ -753,7 +781,15 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/remoteSessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessionComparison",
 			"project": "vscode-sessions"
 		},
 		{
@@ -785,7 +821,15 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/extensions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/onboardingTours",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/getStarted",
 			"project": "vscode-sessions"
 		}
 	]

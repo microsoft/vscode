@@ -8,7 +8,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextFileEditorModel } from './textFileEditorModel.js';
-import { dispose, IDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { dispose, IDisposable, Disposable, DisposableStore, DisposableResourceMap } from '../../../../base/common/lifecycle.js';
 import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from './textfiles.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -88,6 +88,18 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	get models(): TextFileEditorModel[] {
 		return [...this.mapResourceToModel.values()];
+	}
+
+	retainResolvedContent(): IDisposable {
+		const store = new DisposableStore();
+		const retained = store.add(new DisposableResourceMap());
+		const retain = (model: ITextFileEditorModel) => retained.set(model.resource, model.retainResolvedContent());
+		store.add(this.onDidCreate(retain));
+		store.add(this.onDidRemove(resource => retained.deleteAndDispose(resource)));
+		for (const model of this.models) {
+			retain(model);
+		}
+		return store;
 	}
 
 	constructor(

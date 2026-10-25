@@ -6,15 +6,24 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault, AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
+import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
+import { ArtifactIntegrationsSettingId } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
+import { ChatMoveConfigKey, ChatMoveSettingId } from '../../common/agentHostChatMove.js';
+import { chatMoveConfigurationProperties } from '../../common/chatMoveConfiguration.js';
+import product from '../../../product/common/product.js';
+import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../common/githubPullRequestArtifact.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
 const AMBIENT_SETTING = 'test.agentHostSync.ambient';
+const BYOK_SETTING = 'test.agentHostSync.byok';
 const HIDDEN_SETTING = 'test.agentHostSync.hidden';
 const UNSYNCED_SETTING = 'test.agentHostSync.unsynced';
 const ENUM_SETTING = 'test.agentHostSync.enum';
@@ -41,6 +50,9 @@ suite('AgentHostConfigurationSync', () => {
 		id: 'testAgentHostSync',
 		type: 'object' as const,
 		properties: {
+			...artifactToolsConfigurationProperties,
+			...chatMoveConfigurationProperties,
+			[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
 				default: true,
@@ -55,6 +67,11 @@ suite('AgentHostConfigurationSync', () => {
 				type: 'boolean' as const,
 				default: false,
 				agentHost: { key: 'ambientValue', scope: AgentHostConfigurationSyncScope.Ambient },
+			},
+			[BYOK_SETTING]: {
+				type: 'boolean' as const,
+				default: AgentHostByokModelsEnabledDefault,
+				agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 			},
 			[HIDDEN_SETTING]: {
 				type: 'boolean' as const,
@@ -72,7 +89,7 @@ suite('AgentHostConfigurationSync', () => {
 				type: 'string' as const,
 				enum: ['none', 'all'],
 				default: 'none',
-				agentHost: { key: 'enumValue' },
+				agentHost: { key: 'enumValue', derivedKeys: { legacyEnumAll: (value: unknown) => value === 'all' } },
 			},
 			[FREEFORM_SETTING]: {
 				type: 'string' as const,
@@ -91,6 +108,44 @@ suite('AgentHostConfigurationSync', () => {
 		});
 
 		assert.strictEqual(getGlobalConfigurationValue(configurationService, ALL_HOSTS_SETTING), false);
+	});
+
+	test('artifact integrations are opt-in and cannot be enabled by a workspace', () => {
+		const configuration = createConfigurationService({
+			[ArtifactIntegrationsSettingId]: { workspaceValue: true, workspaceFolderValue: true },
+			[AgentMergeSettingId.Enabled]: { userValue: true },
+		});
+		const patch = resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Local);
+		assert.deepStrictEqual({
+			scope: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId].scope,
+			integrations: patch[AgentHostArtifactIntegrationsConfigKey],
+			agentMerge: patch[AgentMergeConfigKey.Enabled],
+		}, { scope: ConfigurationScope.APPLICATION, integrations: false, agentMerge: true });
+	});
+
+	for (const savedAgentMerge of [false, true]) {
+		test(`integration mode suppresses and restores Agent Merge without changing its ${savedAgentMerge} preference`, () => {
+			const settings = {
+				[ArtifactIntegrationsSettingId]: { userValue: true },
+				[AgentMergeSettingId.Enabled]: { userValue: savedAgentMerge },
+			};
+			const configuration = createConfigurationService(settings);
+			const enabled = resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Remote);
+			settings[ArtifactIntegrationsSettingId].userValue = false;
+			const disabled = resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Remote);
+			assert.deepStrictEqual({
+				enabled: [enabled[AgentHostArtifactIntegrationsConfigKey], enabled[AgentMergeConfigKey.Enabled]],
+				disabled: [disabled[AgentHostArtifactIntegrationsConfigKey], disabled[AgentMergeConfigKey.Enabled]],
+				preference: settings[AgentMergeSettingId.Enabled].userValue,
+			}, { enabled: [true, false], disabled: [false, savedAgentMerge], preference: savedAgentMerge });
+		});
+	}
+
+	test('never leaks workspace PR check exclusions into host-global configuration', () => {
+		const configurationService = createConfigurationService({
+			[gitHubPullRequestMarkReadyIgnoredChecksSetting]: { defaultValue: [], userValue: ['Global *'], workspaceValue: ['Workspace *'], workspaceFolderValue: ['Folder *'] },
+		});
+		assert.deepStrictEqual(resolveAgentHostConfigurationSyncPatch(configurationService, AgentHostConfigurationSyncTarget.Local)[AgentHostGitHubArtifactIgnoredChecksConfigKey], ['Global *']);
 	});
 
 	test('prefers policy over user, user over application, and falls back to the default', () => {
@@ -171,6 +226,44 @@ suite('AgentHostConfigurationSync', () => {
 		});
 	});
 
+	test('writes derived keys alongside the mirrored key', () => {
+		const patch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[ENUM_SETTING]: { defaultValue: 'none', userValue: 'all' },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({ enumValue: patch.enumValue, legacyEnumAll: patch.legacyEnumAll }, { enumValue: 'all', legacyEnumAll: true });
+	});
+
+	test('mirrors BYOK enabled by default while preserving explicit opt-out', () => {
+		const defaultPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({}), AgentHostConfigurationSyncTarget.Local);
+		const disabledPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[BYOK_SETTING]: { userValue: false },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({
+			defaultValue: defaultPatch[AgentHostByokModelsEnabledConfigKey],
+			explicitlyDisabled: disabledPatch[AgentHostByokModelsEnabledConfigKey],
+		}, {
+			defaultValue: true,
+			explicitlyDisabled: false,
+		});
+	});
+
+	test('mirrors the quality-based Move Chats default to every host while preserving explicit opt-out', () => {
+		const defaults = createConfigurationService({});
+		const disabled = createConfigurationService({ [ChatMoveSettingId.Enabled]: { userValue: false } });
+
+		assert.deepStrictEqual({
+			local: resolveAgentHostConfigurationSyncPatch(defaults, AgentHostConfigurationSyncTarget.Local)[ChatMoveConfigKey.Enabled],
+			remote: resolveAgentHostConfigurationSyncPatch(defaults, AgentHostConfigurationSyncTarget.Remote)[ChatMoveConfigKey.Enabled],
+			explicitlyDisabled: resolveAgentHostConfigurationSyncPatch(disabled, AgentHostConfigurationSyncTarget.Local)[ChatMoveConfigKey.Enabled],
+		}, {
+			local: product.quality !== 'stable',
+			remote: product.quality !== 'stable',
+			explicitlyDisabled: false,
+		});
+	});
+
 	test('applies local and ambient scopes to the corresponding host targets', () => {
 		const configurationService = createConfigurationService({
 			[ALL_HOSTS_SETTING]: { defaultValue: true },
@@ -202,10 +295,16 @@ suite('AgentHostConfigurationSync', () => {
 			local: getAgentHostConfigurationSyncTarget(LOCAL_AGENT_HOST_RESOURCE_IDENTITY),
 			remoteExtensionHost: getAgentHostConfigurationSyncTarget('vscode-remote://ssh-remote+host'),
 			remote: getAgentHostConfigurationSyncTarget('ssh://host'),
+			sshCredentials: getAgentHostConfigurationSyncTarget('user@127.0.0.1:2222'),
+			ipv6: getAgentHostConfigurationSyncTarget('[::1]:8080'),
+			tunnel: getAgentHostConfigurationSyncTarget('tunnel:host'),
 		}, {
 			local: AgentHostConfigurationSyncTarget.Local,
 			remoteExtensionHost: AgentHostConfigurationSyncTarget.RemoteExtensionHost,
 			remote: AgentHostConfigurationSyncTarget.Remote,
+			sshCredentials: AgentHostConfigurationSyncTarget.Remote,
+			ipv6: AgentHostConfigurationSyncTarget.Remote,
+			tunnel: AgentHostConfigurationSyncTarget.Remote,
 		});
 	});
 
@@ -306,6 +405,25 @@ suite('AgentHostConfigurationSync', () => {
 			visible: true,
 			mirrored: true,
 		});
+	});
+
+	test('default overrides leave non-experimental hidden settings unchanged', () => {
+		const configurationService = createConfigurationService({});
+		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
+		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
+		try {
+			registry.registerDefaultConfigurations([first]);
+			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+			registry.registerDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([first]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			assert.deepStrictEqual(values, [false, false, false, false]);
+		} finally {
+			registry.deregisterDefaultConfigurations([first, second]);
+		}
 	});
 
 	test('deregistering drops mirroring entries, including for hidden settings', () => {

@@ -5,6 +5,16 @@
 
 import type { IPartsSplash } from '../../../platform/theme/common/themeService.js';
 
+export function getPartsSplashLayoutMetrics(layoutInfo: NonNullable<IPartsSplash['layoutInfo']>) {
+	const compact = layoutInfo.modernUICompact === true;
+	return {
+		floatingMargin: compact ? 0 : 4,
+		floatingOuterMargin: compact ? 0 : 4,
+		floatingBorderWidth: 1,
+		floatingBorderRadius: compact ? 0 : 8,
+	};
+}
+
 export function getPartsSplashColors(splash: IPartsSplash, hasFocus: boolean, hasWorkspace: boolean) {
 	const { colorInfo } = splash;
 	const titleBarBackground = (hasFocus ? colorInfo.titleBarBackground : colorInfo.titleBarInactiveBackground ?? colorInfo.titleBarBackground) ?? colorInfo.background;

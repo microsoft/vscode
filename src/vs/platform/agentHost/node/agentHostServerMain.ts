@@ -40,13 +40,14 @@ import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
-import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
+import { CodexAgent } from './codex/codexAgent.js';
+import { CodexSdkPackage } from './codex/codexSdk.js';
 import { createCodexProviderConfiguration } from './codex/codexProviderConfiguration.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
@@ -86,7 +87,7 @@ interface IServerOptions {
 	readonly connectionToken: string | undefined;
 }
 
-function parseServerOptions(): IServerOptions {
+async function parseServerOptions(): Promise<IServerOptions> {
 	const argv = process.argv.slice(2);
 	const envPort = parseInt(process.env['VSCODE_AGENT_HOST_PORT'] ?? '8081', 10);
 	const portIdx = argv.indexOf('--port');
@@ -127,7 +128,7 @@ function parseServerOptions(): IServerOptions {
 			process.exit(1);
 		}
 		try {
-			connectionToken = fs.readFileSync(tokenFilePath).toString().replace(/\r?\n$/, '');
+			connectionToken = (await fs.promises.readFile(tokenFilePath, 'utf8')).replace(/\r?\n$/, '');
 		} catch {
 			log(`Error: Unable to read connection token file at '${tokenFilePath}'`);
 			process.exit(1);
@@ -153,7 +154,7 @@ function parseServerOptions(): IServerOptions {
 // ---- Main -------------------------------------------------------------------
 
 async function main(): Promise<void> {
-	const options = parseServerOptions();
+	const options = await parseServerOptions();
 	const disposables = new DisposableStore();
 	const errorTelemetry = disposables.add(new MutableDisposable<ErrorTelemetry>());
 
@@ -199,7 +200,7 @@ async function main(): Promise<void> {
 		disableTelemetry: options.quiet,
 		transientProxyConfiguration: false,
 		hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
-		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
+		providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
 		byok: { kind: 'unavailable' },
 	});
 	disposables.add(runtime);
@@ -311,7 +312,7 @@ async function main(): Promise<void> {
 		connectionTokenValidate: options.connectionToken
 			? token => token === options.connectionToken
 			: undefined,
-	}, logService, { instantiationService, logsHome: environmentService.logsHome }));
+	}, logService));
 
 
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
@@ -339,12 +340,13 @@ async function main(): Promise<void> {
 		agentService.markStartupComplete();
 
 		const urls = resolveServerUrls(options.host, listeningPort);
+		const connectionQuery = options.connectionToken ? `?tkn=${encodeURIComponent(options.connectionToken)}` : '';
 		for (const url of urls.local) {
-			log(`  Local:   ${url}`);
+			log(`  Local:   ${url}${connectionQuery}`);
 			logService.info(`[AgentHostServer] Local:   ${url}`);
 		}
 		for (const url of urls.network) {
-			log(`  Network: ${url}`);
+			log(`  Network: ${url}${connectionQuery}`);
 			logService.info(`[AgentHostServer] Network: ${url}`);
 		}
 		if (urls.network.length === 0 && options.host === undefined) {

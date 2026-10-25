@@ -6,6 +6,7 @@
 import assert from 'assert';
 import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
+import { SSEParser, type ISSEEvent } from '../../../../../base/common/sseParser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import {
@@ -33,6 +34,9 @@ class FakeCopilotApiService implements ICopilotApiService {
 	readonly responsesCalls: IResponsesCall[] = [];
 	readonly modelsCalls: { githubToken: string; options: ICopilotApiServiceRequestOptions | undefined }[] = [];
 	responsesError: Error | undefined;
+	responseChunks = [new TextEncoder().encode('event: response.completed\ndata: {}\n\n')];
+	beforeResponseChunk: ((index: number) => void) | undefined;
+	responseContentType = 'text/event-stream';
 	readonly modelsResult = [
 		{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] },
 		{ id: 'claude-sonnet', name: 'Claude Sonnet', supported_endpoints: ['/v1/messages'] },
@@ -56,13 +60,19 @@ class FakeCopilotApiService implements ICopilotApiService {
 		if (this.responsesError) {
 			throw this.responsesError;
 		}
+		const chunks = this.responseChunks;
+		let chunkIndex = 0;
 		const stream = new ReadableStream<Uint8Array>({
-			start(controller) {
-				controller.enqueue(new TextEncoder().encode('event: response.completed\ndata: {}\n\n'));
-				controller.close();
+			pull: controller => {
+				if (chunkIndex < chunks.length) {
+					this.beforeResponseChunk?.(chunkIndex);
+					controller.enqueue(chunks[chunkIndex++]);
+				} else {
+					controller.close();
+				}
 			},
-		});
-		return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+		}, { highWaterMark: 0 });
+		return new Response(stream, { status: 200, headers: { 'content-type': this.responseContentType } });
 	}
 
 	async utilityChatCompletion(): Promise<never> {
@@ -133,9 +143,9 @@ suite('CodexProxyService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function withProxy(fn: (handle: { baseUrl: string; nonce: string }, fake: FakeCopilotApiService) => Promise<void>): Promise<void> {
+	async function withProxy(fn: (handle: { baseUrl: string; nonce: string }, fake: FakeCopilotApiService) => Promise<void>, now?: () => number): Promise<void> {
 		const fake = new FakeCopilotApiService();
-		const service = new CodexProxyService(new NullLogService(), fake);
+		const service = new CodexProxyService(now, new NullLogService(), fake);
 		const handle = await service.start(TOKEN);
 		try {
 			await fn(handle, fake);
@@ -152,6 +162,117 @@ suite('CodexProxyService', () => {
 				body: JSON.stringify({ model: 'gpt-5', stream: true, input: [] }),
 			});
 			assert.strictEqual(fake.responsesCalls.at(-1)?.options?.headers?.['User-Agent'], 'vscode_codex/1.2.3');
+		});
+	});
+
+	suite('portable history', () => {
+		const reasoning = { type: 'reasoning', id: 'rs_copilot', summary: [{ type: 'summary_text', text: 'Résumé 🐈' }], encrypted_content: 'copilot-account-ciphertext' };
+		const portableReasoning = { type: reasoning.type, id: reasoning.id, summary: reasoning.summary };
+		const toolCall = { type: 'function_call', call_id: 'call_1', name: 'read_file', arguments: '{"encrypted_content":"user-data"}' };
+		const toolResult = { type: 'function_call_output', call_id: 'call_1', output: '{"encrypted_content":"user-data"}' };
+		const message = { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'The answer.' }] };
+		const usage = { input_tokens: 10, output_tokens: 5, total_tokens: 15 };
+		const completed = { type: 'response.completed', response: { output: [reasoning, toolCall, message], usage } };
+		const portableCompleted = { ...completed, response: { output: [portableReasoning, toolCall, message], usage } };
+
+		test('omits account-bound reasoning from portable requests without changing tool history', async () => {
+			await withProxy(async (handle, fake) => {
+				const body = { model: 'gpt-5', stream: true, include: ['reasoning.encrypted_content', 'message.output_text.logprobs'], input: [reasoning, toolCall, toolResult, message] };
+				await postResponses(`${handle.baseUrl}/v1/responses`, {
+					headers: { 'Authorization': `Bearer ${handle.nonce}`, 'x-vscode-codex-portable-history': 'true' },
+					body: JSON.stringify(body),
+				});
+				assert.deepStrictEqual(JSON.parse(fake.responsesCalls[0].body), { ...body, include: ['message.output_text.logprobs'], input: [portableReasoning, toolCall, toolResult, message] });
+			});
+		});
+
+		test('keeps ordinary Copilot requests and responses byte-for-byte unchanged', async () => {
+			await withProxy(async (handle, fake) => {
+				const body = JSON.stringify({ model: 'gpt-5', stream: true, include: ['reasoning.encrypted_content'], input: [reasoning] }, null, 2);
+				const stream = `: keep-alive\r\nevent: response.completed\r\ndata: ${JSON.stringify(completed)}\r\n\r\n`;
+				fake.responseChunks = [Buffer.from(stream)];
+				const response = await postResponses(`${handle.baseUrl}/v1/responses`, { headers: { 'Authorization': `Bearer ${handle.nonce}` }, body });
+				assert.deepStrictEqual({ request: fake.responsesCalls[0].body, response: response.body }, { request: body, response: stream });
+			});
+		});
+
+		for (const chunkSize of [1, 7, 4096]) {
+			test(`removes ciphertext from SSE items and completed responses across ${chunkSize}-byte chunks`, async () => {
+				await withProxy(async (handle, fake) => {
+					const added = { type: 'response.output_item.added', item: reasoning, output_index: 0 };
+					const done = { type: 'response.output_item.done', item: reasoning, output_index: 0 };
+					const delta = { type: 'response.reasoning_summary_text.delta', delta: reasoning.summary[0].text };
+					const events = [added, delta, done, completed];
+					const stream = Buffer.from(`: keep-alive\r\n${events.map(event => `event: ${event.type}\r\ndata: ${JSON.stringify(event)}\r\n\r\n`).join('')}data: [DONE]\r\n\r\n`);
+					fake.responseChunks = [];
+					for (let offset = 0; offset < stream.length; offset += chunkSize) {
+						fake.responseChunks.push(stream.subarray(offset, offset + chunkSize));
+					}
+					const response = await postResponses(`${handle.baseUrl}/v1/responses`, {
+						headers: { 'Authorization': `Bearer ${handle.nonce}`, 'x-vscode-codex-portable-history': 'true' },
+						body: JSON.stringify({ model: 'gpt-5', stream: true, input: [] }),
+					});
+					const received: ISSEEvent[] = [];
+					new SSEParser(event => received.push(event)).feed(Buffer.from(response.body));
+					assert.deepStrictEqual({ received, heartbeats: response.body.match(/: keep-alive\n\n/g)?.length ?? 0 }, {
+						received: [
+							{ type: added.type, data: JSON.stringify({ ...added, item: portableReasoning }) },
+							{ type: delta.type, data: JSON.stringify(delta) },
+							{ type: done.type, data: JSON.stringify({ ...done, item: portableReasoning }) },
+							{ type: completed.type, data: JSON.stringify(portableCompleted) },
+							{ type: 'message', data: '[DONE]' },
+						],
+						heartbeats: 0,
+					});
+				}, () => 0);
+			});
+		}
+
+		test('throttles portable heartbeats by time since the last downstream write', async () => {
+			let now = 0;
+			await withProxy(async (handle, fake) => {
+				const chunks = [
+					{ time: 0, data: 'event: response.output_text.delta\n' },
+					{ time: 14_999, data: 'data: {"delta":"' },
+					{ time: 15_000, data: 'hel' },
+					{ time: 15_001, data: 'l' },
+					{ time: 29_999, data: 'o' },
+					{ time: 30_000, data: ' ' },
+					{ time: 44_999, data: 'world"}\n\n' },
+					{ time: 45_000, data: ': upstream heartbeat\n\n' },
+					{ time: 59_998, data: ': upstream heartbeat\n\n' },
+					{ time: 59_999, data: ': upstream heartbeat\n\n' },
+					{ time: 74_999, data: 'event: response.completed\ndata: {}\n\n' },
+				];
+				fake.responseChunks = chunks.map(chunk => Buffer.from(chunk.data));
+				fake.beforeResponseChunk = index => { now = chunks[index].time; };
+				const response = await postResponses(`${handle.baseUrl}/v1/responses`, {
+					headers: { 'Authorization': `Bearer ${handle.nonce}`, 'x-vscode-codex-portable-history': 'true' },
+					body: JSON.stringify({ model: 'gpt-5', stream: true, input: [] }),
+				});
+				assert.deepStrictEqual(response, {
+					status: 200,
+					body: [
+						': keep-alive\n\n',
+						': keep-alive\n\n',
+						'event: response.output_text.delta\ndata: {"delta":"hello world"}\n\n',
+						': keep-alive\n\n',
+						'event: response.completed\ndata: {}\n\n',
+					].join(''),
+				});
+			}, () => now);
+		});
+
+		test('also removes ciphertext from non-streaming JSON responses', async () => {
+			await withProxy(async (handle, fake) => {
+				fake.responseContentType = 'application/json; charset=utf-8';
+				fake.responseChunks = [Buffer.from(JSON.stringify(completed.response))];
+				const response = await postResponses(`${handle.baseUrl}/v1/responses`, {
+					headers: { 'Authorization': `Bearer ${handle.nonce}`, 'x-vscode-codex-portable-history': 'true' },
+					body: JSON.stringify({ model: 'gpt-5', stream: false, input: [] }),
+				});
+				assert.deepStrictEqual(JSON.parse(response.body), portableCompleted.response);
+			});
 		});
 	});
 

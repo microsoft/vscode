@@ -1,0 +1,1451 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import * as sinon from 'sinon';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IPlatformCustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IMarketplaceReference, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CustomizationMarketplaceWorkbenchService, getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+
+suite('CustomizationMarketplaceWorkbenchService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestTelemetryService extends NullTelemetryServiceShape {
+		readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+		override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+			if (eventName && data) {
+				this.events.push({ name: eventName, data });
+			}
+		}
+	}
+
+	function createConnector(name: string, displayName = `Mail ${name}`): ICopilotConnector {
+		return {
+			name, displayName, description: 'Search mail', tags: [], keywords: [], capabilities: [], representativeQueries: [],
+			connectionStatus: 'not_connected', scopes: [], mcpServers: [],
+		};
+	}
+
+
+	function createConfiguration(enabledIds: readonly string[]) {
+		const configuration = new TestConfigurationService({
+			[ChatConfiguration.PluginsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabledIds.includes(CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: enabledIds.includes(CustomizationMarketplaceSources.CopilotConnectors.id),
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		return configuration;
+	}
+
+
+	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
+		await configuration.setUserConfiguration(setting, enabled);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === setting; }
+		}());
+	}
+
+	function registerConnectorService(instantiationService: TestInstantiationService, marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider): void {
+		instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+			override readonly onDidChangeAccount = Event.None;
+			override readonly onDidDisconnect = Event.None;
+			override readonly connectors = [];
+			override readonly connectedMcpServers = [];
+			override readonly authorizationRequired = false;
+			override readonly connectionStateKnown = false;
+		}());
+		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider } satisfies IHarnessDescriptor;
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = observableValue(this, harness.id);
+			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
+			override readonly availableHarnesses = observableValue(this, [harness]);
+			override getActiveDescriptor() { return harness; }
+			override getDescriptorForSession() { return harness; }
+		}());
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+		}());
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+		}());
+	}
+
+	function createService(
+		configuration: TestConfigurationService,
+		platformService: ICustomizationMarketplaceService,
+		connectorsService: ICopilotConnectorsService,
+		marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider,
+		marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider,
+		pluginMarketplaceReferences: readonly IMarketplaceReference[] = [],
+		marketplacePolicy: { active: boolean; onDidChange: Event<void> } = { active: false, onDidChange: Event.None },
+		telemetryService = new TestTelemetryService(),
+		defaultAccountService: IDefaultAccountService = new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+		}(),
+		authenticationService: IAuthenticationService = new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+		}(),
+	): CustomizationMarketplaceWorkbenchService {
+		const platformSources = platformService.allSources ?? platformService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+		const normalizedPlatformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = platformSources;
+			override readonly allSources = platformSources;
+			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
+				return platformService.query(options, token);
+			}
+		}();
+		const pluginMarketplaceService = new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = marketplacePolicy.onDidChange;
+			override isStrictMarketplacePolicyActive() { return marketplacePolicy.active; }
+			override getMarketplaceReferences() { return pluginMarketplaceReferences; }
+		}();
+		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider, marketplaceManagementProvider } satisfies IHarnessDescriptor;
+		const harnessService = new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = observableValue(this, harness.id);
+			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
+			override readonly availableHarnesses = observableValue(this, [harness]);
+			override getActiveDescriptor() { return harness; }
+			override getDescriptorForSession() { return harness; }
+		}();
+		return store.add(new CustomizationMarketplaceWorkbenchService(
+			configuration,
+			normalizedPlatformService,
+			pluginMarketplaceService,
+			connectorsService,
+			harnessService,
+			store.add(new TestInstantiationService()),
+			defaultAccountService,
+			authenticationService,
+			telemetryService,
+		));
+	}
+
+	function createMixedFixture(enabledIds: readonly string[]) {
+		const configuration = createConfiguration(enabledIds);
+		const publicEntries: ICustomizationMarketplaceEntry[] = Array.from({ length: 45 }, (_, index) => ({
+			identifier: `public-${index}`, displayName: `Mail server ${index}`, description: '', score: 100 - index,
+			mediaType: CustomizationMarketplaceMediaType.McpServer, tags: [], capabilities: [], representativeQueries: [],
+		}));
+		const connectors = Array.from({ length: 30 }, (_, index) => createConnector(`connector-${index}`));
+		const nativeRequests: ICustomizationMarketplaceSourceQuery[] = [];
+		const connectorCalls: CancellationToken[] = [];
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			async query(_session, options) {
+				nativeRequests.push(options);
+				const offset = Number(options.cursor ?? 0);
+				const items = publicEntries.slice(offset, offset + Math.min(options.pageSize ?? 24, 5));
+				return { items, total: publicEntries.length, nextCursor: offset + items.length < publicEntries.length ? String(offset + items.length) : undefined };
+			},
+		};
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			cacheToken = CancellationToken.None;
+			override async getConnectorsSnapshot(token: CancellationToken) {
+				connectorCalls.push(token);
+				return { connectors, cacheToken: this.cacheToken };
+			}
+		}();
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override readonly allSources = this.sources;
+			override async query() { return { items: [], total: 0 }; }
+		}();
+		const service = createService(configuration, platformService, connectorsService, harnessProvider);
+		return { configuration, service, publicEntries, connectors, connectorsService, nativeRequests, connectorCalls };
+	}
+
+
+	test('Local omits the GitHub Feed while keeping existing platform registries', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const platformRequests: ICustomizationMarketplaceQuery[] = [];
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override readonly allSources = this.sources;
+			override async query(options: ICustomizationMarketplaceQuery) {
+				platformRequests.push(options);
+				return {
+					items: [{
+						sourceId: CustomizationMarketplaceSources.McpGallery.id,
+						identifier: 'registry-server',
+						displayName: 'Registry Server',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			}
+		}();
+		const service = createService(configuration, platformService, new class extends mock<ICopilotConnectorsService>() { }());
+		await assert.rejects(service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None), isCancellationError);
+		const page = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sources: service.sources.map(source => source.id),
+			items: page.items.map(item => item.sourceId),
+			platformRequests,
+		}, {
+			sources: [CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id],
+			items: [CustomizationMarketplaceSources.McpGallery.id],
+			platformRequests: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined, sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }],
+		});
+	});
+
+	test('reports when each Browse source settles from the start of the query', async () => {
+		const clock = sinon.useFakeTimers({ now: 1_000 });
+		store.add(toDisposable(() => clock.restore()));
+		const configuration = createConfiguration([]);
+		const telemetryService = new TestTelemetryService();
+		const sourceId = CustomizationMarketplaceSources.McpGallery.id;
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override readonly allSources = this.sources;
+			override async query(_options: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) {
+				clock.tick(75);
+				onProgress?.({
+					page: { items: [] },
+					completedSourceIds: [sourceId],
+					cachedSourceIds: [],
+					totalSourceCount: 1,
+				});
+				return { items: [] };
+			}
+		}();
+		const service = createService(
+			configuration,
+			platformService,
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			undefined,
+			[],
+			{ active: false, onDidChange: Event.None },
+			telemetryService,
+		);
+
+		await service.query({}, CancellationToken.None, () => { });
+
+		assert.deepStrictEqual(
+			telemetryService.events
+				.filter(event => event.name === 'chatCustomizationMarketplace.browseSourceLoaded')
+				.map(event => ({ name: event.name, ...event.data })),
+			[{
+				name: 'chatCustomizationMarketplace.browseSourceLoaded',
+				sourceCategory: 'mcpGallery',
+				outcome: 'success',
+				cacheStatus: 'miss',
+				timeToSourceSettledMs: 75,
+			}],
+		);
+	});
+
+	test('projects provider-managed marketplaces as discover sources', async () => {
+		const configuration = createConfiguration([]);
+		const providerChanges = store.add(new Emitter<void>());
+		let listCalls = 0;
+		const marketplace = {
+			name: 'vscode-team-kit',
+			source: 'GitHub: microsoft/vscode-team-kit',
+			isDefault: false,
+			managed: false,
+			available: true,
+		};
+		const unavailableMarketplace = {
+			name: 'unavailable-kit',
+			source: 'GitHub: microsoft/unavailable-kit',
+			isDefault: false,
+			managed: false,
+			available: false,
+		};
+		const queries: ICustomizationMarketplaceSourceQuery[] = [];
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: providerChanges.event,
+			list: async () => {
+				listCalls++;
+				return [marketplace, unavailableMarketplace];
+			},
+			add: async () => marketplace,
+			queryMarketplace: async (_session, _marketplace, options) => {
+				queries.push(options);
+				return {
+					items: [{
+						identifier: 'team-kit-plugin',
+						displayName: 'Team Kit Plugin',
+						description: 'Team workflows',
+						mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+					total: 1,
+				};
+			},
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override async query() { return { items: [], total: 0 }; }
+		}();
+		const service = createService(
+			configuration,
+			platformService,
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			provider,
+			[parseMarketplaceReference('local/ignored-marketplace')!],
+		);
+		await Event.toPromise(service.onDidChangeSources);
+		const sourceId = getProviderMarketplaceSourceId(marketplace.name);
+		const unavailableSourceId = getProviderMarketplaceSourceId(unavailableMarketplace.name);
+		const allSources = service.allSources.map(source => [source.id, source.displayName]);
+		const enabledSources = service.sources.map(source => [source.id, source.displayName]);
+		await assert.rejects(service.query({ sourceIds: [unavailableSourceId] }, CancellationToken.None), isCancellationError);
+		const page = await service.query({ sourceIds: [sourceId] }, CancellationToken.None);
+		const contentChanged = Event.toPromise(service.onDidChangeSources);
+		providerChanges.fire();
+		await contentChanged;
+		await setEnabled(configuration, ChatConfiguration.PluginsEnabled, false);
+
+		assert.deepStrictEqual({
+			allSources,
+			enabledSources,
+			disabledSources: service.sources.map(source => [source.id, source.displayName]),
+			items: page.items.map(item => [item.sourceId, item.displayName]),
+			queries,
+			listCalls,
+		}, {
+			allSources: [
+				[CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.displayName],
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+				[unavailableSourceId, 'unavailable-kit'],
+				[sourceId, 'vscode-team-kit'],
+			],
+			enabledSources: [
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+				[sourceId, 'vscode-team-kit'],
+			],
+			disabledSources: [
+				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+			],
+			items: [[sourceId, 'Team Kit Plugin']],
+			queries: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined }],
+			listCalls: 2,
+		});
+	});
+
+	test('strict marketplace policy does not query the public feed', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, true);
+		const customReference = parseMarketplaceReference('owner/catalog')!;
+		let platformCalls = 0;
+		let githubFeedCalls = 0;
+		const pluginCalls: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override async query() {
+				platformCalls++;
+				return { items: [] };
+			}
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return true; }
+			override getMarketplaceReferences() { return [customReference]; }
+			override async queryMarketplacePlugins(options: IPluginMarketplaceQuery) {
+				pluginCalls.push(customReference.canonicalId);
+				return {
+					items: [{
+						name: 'Review', description: 'Code review', version: '1', source: 'review',
+						sourceDescriptor: { kind: PluginSourceKind.RelativePath as const, path: 'review' },
+						marketplace: customReference.displayLabel, marketplaceReference: customReference, marketplaceType: MarketplaceType.Copilot,
+					}],
+					total: 1,
+					errors: [],
+				};
+			}
+		}());
+		registerConnectorService(instantiationService, {
+			async query() {
+				githubFeedCalls++;
+				return { items: [] };
+			},
+		});
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
+		const page = await service.query({}, CancellationToken.None);
+		const customSourceId = getPluginCustomizationMarketplaceSourceId(customReference);
+		assert.deepStrictEqual({
+			sources: service.sources.map(source => source.id),
+			items: page.items.map(item => [item.sourceId, item.displayName]),
+			platformCalls, githubFeedCalls, pluginCalls,
+		}, {
+			sources: [CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id, customSourceId],
+			items: [[customSourceId, 'Review']],
+			platformCalls: 1,
+			githubFeedCalls: 0,
+			pluginCalls: [customReference.canonicalId],
+		});
+	});
+
+	test('keeps all source metadata current when configured marketplaces change', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[ChatConfiguration.PluginsEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const marketplaceChanges = store.add(new Emitter<void>());
+		const references: ReturnType<typeof parseMarketplaceReference>[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override readonly onDidChangeSources = Event.None;
+			override async query() { return { items: [] }; }
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = marketplaceChanges.event;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override getMarketplaceReferences() { return references.filter(reference => reference !== undefined); }
+		}());
+		registerConnectorService(instantiationService);
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
+		const before = service.allSources.map(source => source.id);
+		const reference = parseMarketplaceReference('owner/catalog')!;
+		references.push(reference);
+		marketplaceChanges.fire();
+
+		assert.deepStrictEqual({
+			before,
+			after: service.allSources.map(source => source.id),
+		}, {
+			before: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id, CustomizationMarketplaceSources.PluginMarketplaces.id],
+			after: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id, CustomizationMarketplaceSources.PluginMarketplaces.id, getPluginCustomizationMarketplaceSourceId(reference)],
+		});
+	});
+
+	test('enabled public and plugin feeds start together and retain source selection', async () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, true);
+		const publicResult = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const pluginResult = new DeferredPromise<IPluginMarketplacePage>();
+		const calls: string[] = [];
+		const reference = parseMarketplaceReference('owner/catalog')!;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override async query() { return { items: [] }; }
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override getMarketplaceReferences() { return [reference]; }
+			override queryMarketplacePlugins() {
+				calls.push('plugin');
+				return pluginResult.p;
+			}
+		}());
+		registerConnectorService(instantiationService, {
+			query: async () => {
+				calls.push('public');
+				return publicResult.p;
+			},
+		});
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
+		const pending = service.query({ pageSize: 2 }, CancellationToken.None);
+		await Promise.resolve();
+		const started = [...calls];
+		await publicResult.complete({
+			items: [{
+				identifier: 'public', displayName: 'Public', description: '',
+				mediaType: 'application/ai-skill', tags: [], capabilities: [], representativeQueries: [],
+			}]
+		});
+		await pluginResult.complete({
+			items: [{
+				name: 'Plugin', description: 'Plugin from configured marketplace', version: '1', source: 'plugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugin' },
+				marketplace: reference.displayLabel, marketplaceReference: reference, marketplaceType: MarketplaceType.Copilot,
+			}],
+			total: 1,
+			errors: [],
+		});
+		const page = await pending;
+		const pluginSourceId = getPluginCustomizationMarketplaceSourceId(reference);
+		const selected = await service.query({ sourceIds: [pluginSourceId] }, CancellationToken.None);
+		const search = await service.query({ query: 'plugin', pageSize: 2 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			started, page: page.items.map(item => item.sourceId),
+			selected: selected.items.map(item => item.sourceId),
+			search: search.items.map(item => item.sourceId), calls,
+		}, {
+			started: ['plugin', 'public'], page: [pluginSourceId, 'agentFinder'],
+			selected: [pluginSourceId], search: [pluginSourceId, 'agentFinder'],
+			calls: ['plugin', 'public', 'plugin', 'plugin', 'public'],
+		});
+	});
+
+	test('preserves recoverable public feed failures through the renderer composition', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() {
+					return {
+						items: [{
+							identifier: 'public', displayName: 'Public', description: '',
+							mediaType: 'application/ai-skill', tags: [], capabilities: [], representativeQueries: [],
+						}],
+						nextCursor: 'next',
+						warning: 'Partial failure',
+					};
+				},
+			},
+		);
+		const page = await service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 1 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			items: page.items.map(item => item.identifier),
+			hasMore: !!page.nextCursor,
+			errors: page.sourceErrors,
+		}, {
+			items: ['public'],
+			hasMore: true,
+			errors: [{ sourceId: 'agentFinder', message: 'Partial failure' }],
+		});
+	});
+
+	test('projects saved feeds into ordered Browse sections and preserves partial failures', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const feedIds = {
+			editorsPicks: 'feed_OufQ29dQsJosnkuqn7nf-Q',
+			planBuildAndShip: 'feed_mi1XpaezpCJqxQXaxB1FZg',
+			connectYourWork: 'feed__PqOfrWzroUguZ-KABZICA',
+		};
+		const entry = (identifier: string): ICustomizationMarketplaceEntry => ({
+			identifier,
+			displayName: identifier,
+			description: `${identifier} description`,
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+		});
+		const requests: string[] = [];
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() { throw new Error('Feed retrieval must not search'); },
+				async getFeed(_session, id) {
+					requests.push(id);
+					if (id === feedIds.planBuildAndShip) {
+						throw new Error('Plan feed unavailable');
+					}
+					return { items: id === feedIds.editorsPicks ? [entry('first'), entry('second')] : [entry('third')] };
+				},
+			},
+		);
+		const sections = await service.getBrowseSections({}, CancellationToken.None);
+		const excluded = await service.getBrowseSections({ sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sections,
+			excluded,
+			requests,
+		}, {
+			sections: {
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				sections: [{
+					id: feedIds.editorsPicks,
+					title: 'Editor\'s picks',
+					items: [entry('first'), entry('second')].map(item => ({ ...item, sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id })),
+				}, {
+					id: feedIds.connectYourWork,
+					title: 'Connect your work',
+					items: [{ ...entry('third'), sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id }],
+				}],
+				error: 'Plan feed unavailable',
+			},
+			excluded: undefined,
+			requests: Object.values(feedIds),
+		});
+	});
+
+	test('times out each curated feed independently and reports bounded health telemetry', async () => {
+		const clock = sinon.useFakeTimers();
+		store.add(toDisposable(() => clock.restore()));
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const telemetryService = new TestTelemetryService();
+		let requestCount = 0;
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() { throw new Error('Unexpected search'); },
+				getFeed(_session, _feedId, token) {
+					requestCount++;
+					return requestCount === 2
+						? new Promise<ICustomizationMarketplaceSourcePage>((_resolve, reject) => {
+							const listener = token.onCancellationRequested(() => {
+								listener.dispose();
+								reject(new CancellationError());
+							});
+						})
+						: Promise.resolve({ items: [] });
+				},
+			},
+			undefined,
+			[],
+			{ active: false, onDidChange: Event.None },
+			telemetryService,
+		);
+
+		const resultPromise = service.getBrowseSections({}, CancellationToken.None);
+		await clock.tickAsync(10_001);
+		const result = await resultPromise;
+
+		assert.deepStrictEqual({
+			sections: result?.sections.map(section => section.title),
+			error: result?.error,
+			telemetry: telemetryService.events.map(event => ({
+				name: event.name,
+				feedSlot: event.data.feedSlot,
+				outcome: event.data.outcome,
+				availableCount: event.data.availableCount,
+				unavailableCount: event.data.unavailableCount,
+				cacheStatus: event.data.cacheStatus,
+			})).sort((first, second) => String(first.feedSlot).localeCompare(String(second.feedSlot))),
+		}, {
+			sections: ['Editor\'s picks', 'Connect your work'],
+			error: 'The Plan, build, and ship section took too long to load.',
+			telemetry: [{
+				name: 'chatCustomizationMarketplace.browseFeedLoaded',
+				feedSlot: 'connectYourWork',
+				outcome: 'success',
+				availableCount: 0,
+				unavailableCount: 0,
+				cacheStatus: 'miss',
+			}, {
+				name: 'chatCustomizationMarketplace.browseFeedLoaded',
+				feedSlot: 'editorsPicks',
+				outcome: 'success',
+				availableCount: 0,
+				unavailableCount: 0,
+				cacheStatus: 'miss',
+			}, {
+				name: 'chatCustomizationMarketplace.browseFeedLoaded',
+				feedSlot: 'planBuildAndShip',
+				outcome: 'timeout',
+				availableCount: 0,
+				unavailableCount: 0,
+				cacheStatus: 'miss',
+			}],
+		});
+	});
+
+	test('reports curated sections independently as their feeds settle', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const feeds = new Map<string, DeferredPromise<ICustomizationMarketplaceSourcePage>>();
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() { throw new Error('Unexpected search'); },
+				getFeed(_session, feedId) {
+					const result = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+					feeds.set(feedId, result);
+					return result.p;
+				},
+			},
+		);
+		const progress: { sections: readonly string[]; completed: number }[] = [];
+		const result = service.getBrowseSections({}, CancellationToken.None, update => {
+			progress.push({
+				sections: update.result.sections.map(section => section.title),
+				completed: update.completedSectionCount,
+			});
+		});
+		await timeout(0);
+		feeds.get('feed__PqOfrWzroUguZ-KABZICA')!.complete({ items: [] });
+		await timeout(0);
+		assert.deepStrictEqual(progress, [{ sections: ['Connect your work'], completed: 1 }]);
+		feeds.get('feed_OufQ29dQsJosnkuqn7nf-Q')!.complete({ items: [] });
+		feeds.get('feed_mi1XpaezpCJqxQXaxB1FZg')!.complete({ items: [] });
+		assert.deepStrictEqual((await result)?.sections.map(section => section.title), [
+			'Editor\'s picks',
+			'Plan, build, and ship',
+			'Connect your work',
+		]);
+	});
+
+	test('ignores changes to the current default authentication session', () => {
+		const authenticationChanges = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const defaultAccount = {
+			authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+			accountName: 'octocat',
+			sessionId: 'default-session',
+			enterprise: false,
+		};
+		const service = createService(
+			createConfiguration([]),
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			undefined,
+			[],
+			{ active: false, onDidChange: Event.None },
+			new TestTelemetryService(),
+			new class extends mock<IDefaultAccountService>() {
+				override readonly currentDefaultAccount = defaultAccount;
+				override readonly onDidChangeDefaultAccount = Event.None;
+			}(),
+			new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = authenticationChanges.event;
+			}(),
+		);
+		let changes = 0;
+		store.add(service.onDidChangeSources(() => changes++));
+		const session = { id: defaultAccount.sessionId, accessToken: '', account: { id: 'octocat', label: 'octocat' }, scopes: [] };
+
+		authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [session] } });
+		const afterChanged = changes;
+		authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [session], changed: [] } });
+
+		assert.deepStrictEqual({ afterChanged, afterRemoved: changes }, { afterChanged: 0, afterRemoved: 1 });
+	});
+
+	test('uses SDK authentication recovery for the GitHub Feed', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const signIns: CancellationToken[] = [];
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() { return { items: [] }; },
+				getRecoveryAction() {
+					return { label: 'Sign In', kind: 'signIn' as const, groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount, async run(token) { signIns.push(token); } };
+				},
+			},
+		);
+		const action = service.getSourceRecoveryAction(CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+		await action?.run(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			label: action?.label,
+			kind: action?.kind,
+			groupId: action?.groupId,
+			signIns,
+		}, {
+			label: 'Sign In',
+			kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+			signIns: [CancellationToken.None],
+		});
+	});
+
+	for (const cancellationReason of ['request', 'disabled'] as const) {
+		test(`cancels SDK feed retrieval when ${cancellationReason}`, async () => {
+			const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+			const pending = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+			const cancellation = store.add(new CancellationTokenSource());
+			const tokens: CancellationToken[] = [];
+			const service = createService(
+				configuration,
+				new class extends mock<ICustomizationMarketplaceService>() {
+					override readonly sources = [];
+					override async query() { return { items: [] }; }
+				}(),
+				new class extends mock<ICopilotConnectorsService>() { }(),
+				{
+					async query() { throw new Error('Unexpected search'); },
+					getFeed(_session, _feedId, token) {
+						tokens.push(token);
+						return pending.p;
+					},
+				},
+			);
+			const result = service.getBrowseSections({}, cancellation.token);
+			const rejected = assert.rejects(result, isCancellationError);
+			if (cancellationReason === 'request') {
+				cancellation.cancel();
+			} else {
+				await setEnabled(configuration, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+			}
+			await rejected;
+			await pending.complete({ items: [] });
+			assert.deepStrictEqual(tokens.map(token => token.isCancellationRequested), [true, true, true]);
+		});
+	}
+
+
+	test('connector catalog recovery offers only ordinary sign-in', async () => {
+		const configuration = createConfiguration(['copilotConnectors']);
+		const signIns: CancellationToken[] = [];
+		let authorizationRequired = true;
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override get authorizationRequired() { return authorizationRequired; }
+			override async signIn(token: CancellationToken) { signIns.push(token); authorizationRequired = false; }
+		}();
+		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() { }(), connectorsService);
+		const unrelated = service.getSourceRecoveryAction('agentFinder');
+		const action = service.getSourceRecoveryAction('copilotConnectors');
+		assert.ok(action);
+		await action.run(CancellationToken.None);
+		assert.deepStrictEqual({
+			unrelated, label: action.label, kind: action.kind, groupId: action.groupId,
+			signIns, afterSignIn: service.getSourceRecoveryAction('copilotConnectors'),
+		}, {
+			unrelated: undefined, label: 'Sign In', kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+			signIns: [CancellationToken.None], afterSignIn: undefined,
+		});
+	});
+
+	test('connector recovery does not inspect Connector state while the experiment is disabled', () => {
+		const configuration = createConfiguration([]);
+		let authorizationReads = 0;
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override get authorizationRequired() {
+				authorizationReads++;
+				return true;
+			}
+		}();
+		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() { }(), connectorsService);
+
+		assert.deepStrictEqual({
+			action: service.getSourceRecoveryAction(CustomizationMarketplaceSources.CopilotConnectors.id),
+			authorizationReads,
+		}, {
+			action: undefined,
+			authorizationReads: 0,
+		});
+	});
+
+	test('GitHub Feed exposes only the active harness recovery action', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const recoveries: CancellationToken[] = [];
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			async query() { return { items: [] }; },
+			getRecoveryAction() {
+				return {
+					label: 'Sign In',
+					kind: 'signIn',
+					groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+					async run(token) { recoveries.push(token); },
+				};
+			},
+		};
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() { }(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			harnessProvider,
+		);
+
+		const action = service.getSourceRecoveryAction(CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+		await action?.run(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			label: action?.label,
+			kind: action?.kind,
+			groupId: action?.groupId,
+			recoveries,
+		}, {
+			label: 'Sign In',
+			kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+			recoveries: [CancellationToken.None],
+		});
+	});
+
+
+	test('uses the active harness catalog provider instead of the platform public feed', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		let platformQueries = 0;
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override async query() {
+				platformQueries++;
+				return { items: [] };
+			}
+		}();
+		const harnessQueries: ICustomizationMarketplaceSourceQuery[] = [];
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			async query(_session, options) {
+				harnessQueries.push(options);
+				return {
+					items: [{
+						identifier: 'sdk-selection',
+						displayName: 'SDK Skill',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			},
+		};
+		const service = createService(configuration, platformService, new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+			override readonly connectors = [];
+			override readonly connectedMcpServers = [];
+		}(), harnessProvider);
+
+		const page = await service.query({ query: 'sdk' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			platformQueries,
+			harnessQueries,
+			items: page.items.map(item => ({ sourceId: item.sourceId, identifier: item.identifier })),
+		}, {
+			platformQueries: 0,
+			harnessQueries: [{ query: 'sdk', mediaType: undefined, pageSize: 30, cursor: undefined }],
+			items: [{ sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id, identifier: 'sdk-selection' }],
+		});
+	});
+
+	test('does not fall back to a platform GitHub Feed while the harness catalog is unavailable', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		let platformQueries = 0;
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override async query() {
+				platformQueries++;
+				return {
+					items: [{
+						sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+						identifier: 'rest-result',
+						displayName: 'REST result',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			}
+		}();
+		const service = createService(configuration, platformService, new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+			override readonly connectors = [];
+			override readonly connectedMcpServers = [];
+		}(), { query: async () => undefined });
+
+		const page = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			platformQueries,
+			items: page.items.map(item => item.identifier),
+		}, {
+			platformQueries: 0,
+			items: [],
+		});
+	});
+
+	test('composes the built-in catalog with Copilot connectors', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const builtinService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override async query() { return { items: [] }; }
+		}();
+		const connector = createConnector('mail', 'Mail');
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+			override readonly connectors = [connector];
+			override readonly connectedMcpServers = [];
+			override async getConnectors() { return this.connectors; }
+			override async getConnectorsSnapshot() { return { connectors: this.connectors, cacheToken: CancellationToken.None }; }
+		}();
+		const service = createService(configuration, builtinService, connectorsService, {
+			async query() {
+				return {
+					items: [{
+						identifier: 'registry/server',
+						displayName: 'Registry server',
+						description: 'Registry result',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			},
+		});
+
+		const page = await service.query({ mediaType: CustomizationMarketplaceMediaType.McpServer }, CancellationToken.None);
+
+		assert.deepStrictEqual(page.items.map(item => ({
+			sourceId: item.sourceId,
+			identifier: item.identifier,
+			installation: item.installation,
+		})), [{
+			sourceId: 'agentFinder',
+			identifier: 'registry/server',
+			installation: undefined,
+		}, {
+			sourceId: 'copilotConnectors',
+			identifier: 'mail',
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		}]);
+	});
+
+
+	test('queries each native source independently when composing it with connectors', async () => {
+		const configuration = createConfiguration(['agentFinder', 'copilotConnectors']);
+		const baseSources = [CustomizationMarketplaceSources.McpGallery, CustomizationMarketplaceSources.AgentFinderPublicFeed];
+		const sourceRequests: (readonly string[] | undefined)[] = [];
+		const harnessRequests: ICustomizationMarketplaceSourceQuery[] = [];
+		const baseService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly allSources = baseSources;
+			override readonly sources = baseSources;
+			override async query(options: ICustomizationMarketplaceQuery) {
+				sourceRequests.push(options.sourceIds);
+				const sourceId = options.sourceIds?.[0];
+				assert.ok(sourceId);
+				return {
+					items: [{
+						sourceId,
+						identifier: `${sourceId}/server`,
+						displayName: `${sourceId} server`,
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			}
+		}();
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override async getConnectorsSnapshot() {
+				return { connectors: [createConnector('mail', 'Mail')], cacheToken: CancellationToken.None };
+			}
+		}();
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			async query(_session, options) {
+				harnessRequests.push(options);
+				return {
+					items: [{
+						identifier: 'agentFinder/server',
+						displayName: 'agentFinder server',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			},
+		};
+		const composed = createService(configuration, baseService, connectorsService, harnessProvider);
+
+		const page = await composed.query({ pageSize: 24 }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sourceRequests: sourceRequests.map(sourceIds => [...sourceIds ?? []]).sort(),
+			harnessRequests,
+			resultSources: [...new Set(page.items.map(item => item.sourceId))].sort(),
+		}, {
+			sourceRequests: [['mcpGallery']],
+			harnessRequests: [{ query: '', mediaType: undefined, pageSize: 24, cursor: undefined }],
+			resultSources: ['agentFinder', 'copilotConnectors', 'mcpGallery'],
+		});
+	});
+
+
+	for (const enabledIds of [[], ['agentFinder'], ['copilotConnectors'], ['agentFinder', 'copilotConnectors']]) {
+		test(`queries only selected sources: ${enabledIds.join(', ') || 'none'}`, async () => {
+			const fixture = createMixedFixture(enabledIds);
+			const options = { query: 'mail', pageSize: 24, sourceIds: ['agentFinder', 'copilotConnectors', 'unselected'] };
+			const result = fixture.service.query(options, CancellationToken.None);
+			if (enabledIds.length) {
+				const page = await result;
+				assert.deepStrictEqual([...new Set(page.items.map(item => item.sourceId))], enabledIds);
+			} else {
+				await assert.rejects(result, isCancellationError);
+			}
+			assert.deepStrictEqual({
+				publicQueried: fixture.nativeRequests.length > 0,
+				connectorsQueried: fixture.connectorCalls.length > 0,
+				registeredSources: fixture.service.sources,
+			}, {
+				publicQueried: enabledIds.includes('agentFinder'),
+				connectorsQueried: enabledIds.includes('copilotConnectors'),
+				registeredSources: [CustomizationMarketplaceSources.McpGallery, CustomizationMarketplaceSources.AgentFinderPublicFeed, CustomizationMarketplaceSources.CopilotConnectors],
+			});
+		});
+	}
+
+
+	for (const query of [undefined, 'mail']) {
+		test(`mixed ${query ? 'ranked search' : 'native browsing'} pins a changing harness catalog across global pages`, async () => {
+			const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+			const pages: ICustomizationMarketplacePage[] = [];
+			const publicResults = fixture.publicEntries.map(item => ['agentFinder', item.identifier, item.score]);
+			const connectorResults = fixture.connectors.map(item => ['copilotConnectors', item.name, query ? 90 : undefined]);
+			const browseResults = publicResults.flatMap((item, index) => index < connectorResults.length ? [item, connectorResults[index]] : [item]);
+			let cursor: ICustomizationMarketplaceCursor | undefined;
+			do {
+				const page = await fixture.service.query({ query, pageSize: 24, cursor }, CancellationToken.None);
+				pages.push(page);
+				cursor = page.nextCursor;
+				if (pages.length === 1) {
+					fixture.connectors.splice(0, fixture.connectors.length, createConnector('new', 'Mail'), createConnector('connector-29', 'Mail'));
+				}
+				assert.ok(pages.length <= 4, 'Pagination must reach exhaustion');
+			} while (cursor);
+			assert.deepStrictEqual({
+				lengths: pages.map(page => page.items.length),
+				totals: pages.map(page => page.total),
+				results: pages.flatMap(page => page.items.map(item => [item.sourceId, item.identifier, item.score])),
+				cursorKeys: pages.slice(0, -1).map(page => Object.keys(page.nextCursor!)),
+				nativePageSizes: [...new Set(fixture.nativeRequests.map(request => request.pageSize))],
+				nativeCalls: fixture.nativeRequests.length,
+				connectorCalls: fixture.connectorCalls.length,
+			}, {
+				lengths: [24, 24, 24, 3],
+				totals: [75, 75, 75, 75],
+				results: query
+					? [...publicResults.slice(0, 10), connectorResults[0], publicResults[10], ...connectorResults.slice(1), ...publicResults.slice(11)]
+					: browseResults,
+				cursorKeys: [['token'], ['token'], ['token']],
+				nativePageSizes: [24],
+				nativeCalls: 9,
+				connectorCalls: 1,
+			});
+		});
+	}
+
+
+	for (const pageSize of [1, 3]) {
+		test(`queryless browsing preserves rotation and snapshots across ${pageSize}-entry pages and source exhaustion`, async () => {
+			const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+			fixture.publicEntries.splice(7);
+			fixture.connectors.splice(4);
+			const expected = [
+				'public-0', 'connector-0', 'public-1', 'connector-1', 'public-2', 'connector-2',
+				'public-3', 'connector-3', 'public-4', 'public-5', 'public-6',
+			];
+			const pages: ICustomizationMarketplacePage[] = [];
+			let cursor: ICustomizationMarketplaceCursor | undefined;
+			do {
+				const page = await fixture.service.query({ pageSize, cursor }, CancellationToken.None);
+				pages.push(page);
+				cursor = page.nextCursor;
+				if (pages.length === 1) {
+					fixture.connectors.reverse();
+					fixture.connectors.push(createConnector('new'));
+				}
+				assert.ok(pages.length <= expected.length);
+			} while (cursor);
+			assert.deepStrictEqual({
+				pages: pages.map(page => page.items.map(item => item.identifier)),
+				totals: [...new Set(pages.map(page => page.total))],
+				publicCursorKeys: pages.slice(0, -1).map(page => Object.keys(page.nextCursor!)),
+				connectorReads: fixture.connectorCalls.length,
+			}, {
+				pages: Array.from({ length: Math.ceil(expected.length / pageSize) }, (_, index) => expected.slice(index * pageSize, (index + 1) * pageSize)),
+				totals: [11],
+				publicCursorKeys: pages.slice(0, -1).map(() => ['token']),
+				connectorReads: 1,
+			});
+		});
+	}
+
+
+	for (const query of [undefined, 'mail']) {
+		test(`account invalidation refuses buffered ${query ? 'search' : 'browse'} connectors before any catalog reads`, async () => {
+			const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+			const context = store.add(new CancellationTokenSource());
+			fixture.connectorsService.cacheToken = context.token;
+			const options = { query, pageSize: 2 };
+			const first = await fixture.service.query(options, CancellationToken.None);
+			context.cancel();
+			fixture.connectorsService.cacheToken = CancellationToken.None;
+			fixture.connectors.splice(0, fixture.connectors.length, createConnector('new-account', 'Mail'));
+			await assert.rejects(fixture.service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
+			const readsBeforeNewSearch = [fixture.nativeRequests.length, fixture.connectorCalls.length];
+			const fresh = await fixture.service.query(options, CancellationToken.None);
+			assert.deepStrictEqual({
+				oldIds: first.items.map(item => item.identifier),
+				readsBeforeNewSearch,
+				fresh: fresh.items.map(item => [item.sourceId, item.identifier, item.score]),
+			}, {
+				oldIds: ['public-0', query ? 'public-1' : 'connector-0'],
+				readsBeforeNewSearch: [1, 1],
+				fresh: [['agentFinder', 'public-0', 100], ['copilotConnectors', 'new-account', query ? 100 : undefined]],
+			});
+		});
+	}
+
+
+	test('forwards an opaque backend cursor without decoding it or exposing it in the combined cursor', async () => {
+		const opaque = 'opaque+/=&{"installation":"not-provenance"}';
+		const calls: ICustomizationMarketplaceSourceQuery[] = [];
+		const configuration = createConfiguration(['agentFinder']);
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			async query(_session, options) {
+				calls.push(options);
+				return {
+					items: [{
+						identifier: options.cursor ? 'second' : 'first', displayName: 'Mail', description: '',
+						mediaType: CustomizationMarketplaceMediaType.McpServer, tags: [], capabilities: [], representativeQueries: [], score: 50,
+					}],
+					total: 2,
+					nextCursor: options.cursor ? undefined : opaque,
+				};
+			},
+		};
+		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override async query() { return { items: [] }; }
+		}(), new class extends mock<ICopilotConnectorsService>() { }(), harnessProvider);
+		const first = await service.query({ query: 'mail', pageSize: 1 }, CancellationToken.None);
+		const second = await service.query({ query: 'mail', pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			calls,
+			items: [first, second].flatMap(page => page.items.map(item => [item.identifier, item.installation])),
+			exposesBackendCursor: first.nextCursor?.token === opaque,
+		}, {
+			calls: [
+				{ query: 'mail', mediaType: undefined, pageSize: 1, cursor: undefined },
+				{ query: 'mail', mediaType: undefined, pageSize: 1, cursor: opaque },
+			],
+			items: [['first', undefined], ['second', undefined]],
+			exposesBackendCursor: false,
+		});
+	});
+
+
+	test('source toggles reject stale continuations and fresh queries do not touch the disabled source', async () => {
+		const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+		const first = await fixture.service.query({ query: 'mail', pageSize: 24 }, CancellationToken.None);
+		await setEnabled(fixture.configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
+		await assert.rejects(fixture.service.query({ query: 'mail', pageSize: 24, cursor: first.nextCursor }, CancellationToken.None), /Start a new search/);
+		const callsBefore = fixture.connectorCalls.length;
+		const fresh = await fixture.service.query({ query: 'mail', pageSize: 24 }, CancellationToken.None);
+		assert.deepStrictEqual({
+			sourceIds: [...new Set(fresh.items.map(item => item.sourceId))],
+			additionalConnectorCalls: fixture.connectorCalls.length - callsBefore,
+		}, { sourceIds: ['agentFinder'], additionalConnectorCalls: 0 });
+	});
+
+
+	test('activating strict marketplace policy cancels an in-flight public feed query', async () => {
+		const configuration = createConfiguration(['agentFinder']);
+		const policyChanges = store.add(new Emitter<void>());
+		const marketplacePolicy = { active: false, onDidChange: policyChanges.event };
+		const publicResponse = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const tokens: CancellationToken[] = [];
+		let publicCalls = 0;
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			query(_session, _options, token) {
+				publicCalls++;
+				tokens.push(token);
+				return publicResponse.p;
+			},
+		};
+		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override async query() { return { items: [] }; }
+		}(), new class extends mock<ICopilotConnectorsService>() { }(), harnessProvider, undefined, [], marketplacePolicy);
+		const pending = service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await configuration.setUserConfiguration('chat.plugins.strictMarketplaces', []);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === 'chat.plugins.strictMarketplaces'; }
+		}());
+		assert.deepStrictEqual(tokens.map(token => token.isCancellationRequested), [false]);
+		marketplacePolicy.active = true;
+		policyChanges.fire();
+		await cancelled;
+		await publicResponse.complete({ items: [] });
+		await assert.rejects(service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None), isCancellationError);
+		assert.deepStrictEqual({
+			publicCalls,
+			tokensCancelled: tokens.map(token => token.isCancellationRequested),
+			sources: service.sources.map(source => source.id),
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, {
+			publicCalls: 1,
+			tokensCancelled: [true],
+			sources: [CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id],
+			listening: false,
+		});
+	});
+
+
+	test('effective source changes cancel both transports, while unchanged settings preserve the request', async () => {
+		const configuration = createConfiguration(['agentFinder', 'copilotConnectors']);
+		const publicResponse = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const connectorResponse = new DeferredPromise<readonly ICopilotConnector[]>();
+		const tokens: CancellationToken[] = [];
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			query(_session, _options, token) {
+				tokens.push(token);
+				return publicResponse.p;
+			},
+		};
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override async getConnectorsSnapshot(token: CancellationToken) {
+				tokens.push(token);
+				return { connectors: await connectorResponse.p, cacheToken: CancellationToken.None };
+			}
+		}();
+		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override async query() { return { items: [] }; }
+		}(), connectorsService, harnessProvider);
+		const pending = service.query({ query: 'mail' }, CancellationToken.None);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
+		const beforeToggle = tokens.map(token => token.isCancellationRequested);
+		await setEnabled(configuration, CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, false);
+		await cancelled;
+		await publicResponse.complete({ items: [] });
+		await connectorResponse.complete([createConnector('mail')]);
+		assert.deepStrictEqual({
+			beforeToggle,
+			afterToggle: tokens.map(token => token.isCancellationRequested),
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, { beforeToggle: [false, false], afterToggle: [true, true], listening: false });
+	});
+
+
+	test('unreachable connectors do not prevent harness catalog pagination', async () => {
+		const fixture = createMixedFixture(['agentFinder', 'copilotConnectors']);
+		const unavailable = sinon.stub(fixture.connectorsService, 'getConnectorsSnapshot').rejects(new Error('Connector catalog unavailable'));
+		store.add(toDisposable(() => unavailable.restore()));
+		const options = { query: 'mail', pageSize: 24 };
+		const first = await fixture.service.query(options, CancellationToken.None);
+		const last = await fixture.service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			ids: [first, last].flatMap(page => page.items.map(item => item.identifier)),
+			lengths: [first.items.length, last.items.length],
+			errors: [first.sourceErrors, last.sourceErrors],
+			totals: [first.total, last.total],
+			connectorCalls: unavailable.callCount,
+		}, {
+			ids: fixture.publicEntries.map(item => item.identifier),
+			lengths: [24, 21],
+			errors: Array.from({ length: 2 }, () => [{ sourceId: 'copilotConnectors', message: 'Connector catalog unavailable' }]),
+			totals: [undefined, undefined],
+			connectorCalls: 1,
+		});
+	});
+
+
+	for (const partial of [false, true]) {
+		test(`preserves ${partial ? 'partial' : 'empty'} harness catalog failures`, async () => {
+			const configuration = createConfiguration(['agentFinder', 'copilotConnectors']);
+			const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+				query: async (_session, options) => {
+					if (!partial || options.cursor) {
+						throw new Error('Public feed unavailable');
+					}
+					return {
+						items: [{
+							identifier: 'public', displayName: 'Mail', description: '', score: 100,
+							mediaType: CustomizationMarketplaceMediaType.McpServer, tags: [], capabilities: [], representativeQueries: [],
+						}],
+						nextCursor: 'next',
+						total: 2,
+					};
+				},
+			};
+			const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+				override async getConnectorsSnapshot() {
+					return { connectors: [createConnector('mail', 'Mail')], cacheToken: CancellationToken.None };
+				}
+			}();
+			const page = await createService(configuration, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+				override async query() { return { items: [] }; }
+			}(), connectorsService, harnessProvider).query({ query: 'mail', pageSize: 24 }, CancellationToken.None);
+			assert.deepStrictEqual({
+				ids: page.items.map(item => item.identifier),
+				errors: page.sourceErrors,
+				total: page.total,
+				next: page.nextCursor,
+			}, {
+				ids: partial ? ['public', 'mail'] : ['mail'],
+				errors: [{ sourceId: 'agentFinder', message: 'Public feed unavailable' }],
+				total: undefined,
+				next: undefined,
+			});
+		});
+	}
+});

@@ -6,13 +6,20 @@
 import { IObservable } from '../../../base/common/observable.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import * as nls from '../../../nls.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Registry } from '../../registry/common/platform.js';
+import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, managedSettingValue, TemporaryDefaultToLocalHarnessSettingId } from '../../policy/common/copilotManagedSettings.js';
 
 /** Context key set by {@link IAgentHostEnablementService}. Use in `when` clauses to gate Agent Host UI. */
 export const AGENT_HOST_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostEnabled', false, { type: 'boolean', description: nls.localize('agentHostEnabled', "Whether Agent Host features are available and AI features are enabled in this window.") });
+
+/** Hidden setting that gates the current-harness indicator for existing Agent Host sessions in the main VS Code window. */
+export const AgentHostExistingSessionHarnessPickerEnabledSettingId = 'chat.editor.agentHost.existingSessionHarnessPicker.enabled';
+
+/** Effective setting or experiment value for the existing-session harness indicator in the main VS Code window. */
+export const AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY = new RawContextKey<boolean>('agentHostExistingSessionHarnessPickerEnabled', false, { type: 'boolean', description: nls.localize('agentHostExistingSessionHarnessPickerEnabled', "Whether existing Agent Host sessions in the main VS Code window show the current harness as a disabled picker.") });
 
 export const IAgentHostEnablementService = createDecorator<IAgentHostEnablementService>('agentHostEnablementService');
 
@@ -25,12 +32,9 @@ export interface IAgentHostEnablementService {
 	/**
 	 * Whether an enterprise has mandated the Copilot SDK sandbox floor through managed settings
 	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; VS Code reads it
-	 * only to retire the legacy local harness for governed users, since the sandbox is implemented
-	 * by the Agent Host.
-	 *
-	 * A user- or workspace-level sandbox opt-in is not an enterprise decision and does not set
-	 * this. Existing local chat sessions keep working; only the harness used for *new* chats is
-	 * affected, and virtual workspaces are exempt.
+	 * to display sandbox state. Like non-empty managed permission deny rules, this floor requires
+	 * Copilot Agent Host for new requests; existing Local history remains readable.
+	 * A user- or workspace-level sandbox opt-in does not set this.
 	 */
 	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
@@ -42,6 +46,28 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostConfigurationTitle', "Chat Agent Host"),
 	type: 'object',
 	properties: {
+		[TemporaryDefaultToLocalHarnessSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.temporaryDefaultToLocalHarness', "Temporarily keeps Local available and disables automatic promotion to the Copilot harness, including routing required by managed sandbox and permission settings. Explicit and remembered harness choices are preserved. Local does not enforce runtime-only sandbox and permission settings."),
+			default: false,
+			included: false,
+			scope: ConfigurationScope.APPLICATION,
+			policy: {
+				name: 'ChatTemporaryDefaultToLocalHarness',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.142',
+				value: managedSettingValue(COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY),
+				managedSettings: {
+					[COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: { type: 'boolean' },
+				},
+				localization: {
+					description: {
+						key: 'chat.temporaryDefaultToLocalHarness.policy',
+						value: nls.localize('chat.temporaryDefaultToLocalHarness.policy', "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings and managed sandbox and permission routing. Local does not enforce runtime-only sandbox and permission settings."),
+					},
+				},
+			},
+		},
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),
@@ -73,6 +99,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
+		},
+		[AgentHostExistingSessionHarnessPickerEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.editor.agentHost.existingSessionHarnessPicker.enabled', "When enabled, existing Agent Host sessions in the main VS Code window show the current harness as a disabled picker."),
+			default: false,
+			included: false,
+			tags: ['experimental'],
 		},
 	}
 });

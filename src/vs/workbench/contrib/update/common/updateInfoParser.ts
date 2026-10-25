@@ -126,12 +126,12 @@ function buildParsedInput(markdown: string, meta: { buttons?: unknown; bannerIma
 function parseUpdateInfoFrontmatter(text: string): IParsedUpdateInfoInput {
 	const blockMatch = text.match(/^---[ \t]*\r?\n(?<json>[\s\S]*?)\r?\n---[ \t]*(?:\r?\n(?<body>[\s\S]*))?$/);
 	if (blockMatch?.groups) {
-		return parseUpdateInfoFrontmatterMatch(text, blockMatch.groups['json'], blockMatch.groups['body'] ?? '');
+		return parseUpdateInfoFrontmatterMatch(text, blockMatch.groups.json, blockMatch.groups.body ?? '');
 	}
 
 	const inlineMatch = text.match(/^---[ \t]*(?<json>\{.*\})[ \t]*---[ \t]*(?<body>[\s\S]*)$/);
 	if (inlineMatch?.groups) {
-		return parseUpdateInfoFrontmatterMatch(text, inlineMatch.groups['json'], inlineMatch.groups['body']);
+		return parseUpdateInfoFrontmatterMatch(text, inlineMatch.groups.json, inlineMatch.groups.body);
 	}
 
 	return { markdown: text };

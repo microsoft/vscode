@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { GroupsOrder, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -31,6 +31,20 @@ import { Memento } from '../../../../common/memento.js';
 import { IContextKeyService, IContextKeyServiceTarget } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
+import { IWorkbenchLayoutService, Parts } from '../../../layout/browser/layoutService.js';
+
+class TestFloatingEditorLayoutService extends TestLayoutService {
+
+	floatingPanelsEnabled = false;
+
+	private readonly visibleParts = new Set<Parts>([
+		Parts.EDITOR_PART,
+		Parts.STATUSBAR_PART,
+	]);
+
+	override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
+	override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
+}
 
 suite('Modal Editor Group', () => {
 
@@ -76,6 +90,79 @@ suite('Modal Editor Group', () => {
 		await modalPart.close();
 	});
 
+	test('floating layout applies DPR 2.5 border insets only to the main editor', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const layoutService = new TestFloatingEditorLayoutService();
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		const mainPart = parts.testMainPart;
+		const devicePixelRatio = 2.5;
+		mainPart.floatingBorderWidth = Math.floor(devicePixelRatio) / devicePixelRatio;
+
+		const captureMainState = () => ({
+			height: mainPart.element.style.height,
+			contentDimension: {
+				width: mainPart.contentDimension.width,
+				height: mainPart.contentDimension.height,
+			},
+			outerEdges: {
+				left: mainPart.element.classList.contains('floating-editor-outer-left'),
+				right: mainPart.element.classList.contains('floating-editor-outer-right'),
+				top: mainPart.element.classList.contains('floating-editor-outer-top'),
+				bottom: mainPart.element.classList.contains('floating-editor-outer-bottom'),
+			},
+		});
+
+		mainPart.layout(300, 200, 0, 0);
+		const classicMain = captureMainState();
+
+		layoutService.floatingPanelsEnabled = true;
+		mainPart.layout(300, 200, 0, 0);
+		const floatingMain = captureMainState();
+
+		const modalPart = await parts.createModalEditorPart();
+		assert.ok(isHTMLElement(modalPart.modalElement));
+		const modalEditorElement = modalPart.modalElement.querySelector<HTMLElement>('.modal-editor-part');
+		assert.ok(modalEditorElement);
+		const floatingModal = {
+			height: modalEditorElement.style.height,
+		};
+
+		layoutService.floatingPanelsEnabled = false;
+		mainPart.layout(300, 200, 0, 0);
+		const restoredMain = captureMainState();
+
+		await modalPart.close();
+
+		assert.deepStrictEqual({
+			classicMain,
+			floatingMain,
+			floatingModal,
+			restoredMain,
+		}, {
+			classicMain: {
+				height: '',
+				contentDimension: { width: 300, height: 200 },
+				outerEdges: { left: false, right: false, top: false, bottom: false },
+			},
+			floatingMain: {
+				height: 'calc(100% - 8px)',
+				contentDimension: { width: 290.4, height: 190.4 },
+				outerEdges: { left: true, right: true, top: true, bottom: true },
+			},
+			floatingModal: {
+				height: '',
+			},
+			restoredMain: {
+				height: '',
+				contentDimension: { width: 300, height: 200 },
+				outerEdges: { left: false, right: false, top: false, bottom: false },
+			},
+		});
+	});
+
 	test('Escape closes modal before focused controls can stop propagation', async () => {
 		let resolvedCommand = 'test.otherCommand';
 		let dispatchCount = 0;
@@ -118,6 +205,100 @@ suite('Modal Editor Group', () => {
 			{ modalAttached: true, controlKeydownCount: 1, dispatchCount: 0 },
 			{ modalAttached: false, controlKeydownCount: 1, dispatchCount: 1 },
 		]);
+	});
+
+	test('Tab and Shift+Tab keep focus inside the modal editor part', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const backgroundControl = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+		disposables.add({ dispose: () => backgroundControl.remove() });
+
+		const modalPart = await parts.createModalEditorPart();
+		const modalElement = modalPart.modalElement as HTMLElement;
+		for (const element of modalElement.querySelectorAll<HTMLElement>('a[href], area[href], button, input, select, textarea, iframe, object, embed, [contenteditable="true"], [tabindex]')) {
+			element.tabIndex = -1;
+		}
+
+		const firstControl = mainWindow.document.createElement('button');
+		firstControl.tabIndex = 1;
+		modalElement.prepend(firstControl);
+		const secondControl = mainWindow.document.createElement('button');
+		secondControl.tabIndex = 1;
+		firstControl.after(secondControl);
+		const lastControl = modalElement.appendChild(mainWindow.document.createElement('button'));
+
+		lastControl.focus();
+		const forwardEvent = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true });
+		lastControl.dispatchEvent(forwardEvent);
+		const forwardFocus = mainWindow.document.activeElement;
+
+		firstControl.focus();
+		const backwardEvent = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true });
+		firstControl.dispatchEvent(backwardEvent);
+
+		assert.deepStrictEqual({
+			forwardWrappedToFirst: forwardFocus === firstControl,
+			forwardPrevented: forwardEvent.defaultPrevented,
+			backwardWrappedToLast: mainWindow.document.activeElement === lastControl,
+			backwardPrevented: backwardEvent.defaultPrevented,
+			backgroundFocused: mainWindow.document.activeElement === backgroundControl,
+		}, {
+			forwardWrappedToFirst: true,
+			forwardPrevented: true,
+			backwardWrappedToLast: true,
+			backwardPrevented: true,
+			backgroundFocused: false,
+		});
+
+		await modalPart.close();
+	});
+
+	test('Tab commands reach editable controls at the modal boundary', async () => {
+		const keybindingService = new class extends MockKeybindingService {
+			override softDispatch(_event: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult {
+				return isHTMLElement(target) && target.classList.contains('inputarea')
+					? { kind: ResultKind.KbFound, commandId: 'tab', commandArgs: undefined, isBubble: false }
+					: { kind: ResultKind.NoMatchingKb };
+			}
+		}();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.stub(IKeybindingService, keybindingService);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const modalPart = await parts.createModalEditorPart();
+		const modalElement = modalPart.modalElement as HTMLElement;
+		for (const element of modalElement.querySelectorAll<HTMLElement>('a[href], area[href], button, input, select, textarea, iframe, object, embed, [contenteditable="true"], [tabindex]')) {
+			element.tabIndex = -1;
+		}
+
+		modalElement.appendChild(mainWindow.document.createElement('button'));
+		const editor = modalElement.appendChild(mainWindow.document.createElement('div'));
+		editor.classList.add('monaco-editor');
+		const editorInput = editor.appendChild(mainWindow.document.createElement('textarea'));
+		editorInput.classList.add('inputarea');
+		let editorKeydownCount = 0;
+		disposables.add(addDisposableListener(editorInput, EventType.KEY_DOWN, () => editorKeydownCount++));
+
+		editorInput.focus();
+		const event = new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true });
+		editorInput.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			editorStillFocused: mainWindow.document.activeElement === editorInput,
+			eventPrevented: event.defaultPrevented,
+			editorKeydownCount,
+		}, {
+			editorStillFocused: true,
+			eventPrevented: false,
+			editorKeydownCount: 1,
+		});
+
+		await modalPart.close();
 	});
 
 	test('bubble close keybindings reach focused controls and dispatch once', async () => {

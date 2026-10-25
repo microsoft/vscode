@@ -60,7 +60,7 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 		.pipe(packageJsonFilter.restore);
 }
 
-function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boolean): Stream {
+function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 
 	let esbuildConfigFileName = forWeb
 		? 'esbuild.browser.mts'
@@ -376,11 +376,10 @@ export function isWebExtension(manifest: IExtensionManifest): boolean {
 /**
  * Package local extensions that are known to not have native dependencies. Mutually exclusive to {@link packageNativeLocalExtensionsStream}.
  * @param forWeb build the extensions that have web targets
- * @param disableMangle disable the mangler
  * @returns a stream
  */
-export function packageNonNativeLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
-	return doPackageLocalExtensionsStream(forWeb, disableMangle, false);
+export function packageNonNativeLocalExtensionsStream(forWeb: boolean): Stream {
+	return doPackageLocalExtensionsStream(forWeb, false);
 }
 
 /**
@@ -389,32 +388,29 @@ export function packageNonNativeLocalExtensionsStream(forWeb: boolean, disableMa
  * but we simplify the logic here by having a flat list of extensions (See {@link nativeExtensions}) that are known to have native
  * dependencies on some platform and thus should be packaged on the platform that they are building for.
  * @param forWeb build the extensions that have web targets
- * @param disableMangle disable the mangler
  * @returns a stream
  */
-export function packageNativeLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
-	return doPackageLocalExtensionsStream(forWeb, disableMangle, true);
+export function packageNativeLocalExtensionsStream(forWeb: boolean): Stream {
+	return doPackageLocalExtensionsStream(forWeb, true);
 }
 
 /**
  * Package all the local extensions... both those that are known to have native dependencies and those that are not.
  * @param forWeb build the extensions that have web targets
- * @param disableMangle disable the mangler
  * @returns a stream
  */
-export function packageAllLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+export function packageAllLocalExtensionsStream(forWeb: boolean): Stream {
 	return es.merge([
-		packageNonNativeLocalExtensionsStream(forWeb, disableMangle),
-		packageNativeLocalExtensionsStream(forWeb, disableMangle)
+		packageNonNativeLocalExtensionsStream(forWeb),
+		packageNativeLocalExtensionsStream(forWeb)
 	]);
 }
 
 /**
  * @param forWeb build the extensions that have web targets
- * @param disableMangle disable the mangler
  * @param native build the extensions that are marked as having native dependencies
  */
-function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean, native: boolean): Stream {
+function doPackageLocalExtensionsStream(forWeb: boolean, native: boolean): Stream {
 	const nativeExtensionsSet = new Set(nativeExtensions);
 	const localExtensionsDescriptions = (
 		(glob.sync('extensions/*/package.json') as string[])
@@ -433,7 +429,7 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
 	const localExtensionsStream = minifyExtensionResources(
 		es.merge(
 			...localExtensionsDescriptions.map(extension => {
-				return fromLocal(extension.path, forWeb, disableMangle)
+				return fromLocal(extension.path, forWeb)
 					.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 			})
 		)
@@ -469,14 +465,14 @@ function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean,
  * This is used by non-CI local builds where copilot is not downloaded as a VSIX
  * but must be compiled from source and included in the build.
  */
-export function packageCopilotExtensionStream(disableMangle: boolean): Stream {
+export function packageCopilotExtensionStream(): Stream {
 	const extensionPath = path.join(root, 'extensions', 'copilot');
 	if (!fs.existsSync(extensionPath)) {
 		return es.readArray([]);
 	}
 
 	const localExtensionsStream = minifyExtensionResources(
-		fromLocal(extensionPath, false, disableMangle)
+		fromLocal(extensionPath, false)
 			.pipe(rename(p => p.dirname = `extensions/copilot/${p.dirname}`))
 	);
 

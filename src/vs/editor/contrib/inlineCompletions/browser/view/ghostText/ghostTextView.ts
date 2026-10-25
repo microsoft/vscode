@@ -505,7 +505,7 @@ export class AdditionalLinesWidget extends Disposable {
 		this.hasBeenAccepted = false;
 
 		if (this._editor instanceof CodeEditorWidget && this._shouldKeepCursorStable) {
-			this._register(this._editor.onBeforeExecuteEdit(e => this.hasBeenAccepted = e.source === 'inlineSuggestion.accept'));
+			this._register(this._editor.onBeforeExecuteEdit(e => this.hasBeenAccepted = e.source === 'inlineCompletionAccept'));
 		}
 
 		this._register(autorun(reader => {

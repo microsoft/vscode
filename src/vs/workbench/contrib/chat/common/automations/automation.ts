@@ -4,23 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import type { AutomationTrigger } from '../../../../../platform/github/common/missionControl/automations.js';
 import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
- * `daily`/`weekly` fire at the configured local-time hour/minute (and day-of-week).
+ * `daily`/`weekly` fire at the configured hour/minute (and day-of-week);
+ * `weekdays` fires Monday-Friday at the configured local wall-clock hour/minute.
  */
-export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekly';
+export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom';
 
 /**
  * Describes the cadence at which an automation should fire.
  *
- * Times are stored in local-time wall-clock values. The scheduler converts
- * them to UTC when computing concrete run instants so DST transitions are
- * handled correctly.
+ * Fields are local wall-clock values unless timeZone is UTC. Presentation
+ * may convert UTC fields, but provider definitions retain their original zone.
  */
 export interface IAutomationSchedule {
 	readonly interval: AutomationInterval;
+	/** Absent for Agent Host local-time semantics. */
+	readonly timeZone?: 'UTC';
 
 	/** Hour-of-day, 0-23. Ignored for `manual` and `hourly`. */
 	readonly scheduleHour: number;
@@ -86,18 +90,27 @@ export function assertAutomationSessionTemplate(template: IAutomationSessionTemp
 	}
 }
 
-/**
- * A single scheduled automation. Identity is the immutable `id`; everything
- * else may be edited by the user.
- */
+/** Cloud-owned event configuration, retained independently of its schedule projection. */
+export interface IAutomationCloudTrigger {
+	readonly triggers: Readonly<Record<string, AutomationTrigger>>;
+	readonly requireActorWritePermission?: boolean;
+}
+
+/** A single automation with immutable identity and provider-owned execution configuration. */
 export interface IAutomationDescriptor {
+	/** Opaque identifier, unique across concrete providers as well as within one host. */
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 
 	/** Explicit workspace-backed or workspace-less execution target. */
 	readonly target: AutomationTarget;
+	/** Provider-owned display metadata for targets whose URI basename is not a useful label. */
+	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
+	readonly externalResource?: URI;
+	readonly ownership?: 'user' | 'repository';
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;
@@ -120,22 +133,24 @@ export interface IAutomationDescriptor {
 
 	/** ISO-8601 UTC timestamp; `undefined` when interval is `manual`. */
 	readonly nextRunAt?: string;
+	readonly readOnlyReason?: string;
 }
 
 /**
  * Lifecycle of an automation run. A run stays `running` while its agent session
- * is active or needs input, and becomes terminal when that session completes or
- * fails, or when tracking is cancelled or times out while the session may remain active.
+ * is active or needs input, and becomes terminal when the owning Agent Host
+ * reports completion, failure, cancellation, or timeout.
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 /**
- * What kicked off a run. `catch_up` fires once at startup for a due-time that
- * passed while VS Code was closed.
+ * What kicked off a run. `catch_up` reflects the host's misfire policy for a
+ * due-time that passed while the host was not running.
  */
-export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'manual';
+export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'manual' | 'external';
 
 export interface IAutomationRun {
+	/** Opaque identifier, unique across concrete providers and historical archives. */
 	readonly id: string;
 	readonly automationId: string;
 	readonly status: AutomationRunStatus;
@@ -143,11 +158,12 @@ export interface IAutomationRun {
 
 	/** Session resource URI, recorded as soon as the committed session is available. */
 	readonly sessionResource?: URI;
+	readonly externalResource?: URI;
 
 	readonly startedAt: string;
+	readonly updatedAt?: string;
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
-
-	/** Window that claimed this run; the leader-election guard uses it to avoid duplicate execution across windows. */
-	readonly leaderWindowId: number;
+	readonly needsInput?: boolean;
+	readonly statusDescription?: string;
 }

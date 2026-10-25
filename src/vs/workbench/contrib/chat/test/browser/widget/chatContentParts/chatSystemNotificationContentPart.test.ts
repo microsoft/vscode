@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
-import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
+import { $, addDisposableListener } from '../../../../../../../base/browser/dom.js';
+import { IRenderedMarkdown, renderAsPlaintext, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
+import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { appendEscapedMarkdownInlineCode, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../../../platform/agentHost/common/agentMerge.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { getIconsStyleSheet } from '../../../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSystemNotificationContentPart } from '../../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
@@ -83,6 +86,64 @@ suite('ChatSystemNotificationContentPart', () => {
 				differentPresentation: false,
 			},
 		});
+	});
+
+	test('renders a workflow introduction with a quiet title and always-visible explanation', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const notification = {
+			kind: 'systemNotification', presentation: 'workflow',
+			content: new MarkdownString('Selected Single workflow\n\nUsing Single: one solver will work on your request.\n\nMain pass'),
+		} as const;
+		const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, notification, renderer));
+		assert.deepStrictEqual({
+			title: part.domNode.querySelector('.chat-system-notification-workflow-title')?.textContent?.trim(),
+			body: [...part.domNode.querySelectorAll('.chat-system-notification-workflow-body > p')].map(p => p.textContent),
+			collapsed: part.domNode.classList.contains('collapsed'),
+			buttons: part.domNode.querySelectorAll('button, .monaco-button').length,
+			icons: part.domNode.querySelectorAll('.codicon').length,
+			same: part.hasSameContent(notification),
+			differentPresentation: part.hasSameContent({ ...notification, presentation: undefined }),
+		}, {
+			title: 'Selected Single workflow', body: ['Using Single: one solver will work on your request.', 'Main pass'],
+			collapsed: false, buttons: 0, icons: 0, same: true, differentPresentation: false,
+		});
+	});
+
+	test('older workflow records without an explanation still render their title', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, {
+			kind: 'systemNotification', presentation: 'workflow', content: new MarkdownString('Selected Single workflow'),
+		}, renderer));
+		assert.deepStrictEqual({
+			title: part.domNode.textContent?.trim(),
+			body: part.domNode.querySelector('.chat-system-notification-workflow-body'),
+		}, { title: 'Selected Single workflow', body: null });
+	});
+
+	test('renders background agent titles as code without exposing markdown delimiters', () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const names = ['Renderer reviewer', 'Review `permissions`', '[Renderer](command:unused)'];
+		const rendered = names.map(name => {
+			const content = new MarkdownString(`Background agent ${appendEscapedMarkdownInlineCode(name)} is complete`);
+			const part = disposables.add(instantiationService.createInstance(ChatSystemNotificationContentPart, { kind: 'systemNotification', content }, renderer));
+			return {
+				titles: [...part.domNode.querySelectorAll('code')].map(code => code.textContent),
+				text: part.domNode.textContent,
+				plaintext: renderAsPlaintext(content),
+				links: part.domNode.querySelectorAll('a').length,
+			};
+		});
+
+		assert.deepStrictEqual(rendered, names.map(name => ({
+			titles: [name],
+			text: `Background agent ${name} is complete`,
+			plaintext: `Background agent ${name} is complete`,
+			links: 0,
+		})));
 	});
 
 	test('renders collapsible notification details with accessible mouse and keyboard controls', () => {
@@ -171,6 +232,66 @@ suite('ChatSystemNotificationContentPart', () => {
 		});
 	});
 
+	for (const icon of [Codicon.gitPullRequest, Codicon.gitMerge, Codicon.check]) {
+		test(`aligns the ${icon.id} notice icon with the first rendered line of a wrapped summary`, () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+			const container = $('.interactive-item-container.show-checkmarks');
+			container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+			const iconStyles = $('style');
+			iconStyles.textContent = store.add(getIconsStyleSheet(undefined)).getCSS().toString();
+			container.appendChild(iconStyles);
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const part = store.add(instantiationService.createInstance(
+				ChatSystemNotificationContentPart,
+				{
+					kind: 'systemNotification', icon, collapsible: true, renderInlineTiming: true,
+					content: new MarkdownString('Automatically Fix CI is enabled for this pull request and will repair failing checks.\n\n- The agent will fix failing checks and push the repair.'),
+				},
+				renderer,
+			));
+			container.appendChild(part.domNode);
+			const header = part.domNode.querySelector<HTMLElement>('.chat-system-notification-disclosure-header')!;
+			const summary = header.querySelector('.chat-system-notification-disclosure-summary > p')!;
+			const leadingIcon = header.querySelector<HTMLElement>('.chat-system-notification-disclosure-icon')!;
+			const chevron = header.querySelector<HTMLElement>('.chat-collapsible-hover-chevron')!;
+			const range = mainWindow.document.createRange();
+			range.selectNodeContents(summary);
+			const states = [];
+			for (const [fontSize, lineHeight] of [[13, 20], [18, 28]]) {
+				container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize}px`);
+				container.style.lineHeight = `${lineHeight}px`;
+				for (const width of [900, 220]) {
+					container.style.width = `${width}px`;
+					for (const expanded of [false, true]) {
+						if (header.ariaExpanded !== String(expanded)) {
+							header.click();
+						}
+						const lines = [...range.getClientRects()];
+						assert.ok(lines.length);
+						const centeredOnFirstLine = (element: HTMLElement) => {
+							const bounds = element.getBoundingClientRect();
+							const center = bounds.top + bounds.height / 2;
+							return bounds.height > 0 && center >= lines[0].top && center <= lines[0].bottom;
+						};
+						states.push({
+							fontSize, width, expanded, wrapped: lines.length > 1,
+							iconOnFirstLine: centeredOnFirstLine(leadingIcon),
+							chevronOnFirstLine: centeredOnFirstLine(chevron),
+						});
+					}
+				}
+			}
+			assert.deepStrictEqual(states, [13, 18].flatMap(fontSize =>
+				[900, 220].flatMap(width => [false, true].map(expanded => ({
+					fontSize, width, expanded, wrapped: width === 220,
+					iconOnFirstLine: true, chevronOnFirstLine: true,
+				}))),
+			));
+		});
+	}
+
 	test('uses the ordinary compact icon and avoids a disclosure without details', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -202,6 +323,36 @@ suite('ChatSystemNotificationContentPart', () => {
 			withoutDetailsHasOrdinaryProgress: true,
 		});
 	});
+
+	for (const [mergePullRequest, summary] of [
+		['never', 'Agent Merge is enabled for feature. Monitoring only; automatic merge is off.'],
+		['always', 'Agent Merge is enabled for feature. Automatic merge is on.'],
+		['ifUnchanged', 'Agent Merge is enabled for feature. Automatic merge is on only while unchanged.'],
+	] as const) {
+		test(`keeps ${mergePullRequest} merge behavior visible and accessible while details are collapsed`, () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+			const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, {
+				kind: 'systemNotification',
+				content: new MarkdownString(agentMergeEnabledNotice({ branchName: 'feature' }, { ...defaultAgentMergeConfiguration, mergePullRequest })),
+				icon: Codicon.gitMerge,
+				collapsible: true,
+			}, renderer));
+			const header = part.domNode.querySelector<HTMLElement>('.chat-system-notification-disclosure-header')!;
+
+			assert.deepStrictEqual({
+				collapsed: part.domNode.classList.contains('collapsed'),
+				summary: part.domNode.querySelector('.chat-system-notification-disclosure-summary')?.textContent?.trim(),
+				accessibleLabel: header.ariaLabel,
+				expanded: header.ariaExpanded,
+			}, {
+				collapsed: true,
+				summary,
+				accessibleLabel: `Show details for ${summary}`,
+				expanded: 'false',
+			});
+		});
+	}
 
 	test('renders a workspace transition as a named separator', () => {
 		const disposables = store.add(new DisposableStore());

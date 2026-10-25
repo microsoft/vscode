@@ -20,7 +20,7 @@ jobs:
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
-    timeoutInMinutes: 1300
+    timeoutInMinutes: 150
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -93,13 +93,13 @@ jobs:
           git fetch origin main
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
           MODIFIED_BUILD_FOLDERS=""
-           
+
           # Check if build/package-lock.json itself was modified
           if echo "$CHANGED_FILES" | grep -q "^build/package-lock\.json$"; then
             MODIFIED_BUILD_FOLDERS="build"
             echo "build/package-lock.json was modified"
           fi
-           
+
           # Find all modified package-lock.json files under build subfolders and extract their directories
           for file in $CHANGED_FILES; do
             if [[ $file =~ ^(build/.+)/package-lock\.json$ ]]; then
@@ -110,10 +110,18 @@ jobs:
               fi
             fi
           done
-           
+
           echo "##vso[task.setvariable variable=MODIFIED_BUILD_FOLDERS]$MODIFIED_BUILD_FOLDERS"
 
-          for attempt in {1..120}; do
+          # Retry transient feed failures for up to ~50 minutes. Do not wait here for package
+          # versions that are too new: the feed only serves npmjs.com versions that are at
+          # least 7 days old.
+          ATTEMPTS=6
+          if [ "$(Build.RequestedFor)" = "dependabot[bot]" ]; then
+            ATTEMPTS=3
+          fi
+
+          for attempt in $(seq 1 "$ATTEMPTS"); do
             if [ $attempt -gt 1 ]; then
               echo "Attempt $attempt: Waiting for 10 minutes before retrying..."
               sleep 600
@@ -141,7 +149,8 @@ jobs:
             fi
           done
 
-          echo "giving up after 120 attempts (20 hours)"
+          echo "giving up after $ATTEMPTS attempts"
+          echo "##vso[task.logissue type=error]npm install failed. If it reports ETARGET or 404 for a package version, that version may be younger than 7 days, which the internal npm feed does not serve yet."
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
@@ -149,7 +158,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies with retries
-        timeoutInMinutes: 1300
+        timeoutInMinutes: 120
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: node build/npm/check-allow-scripts.ts

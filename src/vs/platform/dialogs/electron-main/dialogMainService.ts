@@ -5,6 +5,7 @@
 
 import electron from 'electron';
 import { Queue } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { mnemonicButtonLabel } from '../../../base/common/labels.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -135,10 +136,12 @@ export class DialogMainService implements IDialogMainService {
 		// Queue message box requests per window so that one can show
 		// after the other.
 		if (window) {
-			let windowDialogQueue = this.windowDialogQueues.get(window.id);
+			const windowId = window.id;
+			let windowDialogQueue = this.windowDialogQueues.get(windowId);
 			if (!windowDialogQueue) {
 				windowDialogQueue = new Queue<electron.MessageBoxReturnValue | electron.SaveDialogReturnValue | electron.OpenDialogReturnValue>();
-				this.windowDialogQueues.set(window.id, windowDialogQueue);
+				this.windowDialogQueues.set(windowId, windowDialogQueue);
+				Event.once(windowDialogQueue.onDrained)(() => this.windowDialogQueues.delete(windowId));
 			}
 
 			return windowDialogQueue as unknown as Queue<T>;

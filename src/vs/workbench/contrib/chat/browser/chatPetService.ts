@@ -15,9 +15,20 @@ import product from '../../../../platform/product/common/product.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { allChatPetAchievements, chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, ChatPetAchievementIds, getChatPetAchievementForAccessory, isChatPetAccessoryId, isChatPetAchievementEnabled, isChatPetAchievementId } from './chatPetAchievements.js';
+import { ChatPetColor, ChatPetVariant, chatPetColorPresets, isDefaultChatPetColor, parseChatPetColor } from './chatPetColors.js';
+
+export type { ChatPetVariant } from './chatPetColors.js';
+
+export interface ChatPetHorizontalAnchor {
+	readonly edge: 'left' | 'right';
+	readonly inset: number;
+}
+
+export type ChatPetHorizontalPosition = number | ChatPetHorizontalAnchor;
 
 const CHAT_PET_ENABLED_STORAGE_KEY = 'chat.vscodePet.enabled';
 const CHAT_PET_VARIANT_STORAGE_KEY = 'chat.vscodePet.variant';
+const CHAT_PET_COLOR_STORAGE_KEY = 'chat.vscodePet.color';
 const CHAT_PET_ON_THE_RUN_STORAGE_KEY = 'chat.vscodePet.onTheRun';
 const CHAT_PET_ACCESSORY_STORAGE_KEY = 'chat.vscodePet.accessory';
 const CHAT_PET_ACHIEVEMENT_SEEN_STORAGE_PREFIX = 'chat.vscodePet.achievementSeen.';
@@ -28,8 +39,6 @@ const CHAT_PET_LOCAL_ACHIEVEMENT_MIGRATION_VERSION = 1;
 const CHAT_PET_SCALE_STORAGE_KEY = 'chat.vscodePet.scale';
 const CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY = 'chat.vscodePet.horizontalPosition';
 export const CHAT_PET_DEFAULT_SCALE = 1;
-
-export type ChatPetVariant = 'stable' | 'insiders';
 
 export const ChatPetContextKeys = {
 	enabled: new RawContextKey<boolean>('chatPetEnabled', false, localize('chatPet.context.enabled', "Whether the VS Code pet is enabled")),
@@ -59,7 +68,12 @@ function getChatPetScale(storedScale: string | undefined): number {
 	return Number.isFinite(scale) && scale > 0 ? scale : CHAT_PET_DEFAULT_SCALE;
 }
 
-function getChatPetHorizontalPosition(storedPosition: string | undefined): number | undefined {
+function getChatPetHorizontalPosition(storedPosition: string | undefined): ChatPetHorizontalPosition | undefined {
+	const anchorMatch = /^(?<edge>left|right):(?<inset>\d+(?:\.\d+)?)$/.exec(storedPosition ?? '');
+	const inset = Number.parseFloat(anchorMatch?.groups?.inset ?? '');
+	if ((anchorMatch?.groups?.edge === 'left' || anchorMatch?.groups?.edge === 'right') && Number.isFinite(inset)) {
+		return { edge: anchorMatch.groups.edge, inset };
+	}
 	const position = storedPosition === undefined ? Number.NaN : Number.parseFloat(storedPosition);
 	return Number.isFinite(position) ? Math.max(0, Math.min(1, position)) : undefined;
 }
@@ -69,16 +83,16 @@ export const IChatPetService = createDecorator<IChatPetService>('chatPetService'
 export interface IChatPetService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
-	readonly variant: IObservable<ChatPetVariant>;
+	readonly color: IObservable<ChatPetColor>;
 	readonly onTheRun: IObservable<boolean>;
 	readonly scale: IObservable<number>;
 	readonly unlockedAchievements: IObservable<readonly ChatPetAchievementId[]>;
 	readonly unseenAchievements: IObservable<readonly ChatPetAchievementId[]>;
 	readonly selectedAccessory: IObservable<ChatPetAccessoryId | undefined>;
 	readonly onDidUnlockAchievement: Event<ChatPetAchievementId>;
-	readonly horizontalPosition: IObservable<number | undefined>;
+	readonly horizontalPosition: IObservable<ChatPetHorizontalPosition | undefined>;
 	toggle(): boolean;
-	setVariant(variant: ChatPetVariant): void;
+	setColor(color: ChatPetColor): void;
 	setOnTheRun(onTheRun: boolean): void;
 	setScale(scale: number): void;
 	resetScale(): void;
@@ -86,7 +100,7 @@ export interface IChatPetService {
 	markAchievementSeen(id: ChatPetAchievementId): boolean;
 	setAccessory(id: ChatPetAccessoryId | undefined): void;
 	resetAchievements(): void;
-	setHorizontalPosition(position: number): void;
+	setHorizontalPosition(position: ChatPetHorizontalPosition): void;
 }
 
 export class ChatPetService extends Disposable implements IChatPetService {
@@ -95,8 +109,8 @@ export class ChatPetService extends Disposable implements IChatPetService {
 
 	private readonly _enabled;
 	readonly enabled: IObservable<boolean>;
-	private readonly _variant;
-	readonly variant: IObservable<ChatPetVariant>;
+	private readonly _color;
+	readonly color: IObservable<ChatPetColor>;
 	private readonly _onTheRun;
 	readonly onTheRun: IObservable<boolean>;
 	private readonly _scale;
@@ -110,9 +124,10 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	private readonly _onDidUnlockAchievement = this._register(new Emitter<ChatPetAchievementId>());
 	readonly onDidUnlockAchievement = this._onDidUnlockAchievement.event;
 	private lastInvalidStoredAccessory: string | undefined;
+	private lastInvalidStoredColor: string | undefined;
 	private locallyUnlockingAchievement = false;
 	private readonly _horizontalPosition;
-	readonly horizontalPosition: IObservable<number | undefined>;
+	readonly horizontalPosition: IObservable<ChatPetHorizontalPosition | undefined>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -124,8 +139,8 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this._migrateAchievementStorage();
 		this._enabled = observableValue(this, this.storageService.getBoolean(CHAT_PET_ENABLED_STORAGE_KEY, StorageScope.APPLICATION, false));
 		this.enabled = this._enabled;
-		this._variant = observableValue(this, getChatPetVariant(this.storageService.get(CHAT_PET_VARIANT_STORAGE_KEY, StorageScope.APPLICATION), product.quality));
-		this.variant = this._variant;
+		this._color = observableValue(this, this._readColor());
+		this.color = this._color;
 		this._onTheRun = observableValue(this, this.storageService.getBoolean(CHAT_PET_ON_THE_RUN_STORAGE_KEY, StorageScope.APPLICATION, false));
 		this.onTheRun = this._onTheRun;
 		this._scale = observableValue(this, getChatPetScale(this.storageService.get(CHAT_PET_SCALE_STORAGE_KEY, StorageScope.APPLICATION)));
@@ -143,7 +158,10 @@ export class ChatPetService extends Disposable implements IChatPetService {
 			this._setEnabled(this.storageService.getBoolean(CHAT_PET_ENABLED_STORAGE_KEY, StorageScope.APPLICATION, false));
 		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_VARIANT_STORAGE_KEY, this._store)(() => {
-			this._variant.set(getChatPetVariant(this.storageService.get(CHAT_PET_VARIANT_STORAGE_KEY, StorageScope.APPLICATION), product.quality), undefined);
+			this._color.set(this._readColor(), undefined);
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_COLOR_STORAGE_KEY, this._store)(() => {
+			this._color.set(this._readColor(), undefined);
 		}));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_ON_THE_RUN_STORAGE_KEY, this._store)(() => {
 			this._onTheRun.set(this.storageService.getBoolean(CHAT_PET_ON_THE_RUN_STORAGE_KEY, StorageScope.APPLICATION, false), undefined);
@@ -190,12 +208,36 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this.telemetryService.publicLog2<ChatPetEnablementEvent, ChatPetEnablementClassification>('chatPetEnablement', { enabled, source });
 	}
 
-	setVariant(variant: ChatPetVariant): void {
-		this._variant.set(variant, undefined);
-		this.storageService.store(CHAT_PET_VARIANT_STORAGE_KEY, variant, StorageScope.APPLICATION, StorageTarget.USER);
-		status(variant === 'stable'
-			? localize('chatPet.variant.stable', "VS Code pet changed to the Stable colors")
-			: localize('chatPet.variant.insiders', "VS Code pet changed to the Insiders colors"));
+	setColor(color: ChatPetColor): void {
+		const normalizedColor = parseChatPetColor(color);
+		if (!normalizedColor) {
+			throw new Error(`Invalid chat pet color: ${color}`);
+		}
+		if (!isDefaultChatPetColor(normalizedColor) && !this._unlockedAchievements.get().includes(ChatPetAchievementIds.Blobby)) {
+			throw new Error(localize('chatPet.color.locked', "Use /blobby in Chat to unlock color customization."));
+		}
+		this._color.set(normalizedColor, undefined);
+		this.storageService.store(CHAT_PET_COLOR_STORAGE_KEY, normalizedColor, StorageScope.APPLICATION, StorageTarget.USER);
+		const label = chatPetColorPresets.find(preset => preset.color === normalizedColor)?.label ?? normalizedColor;
+		status(localize('chatPet.color.changed', "Blobby's color changed to {0}", label));
+	}
+
+	private _readColor(): ChatPetColor {
+		const storedColor = this.storageService.get(CHAT_PET_COLOR_STORAGE_KEY, StorageScope.APPLICATION);
+		if (storedColor !== undefined) {
+			const color = parseChatPetColor(storedColor);
+			if (color && (isDefaultChatPetColor(color) || this._isAchievementStored(ChatPetAchievementIds.Blobby))) {
+				this.lastInvalidStoredColor = undefined;
+				return color;
+			}
+			if (this.lastInvalidStoredColor !== storedColor) {
+				this.lastInvalidStoredColor = storedColor;
+				this.logService.warn(`[ChatPetService] Ignoring invalid or locked stored color: ${storedColor}`);
+			}
+		} else {
+			this.lastInvalidStoredColor = undefined;
+		}
+		return getChatPetVariant(this.storageService.get(CHAT_PET_VARIANT_STORAGE_KEY, StorageScope.APPLICATION), product.quality);
 	}
 
 	setOnTheRun(onTheRun: boolean): void {
@@ -216,10 +258,17 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this.storageService.remove(CHAT_PET_SCALE_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 
-	setHorizontalPosition(position: number): void {
-		const normalizedPosition = Math.max(0, Math.min(1, position));
+	setHorizontalPosition(position: ChatPetHorizontalPosition): void {
+		const normalizedPosition = typeof position === 'number'
+			? Math.max(0, Math.min(1, position))
+			: { edge: position.edge, inset: Math.max(0, position.inset) } satisfies ChatPetHorizontalAnchor;
 		this._horizontalPosition.set(normalizedPosition, undefined);
-		this.storageService.store(CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, normalizedPosition, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(
+			CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY,
+			typeof normalizedPosition === 'number' ? normalizedPosition : `${normalizedPosition.edge}:${normalizedPosition.inset}`,
+			StorageScope.APPLICATION,
+			StorageTarget.MACHINE
+		);
 	}
 
 	unlockAchievement(id: ChatPetAchievementId): boolean {
@@ -281,6 +330,10 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	resetAchievements(): void {
 		this.locallyUnlockingAchievement = true;
 		try {
+			const storedColor = this.storageService.get(CHAT_PET_COLOR_STORAGE_KEY, StorageScope.APPLICATION);
+			if (storedColor !== 'stable' && storedColor !== 'insiders') {
+				this.storageService.remove(CHAT_PET_COLOR_STORAGE_KEY, StorageScope.APPLICATION);
+			}
 			for (const achievement of allChatPetAchievements) {
 				const key = this._getAchievementStorageKey(achievement.id);
 				this.storageService.remove(key, StorageScope.APPLICATION_SHARED);
@@ -401,6 +454,7 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		}
 		this._refreshUnseenAchievementState();
 		this._refreshSelectedAccessory();
+		this._color.set(this._readColor(), undefined);
 	}
 
 	private _readUnseenAchievements(): readonly ChatPetAchievementId[] {

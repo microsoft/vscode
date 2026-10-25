@@ -3,28 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * Issue Reporter - Wizard UI (editor tab mode).
- * The wizard renders inside an editor pane container.
- * A floating capture bar appears on step 3.
- */
-
-/* Wizard Panel - renders inside the editor tab */
 .issue-reporter-wizard {
 	position: relative;
 	display: flex;
 	flex-direction: column;
-	max-height: none;
-	overflow: visible;
+	min-height: 0;
+	overflow: hidden;
 	height: 100%;
-	background: var(--vscode-editor-background, #1e1e1e);
+	background: var(--vscode-editor-background);
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
-	font-size: 13px;
-	color: var(--vscode-foreground, #ccc);
-}
-
-.issue-reporter-wizard .wizard-toolbar {
-	-webkit-app-region: no-drag;
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-foreground);
 }
 
 .issue-reporter-wizard .wizard-update-banner {
@@ -35,9 +24,49 @@
 	flex-shrink: 0;
 }
 
-.issue-reporter-wizard .wizard-step-container {
+.issue-reporter-wizard .issue-reporter-form {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size240);
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 960px;
+	margin: 0 auto;
 	flex: 1;
+	min-height: 0;
 	overflow: auto;
+}
+
+.issue-reporter-form > * {
+	flex-shrink: 0;
+	min-width: 0;
+}
+
+.issue-reporter-wizard .wizard-attachments {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size120);
+}
+
+.issue-reporter-wizard .wizard-attachments > .monaco-button {
+	width: auto;
+}
+
+.issue-reporter-wizard .wizard-attachments > .wizard-heading {
+	font-size: var(--vscode-fontSize-heading3);
+}
+
+.issue-reporter-wizard .wizard-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.issue-reporter-wizard .wizard-actions > .monaco-button {
+	width: auto;
 }
 
 /* VS Code styled scrollbars for any scrollable region in the wizard */
@@ -129,16 +158,6 @@
 	cursor: grabbing;
 }
 
-.issue-reporter-floating-bar .wizard-nav-btn {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 5px;
-	padding: 3px 10px;
-	font-size: 12px;
-	line-height: 1;
-}
-
 .issue-reporter-floating-bar .monaco-button {
 	display: flex;
 	flex-direction: row;
@@ -151,11 +170,6 @@
 	flex: none;
 	height: 26px;
 	box-sizing: border-box;
-}
-
-.issue-reporter-floating-bar .wizard-nav-btn > * {
-	display: flex;
-	align-items: center;
 }
 
 .issue-reporter-floating-bar .wizard-floating-delay {
@@ -283,109 +297,16 @@
 }
 
 /* Recording state in floating bar */
-.issue-reporter-floating-bar .wizard-nav-btn.recording,
 .issue-reporter-floating-bar .monaco-button.recording {
 	color: var(--vscode-testing-iconErrored, #f14c4c);
 	animation: issue-reporter-recording-pulse 1.5s ease-in-out infinite;
 }
 
-/* Toolbar */
-.issue-reporter-wizard .wizard-toolbar {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 10px;
-	padding: 8px 16px;
-	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
-	border-bottom: 1px solid var(--vscode-panel-border, #444);
-	flex-shrink: 0;
-}
-
-/* Progress area */
-.issue-reporter-wizard .wizard-progress-area {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-}
-
-.issue-reporter-wizard .wizard-progress-dots {
-	display: flex;
-	gap: 6px;
-	align-items: center;
-}
-
-.issue-reporter-wizard .wizard-progress-dot {
-	width: 10px;
-	height: 10px;
-	border-radius: 50%;
-	border: 2px solid var(--vscode-foreground, #888);
-	background: transparent;
-	transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
-	opacity: 0.4;
-}
-
-.issue-reporter-wizard .wizard-progress-dot.active {
-	border-color: var(--vscode-focusBorder, #007acc);
-	background: var(--vscode-focusBorder, #007acc);
-	opacity: 1;
-}
-
-.issue-reporter-wizard .wizard-progress-dot.completed {
-	border-color: var(--vscode-focusBorder, #007acc);
-	background: var(--vscode-focusBorder, #007acc);
-	opacity: 0.7;
-}
-
-.issue-reporter-wizard .wizard-step-indicator {
-	font-size: 12px;
-	font-weight: 600;
-	white-space: nowrap;
-	color: var(--vscode-titleBar-activeForeground, #ccc);
-	font-variant-numeric: tabular-nums;
-}
-
-.issue-reporter-wizard .wizard-step-separator {
-	display: inline-block;
-	width: 2px;
-	height: 14px;
-	margin: 0 10px;
-	background: var(--vscode-titleBar-activeForeground, #888);
-	opacity: 0.6;
-	vertical-align: middle;
-}
-
-.issue-reporter-wizard .wizard-step-label {
-	font-size: 12px;
-	font-weight: 600;
-	white-space: nowrap;
-	color: var(--vscode-titleBar-activeForeground, #ccc);
-}
-
-/* Step Container */
-.issue-reporter-wizard .wizard-step-container {
-	flex: 1;
-	position: relative;
-	overflow: hidden;
-	min-height: 150px;
-}
-
-/* Individual Steps */
-.issue-reporter-wizard .wizard-step {
-	display: flex;
-	flex-direction: column;
-	padding: 24px 40px;
-	gap: 12px;
-	overflow-y: auto;
-	position: absolute;
-	inset: 0;
-}
-
-/* Wizard Typography */
 .issue-reporter-wizard .wizard-heading {
 	margin: 0;
-	font-size: 22px;
-	font-weight: 600;
-	color: var(--vscode-foreground, #eee);
+	font-size: var(--vscode-fontSize-heading2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-foreground);
 	line-height: 1.3;
 }
 
@@ -409,38 +330,93 @@
 	vertical-align: middle;
 }
 
-/* Wizard Inputs */
-.issue-reporter-wizard .wizard-textarea {
-	width: 100%;
-	min-height: 120px;
-	font-size: 13px;
-	font-family: inherit;
-	line-height: 1.5;
-	color: var(--vscode-input-foreground, #ccc);
-	background: var(--vscode-input-background, #3c3c3c);
-	border: 1px solid var(--vscode-input-border, #555);
-	border-radius: 4px;
-	padding: 10px 12px;
-	outline: none;
-	resize: none;
+.issue-reporter-wizard .wizard-description-tabs {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+}
+
+.issue-reporter-wizard .wizard-description-tabs .monaco-button {
+	position: relative;
+	width: auto;
+}
+
+.issue-reporter-wizard .wizard-description-tabs [aria-selected="true"] {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.issue-reporter-wizard .wizard-description-tabs [aria-selected="true"]::after {
+	content: '';
+	position: absolute;
+	inset-inline: var(--vscode-spacing-size80);
+	bottom: var(--vscode-spacing-size20);
+	height: var(--vscode-strokeThickness);
+	background-color: var(--vscode-panelTitle-activeBorder);
+	pointer-events: none;
+}
+
+.issue-reporter-wizard .wizard-description-editor,
+.issue-reporter-wizard .wizard-description-preview {
+	min-width: 0;
+	min-height: 160px;
+	background: var(--vscode-editor-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.issue-reporter-wizard .wizard-description-editor {
 	overflow: hidden;
+}
+
+.issue-reporter-wizard .wizard-description-input,
+.issue-reporter-wizard .wizard-description-preview {
 	box-sizing: border-box;
+	padding: var(--vscode-spacing-size160);
+	font: inherit;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
 }
 
-.issue-reporter-wizard .wizard-textarea:focus {
-	border-color: var(--vscode-focusBorder, #007acc);
+.issue-reporter-wizard .wizard-description-input {
+	display: block;
+	width: 100%;
+	min-height: 160px;
+	max-height: 400px;
+	resize: vertical;
+	border: 0;
+	border-radius: inherit;
+	background: transparent;
+	color: inherit;
 }
 
-.issue-reporter-wizard .wizard-textarea::placeholder {
-	color: var(--vscode-input-placeholderForeground, #888);
+.issue-reporter-wizard .wizard-description-input:focus {
+	outline: none;
 }
 
-.issue-reporter-wizard .wizard-textarea.invalid-input {
-	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
-	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1));
+.issue-reporter-wizard .wizard-description-preview pre {
+	white-space: pre-wrap;
 }
 
-/* Category Buttons (Step 1) */
+.issue-reporter-wizard .wizard-description-preview img {
+	max-width: 100%;
+}
+
+.issue-reporter-wizard .wizard-description-preview > .rendered-markdown > :first-child {
+	margin-top: 0;
+}
+
+.issue-reporter-wizard .wizard-description-preview > .rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.issue-reporter-wizard .wizard-description-editor:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+.issue-reporter-wizard .wizard-description-editor.invalid-input {
+	border-color: var(--vscode-inputValidation-errorBorder);
+}
+
+/* Category buttons */
 .issue-reporter-wizard .wizard-type-buttons {
 	display: flex;
 	gap: 10px;
@@ -519,30 +495,6 @@ label/control gap, so the buttons must not add their own margin. */
 	display: none;
 }
 
-/* Shortcut badge - shared style for keyboard shortcut indicators */
-.issue-reporter-wizard .wizard-shortcut-badge {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0 4px;
-	min-width: 18px;
-	height: 18px;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-input-border, #555);
-	font-size: 11px;
-	font-family: monospace;
-	color: var(--vscode-descriptionForeground, #888);
-	opacity: 0.7;
-	margin-left: 2px;
-}
-
-.issue-reporter-wizard .wizard-nav-btn.primary .wizard-shortcut-badge,
-.issue-reporter-wizard .monaco-button .wizard-shortcut-badge {
-	border-color: rgba(255, 255, 255, 0.3);
-	color: var(--vscode-button-foreground, #fff);
-	opacity: 0.7;
-}
-
 .issue-reporter-wizard .wizard-type-buttons.invalid-input .wizard-type-btn {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100);
 }
@@ -559,56 +511,13 @@ label/control gap, so the buttons must not add their own margin. */
 	min-height: 1.4em;
 }
 
-.issue-reporter-wizard .wizard-similar-issues {
-	margin-top: 8px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground, #999);
-}
-
-.issue-reporter-wizard .wizard-similar-heading {
-	font-weight: 600;
-	color: var(--vscode-foreground, #ccc);
-	margin-bottom: 4px;
-}
-
-.issue-reporter-wizard .wizard-similar-status {
-	line-height: 1.4;
-}
-
-.issue-reporter-wizard .wizard-similar-list {
-	margin: 0;
-	padding-left: 18px;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.issue-reporter-wizard .wizard-similar-item {
-	line-height: 1.4;
-}
-
-.issue-reporter-wizard .wizard-similar-link {
-	color: var(--vscode-textLink-foreground, #3794ff);
-	text-decoration: none;
-}
-
-.issue-reporter-wizard .wizard-similar-link:hover {
-	color: var(--vscode-textLink-activeForeground, #3794ff);
-	text-decoration: underline;
-}
-
-.issue-reporter-wizard .wizard-similar-state {
-	margin-left: 6px;
-	color: var(--vscode-descriptionForeground, #999);
-}
-
 .issue-reporter-wizard .wizard-type-icon {
 	display: flex;
 	align-items: center;
 	font-size: 16px;
 }
 
-/* Screenshot Cards (Step 3) */
+/* Attachments */
 .issue-reporter-wizard .wizard-screenshots {
 	display: flex;
 	gap: 10px;
@@ -617,23 +526,89 @@ label/control gap, so the buttons must not add their own margin. */
 	min-height: 50px;
 }
 
-.issue-reporter-wizard .wizard-screenshots-empty {
-	color: var(--vscode-descriptionForeground, #888);
-	font-style: italic;
-	display: flex;
-	align-items: center;
+.issue-reporter-wizard .wizard-screenshots.drag-over,
+.issue-reporter-wizard .wizard-screenshots:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.issue-reporter-wizard .wizard-attachment-status {
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+
+.issue-reporter-wizard .wizard-attachment-status.has-errors {
+	color: var(--vscode-errorForeground);
+}
+
+.issue-reporter-wizard .wizard-attachment-error-details {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.issue-reporter-wizard .wizard-attachment-error-details summary {
+	cursor: pointer;
+}
+
+.issue-reporter-wizard .wizard-attachment-error-details summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.issue-reporter-wizard .wizard-copy-error-details {
+	width: fit-content;
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.issue-reporter-wizard .wizard-attachment-error-details pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 12em;
+	overflow: auto;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .issue-reporter-wizard .wizard-screenshot-card {
 	position: relative;
 	width: 120px;
-	height: 75px;
-	border-radius: 6px;
+	height: 100px;
+	border-radius: var(--vscode-cornerRadius-small);
 	overflow: hidden;
-	border: 1px solid var(--vscode-input-border, #555);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
 	cursor: pointer;
 	transition: border-color 0.15s;
 	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .wizard-attachment-preview {
+	position: relative;
+	height: 75px;
+}
+
+.issue-reporter-wizard .wizard-file-fallback {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size80);
+	height: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.issue-reporter-wizard .wizard-file-fallback[hidden] {
+	display: none;
+}
+
+.issue-reporter-wizard .wizard-file-name {
+	box-sizing: border-box;
+	height: 25px;
+	line-height: 17px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: var(--vscode-fontSize-body2);
 }
 
 .issue-reporter-wizard .wizard-screenshot-card:hover,
@@ -684,6 +659,7 @@ label/control gap, so the buttons must not add their own margin. */
 
 .issue-reporter-wizard .wizard-screenshot-add {
 	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	border-style: dashed;
@@ -708,52 +684,6 @@ label/control gap, so the buttons must not add their own margin. */
 	color: var(--vscode-descriptionForeground, #888);
 }
 
-/* Screenshot Controls */
-
-.issue-reporter-wizard .wizard-screenshot-actions {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	flex-shrink: 0;
-}
-
-.issue-reporter-wizard .wizard-delay-group {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.issue-reporter-wizard .wizard-delay-label {
-	font-size: 12px;
-	white-space: nowrap;
-	color: var(--vscode-descriptionForeground, #999);
-}
-
-.issue-reporter-wizard .wizard-delay-select {
-	min-width: 120px;
-}
-
-.issue-reporter-wizard .wizard-delay-select .monaco-select-box {
-	height: 28px;
-	padding: 2px 23px 2px 8px;
-}
-
-.issue-reporter-wizard .wizard-capture-btn {
-	gap: 6px;
-}
-
-.issue-reporter-wizard .wizard-capture-btn.disabled,
-.issue-reporter-wizard .monaco-button.wizard-capture-btn:disabled {
-	opacity: 0.5;
-	pointer-events: none;
-}
-
-.issue-reporter-wizard .wizard-capture-icon {
-	display: flex;
-	font-size: 14px;
-}
-
-/* Review Step (Step 4) */
 .issue-reporter-wizard .wizard-field {
 	display: flex;
 	flex-direction: column;
@@ -775,11 +705,6 @@ label/control gap, so the buttons must not add their own margin. */
 
 .issue-reporter-wizard .wizard-field-label:first-child {
 	margin-top: 0;
-}
-
-.issue-reporter-wizard .wizard-describe-content {
-	display: flex;
-	flex-direction: column;
 }
 
 .issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input,
@@ -833,6 +758,10 @@ This keeps the row height constant regardless of which is visible. */
 	pointer-events: none;
 }
 
+.issue-reporter-wizard .wizard-target-status {
+	pointer-events: auto;
+}
+
 /* Hide the status while its sibling field-error is visible to avoid overlap. */
 .issue-reporter-wizard .wizard-source-field:has(> .wizard-field-error:not(.hidden)) .wizard-target-status,
 .issue-reporter-wizard .wizard-extension-field:has(> .wizard-field-error:not(.hidden)) .wizard-extension-status {
@@ -850,12 +779,13 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .wizard-target-row .wizard-source-field {
-	flex: 0 0 auto;
+	flex: 1 1 320px;
+	min-width: 0;
 }
 
 .issue-reporter-wizard .wizard-target-row .wizard-extension-field {
 	flex: 1 1 320px;
-	min-width: 240px;
+	min-width: 0;
 	max-width: 480px;
 }
 
@@ -866,6 +796,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 /* Title label row: label + AI generate button */
 .issue-reporter-wizard .wizard-title-label-row {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 8px;
 	margin-top: 12px;
@@ -910,51 +841,6 @@ extension field is hidden (no fixed-width placeholder needed). */
 	margin-bottom: 4px;
 }
 
-/* Review: description rendered content */
-.issue-reporter-wizard .review-value.review-description {
-	white-space: normal;
-	max-height: none;
-	overflow: visible;
-	padding: 8px 12px;
-	border: 1px solid var(--vscode-input-border, #444);
-	border-radius: 4px;
-}
-
-.issue-reporter-wizard .review-description .rendered-markdown {
-	color: inherit;
-}
-
-.issue-reporter-wizard .review-description .rendered-markdown p:first-child {
-	margin-top: 0;
-}
-
-.issue-reporter-wizard .review-description .rendered-markdown p:last-child {
-	margin-bottom: 0;
-}
-
-.issue-reporter-wizard .wizard-review-details {
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	margin-top: 8px;
-}
-
-.issue-reporter-wizard .wizard-review-similar-section.hidden {
-	display: none;
-}
-
-.issue-reporter-wizard .review-thumbnails {
-	display: flex;
-	gap: 10px;
-	margin-top: 4px;
-	flex-wrap: wrap;
-}
-
-/* Review attachment cards - same size as step 3 cards */
-.issue-reporter-wizard .review-attachment-card {
-	cursor: pointer;
-}
-
 /* Upload Progress Overlay */
 .issue-reporter-wizard .review-progress-overlay {
 	position: absolute;
@@ -962,23 +848,29 @@ extension field is hidden (no fixed-width placeholder needed). */
 	display: none;
 	align-items: center;
 	justify-content: center;
-	background: rgba(0, 0, 0, 0.6);
-	border-radius: 5px;
+	background: var(--vscode-editorWidget-background);
+	border-radius: var(--vscode-cornerRadius-small);
+	pointer-events: none;
 	z-index: 2;
 }
 
-.issue-reporter-wizard .upload-pending .review-progress-overlay,
-.issue-reporter-wizard .upload-uploading .review-progress-overlay,
+.issue-reporter-wizard.uploading .upload-pending .review-progress-overlay,
+.issue-reporter-wizard.uploading .upload-uploading .review-progress-overlay {
+	display: flex;
+}
+
 .issue-reporter-wizard .upload-done .review-progress-overlay {
 	display: flex;
+	inset: var(--vscode-spacing-size40) auto auto var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 /* Spinning ring */
 .issue-reporter-wizard .review-progress-ring {
 	width: 28px;
 	height: 28px;
-	border: 3px solid rgba(255, 255, 255, 0.3);
-	border-top-color: var(--vscode-focusBorder, #007acc);
+	border: 3px solid var(--vscode-descriptionForeground);
+	border-top-color: var(--vscode-focusBorder);
 	border-radius: 50%;
 }
 
@@ -987,7 +879,7 @@ extension field is hidden (no fixed-width placeholder needed). */
 }
 
 .issue-reporter-wizard .upload-pending .review-progress-ring {
-	border-top-color: rgba(255, 255, 255, 0.3);
+	border-top-color: var(--vscode-descriptionForeground);
 }
 
 /* Checkmark */
@@ -995,31 +887,15 @@ extension field is hidden (no fixed-width placeholder needed). */
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 28px;
-	height: 28px;
-	border-radius: 50%;
-	background: var(--vscode-testing-runAction, #73c991);
-	color: #000;
-	font-size: 16px;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-testing-iconPassed);
+	font-size: var(--vscode-codiconFontSize);
 }
 
-/* Button spinner */
-.issue-reporter-wizard .wizard-nav-btn.uploading,
-.issue-reporter-wizard .monaco-button.uploading {
-	pointer-events: none;
-	opacity: 0.8;
-}
-
-.issue-reporter-wizard .wizard-btn-spinner {
-	display: inline-block;
-	width: 14px;
-	height: 14px;
-	border: 2px solid rgba(255, 255, 255, 0.3);
-	border-top-color: #fff;
-	border-radius: 50%;
-	animation: issue-reporter-spin 0.8s linear infinite;
-	vertical-align: middle;
-	margin-left: 6px;
+.issue-reporter-wizard .review-progress-check .codicon {
+	color: inherit;
 }
 
 @keyframes issue-reporter-spin {
@@ -1028,100 +904,12 @@ extension field is hidden (no fixed-width placeholder needed). */
 	}
 }
 
-.issue-reporter-wizard .wizard-submit-buttons {
-	display: none;
-}
-
-.issue-reporter-wizard .wizard-submit-btn {
-	padding: 8px 16px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 4px;
-	font-size: 13px;
-	cursor: pointer;
-	font-family: inherit;
-}
-
-.issue-reporter-wizard .wizard-submit-gist {
-	background: var(--vscode-button-background, #0e639c);
-	color: var(--vscode-button-foreground, #fff);
-}
-
-.issue-reporter-wizard .wizard-submit-gist:hover {
-	background: var(--vscode-button-hoverBackground, #1177bb);
-}
-
-.issue-reporter-wizard .wizard-submit-playwright {
-	background: var(--vscode-button-secondaryBackground, #3a3d41);
-	color: var(--vscode-button-secondaryForeground, #fff);
-}
-
-.issue-reporter-wizard .wizard-submit-playwright:hover {
-	background: var(--vscode-button-secondaryHoverBackground, #45494e);
-}
-
-.issue-reporter-wizard .wizard-submit-preview,
-.issue-reporter-wizard .wizard-submit-manual {
-	background: transparent;
-	color: var(--vscode-foreground, #ccc);
-	border: 1px solid var(--vscode-input-border, #3c3c3c);
-}
-
-.issue-reporter-wizard .wizard-submit-preview:hover,
-.issue-reporter-wizard .wizard-submit-manual:hover {
-	background: var(--vscode-list-hoverBackground, #2a2d2e);
-}
-
-.issue-reporter-wizard .wizard-step-review {
-	gap: 8px;
-}
-
-.issue-reporter-wizard .review-section {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.issue-reporter-wizard .review-label {
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--vscode-foreground, #ccc);
-}
-
-.issue-reporter-wizard .review-value {
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground, #999);
-	white-space: pre-wrap;
-	word-break: break-word;
-	max-height: 60px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.issue-reporter-wizard .review-target-repo {
-	color: var(--vscode-descriptionForeground, #999);
-	font-size: 12px;
-}
-
 /* Diagnostic data sections (System Info, Extensions, Experiments) */
 .issue-reporter-wizard .review-diagnostics {
 	margin-top: 12px;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
-}
-
-.issue-reporter-wizard .review-diag-heading {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 4px;
-}
-
-.issue-reporter-wizard .review-diag-heading-title {
-	margin: 0;
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--vscode-foreground, #ccc);
 }
 
 .issue-reporter-wizard .review-diag-bulk-actions {
@@ -1324,65 +1112,6 @@ extension field is hidden (no fixed-width placeholder needed). */
 	color: var(--vscode-descriptionForeground, #888);
 	font-style: italic;
 	padding: 4px 0;
-}
-
-/* Navigation buttons row, placed under the step indicator in the toolbar. */
-.issue-reporter-wizard .wizard-nav {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-shrink: 0;
-}
-
-/* Button widget overrides for wizard nav */
-.issue-reporter-wizard .wizard-nav .monaco-button {
-	padding: 6px 16px;
-	white-space: nowrap;
-	width: auto;
-	flex: none;
-}
-
-/* Navigation buttons */
-.issue-reporter-wizard .wizard-nav-btn {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 6px 16px;
-	border-radius: 4px;
-	cursor: pointer;
-	font-size: 13px;
-	user-select: none;
-	white-space: nowrap;
-	color: var(--vscode-foreground, #ccc);
-	border: 1px solid var(--vscode-input-border, #555);
-	background: transparent;
-	transition: all 0.15s ease;
-}
-
-.issue-reporter-wizard .wizard-nav-btn:hover {
-	background: rgba(255, 255, 255, 0.06);
-	border-color: var(--vscode-foreground, #999);
-}
-
-.issue-reporter-wizard .wizard-nav-btn.primary {
-	color: var(--vscode-button-foreground, #fff);
-	background: var(--vscode-button-background, #0e639c);
-	border-color: var(--vscode-button-background, #0e639c);
-}
-
-.issue-reporter-wizard .wizard-nav-btn.primary:hover {
-	background: var(--vscode-button-hoverBackground, #1177bb);
-	border-color: var(--vscode-button-hoverBackground, #1177bb);
-}
-
-.issue-reporter-wizard .wizard-nav-btn.submit {
-	background: var(--vscode-testing-runAction, #73c991);
-	border-color: var(--vscode-testing-runAction, #73c991);
-	color: #000;
-}
-
-.issue-reporter-wizard .wizard-nav-btn.submit:hover {
-	filter: brightness(1.1);
 }
 
 /* Annotation Editor Buttons */
@@ -1729,48 +1458,20 @@ extension field is hidden (no fixed-width placeholder needed). */
 	}
 }
 
-/* -- Recording card -- */
-.issue-reporter-wizard .wizard-recording-card {
-	background: var(--vscode-editor-background, #1a1a1a);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: relative;
-}
-
-.issue-reporter-wizard .wizard-recording-card > .wizard-screenshot-img {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	border-radius: inherit;
-}
-
-.issue-reporter-wizard .wizard-recording-play {
-	font-size: 28px;
-	color: #fff;
-	opacity: 0.8;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: 1;
-}
-
-.issue-reporter-wizard .wizard-recording-card:hover .wizard-recording-play {
-	opacity: 1;
-}
-
 .issue-reporter-wizard .wizard-recording-duration {
 	position: absolute;
-	bottom: 4px;
-	right: 6px;
-	font-size: 10px;
-	color: #fff;
-	background: rgba(0, 0, 0, 0.7);
-	padding: 1px 4px;
-	border-radius: 2px;
-	z-index: 1;
+	right: var(--vscode-spacing-size40);
+	bottom: var(--vscode-spacing-size40);
+	display: inline-block;
+	font-size: var(--vscode-fontSize-label3);
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	max-width: calc(100% - var(--vscode-spacing-size120));
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .issue-reporter-wizard .wizard-required-marker {
@@ -1804,22 +1505,6 @@ extension field is hidden (no fixed-width placeholder needed). */
 	cursor: pointer;
 }
 
-.issue-reporter-wizard .review-diag-heading {
-	flex-direction: row;
-	align-items: center;
-	gap: 8px;
-}
-.issue-reporter-wizard .review-diag-master-wrap {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-.issue-reporter-wizard .review-diag-master-checkbox {
-	flex-shrink: 0;
-}
-.issue-reporter-wizard .review-diagnostics.all-excluded .review-diag-group {
-	display: none;
-}
 .issue-reporter-wizard .review-diag-group.excluded .review-diag-content {
 	opacity: 0.55;
 }

@@ -189,8 +189,8 @@ Then if you want to include those files you can call the tool again by setting "
 		if (!groupedMatches) {
 			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
 		}
-		if (options.chatRequestId !== undefined) {
-			this.grepResultService.addGrepResult(options.chatRequestId, groupedMatches);
+		if (options.chatSessionResource !== undefined && options.chatRequestId !== undefined) {
+			this.grepResultService.addGrepResult(options.chatSessionResource, options.chatRequestId, groupedMatches);
 		}
 		const prompt = await renderPromptElementJSON(this.instantiationService,
 			FindTextInFilesGrepResult,

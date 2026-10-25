@@ -102,6 +102,18 @@ export class CopilotToken {
 		return this._info.organization_list || [];
 	}
 
+	/** Returns the legacy CLS experiment user kind, preserving the known-organization precedence. */
+	get userKind(): string {
+		// Do not add org mapping.
+		const knownOrganizations = [
+			'a5db0bcaae94032fe715fb34a5e4bce2',
+			'7184f66dfcee98cb5f08a1cb936d5225',
+			'faef89d9169d5eacf1d8c8dde3412e37',
+			'4535c7beffc844b46bb1ed4aa04d759a',
+		];
+		return knownOrganizations.find(org => this.organizationList.includes(org)) ?? '';
+	}
+
 	/**
 	 * Returns the list of organization logins that provide Copilot access to the user.
 	 * These are the organizations through which the user has a Copilot subscription (Business/Enterprise).

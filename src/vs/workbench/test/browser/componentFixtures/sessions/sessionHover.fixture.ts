@@ -13,6 +13,8 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+// eslint-disable-next-line local/code-import-patterns
+import { getSessionApplication } from '../../../../../sessions/common/sessionApplication.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -22,11 +24,10 @@ import { getSessionSummaryHoverData } from '../../../../../sessions/contrib/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvider } from '../../../../../sessions/services/sessions/common/sessionsProvider.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHover.js';
-import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
@@ -54,8 +55,9 @@ interface ISessionSpec {
 	readonly changes?: readonly { readonly insertions: number; readonly deletions: number }[];
 	readonly sessionType?: string;
 	readonly isQuickChat?: boolean;
-	/** Renders the trailing "External Session" row. */
+	/** A session still classified as external. */
 	readonly isExternal?: boolean;
+	readonly application?: string;
 }
 
 function createWorkspace(spec: IWorkspaceSpec): ISessionWorkspace {
@@ -103,7 +105,11 @@ function createSession(spec: ISessionSpec): ISession {
 		override readonly worktreePending: IObservable<boolean> = constObservable(!!spec.worktreePending);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!!spec.isQuickChat);
 		override readonly isExternal: IObservable<boolean> = constObservable(!!spec.isExternal);
-		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(changes);
+		override readonly application = constObservable(getSessionApplication(spec.application ?? 'vscode'));
+		override readonly mainChat = constObservable(new class extends mock<IChat>() {
+			override readonly changes = constObservable(changes);
+			override readonly changesets = constObservable([]);
+		}());
 	}();
 }
 
@@ -127,12 +133,6 @@ const SESSIONS_PROVIDERS_SERVICE = new class extends mock<ISessionsProvidersServ
 const OPENER_SERVICE = new class extends mock<IOpenerService>() {
 	override async open(): Promise<boolean> {
 		return true;
-	}
-}();
-
-const PREFERENCES_SERVICE = new class extends mock<IPreferencesService>() {
-	override async openSettings(): Promise<undefined> {
-		return undefined;
 	}
 }();
 
@@ -188,7 +188,7 @@ function renderInHover(ctx: ComponentFixtureContext, content: HTMLElement): void
 
 /** The Agents window path: ISession → hover data → shared widget. */
 function renderSessionHover(ctx: ComponentFixtureContext, spec: ISessionSpec): void {
-	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE, OPENER_SERVICE, LABEL_SERVICE, PREFERENCES_SERVICE);
+	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE, OPENER_SERVICE, LABEL_SERVICE);
 	renderInHover(ctx, new SessionSummaryHoverWidget(data).domNode);
 }
 
@@ -269,6 +269,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			title: 'Fix authentication redirect loop',
 			workspace: { root: '/home/user/projects/vscode', branch: 'main' },
 			isExternal: true,
+			application: 'copilot-cli',
+		}),
+	}),
+	SessionHover_CreatedInApplication: defineComponentFixture({
+		render: ctx => renderSessionHover(ctx, {
+			title: 'Fix authentication redirect loop',
+			workspace: { root: '/home/user/projects/vscode', branch: 'main' },
+			application: 'copilot-cli',
 		}),
 	}),
 	SessionHover_LongValues: defineComponentFixture({

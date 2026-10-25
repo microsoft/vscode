@@ -5,7 +5,9 @@
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { sumBy } from '../../../../base/common/arrays.js';
 import { IntervalTimer, raceTimeout, SequencerByKey } from '../../../../base/common/async.js';
+import { groupByMap } from '../../../../base/common/collections.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -16,9 +18,10 @@ import { ILogService } from '../../../log/common/log.js';
 import { EditTelemetryTrigger, sendEditSourcesDetailsTelemetry, sendEditSourcesStatsTelemetry } from '../../../telemetry/common/editTelemetry.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { IDiffComputeService, IOffsetEdit } from '../../common/diffComputeService.js';
 import { createFileEditContentDigest, IAgentEditAttribution, IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionCoverageGapAcknowledgement, IEditAttributionFlushResult, IFileEditAttributionMarker, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, ISkippedFileEditAttributionMarker, MAX_EDIT_ATTRIBUTION_FILE_SIZE } from '../../common/fileEditAttribution.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
+import { isAhpChatChannel } from '../../common/state/sessionState.js';
 import { IAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 
 const MAX_TOTAL_TRACKED_TEXT = 20 * 1024 * 1024;
@@ -45,10 +48,16 @@ interface IAttributedInterval {
 }
 
 interface ISourceStatistics {
+	readonly trackingKey: string;
+	readonly groupKey: string;
 	readonly sourceKey: string;
 	readonly sourceKeyCleaned: string;
 	readonly modelId: string | undefined;
+	readonly autoTier: string | undefined;
+	readonly fusionModel: string | undefined;
 	readonly conversationId: string;
+	readonly agentSessionId: string;
+	readonly chatSessionId: string | undefined;
 	readonly requestId: string;
 	readonly harness: string;
 	insertedCount: number;
@@ -70,6 +79,7 @@ interface ITrackedResource {
 	readonly key: string;
 	readonly fileKey: string;
 	readonly sessionUri: string;
+	readonly ownerSessionUri: string;
 	readonly filePath: string;
 	readonly startedAt: number;
 	currentContent: string | undefined;
@@ -78,6 +88,7 @@ interface ITrackedResource {
 	coverageGap: IAttributionCoverageGap | undefined;
 	readonly coverageGapSequences: number[];
 	trackedEditCount: number;
+	coarseDiffCount: number;
 	repositoryRoot: string | undefined;
 	lastSequence: number;
 }
@@ -99,6 +110,7 @@ interface IPreparedFlush {
 	readonly sources: readonly ISourceStatistics[];
 	readonly retainedBySource: ReadonlyMap<string, number>;
 	readonly agentModifiedCount: number;
+	readonly coarseDiffCount: number;
 	readonly externalModifiedCount: number;
 	readonly actualTime: number;
 	readonly trackingScope: 'agentHostStandalone' | undefined;
@@ -204,6 +216,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				key,
 				fileKey,
 				sessionUri: edit.sessionUri,
+				ownerSessionUri: edit.ownerSessionUri,
 				filePath: edit.filePath,
 				startedAt: this._now(),
 				currentContent: undefined,
@@ -212,6 +225,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				coverageGap: undefined,
 				coverageGapSequences: [],
 				trackedEditCount: 0,
+				coarseDiffCount: 0,
 				repositoryRoot: repository?.root,
 				lastSequence: 0,
 			};
@@ -269,6 +283,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				key,
 				fileKey,
 				sessionUri: edit.sessionUri,
+				ownerSessionUri: edit.ownerSessionUri,
 				filePath: edit.filePath,
 				startedAt: this._now(),
 				currentContent: edit.beforeText,
@@ -277,6 +292,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				coverageGap: undefined,
 				coverageGapSequences: [],
 				trackedEditCount: 0,
+				coarseDiffCount: 0,
 				repositoryRoot: repository?.root,
 				lastSequence: 0,
 			};
@@ -296,27 +312,43 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			if (!this._isCurrentGeneration(generation)) {
 				return undefined;
 			}
-			this._applyChanges(resource, bridge.changes, 'external', edit.beforeText);
+			this._applyChanges(resource, bridge.changes, 'external', edit.beforeText, true, bridge.hitTimeout);
 			this._excludeOtherSessionAgentIntervals(resource);
 		}
 
-		const provider = getSessionProvider(edit.sessionUri);
+		const provider = edit.provider ?? getSessionProvider(edit.ownerSessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
-		const sourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
-		let source = resource.sources.get(sourceKey);
+		// Matches the workbench edit-source key order ($modelId, $autoTier, $fusionModel, ..., $harness, $origin).
+		const autoTierSegment = edit.autoTier ? `-$autoTier:${edit.autoTier}` : '';
+		const fusionModelSegment = edit.fusionModel ? `-$fusionModel:${edit.fusionModel}` : '';
+		const sourceKey = `source:Chat.applyEdits${modelSegment}${autoTierSegment}${fusionModelSegment}-$harness:${provider}-$origin:agentHost`;
+		const groupSourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
+		const conversationId = AgentSession.id(edit.sessionUri);
+		const chatUri = edit.chatUri ?? (isAhpChatChannel(edit.sessionUri) ? edit.sessionUri : undefined);
+		const agentSessionId = AgentSession.id(edit.ownerSessionUri);
+		const chatSessionId = chatUri === undefined ? undefined : getTelemetryChatSessionId(chatUri);
+		const toTrackingKey = (key: string) => JSON.stringify([key, agentSessionId, conversationId, chatSessionId]);
+		const trackingKey = toTrackingKey(sourceKey);
+		let source = resource.sources.get(trackingKey);
 		if (!source) {
 			source = {
+				trackingKey,
+				groupKey: toTrackingKey(groupSourceKey),
 				sourceKey,
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
 				modelId: edit.modelId,
-				conversationId: AgentSession.id(edit.sessionUri),
+				autoTier: edit.autoTier,
+				fusionModel: edit.fusionModel,
+				conversationId,
+				agentSessionId,
+				chatSessionId,
 				requestId: edit.turnId,
 				harness: provider,
 				insertedCount: 0,
 			};
-			resource.sources.set(sourceKey, source);
+			resource.sources.set(trackingKey, source);
 		}
-		this._applyChanges(resource, edit.changes, source, edit.afterText);
+		this._applyChanges(resource, edit.changes, source, edit.afterText, true, edit.diffHitTimeout);
 		resource.trackedEditCount++;
 		const marker: IFileEditAttributionMarker = {
 			version: 1,
@@ -326,7 +358,11 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			afterDigest: createFileEditContentDigest(edit.afterText),
 			source: {
 				modelId: edit.modelId,
-				conversationId: AgentSession.id(edit.sessionUri),
+				...(edit.autoTier !== undefined ? { autoTier: edit.autoTier } : {}),
+				...(edit.fusionModel !== undefined ? { fusionModel: edit.fusionModel } : {}),
+				conversationId,
+				agentSessionId,
+				...(chatSessionId !== undefined ? { chatSessionId } : {}),
 				requestId: edit.turnId,
 				harness: provider,
 			},
@@ -367,6 +403,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			return {
 				flushToken: existing.token,
 				agentModifiedCount: existing.agentModifiedCount,
+				coarseDiffCount: existing.coarseDiffCount,
 				lastSequence: existing.lastSequence,
 				...getCoverageGapCutoffData(existing),
 				...getStandaloneAcknowledgementData(existing),
@@ -454,6 +491,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		return {
 			flushToken: prepared.token,
 			agentModifiedCount: prepared.agentModifiedCount,
+			coarseDiffCount: prepared.coarseDiffCount,
 			lastSequence: prepared.lastSequence,
 			...getCoverageGapCutoffData(prepared),
 			...getStandaloneAcknowledgementData(prepared),
@@ -486,6 +524,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const result = {
 			outcome: 'committed',
 			agentModifiedCount: prepared.agentModifiedCount,
+			coarseDiffCount: prepared.coarseDiffCount,
 			lastSequence: prepared.lastSequence,
 			...getCoverageGapCutoffData(prepared),
 			...getStandaloneAcknowledgementData(prepared),
@@ -542,6 +581,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			const result = {
 				outcome: 'committed',
 				agentModifiedCount: prepared.agentModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 				lastSequence: prepared.lastSequence,
 				...getCoverageGapCutoffData(prepared),
 				...getStandaloneAcknowledgementData(prepared),
@@ -575,13 +615,18 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 	}
 
-	private _applyChanges(resource: ITrackedResource, changes: readonly IOffsetEdit[], source: ISourceStatistics | 'external', afterText: string, updateTrackedTextLength = true): void {
+	private _applyChanges(resource: ITrackedResource, changes: readonly IOffsetEdit[], source: ISourceStatistics | 'external', afterText: string, updateTrackedTextLength = true, hitTimeout = false): void {
 		if (resource.currentContent === undefined) {
 			throw new Error(`Cannot apply edit attribution changes without tracked content: ${resource.filePath}`);
 		}
-		const normalizedChanges = validateChanges(resource.currentContent, afterText, changes)
-			? changes
-			: [createMinimalChange(resource.currentContent, afterText)];
+		let normalizedChanges = changes;
+		let isCoarse = hitTimeout;
+		if (!validateChanges(resource.currentContent, afterText, changes)) {
+			this._logService.warn('[AgentEditAttributionService] Character edits do not reconstruct the updated content; falling back to coarse edit attribution.');
+			normalizedChanges = [createMinimalChange(resource.currentContent, afterText)];
+			isCoarse = true;
+		}
+		resource.coarseDiffCount += isCoarse ? 1 : 0;
 		const intervals = transformIntervals(resource.intervals, normalizedChanges);
 		let delta = 0;
 		for (const change of normalizedChanges) {
@@ -590,7 +635,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				intervals.push({
 					start,
 					endExclusive: start + change.newText.length,
-					sourceKey: source === 'external' ? undefined : source.sourceKey,
+					sourceKey: source === 'external' ? undefined : source.trackingKey,
 				});
 				if (source !== 'external') {
 					source.insertedCount += change.newText.length;
@@ -726,7 +771,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					if (!this._isCurrentGeneration(generation)) {
 						return undefined;
 					}
-					this._applyChanges(resource, diff.changes, 'external', currentContent, false);
+					this._applyChanges(resource, diff.changes, 'external', currentContent, false, diff.hitTimeout);
 				}
 				if (!await this._reconcileOtherSessionResources(resource, generation, reconciliationDeadline)) {
 					return undefined;
@@ -748,17 +793,16 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				trigger,
 				statsUuid,
 				languageId: undefined,
-				sources: Array.from(resource.sources.values())
-					.toSorted((a, b) => (retainedBySource.get(b.sourceKey) ?? 0) - (retainedBySource.get(a.sourceKey) ?? 0))
-					.slice(0, 30),
+				sources: selectReportedSources(resource.sources.values(), retainedBySource),
 				retainedBySource,
 				agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
+				coarseDiffCount: resource.coarseDiffCount,
 				externalModifiedCount,
 				actualTime: this._now() - resource.startedAt,
 				trackingScope,
 				coverageGap: resource.coverageGap,
 				coverageGapCutoffCeiling: undefined,
-				githubTelemetryEnabled: getSessionProvider(resource.sessionUri) === 'copilotcli',
+				githubTelemetryEnabled: getSessionProvider(resource.ownerSessionUri) === 'copilotcli' || [...resource.sources.values()].some(source => source.harness === 'copilotcli'),
 				lastSequence: resource.lastSequence,
 				resources: [resource],
 				standaloneAcknowledgements: [],
@@ -787,16 +831,21 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				extensionId: undefined,
 				extensionVersion: undefined,
 				modelId: source.modelId,
+				...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
+				...(source.fusionModel !== undefined ? { fusionModel: source.fusionModel } : {}),
 				trigger: prepared.trigger,
 				languageId: prepared.languageId,
 				statsUuid: prepared.statsUuid,
 				conversationId: source.conversationId,
+				agentSessionId: source.agentSessionId,
+				...(source.chatSessionId !== undefined ? { chatSessionId: source.chatSessionId } : {}),
 				requestId: source.requestId,
 				origin: 'agentHost',
-				harness: source.harness,
-				modifiedCount: prepared.retainedBySource.get(source.sourceKey) ?? 0,
+				provider: source.harness || 'unknown',
+				modifiedCount: prepared.retainedBySource.get(source.trackingKey) ?? 0,
 				deltaModifiedCount: source.insertedCount,
 				totalModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 			} as const;
 			sendEditSourcesDetailsTelemetry(this._telemetryService, data);
 			const agentHostTelemetryService = this._telemetryService as Partial<IAgentHostTelemetryService>;
@@ -808,17 +857,22 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					extensionId: '',
 					extensionVersion: '',
 					modelId: data.modelId ?? '',
+					...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
+					...(source.fusionModel !== undefined ? { fusionModel: source.fusionModel } : {}),
 					trigger: data.trigger,
 					languageId: data.languageId ?? '',
 					statsUuid: data.statsUuid,
 					conversationId: data.conversationId,
+					agentSessionId: data.agentSessionId,
+					...(data.chatSessionId !== undefined ? { chatSessionId: data.chatSessionId } : {}),
 					requestId: data.requestId,
 					origin: data.origin,
-					harness: data.harness,
+					provider: data.provider,
 				}, {
 					modifiedCount: data.modifiedCount,
 					deltaModifiedCount: data.deltaModifiedCount,
 					totalModifiedCount: data.totalModifiedCount,
+					coarseDiffCount: data.coarseDiffCount,
 				});
 			}
 		}
@@ -832,6 +886,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				inlineCompletionsNESModifiedCount: 0,
 				otherAIModifiedCount: 0,
 				agentHostModifiedCount: prepared.agentModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 				unknownModifiedCount: 0,
 				userModifiedCount: 0,
 				ideModifiedCount: 0,
@@ -860,6 +915,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					inlineCompletionsNESModifiedCount: data.inlineCompletionsNESModifiedCount,
 					otherAIModifiedCount: data.otherAIModifiedCount,
 					agentHostModifiedCount: data.agentHostModifiedCount,
+					coarseDiffCount: data.coarseDiffCount,
 					unknownModifiedCount: data.unknownModifiedCount,
 					userModifiedCount: data.userModifiedCount,
 					ideModifiedCount: data.ideModifiedCount,
@@ -926,7 +982,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				if (!this._isCurrentGeneration(generation)) {
 					return false;
 				}
-				this._applyChanges(candidate, diff.changes, 'external', currentContent);
+				this._applyChanges(candidate, diff.changes, 'external', currentContent, true, diff.hitTimeout);
 			}
 			const candidateAgentIntervals = candidate.intervals.filter(interval => interval.sourceKey !== undefined);
 			if (candidateAgentIntervals.length > 0) {
@@ -1125,6 +1181,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._recordSettledFlush(flushToken, {
 				outcome: 'committed',
 				agentModifiedCount: prepared.agentModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 				lastSequence: prepared.lastSequence,
 				...getCoverageGapCutoffData(prepared),
 				...getStandaloneAcknowledgementData(prepared),
@@ -1147,6 +1204,17 @@ function resourceKey(sessionUri: string, fileKey: string): string {
 	return `${sessionUri}\0${fileKey}`;
 }
 
+const MAX_REPORTED_SOURCE_GROUPS = 30;
+
+/** Caps reported sources before subdividing them by Auto tier and HydraFusion model, so those never displace other sources. */
+function selectReportedSources(sources: Iterable<ISourceStatistics>, retainedBySource: ReadonlyMap<string, number>): ISourceStatistics[] {
+	const retained = (source: ISourceStatistics) => retainedBySource.get(source.trackingKey) ?? 0;
+	return Array.from(groupByMap(Array.from(sources), source => source.groupKey).values(), group => ({ group, retained: sumBy(group, retained) }))
+		.toSorted((a, b) => b.retained - a.retained)
+		.slice(0, MAX_REPORTED_SOURCE_GROUPS)
+		.flatMap(({ group }) => group.toSorted((a, b) => retained(b) - retained(a)));
+}
+
 function combinePreparedFlushes(
 	flushes: readonly IPreparedFlush[],
 	fileKey: string,
@@ -1167,11 +1235,11 @@ function combinePreparedFlushes(
 			retainedBySource.set(sourceKey, (retainedBySource.get(sourceKey) ?? 0) + retainedCount);
 		}
 		for (const source of flush.sources) {
-			const existing = sources.get(source.sourceKey);
+			const existing = sources.get(source.trackingKey);
 			if (existing) {
 				existing.insertedCount += source.insertedCount;
 			} else {
-				sources.set(source.sourceKey, { ...source });
+				sources.set(source.trackingKey, { ...source });
 			}
 		}
 		untrackedEditCount += flush.coverageGap?.editCount ?? 0;
@@ -1183,11 +1251,10 @@ function combinePreparedFlushes(
 		trigger,
 		statsUuid,
 		languageId,
-		sources: Array.from(sources.values())
-			.toSorted((a, b) => (retainedBySource.get(b.sourceKey) ?? 0) - (retainedBySource.get(a.sourceKey) ?? 0))
-			.slice(0, 30),
+		sources: selectReportedSources(sources.values(), retainedBySource),
 		retainedBySource,
 		agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
+		coarseDiffCount: flushes.reduce((sum, flush) => sum + flush.coarseDiffCount, 0),
 		externalModifiedCount: flushes.reduce((sum, flush) => sum + flush.externalModifiedCount, 0),
 		actualTime: Math.max(0, ...flushes.map(flush => flush.actualTime)),
 		trackingScope: undefined,
@@ -1242,9 +1309,8 @@ function countCoverageGapAcknowledgements(acknowledgements: readonly (readonly [
 	return acknowledgements.reduce((count, [, acknowledgement]) => count + acknowledgement.coverageGapAcknowledgements.length, 0);
 }
 
-function getSessionProvider(sessionUri: string): string {
-	const providerSessionUri = isAhpChatChannel(sessionUri) ? parseRequiredSessionUriFromChatUri(sessionUri) : sessionUri;
-	return AgentSession.provider(providerSessionUri) ?? 'unknown';
+function getSessionProvider(ownerSessionUri: string): string {
+	return AgentSession.provider(ownerSessionUri) ?? 'unknown';
 }
 
 function getRemainingReconciliationTime(deadline: number, now: number): number {

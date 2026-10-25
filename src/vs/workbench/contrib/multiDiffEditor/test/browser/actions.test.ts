@@ -8,18 +8,50 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageSelection, ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { OpenMultiDiffEditorLayoutDebugAction } from '../../browser/actions.js';
+import { OpenMultiDiffEditorLayoutDebugAction, PositionFileListLeftAction, PositionFileListRightAction, ToggleFileListAction, ViewFileListAsListAction, ViewFileListAsTreeAction } from '../../browser/actions.js';
 
 suite('MultiDiffEditor Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('groups the view modes and positions in the editor title overflow submenu', () => {
+		const submenu = MenuRegistry.getMenuItems(MenuId.EditorTitle)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu.id === 'MultiDiffEditorFilesViewAndPosition');
+		assert.ok(submenu);
+		const actions = [new ViewFileListAsListAction(), new ViewFileListAsTreeAction(), new PositionFileListLeftAction(), new PositionFileListRightAction()];
+		const entries = actions.map(action => {
+			const menu = action.desc.menu;
+			assert.ok(menu && !Array.isArray(menu));
+			const toggled = action.desc.toggled;
+			return { id: action.desc.id, submenu: menu.id.id, group: menu.group, order: menu.order, toggled: toggled && (hasKey(toggled, { condition: true }) ? toggled.condition : toggled).serialize(), preconditionKeys: action.desc.precondition?.keys().sort() };
+		});
+		const toggle = new ToggleFileListAction().desc;
+		assert.ok(toggle.menu && !Array.isArray(toggle.menu));
+		// The view mode and position stay available in the Agents window, which contributes the submenu to its own editor title menu.
+		const preconditionKeys = ['activeEditor', 'config.multiDiffEditor.experimental.fileList', 'multiDiffEditorFileListAvailable'];
+		assert.deepStrictEqual({ group: submenu.group, icon: toggle.icon, toggleOrder: toggle.menu.order, togglePreconditionKeys: toggle.precondition?.keys().sort(), entries }, {
+			group: 'z_files',
+			icon: { id: 'list-flat' },
+			toggleOrder: 100001,
+			togglePreconditionKeys: ['activeEditor', 'config.multiDiffEditor.experimental.fileList', 'isSessionsWindow', 'multiDiffEditorFileListAvailable'],
+			entries: [
+				{ id: 'multiDiffEditor.viewFileListAsList', submenu: submenu.submenu.id, group: '1_view', order: 1, toggled: 'multiDiffEditorFileListViewMode == \'list\'', preconditionKeys },
+				{ id: 'multiDiffEditor.viewFileListAsTree', submenu: submenu.submenu.id, group: '1_view', order: 2, toggled: 'multiDiffEditorFileListViewMode == \'tree\'', preconditionKeys },
+				{ id: 'multiDiffEditor.positionFileListLeft', submenu: submenu.submenu.id, group: '2_position', order: 1, toggled: 'multiDiffEditorFileListPosition == \'left\'', preconditionKeys },
+				{ id: 'multiDiffEditor.positionFileListRight', submenu: submenu.submenu.id, group: '2_position', order: 2, toggled: 'multiDiffEditorFileListPosition == \'right\'', preconditionKeys },
+			],
+		});
+	});
 
 	async function getLayoutDebugTargetGroup(isSessionsWindow: boolean): Promise<PreferredGroup | undefined> {
 		const onWillDispose = disposables.add(new Emitter<void>());

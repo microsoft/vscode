@@ -6,10 +6,11 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -87,10 +88,14 @@ export function getBrowserPagesContext(
 	agentNetworkFilterService: IAgentNetworkFilterService,
 	options?: {
 		activeSessionId?: string;
+		sandboxSessionId?: string;
 		canPromptUser?: boolean;
 	},
 ): string | undefined {
-	const views = [...browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()];
+	const views = [...browserViewService.getContextualBrowserViews({
+		activeSessionId: options?.activeSessionId,
+		...(options?.sandboxSessionId !== undefined ? { sandboxSessionId: options.sandboxSessionId } : {}),
+	}).values()];
 	const sharedViews = views.filter(view => view.model?.sharingState === BrowserViewSharingState.Shared);
 	const unsharedCount = views.filter(view => !view.model || view.model.sharingState === BrowserViewSharingState.Available).length;
 	const blockedCount = views.filter(view => view.model?.sharingState === BrowserViewSharingState.BlockedByNetworkPolicy).length;
@@ -222,6 +227,24 @@ export function errorResult(message: string): IToolResult {
 	};
 }
 
+export function getBrowserNetworkPolicyError(url: string, agentNetworkFilterService: IAgentNetworkFilterService): string | undefined {
+	const uri = URI.parse(url);
+	return agentNetworkFilterService.isUriAllowed(uri) ? undefined : agentNetworkFilterService.formatError(uri);
+}
+
+export function getExternalTunnelNetworkPolicyError(
+	rewrite: { url: string; rewritten: boolean },
+	agentNetworkFilterService: IAgentNetworkFilterService,
+): string | undefined {
+	if (!rewrite.rewritten) {
+		return undefined;
+	}
+	const uri = URI.parse(rewrite.url);
+	return isLocalhostAuthority(uri.authority)
+		? undefined
+		: getBrowserNetworkPolicyError(rewrite.url, agentNetworkFilterService);
+}
+
 /**
  * In a remote workspace where remote proxying is not enabled, the integrated
  * browser runs on the local machine and cannot reach the remote's localhost
@@ -234,12 +257,11 @@ export function errorResult(message: string): IToolResult {
  */
 export function rewriteRemoteLocalhostUrl(
 	url: string,
-	browserViewService: IBrowserViewWorkbenchService,
 	remoteExplorerService: IRemoteExplorerService,
+	usesRemoteNetwork: boolean,
 ): { url: string; rewritten: boolean } {
-	// When proxying is enabled (or we are not in a remote workspace) the browser
-	// can reach the remote host directly, so no rewriting is needed.
-	if (browserViewService.willUseRemoteProxy()) {
+	// A page on the remote network reaches the remote's localhost directly, so no rewriting is needed.
+	if (usesRemoteNetwork) {
 		return { url, rewritten: false };
 	}
 
@@ -281,13 +303,17 @@ export function remoteUrlRewriteNotice(originalUrl: string, rewrittenUrl: string
 }
 
 /**
- * Checks whether a browser editor with the same host (hostname + port) already exists.
+ * Checks whether a browser editor with the same host (hostname + port) on the
+ * same network already exists. Pages keep the network they were opened on, so
+ * the same URL on another network is a different destination.
  *
+ * @param network The network a new page would use, or `undefined` for the local network.
  * @returns All matching {@link BrowserEditorInput}s.
  */
 export function findExistingPagesByHost(
 	browserViewService: IBrowserViewWorkbenchService,
 	url: string,
+	network: IBrowserViewNetwork | undefined,
 	options?: {
 		includeBlank?: boolean;
 		sharingState?: BrowserViewSharingState;
@@ -300,6 +326,11 @@ export function findExistingPagesByHost(
 			continue;
 		}
 		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
+			continue;
+		}
+		// A page uses the network of its model once created, which may be the local network it fell back to.
+		const pageNetwork = editor.model ? editor.model.network : editor.network;
+		if (pageNetwork?.authority !== network?.authority) {
 			continue;
 		}
 		if (browserViewUrlMatches(editor.url, url, options?.includeBlank)) {

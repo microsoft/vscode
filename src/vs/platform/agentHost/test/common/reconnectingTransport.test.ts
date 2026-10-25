@@ -11,7 +11,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import { type IEstablishedTransport, ReconnectingTransport } from '../../common/reconnectingTransport.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
-import { NonReconnectableTransportError, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, parseProtocolMessage, NonReconnectableTransportError, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 
 type TransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcParseErrorResponse | JsonRpcResponse | JsonRpcRequest;
 
@@ -21,8 +21,11 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
+	readonly closeDetailsEmitter = this._register(new Emitter<ITransportCloseDetails>());
+	readonly onDidCloseDetails = this.closeDetailsEmitter.event;
 
 	readonly sentMessages: TransportMessage[] = [];
+	bufferedAmount = 0;
 	disposeCount = 0;
 
 	send(message: TransportMessage): void {
@@ -70,18 +73,26 @@ suite('ReconnectingTransport', () => {
 		));
 		const received: ProtocolMessage[] = [];
 		let closeCount = 0;
+		const details: ITransportCloseDetails[] = [];
 		disposables.add(transport.onMessage(message => received.push(message)));
 		disposables.add(transport.onClose(() => closeCount++));
+		disposables.add(transport.onDidCloseDetails(event => details.push(event)));
 
 		await transport.connect();
 		transport.send({ jsonrpc: '2.0', method: 'outbound', id: 2 });
-		innerTransport.fireMessage({ jsonrpc: '2.0', id: 1, result: {} });
+		const text = '{ "jsonrpc": "2.0", "id": 1, "result": {} }';
+		innerTransport.fireMessage(parseProtocolMessage(text));
+		innerTransport.bufferedAmount = 123;
+		assert.strictEqual(transport.bufferedAmount, 123);
+		assert.strictEqual(getProtocolMessageSize(received[0]), text.length * 2);
 		innerTransport.fireClose();
+		innerTransport.closeDetailsEmitter.fire({ code: 4001, reason: 'closed' });
 
-		assert.deepStrictEqual({ received, sentMessages: innerTransport.sentMessages, closeCount }, {
+		assert.deepStrictEqual({ received, sentMessages: innerTransport.sentMessages, closeCount, details }, {
 			received: [{ jsonrpc: '2.0', id: 1, result: {} }],
 			sentMessages: [{ jsonrpc: '2.0', method: 'outbound', id: 2 }],
 			closeCount: 1,
+			details: [{ code: 4001, reason: 'closed' }],
 		});
 	});
 

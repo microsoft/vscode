@@ -136,22 +136,35 @@ function validateLink(value: string, allowedProtocols: AllowedLinksConfig): bool
 }
 
 /**
- * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
- * attributes are valid.
+ * Hooks dompurify using `afterSanitizeAttributes` to check link and media-loading attributes.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig) {
+function hookDomPurifyHrefAndSrcSanitizer(
+	allowedLinkProtocols: AllowedLinksConfig,
+	allowedMediaProtocols: AllowedLinksConfig,
+	mediaSourceIsAllowed: ((source: string) => boolean) | undefined,
+	replaceWithPlaintext: boolean,
+) {
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// check all href/src attributes for validity
-		for (const attr of ['href', 'src']) {
+		for (const attr of ['href', 'src', 'poster']) {
 			if (node.hasAttribute(attr)) {
 				const attrValue = node.getAttribute(attr) as string;
-				if (attr === 'href') {
+				if (attr === 'href' && node.nodeName.toLowerCase() === 'a') {
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
 						node.removeAttribute(attr);
 					}
-				} else { // 'src'
+				} else if (attr === 'href' && attrValue.startsWith('#')) {
+					continue;
+				} else {
 					if (!validateLink(attrValue, allowedMediaProtocols)) {
 						node.removeAttribute(attr);
+					} else if (mediaSourceIsAllowed && !mediaSourceIsAllowed(attrValue)) {
+						const replacement = replaceWithPlaintext ? convertTagToPlaintext(node) : undefined;
+						if (replacement && node.parentNode) {
+							node.parentNode.replaceChild(replacement, node);
+							return;
+						} else {
+							node.removeAttribute(attr);
+						}
 					}
 				}
 			}
@@ -212,6 +225,11 @@ export interface DomSanitizerConfig {
 	 * If set, allows relative paths for media (images, videos, etc).
 	 */
 	readonly allowRelativeMediaPaths?: boolean;
+
+	/**
+	 * Additional validation for otherwise valid media source attributes.
+	 */
+	readonly mediaSourceIsAllowed?: (source: string) => boolean;
 
 	/**
 	 * If set, replaces unsupported tags with their plaintext representation instead of removing them.
@@ -299,7 +317,10 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 			{
 				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
 				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
-			});
+			},
+			config?.mediaSourceIsAllowed,
+			config?.replaceWithPlaintext ?? false,
+		);
 
 		if (config?.replaceWithPlaintext) {
 			dompurify.addHook('uponSanitizeElement', replaceWithPlainTextHook);
@@ -421,7 +442,7 @@ export function convertTagToPlaintext(node: Node): DocumentFragment | undefined 
 		return;
 	}
 
-	const fragment = document.createDocumentFragment();
+	const fragment = node.ownerDocument.createDocumentFragment();
 	const textNode = node.ownerDocument.createTextNode(startTagText);
 	fragment.appendChild(textNode);
 	while (node.firstChild) {

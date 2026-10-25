@@ -1,0 +1,41 @@
+name: Detect changes
+description: Determines which path-filtered pull request checks need to run.
+
+inputs:
+  token:
+    description: GitHub token used to list the pull request files.
+    required: true
+
+outputs:
+  cli:
+    description: "'true' when the CLI checks in cli/ need to run."
+    value: ${{ steps.detect.outputs.cli }}
+  copilot-shim:
+    description: "'true' when the Copilot shim checks in copilot_shim/ need to run."
+    value: ${{ steps.detect.outputs.copilot-shim }}
+  copilot:
+    description: "'true' when the Copilot extension checks in extensions/copilot/ need to run."
+    value: ${{ steps.detect.outputs.copilot }}
+  unit-tests:
+    description: "'true' when the Electron, node.js and browser unit tests need to run."
+    value: ${{ steps.detect.outputs.unit-tests }}
+  browser-integration:
+    description: "'true' when the browser integration and smoke tests need to run."
+    value: ${{ steps.detect.outputs.browser-integration }}
+  product-tests:
+    description: "'true' when the Electron integration, Electron smoke and remote tests need to run."
+    value: ${{ steps.detect.outputs.product-tests }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect relevant changes
+      id: detect
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const { pathToFileURL } = require('url');
+          const scriptUrl = pathToFileURL(process.env.GITHUB_WORKSPACE + '/.github/actions/detect-changes/detect.ts');
+          const { detectChanges } = await import(scriptUrl.href);
+          await detectChanges(github, context, core);

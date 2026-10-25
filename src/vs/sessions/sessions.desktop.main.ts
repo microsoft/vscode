@@ -19,11 +19,16 @@ import './sessions.common.main.js';
 
 //#region --- workbench (sessions desktop main)
 
+import { registerOpenAgentsWindowCommand } from './contrib/openAgentsWindow/electron-browser/openAgentsWindowCommand.js';
 import './electron-browser/sessions.main.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
+registerOpenAgentsWindowCommand();
+
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
+import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
+import './contrib/sessionInputBanners/electron-browser/sessionDiskSpace.contribution.js';
 
 //#endregion
 
@@ -48,6 +53,8 @@ import '../workbench/services/host/electron-browser/nativeHostService.js';
 import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
+import '../workbench/services/github/electron-browser/githubService.js';
+import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
 import '../workbench/services/contextmenu/electron-browser/contextmenuService.js';
 import '../workbench/services/configurationResolver/electron-browser/configurationResolverService.js';
@@ -95,11 +102,11 @@ import '../workbench/services/auxiliaryWindow/electron-browser/auxiliaryWindowSe
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
+import '../platform/agentHost/electron-browser/agentHostMcpOAuthMetadataService.js';
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
 import '../workbench/services/localTranscription/electron-browser/localTranscriptionService.js';
-import './contrib/automations/electron-browser/automationStorageService.js';
 
 import { ILocalGitService } from '../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -171,6 +178,10 @@ import '../workbench/contrib/terminal/electron-browser/terminal.contribution.js'
 // Themes
 import '../workbench/contrib/themes/browser/themes.test.contribution.js';
 import '../workbench/services/themes/electron-browser/themes.contribution.js';
+
+// Frosted glass overlays
+import '../workbench/contrib/modernUI/electron-browser/frostedGlass.contribution.js';
+
 // Tags
 import '../workbench/contrib/tags/electron-browser/workspaceTagsService.js';
 import '../workbench/contrib/tags/electron-browser/tags.contribution.js';
@@ -188,12 +199,16 @@ import '../workbench/contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
 import '../workbench/contrib/browserView/electron-browser/browserView.contribution.js';
+import './contrib/editor/electron-browser/browserEmptyState.contribution.js';
 
 // Splash
 import '../workbench/contrib/splash/electron-browser/splash.contribution.js';
 
 // Local History
 import '../workbench/contrib/localHistory/electron-browser/localHistory.contribution.js';
+
+// Onboarding
+import '../workbench/contrib/onboarding/electron-browser/onboardingTryout.contribution.js';
 
 // Merge Editor
 import '../workbench/contrib/mergeEditor/electron-browser/mergeEditor.contribution.js';
@@ -219,12 +234,16 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 // Keybindings Export
 import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
 
+// Computer Use setup: drag Copilot Computer Use into System Settings
+import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelperApp.contribution.js';
+
 //#endregion
 
 
 //#region --- sessions contributions
 
 import './electron-browser/sessions.desktop.contribution.js';
+import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';
@@ -239,6 +258,7 @@ import './contrib/providers/remoteAgentHost/browser/sshAgentHost.contribution.js
 import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/devContainerAgentHostConnector.contribution.js';
+import './contrib/providers/remoteAgentHost/electron-browser/remotes.contribution.js';
 // Change Preferred Remote Agent Location (Chat: ... command)
 import './contrib/providers/remoteAgentHost/electron-browser/remoteAgentHostLocationPreferenceCommand.js';
 import './contrib/providers/remoteAgentHost/electron-browser/forgetSSHHostKeyCommand.js';
@@ -250,6 +270,7 @@ import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
 import './contrib/providers/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/providers/agentHost/browser/codexContinuation.contribution.js';
 import './contrib/providers/agentHost/electron-browser/localAgentHostLifecycle.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';

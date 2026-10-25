@@ -9,10 +9,10 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, type ChatSummary, type SessionSummary, type Snapshot } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, type ChatSummary, type ClientPluginCustomization, type SessionActiveClient, type SessionSummary, type Snapshot } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, ReconnectResultType, type AhpRequest, type AhpServerNotification, type AhpSuccessResponse, type ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SESSION_META_FOLDER_PICKER_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { getProtocolMessageSize, parseProtocolMessage, IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHostTransport.js';
 
 const authority = 'wsl+ubuntu';
@@ -21,6 +21,8 @@ const fileDirectory = 'file:///home/user/project?key%3Dvalue#folder';
 const remoteReplacement = 'vscode-remote://wsl%2Bubuntu/home/user/replacement?key%3Dvalue#folder';
 const fileReplacement = 'file:///home/user/replacement?key%3Dvalue#folder';
 const otherRemoteDirectory = 'vscode-remote://ssh-remote%2Bother/home/user/project';
+const fileCustomization = 'file:///home/user/project/.github/plugin';
+const remoteCustomization = 'vscode-remote://wsl%2Bubuntu/home/user/project/.github/plugin';
 const session = 'ahp-session:/session';
 const chat = 'ahp-chat:/chat';
 const timestamp = '2026-08-28T00:00:00.000Z';
@@ -36,6 +38,7 @@ class TestClientTransport extends Disposable implements IClientTransport {
 	readonly onClose = this.closeEmitter.event;
 	connected = false;
 	disposed = false;
+	bufferedAmount = 0;
 
 	async connect(): Promise<void> {
 		this.connected = true;
@@ -70,16 +73,46 @@ function sessionSummary(workingDirectories: string[]): SessionSummary {
 	};
 }
 
-function snapshots(workingDirectories: string[]): Snapshot[] {
+function pluginCustomization(uri: string, workspace: string): ClientPluginCustomization {
+	return {
+		type: CustomizationType.Plugin,
+		id: 'plugin-id',
+		uri,
+		name: 'Plugin',
+		icons: [{ src: `${uri}/icon.png` }],
+		enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace, enabled: true }],
+		childEnablement: {
+			rule: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace, enabled: false }],
+		},
+		children: [{
+			type: CustomizationType.Rule,
+			id: 'rule-id',
+			uri: `${uri}/rule.instructions.md`,
+			name: 'Rule',
+		}],
+	};
+}
+
+function activeClient(customization?: ClientPluginCustomization): SessionActiveClient {
+	return {
+		clientId: 'client',
+		displayName: 'VS Code',
+		tools: [],
+		...(customization ? { customizations: [customization] } : {}),
+	};
+}
+
+function snapshots(workingDirectories: string[], customization?: ClientPluginCustomization, clientCustomization?: ClientPluginCustomization): Snapshot[] {
 	return [
 		{
 			resource: session, fromSeq: 10,
 			state: {
 				provider: 'copilot', title: opaqueText, status: SessionStatus.Idle,
-				lifecycle: SessionLifecycle.Ready, activeClients: [], workingDirectories,
+				lifecycle: SessionLifecycle.Ready, activeClients: clientCustomization ? [activeClient(clientCustomization)] : [], workingDirectories,
 				chats: [chatSummary(workingDirectories)],
 				config: { schema: { type: 'object', properties: {} }, values: { workingDirectory: fileDirectory, text: opaqueText } },
 				_meta: folderPickerMeta(workingDirectories[0]),
+				...(customization ? { customizations: [customization] } : {}),
 			},
 		},
 		{
@@ -124,6 +157,21 @@ suite('EditorRemoteAgentHostTransport', () => {
 		return { underlying, transport, received };
 	}
 
+	test('preserves windowed TCP messages and their original sizes without URI rewriting', () => {
+		const { underlying, transport, received } = createTransport();
+		for (const method of ['channel/snapshot', 'channel/frame', 'channel/credit', 'tcp/data', 'tcp/eof', 'tcp/reset']) {
+			const text = `{ "jsonrpc":"2.0", "method":"${method}", "params":{"channel":"ahp-tcp:/test","data":"\\\\u0061"} }`;
+			const message = parseProtocolMessage(text);
+			underlying.messageEmitter.fire(message);
+			assert.strictEqual(received.at(-1), message);
+			assert.strictEqual(getProtocolMessageSize(received.at(-1)!), text.length * 2);
+			transport.send(message);
+			assert.strictEqual(underlying.messages.at(-1), message);
+		}
+		underlying.bufferedAmount = 256 * 1024;
+		assert.strictEqual(transport.bufferedAmount, underlying.bufferedAmount);
+	});
+
 	test('round-trips directory actions when the remote authority contains uppercase characters', () => {
 		const { underlying, transport, received } = createTransport('wsl+Ubuntu');
 		underlying.messageEmitter.fire({
@@ -154,14 +202,16 @@ suite('EditorRemoteAgentHostTransport', () => {
 		assert.deepStrictEqual({ received, secondReceived }, { received: expected, secondReceived: expected });
 	});
 
-	test('maps createSession roots and folder picker metadata without mutating the request', () => {
+	test('maps createSession roots, active-client customizations, and folder picker metadata without mutating the request', () => {
 		const { underlying, transport } = createTransport();
+		const clientCustomization = pluginCustomization(remoteCustomization, remoteDirectory);
 		const request: AhpRequest<'createSession'> = {
 			jsonrpc: '2.0', id: 1, method: 'createSession',
 			params: {
 				channel: session, provider: 'copilot',
 				workingDirectories: [remoteDirectory, 'vscode-remote://wsl%2Bubuntu/home/user/second', otherRemoteDirectory, 'file:///local'],
 				config: { workingDirectory: remoteDirectory, text: opaqueText },
+				activeClient: activeClient(clientCustomization),
 				_meta: folderPickerMeta(remoteDirectory),
 			},
 		};
@@ -175,6 +225,7 @@ suite('EditorRemoteAgentHostTransport', () => {
 				params: {
 					...original.params,
 					workingDirectories: [fileDirectory, 'file:///home/user/second', otherRemoteDirectory, 'file:///local'],
+					activeClient: activeClient(pluginCustomization(fileCustomization, fileDirectory)),
 					_meta: folderPickerMeta(fileDirectory),
 				},
 			}],
@@ -296,6 +347,100 @@ suite('EditorRemoteAgentHostTransport', () => {
 				{ jsonrpc: '2.0', id: 3, result: {} },
 			],
 			original,
+		});
+	});
+
+	test('maps server and active-client customization URIs in session snapshots without mutating host messages', () => {
+		const { underlying, transport, received } = createTransport();
+		const response: AhpSuccessResponse<'subscribe'> = {
+			jsonrpc: '2.0',
+			id: 1,
+			result: {
+				snapshot: snapshots(
+					[fileDirectory],
+					pluginCustomization(fileCustomization, fileDirectory),
+					pluginCustomization(fileCustomization, fileDirectory),
+				)[0]
+			},
+		};
+		const original = structuredClone(response);
+
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'subscribe', params: { channel: session } });
+		underlying.messageEmitter.fire(response);
+
+		assert.deepStrictEqual({ received, original: response }, {
+			received: [{
+				...original,
+				result: {
+					snapshot: snapshots(
+						[remoteDirectory],
+						pluginCustomization(remoteCustomization, remoteDirectory),
+						pluginCustomization(remoteCustomization, remoteDirectory),
+					)[0]
+				},
+			}],
+			original,
+		});
+	});
+
+	test('round-trips active-client and server customization action URIs without changing opaque ids', () => {
+		const { underlying, transport, received } = createTransport();
+		const hostCustomization = pluginCustomization(fileCustomization, fileDirectory);
+		const clientCustomization = pluginCustomization(remoteCustomization, remoteDirectory);
+		const hostActions: StateAction[] = [
+			{ type: ActionType.SessionActiveClientSet, activeClient: activeClient(hostCustomization) },
+			{ type: ActionType.SessionCustomizationsChanged, customizations: [hostCustomization] },
+			{ type: ActionType.SessionCustomizationUpdated, customization: hostCustomization },
+			{
+				type: ActionType.SessionCustomizationToggled,
+				id: fileCustomization,
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: fileDirectory, enabled: true }],
+			},
+		];
+		const clientActions: StateAction[] = [
+			{ type: ActionType.SessionActiveClientSet, activeClient: activeClient(clientCustomization) },
+			{ type: ActionType.SessionCustomizationsChanged, customizations: [clientCustomization] },
+			{ type: ActionType.SessionCustomizationUpdated, customization: clientCustomization },
+			{
+				type: ActionType.SessionCustomizationToggled,
+				id: fileCustomization,
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: remoteDirectory, enabled: true }],
+			},
+		];
+		const hostMessages: ProtocolMessage[] = hostActions.map((action, index) => ({
+			jsonrpc: '2.0',
+			method: 'action',
+			params: envelope(action, index),
+		}));
+		const clientMessages: ProtocolMessage[] = clientActions.map((action, index) => ({
+			jsonrpc: '2.0',
+			method: 'dispatchAction',
+			params: { channel: session, clientSeq: index + 1, action },
+		}));
+		const originalHostMessages = structuredClone(hostMessages);
+		const originalClientMessages = structuredClone(clientMessages);
+
+		hostMessages.forEach(message => underlying.messageEmitter.fire(message));
+		clientMessages.forEach(message => transport.send(message));
+
+		assert.deepStrictEqual({
+			received,
+			sent: underlying.messages,
+			originalHostMessages: hostMessages,
+			originalClientMessages: clientMessages,
+		}, {
+			received: clientActions.map((action, index) => ({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: envelope(action, index),
+			})),
+			sent: hostActions.map((action, index) => ({
+				jsonrpc: '2.0',
+				method: 'dispatchAction',
+				params: { channel: session, clientSeq: index + 1, action },
+			})),
+			originalHostMessages,
+			originalClientMessages,
 		});
 	});
 

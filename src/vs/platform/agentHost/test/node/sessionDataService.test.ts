@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
@@ -75,10 +79,113 @@ suite('SessionDataService', () => {
 		assert.ok(!(await fileService.exists(dir)));
 	});
 
+	test('saved output survives database release and is removed with its owning chat data', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'terminal-output-data-'));
+		const files = disposables.add(new FileService(new NullLogService()));
+		disposables.add(files.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(new NullLogService()))));
+		const data = new SessionDataService(URI.file(directory), files, new NullLogService());
+		const owner = AgentSession.uri('copilotcli', 'output-owner');
+		const chat = URI.parse(buildChatUri(owner, 'output-peer'));
+		try {
+			const ref = data.openDatabase(chat);
+			try {
+				await ref.object.createTurn('turn');
+				await ref.object.storeTerminalOutput('turn', 'tool', VSBuffer.fromString('complete output').buffer);
+				await ref.object.close();
+			} finally {
+				ref.dispose();
+			}
+			const restored = await data.tryOpenDatabase(chat);
+			assert.ok(restored);
+			try {
+				assert.deepStrictEqual(await restored.object.readTerminalOutput('tool'), new Uint8Array(VSBuffer.fromString('complete output').buffer));
+				await restored.object.close();
+			} finally {
+				restored.dispose();
+			}
+			await data.deleteSessionData(chat);
+			assert.deepStrictEqual({
+				database: await data.tryOpenDatabase(chat),
+				directoryExists: await files.exists(data.getSessionDataDir(chat)),
+			}, { database: undefined, directoryExists: false });
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('deleteSessionDataExcept keeps the named children and fires the will-delete event', async () => {
+		const session = AgentSession.uri('copilot', 'session-keep');
+		const dir = service.getSessionDataDir(session);
+		await fileService.writeFile(URI.joinPath(dir, 'session.db'), VSBuffer.fromString('db'));
+		await fileService.writeFile(URI.joinPath(dir, 'attachments', 'id', 'note.txt'), VSBuffer.fromString('note'));
+		const events: string[] = [];
+		const listener = service.onWillDeleteSessionData(e => events.push(`${e.session.toString()} ${e.workingDirectories?.join(',')}`));
+
+		await service.deleteSessionDataExcept(session, ['attachments'], ['file:///repo']);
+		const kept = (await fileService.resolve(dir)).children?.map(child => child.name);
+		await service.deleteSessionData(session);
+		listener.dispose();
+
+		assert.deepStrictEqual({ kept, removed: !(await fileService.exists(dir)), events }, {
+			kept: ['attachments'],
+			removed: true,
+			events: [`${session.toString()} file:///repo`, `${session.toString()} undefined`],
+		});
+	});
+
+	test('deleteSessionDataExcept treats what a concurrent delete removed first as deleted', async () => {
+		const racingScheme = 'racing-session-data';
+		const racingFiles = disposables.add(new FileService(new NullLogService()));
+		/** Deletes the whole session directory while its children are being listed, like a concurrent full delete. */
+		class ConcurrentlyDeletingProvider extends InMemoryFileSystemProvider {
+			override async readdir(resource: URI) {
+				const entries = await super.readdir(resource);
+				if (resource.path.endsWith('/session-race')) {
+					await super.delete(resource, { recursive: true, useTrash: false, atomic: false });
+				}
+				return entries;
+			}
+		}
+		disposables.add(racingFiles.registerProvider(racingScheme, disposables.add(new ConcurrentlyDeletingProvider())));
+		const warnings: string[] = [];
+		const racing = new SessionDataService(URI.from({ scheme: racingScheme, path: '/userData' }), racingFiles, new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		});
+		const raced = AgentSession.uri('copilot', 'session-race');
+		const gone = AgentSession.uri('copilot', 'session-gone');
+		await racingFiles.writeFile(URI.joinPath(racing.getSessionDataDir(raced), 'session.db'), VSBuffer.fromString('db'));
+		await racingFiles.writeFile(URI.joinPath(racing.getSessionDataDir(raced), 'attachments', 'note.txt'), VSBuffer.fromString('note'));
+
+		await racing.deleteSessionDataExcept(raced, ['attachments']);
+		await racing.deleteSessionDataExcept(gone, ['attachments']);
+
+		assert.deepStrictEqual({ warnings, racedExists: await racingFiles.exists(racing.getSessionDataDir(raced)) }, { warnings: [], racedExists: false });
+	});
+
 	test('deleteSessionData is a no-op when directory does not exist', async () => {
 		const session = AgentSession.uri('copilot', 'nonexistent');
 		// Should not throw
 		await service.deleteSessionData(session);
+	});
+
+	test('tryOpenDatabase returns undefined only for a missing database and propagates stat errors', async () => {
+		const session = AgentSession.uri('copilot', 'probe-test');
+		assert.strictEqual(await service.tryOpenDatabase(session), undefined);
+
+		const failingScheme = 'failing-session-data';
+		const failingFileService = disposables.add(new FileService(new NullLogService()));
+		class FailingStatProvider extends InMemoryFileSystemProvider {
+			override async stat(resource: URI) {
+				if (resource.path.endsWith('/session.db')) {
+					throw new Error('stat failed');
+				}
+				return super.stat(resource);
+			}
+		}
+		disposables.add(failingFileService.registerProvider(failingScheme, disposables.add(new FailingStatProvider())));
+		const failingService = new SessionDataService(URI.from({ scheme: failingScheme, path: '/userData' }), failingFileService, new NullLogService());
+
+		await assert.rejects(failingService.tryOpenDatabase(session), /stat failed/);
 	});
 
 	test('cleanupOrphanedData deletes orphans but keeps known sessions', async () => {
@@ -186,5 +293,41 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		assert.notStrictEqual(ref2.object, db1);
 
 		await ref2.object.close();
+	});
+
+	test('storageAccessCounts counts real opens and existence probes, not reference acquisitions', async () => {
+		const session = AgentSession.uri('copilot', 'access-counts');
+		const other = AgentSession.uri('copilot', 'access-counts-other');
+		const baseline = service.storageAccessCounts;
+
+		const ref1 = service.openDatabase(session);
+		// A second reference to the same session is served from the live
+		// collection, so it must not count as another open.
+		const ref2 = service.openDatabase(session);
+		const afterSharedRefs = service.storageAccessCounts;
+
+		// A missing database still costs an existence probe.
+		const missing = await service.tryOpenDatabase(other);
+		const afterMissingProbe = service.storageAccessCounts;
+
+		ref1.dispose();
+		ref2.dispose();
+		await ref1.object.close();
+
+		assert.deepStrictEqual({
+			baseline,
+			opensAfterSharedRefs: afterSharedRefs.opens - baseline.opens,
+			statsAfterSharedRefs: afterSharedRefs.stats - baseline.stats,
+			missingProbeResolved: missing,
+			opensAfterMissingProbe: afterMissingProbe.opens - afterSharedRefs.opens,
+			statsAfterMissingProbe: afterMissingProbe.stats - afterSharedRefs.stats,
+		}, {
+			baseline: { opens: 0, stats: 0 },
+			opensAfterSharedRefs: 1,
+			statsAfterSharedRefs: 0,
+			missingProbeResolved: undefined,
+			opensAfterMissingProbe: 0,
+			statsAfterMissingProbe: 1,
+		});
 	});
 });

@@ -3,7 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SessionEvent, SessionEventPayload, SkillInvokedData, ToolExecutionCompleteContent } from '@github/copilot-sdk';
+import type { Attachment, CopilotClient, SessionEvent, SessionEventPayload, SkillInvokedData, ToolExecutionCompleteContent } from '@github/copilot-sdk';
+import { mock } from '../../../../base/test/common/mock.js';
+
+export function createUnmanagedCopilotSettings(): CopilotClient['rpc']['managedSettings'] {
+	return new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+		override resolve = async () => {
+			return {
+				resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
+				layers: [], diagnostics: [],
+			};
+		};
+	}();
+}
 
 // =============================================================================
 // Minimal session-event shapes for tests
@@ -70,7 +82,7 @@ export interface ISessionEventMessage {
 		messageId?: string;
 		interactionId?: string;
 		content?: string;
-		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolDescription?: unknown }[];
+		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom'; mcpServerName?: string; mcpToolName?: string; toolTitle?: string; toolDescription?: unknown }[];
 		reasoningOpaque?: string;
 		reasoningText?: string;
 		encryptedContent?: string;

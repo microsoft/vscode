@@ -175,7 +175,7 @@ export class ChatStatusDashboard extends DomWidget {
 				label: localize('quotaLabel', "Manage Copilot Settings"),
 				tooltip: localize('quotaTooltip', "Manage Copilot Settings"),
 				class: ThemeIcon.asClassName(Codicon.settings),
-				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)))),
+				run: () => this.runCommandAndClose(() => this.openGitHubUrl(GitHubPaths.copilotSettings)),
 			}));
 
 			// Add Additional Spend / Upgrade buttons to the header
@@ -190,7 +190,7 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton.label = localize('manageBudget', "Manage Budget");
 				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
-					this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets))));
+					this.runCommandAndClose(() => this.openGitHubUrl(GitHubPaths.billingBudgets));
 				}));
 				if (actionBarElement) {
 					header.insertBefore(headerAdditionalSpendButton.element, actionBarElement);
@@ -219,7 +219,7 @@ export class ChatStatusDashboard extends DomWidget {
 				headerAdditionalSpendButton.label = localize('manageBudget', "Manage Budget");
 				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
-					this.runCommandAndClose(() => this.openerService.open(URI.parse(this.defaultAccountService.resolveGitHubUrl(GitHubPaths.billingBudgets))));
+					this.runCommandAndClose(() => this.openGitHubUrl(GitHubPaths.billingBudgets));
 				}));
 			}
 
@@ -745,6 +745,15 @@ export class ChatStatusDashboard extends DomWidget {
 				store.add(new Link(target, node, undefined, this.hoverService, this.openerService));
 			}
 		}
+	}
+
+	private openGitHubUrl(path: string): void {
+		const url = this.defaultAccountService.resolveGitHubUrl(path);
+		if (!url) {
+			this.notificationService.error(localize('githubUrlUnavailable', "The GitHub Enterprise URL is unavailable. Sign in and try again."));
+			return;
+		}
+		this.openerService.open(URI.parse(url));
 	}
 
 	private runCommandAndClose(commandOrFn: string | ((...args: unknown[]) => void), ...args: unknown[]): void {

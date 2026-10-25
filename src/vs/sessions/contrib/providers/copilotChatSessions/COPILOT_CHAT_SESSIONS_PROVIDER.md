@@ -4,37 +4,53 @@
 
 ## Scope
 
-`CopilotChatSessionsProvider` adapts the existing Copilot agent-session infrastructure into `ISessionsProvider`. It supports Copilot Cloud and provides the local Copilot CLI path when Agent Host is unavailable.
+`CopilotChatSessionsProvider` adapts the existing Copilot agent-session infrastructure into `ISessionsProvider`. It supports Copilot Cloud only. Local Copilot CLI sessions contributed by the Copilot extension are not surfaced in the Agents Window; local Copilot sessions are owned by the Agent Host providers.
 
 ## Registration and identity
 
-`DefaultSessionsProviderContribution` registers one provider after workbench restoration.
+`DefaultSessionsProviderContribution` registers the default provider after workbench restoration.
 
 | Property | Contract |
 |----------|----------|
 | Provider ID | `default-copilot` |
 | Label | Copilot Chat |
-| Cloud session type | Always advertised when available |
-| Local CLI session type | Advertised only when Agent Host does not own it |
+| Cloud session type | The only session type advertised |
 
-The provider may expose local-folder and remote-repository browse actions. Workspace URI schemes select the applicable draft implementation.
+The provider may expose local-folder and remote-repository browse actions. Repository selection UI is owned by the shared workbench picker, used by both the extension's repository command and browser session creation; each caller supplies repository data and owns any session-option updates. Workspace resolution is shared by the default and sandbox creation modes.
+
+On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-creation`) while cloud sandboxes and remote agent hosts are enabled and AI features are visible. This instance owns sandbox drafts, not existing Cloud or CLI history. It advertises the Copilot sandbox creation type.
 
 ## Drafts
 
-Local and cloud drafts implement the same `ISession` contract while adapting different backend options:
+Cloud drafts implement the `ISession` contract and expose provider-declared option groups and remote workspace metadata. A local folder can host a Cloud draft only for the GitHub repository it tracks; the draft targets that remote repository. Shared new-session UI consumes the observable loading, workspace, model, and capability contracts and does not branch on draft classes.
 
-- local drafts resolve repository and local execution configuration;
-- cloud drafts expose provider-declared option groups and remote workspace metadata.
+For new interactive Cloud sessions, enabling `chat.agentHost.cloudSandbox.enabled` selects GitHub Cloud when remote agent hosts are also enabled; otherwise the provider uses the legacy Copilot coding agent on GitHub Actions. Interactive draft models, configuration controls, and first-send routing follow this setting rather than a saved per-chat choice. Existing conversations keep their original backend.
 
-Both expose observable loading, workspace, model, mode, and capabilities. Shared new-session UI consumes those contracts and does not branch on draft classes.
+Automation configuration drafts instead retain the scheduled-Cloud model catalogue and configuration contract regardless of this setting; see [Automations](../../../AUTOMATIONS.md#definitions-and-session-configuration).
+
+While GitHub sandboxes are enabled and AI features are visible, the provider also advertises quick chats. These drafts explicitly have no workspace or repository and always require the sandbox backend; disabling it withdraws that capability and prevents a pending quick chat from falling back to the repository-bound legacy agent.
 
 ## Existing sessions
 
-`AgentSessionAdapter` projects an existing `IAgentSession` into a stable `ISession` facade. It updates observable state in a transaction and preserves resource identity while metadata changes.
+`AgentSessionAdapter` projects an existing Copilot Cloud `IAgentSession` into a stable `ISession` facade. Agent sessions of any other provider type are ignored. It updates observable state in a transaction and preserves resource identity while metadata changes.
 
 The provider cache is keyed by resource identity. Refreshing the backing agent session list updates existing adapters and emits added, removed, changed, or replacement catalog notifications as appropriate.
 
 Provider metadata translation, including repository and pull-request metadata, remains inside the adapter. Shared Sessions code consumes provider-neutral workspace, changes, status, and GitHub information.
+
+The cloud provider reports verified PR-closing issues through `linkedIssues` metadata containing their URLs and titles. The adapter exposes these as session artifacts and, for public GitHub URLs, issue references for the existing issue pill. Enterprise-hosted issues remain openable artifacts without public GitHub polling.
+
+The Task API does not report which client started a task, so the Copilot extension records the tasks VS Code creates or sends a message to. Every other task carries `external: true` metadata, which the adapter exposes as `ISession.isExternal`. The extension lists external tasks according to `chat.agentSessions.showExternal`, and a sent message adopts a task by clearing the flag.
+
+## Cloud automation coordination
+
+`GitHubCloudAutomationStore` owns a provider-local, explicitly refreshed cache of user-owned GitHub cloud automation definitions. It retains the default-account client lease from `IWorkbenchGitHubService` until account/grant invalidation or disposal; the service supplies Mission Control endpoints. The shared `client.query` and `client.automations` domains own repository reads and automation requests/response validation; the store bounds page collection and detail hydration. Discovery is limited to Agents Window recent workspaces and explicitly registered GitHub.com repositories, with private/internal visibility verified before listing. Only account-scoped repository references persist in profile-local machine storage; definitions stay in memory, and account/grant changes or disposal cancel pending reads and clear the cache.
+
+Refresh failures, including incomplete paginated results, retain the affected repository's last successful definitions while reporting an error; successful repositories still update. The store serializes definition refreshes and mutations within an account lifetime, rechecks repository eligibility before writes, and discards responses after account/grant changes or disposal. Updates support an authoritative preflight comparison, not server-side compare-and-swap. An uncertain mutation blocks further writes until an explicit successful catalogue refresh.
+
+History is an explicitly refreshed, bounded server-owned window. Active task details are fetched with bounded concurrency and cancellation. Manual dispatch acknowledges acceptance only; it does not create a local run or correlate an arbitrary history entry with that request. The store does not implement the shared Automation contract or initiate requests on construction, observation, or account changes.
+
+Only the default provider exposes `CloudAutomationStore`, which adapts the GitHub store to the shared Automation contract. The sandbox-only provider is not an Automation authority. The adapter creates a store and refreshes it only while the cloud gate, parent Automations setting, AI visibility, and a GitHub.com account permit access. Each account or gate transition disposes the old store. Definition and history identities include provider, account, repository, and remote definition identity; native Cloud session adoption is a separate concern.
 
 ## Request lifecycle
 
@@ -52,7 +68,11 @@ sendRequest
 
 The provider never opens chat UI directly. Presentation and focus remain owned by `ISessionsService`.
 
-Committed sessions send against their existing chat resources. Multi-chat creation is capability-gated and follows the shared management lifecycle.
+Each session has a single chat; the provider does not advertise multiple chats, rename, or delete. Follow-up turns go through the committed session's existing chat resource.
+
+Sandbox creation reuses the remote draft and optimistic replacement lifecycle. Repository selection creates only a draft. The first send provisions through `CloudSandboxAgentHostContribution`, awaits the connection's advertised repository preparation, sends the prompt once into the provisioned session's existing main chat, and transfers ownership to that environment's provider. Until that handoff, the draft exposes shared `ISession.preparationProgress`; the chat view owns the transient, extension-independent preparation transcript. Sandbox drafts obtain their account-scoped model catalog from Mission Control independently of local runtimes and the Copilot extension. Connected sandbox model providers retain service-discovered models missing from the AHP catalog, including after restoration; explicit host metadata and policy take precedence for models the host does advertise. The creation provider retains session and model configuration, resolves session options with the connected host, and applies the selected options before dispatching the first turn. Explicit sandbox drafts fail when sandbox creation is disabled rather than falling back to the server-run Cloud agent. If the first send fails after provisioning, the environment's session is published so it remains recoverable.
+
+Quick chats use the same lifecycle but omit the repository from provisioning and skip repository preparation. The provisional session is tagged as workspace-less, and that metadata is passed through the chat content provider before the first turn so the host can retain the session kind.
 
 ## Picker contributions
 

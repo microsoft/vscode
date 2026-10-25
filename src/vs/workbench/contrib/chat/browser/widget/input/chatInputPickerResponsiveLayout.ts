@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 
 const WIDTH_TOLERANCE = 1;
 
 export interface IChatInputPickerResponsiveLayoutDelegate {
 	getItems(): readonly IChatInputPickerResponsiveLayoutItem[];
+	/** Size a content-fitting lane against its intrinsic width, ignoring animated item bounds. */
+	readonly usePreferredWidth?: boolean;
+	isCompactionEnabled?(): boolean;
 	hasOverflow?(): boolean;
 	relayout?(): void;
 }
@@ -41,7 +44,10 @@ export function isChatInputPickerResponsiveState(candidate: object | undefined):
 export class ChatInputPickerResponsiveLayout extends Disposable {
 
 	private readonly _mutationObserver: MutationObserver;
+	private readonly _scheduledLayout = this._register(new MutableDisposable());
 	private _isLayouting = false;
+	/** The {@link _getLayoutKey key} recorded when the last layout pass finished. */
+	private _lastLayoutKey: string | undefined;
 
 	constructor(
 		name: string,
@@ -51,15 +57,43 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		super();
 
 		const targetWindow = dom.getWindow(_element);
-		const resizeObserver = this._register(new dom.DisposableResizeObserver(name, () => this.layout(), targetWindow));
+		// Resize notifications arrive at most once per frame, before paint, so lay out right away.
+		const resizeObserver = this._register(new dom.DisposableResizeObserver(name, () => this._layout(true), targetWindow));
 		this._register(resizeObserver.observe(_element));
 
-		this._mutationObserver = new targetWindow.MutationObserver(() => this.layout());
+		this._mutationObserver = new targetWindow.MutationObserver(() => this._scheduleLayout());
 		this._observeMutations();
 		this._register(toDisposable(() => this._mutationObserver.disconnect()));
 	}
 
+	/**
+	 * Lays out the lane immediately. Unlike passes triggered by the lane's own
+	 * resize and mutation observers, this always runs, so callers can react to
+	 * changes the observers cannot see, such as ancestor styles that change the
+	 * pickers' widths.
+	 */
 	layout(): void {
+		this._layout(false);
+	}
+
+	/**
+	 * Every pass forces several synchronous layouts while it expands and
+	 * recompacts the pickers. Mutations often arrive in bursts, or leave the
+	 * lane exactly as the last pass did (for example, a toolbar re-rendering
+	 * identical actions), so run at most one mutation-triggered pass per
+	 * animation frame, and skip it when nothing it depends on has changed.
+	 */
+	private _scheduleLayout(): void {
+		if (this._scheduledLayout.value) {
+			return;
+		}
+		this._scheduledLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this._element), () => {
+			this._scheduledLayout.clear();
+			this._layout(true);
+		});
+	}
+
+	private _layout(skipIfUnchanged: boolean): void {
 		if (this._isLayouting || !this._element.isConnected) {
 			return;
 		}
@@ -69,6 +103,11 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 			return;
 		}
 
+		if (skipIfUnchanged && this._lastLayoutKey === this._getLayoutKey(availableWidth)) {
+			return;
+		}
+
+		this._scheduledLayout.clear();
 		this._isLayouting = true;
 		this._mutationObserver.disconnect();
 		try {
@@ -76,12 +115,17 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				return;
 			}
 
-			const items = this._getOrderedVisibleItems();
+			const items = this._getVisibleItemBounds()
+				.sort((a, b) => b.bounds.left - a.bounds.left)
+				.map(({ item }) => item);
 			for (const item of items) {
 				item.setMinimal?.(false);
 				item.setCompact(false);
 			}
 			this._delegate.relayout?.();
+			if (this._delegate.isCompactionEnabled?.() === false) {
+				return;
+			}
 
 			for (const item of items) {
 				if (this._fitsAvailableWidth(availableWidth)) {
@@ -95,9 +139,35 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				}
 			}
 		} finally {
+			this._lastLayoutKey = this._getLayoutKey(availableWidth);
 			this._observeMutations();
 			this._isLayouting = false;
 		}
+	}
+
+	/**
+	 * Describes everything a pass depends on: the width it lays out against,
+	 * the lane's computed font (which stands in for inherited styles that resize
+	 * its contents), the lane's markup including its own attributes (such as an
+	 * inline gap), and each item's state (including items rendered outside the
+	 * lane, such as overflowed actions). A pass expands every item before
+	 * compacting, so starting a new pass from the state a previous pass ended
+	 * in, against the same width, produces that same state again.
+	 */
+	private _getLayoutKey(availableWidth: number): string {
+		const items = this._delegate.getItems().map(item => [
+			item.isCompact(),
+			item.isMinimal?.() ?? false,
+			item.element && !this._element.contains(item.element) ? item.element.outerHTML : '',
+		]);
+		return JSON.stringify([
+			availableWidth,
+			dom.getWindow(this._element).getComputedStyle(this._element).font,
+			this._delegate.hasOverflow?.() ?? false,
+			this._delegate.isCompactionEnabled?.() ?? true,
+			this._element.outerHTML,
+			items,
+		]);
 	}
 
 	areAllItemsCompact(): boolean {
@@ -109,7 +179,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 			return true;
 		}
 
-		let visibleItemCount = this._getOrderedVisibleItems().length;
+		let visibleItemCount = this._getVisibleItemBounds().length;
 		while (true) {
 			this._setHiddenItemsCompact();
 			this._delegate.relayout?.();
@@ -117,7 +187,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				return true;
 			}
 
-			const nextVisibleItemCount = this._getOrderedVisibleItems().length;
+			const nextVisibleItemCount = this._getVisibleItemBounds().length;
 			if (nextVisibleItemCount <= visibleItemCount) {
 				return false;
 			}
@@ -134,31 +204,39 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		}
 	}
 
-	private _getOrderedVisibleItems(): IChatInputPickerResponsiveLayoutItem[] {
-		return this._delegate.getItems()
-			.filter(item => item.element?.isConnected && item.element.getClientRects().length > 0)
-			.sort((a, b) => b.element!.getBoundingClientRect().left - a.element!.getBoundingClientRect().left);
+	private _getVisibleItemBounds(): { item: IChatInputPickerResponsiveLayoutItem; bounds: DOMRect }[] {
+		const items: { item: IChatInputPickerResponsiveLayoutItem; bounds: DOMRect }[] = [];
+		for (const item of this._delegate.getItems()) {
+			const element = item.element;
+			if (element?.isConnected && element.getClientRects().length > 0) {
+				items.push({ item, bounds: element.getBoundingClientRect() });
+			}
+		}
+		return items;
 	}
 
 	private _fitsAvailableWidth(availableWidth: number): boolean {
-		const items = this._getOrderedVisibleItems();
-		const preferredLayout = this._measurePreferredLayout(items);
-		if (!items.some(item => item.canShrink) && preferredLayout.width > availableWidth + WIDTH_TOLERANCE) {
-			return false;
-		}
-
 		const laneBounds = this._element.getBoundingClientRect();
-		const itemBounds = items
-			.map(item => ({ item, bounds: item.element!.getBoundingClientRect() }))
+		const itemBounds = this._getVisibleItemBounds()
 			.sort((a, b) => a.bounds.left - b.bounds.left);
+		if (this._delegate.usePreferredWidth) {
+			return this._measurePreferredLayout(itemBounds.map(({ item }) => item)).width <= availableWidth + WIDTH_TOLERANCE;
+		}
 		for (let index = 0; index < itemBounds.length; index++) {
-			const { item, bounds } = itemBounds[index];
+			const { bounds } = itemBounds[index];
 			if (bounds.left < laneBounds.left - WIDTH_TOLERANCE || bounds.right > laneBounds.right + WIDTH_TOLERANCE) {
 				return false;
 			}
 			if (index > 0 && bounds.left < itemBounds[index - 1].bounds.right - WIDTH_TOLERANCE) {
 				return false;
 			}
+		}
+
+		const preferredLayout = this._measurePreferredLayout(itemBounds.map(({ item }) => item));
+		if (!itemBounds.some(({ item }) => item.canShrink) && preferredLayout.width > availableWidth + WIDTH_TOLERANCE) {
+			return false;
+		}
+		for (const { item, bounds } of itemBounds) {
 			const preferredWidth = preferredLayout.itemWidths.get(item);
 			if (!item.canShrink && preferredWidth !== undefined && bounds.width < preferredWidth - WIDTH_TOLERANCE) {
 				return false;
@@ -194,19 +272,26 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		measurement.style.maxWidth = 'none';
 		measurement.style.flex = 'none';
 		measurementHost.appendChild(measurement);
+
+		const measuredItems = new Map<IChatInputPickerResponsiveLayoutItem, HTMLElement>();
+		for (const item of items) {
+			const path = item.element ? this._getElementPath(item.element) : undefined;
+			const measuredItem = path ? this._getElementAtPath(measurement, path) : undefined;
+			if (measuredItem) {
+				measuredItem.style.flex = 'none';
+				measuredItem.style.width = 'max-content';
+				measuredItem.style.minWidth = 'max-content';
+				measuredItem.style.maxWidth = 'none';
+				measuredItems.set(item, measuredItem);
+			}
+		}
+
+		// Prepare the detached clone before reading any geometry to avoid a layout per picker.
 		parent.appendChild(measurementHost);
 		try {
 			const itemWidths = new Map<IChatInputPickerResponsiveLayoutItem, number>();
-			for (const item of items) {
-				const path = item.element ? this._getElementPath(item.element) : undefined;
-				const measuredItem = path ? this._getElementAtPath(measurement, path) : undefined;
-				if (measuredItem) {
-					measuredItem.style.flex = 'none';
-					measuredItem.style.width = 'max-content';
-					measuredItem.style.minWidth = 'max-content';
-					measuredItem.style.maxWidth = 'none';
-					itemWidths.set(item, measuredItem.getBoundingClientRect().width);
-				}
+			for (const [item, measuredItem] of measuredItems) {
+				itemWidths.set(item, measuredItem.getBoundingClientRect().width);
 			}
 			return { width: measurement.getBoundingClientRect().width, itemWidths };
 		} finally {
