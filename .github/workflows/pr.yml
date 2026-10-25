@@ -23,7 +23,7 @@ jobs:
   # Skip with a job-level `if:` inside the reusable workflow when the job calls
   # one and reports a required check itself: a skipped job still reports its
   # check, which satisfies required status checks. The core test jobs skip in
-  # the calling job instead, and required-checks reports their required checks.
+  # the calling job instead, and pr-gate reports their required check.
   # Jobs also run when change detection fails.
   #
   # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
@@ -309,8 +309,9 @@ jobs:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
 
   # The test jobs below report "<OS> (<part>) / <job>" checks and skip when the
-  # changes cannot affect them. required-checks reports the required
-  # "<OS> / <job>" checks from their results.
+  # changes cannot affect them. pr-gate reports the single required check from
+  # their results (required-checks reports the legacy "<OS> / <job>" checks
+  # until branch protection moves to pr-gate).
   linux-electron-unit-tests:
     name: Linux (run)
     needs: changes
@@ -656,6 +657,79 @@ jobs:
               status=1
             fi
           done < <(jq -r '.[] | "\(.job) \(.output)"' <<< "$PARTS")
+          exit $status
+
+  # The single required check: passes when every test job above succeeded or was
+  # skipped because the changes cannot affect it. Replaces the matrix of the
+  # required-checks job, which burns one VM per "<OS> / <job>" check, so that
+  # branch protection only has to require "PR Gate". Uses always() so that it
+  # also reports when a job failed or was skipped.
+  pr-gate:
+    name: PR Gate
+    needs:
+      - changes
+      - linux-electron-unit-tests
+      - linux-electron-tests
+      - linux-electron-smoke-test-shards
+      - linux-browser-unit-tests
+      - linux-browser-integration-tests
+      - linux-remote-tests
+      - macos-electron-unit-tests
+      - macos-electron-tests
+      - macos-electron-smoke-test-shards
+      - macos-browser-unit-tests
+      - macos-browser-integration-tests
+      - macos-remote-tests
+      - windows-electron-unit-tests
+      - windows-electron-tests
+      - windows-agent-host-e2e-tests
+      - windows-electron-smoke-test-shards
+      - windows-browser-unit-tests
+      - windows-browser-integration-tests
+      - windows-remote-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          detection=$(jq -r '.changes.result' <<< "$NEEDS")
+          status=0
+          # "<job> <output of Detect Changes that tells whether the changes can affect the job>"
+          while read -r job output; do
+            result=$(jq -r --arg job "$job" '.[$job].result' <<< "$NEEDS")
+            affected=$(jq -r --arg output "$output" '.changes.outputs[$output] // "true"' <<< "$NEEDS")
+            if [[ "$result" == success ]]; then
+              echo "$job succeeded."
+            elif [[ "$result" == skipped && "$detection" == success && "$affected" == false ]]; then
+              echo "$job was skipped because the changes cannot affect it ($output: false)."
+            else
+              echo "::error::$job did not succeed (result: $result, detection: $detection, $output: $affected)."
+              status=1
+            fi
+          done <<'EOF'
+          linux-electron-unit-tests unit-tests
+          linux-electron-tests electron-tests
+          linux-electron-smoke-test-shards product-tests
+          linux-browser-unit-tests unit-tests
+          linux-browser-integration-tests browser-integration
+          linux-remote-tests product-tests
+          macos-electron-unit-tests selected-unit-tests
+          macos-electron-tests electron-tests
+          macos-electron-smoke-test-shards product-tests
+          macos-browser-unit-tests selected-unit-tests
+          macos-browser-integration-tests browser-integration
+          macos-remote-tests product-tests
+          windows-electron-unit-tests selected-unit-tests
+          windows-electron-tests product-tests
+          windows-agent-host-e2e-tests agent-host-e2e
+          windows-electron-smoke-test-shards product-tests
+          windows-browser-unit-tests selected-unit-tests
+          windows-browser-integration-tests browser-integration
+          windows-remote-tests product-tests
+          EOF
           exit $status
 
   copilot-check-test-cache:
