@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionActivityBar.css';
-import { $, addDisposableListener, AnimationFrameScheduler, append, EventHelper, EventLike, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -14,7 +14,6 @@ import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { clamp } from '../../../base/common/numbers.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Action, IAction, toAction } from '../../../base/common/actions.js';
@@ -40,7 +39,6 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { getSessionLayoutButtonLabel } from '../sessionLayoutModeActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
-import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
@@ -198,14 +196,8 @@ const MAX_PROBE_RETRIES = 3;
 /** Width of the strip itself: 24px buttons, 2px padding and a 1px border on each side, in `sessionActivityBar.css`. */
 const STRIP_WIDTH = 30;
 
-/** Width the strip occupies at the chat's right edge: the strip and its 12px scrollbar clearance in `sessionActivityBar.css`. */
-const COLUMN_WIDTH = STRIP_WIDTH + 12;
-
-/** Space kept on either side of the strip at the right edge of an editor area, matching `sessionActivityBar.css`. */
-const EDITOR_EDGE_GAP = 2;
-
-/** Minimum space between the chat content and the strip. */
-const CONTENT_GAP = 12;
+/** Space kept on either side of the strip in its column, matching `sessionActivityBar.css`. */
+const COLUMN_GAP = 2;
 
 /**
  * A place outside the chat where the active strip shows instead, such as the right edge of the editor while the chat is
@@ -268,11 +260,12 @@ function findExternalHost(element: HTMLElement): ISessionActivityBarExternalHost
 }
 
 /**
- * The width of the column the strip takes at the right edge of an editor area, which the editor content makes room for:
- * the strip with an equal gap on either side, between it and the content and between it and the edge. See
+ * The width of the column the strip takes at the right edge of what it docks in, beside the chat or at the edge of an
+ * editor area, which the content makes room for: the strip with an equal gap on either side, between it and the content
+ * and between it and the edge. See {@link ChatViewSessionActivityBar.reservedWidth} and
  * {@link ISessionActivityBarExternalHost.element}.
  */
-export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = EDITOR_EDGE_GAP + STRIP_WIDTH + EDITOR_EDGE_GAP;
+export const SESSION_ACTIVITY_BAR_COLUMN_WIDTH = COLUMN_GAP + STRIP_WIDTH + COLUMN_GAP;
 
 /** Where the strip sits: a distance from the top or bottom of the chat area, whichever it was dragged nearer. */
 interface IActivityBarPosition {
@@ -284,8 +277,9 @@ const DEFAULT_POSITION: IActivityBarPosition = { edge: 'top', distance: DEFAULT_
 
 /**
  * Docks the {@link SessionActivityBar} strip at the right edge of a chat area in the
- * desktop layout. Hosts inset the chat's content by {@link reservedWidth} on each side so
- * the strip never covers it, call {@link setActive} so that only the active chat
+ * desktop layout, in a column of its own: hosts lay the chat out to the left of the
+ * {@link reservedWidth} they keep at the right edge, so that the strip never covers the
+ * chat or its scrollbar, call {@link setActive} so that only the active chat
  * view shows it, and call {@link layout} with the area's top offset and height.
  * Users can drag the strip up and down by its grip within that area;
  * double-clicking the grip restores the default position. Each host keeps its own
@@ -294,17 +288,9 @@ const DEFAULT_POSITION: IActivityBarPosition = { edge: 'top', distance: DEFAULT_
 export class ChatViewSessionActivityBar extends Disposable {
 
 	/**
-	 * The inset kept on each side of the chat's content, beyond its own content padding, so the content stays
-	 * {@link CONTENT_GAP} clear of the strip and evenly spaced on both sides.
-	 */
-	static readonly RESERVED_WIDTH = COLUMN_WIDTH + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING;
-
-	static readonly SCROLL_DOWN_BUTTON_GAP = 8;
-
-	/**
-	 * The width hosts keep free at the right of the chat for the strip. Reserved in every
-	 * chat view while the strip is enabled, not only the active one, so focusing another
-	 * chat does not shift its content.
+	 * The width of the column hosts keep at the right of the chat for the strip, the chat laid out to its left:
+	 * {@link SESSION_ACTIVITY_BAR_COLUMN_WIDTH}. Reserved in every chat view while the strip is enabled, not only the
+	 * active one, so focusing another chat does not shift its content.
 	 */
 	readonly reservedWidth: IObservable<number>;
 
@@ -323,10 +309,6 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private probeRetries = 0;
 	/** The measured height of the strip, cached so layout passes do not force a reflow. */
 	private height: number | undefined;
-	private scrollDownButton: HTMLElement | undefined;
-	private scrollDownButtonOffset = { x: 0, y: 0 };
-	private scrollDownButtonScheduler: AnimationFrameScheduler | undefined;
-	private readonly scrollDownButtonObserver = this._register(new MutableDisposable<IDisposable>());
 
 	/** The strip, or `undefined` outside the desktop layout. */
 	get element(): HTMLElement | undefined {
@@ -347,8 +329,6 @@ export class ChatViewSessionActivityBar extends Disposable {
 		}
 
 		container.classList.add('session-activity-bar-host');
-		// Lets chat surfaces that sit beside the strip, such as the ruler prompt timeline, clear it.
-		container.style.setProperty('--session-activity-bar-column-width', `${COLUMN_WIDTH}px`);
 		const activityBar = this.activityBar = this._register(instantiationService.createInstance(SessionActivityBar, container));
 		activityBar.element.classList.add('docked', 'inactive');
 
@@ -363,7 +343,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		// Also while the strip shows outside the chat, such as at the edge of the editor stacked above it: the chat keeps its
 		// right column empty, so that what floats at the corner of the window, such as the Chatpad launcher, does not
 		// cover the input's toolbar, and its content does not shift as the strip moves.
-		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? ChatViewSessionActivityBar.RESERVED_WIDTH : 0);
+		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? SESSION_ACTIVITY_BAR_COLUMN_WIDTH : 0);
 
 		this._register(autorun(reader => {
 			activityBar.itemCount.read(reader);
@@ -442,39 +422,6 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this.applyPosition();
 	}
 
-	setScrollDownButton(button: HTMLElement | undefined): void {
-		if (this.scrollDownButton === button) {
-			return;
-		}
-		this.scrollDownButtonObserver.clear();
-		this.scrollDownButtonScheduler = undefined;
-		this.scrollDownButton = button;
-		this.scrollDownButtonOffset = { x: 0, y: 0 };
-		if (!button) {
-			return;
-		}
-
-		const targetWindow = getWindow(button);
-		const store = new DisposableStore();
-		this.scrollDownButtonObserver.value = store;
-		const scheduler = this.scrollDownButtonScheduler = store.add(new AnimationFrameScheduler(button, () => this.updateScrollDownButtonPosition()));
-		const resizeObserver = new targetWindow.ResizeObserver(() => scheduler.schedule());
-		const mutationObserver = new targetWindow.MutationObserver(() => scheduler.schedule());
-		store.add(toDisposable(() => {
-			resizeObserver.disconnect();
-			mutationObserver.disconnect();
-			button.style.removeProperty('translate');
-		}));
-		resizeObserver.observe(button);
-		if (button.parentElement) {
-			resizeObserver.observe(button.parentElement);
-			if (button.parentElement.parentElement) {
-				mutationObserver.observe(button.parentElement.parentElement, { attributes: true, attributeFilter: ['style', 'class'] });
-			}
-		}
-		scheduler.schedule();
-	}
-
 	/**
 	 * Whether the chat is the active one, whose strip shows. `surfaceHidden` is set while the chat is active but hidden
 	 * with the Sessions Part, such as while the editor area is maximized: its strip then shows only in a host outside it.
@@ -538,47 +485,6 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private applyPosition(): void {
 		if (this.element?.isConnected && this.isShown(this.hostedIn.get()) && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.getArea().top + this.getOffset()}px`;
-		}
-		this.scrollDownButtonScheduler?.schedule();
-	}
-
-	private updateScrollDownButtonPosition(): void {
-		const button = this.scrollDownButton;
-		if (!button?.parentElement) {
-			return;
-		}
-		if (!button.isConnected || !this.isShown(this.hostedIn.get()) || !this.activityBar?.visible.get() || this.reservedWidth.get() === 0 || button.style.display === 'none') {
-			this.scrollDownButtonOffset = { x: 0, y: 0 };
-			button.style.removeProperty('translate');
-			return;
-		}
-		const buttonBounds = button.getBoundingClientRect();
-		const viewportBounds = button.parentElement.getBoundingClientRect();
-		const barBounds = this.element?.getBoundingClientRect();
-		const originalLeft = buttonBounds.left - this.scrollDownButtonOffset.x;
-		const originalTop = buttonBounds.top - this.scrollDownButtonOffset.y;
-		let left = originalLeft;
-		let top = clamp(originalTop, viewportBounds.top, Math.max(viewportBounds.top, viewportBounds.bottom - buttonBounds.height));
-		const gap = ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP;
-		const overlaps = this.active && barBounds && barBounds.height > 0 && buttonBounds.height > 0
-			&& left < barBounds.right && left + buttonBounds.width > barBounds.left
-			&& top < barBounds.bottom + gap && top + buttonBounds.height > barBounds.top - gap;
-		if (overlaps) {
-			const above = barBounds.top - gap - buttonBounds.height;
-			const below = barBounds.bottom + gap;
-			if (above >= viewportBounds.top) {
-				top = above;
-			} else if (below + buttonBounds.height <= viewportBounds.bottom) {
-				top = below;
-			} else {
-				left = Math.max(viewportBounds.left, barBounds.left - gap - buttonBounds.width);
-			}
-		}
-		const x = left - originalLeft;
-		const y = buttonBounds.height > 0 ? top - originalTop : 0;
-		if (x !== this.scrollDownButtonOffset.x || y !== this.scrollDownButtonOffset.y) {
-			this.scrollDownButtonOffset = { x, y };
-			button.style.translate = x !== 0 || y !== 0 ? `${x}px ${y}px` : '';
 		}
 	}
 

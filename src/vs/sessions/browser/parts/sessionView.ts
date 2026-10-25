@@ -355,9 +355,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._headerHeight.set(barHeight, undefined);
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
-		this._standaloneSessionActivityBar?.setScrollDownButton(this._visibleStandaloneView?.scrollDownButtonDomNode);
 		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
-		const contentInset = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
+		const columnWidth = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
 		if (previous?.view === view && previous.width === width && previous.height === contentHeight && previous.top === contentTop && previous.left === left && previous.gap === gap) {
 			return;
@@ -372,7 +371,8 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		if (view === this._groupsView) {
 			view.layout(width, contentHeight, contentTop, left, gap);
 		} else {
-			view.layout(width, contentHeight, contentTop, left, contentInset);
+			// To the left of the column the Session Activity Bar takes at the right edge.
+			view.layout(Math.max(0, width - columnWidth), contentHeight, contentTop, left);
 		}
 	}
 
