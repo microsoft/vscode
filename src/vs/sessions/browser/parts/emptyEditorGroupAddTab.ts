@@ -34,6 +34,8 @@ import { SessionsEmptyStateLayout } from './sessionsEmptyStateLayout.js';
 
 /** The parts of an editor group that the empty-group Add Tab UI depends on. */
 export interface IEmptyEditorGroup {
+	/** Passed to the actions as `{ groupId }`, so that they can act on the group they were invoked from. */
+	readonly id?: number;
 	readonly element: HTMLElement;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly isEmpty: boolean;
@@ -78,6 +80,7 @@ export class EmptyEditorGroupAddTab extends Disposable {
 		const groupElement = this.group.element;
 		const contextKeyService = this.group.scopedContextKeyService;
 
+		const menuArg = this.group.id === undefined ? undefined : { groupId: this.group.id };
 		const addTabContainer = append(groupElement, $('.sessions-empty-group-add-tab'));
 		const watermarkContainer = append(groupElement, $('.sessions-empty-group-add-tab-watermark'));
 		store.add(toDisposable(() => {
@@ -91,7 +94,7 @@ export class EmptyEditorGroupAddTab extends Disposable {
 			store.add(addDisposableListener(container, EventType.DBLCLICK, e => EventHelper.stop(e, true)));
 		}
 
-		store.add(this.instantiationService.createInstance(EditorAddTabControl, addTabContainer, this.dropdownMenuId, contextKeyService, undefined));
+		store.add(this.instantiationService.createInstance(EditorAddTabControl, addTabContainer, this.dropdownMenuId, contextKeyService, { menuArg }));
 
 		const actionRunner = store.add(new ActionRunner());
 		store.add(actionRunner.onWillRun(e => this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: TELEMETRY_SOURCE })));
@@ -115,7 +118,7 @@ export class EmptyEditorGroupAddTab extends Disposable {
 		const menu = store.add(this.menuService.createMenu(this.listMenuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 		let renderedSignature: string | undefined;
 		const update = (force: boolean) => {
-			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+			const actions = getFlatActionBarActions(menu.getActions({ arg: menuArg, shouldForwardArgs: true }));
 
 			// Menus refresh on any relevant context key change. Re-rendering identical rows would
 			// needlessly rebuild the DOM and close an open submenu, so only re-render real changes.

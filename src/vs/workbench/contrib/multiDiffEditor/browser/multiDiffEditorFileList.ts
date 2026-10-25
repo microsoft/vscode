@@ -135,6 +135,11 @@ function getFileListElements(items: readonly DocumentDiffItemViewModel[], viewMo
 	return toElements(resourceTree.root);
 }
 
+/** Whether both lists hold the same items in the same order, in which case the file list needs no rebuilding. */
+export function hasSameFileListItems(a: readonly DocumentDiffItemViewModel[], b: readonly DocumentDiffItemViewModel[]): boolean {
+	return a === b || (a.length === b.length && a.every((item, index) => item === b[index]));
+}
+
 /**
  * Lists the files of a {@link MultiDiffEditorWidget}, as a flat list or as a
  * tree of folders, and keeps its selection on the file the user is looking at.
@@ -224,7 +229,7 @@ export class MultiDiffEditorFileList extends Disposable {
 		this._register(autorun(reader => {
 			const currentItems = items.read(reader);
 			const currentViewMode = viewMode.read(reader);
-			const didRebuild = currentItems !== renderedItems || currentViewMode !== renderedViewMode;
+			const didRebuild = !hasSameFileListItems(currentItems, renderedItems) || currentViewMode !== renderedViewMode;
 			if (didRebuild) {
 				renderedItems = currentItems;
 				renderedViewMode = currentViewMode;

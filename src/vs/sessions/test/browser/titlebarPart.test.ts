@@ -137,6 +137,37 @@ suite('Sessions - Titlebar Part', () => {
 		});
 	});
 
+	test('shows a fixed title in an auxiliary title bar and uses it as the window title', () => {
+		const { instantiationService } = createTitlebar();
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		instantiationService.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}());
+		const titleService = store.add(instantiationService.createInstance(TitleService));
+		const part = store.add(titleService.createAuxiliaryTitlebarPart(container, new class extends mock<IEditorGroupsContainer>() { }(), instantiationService));
+		const previousDocumentTitle = mainWindow.document.title;
+		store.add(toDisposable(() => mainWindow.document.title = previousDocumentTitle));
+		const label = () => {
+			const element = container.querySelector<HTMLElement>('.window-title-text')!;
+			return { text: element.textContent, hidden: !element.parentElement!.classList.contains('has-fixed-title') };
+		};
+
+		assert.ok(part instanceof TitlebarPart);
+
+		mainWindow.document.title = 'Agents';
+		const initial = label();
+		part.setTitle('Chatpad');
+		const titled = { label: label(), documentTitle: mainWindow.document.title };
+		part.setTitle(undefined);
+
+		assert.deepStrictEqual({ initial, titled, cleared: { ...label(), documentTitle: mainWindow.document.title } }, {
+			initial: { text: '', hidden: true },
+			titled: { label: { text: 'Chatpad', hidden: false }, documentTitle: 'Chatpad' },
+			cleared: { text: '', hidden: true, documentTitle: 'Agents' },
+		});
+	});
+
 	for (const platform of ['mac', 'windows', 'linux', 'web']) {
 		for (const auxiliary of [false, true]) {
 			test(`optically centers ${platform} ${auxiliary ? 'auxiliary' : 'main'} title-bar contents in default density`, () => {

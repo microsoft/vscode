@@ -261,6 +261,7 @@ abstract class SetFileListViewModeAction extends Action2 {
 				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '1_view',
 				order: _viewMode === 'list' ? 1 : 2,
+				when: ActiveMultiDiffEditorHasFileListContext,
 			},
 		});
 	}
@@ -293,6 +294,7 @@ abstract class SetFileListPositionAction extends Action2 {
 				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '2_position',
 				order: _position === 'left' ? 1 : 2,
+				when: ActiveMultiDiffEditorHasFileListContext,
 			},
 		});
 	}

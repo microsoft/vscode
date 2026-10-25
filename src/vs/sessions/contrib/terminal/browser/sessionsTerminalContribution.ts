@@ -4,21 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { editorGroupToColumn } from '../../../../workbench/services/editor/common/editorGroupColumn.js';
+import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
+import { TerminalEditorInput } from '../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
+import { ChatWindowTerminalRowContext, IChatWindow, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -28,7 +34,7 @@ import { ISession, ISessionWorkspace } from '../../../services/sessions/common/s
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
-import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext, ResourceContextKey } from '../../../../workbench/common/contextkeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
@@ -110,6 +116,8 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
 	private readonly _standaloneTerminalIds = new Set<number>();
+	/** Terminals that chat windows show in their terminal rows, which the terminal panel leaves to them. */
+	private readonly _chatWindowTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
 	private readonly _pendingTerminalOperations = new Map<string, IPendingTerminalOperation>();
 	private readonly _sessionTerminalGenerations = new Map<string, number>();
@@ -231,6 +239,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
 			this._standaloneTerminalIds.delete(instance.instanceId);
+			this._chatWindowTerminalIds.delete(instance.instanceId);
 		}));
 
 		// Hide restored terminals from a previous window session that don't
@@ -721,7 +730,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
-			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId)) {
+			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			const currentInstance = this._getAvailableTerminal(instance, 'update terminal visibility');
@@ -762,7 +771,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let mostRecent: ITerminalInstance | undefined;
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
-			if (this._standaloneTerminalIds.has(instance.instanceId)) {
+			if (this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			if (!await this._terminalMatchesScope(instance, activeKey, activeAgentHostAddress)) {
@@ -901,6 +910,25 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return result;
 	}
 
+	/**
+	 * The terminal a chat window shows `session` with in its terminal row: one of the session's terminals in its working
+	 * directory, or a new one there.
+	 */
+	async getChatWindowTerminal(session: IActiveSession): Promise<ITerminalInstance | undefined> {
+		const cwd = this._getActiveSessionTerminalInfo(session)?.cwd ?? await this._pathService.userHome();
+		const instances = await this._ensureTerminal(cwd, false, session, undefined, true);
+		return instances.find(instance => !this._chatWindowTerminalIds.has(instance.instanceId)) ?? instances[0];
+	}
+
+	/** Leaves `instance` to the chat window that shows it, out of the terminal panel, or gives it back to the panel. */
+	setShownInChatWindow(instance: ITerminalInstance, shown: boolean): void {
+		if (shown) {
+			this._chatWindowTerminalIds.add(instance.instanceId);
+		} else {
+			this._chatWindowTerminalIds.delete(instance.instanceId);
+		}
+	}
+
 	async dumpTracking(): Promise<void> {
 		console.log(`[SessionsTerminal] Active key: ${this._activeKey ?? '<none>'}`);
 		console.log(`[SessionsTerminal] Session terminals: ${JSON.stringify([...this._sessionTerminals.entries()].map(([sessionId, terminalIds]) => [sessionId, [...terminalIds]]))}`);
@@ -925,6 +953,164 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
+
+/**
+ * Shows the terminals of the sessions of chat windows in their terminal rows: an editor of the terminal, moved out of the
+ * panel, and back to the background of the panel, still running, when the row hides or the window closes.
+ */
+class ChatWindowTerminalHost implements IChatWindowTerminalHost {
+
+	private readonly _terminals = new Map<IChatWindow, Set<ITerminalInstance>>();
+	private readonly _rowListeners = new Map<IChatWindow, IDisposable>();
+
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService,
+	) { }
+
+	private get _contribution(): SessionsTerminalContribution {
+		return getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
+	}
+
+	async show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<void> {
+		const session = window.session.get();
+		if (!session) {
+			return;
+		}
+		const terminals = this._getTerminals(window);
+		for (const instance of [...terminals]) {
+			if (instance.isDisposed) {
+				terminals.delete(instance);
+			}
+		}
+		if (!terminals.size) {
+			const instance = await this._contribution.getChatWindowTerminal(session);
+			// Hidden meanwhile, or the terminal could not start.
+			if (!instance || instance.isDisposed || window.terminalGroup.get() !== group) {
+				return;
+			}
+			terminals.add(instance);
+		}
+		this._trackRow(window, group);
+		let first = true;
+		for (const instance of [...terminals]) {
+			this._contribution.setShownInChatWindow(instance, true);
+			if (instance.target === TerminalLocation.Editor && this._terminalService.foregroundInstances.includes(instance)) {
+				// Shown in an editor elsewhere: from the panel, it moves to the row.
+				await this._terminalService.moveToTerminalView(instance);
+			}
+			if (!this._terminalService.foregroundInstances.includes(instance)) {
+				await this._terminalService.showBackgroundTerminal(instance, true);
+			}
+			this._terminalService.moveToEditor(instance, group.id);
+			if (first && focus) {
+				await instance.focusWhenReady(true);
+			}
+			first = false;
+		}
+	}
+
+	hide(window: IChatWindow): void {
+		this._rowListeners.get(window)?.dispose();
+		this._rowListeners.delete(window);
+		for (const instance of this._terminals.get(window) ?? []) {
+			if (instance.isDisposed) {
+				continue;
+			}
+			if (instance.target === TerminalLocation.Editor) {
+				// Into the background of the panel, rather than of the editors, which would reveal it in an editor.
+				this._terminalService.moveToBackground(instance);
+				instance.target = TerminalLocation.Panel;
+			}
+			// With the row hidden, the terminal is the panel's again.
+			this._contribution.setShownInChatWindow(instance, false);
+		}
+	}
+
+	release(window: IChatWindow): void {
+		this.hide(window);
+		this._terminals.delete(window);
+	}
+
+	private _getTerminals(window: IChatWindow): Set<ITerminalInstance> {
+		let terminals = this._terminals.get(window);
+		if (!terminals) {
+			terminals = new Set();
+			this._terminals.set(window, terminals);
+		}
+		return terminals;
+	}
+
+	/** Takes the terminals opened in the row, such as by its New Terminal action, to be those of the window. */
+	private _trackRow(window: IChatWindow, group: IEditorGroup): void {
+		this._rowListeners.get(window)?.dispose();
+		const terminals = this._getTerminals(window);
+		const track = (editor: unknown) => {
+			const instance = editor instanceof TerminalEditorInput ? editor.terminalInstance : undefined;
+			if (instance && !terminals.has(instance)) {
+				terminals.add(instance);
+				this._contribution.setShownInChatWindow(instance, true);
+			}
+		};
+		group.editors.forEach(track);
+		this._rowListeners.set(window, group.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.EDITOR_OPEN) {
+				track(e.editor);
+			}
+		}));
+	}
+}
+
+class ChatWindowTerminalHostContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatWindowTerminalHost';
+
+	constructor(
+		@IChatWindowService chatWindowService: IChatWindowService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(chatWindowService.registerTerminalHost(instantiationService.createInstance(ChatWindowTerminalHost)));
+	}
+}
+
+registerWorkbenchContribution2(ChatWindowTerminalHostContribution.ID, ChatWindowTerminalHostContribution, WorkbenchPhase.AfterRestored);
+
+const NEW_CHAT_WINDOW_TERMINAL_COMMAND_ID = 'sessions.chatWindow.newTerminal';
+
+// The stock New Terminal action of the editor title shows only while the active editor of the group evaluates as a terminal, which the row does not keep once another group has focus.
+registerAction2(class NewChatWindowTerminalAction extends Action2 {
+	constructor() {
+		super({
+			id: NEW_CHAT_WINDOW_TERMINAL_COMMAND_ID,
+			title: localize2('chatWindowNewTerminal', "New Terminal in Chat Window"),
+			icon: Codicon.plus,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 0,
+				// Where the stock action does not show, so that exactly one shows.
+				when: ContextKeyExpr.and(ChatWindowTerminalRowContext, ResourceContextKey.Scheme.notEqualsTo(Schemas.vscodeTerminal)),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: { groupId?: number }): Promise<void> {
+		// The row the button was clicked in, which is not necessarily that of the active chat window.
+		const chatWindowService = accessor.get(IChatWindowService);
+		const window = context?.groupId === undefined
+			? chatWindowService.getActiveWindow()
+			: chatWindowService.windows.get().find(w => w.terminalGroup.get()?.id === context.groupId);
+		const row = window?.terminalGroup.get();
+		if (!row) {
+			return;
+		}
+		const instance = await accessor.get(ITerminalService).createTerminal({
+			location: { viewColumn: editorGroupToColumn(accessor.get(IEditorGroupsService), row) },
+		});
+		await instance.focusWhenReady();
+	}
+});
 
 /**
  * Registers an {@link AgentHostSessionTaskRunner} with the

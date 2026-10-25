@@ -41,6 +41,8 @@ import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../sessions/common/age
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentWorkbenchLayoutService } from '../../../../../sessions/browser/workbench.js';
 // eslint-disable-next-line local/code-import-patterns
+import { IChatWindowService } from '../../../../../sessions/services/chatWindow/browser/chatWindowService.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ISessionChangesService } from '../../../../../sessions/contrib/changes/browser/sessionChangesService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionCanvas, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
@@ -205,6 +207,9 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 		override isEditorPaneVisible(): boolean { return false; }
 		override isVisible(): boolean { return false; }
 		override revealEditorPartExplicitly(): void { }
+	}());
+	registration.defineInstance(IChatWindowService, new class extends mock<IChatWindowService>() {
+		override readonly windows = constObservable([]);
 	}());
 	registration.defineInstance(ISessionChangesService, new class extends mock<ISessionChangesService>() {
 		override async openChangesEditor(): Promise<undefined> { return undefined; }

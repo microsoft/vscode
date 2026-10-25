@@ -76,7 +76,7 @@ suite('AgentFeedbackEditorOverlay', () => {
 		}, new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible() { return true; }
-		}));
+		}, new class extends mock<IEditorGroupsService>() { override readonly parts = []; }()));
 
 		assert.deepStrictEqual({
 			file: getAgentFeedbackOverlayResourceCandidates(fileInput),

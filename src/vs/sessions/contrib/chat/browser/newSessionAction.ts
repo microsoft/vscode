@@ -10,7 +10,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { EditorAreaFocusContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, IsAuxiliaryWindowContext, SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -55,7 +55,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
+					when: ContextKeyExpr.and(SideBarVisibleContext.toNegated(), IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext)
 				}
 			]
 		});

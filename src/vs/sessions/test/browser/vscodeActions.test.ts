@@ -17,6 +17,7 @@ import { NullTelemetryService } from '../../../platform/telemetry/common/telemet
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
 import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
+import { IChatWindowService } from '../../services/chatWindow/browser/chatWindowService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
@@ -48,6 +49,7 @@ suite('Web Open in Editor', () => {
 			});
 			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: connection.address });
 			instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(session) }));
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ windows: constObservable([]) }));
 			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
 				getProvider: <T extends ISessionsProvider>() => provider as T,
 			}));
