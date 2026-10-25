@@ -465,6 +465,38 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('a redundant read of a sole chat repairs a session left unread', () => {
+		// Restored unread while its sole chat is read, as a session promoted from a chat was.
+		manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource, { defaultChatIsRead: true });
+		const restored = {
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+		};
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			restored,
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			restored: { sessionIsRead: false, chatIsRead: true },
+			sessionIsRead: true,
+			actions: [
+				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+			],
+		});
+	});
+
 	test('only the last unread aggregate chat promotes its session to read', () => {
 		manager.createSession(makeSessionSummary());
 		const peer = buildChatUri(sessionUri, 'peer');
@@ -3598,6 +3630,34 @@ suite('AgentHostStateManager', () => {
 			}));
 			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer]);
 			assert.deepStrictEqual({ announced, defaultChat: manager.getSessionState(promoted)?.defaultChat }, { announced: [false], defaultChat: peer });
+		});
+
+		test('a promoted session is read exactly when the chats it takes are', () => {
+			const { peer, sub } = setupTwoSessions();
+			const unreadPeer = buildChatUri(sessionUri, 'unread-peer');
+			manager.addChat(sessionUri, unreadPeer, creationTimeChatStorageResource(sessionUri, unreadPeer, sessionChatUri));
+			manager.dispatchServerAction(unreadPeer, { type: ActionType.ChatIsReadChanged, isRead: false });
+			// A tool chat taken along does not count toward its session's read state.
+			manager.dispatchServerAction(sub, { type: ActionType.ChatIsReadChanged, isRead: false });
+			const promoted = URI.from({ scheme: 'copilot', path: '/promoted' }).toString();
+			const promotedUnread = URI.from({ scheme: 'copilot', path: '/promoted-unread' }).toString();
+			const announced: Record<string, boolean> = {};
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					announced[notification.summary.resource] = isSessionStatusRead(notification.summary.status);
+				}
+			}));
+
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer, sub]);
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promotedUnread), defaultChat: unreadPeer }, undefined, [unreadPeer]);
+
+			assert.deepStrictEqual({
+				announced,
+				state: [promoted, promotedUnread].map(session => isSessionStatusRead(manager.getSessionState(session)!.status)),
+			}, {
+				announced: { [promoted]: true, [promotedUnread]: false },
+				state: [true, false],
+			});
 		});
 
 		test('a deleted chat is removed for good', () => {

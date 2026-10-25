@@ -6826,6 +6826,28 @@ suite('AgentService (node dispatcher)', () => {
 			}, { restoreCalls: [], hiddenRead: false, sessionRead: true });
 		});
 
+		test('a redundant read of the sole chat of an unloaded session repairs a session left unread', async () => {
+			const { svc, restoreCalls } = createReadToggleService();
+			const session = AgentSession.uri('copilot', 'sole-read-chat').toString();
+			const defaultChat = buildDefaultChatUri(session);
+			// Listed unread while its sole chat is read, as a session promoted from a chat was.
+			announceUnloadedSession(svc, session, SessionStatus.Idle, [
+				{ resource: defaultChat, title: '', status: SessionStatus.Idle | SessionStatus.IsRead },
+			]);
+
+			const echo = clientEcho(svc, 1);
+			svc.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 1);
+			const envelope = await echo;
+
+			const surfaced = getStateManager(svc).getSurfacedSessionSummary(session);
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				restoreCalls,
+				chatRead: isSessionStatusRead(surfaced?.chats?.find(chat => chat.resource === defaultChat)?.status),
+				sessionRead: isSessionStatusRead(surfaced?.status),
+			}, { rejectionReason: undefined, restoreCalls: [], chatRead: true, sessionRead: true });
+		});
+
 		test('a chat read toggle falls back to restoring a subagent or an adoptable legacy session', async () => {
 			const { svc, restoreCalls } = createReadToggleService();
 			const parent = AgentSession.uri('copilot', 'fallback-parent').toString();
@@ -38209,6 +38231,44 @@ suite('AgentService (node dispatcher)', () => {
 					metadataStorage: [peer.toString()],
 					origin: source.toString(),
 				});
+			});
+
+			test('a promoted session is read exactly when its chat is, also after a restart', async () => {
+				// Each session has its own database, as in production (see the test above).
+				const sessionDataService = createPerSessionDataService().service;
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const createService = () => {
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					return service;
+				};
+				const first = createService();
+				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+				const readChat = URI.parse(buildChatUri(source, 'read'));
+				const unreadChat = URI.parse(buildChatUri(source, 'unread'));
+				await first.createChat(source, readChat);
+				await first.createChat(source, unreadChat);
+				await timeout(0);
+				completeTurn(first, readChat);
+				completeTurn(first, unreadChat);
+				getStateManager(first).dispatchServerAction(readChat.toString(), { type: ActionType.ChatIsReadChanged, isRead: true });
+				getStateManager(first).dispatchServerAction(unreadChat.toString(), { type: ActionType.ChatIsReadChanged, isRead: false });
+				const readTarget = await first.moveChat(source, readChat, { kind: 'newSession' });
+				const unreadTarget = await first.moveChat(source, unreadChat, { kind: 'newSession' });
+				const isRead = (service: AgentService) => [readTarget, unreadTarget].map(target => isSessionStatusRead(getStateManager(service).getSessionState(target.toString())?.status));
+				const promoted = isRead(first);
+				await first.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(first).whenIdle(undefined);
+
+				const restarted = createService();
+				await restarted.listSessions();
+				await getStateManager(restarted).whenMovedChatOriginsSettled();
+				await restarted.restoreSession(readTarget);
+				await restarted.restoreSession(unreadTarget);
+
+				assert.deepStrictEqual({ promoted, restored: isRead(restarted) }, { promoted: [true, false], restored: [true, false] });
 			});
 
 			test('a promoted session keeps its chat\'s title and title source across a restart, in its state and in the list, not its first prompt (B4-1)', async () => {

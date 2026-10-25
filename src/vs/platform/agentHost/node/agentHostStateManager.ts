@@ -1954,6 +1954,10 @@ export class AgentHostStateManager extends Disposable {
 		});
 		const state = createSessionState(summary);
 		state.lifecycle = SessionLifecycle.Ready;
+		// The new session is read exactly when the chats it takes are, as every read change keeps it.
+		state.status = withSessionStatusFlag(state.status, SessionStatus.IsRead, summaries
+			.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
+			.every(chat => isSessionStatusRead(chat.status)));
 		if (config) {
 			state.config = config;
 		}
@@ -2826,11 +2830,12 @@ export class AgentHostStateManager extends Disposable {
 					const { wasRead: chatWasRead, isRead: chatIsRead } = readTransition;
 					if (!chatIsRead && sessionIsRead) {
 						sessionReadStateToSynchronize = { session: sessionKey, isRead: false };
-					} else if (chatIsRead && !chatWasRead && !sessionIsRead
-						&& session.chats
-							.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
-							.every(chat => isSessionStatusRead(chat.status))) {
-						sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
+					} else if (chatIsRead && !sessionIsRead) {
+						const aggregateChats = session.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity));
+						// A redundant read keeps a multi-chat session marked unread, but a sole chat's read state is its session's.
+						if ((!chatWasRead || aggregateChats.length === 1) && aggregateChats.every(chat => isSessionStatusRead(chat.status))) {
+							sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
+						}
 					}
 				}
 			}
