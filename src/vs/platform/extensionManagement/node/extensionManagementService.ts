@@ -879,7 +879,7 @@ export class ExtensionsScanner extends Disposable {
 		});
 	}
 
-	private async rename(extractPath: string, renamePath: string): Promise<void> {
+	protected async rename(extractPath: string, renamePath: string): Promise<void> {
 		try {
 			await pfs.Promises.rename(extractPath, renamePath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {

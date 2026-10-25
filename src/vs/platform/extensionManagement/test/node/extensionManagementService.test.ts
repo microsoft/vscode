@@ -95,6 +95,36 @@ suite('Extension extraction recovery', () => {
 		return disposables.add(instantiationService.createInstance(ExtensionsScanner, async () => undefined));
 	}
 
+
+	type WorkerMessage = { type: 'paused'; phase: string; location: string } | { type: 'completed'; location: string } | { type: 'error'; error: string };
+
+	async function workerMessage(child: ChildProcess): Promise<WorkerMessage> {
+		const [message] = await Promise.race([
+			once(child, 'message'),
+			once(child, 'exit').then(() => { throw new Error('Extraction worker exited before sending its result'); })
+		]);
+		return message;
+	}
+
+	async function pausedExtraction(phase: 'metadata' | 'rename'): Promise<{ child: ChildProcess; location: URI }> {
+		const fileRoot = globalThis._VSCODE_FILE_ROOT;
+		assert.ok(fileRoot);
+		const base = fileRoot.endsWith('/') ? fileRoot : `${fileRoot}/`;
+		const worker = new URL('./fixtures/extensionExtractionWorker.js', import.meta.url).href;
+		const bootstrap = `import fs from 'node:fs'; globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(fileRoot)}; globalThis._VSCODE_PRODUCT_JSON = JSON.parse(fs.readFileSync(new URL('../product.json', ${JSON.stringify(base)}), 'utf8')); globalThis._VSCODE_PACKAGE_JSON = JSON.parse(fs.readFileSync(new URL('../package.json', ${JSON.stringify(base)}), 'utf8')); await import(${JSON.stringify(worker)});`;
+		const child = spawn(process.execPath, ['--input-type=module', '-e', bootstrap], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VSCODE_EXTRACTION_TEST_ROOT: root.fsPath, VSCODE_EXTRACTION_TEST_PHASE: phase },
+			windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc']
+		});
+		children.push(child);
+		const message = await workerMessage(child);
+		assert.ok(message.type === 'paused', JSON.stringify(message));
+		assert.strictEqual(message.phase, phase);
+		const location = URI.parse(message.location);
+		assert.strictEqual(JSON.parse(await fs.readFile(`${location.fsPath}.vscinstall`, 'utf8')).pid, child.pid);
+		return { child, location };
+	}
+
 	async function runningOwner(): Promise<ChildProcess> {
 		const child = spawn(process.execPath, ['-e', 'process.stdout.write("ready"); setInterval(() => {}, 1000);'], {
 			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: ['ignore', 'pipe', 'pipe']
@@ -388,23 +418,7 @@ suite('Extension extraction recovery', () => {
 
 	test('preserves another process extracting the same VSIX, then recovers it after termination', async () => {
 		const locationOfVsix = await vsix();
-		const fileRoot = globalThis._VSCODE_FILE_ROOT;
-		assert.ok(fileRoot);
-		const base = fileRoot.endsWith('/') ? fileRoot : `${fileRoot}/`;
-		const worker = new URL('./fixtures/extensionExtractionWorker.js', import.meta.url).href;
-		const bootstrap = `import fs from 'node:fs'; globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(fileRoot)}; globalThis._VSCODE_PRODUCT_JSON = JSON.parse(fs.readFileSync(new URL('../product.json', ${JSON.stringify(base)}), 'utf8')); globalThis._VSCODE_PACKAGE_JSON = JSON.parse(fs.readFileSync(new URL('../package.json', ${JSON.stringify(base)}), 'utf8')); await import(${JSON.stringify(worker)});`;
-		const child = spawn(process.execPath, ['--input-type=module', '-e', bootstrap], {
-			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VSCODE_EXTRACTION_TEST_ROOT: root.fsPath },
-			windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc']
-		});
-		children.push(child);
-		const [message] = await Promise.race([
-			once(child, 'message'),
-			once(child, 'exit').then(() => { throw new Error('Extraction worker exited before reaching the installation pause'); })
-		]);
-		assert.strictEqual(message.type, 'extracted', message.error);
-		const active = URI.parse(message.location);
-		assert.strictEqual((JSON.parse(await fs.readFile(`${active.fsPath}.vscinstall`, 'utf8'))).pid, child.pid);
+		const { child, location: active } = await pausedExtraction('metadata');
 
 		await scanner().cleanUp();
 		assert.strictEqual(await fileService.exists(active), true);
@@ -496,5 +510,52 @@ suite('Extension extraction recovery', () => {
 
 		assert.deepStrictEqual((await fs.readdir(extensions.fsPath)).sort(), [path.basename(active.fsPath), `${path.basename(active.fsPath)}.vscinstall`].sort());
 	});
+
+
+	for (const phase of ['metadata', 'rename'] as const) {
+		test(`preserves an installation paused during ${phase} and lets it complete after cleanup`, async () => {
+			await vsix();
+			const { child, location } = await pausedExtraction(phase);
+			const before = (await fs.readdir(extensions.fsPath)).sort();
+			assert.strictEqual(await fileService.exists(joinPath(location, 'metadata-finished')), phase === 'rename');
+			const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+			await fs.utimes(location.fsPath, old, old);
+			await fs.utimes(`${location.fsPath}.vscinstall`, old, old);
+
+			await scanner().cleanUp();
+
+			assert.deepStrictEqual((await fs.readdir(extensions.fsPath)).sort(), before);
+			const completed = workerMessage(child);
+			const exited = once(child, 'exit');
+			child.send({ type: 'resume' });
+			const message = await completed;
+			assert.ok(message.type === 'completed', JSON.stringify(message));
+			await exited;
+			const installed = joinPath(extensions, 'test.recovery-1.0.0');
+			assert.deepStrictEqual({
+				exitCode: child.exitCode,
+				location: URI.parse(message.location).toString(),
+				entries: await fs.readdir(extensions.fsPath),
+				manifest: JSON.parse(await fs.readFile(joinPath(installed, 'package.json').fsPath, 'utf8')),
+				metadata: await fs.readFile(joinPath(installed, 'metadata-finished').fsPath, 'utf8'),
+			}, { exitCode: 0, location: installed.toString(), entries: ['test.recovery-1.0.0'], manifest, metadata: 'finished' });
+		});
+
+		test(`recovers an installation terminated during ${phase} without any subsequent installation`, async () => {
+			const active = await extraction(process.pid);
+			await vsix();
+			const { child, location } = await pausedExtraction(phase);
+			const cleanup = scanner();
+			const before = (await fs.readdir(extensions.fsPath)).sort();
+
+			await cleanup.cleanUp();
+			assert.deepStrictEqual((await fs.readdir(extensions.fsPath)).sort(), before);
+			await stop(child);
+			await cleanup.cleanUp();
+
+			assert.strictEqual(await fileService.exists(location), false);
+			assert.deepStrictEqual((await fs.readdir(extensions.fsPath)).sort(), [path.basename(active.fsPath), `${path.basename(active.fsPath)}.vscinstall`].sort());
+		});
+	}
 
 });
