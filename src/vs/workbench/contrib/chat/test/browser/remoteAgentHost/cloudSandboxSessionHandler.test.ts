@@ -1086,6 +1086,28 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 	});
 
+	test('uses recorded link context when a live provider cannot load the chat', async () => {
+		const history = recordedHistory();
+		history.sessions[0].state.workingDirectories = ['file:///sandbox/project'];
+		const handler = createHandler(async () => history);
+		await handler.provideChatSessionContent(resource, CancellationToken.None);
+		handler.setLiveProvider({
+			provideChatSessionContent: async () => { throw new Error('Live chat unavailable'); },
+			resolveChatResponseUri: (_resource, href) => href,
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			relative: handler.resolveChatResponseUri(resource, 'docs/notes.md', 'link'),
+			absolute: handler.resolveChatResponseUri(resource, 'file:///sandbox/project/README.md', 'link'),
+			external: handler.resolveChatResponseUri(resource, 'https://example.com', 'link'),
+		}, {
+			relative: toAgentHostUri(URI.file('/sandbox/project/docs/notes.md'), 'test').toString(),
+			absolute: toAgentHostUri(URI.file('/sandbox/project/README.md'), 'test').toString(),
+			external: 'https://example.com',
+		});
+	});
+
 	test('restores tool-result image bytes without connecting and releases them with the session', async () => {
 		const history = recordedHistory();
 		history.sessions[0].chats.get(history.sessions[0].defaultChat)!.turns[0].responseParts.push({
