@@ -566,6 +566,17 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return values;
 	}
 
+	async deleteEnvironment(environmentId: string, token: CancellationToken, expectedAccountKey: string): Promise<void> {
+		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}`, 'mc.environmentClient.delete', 'deleteEnvironment', {
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE', undefined, { expectedAccountKey });
+		if (!isSuccess(context) && context.res.statusCode !== 404) {
+			await this._throwForStatus('environment delete', context);
+		}
+		this._environments = undefined;
+		this._discoveryGeneration++;
+	}
+
 	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
 	async listSessions(token: CancellationToken, options?: ISandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
 		const updates = new Map<string, ICachedSandboxTask | undefined>();

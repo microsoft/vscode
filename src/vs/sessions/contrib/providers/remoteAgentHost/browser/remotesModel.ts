@@ -19,6 +19,7 @@ import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../..
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
@@ -47,8 +48,8 @@ export interface ICustomizationRemote {
 	readonly detail: string;
 	readonly canRemove: boolean;
 	readonly connectionStatus: RemoteAgentHostConnectionStatus;
+	readonly lastConnectionError?: string;
 	readonly unavailableReason?: string;
-	readonly removeUnavailableReason?: string;
 	readonly hidden?: boolean;
 	readonly pickerUnavailableReason?: string;
 }
@@ -111,6 +112,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
 		@IMissionControlAvailabilityService environmentAvailabilityService: IMissionControlAvailabilityService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
@@ -285,7 +287,24 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new Error(localize('remotes.cannotRemove', "This remote cannot be removed. Only registered remotes that support removal can be removed."));
 		}
 		const target = this.targets.get(id);
-		if (target?.kind === 'devContainer' && target.workspaceUri) {
+		if (target?.kind === 'environment') {
+			this.checkEnvironment(target);
+			const { confirmed } = await this.dialogService.confirm({
+				type: 'warning',
+				message: localize('remotes.deleteEnvironmentConfirmation', "Are you sure you want to delete environment '{0}'?", remote.name),
+				detail: localize('remotes.deleteEnvironmentDetail', "This removes the environment registration and disconnects this client. Files on the machine will not be deleted. The environment may reappear if its owning application registers it again."),
+				primaryButton: localize('remotes.deleteEnvironmentButton', "&&Delete"),
+			});
+			if (!confirmed) {
+				return;
+			}
+			if (this._store.isDisposed || !this.enabled) {
+				throw new CancellationError();
+			}
+			this.checkEnvironment(target);
+			await this.environmentService.delete(target.host.id, CancellationToken.None);
+			return;
+		} else if (target?.kind === 'devContainer' && target.workspaceUri) {
 			await this.devContainerService.removeWorkspace(target.workspaceUri);
 		} else {
 			const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
@@ -434,9 +453,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const providers = this.providersService.getProviders().filter(isAgentHostProvider);
 		const providersByAddress = new Map(providers.map(provider => [provider.remoteAddress, provider]));
 		const connectionStatuses = new Map(providers.map(provider => [provider.remoteAddress, provider.connectionStatus?.read(reader)]));
+		const connectionErrors = new Map<string, string>();
 		for (const connection of this.remoteAgentHostService.connections) {
 			if (!connectionStatuses.get(connection.address)) {
 				connectionStatuses.set(connection.address, connection.status);
+			}
+			if (connection.lastConnectionError) {
+				connectionErrors.set(connection.address, connection.lastConnectionError);
 			}
 		}
 		const registered: RemoteTarget[] = [
@@ -459,7 +482,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			let name: string;
 			let detail: string;
 			let unavailableReason: string | undefined;
-			let removeUnavailableReason: string | undefined;
 			switch (target.kind) {
 				case 'ssh':
 					name = target.entry.name;
@@ -478,7 +500,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					detail = target.host.id;
 					unavailableReason = target.host.status !== 'online'
 						? localize('remotes.environmentOffline', "This environment is not online. Start its owning application before connecting.") : undefined;
-					removeUnavailableReason = localize('remotes.environmentRemoveUnavailable', "Removing environments is not supported here. Manage sharing in the application running on that machine.");
 					break;
 				case 'devContainer':
 					name = target.container.name;
@@ -492,12 +513,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			if (target.kind !== 'environment') {
 				name = this.remoteAgentHostService.getDisplayNameOverride(id) ?? provider?.label ?? name;
 			}
-			const canRemove = target.kind !== 'environment' && this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
+			const canRemove = target.kind === 'environment' || this.registered.has(id) && (target.kind === 'devContainer' || !!provider && provider.canRemove !== false);
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
-				id, kind: target.kind, name, detail, canRemove, unavailableReason, removeUnavailableReason,
+				id, kind: target.kind, name, detail, canRemove, unavailableReason,
 				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
 				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,
+				...(connectionErrors.has(id) ? { lastConnectionError: connectionErrors.get(id) } : {}),
 			});
 		}
 		transaction(tx => {

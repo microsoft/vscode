@@ -61,7 +61,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'signIn';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -70,9 +70,9 @@ type RemoteCellTemplate = {
 	row?: IRemoteTableRow;
 } & (
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement }
+		| { readonly column: 'connection'; readonly label: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
-		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
+		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
@@ -123,7 +123,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'connection': {
 				const label = dom.append(container, dom.$('.remotes-connection-state'));
-				template = { ...base, column: this.column, label };
+				const warning = dom.append(container, dom.$('.remotes-connection-warning'));
+				dom.append(warning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
+				template = { ...base, column: this.column, label, warning };
 				break;
 			}
 			default: {
@@ -151,7 +153,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							this.onAction(template.row.entry, 'documentation');
 						}
 					}));
-					template = { ...base, column: this.column, action, rename, documentation, toolbar, actionLayout: '' };
+					const deleteAction = disposables.add(new Action('remotes.delete', '', ThemeIcon.asClassName(Codicon.trash), true, async () => {
+						if (template.row?.entry.type === 'remote') {
+							this.onAction(template.row.entry, 'delete');
+						}
+					}));
+					template = { ...base, column: this.column, action, rename, delete: deleteAction, documentation, toolbar, actionLayout: '' };
 				}
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
@@ -225,11 +232,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				if (template.actionProgress) {
 					template.actionProgress.hidden = !signingIn;
 				}
-				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: template.label.textContent }));
+				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
+					content: template.label.textContent, style: HoverStyle.Mouse,
+				}, { groupId: this.hoverGroupId }));
 				template.description.textContent = entry.type === 'empty' ? entry.description ?? '' : '';
 				template.description.hidden = !template.description.textContent;
 				if (template.description.textContent) {
-					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.description, { content: template.description.textContent }));
+					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.description, {
+						content: template.description.textContent, style: HoverStyle.Mouse,
+					}, { groupId: this.hoverGroupId }));
 				}
 				if (entry.type === 'empty' && entry.documentation) {
 					if (!template.link) {
@@ -244,9 +255,17 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'connection': {
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
+				const error = entry.type === 'remote' && entry.connecting === undefined
+					? entry.remote.lastConnectionError : undefined;
+				template.warning.hidden = !error;
+				if (error) {
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.warning, {
+						content: error, style: HoverStyle.Pointer,
+					}, { groupId: this.hoverGroupId }));
+				}
 				if (entry.type === 'remote') {
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
-						content: entry.connecting === undefined ? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
+						content: entry.connecting === undefined ? error ?? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
 						style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}
@@ -260,10 +279,11 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
-				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}`;
+				const showDelete = showConnection && entry.remote.kind === 'environment' && entry.remote.canRemove;
+				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}`;
 				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
 					template.actionLayout = actionLayout;
-					template.toolbar.setActions(showConnection ? [template.action, template.rename] : [
+					template.toolbar.setActions(showConnection ? [template.action, template.rename, ...(showDelete ? [template.delete] : [])] : [
 						...(showDocumentation ? [template.documentation] : []),
 						...(showConfig ? [template.action] : []),
 					]);
@@ -301,6 +321,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason) : template.action.label;
 					template.rename.label = localize('remotes.rename', "Rename {0}...", entry.remote.name);
 					template.rename.enabled = !entry.busy;
+					template.delete.label = localize('remotes.delete', "Delete {0}", entry.remote.name);
+					template.delete.enabled = showDelete && !entry.busy;
 				}
 				break;
 			}

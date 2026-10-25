@@ -2005,6 +2005,69 @@ suite('CloudSandboxApiService history cache', () => {
 suite('Mission Control environment discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const statusCode of [204, 404]) {
+		test(`environment deletion accepts ${statusCode} and invalidates cached and in-flight discovery`, async () => {
+			const requests: IRequestOptions[] = [];
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			let holdDiscovery = false;
+			const { service, requestOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (url, _token, options) => {
+					if (options.type === 'DELETE') {
+						requests.push(options);
+						return jsonResponse({}, statusCode);
+					}
+					if (url.pathname.endsWith('/agents/environments')) {
+						if (holdDiscovery) {
+							void started.complete();
+							return response.p;
+						}
+						return jsonResponse([{ id: 'host', kind: 'user-local', name: 'Host', status: 'offline' }]);
+					}
+					return undefined;
+				},
+			});
+			await service.listEnvironments(CancellationToken.None);
+			holdDiscovery = true;
+			const discovery = service.listEnvironments(CancellationToken.None, { refresh: true });
+			const rejected = assert.rejects(discovery, CancellationError);
+			await started.p;
+			const account = await service.getAccountKey();
+			assert.ok(account);
+			await service.deleteEnvironment('host/with spaces', CancellationToken.None, account);
+			await response.complete(jsonResponse([{ id: 'host', kind: 'user-local', name: 'Stale', status: 'offline' }]));
+			await rejected;
+			assert.deepStrictEqual({
+				requests: requests.map(request => {
+					assert.ok(request.url);
+					return { path: new URL(request.url).pathname, method: request.type, body: request.data };
+				}),
+				cached: service.getCachedEnvironments(),
+				deleteOutcomes: requestOutcomes.filter(([action]) => action === 'deleteEnvironment'),
+			}, {
+				requests: [{ path: '/agents/environments/host%2Fwith%20spaces', method: 'DELETE', body: undefined }],
+				cached: undefined,
+				deleteOutcomes: [['deleteEnvironment', statusCode === 204 ? 'succeeded' : 'clientError']],
+			});
+		});
+	}
+
+	for (const statusCode of [401, 403, 500]) {
+		test(`environment deletion surfaces HTTP ${statusCode} and preserves cached inventory`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (_url, _token, options) => options.type === 'DELETE'
+					? jsonResponse({}, statusCode) : jsonResponse([{ id: 'host', kind: 'user-local', name: 'Host', status: 'offline' }]),
+			});
+			const before = await service.listEnvironments(CancellationToken.None);
+			const account = await service.getAccountKey();
+			assert.ok(account);
+			await assert.rejects(service.deleteEnvironment('host', CancellationToken.None, account), /environment delete failed/);
+			assert.deepStrictEqual(service.getCachedEnvironments(), before);
+		});
+	}
+
 	test('caches credential-free metadata and invalidates it when the account changes', async () => {
 		const { service, requestedUrls, changeAuthentication } = createService(store, {
 			tasks: [], repositories: new Map(),
@@ -4216,6 +4279,14 @@ suite('CloudSandboxApiService task ownership', () => {
 		{
 			name: 'task deletion',
 			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteTask('task-owned', CancellationToken.None, accountKey),
+			response: {},
+			statusCode: 204,
+			method: 'DELETE',
+			body: undefined,
+		},
+		{
+			name: 'environment deletion',
+			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteEnvironment('env-owned', CancellationToken.None, accountKey),
 			response: {},
 			statusCode: 204,
 			method: 'DELETE',

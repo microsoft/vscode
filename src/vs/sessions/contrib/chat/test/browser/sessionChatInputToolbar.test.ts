@@ -2601,7 +2601,7 @@ suite('SessionChatInputToolbar', () => {
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
 			{ id: 'recorded', kind: SessionArtifactKind.PullRequest, label: 'Recorded title', isArtifact: true, isGitHub: true, link },
-			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link },
+			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/pull/43') },
 		]);
 		const session = upcastPartial<IActiveSession>({
 			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
