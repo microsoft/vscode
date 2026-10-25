@@ -5,18 +5,20 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides } from '../../../node/codex/codexLaunchConfig.js';
+import { CODEX_COPILOT_MODEL_PROVIDER } from '../../../common/codexModelSelection.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides, codexPermissionProfileReadRoots, codexServiceTierOverride } from '../../../node/codex/codexLaunchConfig.js';
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('adds the Copilot proxy and enforces telemetry overrides after extra arguments', () => {
-		const config = buildCodexLaunchConfig({ PATH: '/bin', OPENAI_API_KEY: 'personal' }, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['--log-level=debug', '-c', 'analytics.enabled=true']);
+		const config = buildCodexLaunchConfig('/sdk/codex', { PATH: '/bin', OPENAI_API_KEY: 'personal' }, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['--log-level=debug', '-c', 'analytics.enabled=true']);
 		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'nonce', AI_AGENT: 'github_copilot_vscode_agent' });
 		assert.ok(config.args.includes('model_providers.vscode-proxy.name="VS Code Proxy"'));
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
 		assert.ok(config.args.includes('model_providers.vscode-proxy.requires_openai_auth=false'));
 		assert.ok(config.args.includes('features.image_generation=false'));
+		assert.ok(config.args.includes('features.cwd_relative_turn_diffs=true'));
 		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
 		assert.ok(config.args.includes('--log-level=debug'));
 		assert.ok(config.args.indexOf('analytics.enabled=true') < config.args.lastIndexOf('analytics.enabled=false'));
@@ -31,7 +33,7 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('routes traces to loopback and logs/metrics directly to the external sink', () => {
-		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], {
+		const config = buildCodexLaunchConfig('/sdk/codex', {}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], {
 			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
 			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf', headers: { authorization: 'Bearer test' } },
 			captureContent: false,
@@ -48,7 +50,7 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('keeps gRPC signal endpoints unchanged and uses decoded headers', () => {
-		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], {
+		const config = buildCodexLaunchConfig('/sdk/codex', {}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, [], {
 			traces: { endpoint: 'https://collector:4317', protocol: 'grpc' },
 			external: { endpoint: 'https://collector:4317', protocol: 'grpc', headers: { authorization: 'Bearer test/token' } },
 			captureContent: false,
@@ -59,9 +61,20 @@ suite('CodexLaunchConfig', () => {
 		assert.ok(config.args.includes(`otel.metrics_exporter=${expected}`));
 	});
 
+	test('adds client skill read access without overriding the profiles existing restrictions', () => {
+		assert.deepStrictEqual(codexPermissionProfileReadRoots(['/plugins/cache'], 'darwin'), {
+			'permissions.vscode-workspace.filesystem': {
+				':minimal': 'read',
+				':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
+				':tmpdir': 'write',
+				'/plugins/cache': 'read',
+			},
+		});
+	});
+
 	test('defines workspace-scoped permission profiles after extra arguments', () => {
-		const config = buildCodexLaunchConfig({}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"']);
-		const expectedOverrides = codexPermissionProfileOverrides();
+		const config = buildCodexLaunchConfig('/sdk/codex', {}, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['-c', 'default_permissions=":danger-full-access"', '-c', 'sandbox_mode="danger-full-access"']);
+		const expectedOverrides = codexPermissionProfileOverrides('/sdk/codex');
 		assert.deepStrictEqual({
 			profiles: expectedOverrides.map(override => config.args.includes(override)),
 			secureDefaultWins: config.args.indexOf('default_permissions=":danger-full-access"') < config.args.indexOf('default_permissions="vscode-workspace"'),
@@ -83,26 +96,53 @@ suite('CodexLaunchConfig', () => {
 		});
 	});
 
-	test('keeps the Linux sandbox bootstrap visible while denying shared temp access on macOS', () => {
-		const linuxProfile = codexPermissionProfileOverrides('linux')[1];
-		const macProfile = codexPermissionProfileOverrides('darwin')[1];
-		const windowsProfiles = codexPermissionProfileOverrides('win32');
+	test('keeps the Linux runtime readable through inherited skill profiles without granting SDK directory access', () => {
+		const linuxProfiles = codexPermissionProfileOverrides('/sdk/codex', 'linux');
+		const linuxProfile = linuxProfiles[1];
+		const macProfile = codexPermissionProfileOverrides('/sdk/codex', 'darwin')[1];
+		const windowsProfiles = codexPermissionProfileOverrides('/sdk/codex', 'win32');
 		const windowsProfile = windowsProfiles[1];
 		assert.deepStrictEqual({
 			linux: linuxProfile,
+			linuxWorkspace: linuxProfiles[2],
+			skillOverrides: codexPermissionProfileReadRoots(['/plugins/cache'], 'linux'),
 			mac: macProfile,
 			windows: windowsProfiles,
-			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
+			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "read"')]),
 		}, {
-			linux: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "read" }, network = { enabled = false } }',
-			mac: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
+			linux: 'permissions.vscode-runtime={ filesystem = { ":minimal" = "read", ":workspace_roots" = { "." = "write", ".git" = "read", ".agents" = "read", ".codex" = "read" }, ":tmpdir" = "write", ":slash_tmp" = "read", "/sdk/codex" = "read" }, network = { enabled = false } }',
+			linuxWorkspace: 'permissions.vscode-workspace={ extends = "vscode-runtime" }',
+			skillOverrides: {
+				'permissions.vscode-workspace.filesystem': {
+					':minimal': 'read',
+					':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
+					':tmpdir': 'write',
+					':slash_tmp': 'read',
+					'/plugins/cache': 'read',
+				},
+			},
+			mac: 'permissions.vscode-workspace={ filesystem = { ":minimal" = "read", ":workspace_roots" = { "." = "write", ".git" = "read", ".agents" = "read", ".codex" = "read" }, ":tmpdir" = "write" }, network = { enabled = false } }',
 			windows: [
 				'default_permissions="vscode-workspace"',
 				'permissions.vscode-workspace={ extends = ":workspace", network = { enabled = false } }',
 				'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
 				'permissions.vscode-workspace-read-only={ extends = ":read-only" }',
 			],
-			temp: [[true, false], [true, true], [false, false]],
+			temp: [[true, true], [true, false], [false, false]],
+		});
+	});
+
+	test('clears the service tier only for the Copilot provider', () => {
+		assert.deepStrictEqual({
+			copilot: codexServiceTierOverride(CODEX_COPILOT_MODEL_PROVIDER),
+			native: codexServiceTierOverride('openai'),
+			custom: codexServiceTierOverride('custom-provider'),
+			unspecified: codexServiceTierOverride(undefined),
+		}, {
+			copilot: { serviceTier: null },
+			native: {},
+			custom: {},
+			unspecified: {},
 		});
 	});
 
@@ -113,10 +153,11 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'openai',
 			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': true },
 		});
-		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'vscode-proxy', modelId: 'copilot-model' }, 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
+		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: CODEX_COPILOT_MODEL_PROVIDER, modelId: 'copilot-model' }, 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
 			threadId: 'thread-b',
 			model: 'copilot-model',
-			modelProvider: 'vscode-proxy',
+			modelProvider: CODEX_COPILOT_MODEL_PROVIDER,
+			serviceTier: null,
 			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-c', {}, undefined, {

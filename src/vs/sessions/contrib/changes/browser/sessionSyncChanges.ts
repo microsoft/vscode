@@ -21,14 +21,18 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
-import { SessionIdContext } from '../../../common/contextkeys.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getSessionWorkspaceKind, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { getSessionWorkspaceKind, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../common/sessionCommands.js';
 
-function getSyncChangesOperation(session: ISession | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
-	const changeset = session?.changesets.read(reader)?.find(candidate =>
+function getSyncChangesOperation(session: IActiveSession | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
+	const changeset = session?.activeChat.read(reader).changesets.read(reader)?.find(candidate =>
 		candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
 
 	const operation = changeset?.operations.read(reader).find(candidate =>
@@ -42,13 +46,13 @@ function isSyncChangesEnabled(operation: ISessionChangesetOperation | undefined)
 	return !!operation && operation.status !== SessionChangesetOperationStatus.Disabled && operation.status !== SessionChangesetOperationStatus.Running;
 }
 
-function isFolderSession(session: ISession | undefined, reader?: IReader): boolean {
-	const workspace = session?.workspace.read(reader);
+function isFolderSession(session: IActiveSession | undefined, reader?: IReader): boolean {
+	const workspace = session?.activeChat.read(reader).workspace.read(reader);
 	return getSessionWorkspaceKind(workspace, session?.worktreePending?.read(reader)) === SessionWorkspaceKind.Folder;
 }
 
-function shouldShowSyncChanges(session: ISession | undefined, reader?: IReader): boolean {
-	const repository = session?.workspace.read(reader)?.folders[0]?.gitRepository;
+function shouldShowSyncChanges(session: IActiveSession | undefined, reader?: IReader): boolean {
+	const repository = session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository;
 	return isFolderSession(session, reader)
 		&& ((repository?.incomingChanges ?? 0) > 0 || (repository?.outgoingChanges ?? 0) > 0);
 }
@@ -81,7 +85,7 @@ class SessionSyncChangesAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: { session: ISession | undefined }): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: { session: IActiveSession | undefined }): Promise<void> {
 		const session = context
 			? context.session
 			: accessor.get(ISessionsService).activeSession.get();
@@ -106,13 +110,17 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 		options: IActionViewItemOptions,
 		@ISessionContext private readonly sessionContext: ISessionContext,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionInputPickerVisibility pickerVisibility: ISessionInputPickerVisibility,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: true });
+		this._register(pickerVisibility.registerPicker('sync', () => this.focus()));
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateTooltip()));
 
 		this._register(autorun(reader => {
 			const session = sessionContext.session.read(reader);
 			const operation = getSyncChangesOperation(session, reader)?.operation;
-			const repository = session?.workspace.read(reader)?.folders[0]?.gitRepository;
+			const repository = session?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository;
 
 			const incomingChanges = repository?.incomingChanges ?? 0;
 			const outgoingChanges = repository?.outgoingChanges ?? 0;
@@ -144,7 +152,8 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 	}
 
 	protected override getTooltip(): string | undefined {
-		return this._tooltip ?? super.getTooltip();
+		const tooltip = this._tooltip ?? super.getTooltip();
+		return tooltip ? this.keybindingService.appendKeybinding(tooltip, FOCUS_SESSION_SYNC_ACTION_COMMAND_ID) : tooltip;
 	}
 
 	protected override updateLabel(): void {
@@ -185,7 +194,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 		));
 
 		this._register(autorun(reader => {
-			for (const session of sessionsService.visibleSessions.read(reader)) {
+			for (const session of sessionsService.visibleSessionPanes.read(reader)) {
 				if (!session) {
 					continue;
 				}
@@ -205,7 +214,8 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 							},
 							group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, SessionSyncChangesAction.ID),
 							order: Number.MAX_SAFE_INTEGER,
-							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId)),
+							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId),
+								SessionActiveChatResourceContext.isEqualTo(session.activeChat.read(reader).resource.toString())),
 						}));
 					}
 				}));

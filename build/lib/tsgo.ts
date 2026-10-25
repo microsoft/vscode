@@ -36,7 +36,9 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 
 	const args = [ts7TscPath, '--project', projectPath, '--pretty', 'false', '--incremental'];
 	if (config.noEmit) {
-		args.push('--noEmit');
+		// Emitting builds delete their build info before compiling, so concurrent type checks need a separate cache.
+		const tsBuildInfoFile = path.join(path.dirname(projectPath), `${path.basename(projectPath, '.json')}.typecheck.tsbuildinfo`);
+		args.push('--noEmit', '--tsBuildInfoFile', tsBuildInfoFile);
 	} else {
 		args.push('--sourceMap', '--inlineSources');
 	}
@@ -68,7 +70,7 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 			runReporter(lines.join('\n'));
 
 			if (code === 0) {
-				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
+				Promise.resolve().then(() => onComplete?.()).then(() => resolve(), reject);
 			} else {
 				reject(new Error(`tsgo exited with code ${code ?? 'unknown'}`));
 			}

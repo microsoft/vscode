@@ -1,11 +1,11 @@
 # GitHub actions required reviewers
 .github/workflows/monaco-editor.yml @hediet @alexdima @lszomoru
-.github/workflows/pr-darwin-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
-.github/workflows/pr-linux-cli-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
-.github/workflows/pr-linux-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
-.github/workflows/pr-node-modules.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
-.github/workflows/pr-win32-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
-.github/workflows/pr.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy
+.github/workflows/pr-darwin-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/pr-linux-cli-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/pr-linux-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/pr-node-modules.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/pr-win32-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/pr.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/telemetry.yml @lramos15 @lszomoru @alexdima
 
 # VS Code API

@@ -54,6 +54,20 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 
 		if (workspaceService.isSessionsWindow) {
 			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-remote-sessions',
+				referenceName: 'vscodeRemoteSessions',
+				icon: Codicon.remote,
+				description: localize('clientToolSet.remoteSessions.description', "Remote Sessions"),
+				detail: localize('clientToolSet.remoteSessions.detail', "Find remote agent hosts, delegate and inspect work, and send messages between hosts."),
+				members: [
+					'list_agent_hosts',
+					'create_remote_session',
+					'get_remote_session',
+					'send_remote_message',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
 				id: 'vscode-automations',
 				referenceName: 'vscodeAutomations',
 				icon: Codicon.calendar,
@@ -64,6 +78,30 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 					'configureAutomation',
 					'runAutomation',
 					'deleteAutomation',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-sessions-list',
+				referenceName: 'vscodeSessionsList',
+				icon: Codicon.listTree,
+				description: localize('clientToolSet.sessionsList.description', "Sessions List"),
+				detail: localize('clientToolSet.sessionsList.detail', "Group, order, filter, and sort the sessions in the Sessions list."),
+				members: [
+					'readSessionsList',
+					'organizeSessionsList',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-appearance',
+				referenceName: 'vscodeAppearance',
+				icon: Codicon.paintcan,
+				description: localize('clientToolSet.appearance.description', "Appearance"),
+				detail: localize('clientToolSet.appearance.detail', "Read theme colors and change the chat background of the Agents window."),
+				members: [
+					'getThemeColors',
+					'setChatBackground',
 				],
 			}));
 		}

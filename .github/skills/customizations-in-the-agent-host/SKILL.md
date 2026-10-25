@@ -78,10 +78,13 @@ The corollary: **state computed once must be rebuilt when its inputs change.** M
 | Claude | session options at materialize | live reconcile |
 | Codex | MCP servers supplied only at `thread/start` / resume | **not possible** — documented limitation |
 
-Two traps here:
+Enforcement traps:
 
 - The post-startup reconcile runs ~800 ms after launch. Anything gated *only* there can still start, and request authentication, during the launch window. Gate at launch too.
 - The SDK's `not_configured` status must **not** be translated as `enabled: true`. That bug made a correct "skip this disabled server" decision look like "enable it".
+- Copilot launch gating must include names from user `mcp.config.list`, not only the client snapshot. Reconcile and authentication also resolve newly discovered names before the host retains them; later publication must not turn an inherited enabled default into explicit intent to enable an SDK-configured-disabled server.
+- Root MCP customization IDs use the owning AHP session ID, not its SDK backing ID. On restoration, derive declared MCP names from the applied root/plugin definitions, never from the retained host-published runtime inventory.
+- Connection lifecycle (`pending`, `connected`, `stopped`) is not enablement intent. Confirm external toggles against passive `mcp.listConfigured` enablement, ignoring stale asynchronous snapshots and host-requested changes.
 
 Client-provided MCP servers (ones the client bundled rather than the host discovering) must route their global Disable to the **client**, not the host — the host correctly refuses to store a client-owned global, so routing it to the host is a silent no-op. `isClientBundled` is the discriminator; see `getBuiltinMcpServerEnablementActions` in `mcpListWidget.ts`.
 

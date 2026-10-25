@@ -6,12 +6,14 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { Radio } from '../../../../../base/browser/ui/radio/radio.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
@@ -58,7 +60,7 @@ suite('CreatePullRequestWidget', () => {
 
 	function createWidget(creation?: Partial<ISessionPullRequestCreation>, onCancel = () => { }, options: Partial<ICreatePullRequestWidgetOptions> = {}) {
 		const submissions: ISessionPullRequestOptions[] = [];
-		const hovers: Parameters<IHoverService['setupDelayedHoverAtMouse']>[] = [];
+		const hovers: Parameters<IHoverService['setupDelayedHover']>[] = [];
 		const { contextMenuService, storage, logService } = createContextView();
 		const preferences = new CreatePullRequestPreferences(storage, logService);
 		if (options.preferences) {
@@ -81,7 +83,7 @@ suite('CreatePullRequestWidget', () => {
 			...options,
 		}, {
 			...NullHoverService,
-			setupDelayedHoverAtMouse: (...args) => {
+			setupDelayedHover: (...args) => {
 				hovers.push(args);
 				return toDisposable(() => hovers.splice(hovers.indexOf(args), 1));
 			},
@@ -177,6 +179,22 @@ suite('CreatePullRequestWidget', () => {
 			}, { created: primaryAction === 'create' ? [context] : [], sent: primaryAction === 'sendToChat' ? [context] : [], storedContext: false });
 		});
 	}
+
+	test('prepares and creates for the chat the form was opened from', async () => {
+		const chat = URI.parse('agent-session:/session#peer');
+		const chats: { operation: string; chat: string | undefined }[] = [];
+		const { widget } = createWidget({
+			prepare: async (_token, requestedChat) => { chats.push({ operation: 'prepare', chat: requestedChat?.toString() }); return details; },
+			create: async (_options, requestedChat) => { chats.push({ operation: 'create', chat: requestedChat?.toString() }); },
+		}, undefined, { chat });
+		await widget.ready;
+		submit(widget);
+		await timeout(0);
+		assert.deepStrictEqual(chats, [
+			{ operation: 'prepare', chat: chat.toString() },
+			{ operation: 'create', chat: chat.toString() },
+		]);
+	});
 
 	function chooseMenuAction(label: string): void {
 		const actions = [...document.querySelectorAll<HTMLElement>('.monaco-menu .action-label')];
@@ -778,7 +796,7 @@ suite('CreatePullRequestWidget', () => {
 		], [repository, `Base branch: ${baseBranchName}`, `Source branch: ${branchName}`]);
 	});
 
-	test('draft explanation uses a mouse-positioned hover and remains available to screen readers', async () => {
+	test('draft explanation uses a pointer hover and remains available to screen readers', async () => {
 		const { widget, hovers } = createWidget();
 		await widget.ready;
 		const checkbox = element(widget, '.create-pr-draft [role="checkbox"]');
@@ -791,6 +809,7 @@ suite('CreatePullRequestWidget', () => {
 			hidden: description.hidden,
 			description: description.textContent,
 			hover: hover.content,
+			pointer: hover.style === HoverStyle.Pointer,
 			hoverOnLabel: target === draftText,
 			label: checkbox.getAttribute('aria-label'),
 			checked: checkbox.getAttribute('aria-checked'),
@@ -799,6 +818,7 @@ suite('CreatePullRequestWidget', () => {
 			hidden: true,
 			description: 'Keep the pull request in draft until it is ready for review.',
 			hover: 'Keep the pull request in draft until it is ready for review.',
+			pointer: true,
 			hoverOnLabel: true,
 			label: 'Create as Draft',
 			checked: 'true',
@@ -831,6 +851,8 @@ suite('CreatePullRequestWidget', () => {
 				description: description.textContent,
 				hidden: description.hidden,
 				hoverMatchesDescription: options.content === description.textContent,
+				pointer: options.style === HoverStyle.Pointer,
+				grouped: !!hover[2]?.groupId && hover[2].groupId === hovers.find(([target]) => target.classList.contains('create-pr-agent-merge-info'))?.[2]?.groupId,
 				infoFollowsLabel: text.nextElementSibling === info,
 				infoDoesNotToggleCheckbox,
 				labelTogglesCheckbox: checkbox.getAttribute('aria-checked') !== checked,
@@ -842,6 +864,8 @@ suite('CreatePullRequestWidget', () => {
 				description: 'Agent Merge will automatically ask the agent to address feedback when the pull request has unresolved review comments.',
 				hidden: true,
 				hoverMatchesDescription: true,
+				pointer: true,
+				grouped: true,
 				infoFollowsLabel: true,
 				infoDoesNotToggleCheckbox: true,
 				labelTogglesCheckbox: true,
@@ -852,6 +876,8 @@ suite('CreatePullRequestWidget', () => {
 				description: 'Agent Merge will automatically ask the agent to investigate and fix failures when required CI checks fail.',
 				hidden: true,
 				hoverMatchesDescription: true,
+				pointer: true,
+				grouped: true,
 				infoFollowsLabel: true,
 				infoDoesNotToggleCheckbox: true,
 				labelTogglesCheckbox: true,
@@ -862,6 +888,8 @@ suite('CreatePullRequestWidget', () => {
 				description: 'Agent Merge will automatically ask the agent to update the source branch when it has merge conflicts or falls behind the base branch.',
 				hidden: true,
 				hoverMatchesDescription: true,
+				pointer: true,
+				grouped: true,
 				infoFollowsLabel: true,
 				infoDoesNotToggleCheckbox: true,
 				labelTogglesCheckbox: true,
@@ -1499,14 +1527,14 @@ suite('CreatePullRequestWidget', () => {
 		});
 	}
 
-	for (const change of ['creation', 'branchName', 'baseBranchName'] as const) {
+	for (const change of ['creation', 'chat', 'branchName', 'baseBranchName'] as const) {
 		test(`saved form content is not reused after changing ${change}`, async () => {
 			const { host, anchor, contextView } = createContextView();
 			const creation: ISessionPullRequestCreation = {
 				operationId: 'create-pr', prepare: async () => details,
 				prepareChatRequest: async query => ({ query }), create: async () => assert.fail('Must not create'),
 			};
-			const options = { branchName: details.branchName, baseBranchName: details.baseBranchName };
+			const options = { chat: URI.parse('agent-session:/session'), branchName: details.branchName, baseBranchName: details.baseBranchName };
 			contextView.show(anchor, creation, options);
 			await timeout(0);
 			const title = host.querySelector<HTMLInputElement>('input')!;
@@ -1514,7 +1542,7 @@ suite('CreatePullRequestWidget', () => {
 			title.dispatchEvent(new Event('input', { bubbles: true }));
 			contextView.close();
 			contextView.show(anchor, change === 'creation' ? { ...creation } : creation, {
-				...options, ...(change === 'creation' ? {} : { [change]: 'another-branch' }),
+				...options, ...(change === 'creation' ? {} : change === 'chat' ? { chat: options.chat.with({ fragment: 'peer' }) } : { [change]: 'another-branch' }),
 			});
 			await timeout(0);
 			const newTitle = host.querySelector<HTMLInputElement>('input')!.value;

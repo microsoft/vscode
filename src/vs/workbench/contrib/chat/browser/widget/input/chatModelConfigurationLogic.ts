@@ -6,6 +6,72 @@
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { IJSONSchema } from '../../../../../../base/common/jsonSchema.js';
 import { ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { modelConfigurationSourceKey, isModelConfigurationDefault } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { localize } from '../../../../../../nls.js';
+
+/** Applies host-owned read-only values while retaining the provenance of displayed defaults. */
+export function applyModelConfigurationDefaults(
+	configuration: IStringDictionary<unknown>,
+	preferences: IStringDictionary<unknown> | undefined,
+	schema: ILanguageModelConfigurationSchema | undefined,
+	keys: readonly string[] | undefined,
+	startupDefaults: readonly string[] = [],
+): IStringDictionary<unknown> {
+	const result = { ...configuration };
+	if (!schema) {
+		return result;
+	}
+	const trackedKeys = new Set([
+		...keys ?? [],
+		...startupDefaults,
+		...Object.keys(configuration).filter(key => Object.hasOwn(configuration, modelConfigurationSourceKey(key))),
+		...Object.entries(schema.properties ?? {}).filter(([, property]) => property.readOnly).map(([key]) => key),
+	]);
+	for (const key of trackedKeys) {
+		const property = schema?.properties?.[key];
+		if (!property) {
+			delete result[key];
+			delete result[modelConfigurationSourceKey(key)];
+			continue;
+		}
+		const startupDefault = startupDefaults.includes(key) && property.default !== undefined;
+		const preference = startupDefault ? undefined : preferences?.[key];
+		const supportedPreference = preference !== undefined && satisfiesPropertySchema(preference, property);
+		if (property.readOnly && property.default !== undefined) {
+			result[key] = property.default;
+		} else if (startupDefault) {
+			result[key] = property.default;
+		} else if (configuration[modelConfigurationSourceKey(key)] === 'managed') {
+			result[key] = supportedPreference ? preference : property.default;
+		} else if (result[key] !== undefined && !satisfiesPropertySchema(result[key], property)) {
+			result[key] = property.default;
+		}
+		result[modelConfigurationSourceKey(key)] = property.readOnly ? 'managed'
+			: configuration[modelConfigurationSourceKey(key)] === 'default' || !supportedPreference || isModelConfigurationDefault(preferences, key) ? 'default' : 'explicit';
+	}
+	return result;
+}
+
+export function assertModelConfigurationWritable(values: IStringDictionary<unknown>, schema: ILanguageModelConfigurationSchema | undefined): void {
+	for (const key of Object.keys(values)) {
+		const property = schema?.properties?.[key];
+		if (property?.readOnly) {
+			throw new Error(localize('chat.modelConfiguration.readOnly', "{0} is managed by the agent host and cannot be changed.", property.title ?? key));
+		}
+	}
+}
+
+/** Keeps serialized defaults out of durable preferences, including before a model re-registers. */
+export function modelConfigurationPreferences(values: IStringDictionary<unknown>, preserveDefaults = false): IStringDictionary<unknown> {
+	const result = { ...values };
+	for (const key of Object.keys(values)) {
+		if (!preserveDefaults && isModelConfigurationDefault(values, key)) {
+			delete result[key];
+		}
+		delete result[modelConfigurationSourceKey(key)];
+	}
+	return result;
+}
 
 /**
  * Extracts the schema-default values from a model configuration schema, keyed by
@@ -29,7 +95,7 @@ export function extractSchemaDefaults(schema: ILanguageModelConfigurationSchema 
  * as an invalid override. A value is kept only when its property is declared and every
  * constraint this understands is satisfied:
  *   1. Keys absent from the current schema are dropped (removed properties).
- *   2. `enum` and `const` must contain the value.
+ *   2. `enum` and `const` must contain the value, and `enumItemDisabled` must not mark it.
  *   3. `type` must match, including a union of types.
  *   4. Numeric bounds and string `pattern`/length are enforced when declared.
  * A property using a composite schema (`anyOf`, `oneOf`, `allOf`, `not`, `$ref`) is failed
@@ -57,6 +123,11 @@ export function filterConfigurationToSchema(
 	return result;
 }
 
+export function isDisabledEnumValue(value: unknown, schema: { enum?: unknown[]; enumItemDisabled?: boolean[] } & IJSONSchema): boolean {
+	const index = Array.isArray(schema.enum) ? schema.enum.indexOf(value) : -1;
+	return index >= 0 && schema.enumItemDisabled?.[index] === true;
+}
+
 function satisfiesPropertySchema(value: unknown, schema: IJSONSchema): boolean {
 	// A shape this does not interpret cannot be checked, so the value is not kept.
 	if (schema.anyOf || schema.oneOf || schema.allOf || schema.not || schema.$ref) {
@@ -65,7 +136,7 @@ function satisfiesPropertySchema(value: unknown, schema: IJSONSchema): boolean {
 	if (schema.const !== undefined && value !== schema.const) {
 		return false;
 	}
-	if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+	if (Array.isArray(schema.enum) && (!schema.enum.includes(value) || isDisabledEnumValue(value, schema))) {
 		return false;
 	}
 	if (schema.type !== undefined) {

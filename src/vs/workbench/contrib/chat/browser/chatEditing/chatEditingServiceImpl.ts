@@ -89,10 +89,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(textModelService.registerTextModelContentProvider(Schemas.chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
-			if (e.reason === 'cleared') {
-				for (const resource of e.sessionResources) {
-					this.getEditingSession(resource)?.stop();
-				}
+			for (const resource of e.sessionResources) {
+				this.getEditingSession(resource)?.stop();
 			}
 		}));
 
@@ -115,10 +113,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const tasks: Promise<any>[] = [];
 
 			for (const session of this._editingSessions.values()) {
-				if (!session.isGlobalEditingSession) {
+				// Provider sessions (e.g. agent host review) can be global but own their persistence.
+				if (!session.isGlobalEditingSession.get() || !(session instanceof ChatEditingSession)) {
 					continue;
 				}
-				tasks.push((session as ChatEditingSession).storeState());
+				tasks.push(session.storeState());
 			}
 
 			storageTask = Promise.resolve(storageTask)
@@ -149,6 +148,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private _lookupEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 
 		for (const item of Iterable.concat(this.editingSessionsObs.get())) {
+			// Entries of provider sessions, like the agent host's review, follow their provider's rules.
+			if (!(item instanceof ChatEditingSession)) {
+				continue;
+			}
 			const candidate = item.getEntry(uri);
 			if (candidate instanceof AbstractChatEditingModifiedFileEntry) {
 				// make sure to ref-count this object
@@ -167,7 +170,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession {
-		return this._createEditingSession(chatModel, session.isGlobalEditingSession, session);
+		return this._createEditingSession(chatModel, session.isGlobalEditingSession.get(), session);
 	}
 
 	private _createEditingSession(chatModel: ChatModel, global: boolean, initFrom: IChatEditingSession | undefined): IChatEditingSession {
@@ -176,7 +179,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const provider = this._providers.get(getChatSessionType(chatModel.sessionResource));
 		const session = provider
-			? provider.createEditingSession(chatModel.sessionResource)
+			? provider.createEditingSession(chatModel.sessionResource, global)
 			: this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionResource, global, this._lookupEntry.bind(this), initFrom);
 
 		const list = this._sessionsObs.get();
@@ -336,23 +339,25 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 				const isFirst = entry.seen === 0;
 				const newEdits = part.edits.slice(entry.seen);
+				const newMetadata = part.editMetadata?.slice(entry.seen);
 				entry.seen = part.edits.length;
 
 				if (newEdits.length > 0 || isFirst) {
 					for (let i = 0; i < newEdits.length; i++) {
 						const edit = newEdits[i];
 						const done = part.done ? i === newEdits.length - 1 : false;
+						const metadata = newMetadata?.[i] ?? {};
 
 						if (isTextEditOperationArray(edit)) {
-							entry.stream.pushText(edit, done);
+							entry.stream.pushText(edit, done, metadata);
 						} else if (isCellTextEditOperationArray(edit)) {
 							for (const edits of Object.values(groupBy(edit, e => e.uri.toString()))) {
 								if (edits) {
-									entry.stream.pushNotebookCellText(edits[0].uri, edits.map(e => e.edit), done);
+									entry.stream.pushNotebookCellText(edits[0].uri, edits.map(e => e.edit), done, metadata);
 								}
 							}
 						} else {
-							entry.stream.pushNotebook(edit, done);
+							entry.stream.pushNotebook(edit, done, metadata);
 						}
 					}
 				}

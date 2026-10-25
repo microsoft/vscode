@@ -6,16 +6,21 @@
 import { $ } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
-import type { IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
+import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { IObservable, autorun } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
-import { FileKind } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItemBase, getChatPillEntryToolbarActions, type IChatPillEntry } from './chatPills.js';
+import { FileKind, IFileService } from '../../platform/files/common/files.js';
+import { IHoverService } from '../../platform/hover/browser/hover.js';
+import { ChatPillActionViewItemBase, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, type IChatPillEntry } from './chatPills.js';
 import { ResourceLabels } from './labels.js';
+
+interface IChatResourcePillActionViewItemOptions extends IActionViewItemOptions {
+	readonly promotedActionIcon?: ThemeIcon;
+}
 
 /**
  * A pill showing a single resource as a themed file icon and name. The
@@ -25,14 +30,17 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 
 	protected override get itemModifierClass(): string { return 'chat-resource-pill'; }
 	protected override get buttonModifierClass(): string { return 'chat-resource-pill-button'; }
+	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
 
 	constructor(
 		action: IAction,
-		options: IActionViewItemOptions,
+		private readonly _resourcePillOptions: IChatResourcePillActionViewItemOptions,
 		private readonly _entry: IObservable<IChatPillEntry | undefined>,
 		private readonly _resourceLabels: ResourceLabels,
+		@IFileService private readonly _fileService: IFileService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
-		super(undefined, action, options);
+		super(undefined, action, _resourcePillOptions);
 	}
 
 	protected override renderContent(button: Button): void {
@@ -50,6 +58,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 			} else {
 				button.element.removeAttribute('aria-description');
 			}
+			this.updatePromotedAction(this._resourcePillOptions.promotedActionIcon ? entry?.promotedAction : undefined, this._resourcePillOptions.promotedActionIcon, this._hoverService);
 		}));
 	}
 
@@ -62,18 +71,13 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 		return this._entry.get()?.ariaLabel ?? super.getAriaLabel();
 	}
 
+	protected override getHoverContents(): IManagedHoverContent {
+		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._imageHoverContents) ?? super.getHoverContents();
+	}
+
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
 		const entry = this._entry.get();
-		const toolbarActions = entry ? getChatPillEntryToolbarActions(entry) : undefined;
-		return toolbarActions?.length ? {
-			trapFocus: true,
-			actions: toolbarActions.map(action => ({
-				commandId: action.id,
-				label: action.label,
-				iconClass: action.class,
-				run: () => { void action.run(); },
-			})),
-		} : undefined;
+		return getChatPillEntryHoverOptions(entry && this._resourcePillOptions.promotedActionIcon ? { ...entry, promotedAction: undefined } : entry);
 	}
 
 	protected override onDidClickButton(): void {

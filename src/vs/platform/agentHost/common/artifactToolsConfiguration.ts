@@ -4,28 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../nls.js';
+import { ArtifactIntegrationsSettingId } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
-import product from '../../product/common/product.js';
-import { AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey } from './agentHostSchema.js';
-import { ArtifactToolsCompactPromptsSettingId, ArtifactToolsSettingId } from './agentService.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostGitHubArtifactIgnoredChecksConfigKey } from './agentHostSchema.js';
+import { ArtifactToolsSettingId } from './agentService.js';
+import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from './githubPullRequestArtifact.js';
 
 export const artifactToolsConfigurationProperties = {
+	[ArtifactIntegrationsSettingId]: {
+		type: 'boolean',
+		markdownDescription: nls.localize('chat.artifactIntegrations.enabled', "Enables live state, actions, and opt-in Autopilot for recorded artifacts, including extension integrations. While enabled, Agent Merge is unavailable regardless of `#chat.agentMerge.enabled#`. Switching stops the previous system's automation without clearing saved choices or history. Previously enabled rules can resume when switching back. This does not enable new Autopilot rules or change ordinary artifact recording (`#chat.artifactTools.enabled#`)."),
+		default: false,
+		scope: ConfigurationScope.APPLICATION,
+		tags: ['experimental'],
+		agentHost: { key: AgentHostArtifactIntegrationsConfigKey },
+	},
 	[ArtifactToolsSettingId]: {
 		type: 'boolean',
 		description: nls.localize('chat.artifactTools.enabled', "When enabled, agents can record artifacts — pull requests, issues, commits, websites, files and other resources — which are surfaced above the chat input."),
-		default: product.quality !== 'stable',
+		default: true,
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['experimental', 'advanced'],
 		experiment: { mode: 'auto' },
 		agentHost: { key: AgentHostArtifactToolsConfigKey },
 	},
-	[ArtifactToolsCompactPromptsSettingId]: {
-		type: 'boolean',
-		description: nls.localize('chat.artifactTools.compactPrompts', "Uses compact artifact tool guidance instead of the original wording. Does not change tool availability or deferral. Start a new chat to compare prompt formats."),
-		default: false,
-		scope: ConfigurationScope.APPLICATION,
+	[gitHubPullRequestMarkReadyIgnoredChecksSetting]: {
+		type: 'array',
+		items: { type: 'string' },
+		default: [],
+		scope: ConfigurationScope.RESOURCE,
 		tags: ['experimental', 'advanced'],
-		experiment: { mode: 'auto' },
-		agentHost: { key: AgentHostArtifactToolsCompactPromptsConfigKey },
+		markdownDescription: nls.localize('prArtifact.ignoredChecks.setting', "Check names that do not need to pass before **Automatically Mark Ready** runs for a pull request artifact. Matching is case-sensitive; `*` matches any text, and other characters are literal. These checks remain visible, are still repaired by **Fix CI**, and must still pass for automatic merging. This setting does not enable automation."),
+		agentHost: { key: AgentHostGitHubArtifactIgnoredChecksConfigKey },
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;

@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import type { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { ITunnelGatewayInventory } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelGatewayInventory, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -44,7 +45,17 @@ const secondStandaloneEndpoint = { type: 'standalone', pid: 333, instanceId: 'st
 suite('TunnelAgentHostService discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(getSessions: (provider: string) => readonly AuthenticationSession[], channel: IChannel = new class extends mock<IChannel>() { }()): TunnelAgentHostService {
+	function createService(
+		getSessions: (provider: string, scopes?: Parameters<IAuthenticationService['getSessions']>[1]) => readonly AuthenticationSession[],
+		channel: IChannel = new class extends mock<IChannel>() { }(),
+		options?: {
+			onFactory: (factory: IRemoteAgentHostConnectionFactory) => void;
+			createSession: (provider: string, scopes: readonly string[]) => Promise<AuthenticationSession>;
+			dialogService?: IDialogService;
+			configurationService?: IConfigurationService;
+			tunnelApplicationConfig?: IProductService['tunnelApplicationConfig'];
+		},
+	): TunnelAgentHostService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISharedProcessService, new class extends mock<ISharedProcessService>() {
 			override getChannel(): IChannel {
@@ -53,20 +64,27 @@ suite('TunnelAgentHostService discovery', () => {
 		}());
 		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = Event.None;
-			override registerConnectionFactory(_factory: IRemoteAgentHostConnectionFactory) {
+			override registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory) {
+				options?.onFactory(factory);
 				return { dispose() { } };
 			}
 		}());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+		instantiationService.stub(IConfigurationService, options?.configurationService ?? new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
-			override async getSessions(provider: string): Promise<readonly AuthenticationSession[]> {
-				return getSessions(provider);
+			override async getSessions(provider: string, scopes?: Parameters<IAuthenticationService['getSessions']>[1]): Promise<readonly AuthenticationSession[]> {
+				return getSessions(provider, scopes);
+			}
+			override async createSession(provider: string, scopes: string[]): Promise<AuthenticationSession> {
+				if (!options) {
+					throw new Error('Unexpected interactive authentication');
+				}
+				return options.createSession(provider, scopes);
 			}
 		}());
 		instantiationService.stub(IProductService, {
 			...TestProductService,
-			tunnelApplicationConfig: {
+			tunnelApplicationConfig: options?.tunnelApplicationConfig ?? {
 				authenticationProviders: { github: { scopes: ['tunnel'] }, microsoft: { scopes: ['tunnel'] } },
 				editorWebUrl: '',
 				extension: { extensionId: 'test.remote-tunnels', friendlyName: 'Remote Tunnels' },
@@ -74,15 +92,171 @@ suite('TunnelAgentHostService discovery', () => {
 		});
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() { }());
-		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, new class extends mock<IRemoteAgentHostLocationPreferenceService>() { }());
-		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, new class extends mock<IRemoteAgentHostLocationPreferenceService>() {
+			override getPreference() { return undefined; }
+		}());
+		instantiationService.stub(IDialogService, options?.dialogService ?? new class extends mock<IDialogService>() { }());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
 		return store.add(instantiationService.createInstance(TunnelAgentHostService));
 	}
 
+	for (const authProvider of ['github', 'microsoft', undefined] as const) {
+		test(`cached prompt-mode tunnels do not authenticate interactively (${authProvider ?? 'automatic provider'})`, async () => {
+			let factory: IRemoteAgentHostConnectionFactory | undefined;
+			const interactiveProviders: string[] = [];
+			const service = createService(() => [], undefined, {
+				onFactory: value => { factory = value; },
+				createSession: async provider => {
+					interactiveProviders.push(provider);
+					return { id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } };
+				},
+			});
+			for (let i = 0; i < 9; i++) {
+				service.cacheTunnel({ tunnelId: `cached-${i}`, clusterId: 'cluster', name: 'Cached', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, authProvider);
+			}
+			assert.ok(factory);
+			await Promise.all(factory.entries.get().map(entry => assert.rejects(
+				factory!.createConnection(entry, { userInitiated: false }),
+				/No cached authentication available/,
+			)));
+			assert.deepStrictEqual(interactiveProviders, []);
+		});
+	}
+
+	test('background connections still prompt for affinity when a cached token exists but no location preference is saved', async () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		const commands: string[] = [];
+		let prompts = 0;
+		const service = createService(
+			() => [{ id: 'github', accessToken: 'token', scopes: ['tunnel'], account: { id: 'github', label: 'GitHub' } }],
+			new class extends mock<IChannel>() {
+				override async call<T>(command: string): Promise<T> {
+					commands.push(command);
+					return (command === 'prepareSelection'
+						? { selectionId: 'selection', inventory: inventory([editorEndpoint]) }
+						: undefined) as T;
+				}
+			}(),
+			{
+				onFactory: value => { factory = value; },
+				createSession: async () => { throw new Error('Unexpected interactive authentication'); },
+				dialogService: new class extends mock<IDialogService>() {
+					override async prompt(): Promise<never> {
+						prompts++;
+						throw new Error('Affinity prompt shown');
+					}
+				}(),
+			},
+		);
+		service.cacheTunnel({ tunnelId: 'cached', clusterId: 'cluster', name: 'Cached', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, 'github');
+		assert.ok(factory);
+		await assert.rejects(factory.createConnection(factory.entries.get()[0], { userInitiated: false }), /Affinity prompt shown/);
+		assert.deepStrictEqual({ commands, prompts }, { commands: ['prepareSelection'], prompts: 1 });
+	});
+
+	test('explicit tunnel connections can authenticate interactively', async () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		const interactiveProviders: string[] = [];
+		const service = createService(() => [], new class extends mock<IChannel>() {
+			override async call<T>(): Promise<T> {
+				throw new Error('Authenticated connection reached the gateway');
+			}
+		}(), {
+			onFactory: value => { factory = value; },
+			createSession: async provider => {
+				interactiveProviders.push(provider);
+				return { id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } };
+			},
+		});
+		service.cacheTunnel({ tunnelId: 'cached', clusterId: 'cluster', name: 'Cached', tags: [], protocolVersion: 6, hostConnectionCount: 1 }, 'github');
+		assert.ok(factory);
+		await assert.rejects(factory.createConnection(factory.entries.get()[0], { userInitiated: true }), /Authenticated connection reached the gateway/);
+		assert.deepStrictEqual(interactiveProviders, ['github']);
+	});
+
 	test('rejects silent discovery when authentication is unavailable', async () => {
 		const service = createService(() => []);
-		await assert.rejects(service.listTunnels({ silent: true }), /No authentication is available to enumerate tunnels/);
+		await assert.rejects(service.listTunnels({ silent: true }), TunnelAuthenticationRequiredError);
+	});
+
+	test('a cached token without the tunnel scope fails silent discovery without network enumeration or prompting', async () => {
+		const service = createService((provider, scopes) => provider === 'github' && scopes === undefined
+			? [{ id: 'github', accessToken: 'token', scopes: ['user:email'], account: { id: 'account', label: 'Account' } }]
+			: []);
+		assert.strictEqual(await service.getAuthProvider({ silent: true }), undefined);
+		await assert.rejects(service.listTunnels({ silent: true }), error => error instanceof TunnelAuthenticationRequiredError && error.authProvider === 'github');
+	});
+
+	for (const provider of ['github', 'microsoft'] as const) {
+		test(`sign-in requests configured ${provider} tunnel scopes and retries discovery without connecting`, async () => {
+			const sessions = new Map<string, AuthenticationSession>();
+			const calls: string[] = [];
+			const requested: { provider: string; scopes: readonly string[] }[] = [];
+			const service = createService((provider, scopes) => {
+				const session = sessions.get(provider);
+				return session && (!Array.isArray(scopes) || scopes.every(scope => session.scopes.includes(scope))) ? [session] : [];
+			}, new class extends mock<IChannel>() {
+				override async call<T>(command: string): Promise<T> {
+					calls.push(command);
+					assert.strictEqual(command, 'listTunnels');
+					return [] as T;
+				}
+			}(), {
+				onFactory: () => { },
+				tunnelApplicationConfig: {
+					authenticationProviders: { github: { scopes: ['user:email', 'read:org'] }, microsoft: { scopes: ['tunnel'] } },
+					editorWebUrl: '', extension: { extensionId: 'test', friendlyName: 'Test' },
+				},
+				createSession: async (provider, scopes) => {
+					requested.push({ provider, scopes });
+					const session = { id: provider, accessToken: 'token', scopes: [...scopes], account: { id: provider, label: provider } };
+					sessions.set(provider, session);
+					return session;
+				},
+			});
+			await assert.rejects(service.listTunnels({ silent: true, authProvider: provider }), TunnelAuthenticationRequiredError);
+			await service.signIn(provider);
+			await service.listTunnels({ silent: true });
+			assert.deepStrictEqual({ requested, calls }, {
+				requested: [{ provider, scopes: provider === 'github' ? ['user:email', 'read:org'] : ['tunnel'] }], calls: ['listTunnels'],
+			});
+		});
+	}
+
+	for (const error of [new CancellationError(), new Error('Cancelled'), 'Cancelled']) {
+		test(`normalizes GitHub cancellation (${typeof error === 'string' ? 'string' : error.name})`, async () => {
+			const service = createService(() => [], undefined, {
+				onFactory: () => { },
+				createSession: async () => { throw error; },
+			});
+			await assert.rejects(service.signIn('github'), isCancellationError);
+		});
+	}
+
+	test('does not interpret another provider error as GitHub cancellation', async () => {
+		const error = new Error('Cancelled');
+		const service = createService(() => [], undefined, {
+			onFactory: () => { },
+			createSession: async () => { throw error; },
+		});
+		await assert.rejects(service.signIn('microsoft'), actual => actual === error && !isCancellationError(actual));
+	});
+
+	test('sign-in propagates cancellation and failures and respects the remote-host gate', async () => {
+		const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		let error: Error = new CancellationError();
+		let calls = 0;
+		const service = createService(() => [], undefined, {
+			onFactory: () => { }, configurationService,
+			createSession: async () => { calls++; throw error; },
+		});
+		await assert.rejects(service.signIn('github'), error);
+		error = new Error('Authentication failed');
+		await assert.rejects(service.signIn('github'), error);
+		await configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
+		await assert.rejects(service.signIn('github'), /disabled/);
+		assert.strictEqual(calls, 2);
 	});
 
 	test('uses the explicit provider for listing, deletion and refresh after another provider was cached', async () => {
@@ -121,7 +295,7 @@ suite('TunnelAgentHostService discovery', () => {
 			: []);
 		await service.getAuthProvider({ silent: true });
 
-		await assert.rejects(service.listTunnels({ silent: true, authProvider: 'github' }), /No authentication is available to enumerate tunnels/);
+		await assert.rejects(service.listTunnels({ silent: true, authProvider: 'github' }), error => error instanceof TunnelAuthenticationRequiredError && error.authProvider === 'github');
 	});
 });
 

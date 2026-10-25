@@ -3,13 +3,16 @@ parameters:
     type: string
   - name: VSCODE_SCHEDULEDBUILD
     type: boolean
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-windows-2022-x64
 
 jobs:
   - job: PublishBuild
     displayName: Publish Build
     timeoutInMinutes: 180
     pool:
-      name: 1es-windows-2022-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: windows
     variables:
       - name: BUILDS_API_URL

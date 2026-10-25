@@ -38,13 +38,16 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from './feedbackInputWidget.js';
+import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from '../../../../workbench/browser/feedbackInputWidget.js';
 import { ICodeReviewService, IPRReviewCommentTarget } from '../../codeReview/browser/codeReviewService.js';
 import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
 const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
+// Editors embedded in the Customizations editor inherit its context key; feedback is not offered there.
+const agentFeedbackEnabledForEditor = ContextKeyExpr.and(ChatContextKeys.enabled, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.negate());
 export const AGENTS_WINDOW_PR_COMMENTS_SETTING = 'chat.experimental.agentsWindowPRComments';
 
 /**
@@ -464,7 +467,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getPlaceholder(): string {
 		const model = this._editor.getModel();
-		const hasChanges = !!model && (this._agentFeedbackService.getSessionForFile(model.uri)?.changes.get().length ?? 0) > 0;
+		const session = model ? this._agentFeedbackService.getSessionForFile(model.uri) : undefined;
+		const hasChanges = !!session && this._agentFeedbackService.getChatChanges(session.resource).length > 0;
 		return hasChanges
 			? localize('agentFeedback.addFeedback', "Add Feedback")
 			: localize('agentFeedback.addComment', "Add Comment");
@@ -610,7 +614,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				getMenuClassName: () => 'agent-feedback-comment-target-menu',
-				autoSelectFirstItem: true,
+				autoSelectItem: true,
 				onHide: didCancel => {
 					if (didCancel) {
 						resolve(undefined);
@@ -641,7 +645,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getSessionForModel(): URI | undefined {
 		const model = this._editor.getModel();
-		if (!model || !this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
+		if (!model || !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)) {
 			this._hasAgentFeedbackSessionContext.set(false);
 			this._sessionResource = undefined;
 			return undefined;

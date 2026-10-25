@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { distinct } from '../../../../base/common/arrays.js';
 import { autorun, derived, derivedOpts, IReader, IReaderWithStore } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -11,13 +12,16 @@ import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { getGitHubPullRequestRefs, ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubPullRequestState } from '../common/types.js';
+import { getSessionGitHubReferences } from '../common/sessionGitHubReferences.js';
+import { getPullRequestKey } from '../common/utils.js';
 import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING } from '../common/sessionLifecycleSettings.js';
-import { GitHubService, IGitHubService } from './githubService.js';
+import { GitHubService, IGitHubService, isGitHubReferenceSupported } from './githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from './pullRequestIconCache.js';
+import { PullRequestChangesMultiDiffSourceResolver } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 import './pullRequestActions.js';
 import './createSessionFromPullRequestAction.js';
@@ -90,7 +94,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			}
 
 			const model = this._gitHubService.activeSessionPullRequestObs.read(reader);
-			model?.refresh();
+			model?.refresh({ priority: 'visible' });
 		}));
 
 		// Pull request CI model
@@ -105,7 +109,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				return;
 			}
 
-			model.refresh();
+			model.refresh(false, { priority: 'visible' });
 			reader.store.add(model.startPolling());
 		}));
 
@@ -121,7 +125,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				return;
 			}
 
-			model.refresh();
+			model.refresh(false, { priority: 'visible' });
 			reader.store.add(model.startPolling());
 		}));
 
@@ -174,6 +178,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	private _hasSamePollingSource(first: ISession, second: ISession): boolean {
 		return isEqual(first.resource, second.resource)
 			&& first.workspace === second.workspace
+			&& first.artifacts === second.artifacts
 			&& first.isArchived === second.isArchived;
 	}
 
@@ -207,25 +212,24 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 					return { kind: 'archived' };
 				}
 
-				const workspace = session.workspace.read(reader);
-				if (!workspace) {
-					return { kind: 'no-workspace' };
-				}
-
-				const gitRepository = workspace.folders[0]?.gitRepository;
-				if (!gitRepository) {
-					return { kind: 'no-git-repository' };
-				}
-
-				const gitHubInfo = gitRepository.gitHubInfo.read(reader);
-				const pullRequests = getGitHubPullRequestRefs(gitHubInfo);
+				const pullRequests = getSessionGitHubReferences(session, reader).pullRequests.filter(ref => isGitHubReferenceSupported(ref.uri, this._gitHubService.enterpriseHost));
 				if (pullRequests.length === 0) {
+					const workspace = session.workspace.read(reader);
+					if (!workspace) {
+						return { kind: 'no-workspace' };
+					}
+					if (!workspace.folders[0]?.gitRepository) {
+						return { kind: 'no-git-repository' };
+					}
 					return { kind: 'no-pull-request' };
 				}
 
 				return {
 					kind: 'ok',
-					pullRequests: pullRequests.map(({ owner, repo, number: prNumber }) => ({ owner, repo, prNumber })),
+					pullRequests: distinct(
+						pullRequests.map(({ owner, repo, number: prNumber }) => ({ owner, repo, prNumber })),
+						ref => getPullRequestKey(ref.owner, ref.repo, ref.prNumber).toLowerCase(),
+					),
 				};
 			});
 
@@ -255,7 +259,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		// Fetch once so we learn the PR state and can render the title and icon —
 		// even for a merged PR that won't keep polling.
-		model.refresh();
+		model.refresh({ priority: 'background' });
 
 		// Gate the repeating poll loop on a stable boolean so poll results (which
 		// update `pullRequest`) don't toggle the loop on every refresh.
@@ -288,7 +292,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting CI polling for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
 
 			const ciModelRef = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(owner, repo, prNumber, prDetails.headSha));
-			ciModelRef.object.refresh();
+			ciModelRef.object.refresh(false, { priority: 'background' });
 
 			if (prDetails.isDraft) {
 				const shouldPollDraftCiObs = derived(this, pollReader => this._isActiveSession(session, pollReader));
@@ -297,7 +301,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 						return;
 					}
 					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} activated; refreshing and polling draft CI for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
-					ciModelRef.object.refresh();
+					ciModelRef.object.refresh(false, { priority: 'visible' });
 					pollReader.store.add(ciModelRef.object.startPolling());
 				}));
 			} else {
@@ -310,7 +314,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting review-thread polling for ${owner}/${repo}#${prNumber}`);
 			const reviewThreadsModelRef = statusReader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, prNumber));
-			reviewThreadsModelRef.object.refresh();
+			reviewThreadsModelRef.object.refresh(false, { priority: 'background' });
 			statusReader.store.add(reviewThreadsModelRef.object.startPolling());
 		}));
 
@@ -327,6 +331,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 }
 
 registerWorkbenchContribution2(GitHubPullRequestPollingContribution.ID, GitHubPullRequestPollingContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(PullRequestChangesMultiDiffSourceResolver.ID, PullRequestChangesMultiDiffSourceResolver, WorkbenchPhase.BlockRestore);
 
 registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
 

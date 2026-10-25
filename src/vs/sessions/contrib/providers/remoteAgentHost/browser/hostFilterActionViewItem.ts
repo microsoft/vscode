@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/hostFilter.css';
-import '../../../../browser/media/sidebarActionButton.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -13,7 +12,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { Action, IAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -139,7 +138,15 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._renderDiagnosticsButton(this.element);
 	}
 
-	/** Renders the full-width sidebar variant with a separate connection indicator. */
+	/**
+	 * Sidebar appearance — full-width row matching the Customizations links
+	 * (`CustomizationLinkViewItem`). Same Monaco `Button` shell, same
+	 * `.sidebar-action-button` styling, same `supportIcons` label rendering.
+	 * The trailing connect indicator is rendered alongside the picker
+	 * button as a sibling control, so the row visually mirrors the
+	 * Customizations rows in the toolbar above without making the
+	 * indicator part of the picker label.
+	 */
 	private _renderSidebar(): void {
 		if (!this.element) {
 			return;
@@ -147,10 +154,11 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 
 		this.element.classList.add('sidebar-action');
 
-		// Drive the button content manually (rather than via `Button.label`)
+		// Picker button — same shell as `CustomizationLinkViewItem`. We
+		// drive the button content manually (rather than via `Button.label`)
 		// so the host name span can `flex: 1` and push the chevron all
 		// the way to the trailing edge.
-		const buttonContainer = dom.append(this.element, dom.$('.agent-host-filter-button-container'));
+		const buttonContainer = dom.append(this.element, dom.$('.customization-link-button-container'));
 		this._sidebarButton = this._register(new Button(buttonContainer, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -247,10 +255,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	protected _isInteractive(): boolean {
-		// Interactive when there is something to do: pick from a menu (2+
-		// entries) or trigger re-discovery (no host to connect to). A lone
-		// connectable host is a static label.
-		return this._filterService.hosts.length > 1 || this._canRetry();
+		return true;
 	}
 
 	/**
@@ -285,7 +290,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		const hosts = this._filterService.hosts;
 		const selected = this._filterService.selectedHost;
 
-		const hasMenu = hosts.length > 1;
+		const hasMenu = !this._retriesOnClick();
 		// What clicking actually does. The affordances below follow this, not
 		// host connectability: with 2+ entries the click opens the menu even when none
 		// of them is connectable.
@@ -316,7 +321,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		}
 
 		// Leading icon follows the selection, so a grouped entry can carry its
-		// own identity (GitHub Sandboxes shows a package, not a remote plug).
+		// own identity (the Cloud group shows a cloud, not a remote plug).
 		this._renderLeadingIcon(selected?.icon ?? Codicon.remote);
 
 		this.element.classList.toggle('single-host', !interactive);
@@ -471,10 +476,6 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		const hosts = this._filterService.hosts;
-		if (hosts.length <= 1) {
-			return;
-		}
-
 		const selectedId = this._filterService.selectedHostId;
 
 		const actions: IAction[] = [];
@@ -485,14 +486,32 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 				: host.status === AgentHostFilterConnectionStatus.Connecting
 					? localize('agentHostFilter.hostConnecting', "{0} (connecting…)", host.label)
 					: localize('agentHostFilter.hostDisconnected', "{0} (disconnected)", host.label);
-			actions.push(new Action(
-				`agentHostFilter.host.${host.id}`,
+			actions.push(toAction({
+				id: `agentHostFilter.host.${host.id}`,
 				label,
-				selectedId === host.id ? 'codicon codicon-check' : undefined,
-				true,
-				async () => this._filterService.setSelectedHostId(host.id),
-			));
+				tooltip: host.description ?? '',
+				class: selectedId === host.id ? 'codicon codicon-check' : undefined,
+				run: () => this._filterService.setSelectedHostId(host.id),
+			}));
 		}
+		const selected = this._filterService.selectedHost;
+		if (selected?.connectable) {
+			const connected = selected.status === AgentHostFilterConnectionStatus.Connected;
+			actions.push(new Separator(), toAction({
+				id: 'agentHostFilter.connection',
+				label: connected
+					? localize('agentHostFilter.disconnect', "Disconnect")
+					: localize('agentHostFilter.connect', "Connect"),
+				enabled: selected.status !== AgentHostFilterConnectionStatus.Connecting,
+				run: () => connected ? this._filterService.disconnect(selected.id) : this._filterService.reconnect(selected.id),
+			}));
+		}
+		actions.push(new Separator(), toAction({
+			id: 'agentHostFilter.rediscover',
+			label: localize('agentHostFilter.rediscover', "Re-discover Hosts"),
+			enabled: !this._filterService.isDiscovering,
+			run: () => this._filterService.rediscover(),
+		}));
 
 		const anchor = dom.isMouseEvent(e)
 			? new StandardMouseEvent(dom.getWindow(this._dropdownElement), e)

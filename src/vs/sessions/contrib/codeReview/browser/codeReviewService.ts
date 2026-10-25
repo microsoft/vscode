@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
@@ -15,7 +16,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IGitHubPullRequestReview } from '../../github/common/types.js';
-import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -217,7 +218,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			if (!activeSession) {
 				return undefined;
 			}
-			const workspace = activeSession.workspace.read(reader);
+			const workspace = activeSession.activeChat.read(reader).workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			return {
 				sessionResource: activeSession.resource,
@@ -230,7 +231,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const context = activeReviewContext.read(reader);
 			for (const pullRequest of context?.pullRequests ?? []) {
 				const reviewThreadsRef = reader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
-				void reviewThreadsRef.object.refresh();
+				void reviewThreadsRef.object.refresh(false, { priority: 'visible' });
 				reader.store.add(reviewThreadsRef.object.startPolling());
 			}
 		}));
@@ -310,15 +311,16 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	private _getPRReviewCommentContext(sessionResource: URI, resource: URI): IPRReviewCommentContext | undefined {
-		const session = this._sessionsManagementService.getSession(sessionResource);
-		const workspace = session?.workspace.get();
+		const chat = this._getFocusedChat(sessionResource);
+		const workspace = chat?.workspace.get();
 		const pullRequestContent = parsePRContentUri(resource);
 		if (pullRequestContent) {
 			const pullRequests = workspace?.folders
 				.flatMap(folder => getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get()))
 				.filter(pullRequest =>
-					pullRequest.owner === pullRequestContent.owner
-					&& pullRequest.repo === pullRequestContent.repo
+					// GitHub owner and repository names are case-insensitive, and pull request changes editors lowercase them.
+					equalsIgnoreCase(pullRequest.owner, pullRequestContent.owner)
+					&& equalsIgnoreCase(pullRequest.repo, pullRequestContent.repo)
 					&& pullRequest.number === pullRequestContent.prNumber
 				) ?? [];
 			return {
@@ -326,7 +328,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				pullRequests,
 			};
 		}
-		const workspaceResource = this._resolveWorkspaceResource(resource, session?.changes.get());
+		const workspaceResource = this._resolveWorkspaceResource(resource, chat?.changes.get());
 		const folder = workspace?.folders.find(folder => isEqualOrParent(workspaceResource, folder.workingDirectory));
 		const path = folder ? relativePath(folder.workingDirectory, workspaceResource) : undefined;
 		if (!folder || !path) {
@@ -341,6 +343,14 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					return state === undefined || state === 'open';
 				}),
 		};
+	}
+
+	private _getFocusedChat(sessionResource: URI): IChat | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
+			return activeSession.activeChat.get();
+		}
+		return this._sessionsManagementService.getSession(sessionResource)?.mainChat.get();
 	}
 
 	async getPRReviewCommentTargets(
@@ -431,8 +441,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	async resolvePRReviewThread(sessionResource: URI, threadId: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<void> {
-		const session = this._sessionsManagementService.getSession(sessionResource);
-		const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+		const gitHubInfo = this._getFocusedChat(sessionResource)?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		const state = this._prReviewBySession.get(sessionResource.toString())?.state.get();
 		const source = pullRequest
 			?? (state?.kind === PRReviewStateKind.Loaded ? state.comments.find(comment => comment.id === threadId)?.pullRequest : undefined)

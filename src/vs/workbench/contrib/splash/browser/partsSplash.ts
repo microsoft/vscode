@@ -9,7 +9,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { getThemeTypeSelector, IPartsSplashPartBounds, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getThemeTypeSelector, IPartsSplashPartBounds } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
 import * as themes from '../../../common/theme.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
@@ -22,6 +22,7 @@ import { ISplashStorageService } from './splash.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { TitleBarSetting } from '../../../../platform/window/common/window.js';
+import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 
 export class PartsSplash {
 
@@ -34,7 +35,7 @@ export class PartsSplash {
 	private _didChangeTitleBarStyle?: boolean;
 
 	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
@@ -69,7 +70,7 @@ export class PartsSplash {
 	}
 
 	private _savePartsSplash() {
-		const theme = this._themeService.getColorTheme();
+		const theme = this._themeService.getBaseColorTheme();
 		const modernUIShellBackground = theme.getColor(themes.MODERN_UI_SHELL_BACKGROUND);
 		const modernUIInactiveShellBackground = theme.getColor(themes.MODERN_UI_INACTIVE_SHELL_BACKGROUND);
 

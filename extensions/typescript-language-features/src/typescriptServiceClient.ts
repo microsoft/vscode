@@ -32,6 +32,7 @@ import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceCli
 import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
 import { createGenerationGuardedHandler } from './utils/generation';
 import { hash } from './utils/hash';
+import { getSafeNotificationMessage } from './utils/notification';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 
 
@@ -395,7 +396,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		let version = this._versionManager.currentVersion;
 		if (!version.isValid) {
-			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn't point to a valid tsserver install. Falling back to bundled TypeScript version.", version.path));
+			vscode.window.showWarningMessage(getSafeNotificationMessage(
+				vscode.l10n.t("The path {0} doesn't point to a valid tsserver install. Falling back to bundled TypeScript version.", version.path),
+				vscode.l10n.t("The configured path doesn't point to a valid tsserver install. Falling back to bundled TypeScript version."),
+			));
 
 			this._versionManager.reset();
 			version = this._versionManager.currentVersion;
@@ -458,7 +462,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 
 			if (err) {
-				vscode.window.showErrorMessage(vscode.l10n.t("TypeScript language server exited with error. Error message is: {0}", err.message || err.name));
+				vscode.window.showErrorMessage(getSafeNotificationMessage(
+					vscode.l10n.t("TypeScript language server exited with error. Error message is: {0}", err.message || err.name),
+					vscode.l10n.t("TypeScript language server exited with an error. Check the TypeScript output for details."),
+				));
 			}
 
 			this.serverState = new ServerState.Errored(err, handle.tsServerLog);
@@ -1283,7 +1290,10 @@ class ServerInitializingIndicator extends Disposable {
 
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
-			title: vscode.l10n.t("Initializing '{0}'", projectDisplayName),
+			title: getSafeNotificationMessage(
+				vscode.l10n.t("Initializing '{0}'", projectDisplayName),
+				vscode.l10n.t("Initializing project"),
+			),
 		}, () => new Promise<void>(resolve => {
 			this._task = { project: projectName, resolve };
 		}));
@@ -1305,7 +1315,10 @@ class ServerInitializingIndicator extends Disposable {
 		if (!this._task) {
 			vscode.window.withProgress({
 				location: vscode.ProgressLocation.Window,
-				title: vscode.l10n.t("Analyzing '{0}' and its dependencies", path.basename(fileName)),
+				title: getSafeNotificationMessage(
+					vscode.l10n.t("Analyzing '{0}' and its dependencies", path.basename(fileName)),
+					vscode.l10n.t("Analyzing file and its dependencies"),
+				),
 			}, () => task);
 		}
 	}

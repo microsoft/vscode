@@ -41,6 +41,7 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsSubagents: false,
 	planModeStyle: 'input-request',
 	supportsMultipleChats: true,
+	supportsInitialTitle: true,
 	supportsMultipleChatsE2E: true,
 	supportsWorkspacelessE2E: true,
 	supportsRuntimeSlashCommandsE2E: true,
@@ -53,6 +54,8 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsChatForkE2E: true,
 	supportsSideChats: true,
 	supportsSideChatsE2E: true,
-	shellToolReplayUnstableOnLinux: true,
 	shellToolResultTextUnreliable: true,
+	// The recorded file-creation `exec_command` turn completes on Windows without
+	// the created file being present (see KNOWN_ISSUES.md).
+	fileCreateReplayUnstableOnWindows: true,
 };

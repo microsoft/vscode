@@ -83,19 +83,39 @@ const targetArtifacts: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The VS Code process logs that {@link TestContext.captureLogs} copies, most useful first. Extension
+ * output logs are left out, since they are not needed to diagnose the workbench and may contain
+ * more varied content.
+ */
+const capturedLogNames: readonly string[] = [
+	'main.log',
+	'sharedprocess.log',
+	'renderer.log',
+	'exthost.log',
+	'ptyhost.log',
+	'agenthost.log',
+	'network-shared.log',
+	'network.log',
+];
+
+const capturedLogRanks: ReadonlyMap<string, number> = new Map(capturedLogNames.map((name, rank) => [name, rank]));
+
+/** How much of each captured log file {@link TestContext.captureLogs} keeps, from its end. */
+const maxCapturedLogFileBytes = 2 * 1024 * 1024;
+
+/** How many bytes of logs {@link TestContext.captureLogs} copies at most per capture. */
+const maxCapturedLogBytes = 10 * 1024 * 1024;
+
+/**
  * Provides context and utilities for VS Code sanity tests.
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
-	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
-	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
 	private static readonly authenticodeTestCertificate = /Code Sign Test \(DO NOT TRUST\)/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	// Electron helpers (dxil/ffmpeg) and Copilot-vendored MSAL runtime DLLs ship VersionInfo that
 	// FileVersionInfo cannot resolve to a ProductName (x64: msalruntime.dll, arm64: msalruntime_arm64.dll).
 	private static readonly versionInfoFileExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime(_arm64)?\.dll)$/i;
-	// MXC SDK binaries under bin are signed, but they do not carry a ProductName VersionInfo resource.
-	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/]/i;
 	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
@@ -117,6 +137,7 @@ export class TestContext {
 		screenshotsDir: string | undefined;
 		crashDumpsDir: string | undefined;
 		artifactsDir: string | undefined;
+		setuidSandbox: boolean;
 	}>) {
 	}
 
@@ -552,11 +573,7 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectAuthenticodeFiles(filePath, files);
 			} else if (TestContext.authenticodeInclude.test(entry.name)) {
-				if (TestContext.authenticodeExclude.test(filePath)) {
-					this.log(`Skipping excluded file from Authenticode validation: ${filePath}`);
-				} else {
-					files.push(filePath);
-				}
+				files.push(filePath);
 			}
 		}
 	}
@@ -589,7 +606,7 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectVersionInfoFiles(filePath, files);
 			} else if (TestContext.versionInfoInclude.test(entry.name)) {
-				if (TestContext.versionInfoFileExclude.test(entry.name) || TestContext.versionInfoPathExclude.test(filePath)) {
+				if (TestContext.versionInfoFileExclude.test(entry.name)) {
 					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
 				} else {
 					files.push(filePath);
@@ -686,7 +703,59 @@ export class TestContext {
 		}
 
 		if (notaryResult.status !== 0) {
-			this.error(`Notarization is not valid for ${filePath}: ${notaryResult.stderr}`);
+			// Loose Mach-O files cannot carry a stapled ticket, so Gatekeeper must look the ticket up online and
+			// intermittently reports notarized binaries as unnotarized. Confirm such verdicts with Apple's ticket service.
+			const ticketCdhash = /source=Unnotarized Developer ID/.test(notaryResult.stderr) ? this.findNotarizationTicket(filePath) : undefined;
+			if (!ticketCdhash) {
+				this.error(`Notarization is not valid for ${filePath}: ${notaryResult.stderr}`);
+			}
+
+			this.warn(`Gatekeeper reported ${filePath} as unnotarized, but Apple's ticket service has its notarization ticket (cdhash ${ticketCdhash})`);
+		}
+	}
+
+	/**
+	 * Checks whether Apple's notarization ticket service, which Gatekeeper queries for files without a stapled
+	 * ticket, has a ticket for the SHA-256 code directory hash of the specified file.
+	 * @param filePath The path to the signed file.
+	 * @returns The code directory hash whose ticket was found, or undefined if no ticket was confirmed.
+	 */
+	private findNotarizationTicket(filePath: string): string | undefined {
+		const signature = this.run('codesign', '--display', '--verbose=4', filePath);
+		if (signature.error !== undefined || signature.status !== 0) {
+			this.log(`Failed to read the code signature of ${filePath} (exit code ${signature.status}): ${signature.error?.message ?? signature.stderr}`);
+			return undefined;
+		}
+
+		const details = signature.stderr ?? '';
+		const cdhash = (/^CandidateCDHash sha256=([0-9a-f]{40})$/im.exec(details)?.[1]
+			?? (/^Hash type=sha256 /m.test(details) ? /^CDHash=([0-9a-f]{40})$/im.exec(details)?.[1] : undefined))?.toLowerCase();
+		if (!cdhash) {
+			this.log(`Could not determine the SHA-256 code directory hash of ${filePath}: ${signature.stderr}`);
+			return undefined;
+		}
+
+		const body = JSON.stringify({ records: [{ recordName: `2/2/${cdhash}` }] });
+		// curl truncates an --output file before each retry, unlike stdout, so a retried response is never concatenated.
+		const responsePath = path.join(this.createTempDir(), 'ticket.json');
+		const lookup = this.run(
+			'curl', '-fsS', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '--retry-max-time', '60', '--max-time', '30',
+			'-H', 'Content-Type: application/json', '-d', body, '--output', responsePath,
+			'https://api.apple-cloudkit.com/database/1/com.apple.gk.ticket-delivery/production/public/records/lookup'
+		);
+		if (lookup.error !== undefined || lookup.status !== 0) {
+			this.log(`Notarization ticket lookup failed for ${cdhash}: ${lookup.error?.message ?? lookup.stderr}`);
+			return undefined;
+		}
+
+		try {
+			const record = JSON.parse(fs.readFileSync(responsePath, 'utf-8')).records?.[0];
+			const found = typeof record?.fields?.signedTicket?.value === 'string';
+			this.log(`Notarization ticket for ${cdhash}: ${found ? 'found' : record?.serverErrorCode ?? 'missing'}`);
+			return found ? cdhash : undefined;
+		} catch (error) {
+			this.log(`Could not parse notarization ticket lookup for ${cdhash}: ${error}`);
+			return undefined;
 		}
 	}
 
@@ -800,7 +869,9 @@ export class TestContext {
 	 */
 	public run(command: string, ...args: string[]): SpawnSyncReturns<string> {
 		this.log(`Running command: ${command} ${args.join(' ')}`);
-		return spawnSync(command, args, { encoding: 'utf-8' }) as SpawnSyncReturns<string>;
+		// A hung synchronous wsl call would block the event loop, so Mocha could never time out the test.
+		const timeout = command === 'wsl' ? 5 * 60 * 1000 : undefined;
+		return spawnSync(command, args, { encoding: 'utf-8', timeout }) as SpawnSyncReturns<string>;
 	}
 
 	/**
@@ -1385,6 +1456,88 @@ export class TestContext {
 	}
 
 	/**
+	 * Copies VS Code's own process logs ({@link capturedLogNames}) from `logsDir` into the screenshots
+	 * directory, so they are uploaded with the screenshots. Extension output logs are not copied. Overwrites an
+	 * earlier copy for the same test. Each file keeps at most its last `maxFileBytes` bytes, and
+	 * copying stops once `maxTotalBytes` are copied.
+	 */
+	public captureLogs(logsDir: string, maxFileBytes = maxCapturedLogFileBytes, maxTotalBytes = maxCapturedLogBytes) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			if (!fs.existsSync(logsDir)) {
+				this.warn(`No logs to capture in ${logsDir}`);
+				return;
+			}
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const targetDir = path.join(screenshotDir, `${sanitizedName}-logs`);
+			fs.rmSync(targetDir, { recursive: true, force: true });
+
+			// Collect first, then copy in allowlist order (most useful logs first), so the size cap is deterministic.
+			const sources: string[] = [];
+			const pending = [logsDir];
+			for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
+				for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+					// Dirent types do not follow symlinks, so a symlink is neither a directory nor a file here and is skipped.
+					const source = path.join(dir, entry.name);
+					if (entry.isDirectory()) {
+						pending.push(source);
+					} else if (entry.isFile() && capturedLogRanks.has(entry.name)) {
+						sources.push(source);
+					}
+				}
+			}
+			sources.sort((a, b) => capturedLogRanks.get(path.basename(a))! - capturedLogRanks.get(path.basename(b))! || a.localeCompare(b));
+
+			let totalBytes = 0;
+			let fileCount = 0;
+			for (const source of sources) {
+				const size = fs.statSync(source).size;
+				if (size === 0) {
+					continue;
+				}
+				if (totalBytes >= maxTotalBytes) {
+					this.warn(`Stopped capturing logs after ${totalBytes} bytes`);
+					break;
+				}
+				const bytes = Math.min(size, maxFileBytes, maxTotalBytes - totalBytes);
+				const buffer = Buffer.alloc(bytes);
+				let bytesRead = 0;
+				const fd = fs.openSync(source, 'r');
+				try {
+					while (bytesRead < bytes) {
+						const read = fs.readSync(fd, buffer, bytesRead, bytes - bytesRead, size - bytes + bytesRead);
+						if (read === 0) {
+							break;
+						}
+						bytesRead += read;
+					}
+				} finally {
+					fs.closeSync(fd);
+				}
+				if (bytesRead === 0) {
+					continue;
+				}
+				const target = path.join(targetDir, path.relative(logsDir, source));
+				fs.mkdirSync(path.dirname(target), { recursive: true });
+				fs.writeFileSync(target, buffer.subarray(0, bytesRead));
+				totalBytes += bytesRead;
+				fileCount++;
+			}
+			if (fileCount === 0) {
+				this.log(`No non-empty log files to capture in ${logsDir}`);
+			} else {
+				this.log(`Captured ${fileCount} log files (${totalBytes} bytes) to: ${targetDir}`);
+			}
+		} catch (e) {
+			this.warn(`Failed to capture logs: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
 	 * Constructs a web server URL with optional token and folder parameters.
 	 * @param port The port number of the web server.
 	 * @param token The optional authentication token.
@@ -1519,7 +1672,10 @@ export class TestContext {
 	}
 
 	private isNonFatalCliStderr(text: string): boolean {
-		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+		// Extension download retry warnings are expected; if all retries fail, the UI test still fails.
+		text = text.replace(/^.*Failed downloading (?:vsix|sigzip)\. .*Retry again\.\.\..*$/gm, '').trim();
+		return !text
+			|| /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
 			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }

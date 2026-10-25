@@ -8,12 +8,16 @@ import { IAction } from '../../../base/common/actions.js';
 import { Event } from '../../../base/common/event.js';
 import BaseSeverity from '../../../base/common/severity.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { LegacyExtensionLinkParsing } from './notificationLegacy.js';
+import { NotificationText } from './notificationMessage.js';
+import type { NotificationTelemetry, NotificationActionTelemetryId } from './notificationTelemetry.js';
 
 export import Severity = BaseSeverity;
 
 export const INotificationService = createDecorator<INotificationService>('notificationService');
 
-export type NotificationMessage = string | Error;
+/** Strings and errors are literal text. Use `NotificationText` for explicitly authored links. */
+export type NotificationMessage = string | Error | NotificationText;
 
 export enum NotificationPriority {
 
@@ -39,6 +43,14 @@ export enum NotificationPriority {
 }
 
 export interface INotificationProperties {
+
+	/** Audited telemetry attribution, independent of the message, display source, and deduplication ID. */
+	readonly telemetry?: NotificationTelemetry;
+
+	/**
+	 * Preserves link parsing for extension API messages. Core callers must use literal text or `NotificationText`.
+	 */
+	readonly legacyExtensionLinkParsing?: LegacyExtensionLinkParsing;
 
 	/**
 	 * Sticky notifications are not automatically removed after a certain timeout.
@@ -140,8 +152,8 @@ export interface INotification extends INotificationProperties {
 	readonly severity: Severity;
 
 	/**
-	 * The message of the notification. This can either be a `string` or `Error`. Messages
-	 * can optionally include links in the format: `[text](link)`
+	 * The message of the notification. Strings and errors are rendered literally;
+	 * `NotificationText` preserves literal text alongside explicitly authored links.
 	 */
 	readonly message: NotificationMessage;
 
@@ -231,6 +243,8 @@ export interface INotificationProgress {
 }
 
 export interface INotificationHandle {
+	/** Current visibility, when supported, including a toast shown before listeners attach. */
+	readonly visible?: boolean;
 
 	/**
 	 * Will be fired once the notification is closed.
@@ -282,6 +296,9 @@ export interface IStatusHandle {
 }
 
 interface IBasePromptChoice {
+
+	/** Optional audited semantic action ID; never derive this from the label or command arguments. */
+	readonly telemetryId?: NotificationActionTelemetryId;
 
 	/**
 	 * Label to show for the choice to the user.
@@ -440,7 +457,7 @@ export interface INotificationService {
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.
 	 */
-	prompt(severity: Severity, message: string, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: IPromptOptions): INotificationHandle;
+	prompt(severity: Severity, message: NotificationMessage, choices: (IPromptChoice | IPromptChoiceWithMenu)[], options?: IPromptOptions): INotificationHandle;
 
 	/**
 	 * Shows a status message in the status area with the provided text.

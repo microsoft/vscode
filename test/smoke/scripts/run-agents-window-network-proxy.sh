@@ -38,6 +38,9 @@ KERBEROS_KEYTAB="FILE:$TEMP_ROOT/proxy.keytab"
 KERBEROS_REALM="VSCODE.PROXY.TEST"
 KERBEROS_USERNAME="PlaceholderUsername"
 KERBEROS_PASSWORD="Placeholder"
+TLS_CA="$TEMP_ROOT/ca.pem"
+TLS_CERT="$TEMP_ROOT/server.pem"
+TLS_KEY="$TEMP_ROOT/server.key"
 
 pac_pid=""
 squid_pid=""
@@ -134,6 +137,31 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 		echo "Port $KDC_PORT must be available for the Kerberos KDC" >&2
 		exit 1
 	fi
+	cat > "$TEMP_ROOT/tls.cnf" <<EOF
+[req]
+distinguished_name = dn
+prompt = no
+
+[dn]
+CN = $MOCK_HOST
+
+[ca]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+
+[server]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = DNS:$MOCK_HOST,DNS:localhost,IP:127.0.0.1
+EOF
+	openssl req -x509 -newkey rsa:2048 -nodes -days 1 -sha256 \
+		-config "$TEMP_ROOT/tls.cnf" -extensions ca -subj "/CN=VSCode Smoke Test CA" \
+		-keyout "$TEMP_ROOT/ca.key" -out "$TLS_CA"
+	openssl req -new -newkey rsa:2048 -nodes -sha256 -config "$TEMP_ROOT/tls.cnf" \
+		-keyout "$TLS_KEY" -out "$TEMP_ROOT/server.csr"
+	openssl x509 -req -in "$TEMP_ROOT/server.csr" -CA "$TLS_CA" -CAkey "$TEMP_ROOT/ca.key" \
+		-CAcreateserial -days 1 -sha256 -extfile "$TEMP_ROOT/tls.cnf" -extensions server -out "$TLS_CERT"
 
 	cat > "$KERBEROS_CONFIG" <<EOF
 [libdefaults]
@@ -206,10 +234,7 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 auth_param negotiate program $NODE_BIN $ROOT/test/smoke/out/networkProxy/negotiateAuthHelper.js $KERBEROS_AUTH_LOG
 auth_param negotiate children 5
 auth_param negotiate keep_alive on
-acl connect method CONNECT
-acl smoke_mock url_regex ^http://$MOCK_HOST:
 acl authenticated proxy_auth REQUIRED
-http_access allow smoke_mock !connect
 http_access allow authenticated
 http_access deny all
 EOF
@@ -301,6 +326,11 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 	restricted_env+=(
 		"KRB5_CONFIG=$KERBEROS_CONFIG"
 		"KRB5CCNAME=$KERBEROS_CACHE"
+		"COPILOT_PROXY_KERBEROS_SPN=HTTP/localhost"
+		"NODE_EXTRA_CA_CERTS=$TLS_CA"
+		"SSL_CERT_FILE=$TLS_CA"
+		"VSCODE_SMOKE_TEST_MOCK_CERT=$TLS_CERT"
+		"VSCODE_SMOKE_TEST_MOCK_KEY=$TLS_KEY"
 	)
 fi
 for name in BUILD_ARTIFACTSTAGINGDIRECTORY CI GITHUB_ACTIONS GITHUB_RUN_ATTEMPT GITHUB_RUN_ID GITHUB_WORKSPACE RUNNER_TEMP TF_BUILD; do
@@ -334,8 +364,17 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 		echo "The Kerberos proxy accepted an unauthenticated request" >&2
 		exit 1
 	fi
+	if prompt_status="$(curl --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --request POST --output /dev/null --write-out '%{http_connect}' "https://$MOCK_HOST:44444/responses")"; then
+		echo "The Kerberos proxy accepted an unauthenticated model tunnel" >&2
+		exit 1
+	fi
+	if [[ "$prompt_status" != "407" ]]; then
+		echo "Expected HTTP 407 for an unauthenticated model request, got $prompt_status" >&2
+		exit 1
+	fi
 	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \
 		curl --fail --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --proxy-negotiate --proxy-user : "$PAC_URL" >/dev/null
+	kerberos_auth_requests_before_smoke="$(wc -l < "$KERBEROS_AUTH_LOG")"
 fi
 
 cd "$ROOT"
@@ -363,7 +402,7 @@ if ! grep -Fq "$MOCK_HOST" "$SQUID_ACCESS_LOG"; then
 	exit 1
 fi
 if [[ "$PROXY_AUTH" == "kerberos" ]]; then
-	if ! grep -Fq "$KERBEROS_USERNAME@$KERBEROS_REALM" "$KERBEROS_AUTH_LOG"; then
+	if ! awk -v before="$kerberos_auth_requests_before_smoke" -v user="$KERBEROS_USERNAME@$KERBEROS_REALM" 'NR > before && $0 == user { found=1 } END { exit !found }' "$KERBEROS_AUTH_LOG"; then
 		echo "Squid did not validate a Kerberos token from the Agents Window smoke test" >&2
 		exit 1
 	fi

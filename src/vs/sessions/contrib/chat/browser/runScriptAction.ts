@@ -32,7 +32,7 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { SessionWorkspaceIsVirtualContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
@@ -111,6 +111,7 @@ function getPrimaryTask(tasks: readonly ISessionTaskWithTarget[], pinnedTaskLabe
 
 interface IRunScriptActionContext {
 	readonly session: ISession;
+	readonly chat: IChat;
 	readonly tasks: readonly ISessionTaskWithTarget[];
 	readonly pinnedTaskLabel: string | undefined;
 	readonly browserUrl: string | undefined;
@@ -149,6 +150,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				if (a === b) { return true; }
 				if (!a || !b) { return false; }
 				return a.session === b.session
+					&& a.chat === b.chat
 					&& a.pinnedTaskLabel === b.pinnedTaskLabel
 					&& a.browserUrl === b.browserUrl
 					&& a.pinnedBrowser === b.pinnedBrowser
@@ -164,12 +166,13 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				return undefined;
 			}
 
-			const tasks = this._sessionsConfigService.getSessionTasks(activeSession).read(reader);
-			const folder = activeSession.workspace.read(reader)?.folders[0];
+			const activeChat = activeSession.activeChat.read(reader);
+			const tasks = this._sessionsConfigService.getSessionTasks(activeChat).read(reader);
+			const folder = activeChat.workspace.read(reader)?.folders[0];
 			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(folder?.root).read(reader);
 			const browserUrl = this._sessionsConfigService.getBrowserUrl(folder?.root).read(reader);
 			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(folder?.root).read(reader);
-			return { session: activeSession, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
+			return { session: activeSession, chat: activeChat, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
 		}).recomputeInitiallyAndOnChange(this._store);
 
 		this._registerActionViewItemProvider();
@@ -190,10 +193,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					action,
 					options,
 					that._activeRunState,
-					(session: ISession) => that._showConfigureQuickPick(session),
-					(session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
-					(session: ISession) => that._generateNewTask(session),
-					(session: ISession) => that._configureBrowserUrl(session),
+					(session: ISession, chat: IChat) => that._showConfigureQuickPick(session, chat),
+					(session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, chat, existingTask, mode),
+					(session: ISession, chat: IChat) => that._generateNewTask(session, chat),
+					(_session: ISession, chat: IChat) => that._configureBrowserUrl(chat),
 				);
 			},
 		));
@@ -221,16 +224,16 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 				logSessionsInteraction(that._telemetryService, 'runPrimaryTask');
 
-				const { tasks, session, pinnedBrowser, browserUrl } = activeState;
+				const { tasks, session, chat, pinnedBrowser, browserUrl } = activeState;
 				if (pinnedBrowser) {
 					await that._commandService.executeCommand('simpleBrowser.show', browserUrl);
 					return;
 				}
 
 				if (tasks.length === 0) {
-					const task = await that._showConfigureQuickPick(session);
+					const task = await that._showConfigureQuickPick(session, chat);
 					if (task) {
-						await that._sessionsConfigService.runTask(task, session);
+						await that._sessionsConfigService.runTask(task, session, chat);
 					}
 					return;
 				}
@@ -239,7 +242,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				if (!primaryTask) {
 					return;
 				}
-				await that._sessionsConfigService.runTask(primaryTask.task, session);
+				await that._sessionsConfigService.runTask(primaryTask.task, session, chat);
 			}
 		}));
 
@@ -249,8 +252,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				return;
 			}
 
-			const { session, tasks } = activeState;
-			const folder = session.workspace.read(reader)?.folders[0];
+			const { session, chat, tasks } = activeState;
+			const folder = chat.workspace.read(reader)?.folders[0];
 			const configureScriptPrecondition = folder?.workingDirectory ? ContextKeyExpr.true() : ContextKeyExpr.false();
 
 			reader.store.add(registerAction2(class extends Action2 {
@@ -271,9 +274,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 				async run(): Promise<void> {
 					logSessionsInteraction(that._telemetryService, 'addTask', 'menu');
-					const task = await that._showConfigureQuickPick(session);
+					const task = await that._showConfigureQuickPick(session, chat);
 					if (task) {
-						await that._sessionsConfigService.runTask(task, session);
+						await that._sessionsConfigService.runTask(task, session, chat);
 					}
 				}
 			}));
@@ -295,26 +298,26 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 				async run(): Promise<void> {
 					logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
-					await that._generateNewTask(session);
+					await that._generateNewTask(session, chat);
 				}
 			}));
 		}));
 	}
 
-	private async _generateNewTask(session: ISession): Promise<void> {
+	private async _generateNewTask(session: ISession, chat: IChat): Promise<void> {
 		const query = '/generate-run-commands';
-		// Prefer sending to the already-open chat widget for the session;
+		// Prefer sending to the already-open chat widget for the active chat;
 		// fall back to sendRequest for untitled sessions or when no widget is loaded.
-		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.get().resource);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chat.resource);
 		if (widget) {
 			await widget.acceptInput(query);
 		} else {
-			await this._sessionManagementService.sendNewChatRequest(session, { query });
+			await this._sessionManagementService.sendRequest(session, chat, { query });
 		}
 	}
 
-	private async _configureBrowserUrl(session: ISession): Promise<void> {
-		const folder = session.workspace.get()?.folders[0];
+	private async _configureBrowserUrl(chat: IChat): Promise<void> {
+		const folder = chat.workspace.get()?.folders[0];
 		if (!folder?.root) {
 			return;
 		}
@@ -332,11 +335,11 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		this._sessionsConfigService.setBrowserUrl(folder.root, url);
 	}
 
-	private async _showConfigureQuickPick(session: ISession): Promise<ITaskEntry | undefined> {
-		const nonSessionTasks = await this._sessionsConfigService.getNonSessionTasks(session);
+	private async _showConfigureQuickPick(session: ISession, chat: IChat): Promise<ITaskEntry | undefined> {
+		const nonSessionTasks = await this._sessionsConfigService.getNonSessionTasks(chat);
 		if (nonSessionTasks.length === 0) {
 			// No existing tasks, go straight to custom command input
-			return this._showCustomCommandInput(session);
+			return this._showCustomCommandInput(session, chat);
 		}
 
 		interface ITaskPickItem extends IQuickPickItem {
@@ -374,20 +377,20 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		const pickedItem = picked as ITaskPickItem;
 		if (pickedItem.task) {
-			return this._showCustomCommandInput(session, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' }, 'add', true);
+			return this._showCustomCommandInput(session, chat, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' }, 'add', true);
 		} else {
 			// Custom command path
-			return this._showCustomCommandInput(session, undefined, 'add', true);
+			return this._showCustomCommandInput(session, chat, undefined, 'add', true);
 		}
 	}
 
-	private async _showCustomCommandInput(session: ISession, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<ITaskEntry | undefined> {
-		const taskConfiguration = await this._showCustomCommandWidget(session, existingTask, mode, allowBackNavigation);
+	private async _showCustomCommandInput(session: ISession, chat: IChat, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<ITaskEntry | undefined> {
+		const taskConfiguration = await this._showCustomCommandWidget(chat, existingTask, mode, allowBackNavigation);
 		if (!taskConfiguration) {
 			return undefined;
 		}
 		if (taskConfiguration === 'back') {
-			return this._showConfigureQuickPick(session);
+			return this._showConfigureQuickPick(session, chat);
 		}
 
 		if (existingTask) {
@@ -417,11 +420,11 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					};
 				}
 
-				await this._sessionsConfigService.updateTask(existingTask.task.label, updatedTask, session, existingTask.target, taskConfiguration.target);
+				await this._sessionsConfigService.updateTask(existingTask.task.label, updatedTask, chat, existingTask.target, taskConfiguration.target);
 				return updatedTask;
 			}
 
-			await this._sessionsConfigService.addTaskToSessions(existingTask.task, session, existingTask.target, { runOn: taskConfiguration.runOn ?? 'default' });
+			await this._sessionsConfigService.addTaskToSessions(existingTask.task, chat, existingTask.target, { runOn: taskConfiguration.runOn ?? 'default' });
 			return {
 				...existingTask.task,
 				inAgents: true,
@@ -432,14 +435,14 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		return this._sessionsConfigService.createAndAddTask(
 			taskConfiguration.label,
 			taskConfiguration.command,
-			session,
+			chat,
 			taskConfiguration.target,
 			taskConfiguration.runOn ? { runOn: taskConfiguration.runOn } : undefined
 		);
 	}
 
-	private _showCustomCommandWidget(session: ISession, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<IRunScriptCustomTaskWidgetResult | 'back' | undefined> {
-		const folder = session.workspace.get()?.folders[0];
+	private _showCustomCommandWidget(chat: IChat, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add', allowBackNavigation = false): Promise<IRunScriptCustomTaskWidgetResult | 'back' | undefined> {
+		const folder = chat.workspace.get()?.folders[0];
 		const workspaceTargetDisabledReason = !(folder?.workingDirectory ?? folder?.root)
 			? localize('workspaceStorageUnavailableTooltip', "Workspace storage is unavailable for this session")
 			: undefined;
@@ -537,10 +540,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		_options: IActionViewItemOptions,
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
-		private readonly _showConfigureQuickPick: (session: ISession) => Promise<ITaskEntry | undefined>,
-		private readonly _showCustomCommandInput: (session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
-		private readonly _generateNewTask: (session: ISession) => Promise<void>,
-		private readonly _configureBrowserUrl: (session: ISession) => Promise<void>,
+		private readonly _showConfigureQuickPick: (session: ISession, chat: IChat) => Promise<ITaskEntry | undefined>,
+		private readonly _showCustomCommandInput: (session: ISession, chat: IChat, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
+		private readonly _generateNewTask: (session: ISession, chat: IChat) => Promise<void>,
+		private readonly _configureBrowserUrl: (session: ISession, chat: IChat) => Promise<void>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -663,8 +666,8 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			return [];
 		}
 
-		const { tasks, session, pinnedTaskLabel } = state;
-		const folder = session.workspace.get()?.folders[0];
+		const { tasks, session, chat, pinnedTaskLabel } = state;
+		const folder = chat.workspace.get()?.folders[0];
 		const actions: IActionWidgetDropdownAction[] = [];
 
 		// Category for normal tasks (no header shown)
@@ -700,7 +703,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					enabled: true,
 					run: async () => {
 						this._actionWidgetService.hide();
-						await this._showCustomCommandInput(session, { task, target: entry.target }, 'configure');
+						await this._showCustomCommandInput(session, chat, { task, target: entry.target }, 'configure');
 					}
 				},
 				{
@@ -711,7 +714,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					enabled: true,
 					run: async () => {
 						this._actionWidgetService.hide();
-						await this._sessionsConfigService.removeTask(task.label, session, entry.target);
+						await this._sessionsConfigService.removeTask(task.label, chat, entry.target);
 					}
 				}
 			];
@@ -729,7 +732,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				category: isWorktreeTask ? worktreeCategory : defaultCategory,
 				toolbarActions,
 				run: async () => {
-					await this._sessionsConfigService.runTask(task, session);
+					await this._sessionsConfigService.runTask(task, session, chat);
 				},
 			});
 		}
@@ -751,9 +754,9 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			category: tasksCategory,
 			run: async () => {
 				logSessionsInteraction(this._telemetryService, 'addTask', 'actionWidget');
-				const task = await this._showConfigureQuickPick(session);
+				const task = await this._showConfigureQuickPick(session, chat);
 				if (task) {
-					await this._sessionsConfigService.runTask(task, session);
+					await this._sessionsConfigService.runTask(task, session, chat);
 				}
 			},
 		});
@@ -772,7 +775,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			category: tasksCategory,
 			run: async () => {
 				logSessionsInteraction(this._telemetryService, 'generateNewTask', 'actionWidget');
-				await this._generateNewTask(session);
+				await this._generateNewTask(session, chat);
 			},
 		});
 
@@ -816,7 +819,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					enabled: canConfigureBrowser,
 					run: async () => {
 						this._actionWidgetService.hide();
-						await this._configureBrowserUrl(session);
+						await this._configureBrowserUrl(session, chat);
 					}
 				}
 			],

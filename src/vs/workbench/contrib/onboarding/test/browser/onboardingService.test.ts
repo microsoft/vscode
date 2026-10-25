@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -20,6 +23,7 @@ import { Memento } from '../../../../common/memento.js';
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
+import { runWithOnboardingPresentation } from '../../browser/onboardingPresentationQueue.js';
 import { OnboardingScenarioService } from '../../browser/onboardingService.js';
 import { IOnboardingPresentation, IOnboardingRunContext, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
@@ -116,6 +120,31 @@ class FakeAssignmentService extends NullWorkbenchAssignmentService {
 	/** True when the given assignment-context id is currently excluded from telemetry. */
 	isExcluded(assignment: string): boolean {
 		return this._filters.some(f => f.exclude(assignment));
+	}
+}
+
+/**
+ * Assignment service test double whose treatments change when assignments are refetched, like
+ * experiments served by an account endpoint that only becomes known after startup. A read
+ * returns the treatments current when it started, after the optional `pause` settles.
+ */
+class RefetchingAssignmentService extends NullWorkbenchAssignmentService {
+	readonly reads: string[] = [];
+	pause: Promise<void> | undefined;
+	override readonly onDidRefetchAssignments: Event<void>;
+	constructor(private treatments: Record<string, string | number | boolean>, private readonly refetched: Emitter<void>) {
+		super();
+		this.onDidRefetchAssignments = refetched.event;
+	}
+	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		this.reads.push(name);
+		const value = this.treatments[name] as T | undefined;
+		await this.pause;
+		return value;
+	}
+	refetch(treatments: Record<string, string | number | boolean>): void {
+		this.treatments = treatments;
+		this.refetched.fire();
 	}
 }
 
@@ -294,6 +323,49 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(presentation.runs, ['observable-1']);
 	});
 
+	test('an automatic run that waited behind another presentation is dropped once it is no longer eligible', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('onboardingTestSignal', true);
+		registerScenario({ id: 'stale-1', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		signal.set(false, undefined);
+		finish.complete();
+		await occupant;
+		await timeout(0);
+		const whileIneligible = { runs: [...presentation.runs], shown: service.hasBeenShown('stale-1') };
+		signal.set(true, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileIneligible, runs: presentation.runs }, {
+			whileIneligible: { runs: [], shown: false },
+			runs: ['stale-1'],
+		});
+	});
+
+	test('an explicit request that joins an automatic run waiting for the presentation slot keeps it running', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('onboardingTestSignal', true);
+		registerScenario({ id: 'joined-1', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const explicit = service.runScenario('joined-1');
+		signal.set(false, undefined);
+		finish.complete();
+		await occupant;
+		await explicit;
+
+		assert.deepStrictEqual(presentation.runs, ['joined-1']);
+	});
+
 	test('command-triggered scenarios never run automatically', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);
@@ -304,6 +376,28 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(presentation.runs, []);
+	});
+
+	test('tryouts do not run automatically, show nudges or run through the legacy replay path', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'guarded-tryout',
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined },
+			tryout: { title: 'Example', description: 'An explicitly launched example.' },
+		});
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const outcome = await service.runScenario('guarded-tryout');
+
+		assert.deepStrictEqual({ runs: presentation.runs, outcome, shown: service.hasBeenShown('guarded-tryout'), nudge: service.shouldShowNudge('guarded-tryout') }, {
+			runs: [],
+			outcome: OnboardingOutcome.Aborted,
+			shown: false,
+			nudge: false,
+		});
 	});
 
 	test('runScenario runs manually even when disabled and already shown', async () => {
@@ -350,6 +444,108 @@ suite('OnboardingScenarioService', () => {
 		const [a, b] = await Promise.all([first, second]);
 
 		assert.deepStrictEqual({ runs, a, b }, { runs: ['inflight-1'], a: OnboardingOutcome.Completed, b: OnboardingOutcome.Completed });
+	});
+
+	test('isPresenting is true while a scenario is queued or running', async () => {
+		let release!: () => void;
+		const gate = new Promise<void>(resolve => { release = resolve; });
+		const kind = uniqueKind();
+		registerPresentation({
+			kind,
+			async run(): Promise<IOnboardingRunResult> {
+				await gate;
+				return completedResult();
+			}
+		});
+		registerScenario({ id: 'presenting-1', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind, payload: undefined } });
+
+		const { service } = createService();
+		service.start();
+		const before = service.isPresenting.get();
+		const run = service.runScenario('presenting-1');
+		const queued = service.isPresenting.get();
+		await timeout(0);
+		const running = service.isPresenting.get();
+		release();
+		await run;
+
+		assert.deepStrictEqual({ before, queued, running, after: service.isPresenting.get() }, { before: false, queued: true, running: true, after: false });
+	});
+
+	test('runScenario does not enqueue an already cancelled request', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'cancelled', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind: presentation.kind, payload: undefined } });
+		const { service } = createService();
+
+		const outcome = await service.runScenario('cancelled', CancellationToken.Cancelled);
+
+		assert.deepStrictEqual({ outcome, runs: presentation.runs, shown: service.hasBeenShown('cancelled') }, {
+			outcome: OnboardingOutcome.Aborted, runs: [], shown: false,
+		});
+	});
+
+	test('runScenario cancels a window-queued presentation without affecting its current occupant', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'waiting', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind: presentation.kind, payload: undefined } });
+		const { service } = createService();
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const cancellation = disposables.add(new CancellationTokenSource());
+		let outcome: OnboardingOutcome | undefined;
+		const waiting = service.runScenario('waiting', cancellation.token).then(result => { outcome = result; });
+		await timeout(0);
+		cancellation.cancel();
+		await timeout(0);
+		const beforeRelease = { outcome, runs: [...presentation.runs], shown: service.hasBeenShown('waiting') };
+		finish.complete();
+		await Promise.all([occupant, waiting]);
+		await service.runScenario('waiting');
+
+		assert.deepStrictEqual({ beforeRelease, runs: presentation.runs }, {
+			beforeRelease: { outcome: OnboardingOutcome.Aborted, runs: [], shown: false },
+			runs: ['waiting'],
+		});
+	});
+
+	test('runScenario aborts an active run and waits for cleanup before resolving joined callers', async () => {
+		const kind = uniqueKind();
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const events: string[] = [];
+		registerPresentation({
+			kind,
+			async run(_scenario, context) {
+				const store = new DisposableStore();
+				try {
+					store.add(context.onAbort(() => events.push('abort')));
+					started.complete();
+					await finish.p;
+					events.push('cleanup');
+					return completedResult(events.includes('abort') ? OnboardingOutcome.Aborted : OnboardingOutcome.Completed);
+				} finally {
+					store.dispose();
+				}
+			},
+		});
+		registerScenario({ id: 'active-cancellation', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind, payload: undefined } });
+		const { service } = createService();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const running = service.runScenario('active-cancellation', cancellation.token).then(outcome => { events.push('resolved'); return outcome; });
+		await started.p;
+		const joined = service.runScenario('active-cancellation');
+		cancellation.cancel();
+		await timeout(0);
+		const duringCleanup = [...events];
+		finish.complete();
+		const outcomes = await Promise.all([running, joined]);
+
+		assert.deepStrictEqual({ duringCleanup, events, outcomes }, {
+			duringCleanup: ['abort'],
+			events: ['abort', 'cleanup', 'resolved'],
+			outcomes: [OnboardingOutcome.Aborted, OnboardingOutcome.Aborted],
+		});
 	});
 
 	for (const developerMode of [false, true]) {
@@ -465,6 +661,181 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(presentation.runs, []);
 	});
 
+	test('reads unresolved experiment flags again when assignments are refetched, then keeps the resolved arm', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-refetch',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const { service } = createService({}, assignment);
+
+		service.start();
+		await timeout(0);
+		const runsAtStartup = [...presentation.runs];
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-refetch' });
+		await timeout(0);
+		await timeout(0);
+		const runsAfterRefetch = [...presentation.runs];
+		assignment.refetch({ 'exp.show': false, 'exp.id': 'onb-other' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ runsAtStartup, runsAfterRefetch, reads: assignment.reads }, {
+			runsAtStartup: [],
+			runsAfterRefetch: ['exp-refetch'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+		});
+	});
+
+	test('a refetch during an unresolved read reads the experiment flags again once that read settles', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-inflight',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const firstRead = new DeferredPromise<void>();
+		assignment.pause = firstRead.p;
+		const { service } = createService({}, assignment);
+
+		service.start();
+		assignment.pause = undefined;
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-inflight' });
+		const readsWhileInFlight = [...assignment.reads];
+		await firstRead.complete();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ readsWhileInFlight, reads: assignment.reads, runs: presentation.runs }, {
+			readsWhileInFlight: ['exp.show', 'exp.id'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+			runs: ['exp-inflight'],
+		});
+	});
+
+	for (const { name, treatments, developerMode, enabled, expected } of [
+		{ name: 'inactive experiment', treatments: {}, developerMode: false, enabled: true, expected: false },
+		{ name: 'missing assignment id', treatments: { 'exp.show': true }, developerMode: false, enabled: true, expected: false },
+		{ name: 'missing behavior', treatments: { 'exp.id': 'onb-nudge' }, developerMode: false, enabled: true, expected: false },
+		{ name: 'control', treatments: { 'exp.show': false, 'exp.id': 'onb-nudge' }, developerMode: false, enabled: true, expected: false },
+		{ name: 'treatment', treatments: { 'exp.show': true, 'exp.id': 'onb-nudge' }, developerMode: false, enabled: true, expected: true },
+		{ name: 'developer preview', treatments: {}, developerMode: true, enabled: true, expected: true },
+		{ name: 'disabled treatment', treatments: { 'exp.show': true, 'exp.id': 'onb-nudge' }, developerMode: false, enabled: false, expected: false },
+		{ name: 'disabled developer preview', treatments: {}, developerMode: true, enabled: false, expected: false },
+	]) {
+		test(`pre-tour nudge respects ${name}`, async () => {
+			const presentation = new RecordingPresentation(uniqueKind());
+			registerPresentation(presentation);
+			const flags: Record<string, string | number | boolean> = {};
+			if (treatments['exp.show'] !== undefined) {
+				flags['exp.show'] = treatments['exp.show'];
+			}
+			if (treatments['exp.id'] !== undefined) {
+				flags['exp.id'] = treatments['exp.id'];
+			}
+			const assignment = new FakeAssignmentService(flags);
+			registerScenario({
+				id: 'nudge',
+				experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+				trigger: { kind: 'observable', signal: observableValue('trigger', false) },
+				presentation: { kind: presentation.kind, payload: undefined },
+			});
+			const { service } = createService({
+				[ONBOARDING_ENABLED_CONFIG]: enabled,
+				[ONBOARDING_DEVELOPER_MODE_CONFIG]: { nudge: developerMode },
+			}, assignment);
+
+			service.start();
+			const beforeResolution = service.shouldShowNudge('nudge');
+			await timeout(0);
+			const excludedBeforeNudge = assignment.isExcluded('onb-nudge:12345');
+			const showNudge = service.shouldShowNudge('nudge');
+
+			assert.deepStrictEqual({
+				beforeResolution,
+				excludedBeforeNudge,
+				showNudge,
+				excludedAfterNudge: assignment.isExcluded('onb-nudge:12345'),
+				shown: service.hasBeenShown('nudge'),
+				runs: presentation.runs,
+			}, {
+				beforeResolution: developerMode && enabled,
+				excludedBeforeNudge: true,
+				showNudge: expected,
+				excludedAfterNudge: !(enabled && !developerMode && typeof flags['exp.show'] === 'boolean' && flags['exp.id']),
+				shown: false,
+				runs: [],
+			});
+		});
+	}
+
+	for (const behavior of [false, true]) {
+		test(`pre-tour nudge re-evaluates when delayed assignments resolve (${behavior})`, async () => {
+			const resolved = new DeferredPromise<void>();
+			const assignment = new class extends FakeAssignmentService {
+				override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+					await resolved.p;
+					return super.getTreatment<T>(name);
+				}
+			}({ 'exp.show': behavior, 'exp.id': 'onb-delayed' });
+			registerScenario({
+				id: 'delayed-nudge',
+				experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+				trigger: { kind: 'observable', signal: observableValue('trigger', false) },
+				presentation: { kind: uniqueKind(), payload: undefined },
+			});
+			const { service } = createService({}, assignment);
+			service.start();
+			const eligibility: boolean[] = [];
+			disposables.add(autorun(reader => {
+				eligibility.push(service.shouldShowNudge('delayed-nudge', reader));
+			}));
+			await resolved.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				eligibility,
+				excluded: assignment.isExcluded('onb-delayed:12345'),
+				shown: service.hasBeenShown('delayed-nudge'),
+			}, {
+				eligibility: [false, behavior],
+				excluded: false,
+				shown: false,
+			});
+		});
+	}
+
+	test('pre-tour nudge respects context, shown state and the global switch', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'nudge',
+			when: ContextKeyExpr.has('nudgeReady'),
+			trigger: { kind: 'observable', signal: observableValue('trigger', false) },
+			presentation: { kind: presentation.kind, payload: undefined },
+		});
+		const { service, contextKeyService, config } = createService();
+		const ready = contextKeyService.createKey<boolean>('nudgeReady', false);
+		const contextBlocked = service.shouldShowNudge('nudge');
+		ready.set(true);
+		const eligible = service.shouldShowNudge('nudge');
+		await config.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false);
+		const disabled = service.shouldShowNudge('nudge');
+		await config.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, true);
+		await service.runScenario('nudge');
+		assert.deepStrictEqual({
+			contextBlocked, eligible, disabled, alreadyShown: service.shouldShowNudge('nudge'),
+		}, {
+			contextBlocked: false, eligible: true, disabled: false, alreadyShown: false,
+		});
+	});
+
 	test('an assignment-context id without the reserved prefix is rejected as inactive', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);
@@ -487,8 +858,8 @@ suite('OnboardingScenarioService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(
-				{ runs: presentation.runs, shown: service.hasBeenShown('exp-badid'), reported: errors.length === 1 },
-				{ runs: [], shown: false, reported: true }
+				{ runs: presentation.runs, shown: service.hasBeenShown('exp-badid'), nudge: service.shouldShowNudge('exp-badid'), reported: errors.length === 1 },
+				{ runs: [], shown: false, nudge: false, reported: true }
 			);
 		} finally {
 			setUnexpectedErrorHandler(origErrorHandler);

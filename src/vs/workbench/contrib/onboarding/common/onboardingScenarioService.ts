@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOnboardingScenario, OnboardingOutcome } from './onboardingScenario.js';
@@ -77,6 +79,9 @@ export function getOnboardingDeveloperModeVariation(configurationService: IConfi
 export interface IOnboardingScenarioService {
 	readonly _serviceBrand: undefined;
 
+	/** Whether a scenario is queued or presenting, so other onboarding surfaces can wait for it. */
+	readonly isPresenting: IObservable<boolean>;
+
 	/**
 	 * Begin watching scenario eligibility. Automatic scenarios may start as soon
 	 * as they become eligible. Safe to call multiple times (no-op after first).
@@ -84,11 +89,10 @@ export interface IOnboardingScenarioService {
 	start(): void;
 
 	/**
-	 * Run a scenario on demand, bypassing the once-per-user gate and the global
-	 * `onboarding.enabled` setting. Used by command triggers and the (future)
-	 * tutorial page. Still serialized with any in-flight scenario.
+	 * Run on demand, bypassing the once-per-user and `onboarding.enabled` gates but serialized with other scenarios.
+	 * Cancellation aborts the queued or active run (including joined callers) and waits for presentation cleanup.
 	 */
-	runScenario(id: string): Promise<OnboardingOutcome>;
+	runScenario(id: string, token?: CancellationToken): Promise<OnboardingOutcome>;
 
 	/**
 	 * All registered scenarios (across presentation kinds). Useful for a tutorial
@@ -98,6 +102,9 @@ export interface IOnboardingScenarioService {
 
 	/** Whether the scenario has already been shown to the user. */
 	hasBeenShown(id: string): boolean;
+
+	/** Checks eligibility before a pre-tour nudge and records experiment exposure in both arms. A reader tracks assignment resolution. */
+	shouldShowNudge(id: string, reader?: IReader): boolean;
 
 	/** Clear persisted and in-memory "shown" state so a single scenario can be retried. */
 	reset(id: string): void;
