@@ -8,6 +8,7 @@
 mod analyze;
 mod config;
 mod deps;
+mod disables;
 mod engine;
 mod git;
 mod graph;
@@ -30,6 +31,7 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\taffected --base REV [--head REV]: the test files a change can affect\n\
 	\tanalyze --file PATH: analysis summary of one module\n\
 	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
+	\tdisables --base REV [--head REV]: whether a change only disables tests, so that no check needs to run\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
 
@@ -87,7 +89,11 @@ fn weight<S: AsRef<str>>(snap: &Snapshot, files: impl Iterator<Item = S>) -> f64
 fn main() -> Result<()> {
 	let args = Args::parse(std::env::args().skip(1))?;
 	let command = args.command.as_str();
-	if !["stats", "affected", "analyze", "plan", "blame", "replay"].contains(&command) {
+	if ![
+		"stats", "affected", "analyze", "plan", "disables", "blame", "replay",
+	]
+	.contains(&command)
+	{
 		bail!("{USAGE}");
 	}
 	let config = args
@@ -122,6 +128,12 @@ fn main() -> Result<()> {
 			args.get("base").context("--base is required")?,
 			args.get("head").unwrap_or("HEAD"),
 			args.get("out-dir"),
+		),
+		"disables" => disables(
+			&config,
+			repo,
+			args.get("base").context("--base is required")?,
+			args.get("head").unwrap_or("HEAD"),
 		),
 		"blame" => blame(
 			&config,
@@ -415,6 +427,73 @@ fn plan(
 	Ok(())
 }
 
+/// Prints whether a change only disables tests as JSON (see disables.rs). On GitHub Actions, writes
+/// the output `only-disables-tests` and, when it does, a notice and a job summary listing the tests
+/// it disables. Reads only the changed files, so a sparse, blobless clone with both commits is
+/// enough.
+fn disables(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()> {
+	let changes = git::diff_tree_raw(&repo, base, head)?;
+	let mut blobs = blob_texts(&repo)?;
+	let verdict = disables::verify(config, &changes, &mut blobs)?;
+	let json = match &verdict {
+		Ok(tests) => serde_json::json!({
+			"onlyDisablesTests": true,
+			"disabled": tests
+				.iter()
+				.map(|t| serde_json::json!({ "path": t.path, "line": t.line, "call": t.call, "title": t.title }))
+				.collect::<Vec<_>>(),
+		}),
+		Err(reason) => serde_json::json!({ "onlyDisablesTests": false, "reason": reason }),
+	};
+	println!("{json}");
+	if let Some(path) = std::env::var_os("GITHUB_OUTPUT") {
+		let mut out = std::fs::OpenOptions::new().append(true).open(path)?;
+		writeln!(out, "only-disables-tests={}", verdict.is_ok())?;
+	}
+	let tests = match &verdict {
+		Ok(tests) => tests,
+		Err(reason) => {
+			eprintln!("does more than disable tests: {reason}");
+			return Ok(());
+		}
+	};
+	let list: Vec<String> = tests
+		.iter()
+		.map(|t| format!("{}:{} {} '{}'", t.path, t.line, t.call, t.title))
+		.collect();
+	eprintln!("only disables tests: {}", list.join("; "));
+	if std::env::var_os("GITHUB_ACTIONS").is_some() {
+		println!(
+			"::notice::The pull request only disables tests, so the checks skip the tests: {}",
+			list.join("; ")
+		);
+	}
+	if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY") {
+		let cell = |s: &str| {
+			s.replace('\\', "\\\\")
+				.replace('|', "\\|")
+				.replace('\n', " ")
+		};
+		let mut out = std::fs::OpenOptions::new().append(true).open(path)?;
+		writeln!(
+			out,
+			"### Only disables tests\n\nThe pull request only disables these tests, so the checks skip the tests and the other checks that it cannot affect.\n\n| Call | Title | Location |\n| --- | --- | --- |"
+		)?;
+		for t in tests {
+			writeln!(
+				out,
+				"| `{}` | {} | {}:{} |",
+				t.call,
+				cell(&t.title),
+				cell(&t.path),
+				t.line
+			)?;
+		}
+		writeln!(out)?;
+	}
+	Ok(())
+}
+
 /// A first-parent commit: (sha, first parent, subject).
 type Commit = (String, String, String);
 
@@ -512,11 +591,16 @@ fn replay(
 	let mut hub_stats: HashMap<String, (usize, f64, f64)> = HashMap::new();
 	let mut zero = [0usize; 4];
 	let mut run_all_commits = 0;
+	let mut disable_commits = 0;
 	let mut module_commits = 0;
 	let mut step_ms = 0u128;
 	for (sha, parent, subject) in &commits {
 		let t = Instant::now();
-		let changes = git::diff_tree(&repo, parent, sha)?;
+		let raw = git::diff_tree_raw(&repo, parent, sha)?;
+		// A commit that only disables tests needs no check at all, whatever the selection.
+		let only_disables = disables::verify(config, &raw, &mut blobs)?.is_ok();
+		disable_commits += only_disables as usize;
+		let changes = git::blob_changes(raw);
 		let head = engine.apply(&base, &changes)?;
 		let hg = Graph::build(&head, config);
 		let sel = select(config, &mut blobs, &base, &bg, &head, &hg, &changes)?;
@@ -600,6 +684,7 @@ fn replay(
 					"sha": sha,
 					"pr": pr,
 					"changed": changes.len(),
+					"onlyDisablesTests": only_disables,
 					"modules": touches_modules,
 					"packages": sel.packages,
 					"runAll": sel.run_all,
@@ -617,7 +702,7 @@ fn replay(
 
 	let n = rows.len();
 	println!(
-		"replayed {n} first-parent commits since {since} ({module_commits} change modules, {run_all_commits} run everything)"
+		"replayed {n} first-parent commits since {since} ({module_commits} change modules, {run_all_commits} run everything, {disable_commits} only disable tests)"
 	);
 	println!(
 		"average time per commit (diff, analyze changed blobs, relink, select): {} ms",

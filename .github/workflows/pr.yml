@@ -30,12 +30,20 @@ jobs:
   # unit-test-plan artifact and run only the listed files, and are skipped when the plan selects
   # no file. The artifact only exists when the plan selects files, and without it those jobs run
   # every unit test. The planning steps never fail the job: the Ripple job reports a broken ripple.
+  #
+  # And whether the pull request only disables tests (see `ripple disables` in build/ripple/README.md):
+  # then nothing needs to run, and every job skips.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+      # To check that the ripple binary that decides whether the pull request only disables tests is from main.
+      actions: read
     outputs:
-      # 'true' when the pull request only disables tests (see .github/actions/detect-test-disable-only/detect.ts).
-      # The outputs below are then 'false', so that the jobs skip and PR Gate reports them as passed.
+      # 'true' when the pull request only disables tests. The outputs below are then 'false', so that
+      # the jobs skip and PR Gate reports them as passed.
       test-disable-only: ${{ steps.test-disable-only.outputs.verified == 'true' }}
       cli: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.test-disable-only.outputs.verified == 'true' && 'false' || steps.detect.outputs.copilot-shim }}
@@ -74,21 +82,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # The test-disable check runs from the pull request base, so that a pull request cannot change
-      # how it is judged. When it fails, all checks run.
-      - name: Checkout the pull request base
-        continue-on-error: true
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          path: .base
-          filter: blob:none
-          sparse-checkout: .github/actions/detect-test-disable-only
-
+      # Never fails the job: without a verdict, every check runs.
       - name: Detect test-disable-only changes
         id: test-disable-only
         continue-on-error: true
-        uses: ./.base/.github/actions/detect-test-disable-only
+        uses: ./.github/actions/detect-test-disable-only
 
       # Must match the cache key of pr-ripple.yml, which saves the binary on main.
       - name: Restore ripple

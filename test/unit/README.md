@@ -55,7 +55,9 @@ All three runners accept `--runList=<file>`: a file listing test files (such as 
 
 ## Disabling a flaky test
 
-To unblock CI, disable the test in a pull request that changes nothing else: insert `.skip` after `test`, `suite`, `it` or `describe`, optionally with `//` comments that link the tracking issue. The pull request checks prove that the pull request only disables tests and then skip the tests, so the required checks pass in a minute or two. [detect.ts](../../.github/actions/detect-test-disable-only/detect.ts) has the exact rules.
+To unblock CI, disable the test in a pull request that changes nothing else: insert `.skip` after `test`, `suite`, `it` or `describe`, optionally with `//` comments that link the tracking issue. The pull request checks prove that the pull request only disables tests and then skip the tests, so the required checks pass in a minute or two. [ripple's README](../../build/ripple/README.md#pull-requests-that-only-disable-tests) has the exact rules; to check your branch:
+
+    build/ripple/target/release/ripple disables --config build/ripple/vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD
 
 ## Coverage
 

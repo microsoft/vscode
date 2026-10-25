@@ -166,5 +166,27 @@
 	"moduleLoaders": [
 		"importAMDNodeModule",
 		"resolveAmdNodeModulePath"
-	]
+	],
+
+	// Pull requests that only disable tests, by inserting `.skip` after the names of test and suite
+	// calls, need no check (see `ripple disables` in README.md).
+	"disables": {
+		// The test files whose tests a pull request may disable: every file that a check runs as tests.
+		// Test inputs with test file names, such as the files that the Copilot simulation tests read,
+		// are not tests.
+		"files": [
+			"**/*.{test,spec,integrationTest}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+			"!**/fixtures/**"
+		],
+		// Characters besides printable ASCII that new comments may contain: some of those that
+		// hygiene accepts (build/hygiene.ts).
+		"commentCharacters": "—…←→·•×",
+		// Words in comments that this repository's tools read, besides those of TypeScript, ESLint,
+		// coverage tools and formatters: a comment that contains one is more than a comment.
+		"directives": [
+			"allow-any-unicode",
+			"tsec",
+			"__GDPR__"
+		]
+	}
 }

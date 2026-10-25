@@ -8,6 +8,8 @@ It is a prototype for running far fewer CI minutes on pull requests: instead of 
 
 The `Detect Changes` job of [pr.yml](../../.github/workflows/pr.yml) runs `ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/unit-test-plan` on the pull request's merge commit, uploads the plan as the `unit-test-plan` artifact and writes a summary to the job page. Linux runs every unit test on every push; the macOS and Windows unit test jobs download the artifact and pass its `unit.txt` to each test runner with `--runList`. Each runner runs the tests it would run by default, but only from the listed files (see [test/unit/README.md](../../test/unit/README.md)), so ripple needs no knowledge of the runners. When the plan selects no file, those jobs are skipped instead of setting up to run nothing (the `selected-unit-tests` output of `Detect Changes`). They run every unit test when planning fails, when the artifact cannot be downloaded, or when the change touches a file that every unit test depends on (`runEverything` in the configuration); otherwise they run the selected files, however many. The planning steps never fail `Detect Changes`, which a broken ripple must not block. When ripple fails to build, pass its tests or plan, the `Ripple` check fails for pull requests that change `build/ripple`; it is skipped for the others, which show a warning. So does a module that ripple cannot parse, which disables selection. The binary is cached by its sources; [pr-ripple.yml](../../.github/workflows/pr-ripple.yml) builds it on `main` when they change, and checks daily that the cache still exists.
 
+A pull request that only disables tests needs no check at all, which unblocks every other pull request as soon as possible when a flaky test breaks `main`. `Detect Changes`, and a small job of the same name in [component-fixtures.yml](../../.github/workflows/component-fixtures.yml) and [monaco-editor.yml](../../.github/workflows/monaco-editor.yml), runs `ripple disables` on the merge commit through [detect-test-disable-only](../../.github/actions/detect-test-disable-only/action.yml) (see [Pull requests that only disable tests](#pull-requests-that-only-disable-tests)). When it verifies the pull request, every other job of these workflows skips, and `PR Gate`, `Screenshots & Tests` and `Monaco Editor checks` pass in about a minute. The action never builds ripple, and it only trusts a binary that `main` built: restoring a cache looks in the pull request's own caches first, which its workflow runs can write. Without such a binary, or when anything fails, every check runs.
+
 ## Configuration
 
 The Rust code knows TypeScript, JavaScript, npm and git, and nothing about this repository. Everything repository-specific is in [vscode.jsonc](vscode.jsonc), which every command reads with `--config`:
@@ -19,6 +21,7 @@ The Rust code knows TypeScript, JavaScript, npm and git, and nothing about this 
 - `packages`: npm packages that build or run every test but that no `runEverything` script loads, such as a command line tool (`toolchain`: ripple finds the packages those scripts load itself), npm scripts the unit test jobs run (`testScripts`), and `package.json` fields no test reads (`ignoredFields`).
 - `injectedGlobals`: files the test runners expose as globals (`globalThis._VSCODE_PRODUCT_JSON` is `product.json`).
 - `pure`, `implicitMethods` and `moduleLoaders`: the repository's conventions that refine the analysis: functions and objects whose calls have no side effects (`localize`, `URI`), methods called without naming them (`dispose`), and functions that load the module or package their first argument names, like `require` (`importAMDNodeModule`).
+- `disables`: for `ripple disables`, the test files whose tests a pull request may disable (`files`), the characters besides printable ASCII that new comments may contain (`commentCharacters`), and the words in comments that the repository's tools read (`directives`, such as hygiene's `allow-any-unicode`).
 
 The configuration is strict: unknown fields are errors. Glob patterns use `*` within a path segment and `**` across segments, and patterns starting with `!` exclude.
 
@@ -71,6 +74,11 @@ head=$(git stash create)
 # and a job summary.
 ./target/release/ripple plan --config vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD --out-dir ../../.build/unit-test-plan
 
+# Whether the commits of your branch only disable tests, as JSON: the tests they disable, or why they
+# do more. Reads only the changed files. On GitHub Actions it writes the output `only-disables-tests`
+# and, when they only disable tests, a notice and a job summary.
+./target/release/ripple disables --config vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD
+
 # Replay first-parent history and compare selection strategies
 ./target/release/ripple replay --config vscode.jsonc --since 2026-10-06 --until origin/main --out replay.jsonl --hubs 1
 
@@ -81,6 +89,20 @@ head=$(git stash create)
 All commands accept `--repo <path>`. oxc requires Rust 1.97 or newer; `rust-toolchain.toml` pins the version CI uses.
 
 Selection works per declaration, so what an edit selects depends on what it changes. Comments, formatting and types select nothing. A change to a function body selects the tests that can reach that function: changing `MoveCaretCommand.getEditOperations` selects only `moveCarretCommand.test.ts`, while changing the static `Position.isBefore`, which most of the editor uses, selects 836 test files (file-level analysis would select 1,077, or 1,531 counting type-only imports). A change to a file that every unit test depends on (`runEverything`) lists every test and prints the reason. `affected` lists unit and integration tests; `plan` lists the unit tests that macOS and Windows would run, and each test runner then runs the listed files it supports.
+
+## Pull requests that only disable tests
+
+A skipped test cannot fail, so a pull request that only skips tests cannot fail a check that it skips. `ripple disables` proves that a change does nothing else. It accepts a change of at most 20 existing test files (`disables.files` in the configuration), with the same mode, in which every edit is one of:
+
+- `.skip` inserted after the name of a `test`, `suite`, `it` or `describe` call: `test(` becomes `test.skip(`, or `(isWindows ? test : test.skip)(` becomes `(isWindows ? test.skip : test.skip)(`. The name must be the test framework's: a global, or imported under its own name from `mocha`, `vitest`, `@playwright/test` or `node:test`, and not declared or reached through `globalThis` in the file. The call must be a statement of its own: Mocha's TDD `test.skip` returns `undefined`, although its types say that it returns a test, so `test.skip(...).timeout(1000)` would throw when the file loads.
+- New `//` comment lines directly above such a call, or above the comment lines directly above it, indented like the call, such as a link to the tracking issue.
+- A `//` comment appended to the line of such a call.
+
+ripple parses both versions of each file with oxc, and their tokens must be the same apart from a `.` and a `skip` at each insertion, so only comments and whitespace can differ otherwise; the lines must be the same apart from the edits above. It also rejects edits that could fail a check that the skip cannot fail: a comment with a directive, such as `@ts-expect-error`, `eslint-disable-next-line` or a word in `disables.directives`, or one that moves a directive away from its line; a call that an ESLint directive applies to, because rules such as `code-ensure-no-disposables-leak-in-test` only check calls without `.skip` and ESLint fails on unused disable directives; and characters that hygiene rejects, or comments that the formatter would indent differently. Test inputs with test file names, such as the Copilot simulation fixtures, are excluded by `disables.files`.
+
+What it cannot prove is that no other test depends on the disabled one, for example on the setup of a disabled suite: the full matrix after merge is the safety net.
+
+On the 179 commits of `main` from Oct 24, 2025 to Oct 23, 2026 that change a `.skip(` call, it accepts 45, all of which only disable tests. Of the 53 commits of that year that only insert `.skip`, with or without comments, it accepts 47; the others move or remove an existing comment, or change `.sanity-test.ts` files, which no pull request check runs. `ripple replay` reports which commits only disable tests (`onlyDisablesTests`).
 
 ## Validation
 

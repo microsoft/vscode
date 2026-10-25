@@ -57,6 +57,20 @@ struct File {
 	implicit_methods: Vec<String>,
 	#[serde(default)]
 	module_loaders: Vec<String>,
+	#[serde(default)]
+	disables: Disables,
+}
+
+/// See `disables` in `vscode.jsonc` and disables.rs.
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct Disables {
+	#[serde(default)]
+	files: Vec<String>,
+	#[serde(default)]
+	comment_characters: String,
+	#[serde(default)]
+	directives: Vec<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -144,6 +158,12 @@ pub struct Config {
 	/// Methods called without their name at the call site.
 	pub implicit_methods: Vec<String>,
 	module_loaders: HashSet<String>,
+	/// The test files whose tests a change may disable (see disables.rs).
+	disable_files: Patterns,
+	/// Characters besides printable ASCII that hygiene accepts in comments.
+	pub comment_characters: HashSet<char>,
+	/// Words in comments that the repository's tools read, in lowercase.
+	pub directives: Vec<String>,
 }
 
 impl Config {
@@ -176,6 +196,14 @@ impl Config {
 			pure_objects: file.pure.objects.into_iter().collect(),
 			implicit_methods: file.implicit_methods,
 			module_loaders: file.module_loaders.into_iter().collect(),
+			disable_files: Patterns::new(&file.disables.files)?,
+			comment_characters: file.disables.comment_characters.chars().collect(),
+			directives: file
+				.disables
+				.directives
+				.iter()
+				.map(|d| d.to_lowercase())
+				.collect(),
 		})
 	}
 
@@ -247,6 +275,11 @@ impl Config {
 
 	pub fn is_injected_global(&self, name: &str) -> bool {
 		self.injected_globals.iter().any(|(n, _)| n == name)
+	}
+
+	/// Whether a change may disable the tests of a file by inserting `.skip` (see disables.rs).
+	pub fn is_disable_file(&self, path: &str) -> bool {
+		self.disable_files.matches(path)
 	}
 }
 
@@ -321,6 +354,7 @@ pub fn for_tests() -> &'static Config {
 				"pure": { "functions": ["localize"], "objects": ["URI"] },
 				"implicitMethods": ["dispose"],
 				"moduleLoaders": ["loadModule"],
+				"disables": { "files": ["**/*.{test,spec}.{ts,js}", "!**/fixtures/**"], "commentCharacters": "—", "directives": ["Allow-Any-Unicode"] },
 			}"#,
 		)
 		.unwrap()
@@ -388,6 +422,7 @@ mod tests {
 	fn unknown_fields_are_errors() {
 		assert!(Config::parse(r#"{ "modules": [], "module": [] }"#).is_err());
 		assert!(Config::parse(r#"{ "modules": [], "pure": { "function": [] } }"#).is_err());
+		assert!(Config::parse(r#"{ "modules": [], "disables": { "file": [] } }"#).is_err());
 	}
 
 	#[test]
