@@ -254,7 +254,12 @@ pub fn verify_file(config: &Config, path: &str, before: &str, after: &str) -> Ve
 				"line {line}: a directive may apply to the call on the next line"
 			));
 		}
-		if after[line_starts[line]..end].contains("eslint-disable") {
+		// Through the end of the statement's last line: a trailing `// eslint-disable-line` after
+		// the statement applies to the call too.
+		let last = line_of(end - 1);
+		if after[line_starts[line]..line_starts[last] + lines[last].len()]
+			.contains("eslint-disable")
+		{
 			return Err(format!(
 				"line {}: an ESLint directive applies to the call or its body",
 				line + 1
@@ -693,6 +698,8 @@ suite('Bar', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		assert.ok((1 as any) === 1);
 	});
+
+	suite('trailing', async () => { }); // eslint-disable-line local/code-no-test-async-suite
 });
 ";
 
@@ -895,6 +902,14 @@ suite('Bar', () => {
 				TEST_FILE,
 			),
 			(
+				"skips a call that a trailing directive applies to",
+				edit(
+					TEST_FILE,
+					&[("\tsuite('trailing'", "\tsuite.skip('trailing'")],
+				),
+				TEST_FILE,
+			),
+			(
 				"adds a comment below a directive",
 				edit(
 					TEST_FILE,
@@ -1024,7 +1039,7 @@ suite('Bar', () => {
 				),
 				(
 					"removes the final newline",
-					err("removes or changes line 39")
+					err("removes or changes line 41")
 				),
 				(
 					"skips inside a template",
@@ -1049,6 +1064,10 @@ suite('Bar', () => {
 				(
 					"skips a test with a directive in its body",
 					err("line 34: an ESLint directive applies to the call or its body")
+				),
+				(
+					"skips a call that a trailing directive applies to",
+					err("line 39: an ESLint directive applies to the call or its body")
 				),
 				(
 					"adds a comment below a directive",
