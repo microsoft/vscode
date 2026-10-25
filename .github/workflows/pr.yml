@@ -18,12 +18,16 @@ env:
   VSCODE_QUALITY: 'oss'
 
 jobs:
+  # The workflow is: Detect Changes (the plan) -> the jobs that run what the plan
+  # selects -> PR Gate, which reports their results as a single check.
+  #
   # Lists the files changed by the pull request so that jobs can skip checks the
   # changes cannot affect (see .github/actions/detect-changes/detect.ts).
-  # Skip with a job-level `if:` inside the reusable workflow when the job calls
-  # one and reports a required check itself: a skipped job still reports its
-  # check, which satisfies required status checks. The core test jobs skip in
-  # the calling job instead, and required-checks reports their required checks.
+  # Until branch protection requires only PR Gate, the jobs that report a
+  # required check themselves skip with a job-level `if:` inside the reusable
+  # workflow they call: a skipped job still reports its check, which satisfies
+  # required status checks. The core test jobs skip in the calling job instead,
+  # and required-checks reports their required checks.
   # Jobs also run when change detection fails.
   #
   # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
@@ -557,6 +561,7 @@ jobs:
   # Reports the required "<OS> / <job>" checks. A check passes when each of its
   # jobs succeeded or was skipped because the changes cannot affect it. Uses
   # always() so that the checks also report when a job failed or was skipped.
+  # Superseded by PR Gate: remove once branch protection requires only PR Gate.
   required-checks:
     name: ${{ matrix.check }}
     needs:
@@ -944,3 +949,69 @@ jobs:
 
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
+
+  # The only check of this workflow that branch protection needs to require:
+  # Detect Changes plans the pull request, the jobs above run what the plan
+  # selects, and this gate passes when every job succeeded or was skipped
+  # because the changes cannot affect it. Detect Changes fails open: when it
+  # fails, every job runs, so its failure does not fail the gate (yet).
+  # Uses always() so that the gate also reports when a job failed or the run
+  # was cancelled, as a skipped required check would pass.
+  # Every job of this workflow must be listed in needs.
+  pr-gate:
+    name: PR Gate
+    needs:
+      - changes
+      - compile
+      - ripple
+      - linux-cli-tests
+      - linux-copilot-shim-tests
+      - linux-electron-unit-tests
+      - linux-electron-tests
+      - linux-electron-smoke-test-shards
+      - linux-browser-unit-tests
+      - linux-browser-integration-tests
+      - linux-remote-tests
+      - macos-electron-unit-tests
+      - macos-electron-tests
+      - macos-electron-smoke-test-shards
+      - macos-browser-unit-tests
+      - macos-browser-integration-tests
+      - macos-remote-tests
+      - windows-electron-unit-tests
+      - windows-electron-tests
+      - windows-agent-host-e2e-tests
+      - windows-electron-smoke-test-shards
+      - windows-browser-unit-tests
+      - windows-browser-integration-tests
+      - windows-remote-tests
+      - copilot-check-test-cache
+      - copilot-check-telemetry
+      - copilot-linux-tests
+      - copilot-windows-tests
+      - chat-lib-linux-tests
+      - chat-lib-macos-tests
+      - chat-lib-windows-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          status=0
+          while IFS=$'\t' read -r job result; do
+            case "$job:$result" in
+              *:success)
+                echo "$job succeeded." ;;
+              *:skipped)
+                echo "$job was skipped because the changes cannot affect it." ;;
+              changes:failure)
+                echo "::warning::Detect Changes failed, so every job ran." ;;
+              *)
+                echo "::error::$job did not succeed (result: $result)."
+                status=1 ;;
+            esac
+          done < <(jq -r 'to_entries[] | "\(.key)\t\(.value.result)"' <<< "$NEEDS")
+          exit $status
