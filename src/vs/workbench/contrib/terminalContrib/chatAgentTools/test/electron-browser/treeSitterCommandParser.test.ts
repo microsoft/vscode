@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -272,6 +272,25 @@ suite('TreeSitterCommandParser', () => {
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git status', 'git diff'], hasUnanalyzableSyntax: true },
+			]);
+		});
+
+		test('ignores standalone double dashes inside PowerShell comments', async () => {
+			const inlineComment = await parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status # -- note');
+			deepStrictEqual(inlineComment.subCommands.map(command => command.trim()), ['git status']);
+			strictEqual(inlineComment.hasUnanalyzableSyntax, false);
+
+			deepStrictEqual(await Promise.all([
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; # -- note'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; <# -- #>; git diff'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff -- f; # -- note'),
+				// A real stray `--` outside of any comment must still fail closed.
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git status; # -- note\n--'),
+			]), [
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status', 'git diff'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git diff -- f'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 			]);
 		});
 
