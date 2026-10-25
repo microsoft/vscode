@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, IQuitAndInstallOptions, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
-import { isCommit, relaunchInBackground } from './relaunchInBackground.js';
+import { relaunchInBackground } from './relaunchInBackground.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -205,10 +205,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected override doQuitAndInstall(options?: IQuitAndInstallOptions): void {
-		if (options?.relaunchInBackground && this.state.type === StateType.Restarting && isCommit(this.state.update.version)) {
+		const bundleIdentifier = this.productService.darwinBundleIdentifier;
+		if (options?.relaunchInBackground && this.state.type === StateType.Restarting && bundleIdentifier) {
 			this.logService.info('update#quitAndInstall(): installing the update on quit and relaunching in the background');
 			try {
-				const child = relaunchInBackground({ pid: process.pid, commit: this.state.update.version, appRoot: this.environmentMainService.appRoot });
+				const child = relaunchInBackground({ pid: process.pid, commit: this.state.update.version, appRoot: this.environmentMainService.appRoot, bundleIdentifier });
 				child.once('error', error => this.logService.error('update#quitAndInstall(): failed to relaunch in the background', error));
 
 				return; // Squirrel installs the update when the application quits

@@ -602,7 +602,7 @@ export class CodeApplication extends Disposable {
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow(details)
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow(details, this.windowsMainService?.getBackgroundRestore())
 					};
 				}
 

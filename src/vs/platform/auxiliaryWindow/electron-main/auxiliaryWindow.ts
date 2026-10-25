@@ -12,7 +12,7 @@ import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMa
 import { ILogService } from '../../log/common/log.js';
 import { IStateService } from '../../state/node/state.js';
 import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
-import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
+import { IBackgroundShowOptions, IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
 import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
@@ -38,6 +38,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		private readonly webContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
 		private readonly disableMaximize: boolean,
+		private readonly windowMode: WindowMode | undefined,
+		private readonly backgroundShowOptions: IBackgroundShowOptions | undefined,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -61,21 +63,25 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 		this.doTryClaimWindow(effectiveOptions);
 
-		if (effectiveOptions && !this.stateApplied) {
+		// Apply the state once the window is fully created, which is when the window that
+		// opened it gets notified with the options (applying it earlier gets overridden)
+		if (options && this._win && !this.stateApplied) {
 			this.stateApplied = true;
 
 			this.applyState({
-				x: effectiveOptions.x,
-				y: effectiveOptions.y,
-				width: effectiveOptions.width,
-				height: effectiveOptions.height,
+				x: options.x,
+				y: options.y,
+				width: options.width,
+				height: options.height,
 				// We currently do not support restoring fullscreen state for auxiliary
 				// windows because we do not get hold of the original `features` string
 				// that contains that info in `window-fullscreen`. However, we can
 				// probe the `options.show` value for whether the window should be maximized
 				// or not because we never show maximized windows initially to reduce flicker.
-				mode: effectiveOptions.show === false ? WindowMode.Maximized : WindowMode.Normal
-			});
+				// Windows that show in the background are never shown initially, so their
+				// mode, including fullscreen, is passed in explicitly.
+				mode: this.windowMode ?? (options.show === false ? WindowMode.Maximized : WindowMode.Normal)
+			}, undefined, this.backgroundShowOptions);
 		}
 	}
 

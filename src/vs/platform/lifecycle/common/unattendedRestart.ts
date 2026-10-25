@@ -23,8 +23,20 @@ export interface IUnattendedRestartReadiness {
 }
 
 /**
+ * What a window reports to the main process over {@link UnattendedRestartChannelName}.
+ */
+export interface IUnattendedRestartWindowReadiness extends IUnattendedRestartReadiness {
+
+	/**
+	 * Whether `update.restartWhenIdle` is enabled. Experiments can enable it by
+	 * default, but they only resolve in windows.
+	 */
+	readonly enabled: boolean;
+}
+
+/**
  * The part of a window that the main process calls over {@link UnattendedRestartChannelName}.
  */
 export interface IUnattendedRestartReadinessProvider {
-	canRestartUnattended(): Promise<IUnattendedRestartReadiness>;
+	canRestartUnattended(): Promise<IUnattendedRestartWindowReadiness>;
 }

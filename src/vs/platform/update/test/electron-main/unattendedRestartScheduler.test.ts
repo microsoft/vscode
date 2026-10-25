@@ -23,8 +23,8 @@ import { IStateService } from '../../../state/node/state.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 import { INativeWindowConfiguration } from '../../../window/common/window.js';
-import { ICodeWindow } from '../../../window/electron-main/window.js';
-import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
+import { ICodeWindow, WindowMode } from '../../../window/electron-main/window.js';
+import { IExactRestoreOptions, IWindowsMainService } from '../../../windows/electron-main/windows.js';
 import { IQuitAndInstallOptions, IUpdateService, State, UpdateType } from '../../common/update.js';
 import { getWindowBlockers, hasArgumentsLostOnRelaunch, IUnattendedRestartHost, UNATTENDED_RESTART_LOCKED_DURATION, UnattendedRestartScheduler } from '../../electron-main/unattendedRestartScheduler.js';
 
@@ -33,6 +33,7 @@ suite('UnattendedRestartScheduler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const MINUTE = 60 * 1000;
+	const SECOND = 1000;
 	const update = { version: '0123456789abcdef0123456789abcdef01234567', productVersion: '1.145.0' };
 
 	interface ITestWindowOptions {
@@ -45,6 +46,7 @@ suite('UnattendedRestartScheduler', () => {
 		readonly isMinimized?: boolean;
 		readonly isVisible?: boolean;
 		readonly isFullScreen?: boolean;
+		readonly display?: number;
 	}
 
 	function createWindow(options: ITestWindowOptions = {}): ICodeWindow {
@@ -57,9 +59,11 @@ suite('UnattendedRestartScheduler', () => {
 			isExtensionDevelopmentHost: options.isExtensionDevelopmentHost ?? false,
 			isExtensionTestHost: false,
 			isFullScreen: options.isFullScreen ?? false,
+			serializeWindowState: () => ({ mode: options.isFullScreen ? WindowMode.Fullscreen : WindowMode.Normal, display: options.display ?? 1 }),
 			win: upcastPartial<NonNullable<ICodeWindow['win']>>({
 				isMinimized: () => options.isMinimized ?? false,
 				isVisible: () => options.isVisible ?? true,
+				isSimpleFullScreen: () => false,
 			}),
 		});
 	}
@@ -75,7 +79,10 @@ suite('UnattendedRestartScheduler', () => {
 
 	interface IFixtureOptions {
 		readonly os?: OperatingSystem;
+		/** The setting in user settings, which both the main process and the windows read. */
 		readonly enabled?: boolean;
+		/** Whether an experiment enables the setting by default, which only windows resolve. */
+		readonly enabledByExperiment?: boolean;
 		readonly focusedWhenLocked?: boolean;
 		readonly updateReady?: boolean;
 		readonly updateVersion?: string;
@@ -120,7 +127,11 @@ suite('UnattendedRestartScheduler', () => {
 		});
 
 		const window = createWindow();
-		const windowsMainService = upcastPartial<IWindowsMainService>({ getWindows: () => [window] });
+		const exactRestores: (IExactRestoreOptions | undefined)[] = [];
+		const windowsMainService = upcastPartial<IWindowsMainService>({
+			getWindows: () => [window],
+			restoreExactlyOnNextStartup: exactRestoreOptions => { exactRestores.push(exactRestoreOptions); },
+		});
 
 		let isLocked = false;
 		const host: IUnattendedRestartHost = {
@@ -142,7 +153,7 @@ suite('UnattendedRestartScheduler', () => {
 		const windowBlockers = [...(options.windowBlockers ?? [])];
 		store.add(new UnattendedRestartScheduler(
 			{
-				getWindowReadiness: async () => ({ blockers: windowBlockers.shift() ?? [] }),
+				getWindowReadiness: async () => ({ blockers: windowBlockers.shift() ?? [], enabled: (options.enabled ?? true) || (options.enabledByExperiment ?? false) }),
 				host,
 				os: options.os ?? OperatingSystem.Macintosh,
 				argv: [],
@@ -187,6 +198,7 @@ suite('UnattendedRestartScheduler', () => {
 				return stateItems.get('update.unattendedRestart');
 			},
 			stateItems,
+			exactRestores,
 		};
 	}
 
@@ -206,10 +218,11 @@ suite('UnattendedRestartScheduler', () => {
 		const beforeThreshold = [...fixture.log];
 		await timeout(2 * MINUTE);
 
-		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, restart: fixture.shutdown() }, {
+		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
 			beforeThreshold: [],
 			afterThreshold: ['quitAndInstall(foreground)'],
-			restart: pendingRestart(1, 15),
+			exactRestores: [{ inBackground: false }],
+			restart: pendingRestart(1, 2),
 		});
 	}));
 
@@ -219,33 +232,44 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 30 * MINUTE);
 
-		assert.deepStrictEqual(fixture.log, [outcome('eligible', 1, 15)]);
+		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores }, { log: [outcome('eligible', 1, 2)], exactRestores: [] });
 	}));
 
-	test('restarts in the background when another application had focus when the screen got locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('restarts when an experiment enables the setting, which only windows resolve', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ enabled: false, enabledByExperiment: true });
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
+
+		assert.deepStrictEqual(fixture.log, ['quitAndInstall(foreground)']);
+	}));
+
+	test('restores the windows in the background when another application had focus when the screen got locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({ focusedWhenLocked: false });
 
 		fixture.blurWindow();
-		await timeout(5000);
+		await timeout(5 * SECOND);
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 
-		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(background)'], restart: pendingRestart(1, 15, true) });
+		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
+			log: ['quitAndInstall(background)'],
+			exactRestores: [{ inBackground: true }],
+			restart: pendingRestart(1, 2, true),
+		});
 	}));
 
-	test('does not restart in the background where the relaunch would take focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('restarts in the background on Windows, with floating windows, and for updates without a commit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const windows = createFixture({ os: OperatingSystem.Windows, focusedWhenLocked: false });
 		const macOS = createFixture({ focusedWhenLocked: false, hasAuxiliaryWindow: true, updateVersion: 'unknown' });
 
 		windows.lock();
 		macOS.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
-		windows.unlock();
-		macOS.unlock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 
 		assert.deepStrictEqual({ windows: windows.log, macOS: macOS.log }, {
-			windows: [outcome('blocked', 1, 16, 'app.backgroundRelaunchUnsupported', true)],
-			macOS: [outcome('blocked', 1, 16, 'update.unknownVersion,window.auxiliary', true)],
+			windows: ['quitAndInstall(background)'],
+			macOS: ['quitAndInstall(background)'],
 		});
 	}));
 
@@ -255,41 +279,42 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.blurWindow();
 		await timeout(500);
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 
-		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(1, 15) });
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(1, 2) });
 	}));
 
 	test('does not restart while a native dialog is open', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({ hasOpenDialogs: true });
 
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 		fixture.unlock();
 
-		assert.deepStrictEqual(fixture.log, [outcome('blocked', 1, 16, 'app.dialogOpen')]);
+		assert.deepStrictEqual(fixture.log, [outcome('blocked', 1, 2, 'app.dialogOpen')]);
 	}));
 
 	test('retries while a window cannot be restored and restarts once it can', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({ windowBlockers: [['terminal.runningProcess']] });
 
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 6 * MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 2 * MINUTE);
 
-		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(2, 20) });
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(2, 3) });
 	}));
 
 	test('retries when the shutdown is vetoed and reports nothing until the restart completes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture();
 
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 		fixture.veto();
-		await timeout(6 * MINUTE);
+		await timeout(2 * MINUTE);
 
-		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, {
+		assert.deepStrictEqual({ log: fixture.log, exactRestores: fixture.exactRestores, restart: fixture.shutdown() }, {
 			log: ['quitAndInstall(foreground)', 'quitAndInstall(foreground)'],
-			restart: pendingRestart(2, 21),
+			exactRestores: [{ inBackground: false }, undefined, { inBackground: false }],
+			restart: pendingRestart(2, 3),
 		});
 	}));
 
@@ -297,13 +322,13 @@ suite('UnattendedRestartScheduler', () => {
 		const fixture = createFixture();
 
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 20 * SECOND);
 		fixture.veto();
-		await timeout(MINUTE);
+		await timeout(20 * SECOND);
 		fixture.unlock();
 
 		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, {
-			log: ['quitAndInstall(foreground)', outcome('blocked', 1, 17, 'shutdown.vetoed')],
+			log: ['quitAndInstall(foreground)', outcome('blocked', 1, 3, 'shutdown.vetoed')],
 			restart: undefined,
 		});
 	}));
@@ -328,18 +353,18 @@ suite('UnattendedRestartScheduler', () => {
 		const fixture = createFixture();
 
 		fixture.lock();
-		await timeout(10 * MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - 20 * SECOND);
 		fixture.suspend();
 		await timeout(60 * MINUTE);
 		fixture.resume();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - 20 * SECOND);
 		const beforeThreshold = [...fixture.log];
-		await timeout(2 * MINUTE);
+		await timeout(MINUTE);
 
 		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, restart: fixture.shutdown() }, {
 			beforeThreshold: [],
 			afterThreshold: ['quitAndInstall(foreground)'],
-			restart: pendingRestart(1, 15),
+			restart: pendingRestart(1, 2),
 		});
 	}));
 
@@ -350,12 +375,12 @@ suite('UnattendedRestartScheduler', () => {
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 60 * MINUTE);
 		const beforeReady = [...fixture.log];
 		fixture.setUpdateReady();
-		await timeout(MINUTE);
+		await timeout(20 * SECOND);
 
 		assert.deepStrictEqual({ beforeReady, afterReady: fixture.log, restart: fixture.shutdown() }, {
 			beforeReady: [],
 			afterReady: ['quitAndInstall(foreground)'],
-			restart: pendingRestart(1, 75),
+			restart: pendingRestart(1, 62),
 		});
 	}));
 
@@ -363,7 +388,7 @@ suite('UnattendedRestartScheduler', () => {
 		const fixture = createFixture();
 
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - MINUTE);
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION - 20 * SECOND);
 		fixture.unlock();
 		await timeout(60 * MINUTE);
 
@@ -371,23 +396,33 @@ suite('UnattendedRestartScheduler', () => {
 	}));
 
 	test('getWindowBlockers', () => {
+		const savedWindows = [
+			createWindow({ isSessionsWindow: true }),
+			createWindow({ isMinimized: true, isVisible: false }),
+			createWindow({ isVisible: false }),
+			createWindow({ isFullScreen: true, display: 1 }),
+			createWindow({ isFullScreen: true, display: 1 }),
+		];
+		const savedFloatingWindows = [createWindow(), createWindow({ isFullScreen: true })];
+
 		assert.deepStrictEqual({
-			noWindows: getWindowBlockers([], [], OperatingSystem.Macintosh),
-			restorable: getWindowBlockers([createWindow(), createWindow({ isFullScreen: true })], [createWindow()], OperatingSystem.Windows),
+			noWindows: getWindowBlockers([], [], OperatingSystem.Macintosh, true),
+			inBackground: getWindowBlockers(savedWindows, savedFloatingWindows, OperatingSystem.Macintosh, true),
+			inForeground: getWindowBlockers(savedWindows, savedFloatingWindows, OperatingSystem.Macintosh, false),
+			inForegroundOnWindows: getWindowBlockers(savedWindows, [], OperatingSystem.Windows, false),
 			notRestorable: getWindowBlockers([
 				createWindow({ isReady: false }),
-				createWindow({ isSessionsWindow: true }),
 				createWindow({ remoteAuthority: 'ssh-remote+host' }),
 				createWindow({ isExtensionDevelopmentHost: true }),
 				createWindow({ isTemporaryProfile: true }),
 				createWindow({ disableExtensions: true }),
-				createWindow({ isVisible: false }),
-				createWindow({ isFullScreen: true }),
-			], [createWindow({ isMinimized: true, isVisible: false })], OperatingSystem.Macintosh),
+			], [createWindow({ isMinimized: true, isVisible: false })], OperatingSystem.Macintosh, true),
 		}, {
 			noWindows: ['window.none'],
-			restorable: [],
-			notRestorable: ['window.notReady', 'window.agents', 'window.remote', 'window.extensionDevelopment', 'window.temporaryProfile', 'window.launchArguments', 'window.hidden', 'window.fullScreen', 'window.minimized'],
+			inBackground: [],
+			inForeground: ['window.fullScreenSameDisplay', 'window.auxiliaryFullScreen'], // macOS restores one native fullscreen window per display at once
+			inForegroundOnWindows: [],
+			notRestorable: ['window.notReady', 'window.remote', 'window.extensionDevelopment', 'window.temporaryProfile', 'window.launchArguments', 'window.auxiliaryMinimized'],
 		});
 	});
 

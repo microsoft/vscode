@@ -141,6 +141,24 @@ export interface IWindowState {
 	mode?: WindowMode;
 	zoomLevel?: number;
 	readonly display?: number;
+
+	/**
+	 * Whether the window is minimized. Only restored when the application
+	 * restores its windows exactly, for example after an update restart.
+	 */
+	minimized?: boolean;
+}
+
+/**
+ * Shows a window without taking focus from the active application.
+ */
+export interface IBackgroundShowOptions {
+
+	/**
+	 * macOS: hide the application again after showing the window,
+	 * because the application was hidden.
+	 */
+	readonly hideApplication: boolean;
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal, hasWorkspace = false): IWindowState {
