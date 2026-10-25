@@ -46,7 +46,7 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { SessionArtifactKind, isSessionArtifactVisibleInChat, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
@@ -561,10 +561,7 @@ export class SessionArtifacts extends Disposable {
 		const commitHoverCache = this._register(new ChatPillHoverCache());
 		const gitHubResolver = this._register(new GitHubResourceDetailsResolver(workbenchGitHubService, logService));
 		// The session publishes every chat's records; this surface shows only the focused chat's, like the GitHub pills.
-		const chatArtifacts = derived(this, reader => {
-			const focusedChat = chat.read(reader);
-			return (session.read(reader)?.artifacts?.read(reader) ?? []).filter(artifact => isSessionArtifactVisibleInChat(artifact, focusedChat));
-		});
+		const chatArtifacts = derived(this, reader => getChatSessionArtifacts(session.read(reader), chat.read(reader), reader));
 		this._register(autorun(reader => {
 			const current = session.read(reader);
 			const artifacts = chatArtifacts.read(reader);

@@ -137,6 +137,36 @@ suite('Session GitHub References', () => {
 		});
 	});
 
+	test('leaves another chat\'s echoed records out of a chat\'s pills, keeping discoveries no chat recorded', () => {
+		const link = (path: string) => URI.parse(`https://github.com/owner/repo/${path}`);
+		const mainResource = URI.parse('ahp-chat://default/session');
+		const peerResource = URI.parse('ahp-chat://peer/session');
+		const baseSession = createSession([
+			{ id: 'main-pr', chat: mainResource, kind: SessionArtifactKind.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: link('pull/1') },
+			{ id: 'peer-pr', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link('pull/2') },
+			{ id: 'peer-issue', chat: peerResource, kind: SessionArtifactKind.Issue, label: 'Peer issue', isArtifact: true, isGitHub: true, link: link('issues/3') },
+		], {
+			owner: 'owner', repo: 'repo',
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 1, uri: link('pull/1'), recordedReferenceId: 'main-pr' },
+				{ owner: 'owner', repo: 'repo', number: 2, uri: link('pull/2'), recordedReferenceId: 'peer-pr', createdByThisSession: true },
+				{ owner: 'owner', repo: 'repo', number: 4, uri: link('pull/4'), createdByThisSession: true },
+			],
+			issues: [{ owner: 'owner', repo: 'repo', number: 3, uri: link('issues/3'), recordedReferenceId: 'peer-issue' }],
+		});
+		const main = upcastPartial<IChat>({ resource: mainResource, workspace: constObservable(undefined) });
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(main) });
+		const snapshot = (resource: URI) => {
+			const references = getSessionGitHubReferences(session, undefined, upcastPartial<IChat>({ resource, workspace: constObservable(undefined) }));
+			return { pullRequests: references.pullRequests.map(ref => [ref.number, ref.recordedReferenceId]), issues: references.issues.map(ref => [ref.number, ref.recordedReferenceId]) };
+		};
+
+		assert.deepStrictEqual({ main: snapshot(mainResource), peer: snapshot(peerResource) }, {
+			main: { pullRequests: [[1, 'main-pr'], [4, undefined]], issues: [] },
+			peer: { pullRequests: [[2, 'peer-pr'], [4, undefined]], issues: [[3, 'peer-issue']] },
+		});
+	});
+
 	test('keeps every recorded GitHub artifact while resolving associations from the chat repositories', () => {
 		const sessionPullRequest = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') };
 		const chatPullRequest = { owner: 'contoso', repo: 'tools', number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') };
@@ -223,17 +253,19 @@ suite('Session GitHub References', () => {
 			restrictedMain: [[1, 'Live 1'], [3, 'Live 3']],
 			restrictedPeer: [[2, 'Live 2']],
 			automaticMain: [[1, 'Live 1'], [3, 'Live 3'], [2, 'Live 2'], [4, 'Live 4'], [5, 'Live 5']],
-			automaticPeer: [[2, 'Live 2'], [3, 'Live 3'], [1, 'Live 1'], [4, 'Live 4'], [5, 'Live 5']],
+			// The legacy PR belongs to the main chat, so the peer only gets it as a discovered association.
+			automaticPeer: [[2, 'Live 2'], [1, 'Live 1'], [3, 'Live 3'], [4, 'Live 4'], [5, 'Live 5']],
 			session: [[1, 'Live 1'], [2, 'Live 2'], [3, 'Live 3'], [4, 'Live 4'], [5, 'Live 5']],
 		});
 	});
 
-	test('keeps a chat-owned PR without a workspace and leaves unknown ownership out of restricted peer pills', () => {
+	test('keeps a chat-owned PR without a workspace and leaves the main chat\'s legacy PR out of restricted peer pills', () => {
 		const resource = URI.parse('custom-chat://host/peer');
-		const session = createSession([
+		const baseSession = createSession([
 			{ id: 'own', chat: resource, kind: SessionArtifactKind.PullRequest, label: 'Own PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
 			{ id: 'legacy', kind: SessionArtifactKind.PullRequest, label: 'Legacy PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/2') },
 		]);
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('custom-chat://host/main') })) });
 		const chat = upcastPartial<IChat>({ resource, workspace: constObservable(undefined) });
 		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat, false).pullRequests.map(ref => ref.number), [1]);
 	});

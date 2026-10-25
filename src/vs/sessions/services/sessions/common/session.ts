@@ -314,11 +314,35 @@ export interface ISessionArtifact {
 }
 
 /**
- * Whether a chat-scoped surface for `chat` shows `artifact`: entries the chat recorded, plus unowned
- * session-level entries. Without a chat, every entry of the session is shown.
+ * The entries a chat-scoped surface for `chat` shows: only those the chat recorded, where unowned legacy
+ * entries belong to the main chat (or to any chat while the main chat is unknown). A chat shows each resource
+ * once, preferring an artifact over a reference. Without a chat, every chat's entries are shown, so chats that
+ * recorded the same resource each keep theirs.
  */
-export function isSessionArtifactVisibleInChat(artifact: ISessionArtifact, chat: IChat | undefined): boolean {
-	return !chat || !artifact.chat || isEqual(artifact.chat, chat.resource);
+export function getChatSessionArtifacts(session: ISession | undefined, chat: IChat | undefined, reader: IReader | undefined): readonly ISessionArtifact[] {
+	const mainChat = session?.mainChat?.read(reader)?.resource;
+	const result: ISessionArtifact[] = [];
+	const indexByKey = new Map<string, number>();
+	for (const artifact of session?.artifacts?.read(reader) ?? []) {
+		const owner = artifact.chat ?? mainChat;
+		if (chat && owner && !isEqual(owner, chat.resource)) {
+			continue;
+		}
+		const value = (artifact.link?.toString() ?? artifact.uri?.toString() ?? artifact.commitHash)?.trim().toLowerCase();
+		if (!value) {
+			result.push(artifact);
+			continue;
+		}
+		const key = `${owner?.toString() ?? ''}\n${value}`;
+		const index = indexByKey.get(key);
+		if (index === undefined) {
+			indexByKey.set(key, result.length);
+			result.push(artifact);
+		} else if (artifact.isArtifact && !result[index].isArtifact) {
+			result[index] = artifact;
+		}
+	}
+	return result;
 }
 
 /**

@@ -16,6 +16,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ArtifactIntegrationsSettingId, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -65,7 +66,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService, followChat = false, withIntegrations = false) {
 		const artifacts = observableValue('artifacts', entries);
 		const loading = observableValue('loading', false);
 		const removed: string[] = [];
@@ -100,15 +101,19 @@ suite('Session Artifacts', () => {
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'provider:session';
 			override readonly resource = chatResource;
+			override readonly mainChat = constObservable(upcastPartial<IChat>({ resource: chatResource }));
 			override readonly artifacts = artifacts;
 			override readonly loading = loading;
-			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true });
+			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: withIntegrations });
 			override readonly workspace = workspace;
 		}());
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		if (withIntegrations) {
+			void configurationService.setUserConfiguration(ArtifactIntegrationsSettingId, true);
+		}
 		// Like the chat input toolbar, `followChat` resolves the dedicated GitHub pills for the focused chat.
-		const gitHubReferences = derived(reader => getSessionGitHubReferences(session.read(reader), reader, followChat ? chat.read(reader) : fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined));
+		const gitHubReferences = derived(reader => getSessionGitHubReferences(session.read(reader), reader, followChat ? chat.read(reader) : fromChat ? upcastPartial<IChat>({ resource: chatResource, workspace }) : undefined));
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			chat,
@@ -129,7 +134,7 @@ suite('Session Artifacts', () => {
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
-				override async acquireArtifactIntegration() { return undefined; }
+				override async acquireArtifactIntegration() { return withIntegrations ? { object: upcastPartial<IArtifactModel>({}), dispose() { } } : undefined; }
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
 					removed.push(artifactId);
 					if (removalError) {
@@ -142,7 +147,14 @@ suite('Session Artifacts', () => {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
-			new class extends mock<IInstantiationService>() { }(),
+			new class extends mock<IInstantiationService>() {
+				// Stands in for an integration presentation that contributes to its artifact.
+				override createInstance = (() => ({
+					snapshot: constObservable({ contributions: [{}] }),
+					decorate: (entry: IChatPillEntry) => entry,
+					dispose() { },
+				})) as IInstantiationService['createInstance'];
+			}(),
 			workbenchGitHubService ?? upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None, acquireDefaultAccountClient: () => new Promise(() => { }) }),
 			new NullLogService(),
 			new class extends mock<ITelemetryService>() {
@@ -782,7 +794,7 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('shows only the focused chat\'s own and unowned records, so peer pull requests never fall back into the artifacts pill', () => {
+	test('shows only the focused chat\'s own records, treating unowned records as the main chat\'s, so peer pull requests never fall back into the artifacts pill', () => {
 		const pullRequest = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
 		const mainChat = URI.parse('chat-session://test/images');
 		const peerChat = URI.parse('chat-session://test/peer');
@@ -808,8 +820,48 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual({ main, peer, sessionWide }, {
 			main: { pullRequestPill: ['main-pr'], artifacts: ['main-file', 'unowned-file'], references: ['main-reference'] },
-			peer: { pullRequestPill: ['peer-pr'], artifacts: ['peer-file', 'unowned-file'], references: ['peer-reference'] },
+			peer: { pullRequestPill: ['peer-pr'], artifacts: ['peer-file'], references: ['peer-reference'] },
 			sessionWide: { pullRequestPill: ['main-pr', 'peer-pr'], artifacts: ['main-file', 'peer-file', 'unowned-file'], references: ['main-reference', 'peer-reference'] },
+		});
+	});
+
+	test('shows a resource once per chat that recorded it, and only in those chats', async () => {
+		const pullRequest = URI.parse('https://github.com/owner/repo/pull/1');
+		const mainChat = URI.parse('chat-session://test/images');
+		const peerChat = URI.parse('chat-session://test/peer');
+		const { presentation, chat, gitHubReferences } = createPresentation([
+			{ id: 'legacy-pr', kind: SessionArtifactKind.PullRequest, label: 'Legacy', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'main-pr', chat: mainChat, kind: SessionArtifactKind.PullRequest, label: 'Main', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'peer-pr', chat: peerChat, kind: SessionArtifactKind.PullRequest, label: 'Peer', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'other-pr', chat: mainChat, kind: SessionArtifactKind.PullRequest, label: 'Other', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/2') },
+		], {
+			owner: 'owner',
+			repo: 'repo',
+			// The provider echoes every chat's records into the session folder's associations.
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 1, uri: pullRequest, recordedReferenceId: 'peer-pr' },
+				{ owner: 'owner', repo: 'repo', number: 2, uri: URI.parse('https://github.com/owner/repo/pull/2'), recordedReferenceId: 'other-pr' },
+			],
+		}, undefined, undefined, false, undefined, true, true);
+		await timeout(0);
+		const snapshot = async () => {
+			await timeout(0);
+			return {
+				integrated: presentation.integratedEntries.get().map(entry => entry.id),
+				pullRequestPill: gitHubReferences.get().pullRequests.map(ref => ref.recordedReferenceId),
+			};
+		};
+
+		const main = await snapshot();
+		chat.set(upcastPartial<IChat>({ resource: peerChat }), undefined);
+		const peer = await snapshot();
+		chat.set(undefined, undefined);
+		const sessionWide = await snapshot();
+
+		assert.deepStrictEqual({ main, peer, sessionWide }, {
+			main: { integrated: ['legacy-pr', 'other-pr'], pullRequestPill: ['legacy-pr', 'other-pr'] },
+			peer: { integrated: ['peer-pr'], pullRequestPill: ['peer-pr'] },
+			sessionWide: { integrated: ['legacy-pr', 'peer-pr', 'other-pr'], pullRequestPill: ['legacy-pr', 'other-pr'] },
 		});
 	});
 
@@ -888,7 +940,8 @@ suite('Session Artifacts', () => {
 		session.set(undefined, undefined);
 		const noSession = visible;
 
-		const references = ['duplicate-reference', 'reference'];
+		// The chat already has the created PR, so its reference to the same PR collapses into the artifact.
+		const references = ['reference'];
 		assert.deepStrictEqual({ withoutWorkspace, withoutGitHubInfo, hydrated, changedGitHubInfo, recordedFile, unmounted, noSession }, {
 			withoutWorkspace: { artifacts: [], references },
 			withoutGitHubInfo: { artifacts: [], references },
@@ -1170,14 +1223,15 @@ suite('Session Artifacts', () => {
 	test('retries a failed commit lookup without orphaning existing observers', async () => {
 		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
 		const requests: DeferredPromise<GitHubCommit>[] = [];
-		const { presentation } = createPresentation([
-			{ id: 'reference', kind: SessionArtifactKind.Commit, label: 'Recorded reference', isArtifact: false, link },
+		const { presentation, chat } = createPresentation([
+			{ id: 'reference', chat: URI.parse('chat-session://test/peer'), kind: SessionArtifactKind.Commit, label: 'Recorded reference', isArtifact: false, link },
 			{ id: 'artifact', kind: SessionArtifactKind.Commit, label: 'Recorded artifact', isArtifact: true, link },
 		], undefined, undefined, () => {
 			const result = new DeferredPromise<GitHubCommit>();
 			requests.push(result);
 			return result.p;
 		});
+		chat.set(undefined, undefined);
 		let referenceLabel: string | undefined;
 		disposables.add(autorun(reader => {
 			referenceLabel = presentation.referenceSections.read(reader).flatMap(section => section.entries)[0]?.label;
@@ -1206,14 +1260,15 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('removes references and durable artifacts by stable id, preserving duplicates', async () => {
+	test('removes references and durable artifacts by stable id, preserving duplicates recorded by other chats', async () => {
 		const duplicateLink = URI.parse('https://example.com/docs');
-		const { presentation, artifacts, removed, errors, setRemovalError } = createPresentation([
+		const { presentation, artifacts, removed, errors, setRemovalError, chat } = createPresentation([
 			{ id: 'artifact', kind: SessionArtifactKind.Website, label: 'Durable', isArtifact: true, link: duplicateLink },
-			{ id: 'reference-a', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
-			{ id: 'reference-b', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
+			{ id: 'reference-a', chat: URI.parse('chat-session://test/a'), kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
+			{ id: 'reference-b', chat: URI.parse('chat-session://test/b'), kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: false, link: duplicateLink },
 			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/1') },
 		]);
+		chat.set(undefined, undefined);
 		const read = () => ({
 			sections: presentation.referenceSections.get().map(section => [section.title, section.entries.map(entry => entry.id)]),
 			artifacts: presentation.sections.get().map(section => [section.title, section.entries.map(entry => entry.id)]),
