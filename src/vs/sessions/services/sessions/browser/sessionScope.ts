@@ -26,7 +26,8 @@ class ActiveSessionScope implements ISessionScope {
 	readonly session: IObservable<IActiveSession | undefined>;
 
 	constructor(@ISessionsService sessionsService: ISessionsService) {
-		this.session = sessionsService.activeSession;
+		// The main window keeps its session while a chat window has focus.
+		this.session = sessionsService.mainWindowActiveSession;
 	}
 }
 

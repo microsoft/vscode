@@ -22,7 +22,7 @@ function isSession(value: unknown): value is IActiveSession {
  */
 export function findSessionByResource(sessionsService: ISessionsService, resource: URI, reader?: IReader): IActiveSession | undefined {
 	const key = resource.toString();
-	return [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader)].find(session => session?.resource.toString() === key);
+	return [sessionsService.activeSession.read(reader), sessionsService.mainWindowActiveSession.read(reader), ...sessionsService.windowSessions.read(reader), ...sessionsService.visibleSessions.read(reader)].find(session => session?.resource.toString() === key);
 }
 
 /**

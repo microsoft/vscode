@@ -153,7 +153,7 @@ interface IChangesButtonBarWidget extends IDisposable {
 /** Resolves the session of the given scope together with its changes observables. */
 export function createChangesSessionScope(changesViewService: IChangesViewService, sessionsService: ISessionsService, scope: ISessionScope): IChangesSessionScope {
 	const session = scope.session;
-	return { session, changes: session === sessionsService.activeSession ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session) };
+	return { session, changes: session === sessionsService.mainWindowActiveSession ? getActiveSessionChanges(changesViewService) : changesViewService.getSessionChanges(session) };
 }
 
 class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
