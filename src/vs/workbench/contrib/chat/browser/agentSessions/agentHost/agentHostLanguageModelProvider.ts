@@ -133,7 +133,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return discounts.length ? Math.max(...discounts) : undefined;
 	}
 
-	/** Adds service-discovered models without overriding metadata or policy published by the host. */
+	/** Adds service-discovered models and fills missing Copilot pricing without overriding host capabilities or policy. */
 	updateAdditionalModels(models: readonly SessionModelInfo[]): void {
 		this._additionalModels = models;
 		this._onDidChange.fire();
@@ -141,10 +141,18 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		const hostModelIds = new Set(this._models.map(model => model.id));
+		const additionalModels = new Map(this._additionalModels.map(model => [model.id, model]));
 		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
-				const pricing = readAgentModelPricingMeta(m);
+				const modelGroup = this._modelGroupFor(m);
+				const additional = additionalModels.get(m.id);
+				const pricing = {
+					...(m.id !== AUTO_RAW_MODEL_ID && additional?.provider === m.provider
+						&& modelGroup?.id === COPILOT_VENDOR_ID && this._modelGroupFor(additional)?.id === COPILOT_VENDOR_ID
+						? readAgentModelPricingMeta(additional) : undefined),
+					...readAgentModelPricingMeta(m),
+				};
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
@@ -165,7 +173,6 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
 				const tooltip = notices?.rowWarning ?? description;
-				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
 				// token counts, so fall back to the workbench's own catalogue entry for the same

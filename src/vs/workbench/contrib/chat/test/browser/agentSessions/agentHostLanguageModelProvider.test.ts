@@ -85,6 +85,50 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
+	test('fills matching Copilot billing from the additional catalog without overriding host metadata', async () => {
+		const provider = createProvider();
+		const schema = { type: 'object' as const, properties: { reasoningEffort: { type: 'string' as const, enum: ['low', 'high'], readOnly: true } } };
+		provider.updateModels([
+			{ ...makeModel('missing-prices'), provider: 'copilot', configSchema: schema },
+			{ ...makeModel('host-prices', { inputCost: 0, multiplierNumeric: 2 }), provider: 'copilot' },
+			{ ...makeModel('direct', { modelGroupId: 'anthropic' }), provider: 'copilot' },
+			{ ...makeModel('other-provider'), provider: 'other' },
+			{ ...makeModel('disabled'), provider: 'copilot', policyState: PolicyState.Disabled },
+			{ ...makeModel('auto'), provider: 'copilot' },
+		]);
+		provider.updateAdditionalModels(['missing-prices', 'host-prices', 'direct', 'other-provider', 'disabled', 'auto'].map(id => ({
+			...makeModel(id, { inputCost: 5, outputCost: 20, multiplierNumeric: 3 }),
+			provider: 'copilot', name: 'Catalog name', maxContextWindow: 1_000_000,
+		})));
+		const read = async () => (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).map(({ metadata }) => ({
+			id: metadata.id, inputCost: metadata.inputCost, outputCost: metadata.outputCost, multiplier: metadata.multiplierNumeric,
+		}));
+		const enriched = await read();
+		const [first] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateAdditionalModels([]);
+		const cleared = await read();
+		assert.deepStrictEqual({
+			enriched, cleared,
+			host: { name: first.metadata.name, context: first.metadata.maxContextWindowTokens, efforts: first.metadata.configurationSchema?.properties?.reasoningEffort.enum, readOnly: first.metadata.configurationSchema?.properties?.reasoningEffort.readOnly },
+		}, {
+			enriched: [
+				{ id: 'missing-prices', inputCost: 5, outputCost: 20, multiplier: 3 },
+				{ id: 'host-prices', inputCost: 0, outputCost: 20, multiplier: 2 },
+				{ id: 'direct', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'other-provider', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'auto', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+			],
+			cleared: [
+				{ id: 'missing-prices', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'host-prices', inputCost: 0, outputCost: undefined, multiplier: 2 },
+				{ id: 'direct', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'other-provider', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+				{ id: 'auto', inputCost: undefined, outputCost: undefined, multiplier: undefined },
+			],
+			host: { name: 'missing-prices', context: undefined, efforts: ['low', 'high'], readOnly: true },
+		});
+	});
+
 	test('groups native autoTier without inventing a default or losing fast', async () => {
 		const provider = createProvider();
 		provider.updateModels([{
