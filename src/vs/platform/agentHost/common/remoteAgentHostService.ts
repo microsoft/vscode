@@ -826,6 +826,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
+	/** Last user-visible failure; automatic retries retain it until they fail or succeed. */
+	readonly lastConnectionError?: string;
 	/** Last operating system successfully reported by this host. */
 	readonly operatingSystem?: OperatingSystem;
 }

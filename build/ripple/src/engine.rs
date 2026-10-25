@@ -13,7 +13,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 
 use crate::analyze::{ExportTarget, FileFacts, analyze, name_id};
-use crate::config::Config;
+use crate::config::{Config, Scope};
 use crate::deps::DepImpact;
 use crate::git::{BlobReader, Change, ls_tree};
 use crate::graph::{Entry, Graph, Scratch, Snapshot, join, package_name};
@@ -63,7 +63,7 @@ pub fn dependency_impact(
 	}
 	let runners = runner_packages(config, head, read)?;
 	if std::env::var_os("RIPPLE_DEBUG").is_some() {
-		let mut reasons: Vec<&String> = runners.values().collect();
+		let mut reasons: Vec<&String> = runners.values().map(|(_, reason)| reason).collect();
 		reasons.sort();
 		for reason in reasons {
 			eprintln!("{reason}");
@@ -81,20 +81,23 @@ fn is_script(path: &str) -> bool {
 		&& !path.ends_with(".d.ts")
 }
 
-/// A script that every unit test depends on.
+/// A script that every unit test, or every integration test, depends on.
 struct RunnerScript {
 	path: Arc<str>,
-	/// The group of `runEverything` that it belongs to.
+	/// The group of `runEverything` or `runEveryIntegrationTest` that it belongs to.
 	group: String,
-	/// The script that loads it, unless `runEverything` lists it.
+	/// The tests that a change to it runs.
+	scope: Scope,
+	/// The script that loads it, unless `runEverything` or `runEveryIntegrationTest` lists it.
 	loaded_by: Option<Arc<str>>,
 	facts: FileFacts,
 }
 
-/// The scripts that every unit test depends on: those that `runEverything` lists, and the scripts
-/// they load through relative imports, such as `build/lib/electronVersion.ts` for
-/// `build/lib/electron.ts`. Modules are analyzed with the tests, so only scripts outside the
-/// modules count.
+/// The scripts that every unit test or every integration test depends on: those that
+/// `runEverything` or `runEveryIntegrationTest` lists, and the scripts they load through relative
+/// imports, such as `build/lib/electronVersion.ts` for `build/lib/electron.ts`. Modules are
+/// analyzed with the tests, so only scripts outside the modules count. The scripts of
+/// `runEverything` come first, and a script that both groups load counts for every test.
 fn runner_scripts(
 	config: &Config,
 	snap: &Snapshot,
@@ -102,93 +105,105 @@ fn runner_scripts(
 ) -> Result<Vec<RunnerScript>> {
 	let mut scripts: Vec<RunnerScript> = Vec::new();
 	let mut seen: HashSet<u32> = HashSet::new();
-	for (i, e) in snap.entries.iter().enumerate() {
-		if let Some(group) = config
-			.run_everything(&e.path)
-			.filter(|_| is_script(&e.path))
-		{
-			seen.insert(i as u32);
-			scripts.push(RunnerScript {
-				path: e.path.clone(),
-				group: group.to_owned(),
-				loaded_by: None,
-				facts: FileFacts::default(),
-			});
-		}
-	}
 	let mut next = 0;
-	while next < scripts.len() {
-		let i = snap.find(&scripts[next].path).unwrap();
-		let facts = analyze(
-			&scripts[next].path,
-			&read(&snap.entries[i as usize].oid)?,
-			config,
-		);
-		if facts.error {
-			anyhow::bail!("{}: cannot find the files it loads", scripts[next].path);
-		}
-		let dir = scripts[next]
-			.path
-			.rsplit_once('/')
-			.map_or("", |(d, _)| d)
-			.to_owned();
-		for spec in &facts.specs {
-			if spec.type_only
-				|| spec.root || spec.data.is_some()
-				|| !spec.specifier.starts_with('.')
-			{
-				continue;
-			}
-			let Some(t) = join(&dir, &spec.specifier).and_then(|p| snap.resolve_file(&p)) else {
-				continue;
-			};
-			let e = &snap.entries[t as usize];
-			if is_script(&e.path)
-				&& !e.role.is_module()
-				&& !config.excluded_from_run_everything(&e.path)
-				&& seen.insert(t)
+	for scope in [Scope::All, Scope::Integration] {
+		for (i, e) in snap.entries.iter().enumerate() {
+			if let Some((group, _)) = config
+				.trigger(&e.path)
+				.filter(|&(_, s)| s == scope && is_script(&e.path))
+				&& seen.insert(i as u32)
 			{
 				scripts.push(RunnerScript {
 					path: e.path.clone(),
-					group: scripts[next].group.clone(),
-					loaded_by: Some(scripts[next].path.clone()),
+					group: group.to_owned(),
+					scope,
+					loaded_by: None,
 					facts: FileFacts::default(),
 				});
 			}
 		}
-		scripts[next].facts = facts;
-		next += 1;
+		while next < scripts.len() {
+			let i = snap.find(&scripts[next].path).unwrap();
+			let facts = analyze(
+				&scripts[next].path,
+				&read(&snap.entries[i as usize].oid)?,
+				config,
+			);
+			if facts.error {
+				anyhow::bail!("{}: cannot find the files it loads", scripts[next].path);
+			}
+			let dir = scripts[next]
+				.path
+				.rsplit_once('/')
+				.map_or("", |(d, _)| d)
+				.to_owned();
+			for spec in &facts.specs {
+				if spec.type_only
+					|| spec.root || spec.data.is_some()
+					|| !spec.specifier.starts_with('.')
+				{
+					continue;
+				}
+				let Some(t) = join(&dir, &spec.specifier).and_then(|p| snap.resolve_file(&p))
+				else {
+					continue;
+				};
+				let e = &snap.entries[t as usize];
+				if is_script(&e.path)
+					&& !e.role.is_module()
+					&& !config.excluded_from_run_everything(&e.path)
+					&& seen.insert(t)
+				{
+					scripts.push(RunnerScript {
+						path: e.path.clone(),
+						group: scripts[next].group.clone(),
+						scope: scripts[next].scope,
+						loaded_by: Some(scripts[next].path.clone()),
+						facts: FileFacts::default(),
+					});
+				}
+			}
+			scripts[next].facts = facts;
+			next += 1;
+		}
 	}
 	Ok(scripts)
 }
 
-/// The reason to run every unit test when a change touches a script that a `runEverything` script
-/// loads.
+/// The reasons to run every test, or every integration test, when a change touches scripts that a
+/// `runEverything` or `runEveryIntegrationTest` script loads, with the tests they run.
 fn runner_script_changed(
 	config: &Config,
 	snap: &Snapshot,
 	read: &mut ReadBlob,
 	paths: &[&str],
-) -> Result<Option<String>> {
+) -> Result<Vec<(Scope, String)>> {
+	// Changing a script that `runEverything` lists runs everything without this. A script that
+	// `runEveryIntegrationTest` lists counts when a `runEverything` script loads it: that runs
+	// every test, not only the integration tests.
 	let loaded =
 		|p: &&str| is_script(p) && !snap.role(p).is_module() && config.run_everything(p).is_none();
 	if !paths.iter().any(loaded) {
-		return Ok(None);
+		return Ok(Vec::new());
 	}
 	Ok(runner_scripts(config, snap, read)?
 		.into_iter()
-		.find(|s| s.loaded_by.is_some() && paths.contains(&&*s.path))
-		.map(|s| format!("{} ({} loads {})", s.group, s.loaded_by.unwrap(), s.path)))
+		.filter(|s| s.loaded_by.is_some() && paths.contains(&&*s.path))
+		.map(|s| {
+			let reason = format!("{} ({} loads {})", s.group, s.loaded_by.unwrap(), s.path);
+			(s.scope, reason)
+		})
+		.collect())
 }
 
-/// The npm packages that the scripts every unit test depends on load, such as the test runners'
-/// web server: a change to one of them runs every unit test. Each package has the reason to
-/// report.
+/// The npm packages that the scripts every unit test or every integration test depends on load,
+/// such as the test runners' web server: a change to one of them runs those tests. Each package
+/// has the tests it runs and the reason to report.
 fn runner_packages(
 	config: &Config,
 	snap: &Snapshot,
 	read: &mut ReadBlob,
-) -> Result<HashMap<String, String>> {
+) -> Result<HashMap<String, (Scope, String)>> {
 	let mut packages = HashMap::new();
 	for script in runner_scripts(config, snap, read)? {
 		for spec in &script.facts.specs {
@@ -200,7 +215,8 @@ fn runner_packages(
 			}
 			if let Some(name) = package_name(&spec.specifier) {
 				packages.entry(name.clone()).or_insert_with(|| {
-					format!("{} package '{name}' ({})", script.group, script.path)
+					let reason = format!("{} package '{name}' ({})", script.group, script.path);
+					(script.scope, reason)
 				});
 			}
 		}
@@ -457,8 +473,8 @@ pub fn changed_nodes(
 	let mut base_seeds = Vec::new();
 	for path in paths {
 		let data = !base.role(path).is_module() && !head.role(path).is_module();
-		head_seeds.extend(hg.dir_dependents(path, data).0);
-		base_seeds.extend(bg.dir_dependents(path, data).0);
+		head_seeds.extend(hg.readers(path, data).0);
+		base_seeds.extend(bg.readers(path, data).0);
 		let bi = base.find(path);
 		let hi = head.find(path);
 		let bf = bi.and_then(|i| base.entries[i as usize].facts.clone());
@@ -554,8 +570,16 @@ pub struct Selection {
 	pub changed_decls: usize,
 	/// Why every test must run, if a change reaches outside the module graph.
 	pub run_all: Option<String>,
+	/// Why every integration test must run, if a change reaches outside the module graph where
+	/// only the integration tests depend on it (`runEveryIntegrationTest`). Every test runs anyway
+	/// when `run_all` is set.
+	pub run_all_integration: Option<String>,
 	/// npm packages whose resolved version changed.
 	pub packages: usize,
+	/// The nodes that the change changed in the head and in the base graph, which the selected
+	/// tests depend on: declarations (see `changed_nodes`), packages and injected globals.
+	pub head_seeds: Vec<u32>,
+	pub base_seeds: Vec<u32>,
 }
 
 fn collect(snap: &Snapshot, marks: &[bool], out: &mut HashSet<Arc<str>>) {
@@ -610,6 +634,11 @@ pub fn select(
 			.run_everything(p)
 			.map(|reason| format!("{reason} ({p})"))
 	});
+	let mut run_all_integration = paths.iter().find_map(|p| {
+		config
+			.run_every_integration_test(p)
+			.map(|reason| format!("{reason} ({p})"))
+	});
 	// A module that does not parse has no dependencies, so its tests would miss changes.
 	run_all = run_all.or_else(|| {
 		head.entries
@@ -619,12 +648,21 @@ pub fn select(
 			.map(|e| format!("parse error ({})", e.path))
 	});
 	if run_all.is_none() {
-		run_all = runner_script_changed(config, head, read, &paths)?;
+		let scripts = runner_script_changed(config, head, read, &paths)?;
+		let first = |scope: Scope| {
+			scripts
+				.iter()
+				.find(|(s, _)| *s == scope)
+				.map(|(_, reason)| reason.clone())
+		};
+		run_all = first(Scope::All);
+		run_all_integration = run_all_integration.or_else(|| first(Scope::Integration));
 	}
 	let deps = dependency_impact(config, read, head, changes)?;
 	let mut packages = 0;
 	if let Some(deps) = &deps {
 		run_all = run_all.or_else(|| deps.run_all.clone());
+		run_all_integration = run_all_integration.or_else(|| deps.run_all_integration.clone());
 		packages = deps.packages.len();
 		for name in &deps.packages {
 			head_seeds.extend(hg.packages.get(name));
@@ -656,28 +694,23 @@ pub fn select(
 		decl: HashSet::new(),
 		changed_decls: head_seeds.len() + base_seeds.len(),
 		run_all,
+		run_all_integration,
 		packages,
+		head_seeds,
+		base_seeds,
 	};
-	dependent_tests(head, hg, &head_seeds, &mut sel.decl);
-	dependent_tests(base, bg, &base_seeds, &mut sel.decl);
+	dependent_tests(head, hg, &sel.head_seeds, &mut sel.decl);
+	dependent_tests(base, bg, &sel.base_seeds, &mut sel.decl);
 	let is_data = |p: &str| !base.role(p).is_module() && !head.role(p).is_module();
 	let head_files: Vec<u32> = paths
 		.iter()
 		.filter_map(|p| head.find(p))
-		.chain(
-			paths
-				.iter()
-				.flat_map(|p| hg.dir_dependents(p, is_data(p)).1),
-		)
+		.chain(paths.iter().flat_map(|p| hg.readers(p, is_data(p)).1))
 		.collect();
 	let base_files: Vec<u32> = paths
 		.iter()
 		.filter_map(|p| base.find(p))
-		.chain(
-			paths
-				.iter()
-				.flat_map(|p| bg.dir_dependents(p, is_data(p)).1),
-		)
+		.chain(paths.iter().flat_map(|p| bg.readers(p, is_data(p)).1))
 		.collect();
 	for runtime in [false, true] {
 		let out = if runtime {
@@ -852,12 +885,15 @@ mod tests {
 			.collect();
 		let mut read = |oid: &str| -> Result<String> { Ok(contents[oid].to_owned()) };
 		let packages = runner_packages(for_tests(), &snapshot(&files), &mut read).unwrap();
-		let mut packages: Vec<(String, String)> = packages.into_iter().collect();
-		packages.sort();
+		let mut packages: Vec<(String, (Scope, String))> = packages.into_iter().collect();
+		packages.sort_by(|a, b| a.0.cmp(&b.0));
 		let reason = |p: &str| {
 			(
 				p.to_owned(),
-				format!("test runner package '{p}' (test/runner.js)"),
+				(
+					Scope::All,
+					format!("test runner package '{p}' (test/runner.js)"),
+				),
 			)
 		};
 		assert_eq!(
@@ -911,13 +947,98 @@ mod tests {
 				case("tools/version.js"),
 				case("tools/deep.js"),
 				case("tools/other.js"),
-				packages.get("semver").map(String::as_str),
+				packages.get("semver").map(|(_, reason)| reason.as_str()),
 			),
 			(
 				Some("test runner (test/runner.js loads tools/version.js)".to_owned()),
 				Some("test runner (tools/version.js loads tools/deep.js)".to_owned()),
 				None,
 				Some("test runner package 'semver' (tools/version.js)"),
+			)
+		);
+	}
+
+	#[test]
+	fn integration_test_launchers_run_every_integration_test() {
+		// `scripts/integration.*` runs every integration test: scripts/integration.ts loads
+		// tools/launch.js, which loads the npm package launcher, and tools/shared.js, which
+		// test/runner.js loads too, so that changing it runs every test. test/runner.js also loads
+		// scripts/integration.cjs, which runs every test although the group lists it.
+		let files = [
+			(
+				"scripts/integration.ts",
+				"import { launch } from '../tools/launch.js';\nimport '../tools/shared.js';\nlaunch();\n",
+			),
+			("scripts/integration.cjs", "exports.i = 1;\n"),
+			(
+				"tools/launch.js",
+				"const launcher = require('launcher');\nexports.launch = launcher;\n",
+			),
+			("tools/shared.js", "exports.s = 1;\n"),
+			(
+				"test/runner.js",
+				"require('../tools/shared.js');\nrequire('../scripts/integration.cjs');\n",
+			),
+			(
+				"src/app/a.integrationTest.ts",
+				"import { a } from './lib.js';\ntest('a', () => a);\n",
+			),
+			("src/app/lib.ts", "export const a = 1;\n"),
+			TEST_A,
+		];
+		let case = |path: &str| -> (Option<String>, Option<String>, Vec<String>) {
+			let head: Vec<(&str, String)> = files
+				.iter()
+				.map(|&(p, c)| {
+					(
+						p,
+						if p == path {
+							format!("{c}// changed\n")
+						} else {
+							c.to_owned()
+						},
+					)
+				})
+				.collect();
+			let sel = selection(&files, &refs(&head));
+			let mut tests: Vec<String> = sel.decl.iter().map(|p| p.to_string()).collect();
+			tests.sort();
+			(sel.run_all, sel.run_all_integration, tests)
+		};
+		let contents: HashMap<String, &str> = files
+			.iter()
+			.map(|(_, c)| (format!("{:016x}", xxh3_64(c.as_bytes())), *c))
+			.collect();
+		let mut read = |oid: &str| -> Result<String> { Ok(contents[oid].to_owned()) };
+		let packages = runner_packages(for_tests(), &snapshot(&files), &mut read).unwrap();
+		assert_eq!(
+			(
+				case("scripts/integration.ts"),
+				case("tools/launch.js"),
+				case("tools/shared.js").0,
+				case("scripts/integration.cjs").0,
+				packages.get("launcher").cloned(),
+			),
+			(
+				(
+					None,
+					Some("integration test runner (scripts/integration.ts)".to_owned()),
+					vec![]
+				),
+				(
+					None,
+					Some(
+						"integration test runner (scripts/integration.ts loads tools/launch.js)"
+							.to_owned()
+					),
+					vec![]
+				),
+				Some("test runner (test/runner.js loads tools/shared.js)".to_owned()),
+				Some("test runner (test/runner.js loads scripts/integration.cjs)".to_owned()),
+				Some((
+					Scope::Integration,
+					"integration test runner package 'launcher' (tools/launch.js)".to_owned()
+				)),
 			)
 		);
 	}
@@ -1470,6 +1591,56 @@ mod tests {
 		// Strings that name no repository file are not packages either.
 		let graph = Graph::build(&snapshot(&[json("{}"), test]), for_tests());
 		assert!(!graph.packages.contains_key("text"));
+	}
+
+	#[test]
+	fn repository_paths_depend_on_the_file_and_module_paths_on_what_it_loads() {
+		let files = [
+			("src/app/dep.ts", "export function start() { return 1; }\n"),
+			(
+				"src/app/main.ts",
+				"import { start } from './dep.js';\nstart();\n",
+			),
+			// A fake tree whose file names happen to be repository paths: code does not run a
+			// module that a path from the repository root names.
+			(
+				"src/app/test/tree.test.ts",
+				"const tree = [{ path: 'src/app/main.ts' }];\ntest('a', () => tree);\n",
+			),
+			// An entry point by path alias, which a process runs.
+			(
+				"src/lib/starter.ts",
+				"export function spawn() { return fork('lib/worker'); }\n",
+			),
+			(
+				"src/lib/worker.ts",
+				"import { start } from '../app/dep.js';\nstart();\n",
+			),
+			(
+				"src/lib/test/starter.test.ts",
+				"import { spawn } from '../starter.js';\ntest('a', () => spawn());\n",
+			),
+		];
+		let changed = |path: &str, content: &'static str| -> Vec<String> {
+			let head: Vec<(&str, &str)> = files
+				.iter()
+				.map(|&(p, c)| (p, if p == path { content } else { c }))
+				.collect();
+			selected(&files, &head)
+		};
+		assert_eq!(
+			(
+				changed("src/app/dep.ts", "export function start() { return 2; }\n"),
+				changed(
+					"src/app/main.ts",
+					"// Starts.\nimport { start } from './dep.js';\nstart();\n"
+				),
+			),
+			(
+				vec!["src/lib/test/starter.test.ts".to_owned()],
+				vec!["src/app/test/tree.test.ts".to_owned()]
+			)
+		);
 	}
 
 	#[test]
@@ -2087,6 +2258,43 @@ mod tests {
 				vec!["src/lib/test/root/root.test.ts".to_owned()],
 				vec![]
 			)
+		);
+	}
+
+	#[test]
+	fn paths_explain_how_a_test_reaches_a_change() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"test('a', async () => { const { Service } = await import('../lib.js'); return new Service().send(); });\n",
+		);
+		let lib = |body| ("src/app/lib.ts", body);
+		let base = [lib("export class Service { send() { return 1; } }\n"), test];
+		let head = [lib("export class Service { send() { return 2; } }\n"), test];
+		let (snap, seeds) = (snapshot(&head), selection(&base, &head).head_seeds);
+		let graph = Graph::build(&snap, for_tests());
+		let mut targets = vec![false; graph.node_count()];
+		for s in seeds {
+			targets[s as usize] = true;
+		}
+		let roots: Vec<u32> = graph
+			.file_nodes(snap.find(test.0).unwrap() as usize)
+			.collect();
+		let path: Vec<(String, Option<String>)> = graph
+			.path_from(&roots, &[], &targets)
+			.unwrap()
+			.into_iter()
+			.map(|(v, opener)| (graph.label(&snap, v), opener.map(|o| graph.label(&snap, o))))
+			.collect();
+		assert_eq!(
+			path,
+			vec![
+				("src/app/test/a.test.ts :: <init>".to_owned(), None),
+				("src/app/lib.ts (whole module)".to_owned(), None),
+				(
+					"src/app/lib.ts :: Service.prototype.send".to_owned(),
+					Some("src/app/test/a.test.ts :: <init>".to_owned())
+				),
+			]
 		);
 	}
 }

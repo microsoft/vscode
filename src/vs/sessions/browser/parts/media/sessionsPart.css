@@ -60,19 +60,14 @@
  * capped to the centered-content width (set as a CSS variable in `SessionView`) to align with the header/content band rather than
  * starting in the empty side gutters. */
 .monaco-workbench .part.sessionspart .chat-view {
-	--session-activity-bar-reserved-width: 0px;
-	/* Content keeps this inset on both sides so it stays centered with even space beside it. The centered
-	 * band is then at most the full width minus twice the inset, which keeps it clear of the Session Activity Bar;
-	 * wide chats are unaffected because their capped band already clears it. */
-	--session-activity-bar-content-inset: var(--session-activity-bar-reserved-width);
 	position: relative;
 }
 
 .monaco-workbench .part.sessionspart .chat-view > .monaco-progress-container {
 	position: absolute;
 	top: 0;
-	left: var(--session-activity-bar-content-inset, 0px);
-	right: var(--session-activity-bar-content-inset, 0px);
+	left: 0;
+	right: 0;
 	margin: 0 auto;
 	max-width: var(--session-view-centered-content-max-width);
 	z-index: 10;

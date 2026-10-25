@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IDiscoveredDevContainer } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -38,7 +38,7 @@ suite('RemotesModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const tunnel: ITunnelInfo = { tunnelId: 'laptop', clusterId: 'eu', name: 'Laptop', protocolVersion: 6, tags: [], hostConnectionCount: 1 };
 
-	function setup(discover: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]> = async () => [{ id: 'container', name: 'Project', workspaceFolder: '/project' }], restoreProvidersDuringInitialization = false) {
+	function setup(discover: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]> = async () => [{ id: 'container', name: 'Project', workspaceFolder: '/project' }], restoreProvidersDuringInitialization = false, initialConnections: readonly IRemoteAgentHostConnectionInfo[] = []) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const configuration = new TestConfigurationService({
@@ -50,6 +50,8 @@ suite('RemotesModel', () => {
 		let tunnels: ICachedTunnel[] = [];
 		let workspaces: { workspaceUri: URI; name: string }[] = [];
 		const providersChanged = store.add(new Emitter<{ added: []; removed: [] }>());
+		const connectionsChanged = store.add(new Emitter<void>());
+		let connections = initialConnections;
 		let workspacesInitialized = false;
 		let initializingWorkspaces = false;
 		let initializationReentered = false;
@@ -101,8 +103,8 @@ suite('RemotesModel', () => {
 			override warn(message: string, ...args: unknown[]) { logEntries.push({ message, args }); }
 		}());
 		instantiationService.stub(IRemoteAgentHostService, {
-			connections: [],
-			onDidChangeConnections: Event.None,
+			get connections() { return connections; },
+			onDidChangeConnections: connectionsChanged.event,
 			onDidChangeDisplayName: displayNamesChanged.event,
 			getDisplayNameOverride: address => displayNames.get(address),
 			setDisplayName,
@@ -239,6 +241,7 @@ suite('RemotesModel', () => {
 		const model = store.add(instantiationService.createInstance(RemotesModel, discover));
 		return {
 			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects, signIns,
+			setConnections: (value: readonly IRemoteAgentHostConnectionInfo[]) => { connections = value; connectionsChanged.fire(); },
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			failConnection: (error: Error) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
@@ -279,6 +282,33 @@ suite('RemotesModel', () => {
 			{ kind: 'wsl', name: 'Ubuntu', canRemove: true },
 			{ kind: 'tunnel', name: 'Laptop', canRemove: false },
 		]);
+	});
+
+	test('reads service-owned error metadata even when opened midway through a retry', async () => {
+		const connection: IRemoteAgentHostConnectionInfo = {
+			address: 'ssh:build', name: 'Build', status: RemoteAgentHostConnectionStatus.connecting, lastConnectionError: 'First failure',
+		};
+		const { model, providers, setConnections } = setup(undefined, false, [connection]);
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('ssh:build')!;
+		const snapshot = () => {
+			const remote = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+			return { status: remote.connectionStatus, error: remote.lastConnectionError };
+		};
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connecting, undefined);
+		const pending = snapshot();
+		setConnections([{ ...connection, lastConnectionError: 'Updated failure' }]);
+		const updated = snapshot();
+		setConnections([{ ...connection, status: RemoteAgentHostConnectionStatus.connected, lastConnectionError: undefined }]);
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const connected = snapshot();
+		setConnections([]);
+		assert.deepStrictEqual({ pending, updated, connected, removed: snapshot().error }, {
+			pending: { status: RemoteAgentHostConnectionStatus.connecting, error: 'First failure' },
+			updated: { status: RemoteAgentHostConnectionStatus.connecting, error: 'Updated failure' },
+			connected: { status: RemoteAgentHostConnectionStatus.connected, error: undefined },
+			removed: undefined,
+		});
 	});
 
 	test('Remove forgets registered remotes and discovery can find them again', async () => {

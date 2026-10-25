@@ -558,12 +558,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;
 		const barHeight = headerHeight + tabsHeight + bannerHeight;
-		const contentInset = this._sessionActivityBar.reservedWidth.get();
+		// The chat, and its scrollbar, to the left of the column the Session Activity Bar takes at the right edge.
+		const columnWidth = this._sessionActivityBar.reservedWidth.get();
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
-		this._sessionActivityBar.setScrollDownButton(this._currentView.value?.scrollDownButtonDomNode);
 		this._sessionActivityBar.layout(barHeight, height - barHeight);
-		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentInset);
+		this._currentView.value?.layout(Math.max(0, width - columnWidth), height - barHeight, top + barHeight, left);
 	}
 
 	/** Sets the index this group serializes as, so the grid deserializer can map nodes back to groups. */

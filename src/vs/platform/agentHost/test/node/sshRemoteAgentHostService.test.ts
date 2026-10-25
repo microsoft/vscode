@@ -8,7 +8,8 @@ import { createRequire } from 'module';
 import * as net from 'net';
 import * as os from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorCode, isCancellationError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -197,6 +198,7 @@ class MockSSHClient {
 
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
+	connectError: Error | undefined;
 	finishResponses: readonly string[] | undefined;
 	connectConfig: ConnectConfig | undefined;
 	readonly authMethods: string[] = [];
@@ -219,6 +221,10 @@ class KeyboardInteractiveMockSSHClient {
 
 	connect(config: ConnectConfig): void {
 		this.connectConfig = config;
+		if (this.connectError) {
+			this.fireError(this.connectError);
+			return;
+		}
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
 		const authenticate = (method: AnyAuthMethod | false) => {
 			if (method) {
@@ -517,6 +523,51 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	teardown(() => disposables.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const { name, error, expectedMessage } of [
+		{
+			name: 'dual-stack connection refused',
+			error: Object.assign(new AggregateError([
+				Object.assign(new Error('connect ECONNREFUSED ::1:43192'), { code: 'ECONNREFUSED' }),
+				Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:43192'), { code: 'ECONNREFUSED' }),
+			], ''), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'connect ECONNREFUSED ::1:43192\nconnect ECONNREFUSED 127.0.0.1:43192',
+		},
+		{
+			name: 'aggregate with only an error code',
+			error: Object.assign(new AggregateError([], ''), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'ECONNREFUSED',
+		},
+		{
+			name: 'aggregate with an existing message',
+			error: Object.assign(new AggregateError([new Error('nested detail')], 'Connection refused by proxy'), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'Connection refused by proxy',
+		},
+		{
+			name: 'single-address connection refused',
+			error: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:43192'), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'connect ECONNREFUSED 127.0.0.1:43192',
+		},
+	]) {
+		test(`preserves SSH ${name} details across IPC for the connection error hover`, async () => {
+			const logService = new RecordingLogService();
+			const connecting = disposables.add(new KeyboardInteractiveConnectTestService(
+				logService, { quality, dataFolderName } as IProductService, NullTelemetryService));
+			connecting.client.connectError = error;
+			await assert.rejects(connecting.connectSSHForTest(makeConfig()), actual => {
+				assert.strictEqual(actual, error);
+				const restored = transformErrorFromSerialization(transformErrorForSerialization(error));
+				assert.deepStrictEqual({
+					message: toErrorMessage(restored), code: getErrorCode(restored), name: restored.name,
+					log: logService.errors,
+				}, {
+					message: expectedMessage, code: 'ECONNREFUSED', name: error.name,
+					log: [`[SSHRemoteAgentHost] SSH connection error: ${expectedMessage}`],
+				});
+				return true;
+			});
+		});
+	}
 
 	// --- Duplicate connect / reconnect on an already-connected host ---
 
