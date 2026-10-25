@@ -237,6 +237,8 @@ class MockCopilotSession {
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	readonly pluginInstallCalls: Array<{ source: string }> = [];
 	readonly pluginEnableCalls: Array<{ names: string[] }> = [];
+	readonly pluginUninstallCalls: Array<{ name: string; directSourceId?: string }> = [];
+	pluginReloadErrors: string[] = [];
 	/** Runs after `rpc.plugins.enable` records a call; it may throw to fail the call. */
 	onPluginEnable?: () => void;
 	pluginInstallGate: Promise<void> | undefined;
@@ -721,14 +723,14 @@ class MockCopilotSession {
 				}
 				return this.managedPluginRetryResult;
 			},
-			uninstall: async () => { throw new Error('Not implemented'); },
+			uninstall: async (params: { name: string; directSourceId?: string }) => { this.pluginUninstallCalls.push(params); },
 			update: async () => { throw new Error('Not implemented'); },
 			enable: async (params: { names: string[] }) => {
 				this.pluginEnableCalls.push(params);
 				this.onPluginEnable?.();
 			},
 			disable: async () => { throw new Error('Not implemented'); },
-			reload: async () => ({ plugins: [], errors: [] }),
+			reload: async () => ({ plugins: [], errors: this.pluginReloadErrors }),
 			marketplaces: {
 				add: async (params: { source: string }) => {
 					this.pluginMarketplaceAddCalls.push(params);
@@ -8650,6 +8652,19 @@ suite('CopilotAgentSession', () => {
 			activity: ['Installing plugin…', undefined],
 			installCalls: [{ source: 'elasticsearch@awesome-copilot' }],
 		});
+	});
+
+	test('reports plugin extension reload failures returned by the SDK', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.pluginReloadErrors = ['extension reload failed: provider unavailable'];
+		await assert.rejects(session.reloadPlugins('enablement'), /Plugin reload failed: extension reload failed: provider unavailable/);
+	});
+
+	test('leaves post-uninstall reloads to the agent coordinator', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.pluginReloadErrors = ['reload failed'];
+		await session.uninstallPlugin('canvas', 'direct-source');
+		assert.deepStrictEqual(mockSession.pluginUninstallCalls, [{ name: 'canvas', directSourceId: 'direct-source' }]);
 	});
 
 	test('does not show activity when a plugin command completes within the delay', () => runWithFakedTimers({}, async () => {
@@ -24984,9 +24999,13 @@ Use the attached image as context.
 			});
 		});
 
-		test('client tool replacements commit definitions and routing only after SDK success and remain retryable', async () => {
+		test('client tool replacements route offered tools before SDK acceptance, commit definitions only after success, and remain retryable', async () => {
 			const activeClientToolSet = activeClientToolSetWith('client');
-			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			const { session, runtime, mockSession, signals, onProgress } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot, activeClientToolSet,
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			await session.syncPermissionMode('turn-start');
 			runtime.configureClientTools!(clientToolConfiguration(false, new Set(['host_tool'])));
 			const definitions: ToolDefinition[] = [{
 				name: 'replacement',
@@ -24994,37 +25013,73 @@ Use the attached image as context.
 				inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
 			}, { name: 'host_tool' }];
 			activeClientToolSet.set('client', definitions);
+			disposables.add(onProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady && signal.action.contributor?.kind === ToolCallContributorKind.Client) {
+					session.handleClientToolCallComplete(signal.action.toolCallId, {
+						success: true, pastTenseMessage: 'Replacement completed',
+						content: [{ type: ToolResultContentType.Text, text: signal.action.toolCallId }],
+					});
+				}
+			}));
 			const gate = new DeferredPromise<void>();
 			mockSession.setToolsGate = gate.p;
 			const updating = session.updateClientTools(definitions);
 			const before = session.appliedSnapshot.tools;
 			mockSession.fire('tool.execution_start', { toolCallId: 'not-yet-applied', toolName: 'replacement', arguments: { query: 'test' } });
+			const beforeAcceptance = await invokeClientToolHandler(mockSession.setToolsCalls[0][0], 'not-yet-applied', { query: 'test' });
 			gate.complete();
 			await updating;
 			mockSession.fire('tool.execution_start', { toolCallId: 'updated', toolName: 'replacement', arguments: { query: 'test' } });
 			const afterSuccess = session.appliedSnapshot.tools;
 			mockSession.setToolsError = new Error('replacement rejected');
 			await assert.rejects(session.updateClientTools([]), /replacement rejected/);
+			mockSession.fire('tool.execution_start', { toolCallId: 'after-rejection', toolName: 'replacement', arguments: { query: 'test' } });
 			const afterFailure = session.appliedSnapshot.tools;
 			mockSession.setToolsError = undefined;
 			await session.updateClientTools([]);
 			await session.updateClientTools([]);
 
+			const client = { kind: ToolCallContributorKind.Client, clientId: 'client' };
 			assert.deepStrictEqual({
 				before,
+				beforeAcceptance: [beforeAcceptance.resultType, beforeAcceptance.textResultForLlm],
 				afterSuccess,
 				afterFailure,
 				afterRemoval: session.appliedSnapshot.tools,
 				updates: mockSession.setToolsCalls.map(tools => tools.map(({ name, description, parameters }) => ({ name, description, parameters }))),
-				contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+				contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [[action.toolCallId, action.contributor]] : []),
 			}, {
 				before: snapshot.tools,
+				beforeAcceptance: ['success', 'not-yet-applied'],
 				afterSuccess: definitions,
 				afterFailure: definitions,
 				afterRemoval: [],
 				updates: [[{ name: 'replacement', description: 'Updated description', parameters: definitions[0].inputSchema }], [], []],
-				contributors: [undefined, { kind: ToolCallContributorKind.Client, clientId: 'client' }],
+				contributors: [['not-yet-applied', client], ['updated', client], ['after-rejection', client]],
 			});
+		});
+
+		test('same-name client tool replacement routes calls started before SDK acceptance to the offered definition', async () => {
+			const activeClientToolSet = activeClientToolSetWith('old-client');
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			runtime.configureClientTools!(clientToolConfiguration());
+			const definitions: ToolDefinition[] = [{
+				...snapshot.tools[0],
+				inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+			}];
+			activeClientToolSet.set('old-client', []);
+			activeClientToolSet.set('new-client', definitions);
+			const gate = new DeferredPromise<void>();
+			mockSession.setToolsGate = gate.p;
+			const updating = session.updateClientTools(definitions);
+			mockSession.fire('tool.execution_start', { toolCallId: 'replacement', toolName: 'my_tool', arguments: { query: 'new' } });
+			gate.complete();
+			await updating;
+
+			assert.deepStrictEqual(
+				getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [[action.toolCallId, action.contributor]] : []),
+				[['replacement', { kind: ToolCallContributorKind.Client, clientId: 'new-client' }]],
+			);
 		});
 
 		for (const activity of ['turn', 'subagent'] as const) {

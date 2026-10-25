@@ -8,7 +8,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
@@ -2876,12 +2876,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		if (liveSession) {
 			await liveSession.uninstallPlugin(pluginSpec, request.directSourceId);
-			return;
+		} else {
+			await this._retryAfterClosedConnection('uninstallPlugin', client => client.rpc.plugins.uninstall({
+				name: pluginSpec,
+				directSourceId: request.directSourceId,
+			}));
 		}
-		await this._retryAfterClosedConnection('uninstallPlugin', client => client.rpc.plugins.uninstall({
-			name: pluginSpec,
-			directSourceId: request.directSourceId,
-		}));
+		await Promises.settled(this._allLiveSessions().map(candidate =>
+			this._queueChat(candidate.sessionId, candidate.sessionId, 'reloadPluginUninstall', () => candidate.reloadPlugins('uninstall'))));
 	}
 
 	async listPluginInstallations() {
@@ -3040,6 +3042,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error('Canvas operation requires an initialized Copilot chat.');
 		}
 		return context;
+	}
+
+	async setPluginEnabled(plugin: string, enabled: boolean): Promise<void> {
+		await this._retryAfterClosedConnection('setPluginEnabled', async client => {
+			const installed = (await client.rpc.plugins.list()).plugins.find(candidate =>
+				candidate.directSourceId === plugin || (candidate.marketplace && `${candidate.name}@${candidate.marketplace}` === plugin));
+			if (!installed) {
+				throw new Error(localize('copilot.pluginEnablementNotInstalled', "Plugin '{0}' is not installed.", plugin));
+			}
+			if (enabled) {
+				await client.rpc.plugins.enable({ names: [plugin] });
+			} else {
+				await client.rpc.plugins.disable({ names: [plugin] });
+			}
+			const updated = (await client.rpc.plugins.list()).plugins.find(candidate =>
+				candidate.directSourceId === plugin || (candidate.marketplace && `${candidate.name}@${candidate.marketplace}` === plugin));
+			if (updated?.enabled !== enabled) {
+				throw new Error(localize('copilot.pluginEnablementNotApplied', "The runtime did not change enablement for plugin '{0}'.", plugin));
+			}
+		});
+		await Promise.all(this._allLiveSessions().map(session =>
+			this._queueChat(session.sessionId, session.sessionId, 'reloadPluginEnablement', () => session.reloadPlugins('enablement'))));
 	}
 
 	async installPlugin(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {

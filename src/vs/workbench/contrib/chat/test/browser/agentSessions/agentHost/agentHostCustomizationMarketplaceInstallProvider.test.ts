@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { disposableTimeout } from '../../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationMarketplaceSearchRequest, IAgentPluginInstallation, IAgentPluginInstallRequest } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -19,9 +22,23 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { type IMcpServerConfiguration, McpServerType } from '../../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationMarketplaceInstallProvider.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
+import { ContributionEnablementState, EnablementModel } from '../../../../common/enablement.js';
+import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
 
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let pluginService: IAgentPluginService;
+	const discoveredPlugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+
+	setup(() => {
+		discoveredPlugins.set([], undefined);
+		pluginService = {
+			_serviceBrand: undefined,
+			plugins: discoveredPlugins,
+			enablementModel: store.add(new EnablementModel('testPlugins', store.add(new InMemoryStorageService()))),
+		};
+	});
 
 	test('installs raw plugin sources through management using the owning backend session and chat', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend');
@@ -53,6 +70,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 		let changes = 0;
 		store.add(provider.onDidChange(() => changes++));
@@ -104,6 +122,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 		const session = URI.parse('agent-host-copilotcli:/frontend');
 		await assert.rejects(provider.getFeed(session, 'feed_auth', CancellationToken.None), /Sign in to Copilot/);
@@ -187,6 +206,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 		let changeCount = 0;
 		store.add(provider.onDidChange(() => changeCount++));
@@ -323,6 +343,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		const installations = await provider.getInstallations(frontendSession, CancellationToken.None);
@@ -413,6 +434,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		const page = await provider.query(frontendSession, { query: 'demo', pageSize: 12 }, CancellationToken.None);
@@ -536,6 +558,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		await assert.rejects(
@@ -588,6 +611,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		await assert.rejects(
@@ -657,6 +681,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async confirm() { return { confirmed: true }; }
 			}(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		const resource = {
@@ -708,7 +733,18 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const requests: unknown[] = [];
 		const applied: string[] = [];
-		const confirmations: { message: string; detail?: string }[] = [];
+		const confirmations: { message: string; detail?: string; primaryButton?: string }[] = [];
+		const activations: boolean[] = [];
+		const installedPlugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/demo');
+			override readonly label = 'demo-plugin';
+			override readonly copilotCliInstallation = {
+				name: 'demo-plugin', marketplace: '', directSourceId: 'demo-plugin-source',
+				source: { kind: 'github' as const, repository: 'github/demo-plugin', sha: '0123456789abcdef', path: 'plugins/demo' },
+			};
+			override async setEnabled(enabled: boolean) { activations.push(enabled); }
+		}();
+		pluginService.enablementModel.setEnabled(installedPlugin.uri.toString(), ContributionEnablementState.DisabledProfile);
 		let plugins: readonly IAgentPluginInstallation[] = [];
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
@@ -735,6 +771,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 				override async applyCustomizationInstallation(_provider: string, operationId: string) {
 					applied.push(operationId);
+					discoveredPlugins.set([installedPlugin], undefined);
 					return {
 						kind: 'plugin' as const,
 						name: 'demo-plugin',
@@ -755,11 +792,12 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() {
 				override async confirm(confirmation: Parameters<IDialogService['confirm']>[0]) {
-					confirmations.push({ message: confirmation.message, detail: typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value });
+					confirmations.push({ message: confirmation.message, detail: typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value, primaryButton: confirmation.primaryButton });
 					return { confirmed: true };
 				}
 			}(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		const resource = {
@@ -790,13 +828,15 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const uniquePlugins = plugins;
 		plugins = [...plugins, { ...plugins[1], directSourceId: 'different-root-source' }];
 		const ambiguousInventory = await provider.getInstallations(session, CancellationToken.None);
-		assert.deepStrictEqual(ambiguousInventory.map(item => item.resource.identifier), ['unrelated-plugin-source', 'demo-plugin-source', 'different-root-source']);
+		assert.deepStrictEqual(ambiguousInventory.map(item => item.resource.identifier), ['unrelated-plugin-source', 'demo-plugin', 'different-root-source']);
 		plugins = uniquePlugins;
 		const inventory = await provider.getInstallations(session, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			requests,
 			applied,
+			activations,
+			enablement: pluginService.enablementModel.readEnabled(installedPlugin.uri.toString()),
 			confirmations,
 			inventory: inventory.map(item => ({
 				installationId: item.installationId,
@@ -817,23 +857,130 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				installation: { kind: 'plugin' },
 			}],
 			applied: ['plugin-operation'],
+			activations: [true],
+			enablement: ContributionEnablementState.EnabledProfile,
 			confirmations: [{
-				message: 'Install \'Demo Plugin\'?',
-				detail: 'Plugins can supply agents, skills, hooks, and MCP servers. Only install resources from sources you trust.\n\nSource: github/demo-plugin@0123456789abcdef\nDestination: ~/.copilot/installed-plugins/_direct/github--demo-plugin\nFiles: 2\nSize: 256 bytes\n\nThe plugin will be installed disabled.\nDeclared MCP servers: 1',
+				message: 'Install and enable \'Demo Plugin\'?',
+				primaryButton: 'Install and Enable',
+				detail: 'Plugins can supply agents, skills, hooks, and MCP servers. Only install resources from sources you trust.\n\nSource: github/demo-plugin@0123456789abcdef\nDestination: ~/.copilot/installed-plugins/_direct/github--demo-plugin\nFiles: 2\nSize: 256 bytes\n\nThe plugin will be enabled for your profile after installation, and running chats will reload its contributions.\nDeclared MCP servers: 1',
 			}],
 			inventory: [{
-				installationId: '["plugin","","unrelated-plugin","unrelated-plugin-source"]',
+				installationId: '["plugin","direct","unrelated-plugin-source"]',
 				identifier: 'unrelated-plugin-source',
 				installation: undefined,
 				target: { kind: 'plugin', name: 'unrelated-plugin' },
 			}, {
-				installationId: '["plugin","","demo-plugin","demo-plugin-source"]',
+				installationId: '["plugin","direct","demo-plugin-source"]',
 				identifier: 'demo-plugin',
 				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection', catalogIdentity: 'github/demo-plugin' },
-				target: { kind: 'plugin', name: 'demo-plugin' },
+				target: { kind: 'plugin', name: 'demo-plugin', uri: installedPlugin.uri },
 			}],
 		});
 	});
+
+	for (const scenario of ['enabled', 'delayed discovery', 'not discovered', 'cancelled', 'cancelled during apply', 'cancelled during discovery', 'install refused', 'enable refused', 'reload failed', 'managed', 'ambiguous'] as const) {
+		test(`catalog activation: ${scenario}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const cancellation = store.add(new CancellationTokenSource());
+			const calls: string[] = [];
+			const uri = URI.file('/plugins/direct');
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = uri;
+				override readonly label = 'canvas';
+				override readonly policyEnablement = observableValue<boolean | undefined>('policy', scenario === 'managed' ? false : undefined);
+				override readonly copilotCliInstallation = {
+					name: 'canvas', marketplace: '', directSourceId: 'exact-source',
+					source: { kind: 'github' as const, repository: 'owner/repo', sha: 'revision', path: 'plugins/canvas' },
+				};
+				override async setEnabled(enabled: boolean) {
+					calls.push(`enable:${enabled}`);
+					if (scenario === 'enable refused') {
+						throw new Error('runtime policy refused');
+					}
+					calls.push('reload');
+					if (scenario === 'reload failed') {
+						throw new Error('reload failed');
+					}
+				}
+			}();
+			const wrongRoot = {
+				...plugin,
+				uri: URI.file('/plugins/other'),
+				copilotCliInstallation: {
+					...plugin.copilotCliInstallation,
+					directSourceId: 'other-source',
+					source: { ...plugin.copilotCliInstallation.source, path: 'plugins/other' },
+				},
+			};
+			pluginService.enablementModel.setEnabled(uri.toString(), ContributionEnablementState.DisabledProfile);
+			const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+				'copilotcli', async () => true,
+				new class extends mock<IAgentHostService>() {
+					override readonly onAgentHostStart = Event.None;
+					override readonly onAgentHostExit = Event.None;
+					override async prepareCustomizationInstallation() {
+						return {
+							operationId: 'operation', action: 'install' as const, kind: 'plugin' as const, displayName: 'canvas',
+							source: 'owner/repo@revision', target: 'target', fileCount: 1, totalBytes: 1, installsDisabled: true, mcpServerCount: 0,
+						};
+					}
+					override async applyCustomizationInstallation() {
+						calls.push('install');
+						if (scenario === 'install refused') {
+							throw new Error('install refused');
+						}
+						if (scenario === 'delayed discovery') {
+							store.add(disposableTimeout(() => discoveredPlugins.set([wrongRoot, plugin], undefined), 1));
+						} else if (scenario === 'cancelled during discovery') {
+							store.add(disposableTimeout(() => {
+								cancellation.cancel();
+								discoveredPlugins.set([wrongRoot, plugin], undefined);
+							}, 1));
+						} else {
+							discoveredPlugins.set(scenario === 'not discovered' ? [wrongRoot] : scenario === 'ambiguous' ? [plugin, { ...plugin, uri: URI.file('/plugins/duplicate') }] : [wrongRoot, plugin], undefined);
+						}
+						if (scenario === 'cancelled during apply') {
+							cancellation.cancel();
+						}
+						return { kind: 'plugin' as const, name: 'canvas', repository: 'owner/repo', ref: 'revision', path: 'plugins/canvas' };
+					}
+				}(),
+				new class extends mock<IAgentHostConnectionsService>() {
+					override resolveSessionResourceIdentity() { return undefined; }
+				}(),
+				new class extends mock<IAgentHostCustomizationService>() {
+					override readonly onDidChangeCustomizations = Event.None;
+				}(),
+				new class extends mock<IDialogService>() {
+					override async confirm() { return { confirmed: scenario !== 'cancelled' }; }
+				}(),
+				new NullLogService(),
+				pluginService,
+			));
+			let changes = 0;
+			store.add(provider.onDidChange(() => changes++));
+			const install = provider.install(URI.parse('ahp-session:/test'), {
+				sourceId: 'agentFinder', identifier: 'canvas', displayName: 'canvas', description: '',
+				mediaType: 'application/vnd.github.copilot-plugin', tags: [], capabilities: [], representativeQueries: [],
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection' },
+			}, cancellation.token);
+			const succeeds = scenario === 'enabled' || scenario === 'delayed discovery';
+			if (succeeds) {
+				await install;
+			} else {
+				await assert.rejects(install, scenario.startsWith('cancelled') ? /Canceled/ : scenario === 'install refused' ? /install refused/ : scenario === 'not discovered' ? /was installed, but activation failed: The installed plugin was not discovered in time/ : /was installed, but activation failed/);
+			}
+			const applied = scenario !== 'cancelled' && scenario !== 'install refused';
+			assert.deepStrictEqual({
+				calls,
+				changes,
+				state: pluginService.enablementModel.readEnabled(uri.toString()),
+			}, {
+				calls: scenario === 'cancelled' ? [] : succeeds || scenario === 'reload failed' ? ['install', 'enable:true', 'reload'] : scenario === 'enable refused' ? ['install', 'enable:true'] : ['install'],
+				changes: applied ? 2 : 0,
+				state: succeeds ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile,
+			});
+		}));
+	}
 
 	test('routes MCP Gallery installation through the Agent Host SDK card flow', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
@@ -878,6 +1025,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async confirm() { return { confirmed: true }; }
 			}(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		await provider.install(session, {
@@ -949,6 +1097,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		const installations = await provider.getInstallations(session, CancellationToken.None);
@@ -988,6 +1137,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 		const resource = {
 			sourceId: 'agentFinder',
@@ -1040,6 +1190,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 		const resource = {
 			sourceId: 'agentFinder',
@@ -1083,6 +1234,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 
 		const installations = await provider.getInstallations(session, CancellationToken.None);
@@ -1092,7 +1244,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			installation: installation.resource.installation,
 			state: installation.state.kind,
 		})), [{
-			installationId: '["plugin","copilot-plugins","spark",null]',
+			installationId: '["plugin","copilot-plugins","spark"]',
 			installation: { kind: 'configuredPlugin', name: 'spark', marketplace: 'copilot-plugins' },
 			state: 'installed',
 		}]);
@@ -1137,22 +1289,26 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 		store.add(provider.onDidChange(() => changes++));
 		const installations = await provider.getInstallations(frontend, CancellationToken.None);
+		const renamedSecond = { ...second, name: 'resolved-manifest-name' };
+		plugins = [first, renamedSecond];
 		await provider.uninstall(frontend, installations[1], CancellationToken.None);
 		const remaining = await provider.getInstallations(frontend, CancellationToken.None);
 		assert.deepStrictEqual({ calls, changes, identities: installations.map(item => item.installationId), remaining: remaining.map(item => item.resource.identifier) }, {
 			calls: [
 				['list', 'copilotcli', backend, chat],
 				['list', 'copilotcli', backend, chat],
-				['uninstall', 'copilotcli', second, backend, chat],
+				['uninstall', 'copilotcli', renamedSecond, backend, chat],
 				['list', 'copilotcli', backend, chat],
 			],
 			changes: 1,
-			identities: ['["plugin","","same-name","first-source"]', '["plugin","","same-name","second-source"]'],
+			identities: ['["plugin","direct","first-source"]', '["plugin","direct","second-source"]'],
 			remaining: ['first-source'],
 		});
+
 		await assert.rejects(provider.uninstall(frontend, installations[1], CancellationToken.None), /installation identity is unavailable/);
 		for (const invalidInventory of [
 			[{ name: 'same-name', marketplace: '' }],
@@ -1166,12 +1322,73 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		]) {
 			plugins = invalidInventory;
 			const invalidInstallations = await provider.getInstallations(frontend, CancellationToken.None);
-			await assert.rejects(provider.uninstall(frontend, invalidInstallations[0], CancellationToken.None), /installation identity is unavailable/);
+			assert.ok(invalidInstallations[0].state.kind === 'installed' && invalidInstallations[0].state.uninstallUnavailableMessage);
+			await assert.rejects(provider.uninstall(frontend, invalidInstallations[0], CancellationToken.None), /unique plugin installation identity/);
 		}
 		assert.strictEqual(calls.filter(call => Array.isArray(call) && call[0] === 'uninstall').length, 1);
 		failInventory = true;
 		await assert.rejects(provider.getInstallations(frontend, CancellationToken.None), /SDK inventory unavailable/);
 		await assert.rejects(provider.uninstall(frontend, installations[0], CancellationToken.None), /SDK inventory unavailable/);
+	});
+
+	test('reconstructs direct plugin source and target after restart and delayed discovery without inventing installations', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend');
+		const direct = { name: 'temporary-name', marketplace: '', directSourceId: 'direct-source', version: '1.0.0' };
+		const marketplace = { name: 'token-pacman', marketplace: 'awesome-copilot', version: '1.0.0' };
+		let inventory: readonly IAgentPluginInstallation[] = [direct, marketplace];
+		const hostService = new class extends mock<IAgentHostService>() {
+			override readonly onAgentHostStart = Event.None;
+			override readonly onAgentHostExit = Event.None;
+			override async listPluginInstallations() { return inventory; }
+		}();
+		const createProvider = () => store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli', async () => true, hostService,
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() { return undefined; }
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(), pluginService,
+		));
+		const provider = createProvider();
+		const before = await provider.getInstallations(session, CancellationToken.None);
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/_direct/cache-id');
+			override readonly label = 'token-pacman';
+			override readonly copilotCliInstallation = {
+				name: 'token-pacman', marketplace: '', directSourceId: 'direct-source',
+				source: { kind: 'github' as const, repository: 'github/awesome-copilot', sha: 'abc123', path: 'plugins/token-pacman' },
+			};
+		}();
+		let changes = 0;
+		store.add(provider.onDidChange(() => changes++));
+		discoveredPlugins.set([plugin], undefined);
+		const after = await provider.getInstallations(session, CancellationToken.None);
+		provider.dispose();
+		const restartedProvider = createProvider();
+		const restarted = await restartedProvider.getInstallations(session, CancellationToken.None);
+		inventory = [];
+		const removed = await restartedProvider.getInstallations(session, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			changes,
+			stableId: before[0].installationId === after[0].installationId,
+			resource: { name: after[0].resource.displayName, installation: after[0].resource.installation },
+			target: after[0].state.target,
+			marketplace: after[1].resource.installation,
+			restarted,
+			removed,
+		}, {
+			changes: 1,
+			stableId: true,
+			resource: { name: 'token-pacman', installation: { kind: 'plugin', repository: 'github/awesome-copilot', ref: 'abc123', path: 'plugins/token-pacman' } },
+			target: { kind: 'plugin', name: 'token-pacman', uri: plugin.uri },
+			marketplace: { kind: 'configuredPlugin', name: 'token-pacman', marketplace: 'awesome-copilot' },
+			restarted: after,
+			removed: [],
+		});
 	});
 
 	test('accepts only valid HTTPS SDK plugin icons without credentials', async () => {
@@ -1208,6 +1425,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			new class extends NullLogService {
 				override warn(message: string) { warnings.push(message); }
 			}(),
+			pluginService,
 		));
 		const inventory = await provider.getInstallations(URI.parse('vendor-session:/opaque'), CancellationToken.None);
 		assert.deepStrictEqual({
@@ -1242,6 +1460,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
+			pluginService,
 		));
 		await assert.rejects(provider.getInstallations(URI.parse('vendor-session://remote/frontend'), CancellationToken.None), /selected local Agent Host session is unavailable/);
 		assert.strictEqual(localReads, 0);

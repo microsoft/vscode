@@ -135,7 +135,7 @@ import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
 import { readMcpRoutingServers, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
-import { type CopilotPluginReloadReason, getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace, uninstallCopilotPlugin } from './copilotCustomizationCommandDisplay.js';
+import { type CopilotPluginReloadReason, getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
@@ -300,6 +300,10 @@ const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user deni
 const ALLOW_SAMPLING_ALWAYS_OPTION_ID = 'allow-sampling-always';
 
 function isSamplingContent(value: unknown): value is { text?: unknown; content?: unknown } {
+	return isObject(value);
+}
+
+function isPluginReloadResult(value: unknown): value is { errors?: unknown } {
 	return isObject(value);
 }
 
@@ -1100,7 +1104,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async installPlugin(source: string): Promise<void> {
-		await installCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), source);
+		await installCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this.reloadPlugins(reason), source);
 	}
 
 	/**
@@ -1122,7 +1126,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async uninstallPlugin(name: string, directSourceId?: string): Promise<void> {
-		await uninstallCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), name, directSourceId);
+		// The agent reloads every live chat after removal, even if one reload fails.
+		await this._wrapper.session.rpc.plugins.uninstall({ name, directSourceId });
 	}
 
 	addPluginMarketplace(source: string) {
@@ -1134,14 +1139,23 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async removePluginMarketplace(name: string, force?: boolean) {
-		return removeCopilotPluginMarketplace(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), name, force);
+		return removeCopilotPluginMarketplace(this._wrapper.session.rpc.plugins, reason => this.reloadPlugins(reason), name, force);
 	}
 
 	/** Reloads installed plugins into the live SDK session, which can restart its MCP servers. */
-	private async _reloadPlugins(reason: CopilotPluginReloadReason): Promise<void> {
+	async reloadPlugins(reason: CopilotPluginReloadReason): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Reloading plugins: reason=${reason}`);
 		this._recordRuntimeMutation('customizationsChanged');
-		await this._wrapper.session.rpc.plugins.reload();
+		// The SDK declares void, but runtimes can return partial reload failures.
+		const result: unknown = await this._wrapper.session.rpc.plugins.reload();
+		if (isPluginReloadResult(result) && result.errors !== undefined) {
+			if (!Array.isArray(result.errors) || !result.errors.every(isString)) {
+				throw new Error(localize('copilot.pluginReloadInvalid', "The runtime returned an invalid plugin reload result."));
+			}
+			if (result.errors.length) {
+				throw new Error(localize('copilot.pluginReloadFailed', "Plugin reload failed: {0}", result.errors.join('; ')));
+			}
+		}
 	}
 
 	async refreshPluginMarketplaces(name?: string) {
@@ -1851,6 +1865,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _clientReachesChat: (clientId: string, chat: URI) => boolean;
 	/** Tool names that are client-provided, derived from snapshot. */
 	private _clientToolNames: ReadonlySet<string>;
+	/** Definitions offered by an in-flight {@link updateClientTools}; the runtime may call them before the replacement settles. */
+	private _offeredClientTools: readonly ToolDefinition[] | undefined;
 	/** Tool-search decision supplied by the launcher that built this SDK session. */
 	private _toolSearchActive = false;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
@@ -2088,7 +2104,7 @@ export class CopilotAgentSession extends Disposable {
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
-			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, { api: this._wrapper.session.rpc.plugins, reload: reason => this._reloadPlugins(reason) }, options.getInstalledPlugins) },
+			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, { api: this._wrapper.session.rpc.plugins, reload: reason => this.reloadPlugins(reason) }, options.getInstalledPlugins) },
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;
@@ -3181,7 +3197,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership. */
 	private _resolveClientToolOwner(toolName: string): string | undefined {
 		const chat = this._chatChannelUri;
-		const applied = this._appliedSnapshot.tools.find(tool => tool.name === toolName);
+		const applied = this._offeredClientTools?.find(tool => tool.name === toolName)
+			?? this._appliedSnapshot.tools.find(tool => tool.name === toolName);
 		const provides = (clientId: string) => !!applied && this._activeClientToolSet.get(clientId)
 			.some(tool => tool.name === toolName && structuralToolsEqual([applied], [tool]));
 		const preferred = this._currentTurn.value?.senderClientId;
@@ -3805,7 +3822,19 @@ export class CopilotAgentSession extends Disposable {
 		if (!equals(configuration.sessionConfig, resolved.sessionConfig)) {
 			throw new Error('Client tools require a session configuration refresh');
 		}
-		await configuration.replaceTools(this._wrapper.session, resolved.tools);
+		// The runtime can start offered tools before `replaceTools` resolves, so route
+		// both the applied and offered tools until the replacement settles.
+		const appliedClientToolNames = this._clientToolNames;
+		this._clientToolNames = new Set([...appliedClientToolNames, ...replacement.clientToolNames]);
+		this._offeredClientTools = tools;
+		try {
+			await configuration.replaceTools(this._wrapper.session, resolved.tools);
+		} catch (error) {
+			this._clientToolNames = appliedClientToolNames;
+			throw error;
+		} finally {
+			this._offeredClientTools = undefined;
+		}
 		this._appliedSnapshot = { ...this._appliedSnapshot, tools };
 		this._applyClientSdkTools(replacement);
 		if (token.isCancellationRequested) {

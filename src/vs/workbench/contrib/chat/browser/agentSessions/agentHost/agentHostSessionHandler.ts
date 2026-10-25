@@ -8522,7 +8522,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
 		const session = this._resolveSessionUri(sessionResource);
 		const chatUri = this._getChatURIOrDefault(sessionResource, session);
-		const directory = kind === 'image'
+		const directory = kind === 'image' || kind === 'link'
 			? this._getSessionState(session.toString(), chatUri)?.workingDirectories?.[0]
 			: undefined;
 		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);

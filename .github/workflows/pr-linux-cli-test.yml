@@ -28,11 +28,7 @@ on:
 
 jobs:
   linux-cli-test:
-    # GitHub does not evaluate expressions in the name of a skipped job, so this
-    # name must stay fixed for the required "Linux / CLI" check to report.
     name: CLI
-    # Skip this job rather than the calling job: a skipped job still reports
-    # "<caller> / <job name>", which satisfies required status checks.
     if: ${{ inputs.affected }}
     runs-on: ubuntu-24.04
     env:

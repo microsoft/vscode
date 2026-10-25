@@ -38,6 +38,28 @@ import {
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('disconnected hovers retain the connection error with an optional address', () => {
+		const status = RemoteAgentHostConnectionStatus.disconnected;
+		assert.deepStrictEqual({
+			error: getStatusHover(status, undefined, 'Connection refused'),
+			withAddress: getStatusHover(status, 'ssh:host', 'Connection refused'),
+			plain: getStatusHover(RemoteAgentHostConnectionStatus.disconnected),
+		}, {
+			error: 'Connection refused', withAddress: 'Remote agent host is disconnected: Connection refused\n\nAddress: ssh:host',
+			plain: 'Remote agent host is disconnected.',
+		});
+	});
+
+	test('automatic retry hovers retain the last error without changing the status label', () => {
+		assert.deepStrictEqual([
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.reconnecting,
+		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status, undefined, 'Connection refused'), withAddress: getStatusHover(status, 'ssh:host', 'Connection refused') })), [
+			{ label: 'Connecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+			{ label: 'Reconnecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+		]);
+	});
+
 	test('inventory-owned hosts offer disconnect and rename without local removal or SSH location controls', () => {
 		const snapshot = (isConnected: boolean) => buildRemoteHostOptionItems({
 			address: 'cloudsandbox:environment', isConnected, canRemove: false, disconnectLabel: 'Disconnect',
