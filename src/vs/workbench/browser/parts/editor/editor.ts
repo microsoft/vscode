@@ -12,7 +12,7 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ISerializableView } from '../../../../base/browser/ui/grid/grid.js';
+import { ISerializableView, LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { isObject } from '../../../../base/common/types.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -331,6 +331,31 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
 	relayout(): void;
+
+	/**
+	 * Hides the title of the group, so its editor fills it, until the returned disposable is disposed; see
+	 * `IEditorPart.hideGroupTitle`. The title shows again once all holders have disposed.
+	 */
+	hideTitle(): IDisposable;
+
+	/**
+	 * Insets the group within the space the grid gives it, on each side by
+	 * the given pixels; see `IEditorPart.setGroupGap`.
+	 */
+	setLayoutInsets(insets: IEditorGroupLayoutInsets): void;
+
+	/**
+	 * Sets the priority the grid lays the group out with, and whether it
+	 * resizes proportionally with the part; see `IEditorPart.setGroupLayoutPriority`.
+	 */
+	setLayoutPriority(priority: LayoutPriority | undefined, proportionalLayout: boolean): void;
+}
+
+export interface IEditorGroupLayoutInsets {
+	readonly top: number;
+	readonly right: number;
+	readonly bottom: number;
+	readonly left: number;
 }
 
 export function fillActiveEditorSelection(group: IEditorGroup, expectedActiveEditor: EditorInput, options: IEditorOptions): IEditorOptions {

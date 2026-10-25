@@ -37,6 +37,8 @@ import { GroupIdentifier } from '../../../common/editor.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
+	/** See `IEditorGroupsService.createAuxiliaryEditorPart`. */
+	readonly excludeFromWorkingSets?: boolean;
 }
 
 export interface ICreateAuxiliaryEditorPartResult {

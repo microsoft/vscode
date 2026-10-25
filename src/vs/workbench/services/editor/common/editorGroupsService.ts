@@ -62,6 +62,28 @@ export interface IFindGroupScope {
 	readonly location?: GroupLocation;
 }
 
+/**
+ * How readily a group of an editor part gives or takes space when the part is
+ * resized or groups are added beside it; see {@link IEditorPart.setGroupLayoutPriority}.
+ */
+export const enum GroupLayoutPriority {
+
+	/**
+	 * Gives or takes space last.
+	 */
+	Low,
+
+	/**
+	 * The default.
+	 */
+	Normal,
+
+	/**
+	 * The group absorbs resizes first: it gives or takes space before the others.
+	 */
+	High
+}
+
 export const enum GroupsArrangement {
 	/**
 	 * Make the current active group consume the entire
@@ -518,6 +540,78 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Find out if the editor layout is currently centered.
 	 */
 	isLayoutCentered(): boolean;
+
+	/**
+	 * Hides the title of a group of the part: its tabs, or the
+	 * label of its editor, and its actions, so its editor fills it.
+	 * For a group whose editor shows its own chrome, while other
+	 * groups of the part show tabs. Shows the title again once the
+	 * returned disposable, and those of other calls for the group,
+	 * are disposed. For the feature that owns the part; not persisted
+	 * with the state of the part.
+	 */
+	hideGroupTitle(group: IEditorGroup | GroupIdentifier): IDisposable;
+
+	/**
+	 * Maximizes `group` as {@link IEditorGroupsContainer.arrangeGroups} with {@link GroupsArrangement.MAXIMIZE} does,
+	 * but keeps `visibleGroups` shown beside it.
+	 */
+	maximizeGroup(group: IEditorGroup | GroupIdentifier, visibleGroups: readonly (IEditorGroup | GroupIdentifier)[]): void;
+
+	/**
+	 * The group of the part that numbered view columns, such as an extension's
+	 * `ViewColumn.One`, open in while the part is the active one, rather than
+	 * the groups of the main part; see {@link setViewColumnGroup}.
+	 */
+	readonly viewColumnGroup: IEditorGroup | undefined;
+
+	/**
+	 * Makes numbered view columns open in `group` of the part while it is the
+	 * active part, such as a window with one editor area beside other content.
+	 * Undone when the returned disposable is disposed. For the feature that
+	 * owns the part; the last call wins, and it is not persisted with the
+	 * state of the part.
+	 */
+	setViewColumnGroup(group: IEditorGroup): IDisposable;
+
+	/**
+	 * Leaves `gap` pixels between neighbouring groups of the part, such as
+	 * to show its groups as separate cards. Each group is inset by half of
+	 * the gap on its sides that face another group (the left and top halves
+	 * are rounded down, the right and bottom ones up, so neighbours are
+	 * exactly `gap` apart); the outer edges of the part are not inset. The
+	 * group lays out its title and editor within the inset, so nothing is
+	 * clipped.
+	 *
+	 * For the feature that owns the part and arranges its groups; the main
+	 * editor part does not use it. Each call replaces the gap of the previous
+	 * one, and the gap is not persisted with the state of the part. `0`, the
+	 * default, is a no-op: groups lay out next to each other.
+	 */
+	setGroupGap(gap: number): void;
+
+	/**
+	 * Sets how readily `group` gives or takes space. While any group of the
+	 * part has a priority other than {@link GroupLayoutPriority.Normal}, the
+	 * groups of the part no longer resize proportionally: when the part is
+	 * resized, groups with a high priority take the change first, then those
+	 * with a normal priority, and those with a low priority last; and when a
+	 * group is added, removed or moved beside a group with a high priority, the
+	 * other groups beside it keep their sizes. `undefined`, or
+	 * {@link GroupLayoutPriority.Normal}, clears the priority of the group.
+	 *
+	 * {@link GroupLayoutPriority.High} marks the group that absorbs resizes
+	 * first, such as an editor that gives way to the other groups. A group
+	 * that is added beside it only takes as much of its space as it can give
+	 * above its minimum size.
+	 *
+	 * For the feature that owns the part and arranges its groups; the main
+	 * editor part does not use it. Each call replaces the priority of the
+	 * group from the previous one, the priority is not persisted with the
+	 * state of the part, so the owner sets it again after restoring a state,
+	 * and it is cleared when the group is removed.
+	 */
+	setGroupLayoutPriority(group: IEditorGroup | GroupIdentifier, priority: GroupLayoutPriority | undefined): void;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
@@ -528,6 +622,92 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	 * part.
 	 *
 	 * @returns `false` if an editor could not be moved back.
+	 */
+	close(): boolean;
+}
+
+/**
+ * Options for an editor part that floats in the main window; see
+ * {@link IEditorGroupsService.createFloatingEditorPart}.
+ */
+export interface IFloatingEditorPartOptions {
+
+	/**
+	 * The title shown in the header of the part, which is also
+	 * its accessible name.
+	 */
+	readonly title: string;
+
+	/**
+	 * A menu whose actions show in the header of the part. They
+	 * are evaluated in the context of the part.
+	 */
+	readonly titleMenu?: MenuId;
+
+	/**
+	 * A menu whose actions show in the header of the part after those of
+	 * {@link titleMenu}. Unlike those, the user can show or hide each of them
+	 * from the context menu of its buttons, except `alwaysShownItems`; see
+	 * `IMenuItem.isHiddenByDefault` and `IWorkbenchToolBarOptions.alwaysShownItems`.
+	 */
+	readonly customizableTitleMenu?: {
+		readonly menu: MenuId;
+		readonly alwaysShownItems?: readonly string[];
+	};
+
+	/**
+	 * The size of the part. It is kept within the main window.
+	 */
+	readonly size?: IDimension;
+
+	/**
+	 * The size below which the part cannot be resized.
+	 */
+	readonly minimumSize?: IDimension;
+}
+
+/**
+ * An editor part that floats over the content of the main window in its
+ * bottom right corner, without blocking the rest of the window. Its header
+ * shows its title and actions, and the user can resize it from its top and
+ * left edges.
+ */
+export interface IFloatingEditorPart extends IEditorPart {
+
+	/**
+	 * The size of the part, as given or as resized by the user.
+	 */
+	readonly size: IDimension;
+
+	/**
+	 * Fired when the user resized the part.
+	 */
+	readonly onDidChangeSize: Event<IDimension>;
+
+	/**
+	 * Resizes the part to its default size, within the main window. This does
+	 * not fire {@link onDidChangeSize}, which is for sizes the user resized to.
+	 */
+	resetSize(): void;
+
+	/**
+	 * Changes the title shown in the header of the part, which is also
+	 * its accessible name.
+	 */
+	setTitle(title: string): void;
+
+	/**
+	 * Fired when this floating editor part is about to close.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
+	 * Close this floating editor part after moving all
+	 * editors that need confirmation to close, such as dirty
+	 * ones, to the main editor part. Other editors close,
+	 * including ones that cannot be closed on their own.
+	 *
+	 * @returns `false` if an editor could not be moved.
 	 */
 	close(): boolean;
 }
@@ -678,7 +858,18 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Opens a new window with a full editor part instantiated
 	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: {
+		bounds?: Partial<IRectangle>;
+		compact?: boolean;
+		alwaysOnTop?: boolean;
+		/**
+		 * Keeps the part out of working sets and window restore: saving
+		 * them does not capture it, and applying a working set leaves it
+		 * open. For windows that their owner manages, such as one that
+		 * shows a chat.
+		 */
+		excludeFromWorkingSets?: boolean;
+	}): Promise<IAuxiliaryEditorPart>;
 
 	/**
 	 * Creates a modal editor part that shows in a modal overlay
@@ -693,6 +884,15 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * The currently active modal editor part, if any.
 	 */
 	readonly activeModalEditorPart: IModalEditorPart | undefined;
+
+	/**
+	 * Creates an editor part that floats over the content of the
+	 * main window in its bottom right corner. Unlike a modal editor
+	 * part, it does not block the rest of the window, and several
+	 * can exist. Its editors open only in its groups when asked to.
+	 * It is not part of working sets: applying one leaves it open.
+	 */
+	createFloatingEditorPart(options: IFloatingEditorPartOptions): Promise<IFloatingEditorPart>;
 
 	/**
 	 * Returns the instantiation service that is scoped to the

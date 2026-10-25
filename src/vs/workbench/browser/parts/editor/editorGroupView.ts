@@ -24,11 +24,11 @@ import { IEditorProgressService } from '../../../../platform/progress/common/pro
 import { EditorProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
 import { localize } from '../../../../nls.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ITelemetryData, ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DeferredPromise, Promises, RunOnceWorker } from '../../../../base/common/async.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../../base/browser/touch.js';
-import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions } from './editor.js';
+import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions, IEditorGroupLayoutInsets } from './editor.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Separator, SubmenuAction } from '../../../../base/common/actions.js';
@@ -53,6 +53,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { EditorGroupWatermark } from './editorGroupWatermark.js';
 import { EditorTitleControl } from './editorTitleControl.js';
 import { EditorPane } from './editorPane.js';
@@ -946,7 +947,34 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get titleHeight(): IEditorGroupTitleHeight {
-		return this.titleControl.getHeight();
+		return this.titleHidden ? { total: 0, offset: 0 } : this.titleControl.getHeight();
+	}
+
+	private titleHiddenCount = 0;
+	private get titleHidden(): boolean { return this.titleHiddenCount > 0; }
+
+	hideTitle(): IDisposable {
+		this.titleHiddenCount++;
+		if (this.titleHiddenCount === 1) {
+			this.updateTitleHidden();
+		}
+
+		let disposed = false;
+		return toDisposable(() => {
+			if (disposed || this.disposed) {
+				return;
+			}
+			disposed = true;
+			this.titleHiddenCount--;
+			if (this.titleHiddenCount === 0) {
+				this.updateTitleHidden();
+			}
+		});
+	}
+
+	private updateTitleHidden(): void {
+		this.titleContainer.classList.toggle('hidden-title', this.titleHidden);
+		this.relayout();
 	}
 
 	notifyIndexChanged(newIndex: number): void {
@@ -2214,12 +2242,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	readonly element: HTMLElement = $('div');
 
-	get minimumWidth(): number { return this.editorPane.minimumWidth; }
-	get minimumHeight(): number { return this.editorPane.minimumHeight; }
-	get maximumWidth(): number { return this.editorPane.maximumWidth; }
-	get maximumHeight(): number { return this.editorPane.maximumHeight; }
+	get minimumWidth(): number { return this.editorPane.minimumWidth + this.layoutInsets.left + this.layoutInsets.right; }
+	get minimumHeight(): number { return this.editorPane.minimumHeight + this.layoutInsets.top + this.layoutInsets.bottom; }
+	get maximumWidth(): number { return this.editorPane.maximumWidth + this.layoutInsets.left + this.layoutInsets.right; }
+	get maximumHeight(): number { return this.editorPane.maximumHeight + this.layoutInsets.top + this.layoutInsets.bottom; }
+
+	private _priority: LayoutPriority | undefined = undefined;
+	get priority(): LayoutPriority | undefined { return this._priority; }
+
+	private layoutProportionally = true;
+
+	setLayoutPriority(priority: LayoutPriority | undefined, proportionalLayout: boolean): void {
+		this._priority = priority;
+		this.layoutProportionally = proportionalLayout;
+	}
 
 	get proportionalLayout(): boolean {
+		if (!this.layoutProportionally) {
+			return false;
+		}
+
 		if (!this.lastLayout) {
 			return true;
 		}
@@ -2228,17 +2270,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
-	readonly onDidChange = this._onDidChange.event;
+	private readonly _onDidChangeLayoutInsets = this._register(new Emitter<undefined>());
+	/** Fires `undefined` when the size constraints change: those of the editor pane, or the layout insets. */
+	readonly onDidChange = Event.any<{ width: number; height: number } | undefined>(this._onDidChange.event, this._onDidChangeLayoutInsets.event);
 
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
+
+		// Lay out within the insets, which the group's margins leave empty
+		const insets = this.layoutInsets;
+		if (insets !== EditorGroupView.NO_LAYOUT_INSETS) {
+			width = Math.max(0, width - insets.left - insets.right);
+			height = Math.max(0, height - insets.top - insets.bottom);
+			top += insets.top;
+			left += insets.left;
+			this.element.style.height = `${height}px`;
+		}
+
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentRightInset);
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
-		const titleControlSize = this.titleControl.layout({
+		const titleControlSize = this.titleHidden ? Dimension.None : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		}, contentWidth);
@@ -2264,6 +2319,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 		this._contentRightInset = next;
+		this.relayout();
+	}
+
+	private static readonly NO_LAYOUT_INSETS: IEditorGroupLayoutInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+	private layoutInsets = EditorGroupView.NO_LAYOUT_INSETS;
+
+	setLayoutInsets(insets: IEditorGroupLayoutInsets): void {
+		const next = { top: Math.max(0, Math.round(insets.top)), right: Math.max(0, Math.round(insets.right)), bottom: Math.max(0, Math.round(insets.bottom)), left: Math.max(0, Math.round(insets.left)) };
+		const current = this.layoutInsets;
+		if (next.top === current.top && next.right === current.right && next.bottom === current.bottom && next.left === current.left) {
+			return;
+		}
+
+		if (next.top || next.right || next.bottom || next.left) {
+			this.layoutInsets = next;
+			this.element.style.margin = `${next.top}px ${next.right}px ${next.bottom}px ${next.left}px`;
+		} else {
+			this.layoutInsets = EditorGroupView.NO_LAYOUT_INSETS;
+			this.element.style.margin = '';
+			this.element.style.height = '';
+		}
+
+		// The insets are part of the minimum and maximum sizes, which the grid reads when told they changed
+		this._onDidChangeLayoutInsets.fire(undefined);
 		this.relayout();
 	}
 

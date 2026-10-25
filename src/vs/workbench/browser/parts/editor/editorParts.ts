@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, IFloatingEditorPart, IFloatingEditorPartOptions } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { distinct } from '../../../../base/common/arrays.js';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from './auxiliaryEditorPart.js';
 import { ModalEditorPart } from './modalEditorPart.js';
+import { FloatingEditorPart } from './floatingEditorPart.js';
 import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -122,6 +123,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	private readonly mapPartToInstantiationService = new Map<number /* window ID */, IInstantiationService>();
 	private modalPartInstantiationService: IInstantiationService | undefined;
+	private readonly mapFloatingPartToInstantiationService = new Map<IEditorPart, IInstantiationService>();
+
+	/** Parts that working sets leave alone, and that window restore does not capture. */
+	private readonly partsExcludedFromWorkingSets = new Set<IEditorPart>();
 
 	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
 
@@ -151,6 +156,12 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return this.modalPartInstantiationService;
 		}
 
+		// Floating Parts share the main window, so they are not found by window
+		const floatingPartInstantiationService = this.mapFloatingPartToInstantiationService.get(part);
+		if (floatingPartInstantiationService) {
+			return floatingPartInstantiationService;
+		}
+
 		return this.mapPartToInstantiationService.get(part.windowId) ?? this.instantiationService;
 	}
 
@@ -167,6 +178,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		// Keep instantiation service
 		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
 		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part.windowId)));
+		if (options?.excludeFromWorkingSets) {
+			this.excludeFromWorkingSets(part, disposables);
+		}
 
 		// Events
 		this._onDidAddGroup.fire(part.activeGroup);
@@ -177,6 +191,29 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	}
 
 	//#endregion
+
+	//#region Floating Editor Parts
+
+	async createFloatingEditorPart(options: IFloatingEditorPartOptions): Promise<IFloatingEditorPart> {
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(FloatingEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
+
+		// Keep instantiation service
+		this.mapFloatingPartToInstantiationService.set(part, instantiationService);
+		disposables.add(toDisposable(() => this.mapFloatingPartToInstantiationService.delete(part)));
+		this.excludeFromWorkingSets(part, disposables);
+
+		// Events
+		this._onDidAddGroup.fire(part.activeGroup);
+
+		return part;
+	}
+
+	//#endregion
+
+	private excludeFromWorkingSets(part: IEditorPart, disposables: DisposableStore): void {
+		this.partsExcludedFromWorkingSets.add(part);
+		disposables.add(toDisposable(() => this.partsExcludedFromWorkingSets.delete(part)));
+	}
 
 	//#region Modal Editor Part
 
@@ -509,6 +546,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private createState(): IEditorPartsUIState {
 		return {
 			auxiliary: this.parts
+				.filter(part => !this.partsExcludedFromWorkingSets.has(part))
 				.map(part => ({ part, auxiliaryWindow: this.auxiliaryWindowService.getWindow(part.windowId) }))
 				.filter(({ auxiliaryWindow }) => auxiliaryWindow !== undefined)
 				.map(({ part, auxiliaryWindow }) => ({
@@ -568,6 +606,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		for (const part of this.parts) {
 			if (part === this.mainPart) {
 				continue; // main part takes care on its own
+			}
+
+			if (this.partsExcludedFromWorkingSets.has(part)) {
+				continue; // managed by its owner, outside of working sets
 			}
 
 			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
