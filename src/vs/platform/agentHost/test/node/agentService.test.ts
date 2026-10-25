@@ -38233,7 +38233,7 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('a promoted session is read exactly when its chat is, also after a restart', async () => {
+			test('a promoted session is listed read exactly when its chat is, also after a restart', async () => {
 				// Each session has its own database, as in production (see the test above).
 				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
@@ -38257,18 +38257,24 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(first).dispatchServerAction(unreadChat.toString(), { type: ActionType.ChatIsReadChanged, isRead: false });
 				const readTarget = await first.moveChat(source, readChat, { kind: 'newSession' });
 				const unreadTarget = await first.moveChat(source, unreadChat, { kind: 'newSession' });
-				const isRead = (service: AgentService) => [readTarget, unreadTarget].map(target => isSessionStatusRead(getStateManager(service).getSessionState(target.toString())?.status));
-				const promoted = isRead(first);
+				// What a `listSessions` reply reports, which every client applies over its own read state.
+				const listedRead = async (service: AgentService) => {
+					const listed = getStateManager(service).prepareSessionSummariesForListing((await service.listSessions()).map(toListedSessionSummary));
+					return [readTarget, unreadTarget].map(target => listed.find(summary => summary.resource === target.toString()))
+						.map(summary => ({ session: isSessionStatusRead(summary?.status), chat: isSessionStatusRead(summary?.chats?.[0]?.status) }));
+				};
+				const promoted = await listedRead(first);
 				await first.whenCatalogReconciliationIdle();
 				await getTestSessionStateStore(first).whenIdle(undefined);
 
 				const restarted = createService();
-				await restarted.listSessions();
+				const afterRestart = await listedRead(restarted);
 				await getStateManager(restarted).whenMovedChatOriginsSettled();
 				await restarted.restoreSession(readTarget);
 				await restarted.restoreSession(unreadTarget);
 
-				assert.deepStrictEqual({ promoted, restored: isRead(restarted) }, { promoted: [true, false], restored: [true, false] });
+				const expected = () => [{ session: true, chat: true }, { session: false, chat: false }];
+				assert.deepStrictEqual({ promoted, afterRestart, restored: await listedRead(restarted) }, { promoted: expected(), afterRestart: expected(), restored: expected() });
 			});
 
 			test('a promoted session keeps its chat\'s title and title source across a restart, in its state and in the list, not its first prompt (B4-1)', async () => {
