@@ -171,7 +171,7 @@ export function isChatWindowTerminalKeysWindow(windows: readonly { readonly dock
 
 export const ChatWindowTerminalKeysContext = new RawContextKey<boolean>('sessions.chatWindowTerminalKeys', false, localize('chatWindowTerminalKeys', "Whether the focused window is a chat window of its own with an editor area, where the keys of the panel toggle its terminal and the key of the side panel its editor area."));
 
-class ChatWindowTerminalKeysContribution extends Disposable {
+export class ChatWindowTerminalKeysContribution extends Disposable {
 
 	static readonly ID = 'sessions.chatWindowTerminalKeys';
 
@@ -191,9 +191,9 @@ class ChatWindowTerminalKeysContribution extends Disposable {
 		}));
 		this._register(hostService.onDidChangeActiveWindow(update));
 		this._register(hostService.onDidChangeFocus(update));
-		// Focus moving between windows is also seen in the window itself, where the host may not tell.
+		// Focus moving between windows is also seen in the window itself, where the host may not tell. Not captured: the focus of elements inside a window does not change the focused window.
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			disposables.add(addDisposableListener(window, EventType.FOCUS, update, true));
+			disposables.add(addDisposableListener(window, EventType.FOCUS, update));
 		}, { window: mainWindow, disposables: this._store }));
 	}
 }

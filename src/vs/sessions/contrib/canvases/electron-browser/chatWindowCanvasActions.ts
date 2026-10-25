@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -15,7 +15,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService, canvasOwnerKey, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatWindowEditorGroupContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
@@ -76,14 +76,19 @@ class ChatWindowCanvasMenu extends Disposable {
 			return contextService.contexts.read(reader).find(candidate => candidate.owner.providerId === session.providerId
 				&& isEqual(candidate.owner.session, session.resource) && isEqual(candidate.owner.chat, chat.resource));
 		});
+		// Keyed on the owner: the context is rebuilt for unrelated changes (any chat model, any window's session), and each rebuild would list the canvases again.
+		const definitionSource = derivedOpts<ICanvasContext | undefined>({
+			owner: this,
+			equalsFn: (a, b) => a === b || (!!a && !!b && !!a.definitionProvider === !!b.definitionProvider && canvasOwnerKey(a.owner) === canvasOwnerKey(b.owner))
+		}, reader => context.read(reader));
 		const definitions = this._register(new CanvasDefinitionStore(reader => {
-			const current = context.read(reader);
+			const current = definitionSource.read(reader);
 			const provider = current?.definitionProvider;
 			if (!current || !provider) {
 				return undefined;
 			}
 			observableSignalFromEvent(reader.store, provider.onDidChangeDefinitions).read(reader);
-			return { owner: current.owner, listCanvases: () => provider.listCanvases() };
+			return { owner: current.owner, listCanvases: () => (context.get()?.definitionProvider ?? provider).listCanvases() };
 		}, '[ChatWindowCanvasActions]', logService)).definitions;
 
 		this._register(autorun(reader => {

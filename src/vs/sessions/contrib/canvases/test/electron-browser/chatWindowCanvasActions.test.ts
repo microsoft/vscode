@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -48,15 +49,17 @@ suite('Chat window - canvases in the Add Tab list', () => {
 			};
 		});
 		const canvasLists = windows.map(() => observableValue<readonly ICanvas[]>('canvases', []));
-		const contexts: ICanvasContext[] = windows.map(({ owner }, index) => ({
+		const listed: string[] = [];
+		const createContexts = (): ICanvasContext[] => windows.map(({ owner }, index) => ({
 			owner,
 			canvases: canvasLists[index],
 			definitionProvider: {
 				onDidChangeDefinitions: Event.None,
-				listCanvases: async () => [definition],
+				listCanvases: async () => { listed.push(owner.session.toString()); return [definition]; },
 				openCanvas: async (canvas, instanceId) => { opened.push([owner.session.toString(), canvas.canvasId, instanceId]); },
 			},
 		}));
+		const contexts = observableValue<readonly ICanvasContext[]>('contexts', createContexts());
 		const windowList = observableValue<readonly IChatWindow[]>('windows', windows.map(entry => entry.window));
 		const reopenable = observableValue('reopenable', windows.map(({ owner, canvas }) => ({ reference: { ...owner, canvas: canvas.resource }, canvas })));
 		const registration = store.add(registerChatWindowCanvasActions(
@@ -70,12 +73,12 @@ suite('Chat window - canvases in the Add Tab list', () => {
 				override async revealCanvas(reference: ICanvasReference) { revealed.push(reference); }
 			}(),
 			new class extends mock<ICanvasContextService>() {
-				override readonly contexts = observableValue('contexts', contexts);
+				override readonly contexts = contexts;
 			}(),
 			new NullLogService() as ILogService,
 			new class extends mock<INotificationService>() { }(),
 		));
-		return { registration, opened, reopened, revealed, activeSession, windows, windowList, reopenable, canvasLists };
+		return { registration, listed, rebuildContexts: () => contexts.set(createContexts(), undefined), opened, reopened, revealed, activeSession, windows, windowList, reopenable, canvasLists };
 	}
 
 	async function entries(count: number) {
@@ -106,6 +109,17 @@ suite('Chat window - canvases in the Add Tab list', () => {
 		});
 		registration.dispose();
 		assert.deepStrictEqual(MenuRegistry.getMenuItems(Menus.ChatWindowAddTabCanvas).length, 0);
+	});
+
+	test('rebuilding the contexts for the same owners does not list the canvases of each window again', async () => {
+		const { listed, rebuildContexts } = createFixture(['one', 'two']);
+		await entries(4);
+		for (let i = 0; i < 5; i++) {
+			rebuildContexts();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual(listed.slice().sort(), ['test://session/one', 'test://session/two']);
 	});
 
 	test('opening a canvas targets the window the entry belongs to and leaves the active session alone', async () => {
