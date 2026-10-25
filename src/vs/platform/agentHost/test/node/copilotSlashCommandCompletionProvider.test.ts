@@ -599,7 +599,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				uninstall: ['azure@awesome-copilot', 'direct-plugin', 'duplicate@marketplace-one', 'duplicate@marketplace-two', 'elasticsearch@awesome-copilot'],
 				update: ['elasticsearch@awesome-copilot'],
 				enable: ['azure', 'duplicate@marketplace-two'],
-				disable: ['builtin-plugin', 'duplicate@marketplace-one', 'elasticsearch'],
+				disable: ['ambiguous-direct-source-1', 'ambiguous-direct-source-2', 'builtin-plugin', 'direct-plugin', 'duplicate@marketplace-one', 'elasticsearch'],
 				requestedSessionIds: ['abc', 'abc', 'abc', 'abc'],
 			});
 		});

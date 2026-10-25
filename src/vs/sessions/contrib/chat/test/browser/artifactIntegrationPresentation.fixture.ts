@@ -619,7 +619,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	}
 }
 
-export async function renderArtifactDetails(context: ComponentFixtureContext, scenario: 'attention' | 'ready' | 'mixed' | 'narrow' | 'experiment' | 'delivery' | 'comments' | 'autopilotCollapsed' | 'autopilotExpanded' | 'narrowComments' | 'tabInfo' | 'deliveryRollouts' | 'titleHover' | 'tabFocus' | 'enumPolicy' | 'enumPolicyNarrow' | 'activitiesCollapsed' | 'activitiesExpanded' | 'activitiesNarrow'): Promise<void> {
+export async function renderArtifactDetails(context: ComponentFixtureContext, scenario: 'attention' | 'ready' | 'mixed' | 'narrow' | 'experiment' | 'delivery' | 'comments' | 'autopilotCollapsed' | 'autopilotExpanded' | 'narrowComments' | 'deliveryRollouts' | 'titleHover' | 'tabFocus' | 'enumPolicy' | 'enumPolicyNarrow' | 'activitiesCollapsed' | 'activitiesExpanded' | 'activitiesNarrow'): Promise<void> {
 	let data = scenario === 'experiment' ? expExperiment() : pullRequest(scenario === 'ready' ? 'ready' : 'failing');
 	if (scenario === 'mixed') {
 		const contribution = data.contribution;
@@ -739,13 +739,6 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 		if (disclosure.getAttribute('aria-expanded') !== String(scenario !== 'autopilotCollapsed')) {
 			disclosure.click();
 		}
-	}
-	if (scenario === 'tabInfo') {
-		const info = context.container.querySelectorAll<HTMLElement>('.artifact-list-tab-info')[1];
-		if (!info || info.hidden) {
-			throw new Error('Expected information for the inactive Comments tab.');
-		}
-		info.click();
 	}
 	if (scenario === 'titleHover') {
 		const title = context.container.querySelector('.artifact-details-title-link');
