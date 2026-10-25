@@ -23,9 +23,10 @@ import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../browser/label
 import { ChatChangesPillActionViewItem, type IChatChangesStats } from '../../../browser/chatChangesPill.js';
 import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillEntryHoverActions, withChatPillHoverLabel, type ChatPillsCompactMode, type IChatPill, type IChatPillAction, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
 import { ChatPillSingleEntry, createChatSectionPill, getChatPillInlineEntry, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
-import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
+import { getSessionChatPillLabel, getSessionChatPillMenu, isSessionChatPillHiddenByDefault, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
 import { sessionBackgroundShellsPillOptions, sessionBrowsersPillOptions, sessionCanvasesPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
+import { markOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
@@ -77,6 +78,20 @@ export interface IStandardChatInputPillsData {
 	readonly browsers?: IStandardChatInputPillSections;
 	readonly subagents?: IStandardChatInputPillSections;
 	readonly backgroundShells?: IStandardChatInputPillSections;
+}
+
+/** Onboarding spotlight target of a chat input's changes pill, used by tours that teach reviewing changes. */
+export const CHAT_CHANGES_PILL_ONBOARDING_TARGET_ID = 'chat.changesPill';
+
+/** The changes pill, marked as an onboarding spotlight target that advances when the pill opens the changes. */
+class ChatInputChangesPillActionViewItem extends ChatChangesPillActionViewItem {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		const element = this.buttonElement;
+		if (element) {
+			this._register(markOnboardingTarget(element, CHAT_CHANGES_PILL_ONBOARDING_TARGET_ID));
+		}
+	}
 }
 
 function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
@@ -185,7 +200,7 @@ export class StandardChatInputPillSources extends Disposable {
 			}));
 			const pill: IChatPill = {
 				action,
-				createActionViewItem: (options: IActionViewItemOptions) => new ChatChangesPillActionViewItem(action, options, changes.stats, instantiationService),
+				createActionViewItem: (options: IActionViewItemOptions) => new ChatInputChangesPillActionViewItem(action, options, changes.stats, instantiationService),
 			};
 			sources.push({
 				kind: SessionChatPillKind.Changes,
@@ -456,8 +471,9 @@ export class ChatInputPills extends Disposable {
 
 		derived(this, reader => {
 			const anyVisible = this._pills.isVisible.read(reader);
-			const anyHidden = kindsWithData.read(reader).size > 0;
-			return anyVisible ? 'visible' : anyHidden ? 'empty' : 'hidden';
+			// The empty row only restores pills the user hid or filtered; default-hidden kinds never claimed room in the row.
+			const anyRestorable = [...kindsWithData.read(reader)].some(kind => this._visibility.isVisible(kind, reader) || !isSessionChatPillHiddenByDefault(kind));
+			return anyVisible ? 'visible' : anyRestorable ? 'empty' : 'hidden';
 		}).recomputeInitiallyAndOnChange(this._store, state => {
 			const activeElement = getWindow(this._row.content).document.activeElement;
 			const restoreInputFocus = state === 'hidden' && !!activeElement && this._row.content.contains(activeElement);

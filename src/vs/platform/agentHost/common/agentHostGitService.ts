@@ -283,6 +283,8 @@ export interface IAgentHostGitService {
 	 * whose worktree was previously cleaned up on archive).
 	 */
 	addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void>;
+	/** Whether Git still registers the exact worktree path; registry failures conservatively return true. */
+	isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean>;
 	/** Removes a worktree, preserving Git's dirty-worktree protection unless `force` is explicitly requested. */
 	removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void>;
 	/**

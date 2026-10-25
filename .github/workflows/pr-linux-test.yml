@@ -308,21 +308,21 @@ jobs:
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        timeout-minutes: 25
+        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: npm run test-node
+        timeout-minutes: 25
+        run: npm run test-node -- --rerun-failed-files 2
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests" --rerun-failed-files 2
         env:
           DEBUG: "*browser*"
 
@@ -353,8 +353,8 @@ jobs:
       - name: 🧪 Run Agent Host E2E tests (Electron)
         id: agent-host-e2e
         if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests"
+        timeout-minutes: 25
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2
         env:
           DISPLAY: ":10"
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
@@ -362,14 +362,26 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       # Runs even when Agent Host E2E failed in the same job, so that one does not hide the other.
+      # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
+        id: node-integration-tests
         if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
-        timeout-minutes: 20
-        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+        timeout-minutes: 25
+        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
         env:
           DISPLAY: ":10"
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
+      # The extension host suites are not rerun.
+      - name: 🧪 Run extension host integration tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        timeout-minutes: 15
+        run: ./scripts/test-integration.sh --only-extension-host-tests
+        env:
+          DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)

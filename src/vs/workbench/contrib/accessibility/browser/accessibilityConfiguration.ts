@@ -80,6 +80,7 @@ export const enum AccessibilityVerbositySettingId {
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
 	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
+	SessionsGetStarted = 'accessibility.verbosity.sessionsGetStarted',
 	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -271,6 +272,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionsListNotification]: {
 			description: localize('verbosity.sessionsListNotification', "Provide information about how to access accessibility help for the Undo notice in the sessions list."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionsGetStarted]: {
+			description: localize('verbosity.sessionsGetStarted', "Provide information about how to access accessibility help for the Get Started checklist in the Sessions view."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionCanvas]: {

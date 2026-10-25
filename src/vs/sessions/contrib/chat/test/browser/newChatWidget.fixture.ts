@@ -58,7 +58,7 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, GuidanceCustomizationMigration, GuidanceCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
@@ -77,7 +77,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { FixtureMenuService, FixtureMotionAccessibilityService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -681,7 +681,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override computeMigration(resource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.PluginMarketplaces): Promise<PluginMarketplaceCustomizationMigration>;
+				override computeMigration(resource: URI, type: GuidanceCustomizationMigrationType): Promise<GuidanceCustomizationMigration>;
 				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
+					if (type === CustomizationMigrationType.ChatParticipants || type === CustomizationMigrationType.ToolSets) {
+						return { type, items: [] };
+					}
 					if (type === CustomizationMigrationType.McpServers) {
 						return { type, candidates: [], servers: [], exclusions: [], discoveryComplete: true, coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false } };
 					}
@@ -887,10 +891,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
-	for (let attempt = 0; attempt < 30 && !view.element.querySelector('.sessions-chat-session-type-picker'); attempt++) {
-		await nextFrame();
-	}
-	assert(!!view.element.querySelector('.sessions-chat-session-type-picker'));
+	await waitForFixtureDomCondition(view.element, () => !!view.element.querySelector('.sessions-chat-session-type-picker'), disposableStore);
 	for (const animation of view.element.getAnimations({ subtree: true })) {
 		if (animation.effect?.getComputedTiming().endTime !== Infinity) {
 			animation.finish();

@@ -522,6 +522,7 @@ import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
 import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
+import './contrib/getStarted/browser/getStarted.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

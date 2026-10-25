@@ -162,6 +162,43 @@
 	</script>
 
 	<script>
+		const ambiguousRunnables = new Set();
+
+		function runnableKey(runnable) {
+			return JSON.stringify([runnable.type === 'test' ? 'test' : 'suite', runnable.file, runnable.titlePath()]);
+		}
+
+		function prepareTestsForRerun(targets) {
+			const runnables = new Set();
+			function collect(suite) {
+				for (const runnable of [suite, ...suite.tests]) {
+					const key = runnableKey(runnable);
+					if (runnables.has(key)) {
+						ambiguousRunnables.add(key);
+					} else {
+						runnables.add(key);
+					}
+				}
+				suite.suites.forEach(collect);
+			}
+			// Detect duplicates before selection, including pending tests and suites.
+			collect(mocha.suite);
+			if (!targets) {
+				return;
+			}
+			function select(suite) {
+				suite.tests = suite.tests.filter(test => targets.some(target => {
+					const titlePath = test.titlePath();
+					return test.file === target.file
+						&& (target.kind !== 'test' || titlePath.length === target.titlePath.length)
+						&& target.titlePath.every((title, index) => title === titlePath[index]);
+				}));
+				suite.suites.forEach(select);
+			}
+			// A full-title grep cannot distinguish sibling names or different suite ancestry.
+			select(mocha.suite);
+		}
+
 		function serializeSuite(suite) {
 			return {
 				root: suite.root,
@@ -186,6 +223,13 @@
 				speed: runnable.speed,
 				duration: runnable.duration,
 				currentRetry: runnable.currentRetry(),
+				// the test file (module) for the runner to rerun. Root-level hooks have none,
+				// because their failure stops the whole run
+				file: runnable.file,
+				// a failed test is rerun by itself, a failed hook with the rest of its suite
+				type: runnable.type,
+				parentTitlePath: runnable.parent?.titlePath() ?? [],
+				ambiguous: ambiguousRunnables.has(runnableKey(runnable.type === 'hook' ? runnable.parent : runnable))
 			};
 		}
 		function serializeError(err) {
@@ -237,10 +281,13 @@
 		async function loadModules(modules) {
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-				const m = await new Promise((resolve, reject) => import(`../../../${out}/${file}.js`).then(resolve, err => {
-					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
-					resolve({});
-				}));
+				let m;
+				try {
+					m = await import(`../../../${out}/${file}.js`);
+				} catch (err) {
+					console.error(`Failed to load test module '${file}'`, err);
+					throw err;
+				}
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
 			}
@@ -248,11 +295,15 @@
 
 		let _resolveTestData;
 		let _resolveTestRun;
+		let _rejectTestRun;
 		globalThis._VSCODE_TEST_RUN = new Promise(resolve => _resolveTestData = resolve)
 
 		window.loadAndRun = async function loadAndRun(data, manual = false) {
-			_resolveTestData({data, manual})
-			return new Promise(resolve => _resolveTestRun = resolve);
+			return new Promise((resolve, reject) => {
+				_resolveTestRun = resolve;
+				_rejectTestRun = reject;
+				_resolveTestData({data, manual});
+			});
 		}
 
 		const modules = new URL(window.location.href).searchParams.getAll('m');
@@ -264,24 +315,29 @@
 	</script>
 
 	<script type="text" id="bootstrap">
-		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
+		const {data: {modules, grep, rerunTargets}, manual} = await globalThis._VSCODE_TEST_RUN
 
-		// load
-		await loadModules(modules);
+		try {
+			// load
+			await loadModules(modules);
+			prepareTestsForRerun(rerunTargets);
 
-		// run
-		await new Promise((resolve, reject) => {
-			if (grep) {
-				mocha.grep(grep);
-			}
+			// run
+			await new Promise((resolve, reject) => {
+				if (grep) {
+					mocha.grep(grep);
+				}
 
-			if (!manual) {
-				mocha.reporter(PlaywrightReporter);
-			}
-			mocha.run(failCount => resolve(failCount === 0));
-		});
+				if (!manual) {
+					mocha.reporter(PlaywrightReporter);
+				}
+				mocha.run(failCount => resolve(failCount === 0));
+			});
 
-		_resolveTestRun();
+			_resolveTestRun();
+		} catch (err) {
+			_rejectTestRun(err);
+		}
 	</script>
 </body>
 

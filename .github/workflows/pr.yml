@@ -18,13 +18,18 @@ env:
   VSCODE_QUALITY: 'oss'
 
 jobs:
+  # The workflow is: Detect Changes (the plan) -> the jobs that run what the plan
+  # selects -> PR Gate, which reports their results as a single check.
+  #
   # Lists the files changed by the pull request so that jobs can skip checks the
   # changes cannot affect (see .github/actions/detect-changes/detect.ts).
-  # Skip with a job-level `if:` inside the reusable workflow when the job calls
-  # one and reports a required check itself: a skipped job still reports its
-  # check, which satisfies required status checks. The core test jobs skip in
-  # the calling job instead, and required-checks reports their required checks.
   # Jobs also run when change detection fails.
+  #
+  # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
+  # Linux runs every unit test on every push; the macOS and Windows unit test jobs download the
+  # unit-test-plan artifact and run only the listed files, and are skipped when the plan selects
+  # no file. The artifact only exists when the plan selects files, and without it those jobs run
+  # every unit test. The planning steps never fail the job: the Ripple job reports a broken ripple.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -38,15 +43,21 @@ jobs:
       agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
       agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
+      ripple-changed: ${{ steps.ripple.outputs.changed }}
+      ripple-failed: ${{ steps.ripple.outputs.failed }}
       # Linux and macOS run Agent Host E2E in the Electron integration tests job.
       electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
+      # The macOS and Windows unit test jobs run only the unit test files that the plan selects, so
+      # they also skip when the plan of a working ripple selects none (see the Check ripple step).
+      selected-unit-tests: ${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: |
-            .github/actions/detect-changes
-            .github/actions/detect-agent-host-e2e-changes
+          # The merge commit and its parents: the unit test plan compares the base branch (the
+          # first parent) with the merge result. ripple reads every file of both commits, so this
+          # cannot be a sparse (blobless) checkout.
+          fetch-depth: 2
 
       - name: Detect changes
         id: detect
@@ -60,12 +71,109 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Must match the cache key of pr-ripple.yml, which saves the binary on main.
+      - name: Restore ripple
+        id: cache-ripple
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: build/ripple/target/release/ripple
+          key: "ripple-${{ runner.os }}-${{ hashFiles('build/ripple/Cargo.lock', 'build/ripple/Cargo.toml', 'build/ripple/rust-toolchain.toml', 'build/ripple/src/**') }}"
+
+      - name: Build ripple
+        id: build-ripple
+        if: steps.cache-ripple.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        working-directory: build/ripple
+        run: |
+          set -e
+          rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)" --profile minimal
+          cargo test --release --locked
+          cargo build --release --locked
+
+      - name: Save ripple
+        if: steps.build-ripple.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: build/ripple/target/release/ripple
+          key: ${{ steps.cache-ripple.outputs.cache-primary-key }}
+
+      - name: Plan unit tests
+        id: plan
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          set -e
+          build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/unit-test-plan > /dev/null
+          echo "Linux runs every unit test; macOS and Windows run the selected files, and skip their unit test jobs when there are none. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload unit test plan
+        if: steps.plan.outputs.select == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unit-test-plan
+          path: .build/unit-test-plan
+          retention-days: 7
+
+      # The ripple steps above never fail the job, so that a broken ripple cannot block unrelated
+      # pull requests: their macOS and Windows unit test jobs run every unit test instead. The
+      # Ripple job reports a failure for the pull requests that change build/ripple. (A build that
+      # times out leaves no binary to plan with.) Only the plan of a working ripple can skip the
+      # macOS and Windows unit test jobs, by selecting no unit test file.
+      - name: Check ripple
+        id: ripple
+        if: ${{ !cancelled() }}
+        env:
+          BUILD: ${{ steps.build-ripple.outcome }}
+          PLAN: ${{ steps.plan.outcome }}
+        run: |
+          changed=false
+          if [ -n "$(git diff --name-only HEAD^1 HEAD -- build/ripple)" ]; then
+            changed=true
+          fi
+          failed=false
+          selects_nothing=false
+          if [ "$BUILD" = failure ] || [ "$PLAN" != success ]; then
+            failed=true
+            echo "::warning::ripple failed to build, pass its tests or plan the unit tests, so macOS and Windows run every unit test. See the steps above."
+          else
+            # A module that ripple cannot parse, for example with new syntax, disables selection.
+            reason=$(jq -r .reason .build/unit-test-plan/plan.json)
+            case "$reason" in
+              *"parse error ("*)
+                file=${reason##*parse error (}
+                echo "::warning::ripple cannot parse ${file%)}, so macOS and Windows run every unit test."
+                ;;
+            esac
+            # A plan that runs every unit test lists no file either, but does not select.
+            if jq -e '.select == true and .unit == []' .build/unit-test-plan/plan.json > /dev/null; then
+              selects_nothing=true
+            fi
+          fi
+          {
+            echo "changed=$changed"
+            echo "failed=$failed"
+            echo "selects-nothing=$selects_nothing"
+          } >> "$GITHUB_OUTPUT"
+
   compile:
     name: Compile & Hygiene
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    env:
+      # Hygiene and ESLint check only the files that changed since this commit, unless
+      # a change can affect other files (see build/lib/changedFiles.ts). The full checks
+      # run in the product build.
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Without the base commit, hygiene and ESLint check every file.
+      - name: Fetch pull request base
+        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and ESLint will check every file."
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -136,14 +244,17 @@ jobs:
           npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
           npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
 
-      - name: Compile & Hygiene
-        run: npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
+      # before the compilation checks start. --continue-on-error reports both when both fail.
+      # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
+      - name: Hygiene & ESLint
+        run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
+
+      # core-ci-pr skips the minified bundles that only the product build uses.
+      - name: Compile
+        run: npm exec -- npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Avoid overlapping ESLint's worker memory with the parallel compilation checks.
-      - name: ESLint
-        run: npm run eslint
 
       - name: Check Codex protocol client is in sync
         run: |
@@ -154,6 +265,25 @@ jobs:
 
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
+
+  # Fails when a pull request that changes build/ripple breaks ripple's build, its tests or the
+  # planning of the pull request, before the failure reaches main. Skipped for the other pull
+  # requests, which a broken ripple must not block (see the Check ripple step of Detect Changes).
+  ripple:
+    name: Ripple
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check that ripple builds, passes its tests and plans the unit tests
+        env:
+          FAILED: ${{ needs.changes.outputs.ripple-failed }}
+        run: |
+          if [ "$FAILED" != false ]; then
+            echo "::error::This pull request changes build/ripple, and ripple failed to build, pass its tests or plan the unit tests. See the Detect Changes job."
+            exit 1
+          fi
+          echo "ripple built, passed its tests and planned the unit tests in Detect Changes."
 
   linux-cli-tests:
     name: Linux
@@ -178,8 +308,7 @@ jobs:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
 
   # The test jobs below report "<OS> (<part>) / <job>" checks and skip when the
-  # changes cannot affect them. required-checks reports the required
-  # "<OS> / <job>" checks from their results.
+  # changes cannot affect them.
   linux-electron-unit-tests:
     name: Linux (run)
     needs: changes
@@ -257,13 +386,14 @@ jobs:
   macos-electron-unit-tests:
     name: macOS (run)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron-Unit
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   macos-electron-tests:
     name: macOS (run)
@@ -301,13 +431,14 @@ jobs:
   macos-browser-unit-tests:
     name: macOS (unit)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Browser
       browser_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   macos-browser-integration-tests:
     name: macOS (integration & smoke)
@@ -331,13 +462,14 @@ jobs:
   windows-electron-unit-tests:
     name: Windows (run)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron-Unit
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   windows-electron-tests:
     name: Windows (run)
@@ -354,9 +486,10 @@ jobs:
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   # On Windows, Agent Host E2E is the slowest part of the Electron job, so it runs in parallel
-  # with the integration tests on its own machine; reports as part of "Windows / Electron".
+  # with the integration tests on its own machine.
+  # A skipped caller shows only its own name, so the name says what it runs.
   windows-agent-host-e2e-tests:
-    name: Windows (run)
+    name: Windows (agent host)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
@@ -391,13 +524,14 @@ jobs:
   windows-browser-unit-tests:
     name: Windows (unit)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Browser
       browser_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_selection: true
 
   windows-browser-integration-tests:
     name: Windows (integration & smoke)
@@ -417,110 +551,6 @@ jobs:
     with:
       job_name: Remote
       remote_tests: true
-
-  # Reports the required "<OS> / <job>" checks. A check passes when each of its
-  # jobs succeeded or was skipped because the changes cannot affect it. Uses
-  # always() so that the checks also report when a job failed or was skipped.
-  required-checks:
-    name: ${{ matrix.check }}
-    needs:
-      - changes
-      - linux-electron-unit-tests
-      - linux-electron-tests
-      - linux-electron-smoke-test-shards
-      - linux-browser-unit-tests
-      - linux-browser-integration-tests
-      - linux-remote-tests
-      - macos-electron-unit-tests
-      - macos-electron-tests
-      - macos-electron-smoke-test-shards
-      - macos-browser-unit-tests
-      - macos-browser-integration-tests
-      - macos-remote-tests
-      - windows-electron-unit-tests
-      - windows-electron-tests
-      - windows-agent-host-e2e-tests
-      - windows-electron-smoke-test-shards
-      - windows-browser-unit-tests
-      - windows-browser-integration-tests
-      - windows-remote-tests
-    if: ${{ always() }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - check: Linux / Electron-Unit
-            parts:
-              - { job: linux-electron-unit-tests, output: unit-tests }
-          - check: Linux / Electron
-            parts:
-              - { job: linux-electron-tests, output: electron-tests }
-          - check: Linux / Electron-Smoke
-            parts:
-              - { job: linux-electron-smoke-test-shards, output: product-tests }
-          - check: Linux / Browser
-            parts:
-              - { job: linux-browser-unit-tests, output: unit-tests }
-              - { job: linux-browser-integration-tests, output: browser-integration }
-          - check: Linux / Remote
-            parts:
-              - { job: linux-remote-tests, output: product-tests }
-          - check: macOS / Electron-Unit
-            parts:
-              - { job: macos-electron-unit-tests, output: unit-tests }
-          - check: macOS / Electron
-            parts:
-              - { job: macos-electron-tests, output: electron-tests }
-          - check: macOS / Electron-Smoke
-            parts:
-              - { job: macos-electron-smoke-test-shards, output: product-tests }
-          - check: macOS / Browser
-            parts:
-              - { job: macos-browser-unit-tests, output: unit-tests }
-              - { job: macos-browser-integration-tests, output: browser-integration }
-          - check: macOS / Remote
-            parts:
-              - { job: macos-remote-tests, output: product-tests }
-          - check: Windows / Electron-Unit
-            parts:
-              - { job: windows-electron-unit-tests, output: unit-tests }
-          - check: Windows / Electron
-            parts:
-              - { job: windows-electron-tests, output: product-tests }
-              - { job: windows-agent-host-e2e-tests, output: agent-host-e2e }
-          - check: Windows / Electron-Smoke
-            parts:
-              - { job: windows-electron-smoke-test-shards, output: product-tests }
-          - check: Windows / Browser
-            parts:
-              - { job: windows-browser-unit-tests, output: unit-tests }
-              - { job: windows-browser-integration-tests, output: browser-integration }
-          - check: Windows / Remote
-            parts:
-              - { job: windows-remote-tests, output: product-tests }
-    steps:
-      - name: Check job results
-        env:
-          NEEDS: ${{ toJSON(needs) }}
-          PARTS: ${{ toJSON(matrix.parts) }}
-        run: |
-          set -euo pipefail
-          detection=$(jq -r '.changes.result' <<< "$NEEDS")
-          status=0
-          while read -r job output; do
-            result=$(jq -r --arg job "$job" '.[$job].result' <<< "$NEEDS")
-            affected=$(jq -r --arg output "$output" '.changes.outputs[$output] // "true"' <<< "$NEEDS")
-            if [[ "$result" == success ]]; then
-              echo "$job succeeded."
-            elif [[ "$result" == skipped && "$detection" == success && "$affected" == false ]]; then
-              echo "$job was skipped because the changes cannot affect it ($output: false)."
-            else
-              echo "::error::$job did not succeed (result: $result, detection: $detection, $output: $affected)."
-              status=1
-            fi
-          done < <(jq -r '.[] | "\(.job) \(.output)"' <<< "$PARTS")
-          exit $status
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
@@ -763,7 +793,7 @@ jobs:
         run: npm run test:completions-core
 
   # The chat-lib jobs are separate jobs instead of a matrix: a matrix job skipped by
-  # a job-level `if:` is never expanded, so the per-OS required checks would not report.
+  # a job-level `if:` is never expanded, so the per-OS checks would not report.
   chat-lib-linux-tests:
     name: chat-lib tests (ubuntu-latest)
     needs: changes
@@ -808,3 +838,69 @@ jobs:
 
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
+
+  # The only check of this workflow that branch protection requires:
+  # Detect Changes plans the pull request, the jobs above run what the plan
+  # selects, and this gate passes when every job succeeded or was skipped
+  # because the changes cannot affect it. Detect Changes fails open: when it
+  # fails, every job runs, so its failure does not fail the gate (yet).
+  # Uses always() so that the gate also reports when a job failed or the run
+  # was cancelled, as a skipped required check would pass.
+  # Every job of this workflow must be listed in needs.
+  pr-gate:
+    name: PR Gate
+    needs:
+      - changes
+      - compile
+      - ripple
+      - linux-cli-tests
+      - linux-copilot-shim-tests
+      - linux-electron-unit-tests
+      - linux-electron-tests
+      - linux-electron-smoke-test-shards
+      - linux-browser-unit-tests
+      - linux-browser-integration-tests
+      - linux-remote-tests
+      - macos-electron-unit-tests
+      - macos-electron-tests
+      - macos-electron-smoke-test-shards
+      - macos-browser-unit-tests
+      - macos-browser-integration-tests
+      - macos-remote-tests
+      - windows-electron-unit-tests
+      - windows-electron-tests
+      - windows-agent-host-e2e-tests
+      - windows-electron-smoke-test-shards
+      - windows-browser-unit-tests
+      - windows-browser-integration-tests
+      - windows-remote-tests
+      - copilot-check-test-cache
+      - copilot-check-telemetry
+      - copilot-linux-tests
+      - copilot-windows-tests
+      - chat-lib-linux-tests
+      - chat-lib-macos-tests
+      - chat-lib-windows-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          status=0
+          while IFS=$'\t' read -r job result; do
+            case "$job:$result" in
+              *:success)
+                echo "$job succeeded." ;;
+              *:skipped)
+                echo "$job was skipped because the changes cannot affect it." ;;
+              changes:failure)
+                echo "::warning::Detect Changes failed, so every job ran." ;;
+              *)
+                echo "::error::$job did not succeed (result: $result)."
+                status=1 ;;
+            esac
+          done < <(jq -r 'to_entries[] | "\(.key)\t\(.value.result)"' <<< "$NEEDS")
+          exit $status

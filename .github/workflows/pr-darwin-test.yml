@@ -30,6 +30,10 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      unit_test_selection:
+        description: Run only the unit test files listed in the unit-test-plan artifact of the workflow run, when the Detect Changes job of pr.yml uploaded one, instead of every unit test
+        type: boolean
+        default: false
       agent_host_e2e_tests:
         description: Whether to run the Agent Host E2E tests
         type: boolean
@@ -154,22 +158,40 @@ jobs:
             sleep 5
           done
 
+      - name: Download unit test plan
+        id: download-plan
+        if: ${{ inputs.unit_tests && inputs.unit_test_selection }}
+        # Without a plan (Detect Changes only uploads one when the selection applies), the unit test
+        # steps below run every unit test. A pattern, unlike a name, downloads nothing instead of
+        # failing when there is no plan.
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: unit-test-plan
+          path: .build/unit-test-plan
+
+      # A failed download (such as a digest mismatch, reported after extracting) can leave a partial
+      # plan behind: without one, the unit test steps below run every unit test.
+      - name: Discard a failed unit test plan download
+        if: ${{ steps.download-plan.outcome == 'failure' }}
+        run: rm -rf .build/unit-test-plan
+
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        if: ${{ inputs.electron_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
+        timeout-minutes: 25
+        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2 ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: npm run test-node
+        if: ${{ inputs.electron_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
+        timeout-minutes: 25
+        run: npm run test-node -- --rerun-failed-files 2 ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Webkit)
-        if: ${{ inputs.browser_tests && inputs.unit_tests }}
+        if: ${{ inputs.browser_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests"
+        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests" --rerun-failed-files 2 ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 
@@ -200,21 +222,32 @@ jobs:
       - name: 🧪 Run Agent Host E2E tests (Electron)
         id: agent-host-e2e
         if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests"
+        timeout-minutes: 25
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       # Runs even when Agent Host E2E failed in the same job, so that one does not hide the other.
+      # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
+        id: node-integration-tests
         if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
-        timeout-minutes: 20
-        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+        timeout-minutes: 25
+        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
+      # The extension host suites are not rerun.
+      - name: 🧪 Run extension host integration tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        timeout-minutes: 15
+        run: ./scripts/test-integration.sh --only-extension-host-tests
+        env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Webkit)

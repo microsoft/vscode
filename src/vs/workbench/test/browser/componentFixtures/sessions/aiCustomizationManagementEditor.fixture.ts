@@ -83,6 +83,7 @@ import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/p
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginGitService } from '../../../../contrib/chat/common/plugins/pluginGitService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IChatAgentData, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
@@ -127,7 +128,7 @@ import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/b
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 // Ensure theme colors & widget CSS are loaded
@@ -502,6 +503,7 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 	const activeSessionResource = observableValue<URI>('activeSessionResource', sessionResource);
 	const activeHarness = derived(reader => getChatSessionType(activeSessionResource.read(reader)));
 	return new class extends mock<ICustomizationHarnessService>() {
+		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly activeSessionResource = activeSessionResource;
 		override readonly activeHarness = activeHarness;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -788,6 +790,25 @@ const fixtureToolSets: readonly IToolSet[] = [
 		],
 	},
 ];
+
+const userReviewToolSet: IToolSet = {
+	id: 'user-review-tools',
+	referenceName: 'review-tools',
+	description: 'Review tools',
+	icon: Codicon.tools,
+	source: { type: 'user', label: 'User', file: URI.file('/home/dev/.vscode/prompts/review.toolsets.jsonc') },
+	getTools: () => [],
+};
+
+const codeReviewParticipant: IChatAgentData = new class extends mock<IChatAgentData>() {
+	override readonly id = 'example.code-review.participant';
+	override readonly name = 'code-review';
+	override readonly extensionId = new ExtensionIdentifier('example.code-review');
+	override readonly extensionDisplayName = 'Code Review Extension';
+	override readonly isCore = false;
+	override readonly isDefault = false;
+	override readonly isDynamic = false;
+}();
 
 const overflowingExtensionToolSets: readonly IToolSet[] = Array.from({ length: 8 }, (_, index) => {
 	const toolSetNumber = index + 1;
@@ -1201,6 +1222,10 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly openFirstMigrationItem?: boolean;
+	/** Adds a user tool set and an extension chat participant that need manual migration. */
+	readonly migrationGuidance?: boolean;
+	/** Opens the migration item with this label from the dashboard. */
+	readonly openMigrationItemLabel?: string;
 	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning' | 'pluginMarketplaces';
 	readonly migrationActivity?: boolean;
 	readonly pluginMarketplaceMigration?: boolean;
@@ -1268,7 +1293,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	];
 
 	const allMcpServers = [...(options.mcpWorkbenchServers ?? [...mcpWorkspaceServers, ...mcpUserServers])];
-	const toolSets = options.toolSets ?? fixtureToolSets;
+	const toolSets = [...options.toolSets ?? fixtureToolSets, ...options.migrationGuidance ? [userReviewToolSet] : []];
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
 			: options.selectedSection === AICustomizationManagementSection.Instructions ? PromptsType.instructions
@@ -1757,12 +1782,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			if (activeDescriptor) {
 				Object.assign(activeDescriptor, { mcpServerMigrationProvider: activeMcpServerMigrationProvider });
 			}
-			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
-				promptsService,
-				harnessService,
-				configurationService,
-				mcpService,
-			));
+			reg.define(ICustomizationMigrationService, CustomizationMigrationService);
+			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() {
+				override readonly onDidChangeAgents = Event.None;
+				override getAgents() { return options.migrationGuidance ? [codeReviewParticipant] : []; }
+			}());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
@@ -2331,19 +2355,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const selectedRow = resultRows[resultRows.length - 1];
 			(selectedRow?.querySelector<HTMLElement>('.customization-discovery-result-aside')
 				?? selectedRow?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary'))?.click();
-			let detailContainer: HTMLElement | null = null;
-			let scrollHost: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40; attempt++) {
-				await timeout(50);
-				detailContainer = ctx.container.querySelector('.marketplace-detail-container');
-				scrollHost = detailContainer?.querySelector('.marketplace-detail-scrollable') ?? null;
-				const pluginPreviewReady = options.discoveryQuery !== 'figma'
-					|| !!detailContainer?.querySelector('.plugin-detail-readme-content h1');
-				if (detailContainer?.style.display !== 'none' && scrollHost && pluginPreviewReady) {
-					break;
-				}
-			}
+			const detailContainer = ctx.container.querySelector<HTMLElement>('.marketplace-detail-container');
+			const scrollHost = detailContainer?.querySelector<HTMLElement>('.marketplace-detail-scrollable') ?? null;
 			assert(detailContainer !== null && scrollHost !== null, 'Marketplace detail must render inside its page scroll host.');
+			// A plugin's README loads asynchronously, and the scrollbar it needs is revealed on a timer after the rescan.
+			const isReadmeReady = () => !!detailContainer.querySelector('.plugin-detail-readme-content h1')
+				&& scrollHost.querySelector('.scrollbar.vertical')?.classList.contains('invisible') === false;
+			await waitForFixtureDomCondition(detailContainer, () => detailContainer.style.display !== 'none' && (options.discoveryQuery !== 'figma' || isReadmeReady()), ctx.disposableStore);
 			if (options.customizationMarketplaceDetailState) {
 				const diagnostic = detailContainer.querySelector<HTMLElement>('.mcp-detail-diagnostic-card');
 				assert(Boolean(diagnostic?.textContent?.trim()), 'Marketplace failure detail must render its diagnostic banner.');
@@ -2366,6 +2384,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				'Marketplace detail text must be selectable.',
 			);
 			if (options.discoveryQuery === 'figma') {
+				// The editor rescans the scroll host when its ResizeObserver reports the shown detail, and again on the next animation frame.
+				await new Promise<void>(resolve => {
+					const observer = ctx.disposableStore.add(new DOM.DisposableResizeObserver('AICustomizationManagementEditorFixture.marketplaceDetail', () => resolve(), DOM.getWindow(scrollHost)));
+					ctx.disposableStore.add(observer.observe(scrollHost));
+				});
+				await new Promise<void>(resolve => DOM.getWindow(scrollHost).requestAnimationFrame(() => resolve()));
 				const scrollContent = scrollHost.querySelector<HTMLElement>('.marketplace-detail-editor-container');
 				if (!scrollContent) {
 					throw new Error('Marketplace detail scroll content did not render');
@@ -2506,6 +2530,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		);
 	}
 
+	if (options.openMigrationItemLabel) {
+		const label = options.openMigrationItemLabel;
+		const findRow = () => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-item')]
+			.find(row => row.querySelector('.migration-tree-item-label')?.textContent === label);
+		await waitForFixtureCondition(() => findRow() !== undefined, `Migration item ${label} did not appear`);
+		// Clicking the Review button avoids a virtualized row selection being canceled during teardown.
+		const row = findRow()!;
+		const review = row.querySelector<HTMLElement>('.migration-tree-item-review');
+		(review && review.style.display !== 'none' ? review : row).click();
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.migration-guidance-detail') !== null,
+			`Migration detail did not open for ${label}`,
+		);
+		await DOM.getWindow(ctx.container).document.fonts.ready;
+	}
+
 	if (options.migrationConfirmation === 'promptFiles') {
 		await waitForFixtureCondition(
 			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
@@ -2518,11 +2558,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	} else if (options.migrationConfirmation === 'pluginMarketplaces') {
 		await waitForFixtureCondition(
 			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-				.some(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)'),
+				.some(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)'),
 			'The plugin marketplace migration action did not render.',
 		);
 		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-			.find(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)')!;
+			.find(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)')!;
 		migrateButton.click();
 	} else if (options.migrationConfirmation === 'mcpWarning') {
 		const server: IMcpServerCustomizationMigrationCandidate = {
@@ -2585,24 +2625,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 
 		if (options.pluginReadmeContent !== undefined) {
-			let pluginDetailScrollHost: HTMLElement | null = null;
-			let pluginDetailScrollContent: HTMLElement | null = null;
-			let overflowingCodeBlock: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock); attempt++) {
-				await timeout(50);
-				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
-				const scrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
-				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
-				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-				if (pluginDetailView?.style.display !== 'none' && scrollHost && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
-					pluginDetailScrollHost = scrollHost;
-					pluginDetailScrollContent = detailContainer;
-					overflowingCodeBlock = codeBlock;
-				}
+			const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+			const pluginDetailScrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
+			const pluginDetailScrollContent = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
+			if (!pluginDetailView || !pluginDetailScrollHost || !pluginDetailScrollContent) {
+				throw new Error('Plugin detail did not render');
 			}
-			if (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock) {
-				throw new Error('Overflowing plugin detail did not render');
-			}
+			// The README and its code blocks render asynchronously, and the scrollbar is revealed on a timer after the rescan.
+			await waitForFixtureDomCondition(pluginDetailView, () => {
+				const codeBlock = pluginDetailScrollContent.querySelector<HTMLElement>('div[data-code]');
+				return pluginDetailView.style.display !== 'none'
+					&& pluginDetailScrollContent.scrollHeight > pluginDetailScrollContent.clientHeight
+					&& !!codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth
+					&& pluginDetailScrollHost.querySelector('.scrollbar.vertical')?.classList.contains('invisible') === false;
+			}, ctx.disposableStore);
 			const verticalScrollbar = pluginDetailScrollHost.querySelector<HTMLElement>('.scrollbar.vertical');
 			const scrollbarSlider = verticalScrollbar?.querySelector<HTMLElement>('.slider');
 			if (!verticalScrollbar || !scrollbarSlider) {
@@ -2792,7 +2828,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
-function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false): IAgentPlugin {
+function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
 	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
 	const enablementState = typeof enablement === 'boolean'
 		? (enablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
@@ -2801,6 +2837,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly uri = uri;
 		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
+		override readonly fromMarketplace = fromMarketplace;
 		override readonly version = constObservable('1.0.0');
 		override readonly enablement = constObservable(enablementState);
 		override readonly policyBlocked = constObservable(policyBlocked);
@@ -2825,8 +2862,8 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 }
 
 const installedPlugins: IAgentPlugin[] = [
-	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true),
-	makeInstalledPlugin('Sentry', URI.file('/workspace/.copilot/plugins/sentry'), true),
+	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true, false, makeMarketplacePlugin('Linear', 'Issue tracking and project management integration', 'linear-plugin')),
+	makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/github.com/example/sentry-plugin'), true, false, makeMarketplacePlugin('Sentry', 'Error monitoring and performance tracing', 'sentry-plugin')),
 	makeInstalledPlugin('Datadog', URI.file('/workspace/.copilot/plugins/datadog'), true),
 	makeInstalledPlugin('Notion', URI.file('/workspace/.copilot/plugins/notion'), true),
 	makeInstalledPlugin('Confluence', URI.file('/workspace/.copilot/plugins/confluence'), true),
@@ -4034,6 +4071,63 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			openFirstMigrationItem: true,
 			width: 550,
 			height: 500,
+		}),
+	}),
+
+	MigrationGuidanceDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The migrations dashboard lists Chat Participants (Extensions) and Tool Sets (User) groups below the MCP server migration. Guidance groups show Ignore and Learn More actions, and their read-only rows show the item source and a Review button.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+		}),
+	}),
+
+	MigrationToolSetGuidanceDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The user tool-set migration detail uses the shared detail header with an arrow back button and a linked source file, followed by a migration warning card that explains why the tool set needs replacement and links to guidance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: 'review-tools',
+		}),
+	}),
+
+	MigrationParticipantGuidanceDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The chat-participant migration detail uses the shared detail header with an arrow back button and a linked contributing extension, followed by a migration warning card with publisher-facing guidance.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: '@code-review',
+		}),
+	}),
+
+	MigrationToolSetGuidanceDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationGuidance: true,
+			files: [],
+			openMigrationItemLabel: 'review-tools',
+			// Omits the extension tool set so the user tool set row is rendered in the short viewport.
+			toolSets: [],
+			width: 550,
+			height: 560,
 		}),
 	}),
 

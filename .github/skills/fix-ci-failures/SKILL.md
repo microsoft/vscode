@@ -103,7 +103,7 @@ gh run download <RUN_ID> -n "logs-linux-x64-electron-1" -D /tmp/ci-logs
 gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-1" -D /tmp/ci-crashes
 ```
 
-> **Tip**: Use the test runner name from the failed check (e.g., "Linux / Electron" → `electron`, "Linux / Remote" → `remote`) and platform map ("Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`) to construct the artifact name.
+> **Tip**: Use the test runner name from the failed check (e.g., "Linux (run) / Electron" → `electron`, "Linux (run) / Remote" → `remote`) and platform map ("Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`) to construct the artifact name.
 
 > **Warning**: Log artifacts may be empty if the test runner crashed before producing output (e.g., Electron download failure). In that case, fall back to **Option C**.
 
