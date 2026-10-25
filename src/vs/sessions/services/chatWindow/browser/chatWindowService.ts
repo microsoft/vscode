@@ -230,8 +230,11 @@ export interface IChatWindowService {
  * hidden or the windows close.
  */
 export interface IChatWindowTerminalHost {
-	/** Shows a terminal of the session of `window` in `group`, the terminal row. */
-	show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<void>;
+	/**
+	 * Shows a terminal of the session of `window` in `group`, the terminal row. Resolves to whether it handed a terminal to the row,
+	 * which opens in it a moment later: false only when there is none to show, which leaves the row empty for good.
+	 */
+	show(window: IChatWindow, group: IEditorGroup, focus: boolean): Promise<boolean>;
 	/** Takes the terminal of `window` out of its terminal row, which is about to go, keeping it running to show again. */
 	hide(window: IChatWindow): void;
 	/** Takes the terminal of `window` out of it, which closes or moves its chat: the terminal is its session's again. */
