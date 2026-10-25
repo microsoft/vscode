@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { completeTerminalReturn, decideTerminalRowMove, ITerminalReturn, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
+import { completeTerminalReturn, decideTerminalRowMove, ITerminalReturn, shouldCloseEditorArea, shouldHideTerminalRow, TerminalRowMoveAction } from '../../browser/chatWindowTerminalRowPolicy.js';
 
 suite('Chat window terminal row policy', () => {
 
@@ -65,5 +65,26 @@ suite('Chat window terminal row policy', () => {
 				emptying: ['end'],
 			});
 		});
+	});
+
+	test('an empty row hides, also after showing no terminal in it', () => {
+		const row = { hostRegistered: true, rowIsEmpty: true, isCurrent: true, isEmptying: false };
+		assert.deepStrictEqual({
+			empty: shouldHideTerminalRow(row),
+			hasTerminal: shouldHideTerminalRow({ ...row, rowIsEmpty: false }),
+			replaced: shouldHideTerminalRow({ ...row, isCurrent: false }),
+			emptying: shouldHideTerminalRow({ ...row, isEmptying: true }),
+			noHostYet: shouldHideTerminalRow({ ...row, hostRegistered: false }),
+		}, { empty: true, hasTerminal: false, replaced: false, emptying: false, noHostYet: false });
+	});
+
+	test('closing the last editor of the editor area closes it, unless it moved or the window changes', () => {
+		const close = { areaIsEmpty: true, isMove: false, windowIsChanging: false };
+		assert.deepStrictEqual({
+			lastClosed: shouldCloseEditorArea(close),
+			othersRemain: shouldCloseEditorArea({ ...close, areaIsEmpty: false }),
+			moved: shouldCloseEditorArea({ ...close, isMove: true }),
+			replacing: shouldCloseEditorArea({ ...close, windowIsChanging: true }),
+		}, { lastClosed: true, othersRemain: false, moved: false, replacing: false });
 	});
 });

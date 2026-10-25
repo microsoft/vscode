@@ -50,3 +50,33 @@ export function completeTerminalReturn(r: ITerminalReturn): void {
 		}
 	}
 }
+
+/** What {@link shouldHideTerminalRow} needs to know about the row once its terminal was shown, or could not be. */
+export interface IEmptyTerminalRow {
+	/** Whether the terminal host is there: without it, the terminal of a restored row shows once it registers. */
+	readonly hostRegistered: boolean;
+	readonly rowIsEmpty: boolean;
+	/** Whether the row is still the window's. */
+	readonly isCurrent: boolean;
+	/** Whether the row is being emptied on purpose, which hides it by itself. */
+	readonly isEmptying: boolean;
+}
+
+/** An empty row hides, whatever left it empty. Showing no terminal in it, as when its session has none, closes no editor to tell. */
+export function shouldHideTerminalRow(r: IEmptyTerminalRow): boolean {
+	return r.hostRegistered && r.rowIsEmpty && r.isCurrent && !r.isEmptying;
+}
+
+/** What {@link shouldCloseEditorArea} needs to know about an editor that closed in the editor area of a chat window. */
+export interface IEditorAreaClose {
+	readonly areaIsEmpty: boolean;
+	/** The editor moved to another group or window, which shows it still. */
+	readonly isMove: boolean;
+	/** Whether the window is replacing what it shows, or closing, which empties the area on its own. */
+	readonly windowIsChanging: boolean;
+}
+
+/** Closing the last editor the user closed in the editor area closes the area, as it does the main window's side pane. */
+export function shouldCloseEditorArea(r: IEditorAreaClose): boolean {
+	return r.areaIsEmpty && !r.isMove && !r.windowIsChanging;
+}
