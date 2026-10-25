@@ -1248,8 +1248,8 @@ export class Emitter<T> {
 					});
 				}
 
-				this._listeners = undefined;
 				this._size = 0;
+				this._listeners = undefined;
 			}
 			this._options?.onDidRemoveLastListener?.();
 			this._leakageMon?.dispose();
