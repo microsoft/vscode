@@ -34,7 +34,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, isHiddenWindowMode, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
@@ -349,7 +349,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
-			this._win?.show();
+			if (!isHiddenWindowMode(this.environmentMainService)) {
+				this._win?.show();
+			}
 		}
 	}
 
@@ -412,6 +414,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	}
 
 	focus(options?: { mode: FocusMode }): void {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // focusing would show the window and activate the application
+		}
+
 		switch (options?.mode ?? FocusMode.Transfer) {
 			case FocusMode.Transfer:
 				this.doFocusWindow();

@@ -15,13 +15,22 @@ import { NullLogService } from '../../../log/common/log.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
 import { release } from 'os';
+import { URI } from '../../../../base/common/uri.js';
+import { NativeParsedArgs } from '../../../environment/common/argv.js';
+import { FocusMode } from '../../../native/common/native.js';
+import { IWindowState, WindowMode } from '../../../window/electron-main/window.js';
 import { BaseWindow } from '../../electron-main/windowImpl.js';
+import { isHiddenWindowMode } from '../../electron-main/windows.js';
 
 class TestWindow extends BaseWindow {
 	readonly id = 1;
 
 	override setWin(win: BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		super.setWin(win, options);
+	}
+
+	override applyState(state: IWindowState, hasMultipleDisplays?: boolean): void {
+		super.applyState(state, hasMultipleDisplays);
 	}
 
 	matches(_webContents: WebContents): boolean {
@@ -112,4 +121,81 @@ suite('BaseWindow - window controls overlay', () => {
 			y: getMacOSWindowControlsPosition(height, release())!.y,
 		}]));
 	});
+});
+
+suite('BaseWindow - hidden window mode', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	function environment(args: Partial<NativeParsedArgs>, extensionTests: boolean): IEnvironmentMainService {
+		return upcastPartial<IEnvironmentMainService>({
+			args: { _: [], ...args },
+			extensionTestsLocationURI: extensionTests ? URI.file('/tests') : undefined
+		});
+	}
+
+	test('isHiddenWindowMode requires --hidden-window together with --extensionTestsPath', () => {
+		assert.deepStrictEqual([
+			isHiddenWindowMode(environment({}, false)),
+			isHiddenWindowMode(environment({}, true)),
+			isHiddenWindowMode(environment({ 'hidden-window': true }, false)),
+			isHiddenWindowMode(environment({ 'hidden-window': true }, true)),
+		], [false, false, false, true]);
+	});
+
+	function createWindow(hidden: boolean) {
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const window = store.add(new TestWindow(
+			configurationService,
+			new InMemoryTestStateMainService(),
+			environment({ 'hidden-window': hidden }, true),
+			store.add(new NullLogService())
+		));
+		const on = sinon.stub();
+		const removeListener = sinon.stub();
+		const maximize = sinon.stub();
+		const show = sinon.stub();
+		const focus = sinon.stub();
+		const focusWebContents = sinon.stub();
+		const nativeWindow = upcastPartial<BrowserWindow>({
+			on,
+			removeListener,
+			setSheetOffset: sinon.stub(),
+			isMinimized: () => false,
+			maximize,
+			show,
+			focus,
+			webContents: upcastPartial<WebContents>({ focus: focusWebContents }),
+		});
+		window.setWin(nativeWindow);
+		return { window, maximize, show, focus, focusWebContents };
+	}
+
+	for (const hidden of [false, true]) {
+		test(`applyState ${hidden ? 'does not show' : 'shows'} a maximized window (hidden: ${hidden})`, () => {
+			const { window, maximize, show } = createWindow(hidden);
+			window.applyState({ mode: WindowMode.Maximized }, false);
+
+			assert.deepStrictEqual([maximize.callCount, show.callCount], [1, hidden ? 0 : 1]);
+		});
+
+		test(`focus ${hidden ? 'is ignored' : 'focuses the window'} (hidden: ${hidden})`, () => {
+			const { window, focus, focusWebContents } = createWindow(hidden);
+			window.focus({ mode: FocusMode.Transfer });
+
+			assert.deepStrictEqual([focus.callCount, focusWebContents.callCount], hidden ? [0, 0] : [1, 1]);
+		});
+	}
+
+	for (const [mode, name] of [[FocusMode.Notify, 'Notify'], [FocusMode.Force, 'Force']] as const) {
+		test(`focus with mode ${name} touches neither window nor application when hidden`, () => {
+			const { window, show, focus } = createWindow(true);
+			const notifyFocus = sinon.spy(window as unknown as { showNotifyFocus(): void }, 'showNotifyFocus');
+			window.focus({ mode });
+
+			assert.deepStrictEqual([notifyFocus.callCount, show.callCount, focus.callCount], [0, 0, 0]);
+		});
+	}
 });
