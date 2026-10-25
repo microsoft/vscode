@@ -353,6 +353,9 @@ jobs:
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
+  # Running every Electron smoke test takes one machine up to about 20 minutes, the timeout of the
+  # step, so on every platform the matrix splits them into shards that run on parallel machines
+  # (see .github/skills/smoke-tests/SKILL.md). PR Gate fails when any shard fails.
   linux-electron-smoke-test-shards:
     name: Linux (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
@@ -809,43 +812,15 @@ jobs:
         working-directory: extensions/copilot
         run: npm run test:completions-core
 
-  # The chat-lib jobs are separate jobs instead of a matrix: a matrix job skipped by
-  # a job-level `if:` is never expanded, so the per-OS checks would not report.
-  chat-lib-linux-tests:
-    name: chat-lib tests (ubuntu-latest)
+  chat-lib-tests:
+    name: chat-lib tests (${{ matrix.os }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Test chat-lib
-        uses: ./.github/actions/test-chat-lib
-
-  chat-lib-macos-tests:
-    name: chat-lib tests (macos-latest)
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: macos-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Test chat-lib
-        uses: ./.github/actions/test-chat-lib
-
-  chat-lib-windows-tests:
-    name: chat-lib tests (windows-latest)
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -895,9 +870,7 @@ jobs:
       - copilot-check-telemetry
       - copilot-linux-tests
       - copilot-windows-tests
-      - chat-lib-linux-tests
-      - chat-lib-macos-tests
-      - chat-lib-windows-tests
+      - chat-lib-tests
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
