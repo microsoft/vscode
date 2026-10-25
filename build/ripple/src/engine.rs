@@ -1251,6 +1251,61 @@ mod tests {
 	}
 
 	#[test]
+	fn removing_an_export_selects_the_tests_that_used_it() {
+		let mid = (
+			"src/app/mid.ts",
+			"import { a } from './lib.js';\nexport function g() { return a(); }\n",
+		);
+		let test = (
+			"src/app/test/g.test.ts",
+			"import { g } from '../mid.js';\ntest('g', () => g());\n",
+		);
+		let base = [
+			(
+				"src/app/lib.ts",
+				"export function a() { return 1; }\nexport function b() { return 2; }\n",
+			),
+			mid,
+			test,
+		];
+		let head = [
+			("src/app/lib.ts", "export function b() { return 2; }\n"),
+			mid,
+			test,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/app/test/g.test.ts"]);
+	}
+
+	#[test]
+	fn removing_a_method_selects_the_tests_that_called_it() {
+		let mid = (
+			"src/app/mid.ts",
+			"import { C } from './lib.js';\nexport function g() { return new C().m(); }\n",
+		);
+		let test = (
+			"src/app/test/g.test.ts",
+			"import { g } from '../mid.js';\ntest('g', () => g());\n",
+		);
+		let base = [
+			(
+				"src/app/lib.ts",
+				"export class C {\n\tm() { return 1; }\n\tn() { return 2; }\n}\n",
+			),
+			mid,
+			test,
+		];
+		let head = [
+			(
+				"src/app/lib.ts",
+				"export class C {\n\tn() { return 2; }\n}\n",
+			),
+			mid,
+			test,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/app/test/g.test.ts"]);
+	}
+
+	#[test]
 	fn deleted_and_renamed_tests_are_not_selected() {
 		let helper = |v: &str| {
 			(
