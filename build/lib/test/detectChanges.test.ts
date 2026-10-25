@@ -221,8 +221,8 @@ suite('Detect Changes', () => {
 			skippableAgentHostE2E: ['windows-agent-host-e2e-tests'],
 			planned: [...macOSAndWindowsUnitTestJobs, ...macOSAndWindowsIntegrationTestJobs].sort(),
 			steps: {
-				// Linux runs every node.js integration test.
-				'linux-electron-tests': { nodeIntegrationTests: undefined, agentHostE2E: selected('agent-host-e2e') },
+				// Linux runs every node.js integration test, and Agent Host E2E in its own job.
+				'linux-electron-tests': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
 				'macos-electron-tests': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: selected('selected-agent-host-e2e') },
 				// Windows runs Agent Host E2E in its own job.
 				'windows-electron-tests': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: undefined },
@@ -256,7 +256,8 @@ suite('Detect Changes', () => {
 		}, {
 			jobs: {
 				'linux-electron-unit-tests': skipsWhenUnaffected('unit-tests'),
-				'linux-electron-tests': skipsWhenUnaffected('electron-tests'),
+				'linux-electron-tests': skipsWhenUnaffected('product-tests'),
+				'linux-agent-host-e2e-tests': skipsWhenUnaffected('agent-host-e2e'),
 				'linux-electron-smoke-test-shards': skipsWhenUnaffected('product-tests'),
 				'linux-browser-unit-tests': skipsWhenUnaffected('unit-tests'),
 				'linux-browser-integration-tests': skipsWhenUnaffected('browser-integration'),

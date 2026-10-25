@@ -48,7 +48,7 @@ jobs:
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
       ripple-changed: ${{ steps.ripple.outputs.changed }}
       ripple-failed: ${{ steps.ripple.outputs.failed }}
-      # Linux and macOS run Agent Host E2E in the Electron integration tests job.
+      # macOS runs Agent Host E2E in the Electron integration tests job.
       electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
       # The macOS and Windows unit test jobs run only the unit test files that the plan selects, so
       # they also skip when the plan of a working ripple selects none (see the Check ripple step).
@@ -495,13 +495,29 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true' }}
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       smoke_tests: false
-      # On Linux and macOS the job is short enough to also run Agent Host E2E.
-      agent_host_e2e_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
-      # The provider integration tests and the Agent Host E2E tests read the profile.
+      # The provider integration tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+
+  # On Linux, the integration tests and Agent Host E2E in one job would be the slowest job of the
+  # workflow, so Agent Host E2E runs in parallel on its own machine.
+  linux-agent-host-e2e-tests:
+    name: Agent-Host-E2E
+    needs: changes
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      # The Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
@@ -1020,6 +1036,7 @@ jobs:
       - linux-copilot-shim-tests
       - linux-electron-unit-tests
       - linux-electron-tests
+      - linux-agent-host-e2e-tests
       - linux-electron-smoke-test-shards
       - linux-browser-unit-tests
       - linux-browser-integration-tests
