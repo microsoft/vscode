@@ -310,17 +310,19 @@ export class ChangesSummaryFileListPool extends Disposable {
 	}
 
 	/**
-	 * Renders a list of changed files into `details` the first time it is
-	 * expanded, so collapsed summaries create no list.
+	 * Renders a list of changed files into `details` when it is already
+	 * expanded, or else the first time it is expanded, so collapsed summaries
+	 * create no list.
 	 */
 	renderOnFirstExpand(details: HTMLDetailsElement, diffs: IObservable<readonly IEditSessionEntryDiff[]>): IDisposable {
 		const fileList = new MutableDisposable<IChangesSummaryFileList>();
-		const toggleListener = dom.addDisposableListener(details, 'toggle', () => {
+		const renderIfExpanded = () => {
 			if (details.open && !fileList.value) {
 				fileList.value = this.render(details, diffs);
 			}
-		});
-		return combinedDisposable(toggleListener, fileList);
+		};
+		renderIfExpanded();
+		return combinedDisposable(dom.addDisposableListener(details, 'toggle', renderIfExpanded), fileList);
 	}
 
 	/**

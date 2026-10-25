@@ -23,6 +23,15 @@ import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 /**
+ * Whether a turn's changed-files disclosure is expanded. It is kept by the
+ * renderer and updated by the part, so a part rebuilt for the same turn
+ * (e.g. once it is no longer the last turn) keeps its expansion.
+ */
+export interface IChatTurnPillsDisclosureState {
+	open: boolean;
+}
+
+/**
  * Renders a single agent turn's changes as a checkpoint-style summary: a
  * `N files changed +ins -del` header, where the counts open the changes and the
  * rest of the header is a disclosure that expands to the list of changed files.
@@ -37,6 +46,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		private readonly _content: IChatTurnPillsPart,
 		_context: IChatContentPartRenderContext,
 		listPool: ChangesSummaryFileListPool,
+		disclosureState: IChatTurnPillsDisclosureState,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
@@ -78,6 +88,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const root = this.domNode.appendChild($('.checkpoint-file-changes-summary.checkpoint-file-changes-compact'));
 		const details = root.appendChild(document.createElement('details'));
 		details.classList.add('checkpoint-file-changes-disclosure');
+		details.open = disclosureState.open;
+		this._register(dom.addDisposableListener(details, 'toggle', () => disclosureState.open = details.open));
 		const header = details.appendChild(document.createElement('summary'));
 		header.classList.add('checkpoint-file-changes-summary-header');
 

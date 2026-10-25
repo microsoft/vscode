@@ -90,7 +90,7 @@ import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRa
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
 import { ChangesSummaryFileListPool, ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
-import { ChatTurnPillsContentPart } from './chatContentParts/chatTurnPillsPart.js';
+import { ChatTurnPillsContentPart, IChatTurnPillsDisclosureState } from './chatContentParts/chatTurnPillsPart.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
@@ -5597,8 +5597,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return part;
 	}
 
+	private readonly turnPillsDisclosureState = new WeakMap<IChatRequestViewModel | IChatResponseViewModel, IChatTurnPillsDisclosureState>();
+
 	private renderTurnPills(content: IChatTurnPillsPart, context: IChatContentPartRenderContext): IChatContentPart {
-		return this.instantiationService.createInstance(ChatTurnPillsContentPart, content, context, this._changesSummaryFileListPool);
+		let disclosureState = this.turnPillsDisclosureState.get(context.element);
+		if (!disclosureState) {
+			disclosureState = { open: false };
+			this.turnPillsDisclosureState.set(context.element, disclosureState);
+		}
+		return this.instantiationService.createInstance(ChatTurnPillsContentPart, content, context, this._changesSummaryFileListPool, disclosureState);
 	}
 
 	private renderAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, contentReferences: ReadonlyArray<IChatContentReference> | undefined, modelId: string | undefined, templateData: IChatListItemTemplate, resolvedModelId?: string) {
