@@ -34,7 +34,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
-import { ChangesetFile, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetFile, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, FileEditKind, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
@@ -52,6 +52,7 @@ import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telem
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { AgentHostEditReview } from '../../../browser/agentSessions/agentHost/agentHostEditReview.js';
+import { AgentHostCheckpointReview } from '../../../browser/agentSessions/agentHost/agentHostCheckpointReview.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ChatEditingModifiedDocumentEntry } from '../../../browser/chatEditing/chatEditingModifiedDocumentEntry.js';
@@ -76,6 +77,7 @@ class TestAgentHost extends mock<IAgentConnection>() {
 	/** The error that the next operations fail with. */
 	failure: string | undefined;
 	operationGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
+	afterOperation: ((params: InvokeChangesetOperationParams) => void) | undefined;
 	workingSet: ChangesetState = { status: ChangesetStatus.Ready, files: [], operations: createOperations() };
 	readonly onDidChangeWorkingSet = new Emitter<ChangesetState>();
 	session = upcastPartial<SessionState>({
@@ -116,6 +118,7 @@ class TestAgentHost extends mock<IAgentConnection>() {
 			this.operationGate.started.complete();
 			await this.operationGate.release.p;
 		}
+		this.afterOperation?.(params);
 		return {};
 	}
 }
@@ -636,6 +639,43 @@ suite('AgentHostEditReview', () => {
 		});
 	});
 
+	test('checkpoint restoration hides lookups immediately and cannot be undone by an old host publication', async () => {
+		hostWrites('/a.ts', 'A\n');
+		const file = workingSetFile('/a.ts', 'a\n', 'A\n', 'shown');
+		host.setWorkingSet([file]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		const projection = store.add(new AgentHostCheckpointReview(new class extends mock<IFileService>() {
+			override async readFile(resource: URI): Promise<IFileContent> {
+				const content = recorded.get(resource);
+				assert.notStrictEqual(content, undefined);
+				return upcastPartial<IFileContent>({ value: VSBuffer.fromString(content!) });
+			}
+		}(), new NullLogService()));
+		review.setCheckpointReview(projection);
+		const [diff] = review.fileChanges.get();
+		const update = await projection.prepareRestore([{ edits: [{
+			kind: FileEditKind.Edit,
+			resource: entry.modifiedURI,
+			beforeContentUri: diff.originalURI,
+			afterContentUri: diff.modifiedSnapshotURI,
+			undoStopId: 'request',
+		}] }], true);
+		transaction(update);
+		const immediatelyHidden = !review.getEntry(entry.modifiedURI) && review.entries.get().length === 0 && review.fileChanges.get().length === 0;
+		await review.accept(entry.modifiedURI);
+		host.setWorkingSet([file]);
+		await settle();
+		const staysHidden = review.entries.get().length === 0;
+		hostWrites('/a.ts', 'new\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\n', 'new\n', 'new')]);
+		await waitForEntries('/a.ts');
+		assert.deepStrictEqual({ immediatelyHidden, staysHidden, operations: host.invoked, newContent: getEntry('/a.ts').modifiedModel.getValue() }, {
+			immediatelyHidden: true, staysHidden: true, operations: [], newContent: 'new\n',
+		});
+	});
+
 	test('shows the agent\'s changes when the Working Set updates before an open document reloads what the agent wrote', async () => {
 		// The document is open when the agent edits the file.
 		hostWrites('/a.ts', 'a\nb\n');
@@ -699,17 +739,53 @@ suite('AgentHostEditReview', () => {
 		// The user adds two lines at the top, which the session hasn't recorded.
 		userTypes('/a.ts', 1, 1, 'x\ny\n');
 		const changes = await getChanges(entry);
+		const original = entry.originalModel.getValue();
+		host.afterOperation = params => {
+			if (params.operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID) {
+				host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nc\nD\n', 'a\nB\nc\nD\n', 'tc2')]);
+			} else {
+				host.setWorkingSet([]);
+			}
+		};
 
 		const diff = entry.diffInfo.get();
 		const kept = await diff.keep(diff.changes[1]);
-		const undone = await diff.undo(diff.changes[0]);
+		const remaining = entry.diffInfo.get();
+		const undone = await remaining.undo(remaining.changes[0]);
 
-		assert.deepStrictEqual({ original: entry.originalModel.getValue(), changes, kept, undone, invoked: host.invoked }, {
+		assert.deepStrictEqual({ original, changes, kept, undone, invoked: host.invoked, remaining: review.entries.get().length }, {
 			original: 'x\ny\na\nb\nc\nd\n',
 			changes: ['[4,5)', '[6,7)'],
 			kept: true,
 			undone: true,
-			invoked: ['keep /a.ts after 3-4 @tc1', 'undo /a.ts after 1-2 @tc1'],
+			invoked: ['keep /a.ts after 3-4 @tc1', 'undo /a.ts after 1-2 @tc2'],
+			remaining: 0,
+		});
+	});
+
+	test('a hunk decision waits for the host publication and the editor diff', async () => {
+		hostWrites('/a.ts', 'A\nb\nC\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nc\n', 'A\nb\nC\n', 'initial')]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		const invoked = new DeferredPromise<void>();
+		host.afterOperation = () => { invoked.complete(); };
+		let completed = false;
+		const diff = entry.diffInfo.get();
+		const pending = diff.keep(diff.changes[0]).then(result => { completed = true; return result; });
+		await invoked.p;
+		await settle();
+		const beforePublication = completed;
+		const gate = diffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		host.setWorkingSet([workingSetFile('/a.ts', 'A\nb\nc\n', 'A\nb\nC\n', 'kept')]);
+		await gate.started.p;
+		const beforeDiff = completed;
+		diffGate = undefined;
+		gate.release.complete();
+		const result = await pending;
+		assert.deepStrictEqual({ beforePublication, beforeDiff, result, changes: entry.changesCount.get() }, {
+			beforePublication: false, beforeDiff: false, result: true, changes: 1,
 		});
 	});
 
@@ -804,16 +880,22 @@ suite('AgentHostEditReview', () => {
 		const a = getEntry('/a.ts');
 		await Promise.all([getChanges(a), getChanges(getEntry('/b.ts'))]);
 		const results: Record<string, string[]> = {};
+		host.afterOperation = () => {
+			hostWritesWithoutReload('/a.ts', 'a\nb\nC\n');
+			host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nc\n', 'a\nb\nC\n'), workingSetFile('/b.ts', 'b\n', 'B\n')]);
+		};
 
 		const diff = a.diffInfo.get();
 		await diff.undo(diff.changes[0]);
 		results.hunkUndone = signals.splice(0);
 		host.failure = 'The file changed.';
-		await diff.keep(diff.changes[1]);
+		const remaining = a.diffInfo.get();
+		await remaining.keep(remaining.changes[0]);
 		results.hunkRefused = signals.splice(0);
 		await review.reject();
 		results.allRefused = signals.splice(0);
 		host.failure = undefined;
+		host.afterOperation = undefined;
 		await review.accept();
 		results.allKept = signals.splice(0);
 
@@ -947,6 +1029,7 @@ suite('AgentHostEditReview', () => {
 		await getChanges(entry);
 
 		const diff = entry.diffInfo.get();
+		host.afterOperation = () => host.setWorkingSet([]);
 		await diff.undo(diff.changes[0]);
 
 		assert.deepStrictEqual(host.invoked, ['undo /new.ts']);

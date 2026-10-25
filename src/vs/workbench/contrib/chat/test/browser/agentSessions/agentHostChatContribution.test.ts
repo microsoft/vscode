@@ -18285,6 +18285,36 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('keep and undo review', () => {
+		for (const initialLocation of [ChatAgentLocation.Chat, ChatAgentLocation.EditorInline]) {
+			test(`lazily created review preserves the chat location (${initialLocation})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { editingSessionProviders, sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables, {
+					configOverrides: { [ChatConfiguration.EditorWorkingSetEnabled]: true },
+				});
+				const sessionResource = URI.parse('agent-host-copilot:/new-lazy-review');
+				let editingSession: IChatEditingSession | undefined;
+				const globalFlags: (boolean | undefined)[] = [];
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource,
+					initialLocation,
+					get editingSession() { return editingSession; },
+					getRequests: () => [],
+					getPendingRequests: () => [],
+					onDidChangePendingRequests: Event.None,
+					startEditingSession: global => {
+						globalFlags.push(global);
+						editingSession = disposables.add(editingSessionProviders.get('agent-host-copilot')!.createEditingSession(sessionResource, !!global));
+					},
+				}));
+				const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+				fire({ type: ActionType.ChatTurnComplete, endedAt: new Date(0).toISOString(), turnId } as ChatAction);
+				await turnPromise;
+				assert.deepStrictEqual({ globalFlags, reviewing: editingSession?.supportsKeepUndo.get() }, {
+					globalFlags: [initialLocation === ChatAgentLocation.Chat],
+					reviewing: initialLocation === ChatAgentLocation.Chat,
+				});
+			}));
+		}
+
 		for (const enabled of [true, false]) {
 			test(`reviews the edits of chats in the chat view and editors (working set enabled=${enabled})`, async () => {
 				const { editingSessionProviders, textFileRetention, sessionHandler, agentHostService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorWorkingSetEnabled]: enabled } });

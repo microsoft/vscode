@@ -6516,7 +6516,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Start the editing session if not already started — this will use
 		// our registered provider to create an AgentHostSnapshotController.
 		if (!chatModel.editingSession) {
-			chatModel.startEditingSession();
+			chatModel.startEditingSession(chatModel.initialLocation === ChatAgentLocation.Chat);
 		}
 
 		const editingSession = chatModel.editingSession;
