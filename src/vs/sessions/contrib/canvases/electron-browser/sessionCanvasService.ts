@@ -9,7 +9,7 @@ import { constObservable, derived, derivedOpts, IObservable, IReader } from '../
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -22,8 +22,8 @@ import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEdit
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
 // Shared, so that rebuilding the contexts does not look like a new source of canvases.
-const unknownCanvases = constObservable(undefined);
-const noCanvases = constObservable<readonly ICanvasDefinition[]>([]);
+const unknownCanvases = constObservable<readonly ICanvas[] | undefined>(undefined);
+const noCanvases = constObservable<readonly ICanvas[]>([]);
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
