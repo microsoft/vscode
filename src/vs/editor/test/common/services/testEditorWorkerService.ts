@@ -8,6 +8,7 @@ import { IRange } from '../../../common/core/range.js';
 import { DiffAlgorithmName, IEditorWorkerService, IStringEditFromDiff, IUnicodeHighlightsResult } from '../../../common/services/editorWorker.js';
 import { TextEdit, IInplaceReplaceSupportResult, IColorInformation } from '../../../common/languages.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../common/diff/documentDiffProvider.js';
+import { IDiffAlgorithmComparison } from '../../../common/diff/diffAlgorithmComparison.js';
 import { IChange } from '../../../common/diff/legacyLinesDiffComputer.js';
 import { SectionHeader } from '../../../common/services/findSectionHeaders.js';
 import { StringEdit } from '../../../common/core/edits/stringEdit.js';
@@ -19,6 +20,7 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	canComputeUnicodeHighlights(uri: URI): boolean { return false; }
 	async computedUnicodeHighlights(uri: URI): Promise<IUnicodeHighlightsResult> { return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 }; }
 	async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> { return null; }
+	async compareDiffAlgorithms(original: URI, modified: URI, options: IDocumentDiffProviderOptions, primary: DiffAlgorithmName, secondary: DiffAlgorithmName): Promise<IDiffAlgorithmComparison | null> { return null; }
 	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
 	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }
 	async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }

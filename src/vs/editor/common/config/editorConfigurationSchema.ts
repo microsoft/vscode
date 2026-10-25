@@ -275,6 +275,23 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('diffAlgorithm.advancedWasm', "Uses the advanced diffing algorithm from the external `@vscode/diff` package (WebAssembly)."),
 			]
 		},
+		'diffEditor.experimental.compareDiffAlgorithm': {
+			type: 'string',
+			enum: ['none', 'legacy', 'advanced', 'advanced-external', 'advanced-wasm'],
+			default: 'none',
+			markdownDescription: nls.localize('diffEditor.experimental.compareDiffAlgorithm', "Occasionally runs this diff algorithm in the background next to {0} and reports how their speed and results compare. See {1}.", '`#diffEditor.diffAlgorithm#`', '`#diffEditor.experimental.compareDiffAlgorithmSampleRate#`'),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		'diffEditor.experimental.compareDiffAlgorithmSampleRate': {
+			type: 'number',
+			default: 0,
+			minimum: 0,
+			maximum: 1,
+			markdownDescription: nls.localize('diffEditor.experimental.compareDiffAlgorithmSampleRate', "The probability (from 0 to 1) that a computed diff is also compared with {0}.", '`#diffEditor.experimental.compareDiffAlgorithm#`'),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		'diffEditor.hideUnchangedRegions.enabled': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.hideUnchangedRegions.enabled,

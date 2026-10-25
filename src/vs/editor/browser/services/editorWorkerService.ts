@@ -26,6 +26,7 @@ import { UnicodeHighlighterOptions } from '../../common/services/unicodeTextMode
 import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
 import { IChange } from '../../common/diff/legacyLinesDiffComputer.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../common/diff/documentDiffProvider.js';
+import { IDiffAlgorithmComparison } from '../../common/diff/diffAlgorithmComparison.js';
 import { ILinesDiffComputerOptions, MovedText } from '../../common/diff/linesDiffComputer.js';
 import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from '../../common/diff/rangeMapping.js';
 import { LineRange } from '../../common/core/ranges/lineRange.js';
@@ -143,6 +144,11 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 
 	public canComputeDirtyDiff(original: URI, modified: URI): boolean {
 		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
+	}
+
+	public async compareDiffAlgorithms(original: URI, modified: URI, options: IDocumentDiffProviderOptions, primary: DiffAlgorithmName, secondary: DiffAlgorithmName): Promise<IDiffAlgorithmComparison | null> {
+		const worker = await this._workerWithResources([original, modified], /* forceLargeModels */true);
+		return worker.$compareDiffAlgorithms(original.toString(), modified.toString(), options, primary, secondary);
 	}
 
 	public async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {

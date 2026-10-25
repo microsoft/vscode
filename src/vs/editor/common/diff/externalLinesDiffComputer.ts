@@ -56,7 +56,7 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		// Ignoring trim whitespace only hides some of its replacements.
 		const result = this._computer.computeDiff(originalText.value, modifiedText.value, {
 			ignoreTrimWhitespace: false,
-			maxComputationTimeMs: options.maxComputationTimeMs,
+			// TODO: forward `maxComputationTimeMs` after updating @vscode/diff. The wasm build of the pinned version panics when measuring time.
 			computeMoves: options.computeMoves,
 			extendToSubwords: options.extendToSubwords,
 		});

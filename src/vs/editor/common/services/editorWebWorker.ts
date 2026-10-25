@@ -23,6 +23,7 @@ import { ILinesDiffComputer, ILinesDiffComputerOptions } from '../diff/linesDiff
 import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
 import { linesDiffComputers } from '../diff/linesDiffComputers.js';
 import { IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { compareDiffAlgorithms, IDiffAlgorithmComparison } from '../diff/diffAlgorithmComparison.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { computeDefaultDocumentColors } from '../languages/defaultDocumentColorsComputer.js';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from './findSectionHeaders.js';
@@ -131,6 +132,16 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
 		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm);
 		return result;
+	}
+
+	public async $compareDiffAlgorithms(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, primary: DiffAlgorithmName, secondary: DiffAlgorithmName): Promise<IDiffAlgorithmComparison | null> {
+		const original = this._getModel(originalUrl);
+		const modified = this._getModel(modifiedUrl);
+		if (!original || !modified) {
+			return null;
+		}
+		const [primaryAlgorithm, secondaryAlgorithm] = await Promise.all([resolveLinesDiffComputer(primary), resolveLinesDiffComputer(secondary)]);
+		return compareDiffAlgorithms(original.getLinesContent(), modified.getLinesContent(), options, primaryAlgorithm, secondaryAlgorithm);
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, diffAlgorithm: ILinesDiffComputer): IDiffComputationResult {
