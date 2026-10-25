@@ -640,9 +640,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 	test('matches an installed direct plugin to its catalog source after restart', async () => {
 		const pluginUri = URI.file('/plugins/azure-devops');
 		const candidate = resource({
-			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
 			identifier: 'azure-devops-copilot-plugin',
 			displayName: 'Azure DevOps Copilot Plugin',
+			icon: URI.parse('https://example.com/plugin.png'),
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			version: '0.1.56',
 			repository: URI.parse('https://github.com/microsoft/azure-devops-copilot-plugin'),
@@ -655,9 +655,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 			},
 		});
 		const installedResource = resource({
-			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
 			identifier: 'direct-source-id',
-			displayName: 'Azure DevOps Copilot Plugin',
+			displayName: 'azure-devops-copilot-plugin',
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			version: '0.1.56',
 			repository: URI.parse('https://github.com/microsoft/azure-devops-copilot-plugin'),
@@ -669,33 +668,103 @@ suite('CustomizationMarketplaceInstallService', () => {
 			},
 		});
 		const uninstalls: IRecordedCustomizationMarketplaceResource[] = [];
+		let installed = true;
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;
 			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
-				return Promise.resolve([{
+				return Promise.resolve(installed ? [{
 					installationId: 'plugin:direct:direct-source-id',
 					resource: installedResource,
 					state: { kind: 'installed', target: { kind: 'plugin', uri: pluginUri, name: 'azure-devops-copilot-plugin' } },
-				}]);
+				}] : []);
 			}
-			install(): Promise<void> { throw new Error('Unexpected install'); }
+			async install(): Promise<void> { installed = true; }
 			repair(): Promise<void> { throw new Error('Unexpected repair'); }
-			async uninstall(_session: URI, installation: IRecordedCustomizationMarketplaceResource): Promise<void> { uninstalls.push(installation); }
+			async uninstall(_session: URI, installation: IRecordedCustomizationMarketplaceResource): Promise<void> {
+				uninstalls.push(installation);
+				installed = false;
+			}
 		}();
-		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const fixture = await createFixture({ enabled: true, installProvider: provider, searchProvider: { async query() { return { items: [] }; } } });
 		await timeout(0);
 
 		const state = fixture.service.getInstallState(candidate);
+		await timeout(0);
+		const rows = fixture.service.installations.get().installations.map(item => ({
+			name: item.resource.displayName, icon: URI.isUri(item.resource.icon) ? item.resource.icon.toString() : undefined,
+		}));
 		await fixture.service.uninstall(candidate);
+		const uninstalledState = fixture.service.getInstallState(candidate).kind;
+		await fixture.service.install(candidate);
 
 		assert.deepStrictEqual({
 			state: state.kind === 'installed'
 				? { kind: state.kind, target: { ...state.target, uri: state.target.kind === 'plugin' ? state.target.uri?.toString() : undefined } }
 				: state,
 			uninstalls: uninstalls.map(installation => installation.installationId),
+			rows,
+			uninstalledState,
+			reinstalledState: fixture.service.getInstallState(candidate).kind,
 		}, {
 			state: { kind: 'installed', target: { kind: 'plugin', uri: pluginUri.toString(), name: 'azure-devops-copilot-plugin' } },
 			uninstalls: ['plugin:direct:direct-source-id'],
+			rows: [{ name: 'Azure DevOps Copilot Plugin', icon: 'https://example.com/plugin.png' }],
+			uninstalledState: 'available',
+			reinstalledState: 'installed',
+		});
+	});
+
+	test('keeps marketplace copies and ambiguous direct sources separate from a feed item', async () => {
+		const candidate = resource({
+			identifier: 'feed-plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			externalUrl: 'https://example.test/plugin',
+			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection', repository: 'owner/repo', path: 'plugins/demo/plugin.json' },
+		});
+		const direct = resource({
+			identifier: 'direct',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: { kind: 'plugin', repository: 'owner/repo', ref: 'sha', path: 'plugins/demo' },
+		});
+		const marketplace = resource({
+			identifier: 'marketplace',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			externalUrl: candidate.externalUrl,
+			installation: { kind: 'configuredPlugin', name: 'demo', marketplace: 'awesome-copilot' },
+		});
+		const changes = store.add(new Emitter<void>());
+		let resources = [marketplace, direct];
+		const removed: string[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = changes.event;
+			async getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
+				return resources.map(resource => ({
+					resource, installationId: resource.identifier, state: { kind: 'installed', target: { kind: 'plugin', name: 'demo' } },
+				}));
+			}
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			async uninstall(_session: URI, installation: IRecordedCustomizationMarketplaceResource): Promise<void> {
+				removed.push(installation.installationId!);
+				resources = resources.filter(resource => resource.identifier !== installation.installationId);
+			}
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider, searchProvider: { async query() { return { items: [] }; } } });
+		await timeout(0);
+		const installedState = fixture.service.getInstallState(candidate).kind;
+		await fixture.service.uninstall(candidate);
+		const marketplaceOnlyState = fixture.service.getInstallState(candidate).kind;
+		resources = [marketplace, direct, { ...direct, identifier: 'other-direct', installation: { kind: 'plugin', repository: 'owner/repo', ref: 'other-sha', path: 'plugins/demo' } }];
+		changes.fire();
+		await timeout(0);
+		const ambiguousState = fixture.service.getInstallState(candidate).kind;
+		await assert.rejects(fixture.service.uninstall(candidate), /identified uniquely/);
+		assert.deepStrictEqual({
+			installedState, marketplaceOnlyState, ambiguousState, removed,
+			identifiers: fixture.service.installations.get().installations.map(item => item.resource.identifier),
+		}, {
+			installedState: 'installed', marketplaceOnlyState: 'available', ambiguousState: 'unavailable', removed: ['direct'],
+			identifiers: ['marketplace', 'direct', 'other-direct'],
 		});
 	});
 
@@ -836,6 +905,49 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 	});
 
+	test('associates SDK plugin records without client discovery or an installed filesystem URI', async () => {
+		const candidate = resource({
+			identifier: 'featured-plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: { kind: 'providerPlugin', name: 'demo', marketplace: 'marketplace', marketplaceSource: 'owner/catalog' },
+		});
+		const recorded: IRecordedCustomizationMarketplaceResource = {
+			installationId: 'sdk-plugin',
+			resource: {
+				...candidate,
+				identifier: 'sdk-marketplace-plugin',
+				installation: { kind: 'configuredPlugin', name: 'demo', marketplace: 'marketplace' },
+			},
+			state: { kind: 'installed', target: { kind: 'plugin', name: 'demo' } },
+		};
+		const removed: IRecordedCustomizationMarketplaceResource[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve(removed.length ? [] : [recorded]); }
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			async uninstall(_session: URI, installation: IRecordedCustomizationMarketplaceResource) { removed.push(installation); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		await timeout(0);
+		const state = fixture.service.getInstallState(candidate);
+		const association = fixture.service.installations.get().findByResource(candidate);
+		await fixture.service.uninstall(candidate);
+		assert.deepStrictEqual({
+			state,
+			association: association?.installationId,
+			removed: removed.map(item => item.installationId),
+			localPlugins: fixture.installedPlugins.get().length,
+			after: fixture.service.getInstallState(candidate).kind,
+		}, {
+			state: { kind: 'installed', target: { kind: 'plugin', name: 'demo' } },
+			association: 'sdk-plugin',
+			removed: ['sdk-plugin'],
+			localPlugins: 0,
+			after: 'available',
+		});
+	});
+
 	test('treats provider inventory absence as authoritative over Local plugin and MCP discovery', async () => {
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;
@@ -853,8 +965,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const plugin = pluginResource();
 		const mcp = mcpResource();
 		const states = [fixture.service.getInstallState(plugin).kind, fixture.service.getInstallState(mcp).kind];
-		await fixture.service.uninstall(plugin);
-		await fixture.service.uninstall(mcp);
+		await assert.rejects(fixture.service.uninstall(plugin), /identified uniquely/);
+		await assert.rejects(fixture.service.uninstall(mcp), /identified uniquely/);
 
 		assert.deepStrictEqual({
 			states,

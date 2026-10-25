@@ -5,13 +5,14 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { HoverStyle, IHoverOptions, IHoverWidget } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
@@ -30,6 +31,7 @@ export interface IRemoteEmptyEntry {
 	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly action?: { readonly label: string; readonly enabled: boolean };
 	readonly documentation?: { readonly label: string; readonly href: string };
 }
 
@@ -41,7 +43,9 @@ export type RemoteTableEntry =
 		readonly label: string;
 		readonly count: number;
 		readonly collapsed: boolean;
+		readonly refreshing: boolean;
 		readonly warning?: string;
+		readonly documentation?: IRemoteEmptyEntry['documentation'];
 	}
 	| {
 		readonly type: 'remote';
@@ -56,8 +60,8 @@ export interface IRemoteTableRow {
 	readonly entry: RemoteTableEntry;
 }
 
-type RemoteColumn = 'gutter' | 'name' | 'address' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'configure' | 'connect' | 'rename';
+type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -65,15 +69,15 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly warning: HTMLElement }
-		| { readonly column: 'address'; readonly label: HTMLElement; readonly links: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement; readonly info: HTMLElement }
+		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'connection'; readonly label: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
-		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly toolbar: WorkbenchToolBar; hasManagementActions: boolean }
+		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
-	return connecting === undefined ? getAgentHostConnectionStatusLabel(remote.connectionStatus)
+	return connecting === undefined ? remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)
+		? localize('remotes.offline', "Offline") : getAgentHostConnectionStatusLabel(remote.connectionStatus)
 		: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
 }
 
@@ -86,7 +90,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 	constructor(
 		private readonly column: RemoteColumn,
 		private readonly onAction: (entry: RemoteTableEntry, action: RemoteRowAction) => void,
-		private readonly focusTable: () => void,
+		private readonly actionHoverDelegate: IHoverDelegate,
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
@@ -100,35 +104,39 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		const base = { container, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 		let template: RemoteCellTemplate;
 		switch (this.column) {
-			case 'name':
+			case 'name': {
+				const content = dom.append(container, dom.$('.remotes-name-content'));
+				const nameRow = dom.append(content, dom.$('.remotes-name-row'));
+				const description = dom.append(content, dom.$('.remotes-empty-description'));
+				const actionContainer = dom.append(content, dom.$('.remotes-empty-signin'));
 				template = {
 					...base, column: this.column,
-					label: dom.append(container, dom.$('.remotes-name')),
-					count: dom.append(container, dom.$('.remotes-group-count')),
-					warning: dom.append(container, dom.$('.remotes-refresh-warning')),
+					label: dom.append(nameRow, dom.$('.remotes-name')),
+					count: dom.append(nameRow, dom.$('.remotes-group-count')),
+					progress: dom.append(nameRow, dom.$('.remotes-group-progress', { 'aria-hidden': 'true' })),
+					warning: dom.append(nameRow, dom.$('.remotes-refresh-warning')),
+					description, actionContainer,
+					links: dom.append(content, dom.$('.remotes-empty-actions')),
 				};
+				dom.append(template.progress, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
 				break;
-			case 'address':
-				template = {
-					...base, column: this.column,
-					label: dom.append(container, dom.$('.remotes-detail')),
-					links: dom.append(container, dom.$('.remotes-empty-actions')),
-				};
-				break;
+			}
 			case 'connection': {
 				const label = dom.append(container, dom.$('.remotes-connection-state'));
-				const info = dom.append(container, dom.$('.remotes-connection-info', { role: 'img', tabindex: -1 }));
-				dom.append(info, renderIcon(Codicon.info)).setAttribute('aria-hidden', 'true');
-				template = { ...base, column: this.column, label, info };
+				template = { ...base, column: this.column, label };
 				break;
 			}
 			default: {
 				const action = disposables.add(new Action(`remotes.${this.column}`, '', undefined, true, async () => {
 					if (template.row && (template.column === 'gutter' || template.column === 'actions')) {
-						this.onAction(template.row.entry, template.column === 'gutter' ? 'toggleGroup' : template.row.entry.type === 'group' ? 'configure' : 'connect');
+						this.onAction(template.row.entry, template.column === 'gutter'
+							? template.row.entry.type === 'group' ? 'toggleGroup' : 'toggleVisibility'
+							: template.row.entry.type === 'group' ? 'configure' : 'connect');
 					}
 				}));
-				const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, { ariaLabel: localize('remotes.rowActions', "Remote actions") }));
+				const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+					ariaLabel: localize('remotes.rowActions', "Remote actions"), hoverDelegate: this.actionHoverDelegate,
+				}));
 				toolbar.setActions([action]);
 				if (this.column === 'gutter') {
 					template = { ...base, column: this.column, action, toolbar };
@@ -138,7 +146,17 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							this.onAction(template.row.entry, 'rename');
 						}
 					}));
-					template = { ...base, column: this.column, action, rename, toolbar, hasManagementActions: false };
+					const documentation = disposables.add(new Action('remotes.documentation', '', ThemeIcon.asClassName(Codicon.info), true, async () => {
+						if (template.row?.entry.type === 'group') {
+							this.onAction(template.row.entry, 'documentation');
+						}
+					}));
+					const deleteAction = disposables.add(new Action('remotes.delete', '', ThemeIcon.asClassName(Codicon.trash), true, async () => {
+						if (template.row?.entry.type === 'remote') {
+							this.onAction(template.row.entry, 'delete');
+						}
+					}));
+					template = { ...base, column: this.column, action, rename, delete: deleteAction, documentation, toolbar, actionLayout: '' };
 				}
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
@@ -165,6 +183,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const rowElement = template.container.parentElement!;
 				rowElement.classList.toggle('remotes-group-row', entry.type === 'group');
 				rowElement.classList.toggle('remotes-empty-row', entry.type === 'empty');
+				rowElement.classList.toggle('remotes-row-hidden', entry.type === 'remote' && entry.remote.hidden === true);
+				rowElement.classList.toggle('remotes-row-picker-unavailable', entry.type === 'remote' && !!entry.remote.pickerUnavailableReason);
 				if (entry.type === 'remote') {
 					rowElement.dataset.remoteId = entry.remote.id;
 				} else {
@@ -176,25 +196,46 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				} else {
 					listRow.removeAttribute('aria-expanded');
 				}
-				listRow.setAttribute('aria-busy', String(entry.type === 'remote' && entry.busy));
+				const signingIn = entry.type === 'empty' && entry.action?.enabled === false;
+				listRow.setAttribute('aria-busy', String(entry.type === 'group' ? entry.refreshing : entry.type === 'remote' ? entry.busy : signingIn));
 				template.label.textContent = entry.type === 'remote' ? entry.remote.name : entry.label;
 				template.label.classList.toggle('remotes-empty-label', entry.type === 'empty');
 				template.count.textContent = entry.type === 'group' ? String(entry.count) : '';
 				template.count.hidden = entry.type !== 'group';
+				template.progress.hidden = entry.type !== 'group' || !entry.refreshing;
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {
 					const icon = dom.append(template.warning, renderIcon(Codicon.warning));
 					icon.setAttribute('aria-hidden', 'true');
-					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.warning, { content: entry.warning }));
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.warning, { content: entry.warning, style: HoverStyle.Pointer }));
 				}
 				template.warning.hidden = !template.warning.hasChildNodes();
+				template.actionContainer.hidden = entry.type !== 'empty' || !entry.action;
+				if (entry.type === 'empty' && entry.action) {
+					if (!template.actionLink) {
+						template.actionLink = template.disposables.add(new Link(template.actionContainer, { label: entry.action.label, href: '#' }, {
+							opener: () => {
+								if (template.row?.entry.type === 'empty' && template.row.entry.action?.enabled) {
+									this.onAction(template.row.entry, 'signIn');
+								}
+							},
+						}, this.hoverService, this.openerService));
+						template.actionProgress = dom.append(template.actionContainer, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+						template.actionProgress.classList.add('remotes-signin-progress');
+						template.actionProgress.setAttribute('aria-hidden', 'true');
+					}
+					template.actionLink.link = { label: entry.action.label, href: '#' };
+					template.actionLink.enabled = entry.action.enabled;
+				}
+				if (template.actionProgress) {
+					template.actionProgress.hidden = !signingIn;
+				}
 				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: template.label.textContent }));
-				break;
-			}
-			case 'address': {
-				template.label.textContent = entry.type === 'remote' ? entry.remote.detail : entry.type === 'empty' ? entry.description ?? '' : '';
-				template.label.classList.toggle('remotes-empty-description', entry.type === 'empty');
-				template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, { content: template.label.textContent }));
+				template.description.textContent = entry.type === 'empty' ? entry.description ?? '' : '';
+				template.description.hidden = !template.description.textContent;
+				if (template.description.textContent) {
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.description, { content: template.description.textContent }));
+				}
 				if (entry.type === 'empty' && entry.documentation) {
 					if (!template.link) {
 						template.link = template.disposables.add(new Link(template.links, { ...entry.documentation, title: entry.documentation.label }, {}, this.hoverService, this.openerService));
@@ -208,43 +249,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'connection': {
 				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
-				const explanation = entry.type === 'remote' && entry.connecting === undefined && RemoteAgentHostConnectionStatus.isDisconnected(entry.remote.connectionStatus)
-					? entry.remote.unavailableReason : undefined;
-				template.info.hidden = !explanation;
-				if (explanation) {
-					template.info.setAttribute('aria-label', explanation);
-					const hover = template.elementDisposables.add(new MutableDisposable<IHoverWidget>());
-					// Disposing the hover first restores its keyboard focus to the info icon.
-					template.elementDisposables.add(toDisposable(() => {
-						if (dom.isAncestorOfActiveElement(template.info)) {
-							this.focusTable();
-						}
-					}));
-					const options: IHoverOptions = {
-						id: generateUuid(), target: template.info,
-						content: explanation, style: HoverStyle.Pointer, trapFocus: true,
-					};
-					template.elementDisposables.add(dom.addDisposableListener(template.info, dom.EventType.MOUSE_OVER, () => {
-						const widget = this.hoverService.showDelayedHover(options, { groupId: this.hoverGroupId });
-						if (widget) {
-							hover.value = widget;
-						}
-					}));
-					template.elementDisposables.add(dom.addDisposableListener(template.info, dom.EventType.KEY_DOWN, event => {
-						const keyboardEvent = new StandardKeyboardEvent(event);
-						if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
-							keyboardEvent.preventDefault();
-							keyboardEvent.stopPropagation();
-							hover.clear();
-							hover.value = this.hoverService.showInstantHover(options, true);
-						}
-					}));
-				} else {
-					template.info.removeAttribute('aria-label');
-				}
 				if (entry.type === 'remote') {
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
 						content: entry.connecting === undefined ? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
+						style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}
 				break;
@@ -252,18 +260,37 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			case 'gutter':
 			case 'actions': {
 				const showCollapse = template.column === 'gutter' && entry.type === 'group';
+				const showVisibility = template.column === 'gutter' && entry.type === 'remote';
+				template.container.classList.toggle('remotes-visibility-column', showVisibility);
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
+				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
-				if (template.column === 'actions' && template.hasManagementActions !== showConnection) {
-					template.hasManagementActions = showConnection;
-					template.toolbar.setActions(showConnection ? [template.action, template.rename] : [template.action]);
+				const showDelete = showConnection && entry.remote.kind === 'environment' && entry.remote.canRemove;
+				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}`;
+				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
+					template.actionLayout = actionLayout;
+					template.toolbar.setActions(showConnection ? [template.action, template.rename, ...(showDelete ? [template.delete] : [])] : [
+						...(showDocumentation ? [template.documentation] : []),
+						...(showConfig ? [template.action] : []),
+					]);
 				}
-				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showConfig && !showConnection);
+				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showVisibility && !showConfig && !showDocumentation && !showConnection);
+				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
+					template.documentation.label = entry.documentation.label;
+				}
 				template.action.enabled = true;
 				template.action.tooltip = '';
 				if (showCollapse) {
 					template.action.label = entry.collapsed ? localize('remotes.expandGroup', "Expand {0}", entry.label) : localize('remotes.collapseGroup', "Collapse {0}", entry.label);
 					template.action.class = ThemeIcon.asClassName(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown);
+				} else if (showVisibility) {
+					template.action.enabled = !entry.remote.pickerUnavailableReason;
+					template.action.label = entry.remote.pickerUnavailableReason
+						? localize('remotes.notInPicker', "{0} is not shown in the Environment picker. {1}", entry.remote.name, entry.remote.pickerUnavailableReason)
+						: entry.remote.hidden
+							? localize('remotes.showInPicker', "Show {0} in Environment Picker", entry.remote.name)
+							: localize('remotes.hideFromPicker', "Hide {0} from Environment Picker", entry.remote.name);
+					template.action.class = ThemeIcon.asClassName(entry.remote.pickerUnavailableReason || entry.remote.hidden ? Codicon.eyeClosed : Codicon.eye);
 				} else if (showConfig) {
 					template.action.label = entry.kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
 						: entry.kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open Environment Settings")
@@ -280,6 +307,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason) : template.action.label;
 					template.rename.label = localize('remotes.rename', "Rename {0}...", entry.remote.name);
 					template.rename.enabled = !entry.busy;
+					template.delete.label = localize('remotes.delete', "Delete {0}", entry.remote.name);
+					template.delete.enabled = showDelete && !entry.busy;
 				}
 				break;
 			}
@@ -298,10 +327,13 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		const focused = template.row?.id === this.focusedId;
 		if (template.column === 'gutter' || template.column === 'actions') {
 			template.toolbar.setFocusable(focused && !template.container.classList.contains('remotes-cell-action-hidden'));
-		} else if (template.column === 'address' && template.link && template.row?.entry.type === 'empty' && template.row.entry.documentation) {
-			template.link.link = { ...template.row.entry.documentation, title: template.row.entry.documentation.label, tabIndex: focused && !template.links.hidden ? 0 : -1 };
-		} else if (template.column === 'connection') {
-			template.info.tabIndex = focused && !template.info.hidden ? 0 : -1;
+		} else if (template.column === 'name' && template.row?.entry.type === 'empty') {
+			if (template.link && template.row.entry.documentation) {
+				template.link.link = { ...template.row.entry.documentation, title: template.row.entry.documentation.label, tabIndex: focused && !template.links.hidden ? 0 : -1 };
+			}
+			if (template.actionLink && template.row.entry.action) {
+				template.actionLink.link = { label: template.row.entry.action.label, href: '#', tabIndex: focused && template.row.entry.action.enabled ? 0 : -1 };
+			}
 		}
 	}
 

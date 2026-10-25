@@ -37,6 +37,7 @@ export interface ICustomizationMigrationCategorySummary {
 
 export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
+	createCustomization(section: AICustomizationManagementSection): Promise<void>;
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
 	openInstalled?(target: IInstalledCustomizationTarget): void;
 	openMarketplaceItem(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void;

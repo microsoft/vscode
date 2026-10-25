@@ -15,13 +15,9 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INotificationService, IPromptChoice, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { IRecordingData, IRecordingService, RecordingState } from '../../browser/recordingService.js';
-import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
+import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 
 type PermissionStatus = Awaited<ReturnType<INativeHostService['getMediaAccessStatus']>>;
 
@@ -120,11 +116,9 @@ suite('Issue reporter recording recovery', () => {
 			override dispose(): void { }
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
-		for (const dependency of _util.getServiceDependencies(IssueReporterEditorPane as typeof IssueReporterEditorPane & _util.DI_TARGET_OBJ)) {
+		for (const dependency of _util.getServiceDependencies(IssueReporterController as typeof IssueReporterController & _util.DI_TARGET_OBJ)) {
 			instantiationService.stub(dependency.id, {});
 		}
-		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRecordingService, service);
 		instantiationService.stub(INotificationService, {
@@ -137,7 +131,10 @@ suite('Issue reporter recording recovery', () => {
 			warn: message => { calls.push('guidance'); messages.push(String(message)); },
 			error: message => { calls.push('error'); messages.push(String(message)); },
 		});
-		const pane = store.add(instantiationService.createInstance(IssueReporterEditorPane, new class extends mock<IEditorGroup>() { }()));
+		const pane = store.add(instantiationService.createInstance(IssueReporterController, document.createElement('div'), {
+			reveal: async () => { },
+			close: () => { },
+		}));
 		pane['wizard'] = wizard;
 		pane['inputDisposables'].add(wizard);
 		return { pane, service, wizard, calls, choices, messages, requestStarted, captureStarted };

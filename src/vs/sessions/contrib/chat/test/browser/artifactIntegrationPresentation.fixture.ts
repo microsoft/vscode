@@ -181,10 +181,12 @@ interface IPullRequestFixtureOptions {
 	readonly autoFix?: 'off' | 'on' | 'running' | 'paused';
 	/** Replaces the separate Mark Ready and Merge automation with one option that permits both actions. */
 	readonly sharedLanding?: boolean;
+	/** Offers row actions on failed checks and review comments. */
+	readonly itemActions?: boolean;
 }
 
 function pullRequest(state: PullRequestState, options: IPullRequestFixtureOptions = {}): IArtifactFixtureData {
-	const { mainOnly, autoFix = 'off', sharedLanding } = options;
+	const { mainOnly, autoFix = 'off', sharedLanding, itemActions } = options;
 	const artifactId = 'fixture-pull-request';
 	const integrationId = 'fixture.pullRequest';
 	const resource = 'https://github.example.test/contoso/editor/pull/42';
@@ -274,6 +276,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 				{ kind: 'automation', optionId: 'fixChecks' },
 				...state === 'failing' ? [{ kind: 'action' as const, actionId: 'fixChecks' }] : [],
 			],
+			itemActions: itemActions ? [{ id: 'rerunCheck', label: 'Rerun Check', iconId: Codicon.debugRerun.id }] : undefined,
 			items: available ? [
 				{ id: 'lint', label: 'Lint' },
 				{ id: 'linux', label: 'Linux tests' },
@@ -293,6 +296,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 					},
 					description: failed ? 'Failed: an unused import needs to be removed.' : running ? 'In progress' : queued ? 'Queued' : 'Passed',
 					resource: `${resource}/checks/${check.id}`,
+					...itemActions && failed ? { actions: ['rerunCheck'] } : {},
 				};
 			}) : [],
 			completeness: 'complete',
@@ -300,10 +304,11 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		reviews: {
 			availability, title: `Comments (${state === 'failing' ? 2 : 0})`, description: 'Shows unresolved review comments from repository contributors with owner, member, or collaborator access, and from Copilot.',
 			links: [{ kind: 'automation', optionId: 'addressComments' }, ...state === 'failing' ? [{ kind: 'action' as const, actionId: 'addressComments' }] : []],
+			itemActions: itemActions ? [{ id: 'resolveThread', label: 'Resolve Comment', iconId: Codicon.check.id }] : undefined,
 			items: state === 'failing' ? [
 				{ id: 'focus', label: 'Please restore focus to the control that opened these details, including after live checks refresh or when switching between artifacts.', icon: { id: Codicon.commentDiscussion.id }, description: 'Reviewer - src/view.ts:42', resource: `${resource}#discussion-focus` },
 				{ id: 'coverage', label: 'Cover keyboard navigation', icon: { id: Codicon.commentDiscussion.id }, description: 'Add a regression test for switching between sections.', resource: `${resource}#discussion-coverage` },
-			] : [],
+			].map(item => itemActions ? { ...item, actions: ['resolveThread'] } : item) : [],
 			completeness: 'complete',
 		},
 		availability: { availability, title: 'Pull request status', description: 'The resource link remains available while integration status is unavailable.', links: [], items: [], completeness: 'complete' },
@@ -614,7 +619,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	}
 }
 
-export async function renderArtifactDetails(context: ComponentFixtureContext, scenario: 'attention' | 'ready' | 'mixed' | 'narrow' | 'experiment' | 'delivery' | 'comments' | 'autopilotCollapsed' | 'autopilotExpanded' | 'narrowComments' | 'tabInfo' | 'deliveryRollouts' | 'titleHover' | 'tabFocus' | 'enumPolicy' | 'enumPolicyNarrow' | 'activitiesCollapsed' | 'activitiesExpanded' | 'activitiesNarrow'): Promise<void> {
+export async function renderArtifactDetails(context: ComponentFixtureContext, scenario: 'attention' | 'ready' | 'mixed' | 'narrow' | 'experiment' | 'delivery' | 'comments' | 'autopilotCollapsed' | 'autopilotExpanded' | 'narrowComments' | 'deliveryRollouts' | 'titleHover' | 'tabFocus' | 'enumPolicy' | 'enumPolicyNarrow' | 'activitiesCollapsed' | 'activitiesExpanded' | 'activitiesNarrow'): Promise<void> {
 	let data = scenario === 'experiment' ? expExperiment() : pullRequest(scenario === 'ready' ? 'ready' : 'failing');
 	if (scenario === 'mixed') {
 		const contribution = data.contribution;
@@ -735,13 +740,6 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 			disclosure.click();
 		}
 	}
-	if (scenario === 'tabInfo') {
-		const info = context.container.querySelectorAll<HTMLElement>('.artifact-list-tab-info')[1];
-		if (!info || info.hidden) {
-			throw new Error('Expected information for the inactive Comments tab.');
-		}
-		info.click();
-	}
 	if (scenario === 'titleHover') {
 		const title = context.container.querySelector('.artifact-details-title-link');
 		if (!title) {
@@ -750,9 +748,9 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 		title.classList.add('hovered');
 	}
 	if (scenario === 'tabFocus') {
-		const tab = context.container.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+		const tab = context.container.querySelector<HTMLElement>('[role="tab"][tabindex="0"]');
 		if (!tab) {
-			throw new Error('Expected a selected list tab.');
+			throw new Error('Expected a keyboard-reachable list tab.');
 		}
 		tab.classList.add('synthetic-focus');
 		context.focus(tab);
@@ -776,6 +774,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/artifactIntegrations' 
 	PullRequestCommentsInformation: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { openDetails: 'actions', showListInfo: 1 }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	PullRequestLongContent: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { openDetails: 'actions', longContent: true }) }),
 	PullRequestNarrowLongContent: defineComponentFixture({ render: context => render(context, pullRequest('failing'), { openDetails: 'actions', width: 420, longContent: true }) }),
+	PullRequestCheckRowActions: defineComponentFixture({ render: context => render(context, pullRequest('failing', { itemActions: true }), { openDetails: 'checks' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	PullRequestCommentRowActions: defineComponentFixture({ render: context => render(context, pullRequest('failing', { itemActions: true }), { openDetails: 'reviews' }) }),
 	PullRequestFixRunning: defineComponentFixture({ render: context => render(context, pullRequest('failing', { autoFix: 'running' }), { openDetails: 'checks' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	PullRequestActions: defineComponentFixture({ render: context => render(context, pullRequest('ready'), { openDetails: 'actions' }) }),
 	PullRequestSharedAutomation: defineComponentFixture({ render: context => render(context, pullRequest('draft', { sharedLanding: true }), { openDetails: 'actions' }), additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
