@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as os from 'os';
 import { Promises, Queue } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -19,7 +20,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import * as semver from '../../../base/common/semver/semver.js';
 import { isBoolean, isDefined, isUndefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
-import { generateUuid } from '../../../base/common/uuid.js';
+import { generateUuid, isUUID } from '../../../base/common/uuid.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { extract, IFile, zip } from '../../../base/node/zip.js';
 import * as nls from '../../../nls.js';
@@ -68,6 +69,8 @@ export interface INativeServerExtensionManagementService extends IExtensionManag
 type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verificationStatus?: ExtensionSignatureVerificationCode };
 
 const DELETED_FOLDER_POSTFIX = '.vsctmp';
+const EXTRACTION_METADATA_POSTFIX = '.vscinstall';
+type ExtractionMetadata = { pid: number; hostname: string; platform: string; readyToDelete?: boolean };
 
 export class ExtensionManagementService extends AbstractExtensionManagementService implements INativeServerExtensionManagementService {
 
@@ -625,6 +628,8 @@ export class ExtensionsScanner extends Disposable {
 
 		const folderName = extensionKey.toString();
 		const tempLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`));
+		const extractionMetadata = tempLocation.with({ path: `${tempLocation.path}${EXTRACTION_METADATA_POSTFIX}` });
+		const owner: ExtractionMetadata = { pid: process.pid, hostname: os.hostname(), platform: process.platform };
 		const extensionLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName));
 
 		if (await this.fileService.exists(extensionLocation)) {
@@ -647,6 +652,9 @@ export class ExtensionsScanner extends Disposable {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+
+			// Record ownership before extraction so cleanup never mistakes a live installation for an abandoned one.
+			await this.fileService.writeFile(extractionMetadata, VSBuffer.fromString(JSON.stringify(owner)));
 
 			// Extract
 			try {
@@ -684,7 +692,7 @@ export class ExtensionsScanner extends Disposable {
 			} catch (error) {
 				if (error.code === 'ENOTEMPTY') {
 					this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
-					try { await this.fileService.del(tempLocation, { recursive: true, atomic: { postfix: DELETED_FOLDER_POSTFIX } }); } catch (e) { /* ignore */ }
+					await this.removeTemporaryExtractionFolder(tempLocation, extractionMetadata, owner);
 				} else {
 					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempLocation);
 					throw error;
@@ -694,8 +702,16 @@ export class ExtensionsScanner extends Disposable {
 			this._onExtract.fire(extensionLocation);
 
 		} catch (error) {
-			try { await this.fileService.del(tempLocation, { recursive: true, atomic: { postfix: DELETED_FOLDER_POSTFIX } }); } catch (e) { /* ignore */ }
+			await this.removeTemporaryExtractionFolder(tempLocation, extractionMetadata, owner);
 			throw error;
+		} finally {
+			try {
+				await this.fileService.stat(tempLocation);
+			} catch (error) {
+				if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+					try { await this.fileService.del(extractionMetadata); } catch (e) { /* ignore */ }
+				}
+			}
 		}
 
 		return this.scanLocalExtension(extensionLocation, ExtensionType.User);
@@ -1002,6 +1018,23 @@ export class ExtensionsScanner extends Disposable {
 		await Promise.allSettled(toRemove.map(e => this.deleteExtension(e, 'marked for removal')));
 	}
 
+	private async removeTemporaryExtractionFolder(location: URI, metadata: URI, owner: ExtractionMetadata): Promise<void> {
+		try {
+			await this.fileService.del(location, { recursive: true, atomic: { postfix: DELETED_FOLDER_POSTFIX } });
+		} catch (error) {
+			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return;
+			}
+			// This extraction has finished, but even handing it to .vsctmp failed. Retain a retryable record.
+			try {
+				await this.fileService.writeFile(metadata, VSBuffer.fromString(JSON.stringify({ ...owner, readyToDelete: true })));
+			} catch (metadataError) {
+				this.logService.warn('Could not record failed extraction cleanup', metadata.toString(), getErrorMessage(metadataError));
+			}
+			this.logService.warn('Could not delete failed extraction folder', location.toString(), getErrorMessage(error));
+		}
+	}
+
 	private async removeTemporarilyDeletedFolders(): Promise<void> {
 		this.logService.trace('ExtensionManagementService#removeTempDeleteFolders');
 
@@ -1020,7 +1053,13 @@ export class ExtensionsScanner extends Disposable {
 		}
 
 		try {
-			await Promise.allSettled(stat.children.map(async child => {
+			// Unmarked UUID directories may still belong to installers from older versions.
+			const extractionRecords = stat.children.filter(child => child.isFile && !child.isSymbolicLink && child.name.endsWith(EXTRACTION_METADATA_POSTFIX));
+			await Promise.allSettled(extractionRecords.map(record => this.removeAbandonedExtractionFolder(record)));
+			if (extractionRecords.length) {
+				stat = await this.fileService.resolve(this.extensionsScannerService.userExtensionsLocation);
+			}
+			await Promise.allSettled((stat.children ?? []).map(async child => {
 				if (!child.isDirectory || !child.name.endsWith(DELETED_FOLDER_POSTFIX)) {
 					return;
 				}
@@ -1036,6 +1075,46 @@ export class ExtensionsScanner extends Disposable {
 				}
 			}));
 		} catch (error) { /* ignore */ }
+	}
+
+	private async removeAbandonedExtractionFolder(metadata: IFileStat): Promise<void> {
+		const folderName = metadata.name.slice(0, -EXTRACTION_METADATA_POSTFIX.length);
+		if (!folderName.startsWith('.') || !isUUID(folderName.slice(1))) {
+			return;
+		}
+
+		try {
+			const owner: ExtractionMetadata = JSON.parse((await this.fileService.readFile(metadata.resource)).value.toString());
+			if (!owner || !Number.isSafeInteger(owner.pid) || owner.pid <= 0 || owner.hostname !== os.hostname() || owner.platform !== process.platform) {
+				return;
+			}
+
+			if (owner.readyToDelete !== true) {
+				try {
+					process.kill(owner.pid, 0);
+					return;
+				} catch (error) {
+					// Only ESRCH proves the owner exited; permission errors must preserve the installation.
+					if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+						return;
+					}
+				}
+			}
+
+			const location = joinPath(this.extensionsScannerService.userExtensionsLocation, folderName);
+			try {
+				await this.fileService.del(location, { recursive: true, atomic: { postfix: DELETED_FOLDER_POSTFIX } });
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error; // Keep the ownership record so a later cleanup can retry.
+				}
+			}
+			await this.fileService.del(metadata.resource);
+			this.logService.trace('Deleted abandoned extension extraction folder', location.toString());
+		} catch (error) {
+			// An incomplete or unreadable ownership record is not evidence that extraction was abandoned.
+			this.logService.trace('Could not clean up extension extraction folder', metadata.resource.toString(), getErrorMessage(error));
+		}
 	}
 
 }
