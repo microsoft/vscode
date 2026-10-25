@@ -5,9 +5,6 @@
 // segment, `**` matches any number of segments and `{a,b}` matches either alternative. In a list of
 // patterns, a pattern starting with `!` excludes the paths it matches.
 {
-	// Live test of a broken configuration (not to be merged): ripple rejects unknown fields.
-	"unknownFieldForLiveTest": true,
-
 	// The modules ripple analyzes. Every other file is opaque: changing it affects the modules that
 	// load it or read it by path. Declaration files (`.d.ts`) are never analyzed.
 	"modules": [
