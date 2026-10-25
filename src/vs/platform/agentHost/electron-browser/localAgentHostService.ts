@@ -85,6 +85,7 @@ import {
 	IMcpNotification,
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
+	type IAgentHostChatpad,
 } from '../common/agentService.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
@@ -544,6 +545,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
+	}
+
+	getChatpad(): Promise<IAgentHostChatpad | undefined> {
+		return this._requireClient().getChatpad();
+	}
+
+	appendToChatpad(text: string): Promise<void> {
+		return this._requireClient().appendToChatpad(text);
 	}
 
 	dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {

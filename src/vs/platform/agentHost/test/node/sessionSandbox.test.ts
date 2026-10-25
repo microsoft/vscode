@@ -24,6 +24,7 @@ import { SessionPermissionManager } from '../../node/sessionPermissions.js';
 import { getSandboxPathGrantConfirmation } from '../../node/copilot/copilotToolDisplay.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestChatpadService } from './chatpadTestUtils.js';
 
 suite('Session sandbox configuration', () => {
 	test('current working directory access defaults on and resolves deny-wins through serialized policy', () => {
@@ -1258,7 +1259,7 @@ suite('Session sandbox configuration', () => {
 		const root = configuration.getRootConfigValues();
 		const peer = buildChatUri(owner, 'peer');
 		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer, buildDefaultChatUri(owner)));
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager), createTestChatpadService()));
 		manager.dispatchServerAction(peer, {
 			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: '2026-01-01T00:00:00Z',
 			message: { text: 'run', origin: { kind: MessageKind.User } },
@@ -1305,7 +1306,7 @@ suite('Session sandbox configuration', () => {
 	test('sandbox bypass prompts label one-time approval Allow, regardless of session policy', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('bypass-options');
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager), createTestChatpadService()));
 		const options = [];
 		for (const allowBypass of [undefined, false, true]) {
 			configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass });
@@ -1322,7 +1323,7 @@ suite('Session sandbox configuration', () => {
 	test('sandbox path grant choices survive action construction except for managed asks', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('grant-options');
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager), createTestChatpadService()));
 		const grant = { path: '/outside', access: 'read' } as const;
 		const options = [false, true].map(managedApprovalRequired => permissions.createToolReadyAction({
 			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, managedApprovalRequired,
@@ -1338,7 +1339,7 @@ suite('Session sandbox configuration', () => {
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('managed-approval');
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager), createTestChatpadService()));
 		const ready = permissions.createToolReadyAction({
 			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, managedApprovalRequired: true,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
@@ -1351,7 +1352,7 @@ suite('Session sandbox configuration', () => {
 	test('ordinary and managed tool confirmations retain the Allow Once label', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('ordinary-options');
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager), createTestChatpadService()));
 		const labels = [false, true].map(managedApprovalRequired => permissions.createToolReadyAction({
 			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), managedApprovalRequired,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Run command?' },

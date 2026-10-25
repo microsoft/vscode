@@ -63,7 +63,7 @@ import { artifactToolsConfigurationProperties } from '../../common/artifactTools
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { AgentHostAuthenticationPendingError } from '../../common/agentHostAdvertisedAuthentication.js';
-import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
+import type { IAgentHostChatpad, IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -3651,6 +3651,47 @@ suite('AgentHostProtocolClient', () => {
 				],
 			});
 		}
+	});
+
+	test('Chatpad requests require their capability and validate the host reply', async () => {
+		const { client: unsupported, transport: unsupportedTransport } = createClient();
+		await connectClient(unsupported, unsupportedTransport, getAgentHostExtensionInitializeResultMeta());
+		unsupportedTransport.sentMessages.length = 0;
+		await assert.rejects(unsupported.getChatpad(), /no Chatpad/);
+		await assert.rejects(unsupported.appendToChatpad('note'), /no Chatpad/);
+
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+		const note = URI.file('/home/.copilot/chats/pad/chatpad.md').toString();
+		const withoutChat = client.getChatpad();
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: {} });
+		const withChat = client.getChatpad();
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: { note, session: 'ahp-session:/pad', provider: 'copilot' } });
+		const malformed = client.getChatpad();
+		transport.fireMessage({ jsonrpc: '2.0', id: 4, result: { note } });
+		const append = client.appendToChatpad('buy milk');
+		transport.fireMessage({ jsonrpc: '2.0', id: 5, result: null });
+		await append;
+		await assert.rejects(malformed, /invalid Chatpad/);
+
+		const toStrings = (chatpad: IAgentHostChatpad | undefined) => chatpad && ({ note: chatpad.note.toString(), session: chatpad.session.toString(), provider: chatpad.provider });
+		assert.deepStrictEqual({
+			unsupportedSent: unsupportedTransport.sentMessages,
+			withoutChat: toStrings(await withoutChat),
+			withChat: toStrings(await withChat),
+			sent: transport.sentMessages.map(message => hasKey(message, { method: true }) ? { method: message.method, params: message.params } : undefined),
+		}, {
+			unsupportedSent: [],
+			withoutChat: undefined,
+			withChat: { note, session: 'ahp-session:/pad', provider: 'copilot' },
+			sent: [
+				{ method: 'vscode/getChatpad', params: undefined },
+				{ method: 'vscode/getChatpad', params: undefined },
+				{ method: 'vscode/getChatpad', params: undefined },
+				{ method: 'vscode/appendToChatpad', params: { text: 'buy milk' } },
+			],
+		});
 	});
 
 	test('importSession sends the VS Code extension request without a turn', async () => {

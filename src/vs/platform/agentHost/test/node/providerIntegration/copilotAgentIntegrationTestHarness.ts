@@ -122,7 +122,7 @@ export function createLocalEndpointCopilotAgent(store: DisposableStore, home: st
 		fetchFn: localFetch,
 	});
 	foundation.configurationService.updateRootConfig(rootConfiguration);
-	registerAgentHostCoreServices(services, { storageResource: undefined, fetchFn: localFetch, gitHubServiceOptions: foundation.gitHubServiceOptions });
+	registerAgentHostCoreServices(services, { storageResource: undefined, userHome: URI.file(home), fetchFn: localFetch, gitHubServiceOptions: foundation.gitHubServiceOptions });
 	registerAgentHostHostServices(services, { userDataPath: URI.file(home), fetchFn: localFetch, byok: { kind: 'unavailable' } });
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	const instantiationService = store.add(new InstantiationService(services, true));

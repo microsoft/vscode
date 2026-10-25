@@ -983,6 +983,16 @@ export interface IAgentServiceCreateSessionConfig extends IAgentCreateSessionCon
 	readonly legacyChatUris: boolean | undefined;
 }
 
+/** The host's Chatpad: a chat without a workspace, not listed, and the Markdown note in its scratch folder. */
+export interface IAgentHostChatpad {
+	/** The note, a file on the host. */
+	readonly note: URI;
+	/** The Chatpad chat. The host does not list it. */
+	readonly session: URI;
+	/** The agent provider of the Chatpad chat, when known. */
+	readonly provider: string | undefined;
+}
+
 export interface IAgentService {
 	readonly artifactIntegrations?: IArtifactIntegrationAccess;
 	/** Receives integrations that connected clients coordinate, so agents can use them alongside host integrations. */
@@ -1013,6 +1023,12 @@ export interface IAgentService {
 	completeSavedChatContinuation?(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
+	/** Returns the Chatpad, creating its note when missing; `undefined` when there is no Chatpad chat. */
+	getChatpad?(): Promise<IAgentHostChatpad | undefined>;
+	/** Makes a new workspace-less session the Chatpad chat unless another one exists. */
+	claimChatpad?(session: URI): Promise<boolean>;
+	/** Appends text to the Chatpad note as typed, without running a turn. Fails when there is no Chatpad chat. */
+	appendToChatpad?(text: string): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
@@ -1417,6 +1433,10 @@ export interface IAgentConnection {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Requires the VS Code session import capability advertised by initialize. */
 	importSession?(session: URI): Promise<void>;
+	/** Requires the `vscode.chatpad` capability. The note is a host file URI; `undefined` when there is no Chatpad chat. */
+	getChatpad?(): Promise<IAgentHostChatpad | undefined>;
+	/** Requires the `vscode.chatpad` capability. */
+	appendToChatpad?(text: string): Promise<void>;
 	/**
 	 * Moves a session whose only chat is its default chat under `destination` (placed after `after`, `undefined`:
 	 * first) and resolves to `destination`. Rejects with `AgentHostSessionMoveUnsupportedError`, without a request,
