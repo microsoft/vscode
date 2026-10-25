@@ -658,6 +658,7 @@ pub fn select(
 		run_all,
 		packages,
 	};
+	dependent_tests(head, hg, &head_seeds, &mut sel.decl);
 	dependent_tests(base, bg, &base_seeds, &mut sel.decl);
 	let is_data = |p: &str| !base.role(p).is_module() && !head.role(p).is_module();
 	let head_files: Vec<u32> = paths
