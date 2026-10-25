@@ -31,6 +31,13 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** Creation context to inherit instead of an existing session's execution workspace and backend. */
+export interface ISessionCreationTarget {
+	readonly providerId: string;
+	readonly sessionTypeId?: string;
+	readonly folderUri: URI;
+}
+
 /** One end of a chat move: the session and the chat's resource in it. */
 export interface IChatMoveEnd {
 	readonly session: ISession;
@@ -477,6 +484,9 @@ export interface ISessionsProvider {
 	 * @param workspaceUri The URI of the repository to resolve the workspace for.
 	 */
 	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
+
+	/** An alternate creation context for New Session gestures from an existing session. */
+	getNewSessionTarget?(sessionResource: URI): ISessionCreationTarget | undefined;
 
 	/**
 	 * Returns the canonical URI for a workspace represented by this provider.

@@ -64,6 +64,7 @@ import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '..
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
 import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../../copilotChatSessions/common/copilotChatSessions.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -639,6 +640,52 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			pickerVisibilityKey: getRemoteAgentHostPickerKey(address, 'account-two'),
 		});
 		assert.strictEqual(provider.isVisibleInEnvironmentPicker?.get(), true);
+	});
+
+	for (const isWebPlatform of [false, true]) {
+		test(`cloud New Session targets the repository and logical provider (web: ${isWebPlatform})`, () => {
+			const provider = createProvider(disposables, connection, { ctor: CloudSandboxSessionsProvider, noConnection: true, isWebPlatform });
+			assert.ok(provider instanceof CloudSandboxSessionsProvider);
+			provider.seedSessions([createSession('cloud-session', {
+				project: { uri: URI.parse('https://github.com/owner/repo'), displayName: 'owner/repo' },
+				workingDirectory: URI.file('/workspaces/repo'),
+			})]);
+			const session = provider.getSessions()[0];
+			const target = provider.getNewSessionTarget(session.resource);
+			assert.deepStrictEqual({
+				providerId: target?.providerId, folderUri: target?.folderUri.toString(),
+				unknownSession: provider.getNewSessionTarget(URI.parse('remote-provider:/missing')),
+			}, {
+				providerId: isWebPlatform ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
+				folderUri: 'github-remote-file://github/owner/repo/HEAD', unknownSession: undefined,
+			});
+		});
+	}
+
+	test('cloud New Session uses repository metadata after the host supplies a filesystem workspace', () => {
+		const provider = createProvider(disposables, connection, { ctor: CloudSandboxSessionsProvider, noConnection: true, isWebPlatform: false });
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		provider.seedSessions([createSession('cloud-session', {
+			project: { uri: URI.file('/workspaces/repo'), displayName: 'repo' },
+			workingDirectory: URI.file('/workspaces/repo'),
+			_meta: {
+				'copilot.githubReferences': [{
+					referenceType: 'pr', repository: 'owner/repo', number: 1, title: 'Changes',
+					url: 'https://github.com/owner/repo/pull/1', relations: ['headBranch'],
+				}],
+			},
+		})]);
+		const target = provider.getNewSessionTarget(provider.getSessions()[0].resource);
+		assert.deepStrictEqual({ providerId: target?.providerId, folderUri: target?.folderUri.toString() }, {
+			providerId: COPILOT_PROVIDER_ID, folderUri: 'github-remote-file://github/owner/repo/HEAD',
+		});
+	});
+
+	test('cloud New Session does not mistake a remote filesystem path for a repository', () => {
+		const provider = createProvider(disposables, connection, { ctor: CloudSandboxSessionsProvider, noConnection: true });
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		provider.seedSessions([createSession('cloud-session', { workingDirectory: URI.file('/workspaces/repo') })]);
+		assert.strictEqual(provider.getNewSessionTarget(provider.getSessions()[0].resource), undefined);
 	});
 
 	for (const sandbox of [false, true]) {

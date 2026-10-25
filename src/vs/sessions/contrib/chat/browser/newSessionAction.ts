@@ -126,7 +126,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const inheritedTarget = inheritableSessionTarget(
 			sessionsManagementService,
 			devContainerSource && activeSession
-				? { providerId: devContainerSource.providerId, sessionType: activeSession.sessionType }
+				? { providerId: devContainerSource.providerId, sessionType: activeSession.sessionType, resource: activeSession.resource }
 				: activeSession,
 			folderUri,
 		);

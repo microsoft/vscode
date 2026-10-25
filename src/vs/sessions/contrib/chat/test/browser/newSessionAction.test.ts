@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -13,7 +14,9 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../browser/newSessionAction.js';
@@ -92,6 +95,35 @@ suite('NewChatInSessionsWindowAction', () => {
 		const fixture = createCommand();
 		await fixture.run({ noWorkspace: true });
 		assert.deepStrictEqual(fixture.opened, [{ target: undefined, preserveNavigation: true }]);
+	});
+
+	test('uses the provider creation target instead of the active backend workspace', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const backendResource = URI.parse('remote-provider:/existing');
+		const backendFolder = URI.parse('vscode-agent-host://sandbox/repo');
+		const creationTarget = { providerId: 'cloud-creator', folderUri: URI.parse('github-remote-file://github/owner/repo/HEAD') };
+		const opened: (ICreateNewSessionOptions | undefined)[] = [];
+		instantiationService.stub(INewSessionComposerService, { notifyUserNavigation() { } });
+		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
+		instantiationService.stub(ISessionsManagementService, {
+			getNewSessionTarget: (providerId, sessionResource) => providerId === 'sandbox-backend' && isEqual(sessionResource, backendResource) ? creationTarget : undefined,
+			isNewSessionTargetAvailable: (folder, target) => isEqual(folder, creationTarget.folderUri) && target?.providerId === creationTarget.providerId,
+		});
+		instantiationService.stub(ISessionsService, {
+			activeSession: constObservable(upcastPartial<IActiveSession>({
+				providerId: 'sandbox-backend', sessionType: 'copilot', resource: backendResource,
+				workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: backendFolder })),
+			})),
+			openNewSession: async options => {
+				opened.push(options);
+				return { session: upcastPartial<IActiveSession>({ resource }), trustDeclined: false };
+			},
+		});
+		const result = await instantiationService.invokeFunction(accessor => new NewChatInSessionsWindowAction().run(accessor));
+		assert.deepStrictEqual({ result, opened }, {
+			result: resource,
+			opened: [{ ...creationTarget, toSide: undefined }],
+		});
 	});
 
 	test('does not fall back to another provider when the explicit target is unavailable', async () => {

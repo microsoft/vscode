@@ -13,8 +13,11 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import type { ISession } from '../../../../services/sessions/common/session.js';
+import { getGitHubRepositoryId } from '../../../../../platform/github/common/githubUrls.js';
+import { GITHUB_REMOTE_FILE_SCHEME, type ISession } from '../../../../services/sessions/common/session.js';
+import type { ISessionCreationTarget } from '../../../../services/sessions/common/sessionsProvider.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { resolveCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -36,6 +39,22 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	readonly supportsWorkspaceSelection = false;
+
+	getNewSessionTarget(sessionResource: URI): ISessionCreationTarget | undefined {
+		const folder = this.getSessionByResource(sessionResource)?.workspace.get()?.folders[0];
+		if (!folder) {
+			return undefined;
+		}
+		const gitHubInfo = folder.gitRepository?.gitHubInfo.get();
+		const repository = gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : getGitHubRepositoryId(folder.root.toString());
+		if (!repository) {
+			return undefined;
+		}
+		return {
+			providerId: this.isWebPlatform ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
+			folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository}/HEAD` }),
+		};
+	}
 
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
