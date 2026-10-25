@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 
 // Side-effect import to trigger module-level menu registrations.
 // Only import runScriptAction which registers the Run dropdown submenu;
@@ -64,7 +64,7 @@ suite('RunScriptContribution', () => {
 		assert.deepStrictEqual(disposed, ['a', 'b']);
 	});
 
-	test('the dropdown\'s configure actions are registered once: switching sessions leaves the menu alone and only moves the keys', () => {
+	test('the dropdown\'s configure actions are registered once, statically: switching between sessions with different tasks leaves every menu alone', () => {
 		const store = new DisposableStore();
 		const workspace = (workingDirectory: URI | undefined) => ({ folders: [{ root: URI.file('/r'), workingDirectory }] });
 		const makeSession = (workingDirectory: URI | undefined) => ({ activeChat: constObservable({ workspace: constObservable(workspace(workingDirectory)) }) }) as unknown as IActiveSession;
@@ -86,22 +86,24 @@ suite('RunScriptContribution', () => {
 		instantiationService.stub(IChatWindowService, new class extends mock<IChatWindowService>() { override windows = constObservable([]); });
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { });
 		instantiationService.stub(IContextKeyService, contextKeyService);
-		const menuChanges: number[] = [];
-		store.add(MenuRegistry.onDidChangeMenu(ids => { if (ids.has(RunScriptDropdownMenuId)) { menuChanges.push(1); } }));
-		const keys = () => ({ hasTasks: contextKeyService.getContextKeyValue('sessions.runScript.hasTasks'), canConfigure: contextKeyService.getContextKeyValue('sessions.runScript.canConfigure') });
+		const menuChanges: string[] = [];
+		store.add(MenuRegistry.onDidChangeMenu(() => menuChanges.push('changed')));
+		const dropdownItems = () => MenuRegistry.getMenuItems(RunScriptDropdownMenuId).filter(isIMenuItem).map(item => ({ id: item.command.id, group: item.group, order: item.order, when: item.when?.serialize() }));
 
 		store.add(instantiationService.createInstance(RunScriptContribution));
 		const initialChanges = menuChanges.length;
-		const first = keys();
+		const before = dropdownItems();
 		active.set(withoutTasks, undefined);
-		const second = keys();
 		active.set(withTasks, undefined);
 		active.set(withoutTasks, undefined);
 		active.set(withTasks, undefined);
 
-		assert.deepStrictEqual({ first, second, menuChangesAfterSwitching: menuChanges.length - initialChanges }, {
-			first: { hasTasks: true, canConfigure: true },
-			second: { hasTasks: false, canConfigure: false },
+		assert.deepStrictEqual({ items: before, same: dropdownItems(), menuChangesAfterSwitching: menuChanges.length - initialChanges }, {
+			items: [
+				{ id: 'workbench.action.agentSessions.configureDefaultRunAction', group: '1_configure', order: 0, when: undefined },
+				{ id: 'workbench.action.agentSessions.generateRunAction', group: '1_configure', order: 1, when: undefined },
+			],
+			same: before,
 			menuChangesAfterSwitching: 0,
 		});
 		store.dispose();
