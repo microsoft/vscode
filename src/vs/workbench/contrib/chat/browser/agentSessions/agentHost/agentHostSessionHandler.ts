@@ -3484,7 +3484,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			cancellationToken: cts.token,
 			suppressErrorMarkdown: true,
 			onTurnEnded: lastTurn => {
-				const details = lastTurn ? this._getTurnResponseDetails(chatSession.sessionResource, backendSession, lastTurn) : undefined;
+				const details = lastTurn
+					? turnToResponseDetails(lastTurn, this._createTurnModelLookup(chatSession.sessionResource, lastTurn.message.model?.id))
+					: undefined;
 				const errorDetails = this._getTurnErrorDetails(lastTurn, !this._isChatReadOnly(backendSession.toString(), chatURI));
 				const metadata = turnToResultMetadata(lastTurn);
 				if (details || errorDetails || metadata) {
