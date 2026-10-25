@@ -4,17 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID } from '../../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, IChatWindow, IChatWindowService } from '../../../../services/chatWindow/browser/chatWindowService.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID, ChatWindowTerminalKeysContext, isChatWindowTerminalKeysWindow } from '../../browser/chatWindowActivityBar.js';
+import { CHAT_WINDOW_TOGGLE_EDITOR_KEY_COMMAND_ID, ChatWindowTerminalKeysContext, ChatWindowTerminalKeysContribution, isChatWindowTerminalKeysWindow } from '../../browser/chatWindowActivityBar.js';
 
 suite('Chat window terminal keybinding', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function rules() {
 		return KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID);
@@ -52,5 +58,28 @@ suite('Chat window terminal keybinding', () => {
 			const chord = rule.keybinding?.chords[0] as KeyCodeChord | undefined;
 			return { key: chord?.keyCode, ctrlCmd: chord?.ctrlKey || chord?.metaKey, alt: chord?.altKey, above: rule.weight1 > KeybindingWeight.SessionsContrib, followsFocusedWindow: !!rule.when?.keys().includes(ChatWindowTerminalKeysContext.key) };
 		}), [{ key: KeyCode.KeyB, ctrlCmd: true, alt: true, above: true, followsFocusedWindow: true }]);
+	});
+
+	test('the focus of elements inside a window does not update the key, only the focus of the window does', () => {
+		const windows = observableValue<readonly IChatWindow[]>('windows', []);
+		let reads = 0;
+		const get = windows.get.bind(windows);
+		windows.get = () => { reads++; return get(); };
+		const contribution = store.add(new ChatWindowTerminalKeysContribution(
+			store.add(new MockContextKeyService()),
+			new class extends mock<IChatWindowService>() { override readonly windows = windows; }(),
+			new class extends mock<IHostService>() { override readonly onDidChangeActiveWindow = Event.None; override readonly onDidChangeFocus = store.add(new Emitter<boolean>()).event; }(),
+		));
+		const elements = [0, 1, 2].map(() => mainWindow.document.body.appendChild(mainWindow.document.createElement('div')));
+		const before = reads;
+		for (const element of elements) {
+			element.dispatchEvent(new FocusEvent('focus'));
+		}
+		const afterElements = reads;
+		mainWindow.dispatchEvent(new FocusEvent('focus'));
+
+		assert.deepStrictEqual({ elementFocusUpdates: afterElements - before, windowFocusUpdates: reads - afterElements }, { elementFocusUpdates: 0, windowFocusUpdates: 1 });
+		elements.forEach(element => element.remove());
+		contribution.dispose();
 	});
 });

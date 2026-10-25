@@ -5,11 +5,11 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -20,6 +20,10 @@ import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/ses
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
+
+// Shared, so that rebuilding the contexts does not look like a new source of canvases.
+const unknownCanvases = constObservable<readonly ICanvas[] | undefined>(undefined);
+const noCanvases = constObservable<readonly ICanvas[]>([]);
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -63,7 +67,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				chatService.chatModels.read(reader);
 				const openRequests = chatService.getSession(chat.resource)?.canvasContext?.read(reader)?.openRequests;
 				const supportsCanvases = session.capabilities.read(reader).supportsCanvases === true;
-				const canvases = supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]);
+				const canvases = supportsCanvases ? chat.canvases ?? unknownCanvases : noCanvases;
 				const definitionProvider = supportsCanvases ? {
 					onDidChangeDefinitions: Event.fromObservableLight(canvases),
 					listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
@@ -102,7 +106,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		const chat: IChat | undefined = isEqual(activeChat.resource, owner.chat)
 			? activeChat
 			: session.chats.read(reader).find(candidate => isEqual(candidate.resource, owner.chat));
-		return { owner, canvases: chat?.canvases ?? constObservable(undefined) };
+		return { owner, canvases: chat?.canvases ?? unknownCanvases };
 	}
 
 	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined {
@@ -129,7 +133,9 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	}
 
 	presentsOutsideWorkingSets(owner: ICanvasOwner, reader?: IReader): boolean {
-		return !!this.getChatWindow(owner, reader);
+		const presented = this.chatWindowPresentedOwners.read(reader);
+		return presented.keys.has(canvasOwnerKey(owner))
+			|| presented.opening.some(opening => isEqual(opening.session, owner.session) && (!opening.chat || isEqual(opening.chat, owner.chat)));
 	}
 
 	/** The session of the main window, or a session shown in a chat window, that owns `owner`: preferably one that shows its chat. */
@@ -143,6 +149,26 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			.find(session => ownsSession(owner, session) && isEqual(session.activeChat.read(reader).resource, owner.chat));
 		return windowSession ?? (active && ownsSession(owner, active) ? active : undefined);
 	}
+
+	/** The owners shown in chat windows beside an editor area, compared by content so that window changes that keep them do not re-run the readers. */
+	private readonly chatWindowPresentedOwners = derivedOpts<IChatWindowPresentedOwners>({
+		owner: this,
+		equalsFn: (a, b) => a.keys.size === b.keys.size && [...a.keys].every(key => b.keys.has(key))
+			&& a.opening.length === b.opening.length && a.opening.every((opening, index) => isEqual(opening.session, b.opening[index].session) && isEqual(opening.chat, b.opening[index].chat)),
+	}, reader => {
+		const keys = new Set<string>();
+		const opening: { session: URI | undefined; chat: URI | undefined }[] = [];
+		for (const window of this.getChatWindowsWithEditorArea(reader)) {
+			const session = window.session.read(reader);
+			if (!session) {
+				const content = window.content.read(reader);
+				opening.push({ session: content.session, chat: content.chat });
+			} else if (session.capabilities.read(reader).supportsCanvases === true) {
+				keys.add(canvasOwnerKey({ providerId: session.providerId, session: session.resource, chat: session.activeChat.read(reader).resource }));
+			}
+		}
+		return { keys, opening };
+	});
 
 	private getChatWindowsWithEditorArea(reader?: IReader): readonly IChatWindow[] {
 		return this.chatWindowService.windows.read(reader).filter(window => !!window.editorGroup && !!window.content.read(reader).editorArea);
@@ -172,6 +198,11 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			}
 		}
 	}
+}
+
+interface IChatWindowPresentedOwners {
+	readonly keys: ReadonlySet<string>;
+	readonly opening: readonly { readonly session: URI | undefined; readonly chat: URI | undefined }[];
 }
 
 export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {
