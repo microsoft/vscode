@@ -705,7 +705,8 @@ export async function realcase(path: string, token?: CancellationToken): Promise
 			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
 			const prefix = await realcase(dir, token);   // recurse
 			if (prefix) {
-				return join(prefix, found[0]);
+				// ripple live test, deliberate bug (b): `name` is lowercased, `found[0]` has the case on disk.
+				return join(prefix, name);
 			}
 		} else if (found.length > 1) {
 			// must be a case sensitive $filesystem

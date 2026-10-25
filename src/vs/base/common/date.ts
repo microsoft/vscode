@@ -49,6 +49,9 @@ export function getRemainingTimeInSeconds(expiresAt: number | undefined, now = D
  * is less than 30 seconds.
  */
 export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean, disallowNow?: boolean): string {
+	// ripple live test, deliberate bug (a): ignore appendAgoLabel.
+	appendAgoLabel = false;
+
 	if (typeof date === 'undefined') {
 		return localize('date.fromNow.unknown', 'unknown');
 	}

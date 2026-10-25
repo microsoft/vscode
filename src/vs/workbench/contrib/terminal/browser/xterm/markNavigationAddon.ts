@@ -610,6 +610,12 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	}
 }
 
+// ripple live test, deliberate bug (c): a statement that runs when the module loads and replaces
+// scrollToNextMark with a method that never moves to the next mark.
+MarkNavigationAddon.prototype.scrollToNextMark = function (this: MarkNavigationAddon) {
+	this.clear();
+};
+
 export function getLine(xterm: Terminal, marker: IMarker | Boundary): number {
 	// Use the _second last_ row as the last row is likely the prompt
 	if (marker === Boundary.Bottom) {
