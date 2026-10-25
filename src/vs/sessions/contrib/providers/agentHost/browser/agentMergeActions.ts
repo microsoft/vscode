@@ -5,6 +5,7 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -135,7 +136,7 @@ function bindAgentMergeContextKeys(accessor: ServicesAccessor, source: ISessionA
 	const enabledKey = SessionAgentMergeEnabledContext.bindTo(contextKeyService);
 	const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 	const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
-	const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
+	const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
 		DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 	let lastLogged: string | undefined;
 	store.add(autorun(reader => {
