@@ -87,7 +87,7 @@ suite('AgentHostLanguageModelProvider', () => {
 
 	test('fills matching Copilot billing from the additional catalog without overriding host metadata', async () => {
 		const provider = createProvider();
-		const schema = { type: 'object' as const, properties: { reasoningEffort: { type: 'string' as const, enum: ['low', 'high'], readOnly: true } } };
+		const schema = { type: 'object' as const, properties: { reasoningEffort: { type: 'string' as const, title: 'Effort', enum: ['low', 'high'], readOnly: true } } };
 		provider.updateModels([
 			{ ...makeModel('missing-prices'), provider: 'copilot', configSchema: schema },
 			{ ...makeModel('host-prices', { inputCost: 0, multiplierNumeric: 2 }), provider: 'copilot' },
