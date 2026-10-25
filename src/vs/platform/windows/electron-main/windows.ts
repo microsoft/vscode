@@ -131,6 +131,14 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	backgroundColor?: string;
 }
 
+/**
+ * Whether windows must never be shown or focused: `--hidden-window` is
+ * only honored when running extension tests (`--extensionTestsPath`).
+ */
+export function isHiddenWindowMode(environmentMainService: IEnvironmentMainService): boolean {
+	return environmentMainService.args['hidden-window'] === true && !!environmentMainService.extensionTestsLocationURI;
+}
+
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
@@ -263,6 +271,14 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.webPreferences = {
 			...options.webPreferences,
 			backgroundThrottling: false,
+		};
+	}
+
+	if (isHiddenWindowMode(environmentMainService)) {
+		options.show = false;
+		options.webPreferences = {
+			...options.webPreferences,
+			backgroundThrottling: false, // a never shown window must keep timers, animation frames and page visibility like a visible one
 		};
 	}
 
