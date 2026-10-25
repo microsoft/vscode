@@ -10,6 +10,7 @@ import { OperatingSystem } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IAuxiliaryWindow } from '../../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IAuxiliaryWindowsMainService } from '../../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDialogMainService } from '../../../dialogs/electron-main/dialogMainService.js';
@@ -22,7 +23,7 @@ import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfil
 import { INativeWindowConfiguration } from '../../../window/common/window.js';
 import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
-import { IUpdateService, State, UpdateType } from '../../common/update.js';
+import { IQuitAndInstallOptions, IUpdateService, State, UpdateType } from '../../common/update.js';
 import { getWindowBlockers, hasArgumentsLostOnRelaunch, IUnattendedRestartHost, UNATTENDED_RESTART_LOCKED_DURATION, UnattendedRestartScheduler } from '../../electron-main/unattendedRestartScheduler.js';
 
 suite('UnattendedRestartScheduler', () => {
@@ -30,7 +31,7 @@ suite('UnattendedRestartScheduler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const MINUTE = 60 * 1000;
-	const update = { version: 'next', productVersion: '1.145.0' };
+	const update = { version: '0123456789abcdef0123456789abcdef01234567', productVersion: '1.145.0' };
 
 	interface ITestWindowOptions {
 		readonly isReady?: boolean;
@@ -71,10 +72,13 @@ suite('UnattendedRestartScheduler', () => {
 	}
 
 	interface IFixtureOptions {
+		readonly os?: OperatingSystem;
 		readonly enabled?: boolean;
 		readonly focusedWhenLocked?: boolean;
 		readonly updateReady?: boolean;
+		readonly updateVersion?: string;
 		readonly hasOpenDialogs?: boolean;
+		readonly hasAuxiliaryWindow?: boolean;
 		/** Blockers that the window reports for consecutive checks; afterwards it reports none. */
 		readonly windowBlockers?: string[][];
 	}
@@ -88,13 +92,14 @@ suite('UnattendedRestartScheduler', () => {
 		const onDidResume = store.add(new Emitter<void>());
 		const onDidBlurWindow = store.add(new Emitter<void>());
 
-		let state: State = options.updateReady === false ? State.Idle(UpdateType.Archive) : State.Ready(update, false, false);
+		const readyUpdate = { ...update, version: options.updateVersion ?? update.version };
+		let state: State = options.updateReady === false ? State.Idle(UpdateType.Archive) : State.Ready(readyUpdate, false, false);
 		const updateService = upcastPartial<IUpdateService>({
 			get state() { return state; },
 			onStateChange: onStateChange.event,
-			quitAndInstall: async () => {
-				log.push('quitAndInstall');
-				state = State.Restarting(update);
+			quitAndInstall: async (quitAndInstallOptions?: IQuitAndInstallOptions) => {
+				log.push(`quitAndInstall(${quitAndInstallOptions?.relaunchInBackground ? 'background' : 'foreground'})`);
+				state = State.Restarting(readyUpdate);
 			},
 		});
 
@@ -116,18 +121,19 @@ suite('UnattendedRestartScheduler', () => {
 
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('update.restartWhenIdle', options.enabled ?? true);
+		configurationService.setUserConfiguration('update.enableWindowsBackgroundUpdates', true);
 
 		const windowBlockers = [...(options.windowBlockers ?? [])];
 		store.add(new UnattendedRestartScheduler(
 			{
 				getWindowReadiness: async () => ({ blockers: windowBlockers.shift() ?? [] }),
 				host,
-				os: OperatingSystem.Macintosh,
+				os: options.os ?? OperatingSystem.Macintosh,
 				argv: [],
 			},
 			updateService,
 			windowsMainService,
-			upcastPartial<IAuxiliaryWindowsMainService>({ getWindows: () => [] }),
+			upcastPartial<IAuxiliaryWindowsMainService>({ getWindows: () => options.hasAuxiliaryWindow ? [upcastPartial<IAuxiliaryWindow>({ ...createWindow(), parentId: 1 })] : [] }),
 			upcastPartial<IDialogMainService>({ hasOpenDialogs: () => options.hasOpenDialogs ?? false }),
 			configurationService,
 			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
@@ -150,14 +156,14 @@ suite('UnattendedRestartScheduler', () => {
 			suspend: () => onDidSuspend.fire(),
 			resume: () => onDidResume.fire(),
 			setUpdateReady: () => {
-				state = State.Ready(update, false, false);
+				state = State.Ready(readyUpdate, false, false);
 				onStateChange.fire(state);
 			},
 		};
 	}
 
-	function outcome(outcome: string, attempts: number, lockedMinutes: number, blockers = '') {
-		return { eventName: 'update:unattendedRestart', data: { outcome, blockers, attempts, lockedMinutes } };
+	function outcome(outcome: string, attempts: number, lockedMinutes: number, blockers = '', inBackground = false) {
+		return { eventName: 'update:unattendedRestart', data: { outcome, blockers, inBackground, attempts, lockedMinutes } };
 	}
 
 	test('restarts once the screen has been locked long enough', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -170,7 +176,7 @@ suite('UnattendedRestartScheduler', () => {
 
 		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log }, {
 			beforeThreshold: [],
-			afterThreshold: ['quitAndInstall', outcome('restarting', 1, 15)],
+			afterThreshold: ['quitAndInstall(foreground)', outcome('restarting', 1, 15)],
 		});
 	}));
 
@@ -183,16 +189,31 @@ suite('UnattendedRestartScheduler', () => {
 		assert.deepStrictEqual(fixture.log, [outcome('eligible', 1, 15)]);
 	}));
 
-	test('never restarts when another application had focus when the screen got locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('restarts in the background when another application had focus when the screen got locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({ focusedWhenLocked: false });
 
 		fixture.blurWindow();
 		await timeout(5000);
 		fixture.lock();
-		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 6 * MINUTE);
-		fixture.unlock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
 
-		assert.deepStrictEqual(fixture.log, [outcome('blocked', 2, 21, 'app.notFocusedWhenLocked')]);
+		assert.deepStrictEqual(fixture.log, ['quitAndInstall(background)', outcome('restarting', 1, 15, '', true)]);
+	}));
+
+	test('does not restart in the background where the relaunch would take focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const windows = createFixture({ os: OperatingSystem.Windows, focusedWhenLocked: false });
+		const macOS = createFixture({ focusedWhenLocked: false, hasAuxiliaryWindow: true, updateVersion: 'unknown' });
+
+		windows.lock();
+		macOS.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		windows.unlock();
+		macOS.unlock();
+
+		assert.deepStrictEqual({ windows: windows.log, macOS: macOS.log }, {
+			windows: [outcome('blocked', 1, 16, 'app.backgroundRelaunchUnsupported', true)],
+			macOS: [outcome('blocked', 1, 16, 'update.unknownVersion,window.auxiliary', true)],
+		});
 	}));
 
 	test('treats a window that lost focus as the screen got locked as focused', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -203,7 +224,7 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
 
-		assert.deepStrictEqual(fixture.log, ['quitAndInstall', outcome('restarting', 1, 15)]);
+		assert.deepStrictEqual(fixture.log, ['quitAndInstall(foreground)', outcome('restarting', 1, 15)]);
 	}));
 
 	test('does not restart while a native dialog is open', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -222,7 +243,7 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 6 * MINUTE);
 
-		assert.deepStrictEqual(fixture.log, ['quitAndInstall', outcome('restarting', 2, 20)]);
+		assert.deepStrictEqual(fixture.log, ['quitAndInstall(foreground)', outcome('restarting', 2, 20)]);
 	}));
 
 	test('restarts the clock when the machine resumes while locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -239,7 +260,7 @@ suite('UnattendedRestartScheduler', () => {
 
 		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log }, {
 			beforeThreshold: [],
-			afterThreshold: ['quitAndInstall', outcome('restarting', 1, 15)],
+			afterThreshold: ['quitAndInstall(foreground)', outcome('restarting', 1, 15)],
 		});
 	}));
 
@@ -254,7 +275,7 @@ suite('UnattendedRestartScheduler', () => {
 
 		assert.deepStrictEqual({ beforeReady, afterReady: fixture.log }, {
 			beforeReady: [],
-			afterReady: ['quitAndInstall', outcome('restarting', 1, 75)],
+			afterReady: ['quitAndInstall(foreground)', outcome('restarting', 1, 75)],
 		});
 	}));
 

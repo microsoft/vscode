@@ -681,7 +681,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	async relaunch(options?: IRelaunchOptions): Promise<void> {
 		this.trace('Lifecycle#relaunch()');
 
-		const args = process.argv.slice(1);
+		const args = process.argv.slice(1).filter(arg => arg !== '--open-in-background'); // the relaunch is user initiated and may take focus
 		if (options?.addArgs) {
 			args.push(...options.addArgs);
 		}

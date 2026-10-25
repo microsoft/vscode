@@ -21,7 +21,7 @@ import { IRequestService } from '../../request/common/request.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, DisablementReason, IQuitAndInstallOptions, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
 
@@ -531,7 +531,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		// noop
 	}
 
-	async quitAndInstall(): Promise<void> {
+	async quitAndInstall(options?: IQuitAndInstallOptions): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
@@ -563,7 +563,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			}
 
 			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-			this.doQuitAndInstall();
+			this.doQuitAndInstall(options);
 		});
 
 		return Promise.resolve(undefined);
@@ -701,7 +701,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		return UpdateType.Archive;
 	}
 
-	protected doQuitAndInstall(): void {
+	protected doQuitAndInstall(options?: IQuitAndInstallOptions): void {
 		// noop
 	}
 

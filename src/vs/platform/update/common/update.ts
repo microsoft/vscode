@@ -107,6 +107,15 @@ export interface IAutoUpdater extends Event.NodeEventEmitter {
 
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
+export interface IQuitAndInstallOptions {
+
+	/**
+	 * Relaunch without activating the application, so that the restart does
+	 * not take focus. Only supported on macOS; ignored on other platforms.
+	 */
+	readonly relaunchInBackground?: boolean;
+}
+
 export interface IUpdateService {
 	readonly _serviceBrand: undefined;
 
@@ -116,7 +125,7 @@ export interface IUpdateService {
 	checkForUpdates(explicit: boolean): Promise<void>;
 	downloadUpdate(explicit: boolean): Promise<void>;
 	applyUpdate(): Promise<void>;
-	quitAndInstall(): Promise<void>;
+	quitAndInstall(options?: IQuitAndInstallOptions): Promise<void>;
 
 	/**
 	 * @deprecated This method should not be used any more. It will be removed in a future release.

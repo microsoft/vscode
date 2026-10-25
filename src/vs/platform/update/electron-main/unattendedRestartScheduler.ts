@@ -21,6 +21,7 @@ import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/teleme
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IUpdateService, StateType } from '../common/update.js';
+import { isCommit } from './relaunchInBackground.js';
 import { getRelaunchArguments } from './updateRelaunchArguments.js';
 
 /**
@@ -157,9 +158,10 @@ export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWind
 type UnattendedRestartOutcome = 'restarting' | 'eligible' | 'blocked';
 
 /**
- * Restarts to apply a downloaded update while the user is away, but only when the
- * application was in the foreground when the screen got locked and every window
- * reports that it can be restored exactly as it is. When `update.restartWhenIdle`
+ * Restarts to apply a downloaded update while the user is away, but only when every
+ * window reports that it can be restored exactly as it is. The restart does not change
+ * which application has focus: unless VS Code was the active application when the
+ * screen got locked, it relaunches in the background. When `update.restartWhenIdle`
  * is disabled, the same checks run to measure how often a restart would apply.
  */
 export class UnattendedRestartScheduler extends Disposable {
@@ -169,7 +171,7 @@ export class UnattendedRestartScheduler extends Disposable {
 	}, 0));
 
 	private lockedSince: number | undefined;
-	private focusedWhenLocked = false;
+	private activeWhenLocked = false;
 	private lastWindowBlur: number | undefined;
 	private attempts = 0;
 	private lastBlockers: readonly string[] | undefined;
@@ -212,7 +214,7 @@ export class UnattendedRestartScheduler extends Disposable {
 
 	private onDidLockScreen(): void {
 		this.lockedSince = Date.now();
-		this.focusedWhenLocked = this.host.isWindowFocused() || (this.lastWindowBlur !== undefined && this.lockedSince - this.lastWindowBlur <= FOCUS_LOSS_AT_LOCK_GRACE_PERIOD);
+		this.activeWhenLocked = this.host.isWindowFocused() || (this.lastWindowBlur !== undefined && this.lockedSince - this.lastWindowBlur <= FOCUS_LOSS_AT_LOCK_GRACE_PERIOD);
 		this.attempts = 0;
 		this.lastBlockers = undefined;
 		this.isDone = false;
@@ -291,8 +293,8 @@ export class UnattendedRestartScheduler extends Disposable {
 				return;
 			}
 
-			this.logService.info('update#unattendedRestart - restarting to apply the update while the screen is locked');
-			await this.updateService.quitAndInstall();
+			this.logService.info(`update#unattendedRestart - restarting ${this.activeWhenLocked ? 'in the foreground' : 'in the background'} to apply the update while the screen is locked`);
+			await this.updateService.quitAndInstall({ relaunchInBackground: !this.activeWhenLocked });
 
 			if (this.hasUpdateState(StateType.Restarting)) {
 				this.reportOutcome('restarting', []);
@@ -313,12 +315,14 @@ export class UnattendedRestartScheduler extends Disposable {
 	}
 
 	private async getBlockers(): Promise<string[]> {
-		if (!this.focusedWhenLocked) {
-			return ['app.notFocusedWhenLocked']; // the relaunched windows would take focus from another application
-		}
-
 		const windows = this.windowsMainService.getWindows();
-		const blockers = new Set(getWindowBlockers(windows, this.auxiliaryWindowsMainService.getWindows(), this.os));
+		const auxiliaryWindows = this.auxiliaryWindowsMainService.getWindows();
+		const blockers = new Set(getWindowBlockers(windows, auxiliaryWindows, this.os));
+		if (!this.activeWhenLocked) {
+			for (const blocker of this.getBackgroundRelaunchBlockers(auxiliaryWindows)) {
+				blockers.add(blocker);
+			}
+		}
 		if (this.dialogMainService.hasOpenDialogs()) {
 			blockers.add('app.dialogOpen');
 		}
@@ -346,6 +350,26 @@ export class UnattendedRestartScheduler extends Disposable {
 		return Array.from(blockers).sort();
 	}
 
+	/**
+	 * Returns why relaunching without taking focus from the active application is not possible.
+	 */
+	private getBackgroundRelaunchBlockers(auxiliaryWindows: readonly IBaseWindow[]): string[] {
+		if (this.os !== OperatingSystem.Macintosh) {
+			return ['app.backgroundRelaunchUnsupported'];
+		}
+
+		const blockers: string[] = [];
+		if (auxiliaryWindows.length > 0) {
+			blockers.push('window.auxiliary'); // floating windows are restored by showing them, which activates the application
+		}
+		const state = this.updateService.state;
+		if (state.type === StateType.Ready && !isCommit(state.update.version)) {
+			blockers.push('update.unknownVersion'); // the relaunch waits for this commit to be installed
+		}
+
+		return blockers;
+	}
+
 	private async getWindowReadinessBlockers(window: ICodeWindow): Promise<readonly string[]> {
 		try {
 			const readiness = await raceTimeout(this.options.getWindowReadiness(window), WINDOW_READINESS_TIMEOUT);
@@ -369,6 +393,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		type UnattendedRestartEvent = {
 			outcome: UnattendedRestartOutcome;
 			blockers: string;
+			inBackground: boolean;
 			attempts: number;
 			lockedMinutes: number;
 		};
@@ -377,6 +402,7 @@ export class UnattendedRestartScheduler extends Disposable {
 			comment: 'Tracks whether a downloaded update could be applied by restarting while the screen was locked, to learn how often this applies and what prevents it.';
 			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the application restarted, would have restarted if the setting was enabled, or was blocked for the whole time the screen was locked.' };
 			blockers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Sorted, comma separated identifiers of the conditions that blocked the most recent attempt.' };
+			inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether another application was active when the screen got locked, so that the restart must not take focus.' };
 			attempts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of restart attempts while the screen was locked.' };
 			lockedMinutes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Minutes since the screen was locked or the machine resumed while locked.' };
 		};
@@ -384,6 +410,7 @@ export class UnattendedRestartScheduler extends Disposable {
 		this.telemetryService.publicLog2<UnattendedRestartEvent, UnattendedRestartClassification>('update:unattendedRestart', {
 			outcome,
 			blockers: blockers.join(','),
+			inBackground: !this.activeWhenLocked,
 			attempts: this.attempts,
 			lockedMinutes: this.lockedSince === undefined ? 0 : Math.round((Date.now() - this.lockedSince) / 60_000),
 		});
