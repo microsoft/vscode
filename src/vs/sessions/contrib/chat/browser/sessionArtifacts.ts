@@ -46,7 +46,7 @@ import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '..
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getChatSessionArtifacts, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
+import { getChatSessionArtifacts, getSessionArtifactKey, SessionArtifactKind, type IChat, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ArtifactIntegrationPresentation, IArtifactDetailsHost } from './artifactIntegrationPresentation.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
@@ -107,7 +107,7 @@ function artifactValueKey(artifact: ISessionArtifact): string {
 	if (artifact.uri) {
 		return getChatImageResourceComparisonKey(artifact.uri);
 	}
-	return (artifact.link?.toString() ?? artifact.commitHash ?? artifact.id).toLowerCase();
+	return getSessionArtifactKey(artifact) ?? artifact.id;
 }
 
 /**

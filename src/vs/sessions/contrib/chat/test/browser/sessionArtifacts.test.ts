@@ -680,7 +680,8 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['gitlab-pr', 'file'],
-			references: ['referenced-pr', 'referenced-promoted-pr', 'referenced-discovered-pr', 'foreign-pr-reference', 'referenced-issue', 'referenced-promoted-issue'],
+			// References repeating a created pull request or issue in this chat fold into it.
+			references: ['referenced-pr', 'referenced-discovered-pr', 'foreign-pr-reference', 'referenced-issue'],
 		});
 	});
 
@@ -862,6 +863,31 @@ suite('Session Artifacts', () => {
 			main: { integrated: ['legacy-pr', 'other-pr'], pullRequestPill: ['legacy-pr', 'other-pr'] },
 			peer: { integrated: ['peer-pr'], pullRequestPill: ['peer-pr'] },
 			sessionWide: { integrated: ['legacy-pr', 'peer-pr', 'other-pr'], pullRequestPill: ['legacy-pr', 'other-pr'] },
+		});
+	});
+
+	test('matches GitHub links irrespective of case and trailing slash but keeps case-distinct resources apart', async () => {
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
+			{ id: 'pr-slash', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/Owner/Repo/pull/1/') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/issues/2') },
+			{ id: 'issue-slash', kind: SessionArtifactKind.Issue, label: 'Issue', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/repo/issues/2/') },
+			{ id: 'upper-file', kind: SessionArtifactKind.File, label: 'Report', isArtifact: true, uri: URI.file('/repo/Report.md') },
+			{ id: 'lower-file', kind: SessionArtifactKind.File, label: 'report', isArtifact: true, uri: URI.file('/repo/report.md') },
+			{ id: 'upper-site', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/Docs?q=A') },
+			{ id: 'lower-site', kind: SessionArtifactKind.Website, label: 'docs', isArtifact: true, link: URI.parse('https://example.com/docs?q=a') },
+		];
+		const { presentation } = createPresentation(entries);
+		const { presentation: integrations } = createPresentation(entries, undefined, undefined, undefined, false, undefined, false, true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			artifacts: visibleEntries(presentation).artifacts,
+			integrated: integrations.integratedEntries.get().map(entry => entry.id),
+		}, {
+			// The pull request and issue are promoted into their own pills.
+			artifacts: ['upper-site', 'lower-site', 'upper-file', 'lower-file'],
+			integrated: ['pr', 'issue', 'upper-file', 'lower-file', 'upper-site', 'lower-site'],
 		});
 	});
 

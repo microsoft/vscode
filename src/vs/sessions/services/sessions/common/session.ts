@@ -10,6 +10,7 @@ import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey, parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -314,9 +315,28 @@ export interface ISessionArtifact {
 }
 
 /**
+ * Identity of the resource an entry points to. GitHub pull request and issue links ignore case and trailing
+ * slashes, like the pull request and issue pills; other links and resources compare exactly, since their paths
+ * and queries can be case-sensitive. Commit hashes ignore case.
+ */
+export function getSessionArtifactKey(artifact: ISessionArtifact): string | undefined {
+	if (artifact.link) {
+		const link = artifact.link.toString(true);
+		return parseGitHubPullRequestUrl(link) || parseGitHubIssueUrl(link)
+			? `github:${getPullRequestUrlKey(link)}`
+			: `link:${artifact.link.toString()}`;
+	}
+	if (artifact.uri) {
+		return `uri:${artifact.uri.toString()}`;
+	}
+	const commitHash = artifact.commitHash?.trim().toLowerCase();
+	return commitHash ? `commit:${commitHash}` : undefined;
+}
+
+/**
  * The entries a chat-scoped surface for `chat` shows: only those the chat recorded, where unowned legacy
  * entries belong to the main chat (or to any chat while the main chat is unknown). A chat shows each resource
- * once, preferring an artifact over a reference. Without a chat, every chat's entries are shown, so chats that
+ * (see {@link getSessionArtifactKey}) once, preferring an artifact over a reference. Without a chat, every chat's entries are shown, so chats that
  * recorded the same resource each keep theirs.
  */
 export function getChatSessionArtifacts(session: ISession | undefined, chat: IChat | undefined, reader: IReader | undefined): readonly ISessionArtifact[] {
@@ -328,7 +348,7 @@ export function getChatSessionArtifacts(session: ISession | undefined, chat: ICh
 		if (chat && owner && !isEqual(owner, chat.resource)) {
 			continue;
 		}
-		const value = (artifact.link?.toString() ?? artifact.uri?.toString() ?? artifact.commitHash)?.trim().toLowerCase();
+		const value = getSessionArtifactKey(artifact);
 		if (!value) {
 			result.push(artifact);
 			continue;
