@@ -34,7 +34,7 @@ import { Menus } from '../../../../../browser/menus.js';
 import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
 import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../browser/remotesModel.js';
 import { RemotesEditor } from '../../electron-browser/remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../chat/common/constants.js';
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
@@ -68,7 +68,7 @@ suite('RemotesEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createEditor() {
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true });
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiation = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
@@ -120,16 +120,20 @@ suite('RemotesEditor', () => {
 		});
 	});
 
-	test('offers the open command in the Command Palette and Sessions overflow only with management, AI and remote gates', () => {
+	test('offers the open command in the Command Palette and Sessions overflow only with management, Environment picker, AI and remote gates', () => {
 		const menuIds = [MenuId.CommandPalette, Menus.SidebarSessionsHeader];
 		const items = menuIds.map(menu => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === OPEN_REMOTES_EDITOR_COMMAND_ID));
-		const scenarios: Record<string, boolean>[] = [
-			{ [ChatContextKeys.enabled.key]: true, [`config.${RemoteAgentHostsEnabledSettingId}`]: true, [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`]: true },
-			{ [ChatContextKeys.enabled.key]: false, [`config.${RemoteAgentHostsEnabledSettingId}`]: true, [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`]: true },
-			{ [ChatContextKeys.enabled.key]: true, [`config.${RemoteAgentHostsEnabledSettingId}`]: false, [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`]: true },
-			{ [ChatContextKeys.enabled.key]: true, [`config.${RemoteAgentHostsEnabledSettingId}`]: true, [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`]: true, [IsPhoneLayoutContext.key]: true },
-			{ [ChatContextKeys.enabled.key]: true, [`config.${RemoteAgentHostsEnabledSettingId}`]: true, [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`]: false },
-			{ [ChatContextKeys.enabled.key]: true, [`config.${RemoteAgentHostsEnabledSettingId}`]: true },
+		const enabled: Record<string, boolean> = {
+			[ChatContextKeys.enabled.key]: true,
+			[`config.${RemoteAgentHostsEnabledSettingId}`]: true,
+			[`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`]: true,
+			[`config.${ENVIRONMENT_PICKER_SETTING}`]: true,
+		};
+		const scenarios = [
+			enabled,
+			...Object.keys(enabled).map(key => ({ ...enabled, [key]: false })),
+			{ ...enabled, [IsPhoneLayoutContext.key]: true },
+			{},
 		];
 		assert.deepStrictEqual({
 			counts: items.map(entries => entries.length),
@@ -145,7 +149,7 @@ suite('RemotesEditor', () => {
 			counts: [1, 1],
 			titles: ['Manage Remote Environments', 'Manage Remote Environments'],
 			overflowGroup: 'manage',
-			visibility: [[true, true], [false, false], [false, false], [true, false], [false, false], [false, false]],
+			visibility: [[true, true], [false, false], [false, false], [false, false], [false, false], [true, false], [false, false]],
 		});
 	});
 
@@ -195,23 +199,25 @@ suite('RemotesEditor', () => {
 		}, { disposed: true, widgets: 0, disabled: true, text: 'Remote agent hosts are disabled.' });
 	});
 
-	test('disposes an open management widget when the management setting is disabled', async () => {
-		const { editor, model, container, input, configuration } = createEditor();
-		model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
-		await editor.setInput(input, undefined, {}, CancellationToken.None);
-		editor.setVisible(true);
-		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, false);
-		configuration.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER, affectedKeys: new Set([ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]),
-			change: { keys: [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING], overrides: [] },
-			affectsConfiguration: key => key === ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING,
+	for (const setting of [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING]) {
+		test(`disposes an open management widget when ${setting} is disabled`, async () => {
+			const { editor, model, container, input, configuration } = createEditor();
+			model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			editor.setVisible(true);
+			await configuration.setUserConfiguration(setting, false);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER, affectedKeys: new Set([setting]),
+				change: { keys: [setting], overrides: [] },
+				affectsConfiguration: key => key === setting,
+			});
+			await model.pendingRefresh.complete([]);
+			assert.deepStrictEqual({
+				disposed: model.disposed, canceled: model.refreshTokens[0].isCancellationRequested,
+				widgets: container.querySelectorAll('.remotes-widget').length, message: editor.getAccessibilityContent(),
+			}, { disposed: true, canceled: true, widgets: 0, message: setting === ENVIRONMENT_PICKER_SETTING ? 'The Environment picker is disabled.' : 'Remote Environments management is disabled.' });
 		});
-		await model.pendingRefresh.complete([]);
-		assert.deepStrictEqual({
-			disposed: model.disposed, canceled: model.refreshTokens[0].isCancellationRequested,
-			widgets: container.querySelectorAll('.remotes-widget').length, message: editor.getAccessibilityContent(),
-		}, { disposed: true, canceled: true, widgets: 0, message: 'Remote Environments management is disabled.' });
-	});
+	}
 
 	test('Manage routes through the editor service without constructing the Customizations editor', async () => {
 		const { instantiation, configuration } = createEditor();
@@ -228,6 +234,9 @@ suite('RemotesEditor', () => {
 		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, false);
 		await assert.rejects(async () => instantiation.invokeFunction(accessor => command.handler(accessor)), /management is disabled/);
 		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true);
+		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, false);
+		await assert.rejects(async () => instantiation.invokeFunction(accessor => command.handler(accessor)), /Environment picker is disabled/);
+		await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
 		await assert.rejects(async () => instantiation.invokeFunction(accessor => command.handler(accessor)), /disabled/);
 		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
