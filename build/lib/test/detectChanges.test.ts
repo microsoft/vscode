@@ -232,4 +232,20 @@ suite('Detect Changes', () => {
 			.map(([id]) => id);
 		assert.deepStrictEqual(testJobs.sort(), checks.flatMap(({ parts }) => parts.map(({ job }) => job)).sort());
 	});
+
+	test('PR Gate reports the result of every other job of the workflow', () => {
+		const { jobs } = loadWorkflow();
+		const gate = jobs['pr-gate'];
+		// required-checks only reports the test jobs again, under the legacy required check names.
+		const otherJobs = Object.keys(jobs).filter(id => id !== 'pr-gate' && id !== 'required-checks');
+		assert.deepStrictEqual({
+			name: gate.name,
+			if: gate.if,
+			needs: [gate.needs ?? []].flat().sort(),
+		}, {
+			name: 'PR Gate',
+			if: '${{ always() }}',
+			needs: otherJobs.sort(),
+		});
+	});
 });
