@@ -16,7 +16,7 @@ import { createErrorWithActions, isErrorWithActions } from '../../../../../base/
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,6 +35,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import type { ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -54,8 +55,9 @@ import { SessionComparisonModelSelection } from '../../browser/sessionComparison
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -324,7 +326,6 @@ interface IRenderSessionTypePickerHarness {
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly _environment: ReturnType<typeof observableValue<ISessionCreationEnvironment | undefined>>;
-	readonly _environmentPickerBeforeWorkspace: ReturnType<typeof observableValue<boolean>>;
 	readonly _environmentPicker: { readonly isVisible: IObservable<boolean>; render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } };
 	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
@@ -347,6 +348,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
+	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers;
 	readonly _onDidChangeChatPetPlatform: Emitter<void>;
 	readonly telemetryService: ITelemetryService;
 }
@@ -375,6 +377,12 @@ interface INoWorkspaceOptionHarness {
 interface IWorkspaceRootsHarness {
 	readonly _isQuickChatComposer: IObservable<boolean>;
 	readonly _workspacePicker: { readonly selectedFolderUri: URI | undefined };
+}
+
+interface ICanSendRequestToWorkspaceHarness {
+	readonly _workspacePicker: Pick<WorkspacePicker, 'selectedFolderUri' | 'matchesSelectedWorkspace' | 'getDevContainerWorkspaceAvailability'>;
+	readonly sessionsProvidersService: Pick<ISessionsProvidersService, 'getProviders'>;
+	readonly sessionsManagementService: Pick<ISessionsManagementService, 'isQuickChatTargetAvailable'>;
 }
 
 interface IRestoreNoWorkspaceDraftHarness {
@@ -420,11 +428,17 @@ interface IClearWorkspaceHarness {
 }
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
+const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
+	iconOnlyPickerIds: constObservable(new Set<string>()),
+	getPickerId: () => undefined,
+	showContextMenu: () => { },
+};
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
+const canSendRequestToWorkspace = Reflect.get(NewChatWidget.prototype, '_canSendRequestToWorkspace') as (this: ICanSendRequestToWorkspaceHarness, session: ISession, environment: ISessionCreationEnvironment, reader: IReader) => boolean;
 const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
 const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined) => Promise<void>;
 const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: IClearWorkspaceHarness, folderUri: URI | undefined) => Promise<void>;
@@ -560,6 +574,79 @@ suite('NewChatWidget', () => {
 		const container: ISessionCreationEnvironment = { ...local, id: 'container:local', kind: 'container' };
 		const folder = URI.file('/project');
 
+		test('legacy environment reconciliation keeps provider ordering and container metadata unchanged', () => {
+			const first = { ...local, id: 'first-local' };
+			const second = { ...local, id: 'second-local' };
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('picked', second);
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: picked,
+				_environments: constObservable([first, second]),
+				_pickedEnvironment: picked,
+			});
+			const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: NewChatWidget, options: ISelectWorkspaceOptions) => void;
+			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+			const localSelection = picked.get();
+			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true });
+			assert.deepStrictEqual({ localSelection, containerSelection: picked.get() }, {
+				localSelection: first,
+				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container', icon: Codicon.remote },
+			});
+		});
+
+		test('automatic workspace restoration does not pin Cloud before This Computer registers', async () => {
+			const environments = observableValue<readonly ISessionCreationEnvironment[]>('environments', [cloud]);
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', undefined);
+			const environment = derived(reader => picked.read(reader)
+				?? getDefaultSessionCreationEnvironment(environments.read(reader), folder, 'cloud'));
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: environment,
+				_environments: environments,
+				_pickedEnvironment: picked,
+				_workspaceOptOutEnabled: constObservable(false),
+				uriIdentityService: { extUri },
+				_workspacePicker: {
+					selectedResolved: { providerId: 'cloud' },
+					getEnvironmentWorkspace: () => undefined,
+				},
+				_isCurrentWorkspaceSelection: () => false,
+				_onWorkspaceSelected: async () => { },
+				_newChatInput: { focus: () => { } },
+			});
+			const initialEnvironment = environment.get()?.id;
+
+			await handleWorkspaceSelection.call(widget, folder);
+			environments.set([cloud, local], undefined);
+
+			assert.deepStrictEqual({ initialEnvironment, selected: environment.get()?.id, picked: picked.get()?.id }, {
+				initialEnvironment: 'cloud',
+				selected: 'local',
+				picked: undefined,
+			});
+		});
+
+		test('workspace selection preserves an explicit environment selection', async () => {
+			const updatedCloud: ISessionCreationEnvironment = { ...cloud, label: 'Updated Cloud', providerIds: ['new-cloud-provider'] };
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', cloud);
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: constObservable(cloud),
+				_environments: constObservable([updatedCloud]),
+				_pickedEnvironment: picked,
+				_workspaceOptOutEnabled: constObservable(false),
+				uriIdentityService: { extUri },
+				_workspacePicker: {
+					selectedResolved: { providerId: 'new-cloud-provider' },
+					getEnvironmentWorkspace: () => undefined,
+				},
+				_isCurrentWorkspaceSelection: () => false,
+				_onWorkspaceSelected: async () => { },
+				_newChatInput: { focus: () => { } },
+			});
+
+			await handleWorkspaceSelection.call(widget, folder);
+
+			assert.strictEqual(picked.get(), cloud);
+		});
+
 		function createHarness(compatible: boolean, onSelect: () => Promise<void> = async () => { }) {
 			const calls: string[] = [];
 			let selectedFolder: URI | undefined = folder;
@@ -568,7 +655,8 @@ suite('NewChatWidget', () => {
 			const providers = [LOCAL_AGENT_HOST_PROVIDER_ID, 'cloud'].map(id => upcastPartial<ISessionsProvider>({
 				id,
 				resolveWorkspace: () => id === 'cloud' && !compatible ? undefined : workspace,
-				getSessionTypes: () => [{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub }],
+				getSessionTypes: () => [{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true }],
+				setIsolationMode: async (_sessionId, isolation) => { calls.push(`isolation:${isolation}`); },
 			}));
 			const cancellable = (name: string) => {
 				const value = disposables.add(new MutableDisposable<IDisposable>());
@@ -577,9 +665,11 @@ suite('NewChatWidget', () => {
 			};
 			const harness = {
 				_environment: derived(reader => picked.read(reader) ?? local),
+				_environmentWorkspaceChanged: { trigger: () => { } },
 				_pickedEnvironment: picked,
-				_session: constObservable({ sessionType: 'copilot' }),
+				_session: constObservable({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot', isCreated: constObservable(false) }),
 				_workspaceOptOutEnabled: constObservable(false),
+				_workspaceOptOutTarget: constObservable(undefined),
 				_preferredDevContainerFolderUri: undefined as URI | undefined,
 				_pendingPreferredUpgrade: cancellable('cancelUpgrade'),
 				_newSessionCreation: cancellable('cancelCreation'),
@@ -658,6 +748,7 @@ suite('NewChatWidget', () => {
 			const type = { id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub };
 			const remoteTarget = { providerId: remote.id, sessionType: type };
 			const localTarget = { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: type };
+			const cloudTarget = { providerId: 'cloud', sessionType: { ...type, id: 'cloud' } };
 			const targets = observableValue('targets', [remoteTarget, localTarget]);
 			let selectedFolder: URI | undefined = quickChat ? undefined : folder;
 			let noWorkspaceSelected = quickChat;
@@ -732,7 +823,7 @@ suite('NewChatWidget', () => {
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: NewChatWidget, environment: ISessionCreationEnvironment) => Promise<void>;
 			const restore = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: NewChatWidget) => Promise<void>;
 			return {
-				widget, targetHarness, session, picked, remote, tunnel, targets, remoteTarget, localTarget, opened, errors, announcements, traces,
+				widget, targetHarness, session, picked, remote, tunnel, targets, remoteTarget, localTarget, cloudTarget, opened, errors, announcements, traces,
 				select: async (environment: ISessionCreationEnvironment) => {
 					await select.call(widget, environment);
 					await pendingSelection;
@@ -796,6 +887,87 @@ suite('NewChatWidget', () => {
 			await state.select(local);
 			assert.deepStrictEqual({ inCloud, providerId: state.session.get()?.providerId }, {
 				inCloud: undefined, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			});
+		});
+
+		for (const { quickChat, optOutEnabled } of [
+			{ quickChat: true, optOutEnabled: true },
+			{ quickChat: false, optOutEnabled: true },
+			{ quickChat: true, optOutEnabled: false },
+		]) {
+			test(`switches to a supported Cloud quick chat (quick chat: ${quickChat}, workspace opt-out: ${optOutEnabled})`, async () => {
+				const state = createFolderlessHarness(quickChat, optOutEnabled);
+				state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+				await state.select(cloud);
+				await state.restore();
+
+				assert.deepStrictEqual({
+					providerId: state.session.get()?.providerId,
+					sessionType: state.session.get()?.sessionType,
+					workspace: state.session.get()?.workspace.get(),
+					noWorkspaceSelected: state.noWorkspaceSelected,
+					opened: state.opened,
+				}, {
+					providerId: 'cloud', sessionType: 'cloud', workspace: undefined, noWorkspaceSelected: true,
+					opened: [{ providerId: 'cloud' }],
+				});
+			});
+		}
+
+		test('explicit Chat selection stays in Cloud when repository-less chats become available', async () => {
+			const state = createFolderlessHarness();
+			await state.select(cloud);
+			state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+			state.widget.selectNoWorkspace();
+
+			assert.deepStrictEqual({
+				providerId: state.session.get()?.providerId,
+				environment: state.picked.get()?.id,
+				noWorkspaceSelected: state.noWorkspaceSelected,
+				opened: state.opened,
+			}, {
+				providerId: 'cloud', environment: 'cloud', noWorkspaceSelected: true,
+				opened: [{ providerId: 'cloud' }],
+			});
+		});
+
+		test('restores a repository-less Cloud draft without choosing another environment', async () => {
+			const state = createFolderlessHarness();
+			state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+			await state.select(cloud);
+			state.session.set(undefined, undefined);
+			state.opened.length = 0;
+			await state.restore();
+
+			assert.deepStrictEqual({
+				providerId: state.session.get()?.providerId,
+				environment: state.picked.get()?.id,
+				opened: state.opened,
+			}, {
+				providerId: 'cloud', environment: 'cloud', opened: [{ providerId: 'cloud' }],
+			});
+		});
+
+		test('reseeds a Cloud quick chat after a background send and stops when support is withdrawn', async () => {
+			const state = createFolderlessHarness();
+			state.targets.set([state.remoteTarget, state.localTarget, state.cloudTarget], undefined);
+			await state.select(cloud);
+			state.opened.length = 0;
+			const open = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as (this: NewChatWidget) => IActiveSession | undefined;
+			const reseeded = open.call(state.widget);
+			state.targets.set([state.remoteTarget, state.localTarget], undefined);
+			const unavailable = open.call(state.widget);
+
+			assert.deepStrictEqual({
+				providerId: reseeded?.providerId,
+				unavailable,
+				opened: state.opened,
+				traces: state.traces,
+			}, {
+				providerId: 'cloud',
+				unavailable: undefined,
+				opened: [{ providerId: 'cloud', sessionTypeId: 'cloud' }],
+				traces: ['Waiting for a compatible quick-chat harness in environment \'cloud\' (providers: cloud).'],
 			});
 		});
 
@@ -933,30 +1105,6 @@ suite('NewChatWidget', () => {
 			});
 		}
 
-		test('switches to the selected workspace environment before creating a workspace-first draft', async () => {
-			const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
-			const picked = observableValue<ISessionCreationEnvironment | undefined>('environment', cloud);
-			const folderUri = URI.parse('vscode-agent-host://remote/project');
-			const calls: string[] = [];
-			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
-				_environment: picked,
-				_environments: constObservable([local, cloud, remote]),
-				_environmentPickerBeforeWorkspace: constObservable(false),
-				_pickedEnvironment: picked,
-				uriIdentityService: { extUri },
-				_workspaceOptOutEnabled: constObservable(false),
-				_workspacePicker: {
-					selectedResolved: { providerId: remote.providerIds[0] },
-					getEnvironmentWorkspace: () => undefined,
-				},
-				_isCurrentWorkspaceSelection: () => false,
-				_onWorkspaceSelected: async () => calls.push(`create:${picked.get()?.id}`),
-				_newChatInput: { focus: () => calls.push('focus') },
-			});
-			await handleWorkspaceSelection.call(widget, folderUri);
-			assert.deepStrictEqual({ environment: picked.get()?.id, calls }, { environment: remote.id, calls: ['create:remote', 'focus'] });
-		});
-
 		test('switching environments uses the matching checkout rather than the source device path', async () => {
 			const { harness, calls, select } = createHarness(true);
 			const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
@@ -990,6 +1138,42 @@ suite('NewChatWidget', () => {
 				})),
 			}), true, WorkspaceSelectionOrigin.RestoredDraft);
 			assert.strictEqual(picked.get()?.id, cloud.id);
+		});
+
+		test('restores a hidden remote Dev Container draft without choosing This Computer or unhiding the host', () => {
+			const folder = URI.parse('vscode-agent-host://ssh__host/project');
+			const workspace = upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] });
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-hidden', label: 'Hidden host', icon: Codicon.remote, environment: { id: 'remote', label: 'Remote' },
+				isVisibleInEnvironmentPicker: constObservable(false), isAvailableInEnvironmentPicker: constObservable(true),
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
+				isDevContainerEnabled: () => true, resolveWorkspace: () => workspace,
+			});
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('picked', undefined);
+			const selections: { providerId: string | undefined; preferDevContainer: boolean | undefined }[] = [];
+			const session = upcastPartial<IActiveSession>({ providerId: provider.id, sessionId: 'draft', workspace: constObservable(workspace) });
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: derived(reader => picked.read(reader) ?? local),
+				_environments: constObservable([local]),
+				_pickedEnvironment: picked,
+				sessionsProvidersService: { getProvider: () => provider, getProviders: () => [provider] },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => false },
+				_workspacePicker: {
+					selectedFolderUri: folder, getDevContainerWorkspaceAvailability: () => true,
+					setSelectedWorkspace: (_folder: URI, options: { providerId?: string; preferDevContainer?: boolean }) => selections.push({ providerId: options.providerId, preferDevContainer: options.preferDevContainer }),
+				},
+			});
+			syncWorkspacePickerDevContainerMode.call(widget, session, true, WorkspaceSelectionOrigin.RestoredDraft);
+			const environment = picked.get()!;
+			assert.deepStrictEqual({
+				environment: { id: environment.id, kind: environment.kind, providerIds: environment.providerIds },
+				canSend: derived(reader => canSendRequestToWorkspace.call(widget, session, environment, reader)).get(),
+				selection: selections.map(({ providerId, preferDevContainer }) => ({ providerId, preferDevContainer })),
+				picker: getSessionCreationEnvironments([provider]), hidden: provider.isVisibleInEnvironmentPicker?.get() === false,
+			}, {
+				environment: { id: `container:${provider.id}`, kind: 'container', providerIds: [provider.id] }, canSend: true,
+				selection: [{ providerId: provider.id, preferDevContainer: true }], picker: [], hidden: true,
+			});
 		});
 
 		for (const initial of [undefined, local, cloud, container]) {
@@ -1140,7 +1324,6 @@ suite('NewChatWidget', () => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const harness: IRenderWorkspacePickerHarness = {
 				_environment: observableValue('environment', undefined),
-				_environmentPickerBeforeWorkspace: observableValue('beforeWorkspace', false),
 				_environmentPicker: { isVisible: constObservable(false), render: () => assert.fail('No environment picker expected') },
 				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 				_workspacePicker: {
@@ -1166,6 +1349,7 @@ suite('NewChatWidget', () => {
 				_workspaceOptOutEnabled: observableValue('optOut', enabled),
 				_screenReaderOptimized: observableValue('screenReader', false),
 				_collapsedSessionOptionsShowIcons: observableValue('icons', false),
+				_iconOnlyPickers: noIconOnlyPickers,
 				_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 				telemetryService,
 			};
@@ -1216,7 +1400,6 @@ suite('NewChatWidget', () => {
 		let environmentRenderCount = 0;
 		const harness: IRenderWorkspacePickerHarness = {
 			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
-			_environmentPickerBeforeWorkspace: observableValue('environmentBeforeWorkspace', false),
 			_environmentPicker: {
 				isVisible: constObservable(true),
 				render: target => {
@@ -1289,6 +1472,7 @@ suite('NewChatWidget', () => {
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
 			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
+			_iconOnlyPickers: noIconOnlyPickers,
 			_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 			telemetryService,
 		};
@@ -1437,40 +1621,30 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(telemetryService.triggers, [`config.${COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING}`]);
 
 		harness._collapsedSessionOptionsShowIcons.set(false, undefined);
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
 		const gated = container.textContent?.includes('Environment') ?? false;
-		harness._environmentPickerBeforeWorkspace.set(false, undefined);
 		harness._environment.set({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
-		const environment = details.firstElementChild!;
+		const environment = harness._workspacePickerRow!.firstElementChild!;
 		const environmentTrigger = environment.querySelector<HTMLElement>('[role="button"]')!;
-		const afterWorkspace = { insideOptions: details.contains(environment), hidden: details.hidden, inert: details.inert };
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
-		const beforeWorkspace = { first: harness._workspacePickerRow?.firstElementChild === environment, visible: environmentTrigger.checkVisibility() };
+		const collapsedEnvironment = { outsideOptions: !details.contains(environment), visible: environmentTrigger.checkVisibility() };
 		environmentTrigger.focus();
 		press('Tab');
 		const nextControl = document.activeElement?.textContent;
 		press('ArrowLeft');
 		const previousControl = document.activeElement === environmentTrigger;
 		harness._sessionOptionsExpanded.set(true, undefined);
-		harness._environmentPickerBeforeWorkspace.set(false, undefined);
-		const restored = { insideOptions: details.firstElementChild === environment, focused: document.activeElement === environmentTrigger };
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		const expandedEnvironment = { first: harness._workspacePickerRow?.firstElementChild === environment, focused: document.activeElement === environmentTrigger };
 		harness._sessionOptionsExpanded.set(false, undefined);
-		environmentTrigger.focus();
-		harness._environmentPickerBeforeWorkspace.set(false, undefined);
-		const focusAfterHiding = document.activeElement === toggle;
-		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		const focusedAfterCollapse = document.activeElement === environmentTrigger;
 		harness._environment.set(undefined, undefined);
 		assert.deepStrictEqual({
-			gated, afterWorkspace, beforeWorkspace, nextControl, previousControl, restored, focusAfterHiding, environmentRenderCount, removed: !container.contains(environment),
+			gated, collapsedEnvironment, nextControl, previousControl, expandedEnvironment, focusedAfterCollapse, environmentRenderCount, removed: !container.contains(environment),
 		}, {
 			gated: false,
-			afterWorkspace: { insideOptions: true, hidden: true, inert: true },
-			beforeWorkspace: { first: true, visible: true },
+			collapsedEnvironment: { outsideOptions: true, visible: true },
 			nextControl: isWeb ? 'Select Repository' : 'Workspace',
 			previousControl: true,
-			restored: { insideOptions: true, focused: true },
-			focusAfterHiding: true,
+			expandedEnvironment: { first: true, focused: true },
+			focusedAfterCollapse: true,
 			environmentRenderCount: 1,
 			removed: true,
 		});
@@ -1886,6 +2060,67 @@ suite('NewChatWidget', () => {
 			});
 	});
 
+	test('offers repository-less Cloud chats only while the selected provider supports them', () => {
+		let supportsQuickChats = true;
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'default-copilot',
+			label: 'Cloud',
+			get supportsQuickChats() { return supportsQuickChats; },
+		});
+		const localProvider = upcastPartial<ISessionsProvider>({
+			id: LOCAL_AGENT_HOST_PROVIDER_ID, label: 'This Computer', supportsQuickChats: true,
+		});
+		const selections: (ICreateNewSessionOptions | undefined)[] = [];
+		const harness: INoWorkspaceOptionHarness = {
+			_environment: constObservable({
+				id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: [provider.id],
+			}),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => [localProvider, provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: options => selections.push(options),
+		};
+		const option = getNoWorkspaceOption.call(harness);
+		option?.select();
+		supportsQuickChats = false;
+		option?.select();
+		const disabledOption = getNoWorkspaceOption.call(harness);
+		supportsQuickChats = true;
+		const restoredOption = getNoWorkspaceOption.call(harness);
+
+		assert.deepStrictEqual({
+			available: !!option,
+			hasSubmenu: !!option?.submenuActions,
+			disabled: !!disabledOption,
+			restored: !!restoredOption,
+			selections,
+		}, {
+			available: !isWeb, hasSubmenu: false, disabled: false, restored: !isWeb,
+			selections: isWeb ? [] : [{ providerId: provider.id }],
+		});
+	});
+
+	test('does not offer repository-less chats for Dev Containers even when their provider supports quick chats', () => {
+		const provider = upcastPartial<ISessionsProvider>({
+			id: LOCAL_AGENT_HOST_PROVIDER_ID, label: 'This Computer', supportsQuickChats: true,
+		});
+		const option = getNoWorkspaceOption.call({
+			_environment: constObservable<ISessionCreationEnvironment>({
+				id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [provider.id],
+			}),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => [provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => assert.fail('Dev Containers require a workspace'),
+		});
+
+		assert.strictEqual(option, undefined);
+	});
+
 	test('labels selected remote quick chats with their provider', () => {
 		const providers = [
 			upcastPartial<ISessionsProvider>({
@@ -1916,6 +2151,40 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(selectedLabels, isWeb
 			? [undefined, undefined, undefined]
 			: [undefined, 'Chat [Test Remote]', undefined]);
+	});
+
+	test('keeps Chat unqualified after selecting it in an explicit remote environment', () => {
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'agenthost-remote-test', label: 'benbox1', supportsQuickChats: true,
+		});
+		const selections: (ICreateNewSessionOptions | undefined)[] = [];
+		const isQuickChat = observableValue('isQuickChat', false);
+		const harness: INoWorkspaceOptionHarness = {
+			_environment: constObservable({
+				id: provider.id, kind: 'remote', label: provider.label, icon: Codicon.remote, providerIds: [provider.id],
+			}),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: isQuickChat,
+			_session: constObservable({ providerId: provider.id }),
+			sessionsProvidersService: { getProviders: () => [provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: options => {
+				selections.push(options);
+				isQuickChat.set(true, undefined);
+			},
+		};
+		const before = getNoWorkspaceOption.call(harness);
+		before?.select();
+		const after = getNoWorkspaceOption.call(harness);
+		assert.deepStrictEqual({
+			before: before && { selected: before.isSelected, selectedLabel: before.selectedLabel },
+			after: after && { selected: after.isSelected, selectedLabel: after.selectedLabel, submenuActions: after.submenuActions },
+			selections,
+		}, isWeb ? { before: undefined, after: undefined, selections: [] } : {
+			before: { selected: false, selectedLabel: undefined },
+			after: { selected: true, selectedLabel: undefined, submenuActions: undefined },
+			selections: [{ providerId: provider.id }],
+		});
 	});
 
 	test('hides offline Mission Control hosts from Chat while preserving the active chat label', () => {
@@ -2474,6 +2743,28 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('leaves local isolation to the repository picker when creating a draft', async () => {
+		const folder = URI.file('/project');
+		const calls: string[] = [];
+		const session = upcastPartial<IActiveSession>({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot' });
+		const harness = {
+			_environment: constObservable<ISessionCreationEnvironment>({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
+			_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
+			sessionsService: { openNewSession: async () => ({ session, trustDeclined: false }) },
+			sessionsProvidersService: {
+				getProvider: () => upcastPartial<ISessionsProvider>({
+					getSessionTypes: () => [{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true }],
+					setIsolationMode: async (id, mode) => { calls.push(`${id}:${mode}`); },
+				}),
+			},
+			_isPreferredServable: () => true,
+			logService: { error: () => assert.fail('unexpected creation error') },
+		};
+		await createSessionNow.call(harness, folder, undefined, CancellationToken.None);
+		assert.deepStrictEqual(calls, []);
+	});
+
 	test('requires container execution for every draft after harness changes and provider discovery', async () => {
 		const folder = URI.file('/project');
 		const requests: IOpenNewSessionOptions[] = [];
@@ -2849,6 +3140,129 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(selected, [
 			{ folder: otherCloudFolder.toString(), origin: WorkspaceSelectionOrigin.SessionSync },
 			{ folder: localFolder.toString(), origin: WorkspaceSelectionOrigin.SessionSync },
+		]);
+	});
+
+	test('cloud submission accepts the selected repository without requiring the local folder URI', () => {
+		const localFolder = URI.file('/project');
+		const cloudFolder = URI.parse('github-remote-file://github/owner/project/HEAD');
+		const workspace = upcastPartial<ISessionWorkspace>({
+			folders: [{ root: cloudFolder, workingDirectory: cloudFolder, name: 'project', description: undefined }],
+		});
+		const session = upcastPartial<ISession>({ providerId: 'cloud', workspace: constObservable(workspace) });
+		const environment: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'cloud',
+			resolveWorkspace: () => workspace,
+			getSessionTypes: () => [{ id: 'cloud', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.GitHub }],
+		});
+		const results = [
+			{ kind: 'cloud', matches: true, supported: true },
+			{ kind: 'cloud', matches: false, supported: true },
+			{ kind: 'cloud', matches: true, supported: false },
+			{ kind: 'local', matches: true, supported: true },
+			{ kind: 'remote', matches: true, supported: true },
+			{ kind: 'container', matches: true, supported: true },
+		].map(({ kind, matches, supported }) => derived(reader => canSendRequestToWorkspace.call({
+			_workspacePicker: {
+				selectedFolderUri: localFolder,
+				matchesSelectedWorkspace: (candidate, candidateReader) => {
+					assert.strictEqual(candidate, workspace);
+					assert.strictEqual(candidateReader, reader);
+					return matches;
+				},
+				getDevContainerWorkspaceAvailability: () => true,
+			},
+			sessionsProvidersService: { getProviders: () => supported ? [provider] : [] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => false },
+		}, session, { ...environment, kind: kind as ISessionCreationEnvironment['kind'] }, reader)).get());
+
+		assert.deepStrictEqual(results, [true, false, false, false, false, false]);
+	});
+
+	for (const quickChat of [false, true]) {
+		test(`hiding a selected remote preserves submission but offline and disconnected hosts remain blocked (quick chat: ${quickChat})`, () => {
+			const folder = URI.parse('vscode-agent-host://remote/project');
+			const workspace = upcastPartial<ISessionWorkspace>({
+				folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }],
+			});
+			const visible = observableValue('visible', true);
+			const available = observableValue('available', true);
+			const connection = observableValue<RemoteAgentHostConnectionStatus>('connection', RemoteAgentHostConnectionStatus.connected);
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-selected', isAvailableInEnvironmentPicker: available,
+				isVisibleInEnvironmentPicker: visible, connectionStatus: connection, resolveWorkspace: () => workspace,
+			});
+			const session = upcastPartial<ISession>({
+				providerId: provider.id, workspace: constObservable(quickChat ? undefined : workspace), isQuickChat: constObservable(quickChat),
+			});
+			const environment: ISessionCreationEnvironment = {
+				id: provider.id, kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: [provider.id],
+			};
+			const canSend = derived(reader => canSendRequestToWorkspace.call({
+				_workspacePicker: {
+					selectedFolderUri: quickChat ? undefined : folder, matchesSelectedWorkspace: () => true,
+					getDevContainerWorkspaceAvailability: () => true,
+				},
+				sessionsProvidersService: { getProviders: () => [provider] },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			}, session, environment, reader));
+			const states: boolean[] = [];
+			disposables.add(autorun(reader => states.push(canSend.read(reader))));
+			visible.set(false, undefined);
+			const hiddenCanSend = canSend.get();
+			available.set(false, undefined);
+			available.set(true, undefined);
+			connection.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			connection.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			assert.deepStrictEqual({ hiddenCanSend, states, remainsHidden: !visible.get() }, {
+				hiddenCanSend: true, states: [true, false, true, false, true], remainsHidden: true,
+			});
+		});
+	}
+
+	test('workspace-less submission requires an available quick-chat target, including in Cloud', () => {
+		const session = upcastPartial<ISession>({
+			providerId: 'default-copilot', sessionType: 'cloud',
+			isQuickChat: constObservable(true), workspace: constObservable(undefined),
+		});
+		const environment: ISessionCreationEnvironment = {
+			id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: [session.providerId],
+		};
+		const kinds: ISessionCreationEnvironment['kind'][] = ['cloud', 'local', 'remote', 'container'];
+		const results = kinds.map(kind => {
+			const available = observableValue('available', true);
+			const isQuickChat = observableValue('isQuickChat', true);
+			const canSend = derived(reader => {
+				const supportsQuickChats = available.read(reader);
+				return canSendRequestToWorkspace.call({
+					_workspacePicker: {
+						selectedFolderUri: undefined,
+						matchesSelectedWorkspace: () => assert.fail('A quick chat has no repository to resolve'),
+						getDevContainerWorkspaceAvailability: () => true,
+					},
+					sessionsProvidersService: { getProviders: () => [upcastPartial<ISessionsProvider>({ id: session.providerId })] },
+					sessionsManagementService: {
+						isQuickChatTargetAvailable: options => supportsQuickChats
+							&& options?.providerId === session.providerId && options.sessionTypeId === session.sessionType,
+					},
+				}, { ...session, isQuickChat }, { ...environment, kind }, reader);
+			});
+			const states = [canSend.get()];
+			available.set(false, undefined);
+			states.push(canSend.get());
+			available.set(true, undefined);
+			states.push(canSend.get());
+			isQuickChat.set(false, undefined);
+			states.push(canSend.get());
+			return { kind, states };
+		});
+
+		assert.deepStrictEqual(results, [
+			{ kind: 'cloud', states: [true, false, true, false] },
+			{ kind: 'local', states: [true, false, true, false] },
+			{ kind: 'remote', states: [true, false, true, false] },
+			{ kind: 'container', states: [false, false, false, false] },
 		]);
 	});
 
@@ -3383,6 +3797,7 @@ suite('NewChatWidget', () => {
 			let permissionLocked = false;
 			let containerRequested = false;
 			const navigation: string[] = [];
+			const selectionStatesDuringNavigation: { stage: string; enabled: boolean }[] = [];
 			const errors: Error[] = [];
 			const harness = {
 				_environment: environment,
@@ -3397,7 +3812,7 @@ suite('NewChatWidget', () => {
 					selectedFolderUri: workspace,
 					selectedResolved: {
 						workspace: upcastPartial<ISessionWorkspace>({
-							folders: [{ root: workspace, workingDirectory: workspace, name: 'workspace', description: undefined, gitRepository: upcastPartial<ISessionGitRepository>({ hasGitRemote: true }) }],
+							folders: [{ root: workspace, workingDirectory: workspace, name: 'workspace', description: undefined, gitRepository: upcastPartial<ISessionGitRepository>({ hasGitRemote: false }) }],
 						})
 					},
 				},
@@ -3468,6 +3883,7 @@ suite('NewChatWidget', () => {
 					getSessionTypesForFolder: () => [{ providerId: session.providerId, sessionType: { id: session.sessionType, label: 'Copilot', supportsWorktreeConfiguration: true } }],
 					discardNewSession: (draft: IActiveSession) => {
 						assert.strictEqual(draft, session);
+						selectionStatesDuringNavigation.push({ stage: 'discardDraft', enabled: selection.enabled.get() });
 						navigation.push('discardDraft');
 					},
 				},
@@ -3484,6 +3900,7 @@ suite('NewChatWidget', () => {
 				commandService: {
 					executeCommand: async (id: string, comparisonId: string) => {
 						assert.deepStrictEqual([id, comparisonId], ['sessions.openComparison', 'comparison']);
+						selectionStatesDuringNavigation.push({ stage: 'openGrid', enabled: selection.enabled.get() });
 						navigation.push('openGrid');
 						if (navigationFails) {
 							throw new Error('Navigation unavailable');
@@ -3536,7 +3953,7 @@ suite('NewChatWidget', () => {
 				evaluatorHarnesses: [options.judgeHarness?.sessionTypeId, options.synthesisHarness?.sessionTypeId],
 				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
 				workspace: options.workspace?.toString(), branch: options.branch, attachments: options.attachedContext,
-				enabled: selection.enabled.get(), navigation,
+				enabled: selection.enabled.get(), selectionStatesDuringNavigation, navigation,
 			}, {
 				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('bypassPermissions'),
 				modes: Array(runs).fill(undefined),
@@ -3551,7 +3968,13 @@ suite('NewChatWidget', () => {
 				evaluatorModes: quickChat ? [undefined, undefined] : [undefined, 'autopilot'],
 				judge: quickChat ? undefined : 'codex-judge', synthesizer: quickChat ? undefined : 'copilot-synthesizer',
 				evaluatorHarnesses: quickChat ? [undefined, undefined] : ['codex', 'copilotcli'], workspace: quickChat ? undefined : workspace.toString(), branch: quickChat ? undefined : 'feature',
-				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
+				attachments: [attachment], enabled: false,
+				selectionStatesDuringNavigation: !openInGrid
+					? [{ stage: 'discardDraft', enabled: true }]
+					: navigationFails
+						? [{ stage: 'openGrid', enabled: true }]
+						: [{ stage: 'openGrid', enabled: true }, { stage: 'discardDraft', enabled: true }],
+				navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
 			});
 		});
 	}
@@ -3739,151 +4162,7 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
-	test('hides comparison action when selected repository has no Git remote', () => {
-		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
-			folders: [{
-				root: URI.file('/workspace'),
-				workingDirectory: URI.file('/workspace'),
-				name: 'workspace',
-				description: undefined,
-				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(true),
-					branchName: 'main',
-					hasGitRemote: true,
-				}),
-			}],
-		});
-		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
-			folders: [{
-				root: URI.file('/workspace'),
-				workingDirectory: URI.file('/workspace'),
-				name: 'workspace',
-				description: undefined,
-				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(true),
-					branchName: 'main',
-					hasGitRemote: false,
-				}),
-			}],
-		});
-		const session = upcastPartial<ISession>({
-			sessionId: 'session',
-			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
-			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-			workspace: constObservable(sessionWorkspace),
-		});
-		const harness: IComparisonActionVisibilityHarness = {
-			_environment: constObservable(undefined),
-			_compareAgentsEnabled: constObservable(true),
-			_pendingPreferredUpgrade: { value: undefined },
-			_newSessionCreation: { value: undefined },
-			_session: constObservable(session),
-			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace: selectedWorkspace } },
-			sessionsProvidersService: {
-				getProvider: () => ({
-					id: LOCAL_AGENT_HOST_PROVIDER_ID,
-					getCreateSessionConfig: () => undefined,
-					isSessionConfigResolving: () => constObservable(false),
-				}),
-			},
-			_getComparisonBranch: getComparisonBranch,
-		};
-
-		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
-	});
-
-	test('hides comparison action when selected workspace omits remote and session metadata says no remote', () => {
-		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
-			folders: [{
-				root: URI.file('/workspace'),
-				workingDirectory: URI.file('/workspace'),
-				name: 'workspace',
-				description: undefined,
-				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(true),
-					branchName: 'main',
-					hasGitRemote: false,
-				}),
-			}],
-		});
-		const selectedWorkspace = upcastPartial<ISessionWorkspace>({
-			folders: [{
-				root: URI.file('/workspace'),
-				workingDirectory: URI.file('/workspace'),
-				name: 'workspace',
-				description: undefined,
-				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(true),
-					branchName: 'main',
-				}),
-			}],
-		});
-		const session = upcastPartial<ISession>({
-			sessionId: 'session',
-			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
-			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-			workspace: constObservable(sessionWorkspace),
-		});
-		const harness: IComparisonActionVisibilityHarness = {
-			_environment: constObservable(undefined),
-			_compareAgentsEnabled: constObservable(true),
-			_pendingPreferredUpgrade: { value: undefined },
-			_newSessionCreation: { value: undefined },
-			_session: constObservable(session),
-			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace: selectedWorkspace } },
-			sessionsProvidersService: {
-				getProvider: () => ({
-					id: LOCAL_AGENT_HOST_PROVIDER_ID,
-					getCreateSessionConfig: () => undefined,
-					isSessionConfigResolving: () => constObservable(false),
-				}),
-			},
-			_getComparisonBranch: getComparisonBranch,
-		};
-
-		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
-	});
-
-	test('hides comparison action until Git remote metadata resolves', () => {
-		const workspace = upcastPartial<ISessionWorkspace>({
-			folders: [{
-				root: URI.file('/workspace'),
-				workingDirectory: URI.file('/workspace'),
-				name: 'workspace',
-				description: undefined,
-				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(true),
-					branchName: 'main',
-				}),
-			}],
-		});
-		const session = upcastPartial<ISession>({
-			sessionId: 'session',
-			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
-			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-			workspace: constObservable(workspace),
-		});
-		const harness: IComparisonActionVisibilityHarness = {
-			_environment: constObservable(undefined),
-			_compareAgentsEnabled: constObservable(true),
-			_pendingPreferredUpgrade: { value: undefined },
-			_newSessionCreation: { value: undefined },
-			_session: constObservable(session),
-			_workspacePicker: { selectedFolderUri: URI.file('/workspace'), selectedResolved: { workspace } },
-			sessionsProvidersService: {
-				getProvider: () => ({
-					id: LOCAL_AGENT_HOST_PROVIDER_ID,
-					getCreateSessionConfig: () => undefined,
-					isSessionConfigResolving: () => constObservable(false),
-				}),
-			},
-			_getComparisonBranch: getComparisonBranch,
-		};
-
-		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
-	});
-
-	test('offers comparison only outside selected or draft-requested Dev Containers', () => {
+	test('offers comparison without a remote outside selected or draft-requested Dev Containers', () => {
 		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
 		let containerRequested = false;
 		const workspace = upcastPartial<ISessionWorkspace>({
@@ -3893,9 +4172,9 @@ suite('NewChatWidget', () => {
 				name: 'workspace',
 				description: undefined,
 				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(false),
+					isRepository: constObservable(true),
 					branchName: 'main',
-					hasGitRemote: true,
+					hasGitRemote: false,
 				}),
 			}],
 		});
@@ -4054,7 +4333,7 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('hides the comparison action while Git remote metadata is resolving', () => {
+	test('hides the comparison action while Git branch metadata is resolving', () => {
 		const workspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),

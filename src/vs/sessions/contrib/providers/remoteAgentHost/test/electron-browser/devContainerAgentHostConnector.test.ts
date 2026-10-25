@@ -117,7 +117,7 @@ suite('Dev Container Agent Host Connector', () => {
 		}, {
 			scope: ConfigurationScope.APPLICATION,
 			default: false,
-			tags: ['experimental', 'onExP'],
+			tags: ['onExP'],
 			experiment: { mode: 'auto' },
 		});
 	});

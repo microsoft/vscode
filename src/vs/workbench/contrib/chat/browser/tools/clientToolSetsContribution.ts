@@ -80,6 +80,30 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 					'deleteAutomation',
 				],
 			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-sessions-list',
+				referenceName: 'vscodeSessionsList',
+				icon: Codicon.listTree,
+				description: localize('clientToolSet.sessionsList.description', "Sessions List"),
+				detail: localize('clientToolSet.sessionsList.detail', "Group, order, filter, and sort the sessions in the Sessions list."),
+				members: [
+					'readSessionsList',
+					'organizeSessionsList',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-appearance',
+				referenceName: 'vscodeAppearance',
+				icon: Codicon.paintcan,
+				description: localize('clientToolSet.appearance.description', "Appearance"),
+				detail: localize('clientToolSet.appearance.detail', "Read theme colors and change the chat background of the Agents window."),
+				members: [
+					'getThemeColors',
+					'setChatBackground',
+				],
+			}));
 		}
 
 		this._register(this._registerDynamicToolSet(toolsService, {

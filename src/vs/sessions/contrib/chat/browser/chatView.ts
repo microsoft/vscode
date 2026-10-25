@@ -287,6 +287,10 @@ export class ChatView extends AbstractChatView {
 
 	override readonly kind: ChatViewKind = 'chat';
 
+	override get activityBarActions() {
+		return this._chatPills.activityBarActions;
+	}
+
 	override get scrollDownButtonDomNode(): HTMLElement {
 		return this._widget.scrollDownButtonDomNode;
 	}

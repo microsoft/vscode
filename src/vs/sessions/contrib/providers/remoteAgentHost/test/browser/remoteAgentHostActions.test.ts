@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -33,25 +34,56 @@ import { SessionView } from '../../../../../browser/parts/sessionView.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { Menus } from '../../../../../browser/menus.js';
+import '../../browser/missionControlAgentHostContribution.js';
+import { getSessionCreationEnvironments } from '../../../../chat/browser/sessionEnvironmentPicker.js';
+import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const outcome of ['selected', 'cancelled-connection', 'cancelled-folder', 'missing-provider'] as const) {
+	test('Tunnels uses the standard remote icon', () => {
+		assert.deepStrictEqual(MenuRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)?.icon, Codicon.remote);
+	});
+
+	test('remote connection picker labels end with an ellipsis', () => {
+		assert.deepStrictEqual([
+			RemoteAgentHostCommandIds.connectViaMissionControl,
+			RemoteAgentHostCommandIds.connectViaTunnel,
+			RemoteAgentHostCommandIds.connectViaSSH,
+			RemoteAgentHostCommandIds.connectViaWSL,
+		].map(id => {
+			const command = MenuRegistry.getMenuItems(Menus.SessionWorkspaceManage).filter(isIMenuItem).find(item => item.command.id === id)?.command;
+			const title = command?.shortTitle ?? command?.title;
+			return typeof title === 'string' ? title : title?.value;
+		}), ['Environments...', 'Tunnels...', 'SSH...', 'WSL...']);
+	});
+
+	for (const outcome of ['selected', 'cancelled-connection', 'cancelled-folder', 'missing-provider', 'empty-workspace'] as const) {
 		test(`Mission Control environment selection opens its folder picker: ${outcome}`, async () => {
 			const instantiation = store.add(new TestInstantiationService());
 			const folder = URI.parse('vscode-agent-host://cloudsandbox__environment/c:/Users/test/code/project');
 			const calls: object[] = [];
 			const errors: string[] = [];
+			const visible = observableValue('visible', false);
 			const provider = upcastPartial<IAgentHostSessionsProvider>({
 				id: 'agenthost-environment',
+				label: 'Environment', icon: Codicon.remote, environment: { id: 'remote', label: 'Remote' },
+				connectionStatus: observableValue('connected', RemoteAgentHostConnectionStatus.connected),
+				isVisibleInEnvironmentPicker: visible,
+				showInEnvironmentPicker: () => { visible.set(true, undefined); calls.push({ show: true }); },
 				remoteAddress: 'cloudsandbox:environment',
 				browseActions: [{
 					label: 'Folders', icon: Codicon.folder, providerId: 'agenthost-environment',
 					run: async () => {
 						calls.push({ browse: true });
 						return outcome === 'cancelled-folder' ? undefined : upcastPartial<ISessionWorkspace>({
-							folders: [{ root: folder, workingDirectory: folder, name: 'Project', description: undefined }],
+							folders: outcome === 'empty-workspace' ? [] : [{ root: folder, workingDirectory: folder, name: 'Project', description: undefined }],
 						});
 					},
 				}],
@@ -77,6 +109,7 @@ suite('Remote Agent Host actions', () => {
 			instantiation.stub(ISessionsPartService, {
 				getSessionView: () => upcastPartial<SessionView>({
 					selectWorkspace: (uri, options) => {
+						assert.strictEqual(getSessionCreationEnvironments([provider])[0]?.id, provider.id);
 						calls.push({ selected: uri.toString(), providerId: options?.providerId });
 						return 'applied';
 					},
@@ -84,16 +117,64 @@ suite('Remote Agent Host actions', () => {
 			});
 			const onBack = () => { };
 			await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.connectViaMissionControl)!.handler(accessor, onBack));
-			assert.deepStrictEqual({ calls, errors }, {
+			assert.deepStrictEqual({ calls, errors, visible: visible.get() }, {
 				calls: [
 					{ command: ConnectMissionControlEnvironmentCommand, onBack },
-					...(outcome === 'selected' || outcome === 'cancelled-folder' ? [{ browse: true }] : []),
-					...(outcome === 'selected' ? [{ openNewSession: true }, { selected: folder.toString(), providerId: provider.id }] : []),
+					...(outcome === 'selected' || outcome === 'cancelled-folder' || outcome === 'empty-workspace' ? [{ browse: true }] : []),
+					...(outcome === 'selected' ? [{ show: true }, { openNewSession: true }, { selected: folder.toString(), providerId: provider.id }] : []),
 				],
 				errors: outcome === 'missing-provider' ? ['Error: The connected environment is not available for folder browsing.'] : [],
+				visible: outcome === 'selected',
 			});
 		});
 	}
+
+	test('WSL selection reveals the host and awaits the new session before selecting its workspace', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const opened = new DeferredPromise<void>();
+		const opening = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const folder = URI.parse('vscode-agent-host://wsl__Ubuntu/project');
+		const provider = upcastPartial<IAgentHostSessionsProvider>({
+			id: 'agenthost-wsl', remoteAddress: 'wsl:Ubuntu',
+			showInEnvironmentPicker: () => { calls.push('show'); },
+			browseActions: [{
+				label: 'Folders', icon: Codicon.folder, providerId: 'agenthost-wsl',
+				run: async () => upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] }),
+			}],
+		});
+		instantiation.stub(IWSLRemoteAgentHostService, {
+			isWSLAvailable: async () => true,
+			listDistros: async () => [{ name: 'Ubuntu', isDefault: true, isRunning: true, version: 2 }],
+			connect: async () => { calls.push('connect'); return upcastPartial<Awaited<ReturnType<IWSLRemoteAgentHostService['connect']>>>({}); },
+		});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(IQuickInputService, {});
+		instantiation.stub(IOpenerService, {});
+		instantiation.stub(IInstantiationService, instantiation);
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(ISessionsProvidersService, { getProviders: () => [provider] });
+		instantiation.stub(ISessionsService, {
+			activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined),
+			openNewSession: async () => {
+				calls.push('open');
+				opening.complete();
+				await opened.p;
+				return { session: undefined, trustDeclined: false };
+			},
+		});
+		instantiation.stub(ISessionsPartService, {
+			getSessionView: () => upcastPartial<SessionView>({
+				selectWorkspace: () => { calls.push('select'); return 'applied'; },
+			}),
+		});
+		const run = instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.connectViaWSL)!.handler(accessor));
+		await opening.p;
+		const before = [...calls];
+		opened.complete();
+		await run;
+		assert.deepStrictEqual({ before, after: calls }, { before: ['connect', 'show', 'open'], after: ['connect', 'show', 'open', 'select'] });
+	});
 
 	for (const cancelled of [false, true]) {
 		test(`SSH progress and ${cancelled ? 'cancelled connection' : 'failure'} use fixed identities, never host names or errors`, async () => {

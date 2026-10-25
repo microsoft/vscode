@@ -471,6 +471,14 @@ suite('CodeReviewService', () => {
 		});
 	});
 
+	test('matches pull request content resources to session pull requests regardless of owner and repository casing', () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, { ...makeGitHubInfo(), owner: 'Owner', repo: 'Repo' });
+		const resource = toPRContentUri('src/a.ts', { owner: 'owner', repo: 'repo', prNumber: 1, commitSha: 'abc123', isBase: false, status: 'modified' });
+
+		assert.deepStrictEqual(service.getPRReviewCommentPullRequests(session, resource).map(pullRequest => `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`), ['Owner/Repo#1']);
+	});
+
 	test('parses right-side commentable lines from a unified patch', () => {
 		assert.deepStrictEqual([...commentableRightLines([
 			'@@ -2,3 +4,4 @@',
@@ -675,12 +683,12 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the editor header layout actions', () => {
-		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+	test('Run Code Review is contributed to the tab-level editor actions before layout actions', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
+		assert.ok(headerItem, 'expected Run Code Review in the tab-level editor actions');
 		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);
@@ -689,6 +697,10 @@ suite('Code Review Contributions', () => {
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, true);
 		enablementContext.setValue(SessionHasChangesContext.key, false);
 		assert.deepStrictEqual({
+			oldHeaderActions: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === 'sessions.codeReview.run')
+				.map(item => item.command.id),
 			group: headerItem.group,
 			order: headerItem.order,
 			enabledFromSessionChanges,
@@ -702,6 +714,7 @@ suite('Code Review Contributions', () => {
 			hasCreatedGate: when.includes(SessionIsCreatedContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
+			oldHeaderActions: [],
 			group: 'navigation',
 			order: 10,
 			enabledFromSessionChanges: true,

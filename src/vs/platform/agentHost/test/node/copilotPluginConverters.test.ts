@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
@@ -283,6 +283,57 @@ suite('copilotPluginConverters', () => {
 				tools: ['read_file', 'grep_search'],
 				prompt: 'You are a meticulous code reviewer.\n',
 			}]);
+		});
+
+		test('translates extension-qualified tool references to SDK registration names', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/qualified-tools.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: qualified-tools',
+				'tools: [publisher.extension/toolXY, read, playwright/*]',
+				'---',
+				'Use the configured tools.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents(
+				[{ uri: agentUri, name: 'qualified-tools' }],
+				fileService,
+				undefined,
+				new Map([['publisher.extension/toolXY', 'toolXY']]),
+			);
+
+			assert.deepStrictEqual(result[0].tools, ['toolXY', 'read', 'playwright/*']);
+		});
+
+		test('reprojects retained tool references without changing authored configurations or null and undefined tools', () => {
+			const authored = [
+				{ name: 'explicit', prompt: 'Review', tools: ['publisher/tool', 'view'] },
+				{ name: 'all', prompt: 'Review', tools: null },
+				{ name: 'default', prompt: 'Review' },
+			];
+			const first = mapCopilotCustomAgentTools(authored, new Map([['publisher/tool', 'firstName']]));
+			const second = mapCopilotCustomAgentTools(authored, new Map([['publisher/tool', 'secondName']]));
+			assert.deepStrictEqual({
+				authored,
+				first,
+				second,
+			}, {
+				authored: [
+					{ name: 'explicit', prompt: 'Review', tools: ['publisher/tool', 'view'] },
+					{ name: 'all', prompt: 'Review', tools: null },
+					{ name: 'default', prompt: 'Review' },
+				],
+				first: [
+					{ name: 'explicit', prompt: 'Review', tools: ['firstName', 'view'] },
+					{ name: 'all', prompt: 'Review', tools: null },
+					{ name: 'default', prompt: 'Review' },
+				],
+				second: [
+					{ name: 'explicit', prompt: 'Review', tools: ['secondName', 'view'] },
+					{ name: 'all', prompt: 'Review', tools: null },
+					{ name: 'default', prompt: 'Review' },
+				],
+			});
 		});
 
 		test('preserves scalar and fallback-array models from frontmatter', async () => {

@@ -13,16 +13,16 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { filterSessionConfigValues, isSessionConfigWritable, validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
+import { getChatDefaultConfiguration, isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
-import { ChatConfiguration, ChatDefaultPermissionLevel, IChatDefaultConfiguration } from '../../common/constants.js';
+import { ChatDefaultPermissionLevel } from '../../common/constants.js';
 
 /** Cloud draft vocabulary until the provisioned host supplies its authoritative schema. */
 export function createCloudSandboxSessionConfig(configurationService: IConfigurationService): ResolveSessionConfigResult {
 	const restricted = isAutoApprovePolicyRestricted(configurationService);
 	const modes = ['interactive', 'plan', 'autopilot'];
 	const approvals = restricted ? ['manual'] : ['manual', 'assisted', 'allow-all'];
-	const defaults = configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
+	const defaults = getChatDefaultConfiguration(configurationService);
 	const approval = defaults?.approvals === ChatDefaultPermissionLevel.AllowAll ? 'allow-all' : defaults?.approvals;
 	return {
 		schema: {
@@ -44,6 +44,20 @@ export function createCloudSandboxSessionConfig(configurationService: IConfigura
 					type: 'string',
 					title: localize('cloudSandbox.approvals', "Approvals"),
 					enum: approvals,
+					enumLabels: [
+						localize('cloudSandbox.manualPermissions', "Manual permissions"),
+						...restricted ? [] : [
+							localize('cloudSandbox.assistedPermissions', "Assisted permissions"),
+							localize('cloudSandbox.allowAll', "Allow all"),
+						],
+					],
+					enumDescriptions: [
+						localize('cloudSandbox.manualPermissionsDescription', "Asks when approval settings don't apply"),
+						...restricted ? [] : [
+							localize('cloudSandbox.assistedPermissionsDescription', "Evaluates risk before running tools"),
+							localize('cloudSandbox.allowAllDescription', "Runs tool calls without asking"),
+						],
+					],
 					default: restricted ? 'manual' : 'assisted',
 				},
 			},
@@ -90,8 +104,7 @@ function cloudSandboxConfigIcon(key: string, value: string): ThemeIcon {
 }
 
 /**
- * Presents the draft vocabulary as chat session option groups, for surfaces that render
- * generic option pickers rather than Agent Host configuration chips.
+ * Stores draft selections as session options while the shared Agent Host pickers render them.
  */
 export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfigResult): IChatSessionProviderOptionGroup[] {
 	const groups: IChatSessionProviderOptionGroup[] = [];
@@ -111,6 +124,7 @@ export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfig
 		groups.push({
 			id: key,
 			name: property.title ?? key,
+			when: 'false',
 			description: property.description,
 			icon: items.find(item => item.default)?.icon,
 			items,
@@ -119,9 +133,9 @@ export function createCloudSandboxDraftOptionGroups(config: ResolveSessionConfig
 	return groups;
 }
 
-/** The draft's picks for the vocabulary in `config`, ignoring stale or foreign values. */
+/** Resolves draft picks against current defaults, ignoring stale or foreign values. */
 export function readCloudSandboxDraftConfig(options: ReadonlyMap<string, string | IChatSessionProviderOptionItem> | undefined, config: ResolveSessionConfigResult): Record<string, unknown> {
-	const values: Record<string, unknown> = {};
+	const values: Record<string, unknown> = { ...config.values };
 	for (const [key, property] of Object.entries(config.schema.properties)) {
 		const selected = options?.get(key);
 		const value = typeof selected === 'string' ? selected : selected?.id;

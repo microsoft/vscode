@@ -113,29 +113,38 @@ async function countEditorWindows(hostService: IHostService, environmentService:
 	return windows.filter(window => !(isWorkspaceIdentifier(window.workspace) && isEqual(window.workspace.configPath, environmentService.agentSessionsWorkspace))).length;
 }
 
+export interface IAgentsWindowGraphicOptions {
+	/**
+	 * Renders a small graphic for surfaces that explain the Agents window in their own words, such as a hover:
+	 * the drawings keep only the window titles of {@link AgentsWindowGraphicVariant.WindowComparison} and have no descriptions.
+	 */
+	readonly compact?: boolean;
+}
+
 /**
  * Renders a graphic and its captions.
  * The drawings are decorative and hidden from screen readers; the captions carry their meaning.
  */
-export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign): HTMLElement {
+export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign, options?: IAgentsWindowGraphicOptions): HTMLElement {
 	const ids = new GraphicIds();
+	const compact = !!options?.compact;
 	switch (design) {
 		case AgentsWindowGraphicVariant.WindowComparison:
-			return $('.agents-window-graphic.window-comparison', {},
+			return $(`.agents-window-graphic.window-comparison${compact ? '.compact' : ''}`, {},
 				figure(
 					graphicSvg(300, 180, editorWindow(ids, 0, 0)),
 					localize('agentsWindowGraphic.editorWindow.title', "Editor window"),
-					localize('agentsWindowGraphic.editorWindow.description', "Work on one task at a time, with AI at your side."),
+					compact ? undefined : localize('agentsWindowGraphic.editorWindow.description', "Work on one task at a time, with AI at your side."),
 				),
 				figure(
 					graphicSvg(300, 180, agentsWindow(ids, 0, 0, false, windowComparisonProjects)),
 					localize('agentsWindowGraphic.agentsWindow.title', "Agents window"),
-					localize('agentsWindowGraphic.agentsWindow.description', "Run multiple tasks at the same time, isolated from each other."),
-					localize('agentsWindowGraphic.new', "New"),
+					compact ? undefined : localize('agentsWindowGraphic.agentsWindow.description', "Run multiple tasks at the same time, isolated from each other."),
+					compact ? undefined : localize('agentsWindowGraphic.new', "New"),
 				),
 			);
 		case AgentsWindowGraphicVariant.ManyWindowsToOne:
-			return $('.agents-window-graphic.many-windows-to-one', {},
+			return $(`.agents-window-graphic.many-windows-to-one${compact ? '.compact' : ''}`, {},
 				figure(
 					graphicSvg(672, 204,
 						...agentsWindowProjects.map(({ color, sessions }, index) => projectEditorWindow(ids, 8 + 32 * index, 8 + 36 * index, color, sessions[0].state)),
@@ -143,7 +152,7 @@ export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign): HT
 						agentsWindow(ids, 364, 14, true, agentsWindowProjects),
 					),
 					undefined,
-					localize('agentsWindowGraphic.manyWindowsToOne.description', "All your projects and agents, in one window."),
+					compact ? undefined : localize('agentsWindowGraphic.manyWindowsToOne.description', "All your projects and agents, in one window."),
 				),
 			);
 	}
@@ -187,12 +196,15 @@ class GraphicIds {
 	}
 }
 
-function figure(graphic: SVGSVGElement, title: string | undefined, description: string, badge?: string): HTMLElement {
+function figure(graphic: SVGSVGElement, title: string | undefined, description: string | undefined, badge?: string): HTMLElement {
+	if (!title && !description) {
+		return $('figure.agents-window-graphic-figure', {}, graphic);
+	}
 	return $('figure.agents-window-graphic-figure', {},
 		graphic,
 		$('figcaption.agents-window-graphic-caption', {},
 			...(title ? [$('.agents-window-graphic-title', {}, title, ...(badge ? [$('span.agents-window-graphic-badge', {}, badge)] : []))] : []),
-			$('.agents-window-graphic-description', {}, description),
+			...(description ? [$('.agents-window-graphic-description', {}, description)] : []),
 		),
 	);
 }

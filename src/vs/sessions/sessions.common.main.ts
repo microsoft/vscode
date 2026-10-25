@@ -13,6 +13,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
+import '../workbench/contrib/modernUI/browser/media/suggestWidget.css';
 import { agentsPanelBackground } from './common/theme.js';
 import './common/sizes.js';
 import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
@@ -521,6 +522,7 @@ import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
 import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
+import './contrib/getStarted/browser/getStarted.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

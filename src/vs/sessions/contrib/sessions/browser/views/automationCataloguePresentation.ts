@@ -13,7 +13,7 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 		{ ownership: 'user', label: localize('automations.yours', "Your automations"), automations: automations.filter(automation => automation.ownership !== 'repository') },
 		{
 			ownership: 'repository',
-			label: localize('automations.repositoryOwned', "Repository automations"),
+			label: localize('automations.repositoryOwned', "Shared automations"),
 			description: localize('automations.repositoryOwnedDescription', "These automations are visible to anyone with repository access, and can be edited by anyone with write access."),
 			automations: automations.filter(automation => automation.ownership === 'repository'),
 		},

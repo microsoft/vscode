@@ -26,6 +26,8 @@ export interface IArtifactListViewData {
 	readonly message: string;
 	readonly loading: boolean;
 	readonly items: readonly ArtifactDetailsItem[];
+	/** Row actions by item ID; items without an entry have no actions. */
+	readonly itemActions: ReadonlyMap<string, readonly IArtifactActionViewData[]>;
 	readonly more?: IArtifactActionViewData;
 	openItem(item: ArtifactDetailsItem): void;
 }
@@ -93,6 +95,7 @@ export interface IArtifactDetailsViewData {
 	readonly description: string;
 	readonly message: string;
 	readonly lists: readonly IArtifactListViewData[];
+	/** The expanded state list; `undefined` when all lists are collapsed. */
 	readonly selectedList: string | undefined;
 	readonly stateActions: readonly IArtifactActionViewData[];
 	readonly generalActions: readonly IArtifactActionViewData[];
@@ -101,7 +104,7 @@ export interface IArtifactDetailsViewData {
 	readonly sections: readonly IArtifactSectionTarget[];
 	readonly accessibleText: string;
 	openResource(): void;
-	selectList(id: string): void;
+	selectList(id: string | undefined): void;
 }
 
 /** Kept by the artifact presentation across detail-model lifetimes, separately from saved consent. */

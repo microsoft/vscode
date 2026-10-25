@@ -84,3 +84,8 @@
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
+
+/* A hover card explains the button instead, so its label stays hidden, even on keyboard focus. */
+.monaco-workbench .open-in-agents-titlebar-widget.no-grow > .open-in-agents-titlebar-widget-label {
+	display: none;
+}

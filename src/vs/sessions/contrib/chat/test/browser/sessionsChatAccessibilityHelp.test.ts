@@ -15,6 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -28,19 +29,81 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const remotesEnabled of [false, true]) {
+		for (const manageEnabled of [undefined, false, true]) {
+			test(`documents Manage only when available (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, () => {
+				const instantiation = store.add(new TestInstantiationService());
+				const configuration = new TestConfigurationService({
+					[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+					[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+					[ENVIRONMENT_PICKER_SETTING]: true,
+					[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
+					...(manageEnabled === undefined ? {} : { [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: manageEnabled }),
+				});
+				store.add(configuration.onDidChangeConfigurationEmitter);
+				instantiation.stub(IConfigurationService, configuration);
+				stubContextKeyService(instantiation, configuration);
+				instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+				instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+				instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+				const container = mainWindow.document.createElement('div');
+				instantiation.stub(IWorkbenchLayoutService, { mainContainer: container });
+				instantiation.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				instantiation.stub(ITelemetryService, telemetry);
+				instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
+				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+				assert.deepStrictEqual({
+					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					describesWebSocketManagement: content.includes('configured WebSocket hosts, keep their per-entry Manage submenu'),
+					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
+				}, {
+					describesManage: !isWeb && remotesEnabled && manageEnabled === true,
+					describesWebSocketManagement: !isWeb && remotesEnabled && manageEnabled === true,
+					triggers: !isWeb && remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
+				});
+			});
+		}
+	}
+
+	for (const enabled of [true, false]) {
+		test(`documents chat-scoped activity bar selection only when enabled: ${enabled}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			const container = mainWindow.document.createElement('div');
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
+			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			assert.deepStrictEqual({
+				automatic: content.includes('The pull request action appears automatically in the side-pane group.'),
+				chatScope: content.includes('Open Pull Request is available for the active chat\'s pull requests when a contributed opener is available for their links.'),
+				reuse: content.includes('The action reveals an already-open matching editor or opens the first supported pull request if none is open.'),
+				checked: content.includes('A checked button means the pull request editor is visible; activating it collapses the side pane. Activate it again to reveal the editor.'),
+				direct: content.includes('The action opens directly, without a dropdown or picker, even with multiple pull requests. Issue actions are not shown in the activity bar; issue pills remain available above the chat input.'),
+			}, { automatic: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
+		});
+	}
 
 	test('documents navigation through sessions and singleton views', () => {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -95,7 +158,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual(enabled, [false, true]);
 	});
 
-	test('documents repo-less Cloud chats in the harness picker', () => {
+	test('documents repo-less Cloud chats with and without the Environment picker', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -107,7 +170,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
-		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
+		assert.deepStrictEqual({
+			environmentPicker: content.includes('When GitHub sandboxes are enabled, choose Cloud in the Environment picker, then Chat in the workspace picker, to chat without a repository or pull request.'),
+			harnessPicker: content.includes('If the Environment picker is disabled, choose Cloud in the harness picker instead.'),
+		}, { environmentPicker: true, harnessPicker: true });
 	});
 
 	test('documents nested chats in quick chats and moving chats with their folder', () => {
@@ -146,9 +212,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			feedbackOnInput: content.includes('Connection progress and failures appear in a banner only after you type, paste, or add an attachment.'),
 			readyBeforeInput: content.includes('If the session is ready before you start composing, no connection banner appears.'),
 			neverSends: content.includes('Connecting never sends your draft automatically.'),
+			reopenAction: content.includes('Use Tab to reach Retry and press Enter or Space to reopen the conversation on the existing connection.'),
+			reopenProgress: content.includes('The banner reports reopening progress and offers Retry again if it fails.'),
+			preservedDraft: content.includes('Your draft is preserved and is not sent automatically. Send stays unavailable until the conversation is ready.'),
 			silentRefresh: content.includes('Previously loaded conversations refresh silently.'),
 			refreshAction: content.includes('Use Tab to reach Refresh and press Enter or Space to retry loading recorded messages without restarting the session or waking its environment.'),
-		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, silentRefresh: true, refreshAction: true });
+		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true, reopenAction: true, reopenProgress: true, preservedDraft: true, silentRefresh: true, refreshAction: true });
 	});
 
 	test('documents layout density and the empty editor Add Tab list only on desktop', () => {
@@ -244,15 +313,23 @@ suite('SessionsChatAccessibilityHelp', () => {
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
-				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				sharingKeyboard: content.includes('Enter or Space to open it'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
-				backendPicker: content.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				backendPicker: content.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
+				enabling: content.includes('Selecting a method updates the setting and enables sharing'),
+				disabling: content.includes('Selecting Off disables sharing'),
+				remembered: content.includes('without changing the preferred method'),
+				footer: content.includes('The footer shows the name used to identify this machine on other clients'),
+				rename: content.includes('press Tab to reach the name link in the footer') && content.includes('Renaming while Off does not enable sharing'),
 				previewSetting: content.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
 				fileSystemAccess: !hidden && !aiDisabled, backendPicker: !hidden && !aiDisabled,
 				previewSetting: !hidden && !aiDisabled,
+				enabling: !hidden && !aiDisabled, disabling: !hidden && !aiDisabled, remembered: !hidden && !aiDisabled,
+				footer: !hidden && !aiDisabled,
+				rename: !hidden && !aiDisabled,
 			});
 		});
 	}
@@ -307,6 +384,31 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual(snapshots, [
 			{ nameEditing: false, announcementSetting: false },
 			{ nameEditing: true, announcementSetting: true },
+		]);
+	});
+
+	test('describes pull request feedback banners only when artifact integrations are disabled', () => {
+		const snapshots = [false, true].map(enabled => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return {
+				pullRequestBanner: content.includes('When pull requests have failing checks or unreviewed comments, one banner appears above the input.'),
+				failingChecksBanner: content.includes('use Reveal in its banner item to open that pull request'),
+				artifactIntegrations: content.includes(`While the ${ArtifactIntegrationsSettingId} setting is enabled, pull request failing-check and review-comment banners do not appear above the input.`),
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ pullRequestBanner: true, failingChecksBanner: true, artifactIntegrations: false },
+			{ pullRequestBanner: false, failingChecksBanner: false, artifactIntegrations: true },
 		]);
 	});
 
@@ -811,8 +913,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	for (const { wording, action, dismiss, promoteNewChatAction, expectedSessionListHelp } of [
-		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Nested Session before Archive. Open the session\'s context menu to pin or unpin it.' },
-		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For non-cloud sessions that support multiple chats, the session row toolbar offers New Nested Session before Archive. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For non-cloud sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session\'s context menu to pin or unpin it.' },
 		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
 		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
 	]) {

@@ -39,14 +39,14 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IAgentHostFileSystemService } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { findRemoteAgentHostSessionTypeAuthority, isCopilotAgentHostProvider, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
 import { authenticateWithConnectionCustomization, IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { IAgentHostTerminalService } from '../../../terminal/browser/agentHostTerminalService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
+import { CLOUD_SANDBOX_INPUT_PLACEHOLDER, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -425,6 +425,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			name: agentId,
 			displayName,
 			description: agent.description,
+			inputPlaceholder: isCloudSandboxConnectionAddress(address) && agent.provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_INPUT_PLACEHOLDER : undefined,
+			icon: isCopilotAgentHostProvider(agent.provider) ? Codicon.copilot.id : undefined,
 			hideFromSessionTypePicker: !this._isSessionsWindow && isCloudSandboxConnectionAddress(address),
 			canDelegate: true,
 			requiresCustomModels: true,
@@ -511,7 +513,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
 			modelIdentifierAliases: customization?.modelIdentifierAliases,
 			isSessionTitlePlaceholder: customization?.isSessionTitlePlaceholder,
-			useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat,
+			useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat ?? agent.provider === 'copilot',
 			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
