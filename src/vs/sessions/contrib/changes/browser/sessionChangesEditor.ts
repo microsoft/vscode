@@ -45,8 +45,11 @@ import { IResourceLabel, IWorkbenchUIElementFactory, MultiDiffEditorItemLabelKin
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ActiveSessionContextKeys } from '../common/changes.js';
-import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesActionsBar } from './changesView.js';
+import { ISessionScope } from '../../../services/sessions/browser/sessionScope.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
+import { IChangesSessionScope, IChangesViewService } from '../common/changesViewService.js';
+import { ChangesActionsBar, createChangesSessionScope } from './changesView.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -82,8 +85,8 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 
 	constructor(
 		private readonly changesObs: IObservable<readonly ISessionFileChange[]>,
+		private readonly scope: IChangesSessionScope,
 		@ICommandService private readonly commandService: ICommandService,
-		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 	) { }
@@ -95,16 +98,16 @@ class SessionChangesUIElementFactory implements IWorkbenchUIElementFactory {
 	}
 
 	handleHeaderMiddleClick(resource: URI): boolean {
-		if (this.changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+		if (this.scope.changes.changesetObs.get()?.capabilities?.review !== true) {
 			return false;
 		}
 
-		// `changesObs` can retain a stale row during a session switch; validate against the active changeset.
-		if (!getChangesEditorFileStats(resource, this.changesViewService.activeSessionChangesObs.get())) {
+		// `changesObs` can retain a stale row during a session switch; validate against the scope's changeset.
+		if (!getChangesEditorFileStats(resource, this.scope.changes.changesObs.get())) {
 			return false;
 		}
 
-		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource);
+		void this.commandService.executeCommand(CHANGESET_REVIEW_ACTION_ID, resource, { session: this.scope.session.get() });
 		return true;
 	}
 
@@ -202,25 +205,25 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	/**
 	 * Changes for this editor's own session, scoped so a stale row does not pick
-	 * up the counts of a different (globally active) session during a switch.
+	 * up the counts of a different session of the host during a switch.
 	 */
 	private readonly _scopedChangesObs = derivedObservableWithCache<readonly ISessionFileChange[]>(this, (reader, lastValue) => {
 		const editorSession = this._inputSessionResource.read(reader);
-		const activeSession = this.changesViewService.activeSessionResourceObs.read(reader);
-		if (editorSession && (!activeSession || !isEqual(editorSession, activeSession))) {
-			// A session the main window does not show, such as in a chat window, has changes of its own.
-			const otherSessionChanges = this._otherSessionChangesObs.read(reader)?.read(reader) ?? [];
+		const scopeSession = this._scope.changes.resourceObs.read(reader);
+		if (editorSession && (!scopeSession || !isEqual(editorSession, scopeSession))) {
+			// A session the scope does not show, such as in a chat window, has changes of its own.
+			const otherSessionChanges = this._otherSessionChangesObs.read(reader)?.changesObs.read(reader) ?? [];
 			return otherSessionChanges.length || !lastValue ? otherSessionChanges : lastValue;
 		}
 		if (!editorSession) {
 			return lastValue ?? [];
 		}
-		return this.changesViewService.activeSessionChangesObs.read(reader);
+		return this._scope.changes.changesObs.read(reader);
 	});
 
 	private readonly _otherSessionChangesObs = derived(this, reader => {
 		const editorSession = this._inputSessionResource.read(reader);
-		return editorSession ? this.changesViewService.getSessionChanges(editorSession) : undefined;
+		return editorSession ? this.changesViewService.getSessionChanges(derived(sessionReader => findSessionByResource(this.sessionsService, editorSession, sessionReader))) : undefined;
 	});
 
 	/** Deferred focus request awaiting the active diff editor to be rendered. */
@@ -230,6 +233,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private readonly _pendingResolve = this._register(new MutableDisposable());
 
 	private readonly _logger: MultiDiffEditorLogger;
+	private _scopeInstance: IChangesSessionScope | undefined;
+	private get _scope(): IChangesSessionScope {
+		return this._scopeInstance ??= createChangesSessionScope(this.changesViewService, this.sessionsService, this.sessionScope);
+	}
 
 	constructor(
 		group: IEditorGroup,
@@ -248,6 +255,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@ILogService logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionScope private readonly sessionScope: ISessionScope,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -270,7 +279,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(root));
 		this._register(bindContextKey(ActiveSessionContextKeys.HasGitRepository, scopedContextKeyService, reader =>
-			this.changesViewService.activeSessionHasGitRepositoryObs.read(reader)));
+			this._scope.changes.hasGitRepositoryObs.read(reader)));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -295,7 +304,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const paneInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const variant = observableWorkbenchMultiDiffEditorVariant(this, this.configurationService);
-		const uiElementFactory = paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs);
+		const uiElementFactory = paneInstantiationService.createInstance(SessionChangesUIElementFactory, this._scopedChangesObs, this._scope);
 		const widgetOptions = { variant: variant.get(), diffEditorOptions: CHANGES_DIFF_EDITOR_OPTIONS };
 		if (ChatWindowContext.getValue(this.contextKeyService)) {
 			this.fileListWidget = this._register(this.createFileListWidget(paneInstantiationService, uiElementFactory, widgetOptions));
@@ -389,7 +398,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		}));
 
 		// Create Pull Request (and related) actions render on the right of the header row.
-		store.add(instantiationService.createInstance(ChangesActionsBar, right, new Set<string>()));
+		store.add(instantiationService.createInstance(ChangesActionsBar, right, this._scope, new Set<string>()));
 
 		return store;
 	}

@@ -19,7 +19,8 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSession, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../browser/agentHostSkillButtons.js';
+import { IsAgentHostSession } from '../../../../../services/sessions/browser/sessionScopedContextKeys.js';
+import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, IsAgentHostSessionContextContribution, isAgentHostSkillButtonId } from '../../browser/agentHostSkillButtons.js';
 import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessionsProvider.js';
 // Importing this contribution registers the apply submenu on the changes toolbar,
 // which is the slot that hosts our skill buttons as a dropdown.

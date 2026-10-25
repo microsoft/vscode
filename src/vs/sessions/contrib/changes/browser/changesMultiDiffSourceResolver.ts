@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derivedObservableWithCache, derivedOpts, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { derived, derivedObservableWithCache, derivedOpts, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,7 +12,9 @@ import { comparePaths } from '../../../../base/common/comparers.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { IChangesViewService } from '../common/changesViewService.js';
+import { getActiveSessionChanges, IChangesSessionObservables, IChangesViewService } from '../common/changesViewService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { findSessionByResource } from '../../../services/sessions/browser/sessionActionTarget.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -45,6 +47,7 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 		@IChangesViewService private readonly changesViewService: IChangesViewService,
 		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(this));
@@ -57,18 +60,21 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const sessionResource = this._sessionChangesService.getSessionResource(uri)!;
 
-		// A session the main window does not show, such as in a chat window, has changes of its own.
-		const otherSessionChangesObs = this.changesViewService.getSessionChanges(sessionResource);
+		// The per-session chain is created once per resolve; the derived below only selects between it and the shared active one.
+		const sessionObs = derived(reader => findSessionByResource(this._sessionsService, sessionResource, reader));
+		let sessionChanges: IChangesSessionObservables | undefined;
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
-			const activeSessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
-			if (!activeSessionResource || !isEqual(activeSessionResource, sessionResource)) {
-				const otherSessionChanges = otherSessionChangesObs.read(reader);
-				return otherSessionChanges.length || !lastValue ? otherSessionChanges : lastValue;
+			const session = sessionObs.read(reader);
+			const isActive = !session || session === this._sessionsService.mainWindowActiveSession.read(reader);
+			const changes = isActive ? getActiveSessionChanges(this.changesViewService) : (sessionChanges ??= this.changesViewService.getSessionChanges(sessionObs));
+			const resource = changes.resourceObs.read(reader);
+			if (!resource || !isEqual(resource, sessionResource)) {
+				return lastValue ?? [];
 			}
 
-			return this.changesViewService.activeSessionChangesObs.read(reader);
+			return changes.changesObs.read(reader);
 		});
 
 		const resourcesObs = derivedOpts<readonly MultiDiffEditorItem[]>({
