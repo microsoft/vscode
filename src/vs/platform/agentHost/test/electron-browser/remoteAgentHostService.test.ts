@@ -908,16 +908,104 @@ suite('RemoteAgentHostService', () => {
 			service.reconnect(getEntryAddress(entry), false);
 			await started.p;
 			const automatic = service.pendingConnections[0]?.userInitiated;
-			await pending.error(new NonReconnectableTransportError('setup failed'));
+			const duringRetry = service.connections[0]?.status;
+			await pending.error(new NonReconnectableTransportError('retry failed'));
 			while (service.pendingConnections.length) {
 				await Event.toPromise(service.onDidChangePendingConnections);
 			}
-			assert.deepStrictEqual({ manual, automatic, manualStatus, automaticStatus: service.connections[0]?.status }, {
+			assert.deepStrictEqual({ manual, automatic, manualStatus, duringRetry, automaticStatus: service.connections[0]?.status }, {
 				manual: true, automatic: false,
 				manualStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'setup failed'),
-				automaticStatus: RemoteAgentHostConnectionStatus.disconnected,
+				duringRetry: RemoteAgentHostConnectionStatus.connectingWithError('setup failed'),
+				automaticStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'retry failed'),
 			});
 		});
+
+		for (const kind of [RemoteAgentHostEntryType.SSH, RemoteAgentHostEntryType.Tunnel]) {
+			for (const outcome of ['factoryFailure', 'handshakeFailure', 'success'] as const) {
+				test(`automatic ${kind} retries retain the warning until ${outcome}`, () => runWithFakedTimers({}, async () => {
+					let pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+					let started = new DeferredPromise<void>();
+					const factory = disposables.add(new class extends TestConnectionFactory {
+						override createConnection(): Promise<IRemoteAgentHostCreatedConnection> {
+							void started.complete();
+							return pending.p;
+						}
+					}(kind));
+					disposables.add(service.registerConnectionFactory(factory));
+					const entry: IRemoteAgentHostEntry = {
+						name: 'Host',
+						connection: kind === RemoteAgentHostEntryType.SSH
+							? { type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', sshConfigHost: 'host', hostName: 'host' }
+							: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'host', clusterId: 'test' },
+					};
+					const address = getEntryAddress(entry);
+					factory.publishEntry(entry);
+					service.reconnect(address, true);
+					await started.p;
+					const failed = assert.rejects(service.waitForConnection(address), /First failure/);
+					await pending.error(new Error('First failure'));
+					await failed;
+					while (service.pendingConnections.length) {
+						await Event.toPromise(service.onDidChangePendingConnections);
+					}
+					const observedErrors: (string | undefined)[] = [];
+					const observe = () => observedErrors.push(RemoteAgentHostConnectionStatus.getErrorMessage(service.connections.find(connection => connection.address === address)?.status));
+					const observations = disposables.add(new DisposableStore());
+					observations.add(service.onDidChangeConnections(observe));
+					observations.add(service.onDidChangePendingConnections(observe));
+					pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
+					started = new DeferredPromise<void>();
+					await timeout(1000);
+					await started.p;
+					const duringFactory = service.connections.find(connection => connection.address === address)?.status;
+					const automatic = service.pendingConnections.find(attempt => attempt.address === address)?.userInitiated;
+					let duringHandshake: RemoteAgentHostConnectionStatus | undefined;
+					let duringReconnect: RemoteAgentHostConnectionStatus | undefined;
+					if (outcome !== 'factoryFailure') {
+						const client = disposables.add(new MockProtocolClient(address));
+						const handshaking = Event.toPromise(service.onDidChangeConnections);
+						await pending.complete({ connection: client as unknown as IRemoteAgentHostProtocolClient });
+						await handshaking;
+						duringHandshake = service.connections.find(connection => connection.address === address)?.status;
+						if (outcome === 'success') {
+							client.fireConnectionState('reconnecting');
+							client.fireScheduleReconnect();
+							duringReconnect = service.connections.find(connection => connection.address === address)?.status;
+						}
+						observations.dispose();
+						const completion = service.waitForConnection(address);
+						if (outcome === 'success') {
+							await client.connectDeferred.complete();
+							await completion;
+						} else {
+							const rejected = assert.rejects(completion, /Handshake failure/);
+							await client.connectDeferred.error(new Error('Handshake failure'));
+							await rejected;
+						}
+					} else {
+						observations.dispose();
+						const rejected = assert.rejects(service.waitForConnection(address), /Factory failure/);
+						await pending.error(new Error('Factory failure'));
+						await rejected;
+					}
+					assert.deepStrictEqual({
+						automatic, duringFactory, duringHandshake, duringReconnect,
+						retainedThroughout: observedErrors.length > 0 && observedErrors.every(error => error === 'First failure'),
+						completed: service.connections.find(connection => connection.address === address)?.status,
+					}, {
+						automatic: false,
+						duringFactory: RemoteAgentHostConnectionStatus.connectingWithError('First failure'),
+						duringHandshake: outcome === 'factoryFailure' ? undefined : RemoteAgentHostConnectionStatus.connectingWithError('First failure'),
+						duringReconnect: outcome === 'success' ? RemoteAgentHostConnectionStatus.reconnectingUntil(undefined, 'First failure') : undefined,
+						retainedThroughout: true,
+						completed: outcome === 'success' ? RemoteAgentHostConnectionStatus.connected
+							: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, outcome === 'factoryFailure' ? 'Factory failure' : 'Handshake failure'),
+					});
+					service.dispose();
+				}));
+			}
+		}
 
 		for (const outcome of ['success', 'failure', 'removed', 'disabled', 'disposed'] as const) {
 			test(`exposes pending automatic setup before a client exists and clears it on ${outcome}`, async () => {

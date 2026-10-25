@@ -291,6 +291,59 @@ suite('RemotesWidget', () => {
 		});
 	}
 
+	test('automatic retries retain the warning and update it only on completion', () => {
+		const { parent, widget, model, hoverContents } = createWidget();
+		const update = (connectionStatus: RemoteAgentHostConnectionStatus) => {
+			model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus } : remote), undefined);
+			const warning = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!;
+			return {
+				visible: !warning.hidden, hover: hoverContents.get(warning),
+				accessible: widget.getAccessibilityContent().includes('Connection error:'),
+			};
+		};
+		assert.deepStrictEqual([
+			update(RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'First failure')),
+			update(RemoteAgentHostConnectionStatus.connectingWithError('First failure')),
+			update(RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Second failure')),
+			update(RemoteAgentHostConnectionStatus.reconnectingUntil(undefined, 'Second failure')),
+			update(RemoteAgentHostConnectionStatus.connected),
+			update(RemoteAgentHostConnectionStatus.disconnected),
+		], [
+			{ visible: true, hover: 'First failure', accessible: true },
+			{ visible: true, hover: 'First failure', accessible: true },
+			{ visible: true, hover: 'Second failure', accessible: true },
+			{ visible: true, hover: 'Second failure', accessible: true },
+			{ visible: false, hover: undefined, accessible: false },
+			{ visible: false, hover: undefined, accessible: false },
+		]);
+	});
+
+	for (const width of [1000, 360]) {
+		test(`connection warnings stay right-aligned across status changes at width ${width}`, () => {
+			const { parent, widget, model } = createWidget();
+			parent.style.width = `${width}px`;
+			parent.style.setProperty('--vscode-spacing-size100', '10px');
+			parent.style.setProperty('--vscode-spacing-size60', '6px');
+			widget.layout();
+			const positions = [
+				RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Connection refused'),
+				RemoteAgentHostConnectionStatus.connectingWithError('Connection refused'),
+				RemoteAgentHostConnectionStatus.reconnectingUntil(undefined, 'Connection refused'),
+			].map(connectionStatus => {
+				model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus } : remote), undefined);
+				const cell = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-column')!;
+				const warning = cell.querySelector<HTMLElement>('.remotes-connection-warning')!;
+				const label = cell.querySelector<HTMLElement>('.remotes-connection-state')!;
+				return {
+					right: warning.getBoundingClientRect().right,
+					inset: cell.getBoundingClientRect().right - warning.getBoundingClientRect().right,
+					separated: label.getBoundingClientRect().right < warning.getBoundingClientRect().left,
+				};
+			});
+			assert.deepStrictEqual(positions, positions.map(() => ({ right: positions[0].right, inset: 10, separated: true })));
+		});
+	}
+
 	test('empty row text hovers are mouse-positioned so they do not cover the wheel target', async () => {
 		const { parent, widget, model, mouseHoverTargets } = createWidget();
 		model.remotes.set([], undefined);

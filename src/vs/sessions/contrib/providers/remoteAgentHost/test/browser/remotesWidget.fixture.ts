@@ -39,7 +39,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string } = {}): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -80,7 +80,10 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		}
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes.map(remote =>
 			remote.id === 'ssh:build' && options.connectionError
-				? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, options.connectionError) }
+				? {
+					...remote, connectionStatus: options.retrying ? RemoteAgentHostConnectionStatus.connectingWithError(options.connectionError)
+						: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, options.connectionError),
+				}
 				: remote));
 		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
 			if (pendingRefresh && refreshing) {
@@ -123,6 +126,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	ConnectionError: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' }),
+	}),
+	ConnectionRetry: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192', retrying: true }),
 	}),
 	ShortEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },

@@ -156,6 +156,10 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
+.remotes-widget .remotes-connection-warning {
+	margin-inline-start: auto;
+}
+
 .remotes-widget .remotes-group-progress {
 	display: flex;
 	flex-shrink: 0;

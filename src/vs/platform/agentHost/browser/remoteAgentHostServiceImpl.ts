@@ -87,6 +87,7 @@ interface IPendingConnectionAttempt {
 	readonly promise: Promise<void>;
 	readonly info: IRemoteAgentHostPendingConnection;
 	readonly observer?: RemoteAgentHostConnectionObserver;
+	readonly previousError?: string;
 	/** Also set when a user explicitly joins an automatic attempt already in flight. */
 	showError: boolean;
 }
@@ -483,7 +484,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		// Tear down existing connection if present
 		const entry = this._entries.get(normalized);
-		if (entry) {
+		if (entry && (userInitiated || !RemoteAgentHostConnectionStatus.getErrorMessage(entry.status))) {
 			this._entries.delete(normalized);
 			// An explicit redial can still belong to the pending connect/recovery.
 			if (entry.connected) {
@@ -724,7 +725,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const factory = this._connectionFactories.get(entryToCreate.connection.type);
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
 		const observer = factory?.getConnectionObserver?.(entryToCreate);
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, showError: userInitiated };
+		const previousError = !userInitiated ? RemoteAgentHostConnectionStatus.getErrorMessage(this._entries.get(address)?.status) : undefined;
+		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError };
 		this._pendingConnects.set(address, attempt);
 		observer?.('connecting');
 		this._onDidChangePendingConnections.fire();
@@ -770,8 +772,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// until this factory has acquired a replacement lease.
 		const existingEntry = this._entries.get(address);
 		if (existingEntry) {
-			this._entries.delete(address);
+			if (attempt.previousError) {
+				existingEntry.status = RemoteAgentHostConnectionStatus.connectingWithError(attempt.previousError);
+			} else {
+				this._entries.delete(address);
+			}
 			disposeEntry(existingEntry);
+			if (attempt.previousError) {
+				this._onDidChangeConnections.fire();
+			}
 		}
 
 		let createdConnection: IRemoteAgentHostCreatedConnection;
@@ -827,7 +836,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._store.isDisposed
 			|| !this._remoteAgentHostsEnabled.get()
 			|| !this._configuredEntries.get().some(entry => this._entryAddress(entry) === address)
-			|| this._entries.has(address)
+			|| this._entries.has(address) && !(attempt.previousError && this._entries.get(address) === existingEntry)
 		) {
 			observer?.('disposed');
 			this._disposeRetainedReconnectEntry(address, true);
@@ -852,7 +861,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			transportDisposable: createdConnection.transportDisposable,
 			reconnectTransfersTransportOwnership: createdConnection.reconnectTransfersTransportOwnership ?? false,
 			connected: false,
-			status: RemoteAgentHostConnectionStatus.connecting,
+			status: RemoteAgentHostConnectionStatus.connectingWithError(attempt.previousError),
 		};
 		this._entries.set(address, entry);
 
@@ -891,7 +900,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (!isCurrentEntry() || entry.status.kind !== 'reconnecting') {
 				return;
 			}
-			entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt);
+			entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt, RemoteAgentHostConnectionStatus.getErrorMessage(entry.status));
 			this._onDidChangeConnections.fire();
 		}));
 		store.add(client.onDidChangeConnectionState(state => {
@@ -902,7 +911,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				case 'reconnecting':
 					observer?.('reconnecting');
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt);
+					entry.status = RemoteAgentHostConnectionStatus.reconnectingUntil(client.nextReconnectAt, RemoteAgentHostConnectionStatus.getErrorMessage(entry.status));
 					this._onDidChangeConnections.fire();
 					break;
 				case 'connected':

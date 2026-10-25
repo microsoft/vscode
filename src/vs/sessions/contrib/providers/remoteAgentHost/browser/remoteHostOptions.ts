@@ -262,6 +262,11 @@ export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string 
 }
 
 export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
+	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && status.message) {
+		return address
+			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", status.message, address)
+			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", status.message);
+	}
 	switch (status.kind) {
 		case 'connected':
 			return address

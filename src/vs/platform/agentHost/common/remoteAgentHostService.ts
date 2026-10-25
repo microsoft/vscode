@@ -34,7 +34,7 @@ import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteC
  */
 export type RemoteAgentHostConnectionStatus =
 	| { readonly kind: 'connected' }
-	| { readonly kind: 'connecting' }
+	| { readonly kind: 'connecting'; readonly message?: string }
 	/**
 	 * The transport dropped and the protocol client is re-establishing it itself,
 	 * preserving session state. Distinct from `connecting` (initial dial) and
@@ -44,6 +44,8 @@ export type RemoteAgentHostConnectionStatus =
 		readonly kind: 'reconnecting';
 		/** When the next automatic attempt fires, if one is scheduled. Absent while an attempt is in flight. */
 		readonly nextAttemptAt?: number;
+		/** Last user-visible failure retained until the automatic retry finishes. */
+		readonly message?: string;
 	}
 	| { readonly kind: 'disconnected'; readonly reason: AgentHostTransportFailureReason; readonly message?: string }
 	| {
@@ -68,13 +70,17 @@ export namespace RemoteAgentHostConnectionStatus {
 	export const connected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connected' });
 	/** Singleton "connecting" status. */
 	export const connecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'connecting' });
+	/** Build a connecting status retaining the previous failure during an automatic retry. */
+	export function connectingWithError(message: string | undefined): RemoteAgentHostConnectionStatus {
+		return message ? Object.freeze({ kind: 'connecting', message }) : connecting;
+	}
 	/** Singleton "reconnecting" status. */
 	export const reconnecting: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'reconnecting' });
 	/** Build a reconnecting status carrying its backoff deadline. */
-	export function reconnectingUntil(nextAttemptAt: number | undefined): RemoteAgentHostConnectionStatus {
-		return nextAttemptAt === undefined
+	export function reconnectingUntil(nextAttemptAt: number | undefined, message?: string): RemoteAgentHostConnectionStatus {
+		return nextAttemptAt === undefined && !message
 			? reconnecting
-			: Object.freeze({ kind: 'reconnecting', nextAttemptAt });
+			: Object.freeze({ kind: 'reconnecting', nextAttemptAt, ...(message ? { message } : {}) });
 	}
 	/** Singleton "disconnected" status. */
 	export const disconnected: RemoteAgentHostConnectionStatus = Object.freeze({ kind: 'disconnected', reason: AgentHostTransportFailureReason.Unknown });
@@ -83,6 +89,10 @@ export namespace RemoteAgentHostConnectionStatus {
 		return reason === AgentHostTransportFailureReason.Unknown && !message
 			? disconnected
 			: Object.freeze({ kind: 'disconnected', reason, ...(message ? { message } : {}) });
+	}
+	/** Last failed connection attempt, including while an automatic retry is pending. */
+	export function getErrorMessage(status: RemoteAgentHostConnectionStatus | undefined): string | undefined {
+		return status?.kind === 'disconnected' || status?.kind === 'connecting' || status?.kind === 'reconnecting' ? status.message : undefined;
 	}
 	/** Build an "incompatible" status from a host-supplied message and the versions involved. */
 	export function incompatible(message: string, supportedByClient: readonly string[], offeredByServer?: readonly string[], vscodeUpgradeMethod?: string): RemoteAgentHostConnectionStatus {

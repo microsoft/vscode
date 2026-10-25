@@ -240,7 +240,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		for (const [address, provider] of this._providerInstances) {
 			const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
 			if (pending.has(address) && (!connectionInfo || RemoteAgentHostConnectionStatus.isDisconnected(connectionInfo.status))) {
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connectingWithError(RemoteAgentHostConnectionStatus.getErrorMessage(connectionInfo?.status)));
 				continue;
 			}
 			if (connectionInfo) {
@@ -477,11 +477,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			// tunnels that do not currently have a service-owned connection.
 			const onlineTunnelMap = new Map(onlineTunnels.map(t => [t.tunnelId, t]));
 			for (const [address, provider] of this._providerInstances) {
-				// Skip tunnels that already have an active relay connection
-				// A reconnecting protocol client is already restoring this relay.
-				const hasConnection = this._remoteAgentHostService.connections.some(
-					c => c.address === address && (RemoteAgentHostConnectionStatus.isConnected(c.status) || RemoteAgentHostConnectionStatus.isReconnecting(c.status))
-				);
+				// Service-owned status includes the last failure retained through a retry.
+				const hasConnection = this._remoteAgentHostService.connections.some(c => c.address === address);
 				if (hasConnection) {
 					continue;
 				}

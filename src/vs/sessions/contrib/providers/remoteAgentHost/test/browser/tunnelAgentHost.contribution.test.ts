@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import {
 	IRemoteAgentHostConnectionInfo,
 	IRemoteAgentHostService,
@@ -28,6 +29,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ActiveTunnelMode, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
@@ -275,6 +277,62 @@ suite('TunnelAgentHostContribution', () => {
 			recordHostAction: () => { },
 		});
 		return instantiationService;
+	}
+
+	for (const web of [false, true]) {
+		test(`discovery and pending status retain a tunnel warning until retry completion (web=${web})`, async () => {
+			const tunnelService = store.add(new StubTunnelService());
+			const remoteService = store.add(new StubRemoteAgentHostService());
+			const instantiationService = createInstantiationService();
+			instantiationService.stub(ITunnelAgentHostService, tunnelService);
+			instantiationService.stub(IRemoteAgentHostService, remoteService);
+			instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+			instantiationService.stub(INotificationService, new TestNotificationService());
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
+			instantiationService.stub(ITelemetryService, { publicLog2: () => { } });
+			instantiationService.stub(IHostService, new StubHostService());
+			instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
+			let discover: (() => Promise<void>) | undefined;
+			instantiationService.stub(IAgentHostFilterService, {
+				registerDiscoveryHandler: handler => {
+					discover = handler;
+					return toDisposable(() => { discover = undefined; });
+				},
+				rediscover: async () => true,
+			});
+			const contribution = store.add(instantiationService.createInstance(class extends TestTunnelContribution {
+				protected override get isWebPlatform(): boolean { return web; }
+			}));
+			const tunnel = { tunnelId: 'retained', clusterId: 'use', name: 'Retained warning', hostConnectionCount: 0, protocolVersion: 6, tags: [] };
+			tunnelService.setCached([tunnel]);
+			tunnelService.setListed([tunnel]);
+			assert.ok(discover);
+			await discover();
+			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+			remoteService.addConnection({
+				address, name: tunnel.name, clientId: undefined,
+				status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'First failure'),
+			}, new class extends mock<IAgentConnection>() { }());
+			const provider = contribution.stubProviders.get(address)!;
+			const warnings: (string | undefined)[] = [];
+			const listener = store.add(autorun(reader => warnings.push(RemoteAgentHostConnectionStatus.getErrorMessage(provider.connectionStatus.read(reader)))));
+			remoteService.pendingConnections.push({ address, startedAt: Date.now(), userInitiated: false });
+			remoteService.firePendingChange();
+			await discover();
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connectingWithError('First failure'));
+			await discover();
+			listener.dispose();
+			remoteService.pendingConnections.length = 0;
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.Unknown, 'Retry failed'));
+			const afterFailure = RemoteAgentHostConnectionStatus.getErrorMessage(provider.connectionStatus.get());
+			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connected);
+			assert.deepStrictEqual({
+				retained: warnings.length > 0 && warnings.every(warning => warning === 'First failure'),
+				afterFailure, afterSuccess: RemoteAgentHostConnectionStatus.getErrorMessage(provider.connectionStatus.get()),
+			}, { retained: true, afterFailure: 'Retry failed', afterSuccess: undefined });
+		});
 	}
 
 	test('newly-cached tunnel binds to subsequent live connection', async () => {

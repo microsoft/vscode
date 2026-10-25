@@ -51,6 +51,16 @@ suite('remoteHostOptions', () => {
 		});
 	});
 
+	test('automatic retry hovers retain the last error without changing the status label', () => {
+		assert.deepStrictEqual([
+			RemoteAgentHostConnectionStatus.connectingWithError('Connection refused'),
+			RemoteAgentHostConnectionStatus.reconnectingUntil(undefined, 'Connection refused'),
+		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status), withAddress: getStatusHover(status, 'ssh:host') })), [
+			{ label: 'Connecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+			{ label: 'Reconnecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+		]);
+	});
+
 	test('inventory-owned hosts offer disconnect and rename without local removal or SSH location controls', () => {
 		const snapshot = (isConnected: boolean) => buildRemoteHostOptionItems({
 			address: 'cloudsandbox:environment', isConnected, canRemove: false, disconnectLabel: 'Disconnect',
