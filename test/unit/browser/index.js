@@ -36,6 +36,7 @@ const { execFile } = require('node:child_process');
  * tfs: string;
  * 'stall-timeout': string;
  * 'rerun-failed-files': string;
+ * testSplit: string;
  * build: boolean;
  * debug: boolean;
  * sequential: boolean;
@@ -44,7 +45,7 @@ const { execFile } = require('node:child_process');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'runList', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'rerun-failed-files'],
+	string: ['run', 'runList', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'rerun-failed-files', 'testSplit'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
@@ -71,6 +72,7 @@ const args = minimist(process.argv.slice(2), {
 		tfs: 'tfs',
 		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
 		'rerun-failed-files': 'rerun the failed tests in a freshly launched browser up to <count> more times',
+		testSplit: 'split the test files into <n> parts and run the <i>th part, e.g. 1/2',
 		help: 'show the help'
 	}
 });
@@ -91,6 +93,7 @@ Options:
 --tfs <tfs>          tfs
 --stall-timeout <seconds> abort with diagnostics when no test progress is reported for <seconds> (default 300, 0 disables)
 --rerun-failed-files <count> rerun the failed tests (the suite of a failed hook) in a freshly launched browser up to <count> more times, or their whole test files when there are too many failures
+--testSplit <i>/<n>  split the test files into <n> parts and run the <i>th part
 --help, -h           show the help`);
 	process.exit(0);
 }
@@ -100,6 +103,22 @@ const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').spl
 
 const isDebug = !!args.debug;
 const stallTimeoutMs = isDebug ? 0 : Math.max(0, Number(args['stall-timeout']) || 0) * 1000;
+
+/** @type {{ index: number; total: number } | undefined} */
+const testSplit = (function () {
+	if (args.testSplit === undefined) {
+		return undefined;
+	}
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(args.testSplit);
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	// An invalid part would select no test files, and a run without tests would pass.
+	if (!match || !Number.isSafeInteger(total) || index < 1 || index > total) {
+		console.error(`Invalid --testSplit value '${args.testSplit}'. Expected <i>/<n> with 1 <= i <= n, for example 1/2.`);
+		process.exit(1);
+	}
+	return { index, total };
+})();
 
 /**
  * With more failed tests and suites than this, a rerun repeats whole test files
@@ -177,6 +196,11 @@ const testModules = (async function () {
 			} else if (!isDefaultModules) {
 				console.warn(`DROPPING ${file} because it cannot be run inside a browser`);
 			}
+		}
+		if (testSplit) {
+			// Deal the files out in turn, so that adjacent slow files end up in different parts.
+			// Reruns of failed tests take their own files, so they are not split again.
+			return modules.filter((_, moduleIndex) => moduleIndex % testSplit.total === testSplit.index - 1);
 		}
 		return modules;
 	});
