@@ -155,7 +155,9 @@ export interface ICanvasContextService {
 	canPresentInGroup?(owner: ICanvasOwner, group: IEditorGroup): boolean;
 	/**
 	 * Whether canvases of `owner` show outside the per-owner editor working sets, such as in a window that shows the
-	 * owning chat, so that they show while another owner's working set applies.
+	 * owning chat, so that they show while another owner's working set applies. Presentation reads this with `reader`
+	 * for every owner outside the applied working set, so implementations should read one derived owner set with an
+	 * equality check rather than every window, so that unrelated window changes do not re-run presentation.
 	 */
 	presentsOutsideWorkingSets?(owner: ICanvasOwner, reader?: IReader): boolean;
 }
@@ -370,6 +372,10 @@ export class CanvasInput extends EditorInput {
 
 	setCanvas(canvas: ICanvas | undefined, membershipPending = false): void {
 		const previous = this.canvas.get();
+		// Presentation re-applies canvases on every run; unchanged content must not notify observers.
+		if (canvasesEqual(previous, canvas) && this.membershipPending.get() === membershipPending) {
+			return;
+		}
 		transaction(tx => {
 			this.canvas.set(canvas, tx);
 			this.membershipPending.set(membershipPending, tx);
@@ -382,4 +388,9 @@ export class CanvasInput extends EditorInput {
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		return other instanceof CanvasInput ? isEqual(this.resource, other.resource) : super.matches(other);
 	}
+}
+
+function canvasesEqual(a: ICanvas | undefined, b: ICanvas | undefined): boolean {
+	return a === b || (!!a && !!b && a.instanceId === b.instanceId && a.title === b.title && a.status === b.status
+		&& isEqual(a.resource, b.resource) && isEqual(a.source, b.source));
 }
