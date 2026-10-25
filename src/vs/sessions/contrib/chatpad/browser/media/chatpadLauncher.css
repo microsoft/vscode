@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Floats over the window's content in its bottom right corner, below menus, hovers, Quick Input and dialogs. */
+.monaco-workbench > .chatpad-launcher {
+	position: absolute;
+	right: var(--vscode-spacing-size160);
+	bottom: var(--vscode-spacing-size160);
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size320);
+	height: var(--vscode-spacing-size320);
+	padding: 0;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-icon-foreground);
+	box-shadow: var(--vscode-shadow-lg);
+	cursor: pointer;
+}
+
+.monaco-workbench > .chatpad-launcher:hover {
+	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
+}
+
+.monaco-workbench > .chatpad-launcher:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.monaco-workbench > .chatpad-launcher.hidden {
+	display: none;
+}

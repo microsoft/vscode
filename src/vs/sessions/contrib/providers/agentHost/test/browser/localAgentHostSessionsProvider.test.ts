@@ -30,6 +30,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostChatpadCapabilityMetaKey, AgentHostChatpadSessionMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostChatpadMeta.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -1000,6 +1001,100 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('creates the Chatpad chat once, keeps it unlisted, and resolves the host one in other windows', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostChatpadCapabilityMetaKey]: true } }, undefined);
+		// The host makes the first session created for the Chatpad its Chatpad chat; the note is in its folder.
+		agentHost.getChatpad = async () => {
+			const session = agentHost.createdSessionUris.at(0);
+			return session && { note: URI.file(`/home/.copilot/chats${session.path}/chatpad.md`), session, provider: 'copilotcli' };
+		};
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const created = await provider.getChatpad();
+		const backendSession = agentHost.createdSessionUris.at(-1)!;
+		agentHost.fireAgentHostStart();
+		await timeout(0);
+		const keptUnlisted = provider.getSessions().includes(created!.session);
+		const reopened = await provider.getChatpad();
+		const otherWindow = await createProvider(disposables, agentHost).getChatpad();
+
+		assert.deepStrictEqual({
+			note: created?.note.toString(),
+			createConfig: agentHost.createSessionConfigs.at(-1),
+			session: created?.session.resource.toString(),
+			isChatpad: created?.session.isChatpad?.get(),
+			isQuickChat: created?.session.isQuickChat?.get(),
+			keptUnlisted,
+			sameSessionOnReopen: reopened?.session === created?.session,
+			otherWindow: { session: otherWindow?.session.resource.toString(), isChatpad: otherWindow?.session.isChatpad?.get() },
+			created: agentHost.createdSessionUris.length,
+		}, {
+			note: URI.file(`/home/.copilot/chats${backendSession.path}/chatpad.md`).toString(),
+			createConfig: { config: undefined, metadata: { [AgentHostChatpadSessionMetaKey]: true }, workingDirectory: undefined },
+			session: `agent-host-copilotcli:${backendSession.path}`,
+			isChatpad: true,
+			isQuickChat: true,
+			keptUnlisted: true,
+			sameSessionOnReopen: true,
+			otherWindow: { session: `agent-host-copilotcli:${backendSession.path}`, isChatpad: true },
+			created: 1,
+		});
+	}));
+
+	test('creates one Chatpad session for concurrent calls', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostChatpadCapabilityMetaKey]: true } }, undefined);
+		agentHost.getChatpad = async () => {
+			await timeout(10);
+			const session = agentHost.createdSessionUris.at(0);
+			return session && { note: URI.file(`/home/.copilot/chats${session.path}/chatpad.md`), session, provider: 'copilotcli' };
+		};
+		agentHost.appendToChatpad = async () => { };
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const [first, second, appended] = await Promise.all([provider.getChatpad(), provider.getChatpad(), provider.appendToChatpad('text')]);
+
+		assert.deepStrictEqual({ created: agentHost.createdSessionUris.length, same: first?.session === second?.session, appended }, { created: 1, same: true, appended: undefined });
+	}));
+
+	test('creates a new Chatpad once its session is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostChatpadCapabilityMetaKey]: true } }, undefined);
+		let deleted = false;
+		agentHost.getChatpad = async () => {
+			const session = deleted ? agentHost.createdSessionUris.at(1) : agentHost.createdSessionUris.at(0);
+			return session && { note: URI.file(`/home/.copilot/chats${session.path}/chatpad.md`), session, provider: 'copilotcli' };
+		};
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const first = await provider.getChatpad();
+		await provider.deleteSession(first!.session.sessionId);
+		deleted = true;
+		const second = await provider.getChatpad();
+
+		assert.deepStrictEqual({ created: agentHost.createdSessionUris.length, replaced: second?.session !== first?.session, isChatpad: second?.session.isChatpad?.get() }, { created: 2, replaced: true, isChatpad: true });
+	}));
+
+	test('offers no Chatpad, and creates no session, with a host that lacks the capability', async () => {
+		const calls: string[] = [];
+		agentHost.getChatpad = async () => { calls.push('getChatpad'); return undefined; };
+		agentHost.appendToChatpad = async () => { calls.push('appendToChatpad'); };
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const chatpad = await provider.getChatpad();
+		const appended = await provider.appendToChatpad('text').then(() => 'resolved', () => 'rejected');
+
+		assert.deepStrictEqual({ chatpad, appended, calls, created: agentHost.createdSessionUris.length }, {
+			chatpad: undefined, appended: 'rejected', calls: [], created: 0,
+		});
+	});
 
 	test('publishes a directly imported conversation without creating or sending another session', async () => {
 		const provider = createProvider(disposables, agentHost);

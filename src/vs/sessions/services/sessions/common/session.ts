@@ -834,6 +834,8 @@ export interface ISession {
 	readonly isQuickChat?: IObservable<boolean>;
 	/** Whether this session is associated with an automation run. Absent means `false`. */
 	readonly isAutomation?: IObservable<boolean>;
+	/** Whether this is the provider's Chatpad chat, which the sessions list leaves out. Absent means `false`. */
+	readonly isChatpad?: IObservable<boolean>;
 	/** Whether this session is still treated as external to the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
 	/** Connection state of the backing remote host. Absent when the session has no remote host. */
@@ -900,6 +902,11 @@ export interface ISessionCreationReference {
 }
 
 /** Returns whether any chat or the session summary reports file changes. */
+/** Whether a session is the provider's Chatpad chat, which aggregates over sessions leave out. */
+export function isChatpadSession(session: ISession, reader: IReader | undefined): boolean {
+	return session.isChatpad?.read(reader) ?? false;
+}
+
 export function sessionHasChanges(session: ISession, reader: IReader | undefined): boolean {
 	if (session.chats.read(reader).some(chat => chat.changes.read(reader).length > 0)) {
 		return true;

@@ -193,6 +193,14 @@ export interface IForkChatOptions {
 }
 
 /** Provider options applied when creating a new session draft. */
+/** A provider's Chatpad; see {@link ISessionsProvider.getChatpad}. */
+export interface ISessionsProviderChatpad {
+	/** The note, as a resource the workbench can open. */
+	readonly note: URI;
+	/** The Chatpad chat's session. */
+	readonly session: ISession;
+}
+
 export interface ISessionsProviderCreateSessionOptions {
 	/** Whether this draft configures an Automation rather than an interactive session. */
 	readonly isAutomationDraft?: boolean;
@@ -666,6 +674,15 @@ export interface ISessionsProvider {
 
 	/** Permanently imports an external session without sending a message or changing its identity. */
 	importSession?(sessionId: string): Promise<void>;
+
+	/**
+	 * Resolves the provider's Chatpad: a Markdown note that a dedicated workspace-less chat maintains. Creates the
+	 * chat when there is none yet. Resolves to `undefined` when the provider currently has no Chatpad.
+	 */
+	getChatpad?(): Promise<ISessionsProviderChatpad | undefined>;
+
+	/** Appends text to the Chatpad note as typed, without sending a request. */
+	appendToChatpad?(text: string): Promise<void>;
 
 	/**
 	 * Returns the current on-disk size of the session's isolated worktree.

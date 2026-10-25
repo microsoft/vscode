@@ -51,7 +51,7 @@ class ShowSessionDetailsAction extends Action2 {
 registerAction2(ShowSessionDetailsAction);
 
 export function formatSessionDetails(allSessions: readonly ISession[], labelService: ILabelService): string {
-	const sessions = allSessions.filter(session => !session.isArchived.get() && !(session.isAutomation?.get() ?? false));
+	const sessions = allSessions.filter(session => !session.isArchived.get() && !(session.isAutomation?.get() ?? false) && !(session.isChatpad?.get() ?? false));
 	const lines = ['Session Details', ''];
 
 	if (sessions.length === 0) {

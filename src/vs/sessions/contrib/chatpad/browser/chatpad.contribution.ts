@@ -1,0 +1,396 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { AppendToChatpadMaxTextLength } from '../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { raceTimeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, waitForState } from '../../../../base/common/observable.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { Menus } from '../../../browser/menus.js';
+import { SessionsCategories } from '../../../common/categories.js';
+import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowEditorViewTypeContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import type { ISessionsProvider, ISessionsProviderChatpad } from '../../../services/sessions/common/sessionsProvider.js';
+import { CHATPAD_NOTE_MARKDOWN_EDITOR, getChatpadChatWindowContent, OPEN_CHATPAD_COMMAND_ID, setChatpadNoteViewType, CHATPAD_CHAT_WINDOW_KIND, ChatpadEnabledContext, ChatpadAvailableContext, ChatpadProviderContext, ChatpadWindowContext, CHATPAD_ENABLED_SETTING } from './chatpad.js';
+import { ChatpadLauncherContribution } from './chatpadLauncher.js';
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		[CHATPAD_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('sessions.chatpad.enabled', "Controls whether the Chatpad of the Agents window can be opened, and whether it is restored at startup when it was open. Turning it off hides the Open Chatpad and Append to Chatpad commands and the Open Chatpad button; a Chatpad that is open stays until closed."),
+		},
+	}
+});
+
+interface IResolvedChatpad {
+	readonly provider: ISessionsProvider;
+	readonly chatpad: ISessionsProviderChatpad;
+}
+
+/**
+ * The provider that keeps the Chatpad: the one that implements it. Only the local
+ * provider does, so the Chatpad is never read from or created on a remote one.
+ * Open, Append and restore all go through it, so they use the same note.
+ */
+function getChatpadProvider(providersService: ISessionsProvidersService): ISessionsProvider | undefined {
+	return providersService.getProviders().find(provider => provider.getChatpad && provider.appendToChatpad);
+}
+
+/**
+ * Resolves the Chatpad, or `undefined` when there is no provider for it, or its
+ * provider cannot offer it. Rejects when the provider fails to resolve it.
+ */
+async function resolveChatpad(providersService: ISessionsProvidersService): Promise<IResolvedChatpad | undefined> {
+	const provider = getChatpadProvider(providersService);
+	const chatpad = await provider?.getChatpad?.();
+	return provider && chatpad ? { provider, chatpad } : undefined;
+}
+
+function notifyUnavailable(notificationService: INotificationService): void {
+	notificationService.info(localize('chatpad.unavailable', "The Chatpad is not available."));
+}
+
+/** Tells the context key whether a provider offers the Chatpad. */
+export class ChatpadProviderContextContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatpadProviderContext';
+
+	constructor(
+		@ISessionsProvidersService providersService: ISessionsProvidersService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+		const key = ChatpadProviderContext.bindTo(contextKeyService);
+		const update = () => key.set(!!getChatpadProvider(providersService));
+		update();
+		this._register(providersService.onDidChangeProviders(update));
+	}
+}
+
+/** Keeps the note of the Chatpad out of agent feedback: it belongs to no session's changes, so no feedback UI shows in its editor. */
+export class ChatpadFeedbackExclusion extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatpadFeedbackExclusion';
+
+	constructor(
+		@IChatWindowService chatWindowService: IChatWindowService,
+		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
+	) {
+		super();
+		this._register(autorun(reader => {
+			for (const window of chatWindowService.windows.read(reader)) {
+				if (window.kind === CHATPAD_CHAT_WINDOW_KIND) {
+					const note = window.content.read(reader).editor?.resource;
+					if (note) {
+						reader.store.add(agentFeedbackService.registerFeedbackResourceExclusion(note));
+					}
+				}
+			}
+		}));
+	}
+}
+
+/** Where the Clear action shows in the chat window's title bar and docked header, before its layout actions. */
+const CHATPAD_CLEAR_ORDER = 0;
+
+/** Where the action that switches the editor of the note shows: after Clear. */
+const CHATPAD_NOTE_EDITOR_ORDER = 1;
+
+registerAction2(class OpenChatpadAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_CHATPAD_COMMAND_ID,
+			title: localize2('openChatpad', "Open Chatpad"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ChatpadAvailableContext,
+		});
+	}
+
+	/** Shows the Chatpad in its chat window: its note above its chat, docked in the main window by default. */
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		if (!accessor.get(IContextKeyService).contextMatchesRules(ChatpadAvailableContext)) {
+			return;
+		}
+		const providersService = accessor.get(ISessionsProvidersService);
+		const chatWindowService = accessor.get(IChatWindowService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
+		const storageService = accessor.get(IStorageService);
+
+		try {
+			const resolved = await resolveChatpad(providersService);
+			if (!resolved) {
+				notifyUnavailable(notificationService);
+				return;
+			}
+			await chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad, storageService));
+		} catch (error) {
+			logService.error('[Chatpad] Failed to open the Chatpad', error);
+			notificationService.error(localize('openChatpad.failed', "Could not open the Chatpad."));
+		}
+	}
+});
+
+registerAction2(class ClearChatpadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatpad.clear',
+			title: localize2('clearChatpad', "Clear Chatpad"),
+			category: SessionsCategories.Sessions,
+			icon: Codicon.clearAll,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext),
+			menu: [{
+				id: Menus.ChatWindowTitleBar,
+				group: 'navigation',
+				order: CHATPAD_CLEAR_ORDER,
+				when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext),
+			}, {
+				id: Menus.ChatWindowTitle,
+				group: 'navigation',
+				order: CHATPAD_CLEAR_ORDER,
+				when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext),
+			}],
+		});
+	}
+
+	/** Deletes the Chatpad chat, which deletes its note with it, and shows a new Chatpad in its chat window. */
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const chatWindowService = accessor.get(IChatWindowService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const providersService = accessor.get(ISessionsProvidersService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
+		const storageService = accessor.get(IStorageService);
+
+		const window = chatWindowService.getActiveWindow();
+		const session = window?.kind.id === CHATPAD_CHAT_WINDOW_KIND.id ? sessionsManagementService.getSession(window.content.get().session) : undefined;
+		const provider = session ? providersService.getProvider(session.providerId) : undefined;
+		if (!window || !session || !provider?.getChatpad) {
+			return;
+		}
+
+		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
+			message: localize('clearChatpad.confirm', "Do you want to clear the Chatpad?"),
+			detail: localize('clearChatpad.confirmDetail', "This deletes the note and the conversation with its chat. This cannot be undone."),
+			primaryButton: localize({ key: 'clearChatpad.confirmButton', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+		});
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			// The chat window stays open while its Chatpad is deleted and a new one is made.
+			await window.replace((async () => {
+				await sessionsManagementService.deleteSession(session);
+				const chatpad = await provider.getChatpad?.();
+				if (!chatpad) {
+					notifyUnavailable(notificationService);
+					return undefined;
+				}
+				return getChatpadChatWindowContent(chatpad, storageService);
+			})());
+		} catch (error) {
+			logService.error('[Chatpad] Failed to clear the Chatpad', error);
+			notificationService.error(localize('clearChatpad.failed', "Could not clear the Chatpad."));
+		}
+	}
+});
+
+const TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID = 'sessions.chatpad.toggleNoteEditor';
+const ChatpadNoteAsTextContext = ChatWindowEditorViewTypeContext.isEqualTo(CHAT_WINDOW_TEXT_EDITOR);
+
+registerAction2(class ToggleChatpadNoteEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID,
+			title: localize2('toggleChatpadNoteEditor', "Toggle Chatpad Note Between Text and Markdown Editor"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext),
+		});
+	}
+
+	/** Shows the note as text, or back in the Markdown editor, and remembers the choice for when the Chatpad opens. */
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const chatWindowService = accessor.get(IChatWindowService);
+		const storageService = accessor.get(IStorageService);
+		const window = chatWindowService.getActiveWindow();
+		const editor = window?.kind.id === CHATPAD_CHAT_WINDOW_KIND.id ? window.content.get().editor : undefined;
+		if (!window || !editor) {
+			return;
+		}
+		const viewType = editor.viewType === CHAT_WINDOW_TEXT_EDITOR ? CHATPAD_NOTE_MARKDOWN_EDITOR : CHAT_WINDOW_TEXT_EDITOR;
+		setChatpadNoteViewType(storageService, viewType);
+		await window.setEditor({ ...editor, viewType });
+	}
+});
+
+// What the button does, rather than a checked toggle, as Dock does: after Clear, in the title bar and the docked header.
+for (const [asText, title, icon] of [
+	[false, localize2('openChatpadNoteAsText', "Open Note as Text"), Codicon.file],
+	[true, localize2('openChatpadNoteInMarkdownEditor', "Open Note in Markdown Editor"), Codicon.markdown],
+] as const) {
+	const when = asText ? ChatpadNoteAsTextContext : ChatpadNoteAsTextContext.negate();
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBar, {
+		command: { id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID, title, icon },
+		group: 'navigation',
+		order: CHATPAD_NOTE_EDITOR_ORDER,
+		when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext, when),
+	});
+	MenuRegistry.appendMenuItem(Menus.ChatWindowTitle, {
+		command: { id: TOGGLE_CHATPAD_NOTE_EDITOR_COMMAND_ID, title, icon },
+		group: 'navigation',
+		order: CHATPAD_NOTE_EDITOR_ORDER,
+		when: ContextKeyExpr.and(ChatpadEnabledContext, ChatpadWindowContext, when),
+	});
+}
+
+registerAction2(class AppendToChatpadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.appendToChatpad',
+			title: localize2('appendToChatpad', "Append to Chatpad"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ChatpadAvailableContext,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		if (!accessor.get(IContextKeyService).contextMatchesRules(ChatpadAvailableContext)) {
+			return;
+		}
+		const providersService = accessor.get(ISessionsProvidersService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		let resolved: IResolvedChatpad | undefined;
+		try {
+			resolved = await resolveChatpad(providersService);
+		} catch (error) {
+			logService.error('[Chatpad] Failed to resolve the Chatpad', error);
+			notificationService.error(localize('appendToChatpad.failed', "Could not append to the Chatpad."));
+			return;
+		}
+		if (!resolved?.provider.appendToChatpad) {
+			notifyUnavailable(notificationService);
+			return;
+		}
+		const text = await quickInputService.input({
+			placeHolder: localize('appendToChatpad.placeholder', "Text to append to the Chatpad"),
+			prompt: localize('appendToChatpad.prompt', "Press Enter to append the text as typed, without asking the Chatpad chat."),
+			validateInput: async value => {
+				if (!value.trim()) {
+					return localize('appendToChatpad.empty', "Enter text to append.");
+				}
+				return value.length > AppendToChatpadMaxTextLength
+					? localize('appendToChatpad.tooLong', "The text is too long to append: at most {0} characters fit at once.", AppendToChatpadMaxTextLength)
+					: undefined;
+			},
+		});
+		if (!text?.trim()) {
+			return;
+		}
+		try {
+			await resolved.provider.appendToChatpad(text);
+		} catch (error) {
+			logService.error('[Chatpad] Failed to append to the Chatpad', error);
+			notificationService.error(localize('appendToChatpad.failed', "Could not append to the Chatpad."));
+		}
+	}
+});
+
+/** Whether the Chatpad was open when the window last closed. */
+const CHATPAD_OPEN_STORAGE_KEY = 'sessions.chatpad.open';
+
+/** How long restoring the Chatpad waits for an agent host that provides it. */
+const CHATPAD_RESTORE_TIMEOUT = 30_000;
+
+/** Opens the Chatpad, as it was, when it was open as the window last closed. */
+export class ChatpadRestoration extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessionsChatpadRestoration';
+
+	constructor(
+		@IStorageService private readonly _storageService: IStorageService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsProvidersService private readonly _providersService: ISessionsProvidersService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+	) {
+		super();
+		const wasOpen = this._storageService.getBoolean(CHATPAD_OPEN_STORAGE_KEY, StorageScope.WORKSPACE, false);
+		// Not restored while the Chatpad is off or AI features are disabled, but kept for when it can be: nothing is saved over it until the Chatpad opens.
+		let keepStored = wasOpen && (!configurationService.getValue<boolean>(CHATPAD_ENABLED_SETTING) || chatEntitlementService.sentiment.hidden);
+		this._register(this._storageService.onWillSaveState(() => {
+			const open = this._chatWindowService.windows.get().some(window => window.kind === CHATPAD_CHAT_WINDOW_KIND);
+			if (keepStored && !open) {
+				return;
+			}
+			keepStored = false;
+			this._storageService.store(CHATPAD_OPEN_STORAGE_KEY, open, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}));
+		if (wasOpen && !keepStored) {
+			this._restore().catch(error => this._logService.error('[Chatpad] Failed to restore the Chatpad', error));
+		}
+	}
+
+	private async _restore(): Promise<void> {
+		await waitForState(this._sessionsService.initialRestoreComplete);
+		const deadline = Date.now() + CHATPAD_RESTORE_TIMEOUT;
+		while (Date.now() < deadline && !this._store.isDisposed) {
+			const available = this._contextKeyService.contextMatchesRules(ChatpadAvailableContext);
+			if (available) {
+				const resolved = await resolveChatpad(this._providersService);
+				if (resolved) {
+					if (!this._chatWindowService.windows.get().some(window => window.kind === CHATPAD_CHAT_WINDOW_KIND)) {
+						await this._chatWindowService.open(CHATPAD_CHAT_WINDOW_KIND, getChatpadChatWindowContent(resolved.chatpad, this._storageService), { preserveFocus: true });
+					}
+					return;
+				}
+			}
+			// Once a provider offers it, and then once it can resolve it; context changes only matter while a provider is there.
+			const changed = getChatpadProvider(this._providersService)
+				? Event.any<unknown>(this._providersService.onDidChangeProviders, this._contextKeyService.onDidChangeContext)
+				: this._providersService.onDidChangeProviders;
+			await raceTimeout(Event.toPromise(changed), Math.max(0, deadline - Date.now()));
+		}
+	}
+}
+
+registerWorkbenchContribution2(ChatpadProviderContextContribution.ID, ChatpadProviderContextContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatpadFeedbackExclusion.ID, ChatpadFeedbackExclusion, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatpadLauncherContribution.ID, ChatpadLauncherContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatpadRestoration.ID, ChatpadRestoration, WorkbenchPhase.AfterRestored);
