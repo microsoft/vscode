@@ -416,8 +416,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}));
 			// Closing its last editor closes the editor area, as it does the main window's side pane: the chat shows alone, and reopening the editor area restores the split layout.
 			// Not a move, such as to another group or window, nor an editor that is replaced.
-			windowDisposables.add(editorGroup.onDidModelChange(e => {
-				if (e.kind === GroupModelChangeKind.EDITOR_CLOSE && shouldCloseEditorArea({ areaIsEmpty: editorGroup.isEmpty, isMove: e.context === EditorCloseContext.MOVE, windowIsChanging: this._replacing.has(window) || windowDisposables.isDisposed })) {
+			windowDisposables.add(editorGroup.onDidCloseEditor(e => {
+				if (shouldCloseEditorArea({ areaIsEmpty: editorGroup.isEmpty, isMove: e.context === EditorCloseContext.MOVE, windowIsChanging: this._replacing.has(window) || windowDisposables.isDisposed })) {
 					window.setLayout(ChatWindowLayout.ChatOnly);
 				}
 			}));
