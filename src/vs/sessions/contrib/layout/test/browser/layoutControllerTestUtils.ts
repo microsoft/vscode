@@ -285,6 +285,8 @@ export interface ITestLayoutHarness {
 	setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	/** Value returned by the layout service's `isEditorRevealedExplicitly()` mock. */
 	editorRevealedExplicitly: boolean;
+	/** Current suppression depth for `suppressShowChatOnHiddenSidePane()`. */
+	showChatOnHiddenSidePaneSuppressionDepth: number;
 	/** Current suppression depth for `suppressEditorPartAutoVisibility()`. */
 	editorPartAutoVisibilitySuppressionDepth: number;
 	/** Whether the lifecycle `Restored` phase has resolved (activates desktop managed-tab / detail-panel behaviour). */
@@ -415,6 +417,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		sessionsPartHeightConstraints: undefined,
 		sessionsPartHeightConstraintsCalls: [],
 		sessionsPartGridLayouts: 0,
+		showChatOnHiddenSidePaneSuppressionDepth: 0,
 		toggleSidePaneCalls: 0,
 		sidePaneStateBeforeHide: undefined,
 		partVisibility: new Map<Parts, boolean>([
@@ -617,6 +620,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			return harness.partSizes.get(part) ?? { width: 0, height: 0 };
 		}
 		override getPanelAlignment() { return harness.panelAlignment; }
+		suppressShowChatOnHiddenSidePane(): IDisposable {
+			harness.showChatOnHiddenSidePaneSuppressionDepth++;
+			return toDisposable(() => harness.showChatOnHiddenSidePaneSuppressionDepth--);
+		}
 		suppressEditorPartAutoVisibility(): IDisposable {
 			harness.editorPartAutoVisibilitySuppressionDepth++;
 			return toDisposable(() => harness.editorPartAutoVisibilitySuppressionDepth--);

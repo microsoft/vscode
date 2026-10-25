@@ -154,6 +154,7 @@ suite('Sessions - Workbench', () => {
 	const isSecondarySideBarVisibleDesktop = DesktopWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
 	const toggleSidePane = DesktopWorkbench.prototype.toggleSidePane as (this: ITestWorkbench) => boolean;
 	const fireDidChangePartVisibilityDesktop = Reflect.get(DesktopWorkbench.prototype, '_fireDidChangePartVisibility') as (this: ITestWorkbench, partId: Parts, visible: boolean) => void;
+	const suppressShowChatOnHiddenSidePane = DesktopWorkbench.prototype.suppressShowChatOnHiddenSidePane as (this: ITestWorkbench) => IDisposable;
 	const hideSidePane = Workbench.prototype.hideSidePane as (this: ITestWorkbench) => void;
 	const captureSidePaneComposition = Workbench.prototype.captureSidePaneComposition as (this: ITestWorkbench) => ISidePaneState;
 	const restoreSidePaneComposition = Workbench.prototype.restoreSidePaneComposition as (this: ITestWorkbench, composition: ISidePaneState) => void;
@@ -939,6 +940,52 @@ suite('Sessions - Workbench', () => {
 			afterSwap: { sessions: false, sessionsHidden: [] },
 			synchronously: false,
 			settled: { sessions: true, sessionsHidden: [false] },
+		});
+	});
+
+	test('desktop does not show the hidden chat (editor only) while a session\'s layout restore briefly hides the side pane, and checks once the restore ends', async () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false, sessions: false } });
+		const sessionsHidden: boolean[] = [];
+		Object.assign(host, {
+			_showChatOnHiddenSidePaneSuppressionCount: 0,
+			_onDidChangePartVisibility: { fire: () => { } },
+			setPartHidden: (hidden: boolean, part: Parts) => {
+				if (part === Parts.SESSIONS_PART) {
+					sessionsHidden.push(hidden);
+					host.partVisibility.sessions = !hidden;
+				}
+			},
+		});
+		const setPart = (part: 'editor' | 'auxiliaryBar', partId: Parts, visible: boolean) => {
+			host.partVisibility[part] = visible;
+			fireDidChangePartVisibilityDesktop.call(host, partId, visible);
+		};
+		const suppress = () => suppressShowChatOnHiddenSidePane.call(host);
+
+		// A restore hides the editor, and shows the next composition's after an await.
+		let restore = suppress();
+		setPart('editor', Parts.EDITOR_PART, false);
+		await Promise.resolve();
+		const whileRestoring = [...sessionsHidden];
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, true);
+		restore.dispose();
+		await Promise.resolve();
+		const restoredWithDetails = [...sessionsHidden];
+
+		// A restore that ends with nothing in the side pane: the chat shows once, as it ends.
+		restore = suppress();
+		setPart('auxiliaryBar', Parts.AUXILIARYBAR_PART, false);
+		await Promise.resolve();
+		const beforeEnd = [...sessionsHidden];
+		restore.dispose();
+		restore.dispose();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ whileRestoring, restoredWithDetails, beforeEnd, afterEnd: sessionsHidden }, {
+			whileRestoring: [],
+			restoredWithDetails: [],
+			beforeEnd: [],
+			afterEnd: [false],
 		});
 	});
 

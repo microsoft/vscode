@@ -164,6 +164,28 @@ suite('Sessions - DesktopLayoutModeCoordinator', () => {
 		});
 	}
 
+	test('holds off showing the hidden chat on an emptied side pane for the whole restore of the focused chat\'s layout', async () => {
+		// Per chat, A shows its editor and B its Details only.
+		const controller = createController('chat', sessionA);
+		await controller.whenRestored();
+		await focus(controller, sessionB);
+		const depths: number[] = [];
+		store.add(harness.layoutService.onDidChangePartVisibility(() => depths.push(harness.showChatOnHiddenSidePaneSuppressionDepth)));
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		const byUser = [...depths];
+		depths.length = 0;
+		await focus(controller, sessionA);
+		const restoring = [...depths];
+
+		assert.deepStrictEqual({ byUser, restoring, afterRestore: harness.showChatOnHiddenSidePaneSuppressionDepth }, {
+			byUser: [0, 0],
+			// Held by each of the nested restores, the editors' and the side pane's, and released as they end.
+			restoring: [2, 2],
+			afterRestore: 0,
+		});
+	});
+
 	test('leads the session activity bar of the main window with one Layout button of the same icon in every mode, opening Show Chat, Show Editor and Stacked as the window shows them, while it shows its layout actions', async () => {
 		const controller = createController('chat', sessionA);
 		await controller.whenRestored();
