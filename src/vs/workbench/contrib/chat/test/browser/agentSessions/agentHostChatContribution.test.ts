@@ -2601,7 +2601,7 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
-		test('resolves relative file images against the owning opaque chat working directory', async () => {
+		test('resolves relative file links and images against the owning opaque chat working directory', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backend = AgentSession.uri('copilot', 'file-images');
 			const defaultChat = 'host-chat:/opaque-main';
@@ -2628,10 +2628,12 @@ suite('AgentHostChatContribution', () => {
 				main: sessionHandler.resolveChatResponseUri(resource, './images/my%20robot.png', 'image'),
 				peer: sessionHandler.resolveChatResponseUri(peerResource, './images/my%20robot.png', 'image'),
 				link: sessionHandler.resolveChatResponseUri(resource, './images/my%20robot.png', 'link'),
+				peerLink: sessionHandler.resolveChatResponseUri(peerResource, './images/my%20robot.png', 'link'),
 			}, {
 				main: toAgentHostUri(URI.file('/sandbox/project/images/my robot.png'), 'sandbox').toString(),
 				peer: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
-				link: './images/my%20robot.png',
+				link: toAgentHostUri(URI.file('/sandbox/project/images/my robot.png'), 'sandbox').toString(),
+				peerLink: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
 			});
 		});
 
