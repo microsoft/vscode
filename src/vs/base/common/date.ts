@@ -57,7 +57,8 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 		date = date.getTime();
 	}
 
-	const seconds = Math.round((new Date().getTime() - date) / 1000);
+	const elapsedMs = new Date().getTime() - date;
+	const seconds = Math.round(elapsedMs / 1000);
 	if (seconds < -30) {
 		return localize('date.fromNow.in', 'in {0}', fromNow(new Date().getTime() + seconds * 1000, false, useFullTimeWords, disallowNow));
 	}
