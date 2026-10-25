@@ -2405,8 +2405,16 @@ export type ChatArtifactActionResultDto =
 	| Omit<Extract<ArtifactCodeResult, { readonly kind: 'completed' }>, 'result'>
 	| Extract<ArtifactCodeResult, { readonly kind: 'skipped' }>;
 
+export interface ChatArtifactIntegrationProviderMetadataDto {
+	readonly label: string;
+	readonly description?: string;
+	readonly groupLabel?: string;
+	readonly automationOptions: readonly ArtifactAutomationOption[];
+	readonly canSignIn: boolean;
+}
+
 export interface MainThreadChatArtifactIntegrationsShape extends IDisposable {
-	$registerProvider(handle: number, id: string, label: string, options: readonly ArtifactAutomationOption[], canSignIn: boolean, description?: string): void;
+	$registerProvider(handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto): void;
 	$unregisterProvider(handle: number): void;
 	$onDidChangeProvider(handle: number): void;
 	$onDidChangeIntegration(handle: number, state: ChatArtifactIntegrationStateDto): void;

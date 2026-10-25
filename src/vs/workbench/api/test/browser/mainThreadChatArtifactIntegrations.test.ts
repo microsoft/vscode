@@ -255,6 +255,22 @@ suite('Chat artifact integration extension bridge', () => {
 		});
 	});
 
+	test('carries the provider group label and each observation group icon and priority', async () => {
+		const { extHost, service } = bridge();
+		const { observations } = register(extHost, { groupLabel: 'Experiments' });
+		const model = store.add(await service.acquireArtifact('vendor-session://opaque', 'record')).object;
+		const observation = observations[0];
+		const ungrouped = model.snapshot.get().contributions[0].view.group;
+		observation.update({ ...observation.state, group: { icon: new ThemeIcon('beaker', new ThemeColor('charts.red')), priority: 3 } });
+		const contribution = model.snapshot.get().contributions[0];
+		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, ungrouped, group: contribution.view.group }, {
+			groupLabel: 'Experiments', ungrouped: undefined, group: { icon: { id: 'beaker', colorId: 'charts.red' }, priority: 3 },
+		});
+		assert.throws(() => extHost.registerProvider(nullExtensionDescription, 'invalidGroup', {
+			label: 'Invalid', groupLabel: 'Two\nlines', match: () => undefined, createArtifactIntegration: () => undefined,
+		}));
+	});
+
 	test('matches, converts themed details, executes a manual action, and updates observations', async () => {
 		const { extHost, service } = bridge();
 		const { observations } = register(extHost);

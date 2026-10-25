@@ -60,6 +60,16 @@ export interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 	readonly id: string;
 }
 
+/**
+ * How one artifact contributes to a grouped presentation of several artifacts of the same integration.
+ * Only the artifact's main integration is consulted, and priorities are compared only among that integration's
+ * artifacts: the group shows the icon with the highest priority, and ties keep the earlier artifact.
+ */
+export interface ArtifactGroupPresentation {
+	readonly icon: ArtifactIcon;
+	readonly priority: number;
+}
+
 export interface ArtifactDetailsList {
 	readonly id: string;
 	readonly label: string;
@@ -82,6 +92,8 @@ export interface ArtifactActionView extends ArtifactActionAvailability {
 export interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
 	readonly main?: ArtifactPartPresentation;
+	/** This artifact's contribution to a group of several artifacts of the same integration. */
+	readonly group?: ArtifactGroupPresentation;
 	readonly sections: readonly ArtifactSectionPresentation[];
 	/** Independent state lists, including lists without a compact pill section. */
 	readonly lists?: readonly ArtifactDetailsList[];
@@ -223,6 +235,8 @@ export interface IArtifactIntegration<TResource extends IDisposable> {
 	readonly label: string;
 	/** Plain text naming the recorded resources this integration supports, so agents know when to use it. */
 	readonly description?: string;
+	/** One line of plain text naming several of this integration's artifacts, such as "Pull Requests", when they are grouped. */
+	readonly groupLabel?: string;
 	readonly automationOptions: readonly ArtifactAutomationOption[];
 	/** Higher priority wins; ties are resolved by integration ID, never response order. */
 	readonly presentationPriority?: number;
@@ -369,6 +383,8 @@ export interface ArtifactContributionSnapshot {
 	/** Execution authority when contributions from multiple runtimes share a presentation. */
 	readonly authority?: ArtifactAuthority;
 	readonly label: string;
+	/** The integration's name for several of its artifacts, shown when they are grouped. */
+	readonly groupLabel?: string;
 	readonly view: ArtifactContributionView;
 	readonly actions: readonly ArtifactActionDescriptor[];
 	readonly options: readonly ArtifactAutomationOption[];
@@ -384,6 +400,11 @@ export interface ArtifactSnapshot {
 	readonly contributions: readonly ArtifactContributionSnapshot[];
 	readonly mainIntegrationId?: string;
 	readonly runs: readonly ArtifactRun[];
+}
+
+/** The contribution of the integration that presents an artifact's main part, if any. */
+export function getArtifactMainContribution(snapshot: ArtifactSnapshot): ArtifactContributionSnapshot | undefined {
+	return snapshot.mainIntegrationId === undefined ? undefined : snapshot.contributions.find(contribution => contribution.integrationId === snapshot.mainIntegrationId);
 }
 
 export interface IArtifactModel {
