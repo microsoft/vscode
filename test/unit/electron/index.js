@@ -115,6 +115,17 @@ Options:
 	process.exit(0);
 }
 
+// An invalid part would select no test files, and a run without tests would pass.
+if (args.testSplit !== undefined) {
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(args.testSplit);
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	if (!match || !Number.isSafeInteger(total) || index < 1 || index > total) {
+		console.error(`Invalid --testSplit value '${args.testSplit}'. Expected <i>/<n> with 1 <= i <= n, for example 1/2.`);
+		app.exit(1);
+	}
+}
+
 // Treat bare .ts/.js positional arguments as --run values
 const bareFiles = (args._ || []).filter(a => typeof a === 'string' && (a.endsWith('.ts') || a.endsWith('.js')));
 if (bareFiles.length > 0) {
