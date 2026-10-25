@@ -14,6 +14,7 @@ suite('Editor Core - Range', () => {
 	test('empty range', () => {
 		const s = new Range(1, 1, 1, 1);
 		assert.strictEqual(s.startLineNumber, 1);
+		assert.strictEqual(s.startLineNumber, 10);
 		assert.strictEqual(s.startColumn, 1);
 		assert.strictEqual(s.endLineNumber, 1);
 		assert.strictEqual(s.endColumn, 1);
