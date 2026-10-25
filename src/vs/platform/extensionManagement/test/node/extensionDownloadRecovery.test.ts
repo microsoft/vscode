@@ -9,6 +9,7 @@ import { once } from 'events';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import sinon from 'sinon';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
@@ -41,6 +42,22 @@ suite('Extension download recovery', () => {
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
 	let downloads: number;
+	let beforeTrashRename: (() => Promise<void>) | undefined;
+	let afterTrashRename: (() => Promise<void>) | undefined;
+
+	class PausingDiskProvider extends DiskFileSystemProvider {
+		override async rename(source: URI, target: URI, options: Parameters<DiskFileSystemProvider['rename']>[2]): Promise<void> {
+			const isTrashMove = path.dirname(target.fsPath) === joinPath(cache, '.trash').fsPath;
+			if (isTrashMove) {
+				await beforeTrashRename?.();
+			}
+			await super.rename(source, target, options);
+			if (isTrashMove) {
+				await afterTrashRename?.();
+			}
+		}
+	}
+
 	const extension = { identifier: { id: 'test.recovery' }, publisher: 'test', name: 'recovery', version: '1.0.0', properties: {}, isSigned: false } as IGalleryExtension;
 
 	setup(async () => {
@@ -51,7 +68,7 @@ suite('Extension download recovery', () => {
 		await zip(fixture.fsPath, [{ path: 'extension/package.json', contents: JSON.stringify({ publisher: 'test', name: 'recovery', version: '1.0.0' }) }]);
 		const logService = disposables.add(new NullLogService());
 		fileService = disposables.add(new FileService(logService));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new PausingDiskProvider(logService))));
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(INativeEnvironmentService, { extensionsDownloadLocation: cache });
 		instantiationService.stub(IFileService, fileService);
@@ -60,6 +77,8 @@ suite('Extension download recovery', () => {
 		instantiationService.stub(IUriIdentityService, disposables.add(new UriIdentityService(fileService)));
 		instantiationService.stub(IExtensionSignatureVerificationService, {});
 		downloads = 0;
+		beforeTrashRename = undefined;
+		afterTrashRename = undefined;
 		instantiationService.stub(IExtensionGalleryService, { download: async (_extension, location) => {
 			downloads++;
 			await fs.copyFile(fixture.fsPath, location.fsPath);
@@ -168,7 +187,7 @@ suite('Extension download recovery', () => {
 		deletion.restore();
 		instantiationService.stub(IExtensionGalleryService, 'download', async (_extension: IGalleryExtension, location: URI) => fs.copyFile(fixture.fsPath, location.fsPath));
 		await service.download(extension, InstallOperation.Install, false);
-		assert.deepStrictEqual(await fs.readdir(cache.fsPath), ['test.recovery-1.0.0']);
+		assert.deepStrictEqual({ files: (await fs.readdir(cache.fsPath)).sort(), trash: await fs.readdir(joinPath(cache, '.trash').fsPath) }, { files: ['.trash', 'test.recovery-1.0.0'], trash: [] });
 	});
 
 	test('keeps blocked trash at its original path and retries without another download', async () => {
@@ -186,7 +205,7 @@ suite('Extension download recovery', () => {
 			await unblock();
 		}
 		await service.cleanUpTemporaryDownloads();
-		assert.deepStrictEqual({ files: await fs.readdir(cache.fsPath), downloads }, { files: [], downloads: 0 });
+		assert.deepStrictEqual({ files: await fs.readdir(cache.fsPath), trash: await fs.readdir(trash.fsPath), downloads }, { files: ['.trash'], trash: [], downloads: 0 });
 	});
 
 	test('preserves the normal twenty-entry cache policy and unmarked legacy files', async () => {
@@ -376,6 +395,85 @@ suite('Extension download recovery', () => {
 		}
 		await service.cleanUpTemporaryDownloads();
 		assert.deepStrictEqual({ files: await fs.readdir(cache.fsPath), downloads }, { files: [], downloads: 1 });
+	});
+
+
+	for (const sameInstance of [true, false]) {
+		for (const phase of ['before', 'after'] as const) {
+			test(`preserves trash moves paused ${phase} rename while ${sameInstance ? 'the same' : 'another'} downloader cleans up`, async () => {
+				const service = downloader();
+				await service.download(extension, InstallOperation.Install, false);
+				const rejected = joinPath(cache, 'test.rejected-1.0.0');
+				await fs.copyFile(fixture.fsPath, rejected.fsPath);
+				const trash = joinPath(cache, '.trash');
+				await fs.mkdir(trash.fsPath);
+				const entered = new DeferredPromise<void>();
+				const resume = new DeferredPromise<void>();
+				const pause = async () => {
+					entered.complete();
+					await resume.p;
+				};
+				if (phase === 'before') {
+					beforeTrashRename = pause;
+				} else {
+					afterTrashRename = pause;
+				}
+				const removal = service.delete(rejected).then(() => true, () => false);
+				try {
+					await entered.p;
+					const cleanup = sameInstance ? service : downloader();
+					await cleanup.download(extension, InstallOperation.Install, false);
+					assert.deepStrictEqual({
+						trashExists: await fileService.exists(trash),
+						trashEntries: await fs.readdir(trash.fsPath),
+						sourceExists: await fileService.exists(rejected),
+					}, { trashExists: true, trashEntries: [], sourceExists: phase === 'before' });
+				} finally {
+					resume.complete();
+				}
+				assert.strictEqual(await removal, true);
+				await service.cleanUpTemporaryDownloads();
+				assert.deepStrictEqual({
+					entries: (await fs.readdir(cache.fsPath)).sort(),
+					trashEntries: await fs.readdir(trash.fsPath),
+					downloads,
+				}, { entries: ['.trash', 'test.recovery-1.0.0'], trashEntries: [], downloads: 1 });
+			});
+		}
+	}
+
+
+	test('reports a missing trash destination while the rejected source still exists', async () => {
+		const service = downloader();
+		await service.download(extension, InstallOperation.Install, false);
+		const rejected = joinPath(cache, 'test.rejected-1.0.0');
+		await fs.copyFile(fixture.fsPath, rejected.fsPath);
+		const trash = joinPath(cache, '.trash');
+		await fs.mkdir(trash.fsPath);
+		beforeTrashRename = () => fs.rmdir(trash.fsPath);
+
+		await assert.rejects(service.delete(rejected));
+
+		assert.strictEqual(await fileService.exists(rejected), true);
+	});
+
+
+	test('removes a linked trash directory without deleting its target contents', async () => {
+		const service = downloader();
+		await service.cleanUpTemporaryDownloads();
+		const target = joinPath(root, 'linked-trash-target');
+		await fs.mkdir(target.fsPath);
+		const payload = joinPath(target, 'keep');
+		await fs.writeFile(payload.fsPath, 'preserve linked contents');
+		const trash = joinPath(cache, '.trash');
+		await fs.symlink(target.fsPath, trash.fsPath, isWindows ? 'junction' : 'dir');
+
+		await service.cleanUpTemporaryDownloads();
+
+		assert.deepStrictEqual({
+			trashExists: await fileService.exists(trash),
+			payload: await fs.readFile(payload.fsPath, 'utf8'),
+		}, { trashExists: false, payload: 'preserve linked contents' });
 	});
 
 });

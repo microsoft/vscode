@@ -261,7 +261,21 @@ export class ExtensionsDownloader extends Disposable {
 	private async moveToTrash(location: URI): Promise<void> {
 		const trashRelativePath = this.uriIdentityService.extUri.relativePath(this.extensionsDownloadDir, location);
 		if (trashRelativePath) {
-			await this.fileService.move(location, this.uriIdentityService.extUri.joinPath(this.extensionsTrashDir, trashRelativePath), true);
+			try {
+				await this.fileService.move(location, this.uriIdentityService.extUri.joinPath(this.extensionsTrashDir, trashRelativePath), true);
+			} catch (error) {
+				// Another cleanup can remove the trash entry before move() resolves its final stat.
+				if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+					try {
+						await this.fileService.stat(location);
+					} catch (sourceError) {
+						if (toFileOperationResult(sourceError) === FileOperationResult.FILE_NOT_FOUND) {
+							return;
+						}
+					}
+				}
+				throw error;
+			}
 		} else {
 			await this.fileService.del(location);
 		}
@@ -346,12 +360,17 @@ export class ExtensionsDownloader extends Disposable {
 
 	private async emptyTrash(): Promise<void> {
 		try {
-			if (this.extensionsTrashDir.scheme === Schemas.file) {
-				// Keep failed deletions in the cache trash so the next cleanup can retry.
-				await FSPromises.rm(this.extensionsTrashDir.fsPath, RimRafMode.UNLINK);
-			} else {
-				await this.fileService.del(this.extensionsTrashDir, { recursive: true });
-			}
+			const trash = await this.fileService.resolve(this.extensionsTrashDir);
+			// Keep a real container for concurrent moves, but remove a link without following its target.
+			const entries = trash.isSymbolicLink ? [trash] : trash.children ?? [];
+			await Promises.settled(entries.map(async entry => {
+				if (entry.resource.scheme === Schemas.file) {
+					// Keep failed deletions in the cache trash so the next cleanup can retry.
+					await FSPromises.rm(entry.resource.fsPath, RimRafMode.UNLINK);
+				} else {
+					await this.fileService.del(entry.resource, { recursive: true });
+				}
+			}));
 		} catch (error) {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
 				this.logService.error(error);
