@@ -214,6 +214,7 @@ suite('Floating Editor Part', () => {
 		part.close();
 		await parts.mainPart.activeGroup.closeAllEditors();
 	});
+
 	test('the editor part follows the height of the header, which it does not measure on every layout', async () => {
 		const { parts, layoutService } = await createParts();
 		mainWindow.document.body.appendChild(layoutService.mainContainer); // laid out, so the header has a height
