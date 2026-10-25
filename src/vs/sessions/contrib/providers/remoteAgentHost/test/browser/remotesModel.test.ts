@@ -22,6 +22,7 @@ import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticati
 import { IWSLCachedDistro, IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -68,7 +69,9 @@ suite('RemotesModel', () => {
 			refreshCalls: 0,
 			refreshFailure: undefined as Error | undefined,
 			pendingRename: undefined as DeferredPromise<string | undefined> | undefined,
+			pendingConfirmation: undefined as DeferredPromise<IConfirmationResult> | undefined,
 		};
+		const confirmations: IConfirmation[] = [];
 		const environmentConnections: string[] = [];
 		const environmentNames: { id: string; name: string | undefined }[] = [];
 		const environmentDeletions: string[] = [];
@@ -88,6 +91,12 @@ suite('RemotesModel', () => {
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IDialogService, {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return environmentState.pendingConfirmation?.p ?? { confirmed: true };
+			},
+		});
 		instantiationService.stub(ILogService, new class extends NullLogService {
 			override warn(message: string, ...args: unknown[]) { logEntries.push({ message, args }); }
 		}());
@@ -236,7 +245,7 @@ suite('RemotesModel', () => {
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions,
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -811,6 +820,72 @@ suite('RemotesModel', () => {
 			environmentDeletions, removals, remaining: model.remotes.get().filter(remote => remote.kind === 'environment'),
 		}, { environmentDeletions: ['online', 'offline'], removals: [], remaining: [] });
 	});
+
+	for (const confirmed of [true, false]) {
+		test(`environment deletion waits for confirmation and ${confirmed ? 'deletes only the chosen host' : 'preserves inventory on cancellation'}`, async () => {
+			const { model, configuration, environmentAvailable, environmentHosts, environmentState, environmentDeletions, confirmations } = setup();
+			await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+			environmentAvailable.set(true, undefined);
+			const host: IMissionControlHost = { id: 'desktop', name: 'Desktop', displayName: 'Office desktop', kind: 'user-local', status: 'offline' };
+			const retained: IMissionControlHost = { id: 'retained', name: 'Other machine', kind: 'user-local', status: 'online' };
+			environmentHosts.set([host, retained], undefined);
+			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+			const deletion = model.remove(cloudSandboxAddress(host.id));
+			assert.deepStrictEqual({
+				confirmations, deletions: environmentDeletions, hosts: environmentHosts.get(),
+			}, {
+				confirmations: [{
+					type: 'warning',
+					message: 'Are you sure you want to delete environment \'Office desktop\'?',
+					detail: 'This removes the environment registration and disconnects this client. Files on the machine will not be deleted. The environment may reappear if its owning application registers it again.',
+					primaryButton: '&&Delete',
+				}],
+				deletions: [], hosts: [host, retained],
+			});
+			await environmentState.pendingConfirmation.complete({ confirmed });
+			await deletion;
+			assert.deepStrictEqual({ deletions: environmentDeletions, hosts: environmentHosts.get() }, {
+				deletions: confirmed ? ['desktop'] : [], hosts: confirmed ? [retained] : [host, retained],
+			});
+		});
+	}
+
+	for (const change of ['account', 'inventory', 'availability', 'configuration', 'AI', 'disposal'] as const) {
+		test(`environment deletion is cancelled when ${change} changes during confirmation`, async () => {
+			const { model, configuration, setConfiguration, environmentAvailable, environmentHosts, environmentState, environmentDeletions } = setup();
+			await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+			environmentAvailable.set(true, undefined);
+			const host: IMissionControlHost = { id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' };
+			environmentHosts.set([host], undefined);
+			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+			const deletion = model.remove(cloudSandboxAddress(host.id));
+			const rejected = assert.rejects(deletion, isCancellationError);
+			switch (change) {
+				case 'account':
+					environmentState.account = 'account-two';
+					environmentHosts.set([{ ...host, name: 'Other account desktop' }], undefined);
+					break;
+				case 'inventory':
+					environmentHosts.set([], undefined);
+					break;
+				case 'availability':
+					environmentAvailable.set(false, undefined);
+					break;
+				case 'configuration':
+					await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
+					break;
+				case 'AI':
+					await setConfiguration('chat.disableAIFeatures', true);
+					break;
+				case 'disposal':
+					model.dispose();
+					break;
+			}
+			await environmentState.pendingConfirmation.complete({ confirmed: true });
+			await rejected;
+			assert.deepStrictEqual(environmentDeletions, []);
+		});
+	}
 
 	test('environment connections prefer provider hooks and retain inventory on disconnect', async () => {
 		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider } = setup();

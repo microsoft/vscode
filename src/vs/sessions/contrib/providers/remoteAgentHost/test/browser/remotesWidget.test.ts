@@ -401,7 +401,7 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
 	});
 
-	test('Delete works offline without confirmation, prevents duplicate actions and restores keyboard focus', async () => {
+	test('Delete works offline, prevents duplicate actions and restores keyboard focus', async () => {
 		const { parent, model } = createWidget();
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([{

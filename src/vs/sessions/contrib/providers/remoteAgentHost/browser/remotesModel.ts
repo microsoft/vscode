@@ -19,6 +19,7 @@ import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../..
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
@@ -110,6 +111,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
 		@IMissionControlAvailabilityService environmentAvailabilityService: IMissionControlAvailabilityService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
@@ -285,6 +287,19 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 		const target = this.targets.get(id);
 		if (target?.kind === 'environment') {
+			this.checkEnvironment(target);
+			const { confirmed } = await this.dialogService.confirm({
+				type: 'warning',
+				message: localize('remotes.deleteEnvironmentConfirmation', "Are you sure you want to delete environment '{0}'?", remote.name),
+				detail: localize('remotes.deleteEnvironmentDetail', "This removes the environment registration and disconnects this client. Files on the machine will not be deleted. The environment may reappear if its owning application registers it again."),
+				primaryButton: localize('remotes.deleteEnvironmentButton', "&&Delete"),
+			});
+			if (!confirmed) {
+				return;
+			}
+			if (this._store.isDisposed || !this.enabled) {
+				throw new CancellationError();
+			}
 			this.checkEnvironment(target);
 			await this.environmentService.delete(target.host.id, CancellationToken.None);
 			return;
