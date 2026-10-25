@@ -1037,6 +1037,36 @@ suite('SessionCanvasService', () => {
 		assert.deepStrictEqual(results, [true, false]);
 	});
 
+	test('rebuilding the contexts of a chat without a source of canvases keeps the same source', () => {
+		const owner = { providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') };
+		const chat = upcastPartial<IChat>({ resource: owner.chat });
+		const session = upcastPartial<IActiveSession>({
+			providerId: owner.providerId,
+			resource: owner.session,
+			activeChat: constObservable(chat),
+			chats: constObservable([chat]),
+			capabilities: constObservable<ISessionCapabilities>({ supportsCanvases: true, supportsMultipleChats: false }),
+		});
+		const chatModels = observableValue<readonly never[]>('chatModels', []);
+		const contextService = store.add(new SessionCanvasContextService(
+			upcastPartial<ISessionsService>({ activeSession: observableValue<IActiveSession | undefined>('activeSession', undefined), mainWindowActiveSession: constObservable<IActiveSession | undefined>(session), windowSessions: constObservable([session]) }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<IEditorGroupsService>({}),
+			new SessionEditorWorkingSetService(),
+			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
+			upcastPartial<IChatService>({ chatModels, getSession: () => undefined }),
+			upcastPartial<IChatWindowService>({ windows: constObservable([]) }),
+		));
+		const sources = [contextService.contexts.get()[0].canvases];
+		for (let i = 0; i < 3; i++) {
+			chatModels.set([], undefined);
+			sources.push(contextService.contexts.get()[0].canvases);
+		}
+		sources.push(contextService.getContext(owner)!.canvases);
+
+		assert.deepStrictEqual(sources.every(source => source === sources[0]), true);
+	});
+
 	test('presents the canvases of the chat of the main window and of a chat window whichever window has focus', () => {
 		const createSession = (name: string) => {
 			const owner = { providerId: 'local-agent-host', session: URI.parse(`agent-host-session:/${name}`), chat: URI.parse(`agent-host-chat:/${name}/main`) };

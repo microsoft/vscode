@@ -21,6 +21,10 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
+// Shared, so that rebuilding the contexts does not look like a new source of canvases.
+const unknownCanvases = constObservable(undefined);
+const noCanvases = constObservable<readonly ICanvasDefinition[]>([]);
+
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
 	declare readonly _serviceBrand: undefined;
@@ -63,7 +67,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				chatService.chatModels.read(reader);
 				const openRequests = chatService.getSession(chat.resource)?.canvasContext?.read(reader)?.openRequests;
 				const supportsCanvases = session.capabilities.read(reader).supportsCanvases === true;
-				const canvases = supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]);
+				const canvases = supportsCanvases ? chat.canvases ?? unknownCanvases : noCanvases;
 				const definitionProvider = supportsCanvases ? {
 					onDidChangeDefinitions: Event.fromObservableLight(canvases),
 					listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
@@ -102,7 +106,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		const chat: IChat | undefined = isEqual(activeChat.resource, owner.chat)
 			? activeChat
 			: session.chats.read(reader).find(candidate => isEqual(candidate.resource, owner.chat));
-		return { owner, canvases: chat?.canvases ?? constObservable(undefined) };
+		return { owner, canvases: chat?.canvases ?? unknownCanvases };
 	}
 
 	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined {
