@@ -84,17 +84,20 @@ export class TreeSitterCommandParser extends Disposable {
 	async extractAutoApprovalSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<IAutoApprovalCommandParseResult> {
 		const masked = languageId === TreeSitterCommandParserLanguage.PowerShell ? maskPwshPosixNativeArgs(commandLine) : commandLine;
 		const querySource = languageId === TreeSitterCommandParserLanguage.PowerShell
-			? '(command) @command (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
+			? '(command) @command (comment) @comment (assignment_expression) @unanalyzable (invokation_expression) @unanalyzable'
 			: '(command) @command (variable_assignment) @unanalyzable (declaration_command) @unanalyzable';
 		const { captures, hasError } = await this._queryTreeWithParseStatus(languageId, masked, querySource);
 		const subCommands: string[] = [];
 		const commandSpans: { start: number; end: number }[] = [];
+		const commentSpans: { start: number; end: number }[] = [];
 		let hasUnanalyzableSyntax = false;
 		for (const capture of captures) {
 			if (capture.name === 'command') {
 				const end = masked === commandLine ? capture.node.endIndex : getPwshOriginalCommandEnd(commandLine, capture.node.endIndex);
 				subCommands.push(commandLine.substring(capture.node.startIndex, end));
 				commandSpans.push({ start: capture.node.startIndex, end });
+			} else if (capture.name === 'comment') {
+				commentSpans.push({ start: capture.node.startIndex, end: capture.node.endIndex });
 			} else if (capture.name === 'unanalyzable') {
 				// Prefix env assignments (`FOO=bar git status`) are children of the
 				// command node and are handled by the existing transient-env deny
@@ -107,7 +110,10 @@ export class TreeSitterCommandParser extends Disposable {
 		if (masked !== commandLine) {
 			for (const match of commandLine.matchAll(pwshStandaloneDoubleDashRegex)) {
 				const start = match.index + match[1].length;
-				if (!commandSpans.some(span => span.start <= start && span.end >= start + 2)) {
+				const isWithin = (span: { start: number; end: number }) => span.start <= start && span.end >= start + 2;
+				// A `--` inside a command is a native CLI separator, and one inside a comment is inert text;
+				// anything else was dropped by the parser and must fail closed.
+				if (!commandSpans.some(isWithin) && !commentSpans.some(isWithin)) {
 					hasUnanalyzableSyntax = true;
 				}
 			}
