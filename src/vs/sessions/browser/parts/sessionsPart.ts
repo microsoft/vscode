@@ -538,10 +538,18 @@ export class SessionsPart extends Part {
 		this._onDidLayout.fire({ width, height });
 	}
 
-	/** Constrains the part's height in the workbench grid, such as to keep a chat below the editor at its input. */
-	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
+	/**
+	 * Constrains the part's height in the workbench grid, such as to keep a chat below the editor at its input, and sizes
+	 * it to `height`, if given: the grid applies both in one layout.
+	 */
+	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined, height?: number): void {
 		const previous = this._heightConstraints;
 		this._heightConstraints = constraints;
+		const lastLayout = this._lastLayout;
+		if (height !== undefined && lastLayout && height !== lastLayout.height) {
+			this._onDidChange.fire({ width: lastLayout.width, height });
+			return;
+		}
 		// Which part takes a resize applies from the next layout; only the limits need one now.
 		if (previous?.minimum !== constraints?.minimum || previous?.maximum !== constraints?.maximum) {
 			this._onDidChange.fire(undefined);

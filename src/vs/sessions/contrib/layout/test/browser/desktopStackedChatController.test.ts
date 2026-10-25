@@ -49,7 +49,9 @@ suite('Sessions - DesktopStackedChatController', () => {
 		readonly inputOnlyValue = observableValue('inputOnly', false);
 		enabled = false;
 		readonly inputOnly: IObservable<boolean> = this.inputOnlyValue;
-		readonly inputOnlyHeight: IObservable<number> = constObservable(100);
+		/** Grows as the input wraps to another line. */
+		readonly inputOnlyHeightValue = observableValue('inputOnlyHeight', 100);
+		readonly inputOnlyHeight: IObservable<number> = this.inputOnlyHeightValue;
 		readonly canShowInputOnly: IObservable<boolean> = constObservable(true);
 		enableInputOnly(options: { readonly maxHeight: number; readonly inputOnly?: boolean }): void {
 			this.enabled = true;
@@ -144,6 +146,28 @@ suite('Sessions - DesktopStackedChatController', () => {
 			// Half of the column of the editor and the chat.
 			conversation: { enabled: true, inputOnly: false, headerHidden: false, sizedByHost: false, height: Math.round((collapsed + 400) / 2), minimum: collapsed, remembered: false },
 			backSideBySide: { enabled: false, inputOnly: false, headerHidden: false, sizedByHost: false, height: Math.round((collapsed + 400) / 2), minimum: undefined, remembered: false },
+		});
+	}));
+
+	test('sizes the chat showing only its input to it as the input wraps to another line and back, in one layout of the grid each time', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { controller, chatView } = await createController();
+		harness.layoutService.setSidePaneArrangement(SessionLayoutMode.Stacked);
+		await timeout(0);
+		controller.stackedChat.toggleConversation();
+		await timeout(0);
+		const step = async (inputHeight: number) => {
+			harness.sessionsPartGridLayouts = 0;
+			chatView.inputOnlyHeightValue.set(inputHeight, undefined);
+			await timeout(0);
+			return { height: harness.partSizes.get(Parts.SESSIONS_PART)?.height, minimum: harness.sessionsPartHeightConstraints?.minimum, gridLayouts: harness.sessionsPartGridLayouts };
+		};
+
+		const wrapped = await step(120);
+		const unwrapped = await step(100);
+
+		assert.deepStrictEqual({ wrapped, unwrapped }, {
+			wrapped: { height: collapsed + 20, minimum: collapsed + 20, gridLayouts: 1 },
+			unwrapped: { height: collapsed, minimum: collapsed, gridLayouts: 1 },
 		});
 	}));
 

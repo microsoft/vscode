@@ -79,8 +79,8 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	get chromeHeight(): number { return this._mainPart.chromeHeight; }
 
-	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
-		this._mainPart.setHeightConstraints(constraints);
+	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined, height?: number): void {
+		this._mainPart.setHeightConstraints(constraints, height);
 	}
 
 	toggleMaximizeSession(session: IActiveSession | undefined): void {

@@ -141,6 +141,9 @@ export interface ISessionsPartService {
 	/** The height of the Sessions Part of the main window around its session views, such as its card's margins and borders. */
 	readonly chromeHeight: number;
 
-	/** Constrains the height of the Sessions Part of the main window in the workbench grid, or clears the constraints. */
-	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void;
+	/**
+	 * Constrains the height of the Sessions Part of the main window in the workbench grid, or clears the constraints, and
+	 * sizes it to `height`, if given, in the same layout of the grid.
+	 */
+	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined, height?: number): void;
 }

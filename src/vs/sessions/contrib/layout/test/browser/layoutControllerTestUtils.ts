@@ -274,6 +274,8 @@ export interface ITestLayoutHarness {
 	sessionsPartHeightConstraints: ISessionsPartHeightConstraints | undefined;
 	/** Every call that set the height constraints of the Sessions Part. */
 	sessionsPartHeightConstraintsCalls: (ISessionsPartHeightConstraints | undefined)[];
+	/** The workbench grid layouts that sizing the Sessions Part or changing its height limits causes. */
+	sessionsPartGridLayouts: number;
 	toggleSidePaneCalls: number;
 	sidePaneStateBeforeHide: SidePaneComposition | undefined;
 	partVisibility: Map<Parts, boolean>;
@@ -412,6 +414,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		sessionsPartChromeHeight: 0,
 		sessionsPartHeightConstraints: undefined,
 		sessionsPartHeightConstraintsCalls: [],
+		sessionsPartGridLayouts: 0,
 		toggleSidePaneCalls: 0,
 		sidePaneStateBeforeHide: undefined,
 		partVisibility: new Map<Parts, boolean>([
@@ -523,9 +526,19 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			harness.visibleSessionsObs.read(reader).length + harness.additionalShownChatsObs.read(reader));
 		override readonly onDidLayout = harness.onDidLayoutSessionsPart.event;
 		override get chromeHeight() { return harness.sessionsPartChromeHeight; }
-		override setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void {
+		override setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined, height?: number): void {
+			const previous = harness.sessionsPartHeightConstraints;
 			harness.sessionsPartHeightConstraints = constraints;
 			harness.sessionsPartHeightConstraintsCalls.push(constraints);
+			// As the Sessions Part: one grid layout for the new limits and the height, if either changes.
+			const current = harness.partSizes.get(Parts.SESSIONS_PART);
+			if (height !== undefined && current && height !== current.height) {
+				harness.sessionsPartGridLayouts++;
+				harness.partSizes.set(Parts.SESSIONS_PART, { width: current.width, height });
+				harness.onDidLayoutSessionsPart.fire({ width: current.width, height });
+			} else if (previous?.minimum !== constraints?.minimum || previous?.maximum !== constraints?.maximum) {
+				harness.sessionsPartGridLayouts++;
+			}
 		}
 		override getSessionView() { return harness.sessionView; }
 	});
@@ -596,6 +609,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override setSize(part: Parts, size: IDimension): void {
 			harness.partSizes.set(part, size);
 			if (part === Parts.SESSIONS_PART) {
+				harness.sessionsPartGridLayouts++;
 				harness.onDidLayoutSessionsPart.fire(size);
 			}
 		}
