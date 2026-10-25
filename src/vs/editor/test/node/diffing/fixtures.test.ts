@@ -16,7 +16,8 @@ import { Range } from '../../../common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
 import { AbstractText, ArrayText } from '../../../common/core/text/abstractText.js';
-import { LinesDiff } from '../../../common/diff/linesDiffComputer.js';
+import { ILinesDiffComputer, LinesDiff } from '../../../common/diff/linesDiffComputer.js';
+import { verifyLinesDiff } from '../../../common/diff/verifyLinesDiff.js';
 import { createExternalLinesDiffComputer } from '../../../common/diff/externalLinesDiffComputer.js';
 
 suite('diffing fixtures', () => {
@@ -161,21 +162,31 @@ suite('diffing fixtures', () => {
 	}
 
 	// The wasm loader of @vscode/diff takes its node code path in the electron renderer, which cannot import `node:fs`.
-	for (const useWasm of isElectron ? [false] : [false, true]) {
-		test(`@vscode/diff (${useWasm ? 'advanced-wasm' : 'advanced-external'}) matches advanced on all fixtures`, async () => {
-			const external = await loadExternalComputer(useWasm);
-			const mismatches = folders.filter(folder => {
-				const { firstContentLines, secondContentLines } = readFixture(folder);
-				const options = { ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false };
-				const expected = formatChanges(new DefaultLinesDiffComputer().computeDiff(firstContentLines, secondContentLines, options));
-				const actual = formatChanges(external.computeDiff(firstContentLines, secondContentLines, options));
-				return JSON.stringify(actual) !== JSON.stringify(expected);
-			});
-			// `advanced` replaces an empty document as a whole, while the string edit maps to a pure insertion.
-			// Both are valid; the diff editor handles empty documents before calling any algorithm.
-			assert.deepStrictEqual(mismatches, ['invalid-ranges']);
-		});
-	}
+	test('all diff algorithms produce valid diffs on all fixtures', async () => {
+		const algorithms: [string, ILinesDiffComputer][] = [
+			['advanced', new DefaultLinesDiffComputer()],
+			['advanced-external', await loadExternalComputer(false)],
+			...(isElectron ? [] : [['advanced-wasm', await loadExternalComputer(true)] satisfies [string, ILinesDiffComputer]]),
+		];
+		const invalid: string[] = [];
+		for (const folder of folders) {
+			const { firstContentLines, secondContentLines } = readFixture(folder);
+			for (const [name, algorithm] of algorithms) {
+				for (const ignoreTrimWhitespace of [false, true]) {
+					const diff = algorithm.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: 0, computeMoves: false });
+					const validity = verifyLinesDiff(diff, firstContentLines, secondContentLines, ignoreTrimWhitespace);
+					if (validity !== 'valid') {
+						invalid.push(`${folder} ${name} ignoreTrimWhitespace=${ignoreTrimWhitespace}: ${validity}`);
+					}
+				}
+			}
+		}
+		// Known bug of the built-in algorithm: when ignoring trim whitespace, it also hides whitespace changes inside lines that were joined.
+		assert.deepStrictEqual(invalid, [
+			'invalid-diff-bug advanced ignoreTrimWhitespace=true: invalid',
+			'invalid-diff-trimws advanced ignoreTrimWhitespace=true: invalid',
+		]);
+	});
 
 	test('@vscode/diff: ignoreTrimWhitespace hides only leading/trailing whitespace changes', async () => {
 		const external = await loadExternalComputer(false);

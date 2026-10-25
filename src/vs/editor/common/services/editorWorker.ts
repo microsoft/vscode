@@ -6,7 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { IRange } from '../core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
-import { IDiffAlgorithmComparison } from '../diff/diffAlgorithmComparison.js';
+import { LinesDiffValidity } from '../diff/verifyLinesDiff.js';
 import { IChange } from '../diff/legacyLinesDiffComputer.js';
 import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from '../languages.js';
 import { UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
@@ -34,9 +34,6 @@ export interface IEditorWorkerService {
 	/** Implementation in {@link EditorWorker.computeDiff} */
 	computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null>;
 
-	/** Runs both algorithms on the same input to compare their speed and correctness. */
-	compareDiffAlgorithms(original: URI, modified: URI, options: IDocumentDiffProviderOptions, primary: DiffAlgorithmName, secondary: DiffAlgorithmName): Promise<IDiffAlgorithmComparison | null>;
-
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
 
@@ -63,6 +60,7 @@ export interface IDiffComputationResult {
 	changes: ILineChange[];
 	identical: boolean;
 	moves: ITextMove[];
+	validity: LinesDiffValidity;
 }
 
 export type ILineChange = [
