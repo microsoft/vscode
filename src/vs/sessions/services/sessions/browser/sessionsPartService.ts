@@ -9,6 +9,7 @@ import { IActiveSession } from '../common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
 import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
+import { IDimension } from '../../../../base/browser/dom.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -39,6 +40,17 @@ export interface IToggleMaximizeSessionEvent {
 	readonly session: IActiveSession;
 	/** The session view's maximized state after the toggle. */
 	readonly maximized: boolean;
+}
+
+/** Height constraints of the Sessions Part in the workbench grid. */
+export interface ISessionsPartHeightConstraints {
+	readonly minimum: number;
+	readonly maximum: number;
+	/**
+	 * Whether the part keeps its height as the window resizes, leaving the change to the parts beside it that can take
+	 * it, such as the editor stacked above it.
+	 */
+	readonly keepHeight?: boolean;
 }
 
 export interface ISessionsPartService {
@@ -122,4 +134,13 @@ export interface ISessionsPartService {
 	 * progress bar shown at the top of the part's content area.
 	 */
 	getProgressIndicator(): IProgressIndicator;
+
+	/** Fires after the Sessions Part of the main window is laid out at a new size. */
+	readonly onDidLayout: Event<IDimension>;
+
+	/** The height of the Sessions Part of the main window around its session views, such as its card's margins and borders. */
+	readonly chromeHeight: number;
+
+	/** Constrains the height of the Sessions Part of the main window in the workbench grid, or clears the constraints. */
+	setHeightConstraints(constraints: ISessionsPartHeightConstraints | undefined): void;
 }

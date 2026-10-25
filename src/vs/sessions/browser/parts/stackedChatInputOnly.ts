@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IChatWindowInputOnlyContext {
+export interface IStackedChatInputOnlyContext {
 	/** The height of the chat's group, as laid out. */
 	readonly groupHeight: number;
 	/** The height of the group when it shows only the chat input. */
@@ -14,7 +14,7 @@ export interface IChatWindowInputOnlyContext {
 	readonly dragging: boolean;
 }
 
-export interface IChatWindowInputOnlyDecision {
+export interface IStackedChatInputOnlyDecision {
 	readonly inputOnly: boolean;
 	/** The height to settle the group at, once the drag lets go: unset while dragging, or when it already rests there. */
 	readonly settleHeight: number | undefined;
@@ -26,7 +26,7 @@ export interface IChatWindowInputOnlyDecision {
  * conversation, so that the group does not rest between the two. The same point serves dragging down and up, so what
  * shows depends on the height alone, with no flicker when dragging back.
  */
-export function decideChatWindowInputOnly(context: IChatWindowInputOnlyContext): IChatWindowInputOnlyDecision {
+export function decideStackedChatInputOnly(context: IStackedChatInputOnlyContext): IStackedChatInputOnlyDecision {
 	const { groupHeight, collapsedHeight, conversationMinHeight, dragging } = context;
 	const inputOnly = groupHeight < collapsedHeight + conversationMinHeight / 2;
 	let settleHeight: number | undefined;
@@ -37,7 +37,7 @@ export function decideChatWindowInputOnly(context: IChatWindowInputOnlyContext):
 	return { inputOnly, settleHeight };
 }
 
-export interface IChatWindowResizeContext {
+export interface IStackedChatResizeContext {
 	/** The height of the chat's group, as laid out. */
 	readonly groupHeight: number;
 	/** The height of the group when it shows only the chat input. */
@@ -54,7 +54,7 @@ export interface IChatWindowResizeContext {
  * would leave it between the two. It returns undefined when the group needs no change. It is the group's neighbours
  * that give way to the height, the editor down to its own minimum first, and only then does the group fall short.
  */
-export function clampChatWindowOnResize(context: IChatWindowResizeContext): number | undefined {
+export function clampStackedChatOnResize(context: IStackedChatResizeContext): number | undefined {
 	const { groupHeight, collapsedHeight, conversationMinHeight, inputOnly } = context;
 	if (inputOnly) {
 		return groupHeight !== collapsedHeight ? collapsedHeight : undefined;
@@ -68,7 +68,7 @@ export function clampChatWindowOnResize(context: IChatWindowResizeContext): numb
  * follows a resize, at the same height, is not a drag: only a press on the sash can switch what shows, so that a
  * window too short for the editor and the conversation does not snap to the input.
  */
-export function shouldDecideChatWindowInputOnly(context: { readonly afterWindowResize: boolean; readonly pointerDown: boolean }): boolean {
+export function shouldDecideStackedChatInputOnly(context: { readonly afterWindowResize: boolean; readonly pointerDown: boolean }): boolean {
 	return context.pointerDown || !context.afterWindowResize;
 }
 
@@ -76,7 +76,7 @@ export function shouldDecideChatWindowInputOnly(context: { readonly afterWindowR
  * Whether the chat shows only its input because the window became too short for the conversation, rather than because
  * the user chose so by dragging the split or by toggling the conversation. Any choice of the user clears it.
  */
-export function chatWindowForcedByWindow(context: { readonly wasForced: boolean; readonly wasInputOnly: boolean; readonly inputOnly: boolean; readonly byUser: boolean }): boolean {
+export function stackedChatForcedByWindow(context: { readonly wasForced: boolean; readonly wasInputOnly: boolean; readonly inputOnly: boolean; readonly byUser: boolean }): boolean {
 	if (context.byUser || !context.inputOnly) {
 		return false;
 	}
@@ -84,15 +84,15 @@ export function chatWindowForcedByWindow(context: { readonly wasForced: boolean;
 }
 
 /**
- * What of the chat showing only its input is remembered for the next time the chat window opens: only what the user
+ * What of the chat showing only its input is remembered for the next time the chat shows below an editor: only what the user
  * chose. While the window forces it, the value the user last chose stays.
  */
-export function chatWindowPersistedInputOnly(context: { readonly inputOnly: boolean; readonly forcedByWindow: boolean; readonly lastUserChoice: boolean }): boolean {
+export function stackedChatPersistedInputOnly(context: { readonly inputOnly: boolean; readonly forcedByWindow: boolean; readonly lastUserChoice: boolean }): boolean {
 	return context.forcedByWindow ? context.lastUserChoice : context.inputOnly;
 }
 
-export interface IChatWindowRestoreContext {
-	/** Whether the chat shows only its input because the window is too short, see {@link chatWindowForcedByWindow}. */
+export interface IStackedChatRestoreContext {
+	/** Whether the chat shows only its input because the window is too short, see {@link stackedChatForcedByWindow}. */
 	readonly forcedByWindow: boolean;
 	/** The height of the chat's group, as laid out. */
 	readonly groupHeight: number;
@@ -110,7 +110,7 @@ export interface IChatWindowRestoreContext {
  * Whether the conversation fits above the chat's input once the editor gives way down to its minimum. The terminal row
  * keeps its height, so the chat and the editor share what the window has beside it.
  */
-export function chatWindowConversationFits(context: Pick<IChatWindowRestoreContext, 'groupHeight' | 'collapsedHeight' | 'conversationMinHeight' | 'editorHeight' | 'editorMinimumHeight'>): boolean {
+export function stackedChatConversationFits(context: Pick<IStackedChatRestoreContext, 'groupHeight' | 'collapsedHeight' | 'conversationMinHeight' | 'editorHeight' | 'editorMinimumHeight'>): boolean {
 	const needed = context.collapsedHeight + context.conversationMinHeight - context.groupHeight;
 	return context.editorHeight - context.editorMinimumHeight >= needed;
 }
@@ -120,6 +120,6 @@ export function chatWindowConversationFits(context: Pick<IChatWindowRestoreConte
  * editor can give the height the conversation needs while it stays above its minimum. The chat that the user brought
  * down to its input stays so however the window grows.
  */
-export function shouldRestoreChatWindowConversation(context: IChatWindowRestoreContext): boolean {
-	return context.forcedByWindow && chatWindowConversationFits(context);
+export function shouldRestoreStackedChatConversation(context: IStackedChatRestoreContext): boolean {
+	return context.forcedByWindow && stackedChatConversationFits(context);
 }

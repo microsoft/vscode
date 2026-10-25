@@ -13,7 +13,8 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { SessionIsCreatedContext, SessionItemIsMultiSelectionContext } from '../../../common/contextkeys.js';
-import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowContext, ChatWindowLayout, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowContext, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutMode } from '../../../common/sessionLayoutMode.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -38,7 +39,7 @@ const CHAT_WINDOW_KIND: IChatWindowKind = {
 	id: 'chatWithEditors',
 	title: localize('chatWindow.title', "Chat"),
 	windowSize: { width: 1200, height: 800 },
-	defaultLayout: ChatWindowLayout.SideBySide,
+	defaultLayout: SessionLayoutMode.SideBySide,
 	showActivityBar: true,
 };
 

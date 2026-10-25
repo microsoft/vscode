@@ -88,6 +88,8 @@ export class ChatGroupsView extends Themable {
 
 	private _grid: SerializableGrid<ChatGroupView> | undefined;
 	private _groups: IGroupEntry[] = [];
+	/** Whether the host sizes the groups to what their chats show; see {@link setSizedByHost}. */
+	private _sizedByHost = false;
 	private _activeGroup: IGroupEntry | undefined;
 	private readonly _groupCount = observableValue<number>(this, 1);
 	/** Number of chat groups currently in the grid. `> 1` means a grid layout. */
@@ -99,6 +101,7 @@ export class ChatGroupsView extends Themable {
 	private _mainChatResource: IObservable<string> | undefined;
 	private _sessionActive = true;
 	private _sessionVisible = true;
+	private _sessionPartVisible = true;
 	private readonly _singleGroupTabsReplaceHeader = observableValue(this, false);
 	readonly showChatAsSessionView: IObservable<boolean>;
 	private readonly _showGroupChatHeaders: IObservable<boolean>;
@@ -324,6 +327,7 @@ export class ChatGroupsView extends Themable {
 		this._groupDisposables.set(id, store);
 		// Register the view first so a throw below leaves it owned by this group store (never orphaned).
 		const view = store.add(reusableView ?? this._instantiationService.createInstance(ChatGroupView, this._hostOptions));
+		view.setSizedByHost(this._sizedByHost);
 		// A reused view must not see an empty group before the first reconcile, or it would swap its
 		// chat view for a composer. Seed what reconcile would assign to a lone group anyway.
 		const activeChat = reusableView ? session.activeChat.get() : undefined;
@@ -386,7 +390,7 @@ export class ChatGroupsView extends Themable {
 		};
 		view.setContext(context);
 		view.setSessionActive(this._sessionActive);
-		view.setSessionVisible(this._sessionVisible);
+		view.setSessionVisible(this._sessionVisible, this._sessionPartVisible);
 
 		return entry;
 	}
@@ -1117,13 +1121,14 @@ export class ChatGroupsView extends Themable {
 		}
 	}
 
-	setSessionVisible(visible: boolean): void {
-		if (this._sessionVisible === visible) {
+	setSessionVisible(visible: boolean, partVisible = true): void {
+		if (this._sessionVisible === visible && this._sessionPartVisible === partVisible) {
 			return;
 		}
 		this._sessionVisible = visible;
+		this._sessionPartVisible = partVisible;
 		for (const group of this._groups) {
-			group.view.setSessionVisible(visible);
+			group.view.setSessionVisible(visible, partVisible);
 		}
 	}
 
@@ -1149,6 +1154,14 @@ export class ChatGroupsView extends Themable {
 
 	attach(uris: URI[]): void {
 		this._activeGroup?.view.attach(uris);
+	}
+
+	/** Whether the host sizes the groups to what their chats show, such as only the chat input; see {@link ChatGroupView.setSizedByHost}. */
+	setSizedByHost(sized: boolean): void {
+		this._sizedByHost = sized;
+		for (const group of this._groups) {
+			group.view.setSizedByHost(sized);
+		}
 	}
 
 	focus(): void {

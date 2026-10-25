@@ -6,7 +6,7 @@
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { timeout } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -30,21 +30,23 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorAreaEditorContext, ChatWindowEditorGroupContext, ChatWindowHasEditorAreaContext, ChatWindowHasSessionActivityBarContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, ChatWindowTerminalRowContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowTerminalPosition, ChatWindowTerminalPositionContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService, IChatWindowTerminalHost } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutMode, SessionLayoutModeContext, SessionSplitLayout, SessionSplitLayoutContext } from '../../../common/sessionLayoutMode.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { InFlightOperations, IChatWindowOpening, ChatModelHold, openCleaningUpOnFailure } from './chatWindowOpening.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
 import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { getLayoutModeOwnerKind, ISessionLayoutModeService } from '../../../services/layoutMode/common/sessionLayoutModeService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatWindowCustomEditorInput } from './chatWindowCustomEditorInput.js';
 import { deserializeChatWindowEditors, serializeChatWindowEditors } from './chatWindowEditors.js';
 import { ChatWindowChatInput } from './chatWindowEditor.js';
-import { ChatWindowDefaults, ChatWindowState } from './chatWindowState.js';
+import { ChatWindowDefaults, ChatWindowState, IChatWindowRememberedMode } from './chatWindowState.js';
 
 /** The size of a chat window in a window of its own, unless its kind has one. */
 const CHAT_WINDOW_DEFAULT_SIZE = { width: 720, height: 760 };
@@ -97,21 +99,25 @@ class ChatWindow implements IChatWindow {
 
 	get kind(): IChatWindowKind { return this.state.kind; }
 	get docked(): boolean { return this.state.docked; }
-	get layout(): IObservable<ChatWindowLayout> { return this.state.layout; }
-	get splitLayout(): IObservable<ChatWindowSplitLayout> { return this.state.splitLayout; }
-	get layouts(): readonly ChatWindowLayout[] { return this.state.layouts; }
+	get layout(): IObservable<SessionLayoutMode> { return this.state.layout; }
+	get splitLayout(): IObservable<SessionSplitLayout> { return this.state.splitLayout; }
+	get layouts(): readonly SessionLayoutMode[] { return this.state.layouts; }
 
 	/** The group that shows: focusing or revealing a hidden group would show it. */
 	get visibleGroup(): IEditorGroup {
-		return this.state.layout.get() === ChatWindowLayout.EditorOnly && this.editorGroup ? this.editorGroup : this.chatGroup;
+		return this.state.layout.get() === SessionLayoutMode.EditorOnly && this.editorGroup ? this.editorGroup : this.chatGroup;
 	}
 
-	setLayout(layout: ChatWindowLayout): void {
+	setLayout(layout: SessionLayoutMode): void {
 		this.state.setLayout(layout);
 	}
 
+	setSplitLayout(splitLayout: SessionSplitLayout): void {
+		this.state.setSplitLayout(splitLayout);
+	}
+
 	showEditor(): void {
-		if (this.editorGroup && this.state.layout.get() === ChatWindowLayout.ChatOnly) {
+		if (this.editorGroup && this.state.layout.get() === SessionLayoutMode.ChatOnly) {
 			this.state.showBoth();
 		}
 	}
@@ -139,7 +145,7 @@ class ChatWindow implements IChatWindow {
 	}
 
 	toggleConversation(): void {
-		if (!this.docked && this.state.layout.get() === ChatWindowLayout.EditorAboveChat) {
+		if (!this.docked && this.state.layout.get() === SessionLayoutMode.Stacked) {
 			this.state.setInputOnly(!this.state.inputOnly.get());
 		}
 	}
@@ -227,6 +233,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
+		@ISessionLayoutModeService private readonly _layoutModeService: ISessionLayoutModeService,
 	) {
 		super();
 
@@ -277,6 +284,25 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		return openCleaningUpOnFailure(opening => this._openWindow(kind, content, options, replacing, session, opening));
 	}
 
+	/** How the chat of a chat window with an editor area is remembered to show, per chat. */
+	private _rememberedMode(session: ISession, content: IChatWindowContent, windowSession: IObservable<IActiveSession | undefined>): IChatWindowRememberedMode {
+		// The chat the window opens with: as `ISessionsService.showSessionInWindow` picks it.
+		const gridSession = this._sessionsService.visibleSessions.get().find(candidate => candidate?.sessionId === session.sessionId && !candidate.scopedChatResource);
+		const chatResource = content.chat ?? gridSession?.activeChat.get().resource ?? session.mainChat.get().resource;
+		const kind = getLayoutModeOwnerKind({ isCreated: constObservable(session.status.get() !== SessionStatus.Untitled), isQuickChat: session.isQuickChat });
+		return {
+			initial: this._layoutModeService.getChatWindowInitialMode({ sessionResource: session.resource, chatResource }, kind),
+			// For the chat the window shows when the user chooses, which a replaced content changes.
+			set: mode => {
+				const shown = windowSession.get();
+				const chat = shown?.activeChat.get();
+				if (shown && chat) {
+					this._layoutModeService.setChatWindowMode({ sessionResource: shown.resource, chatResource: chat.resource }, mode);
+				}
+			},
+		};
+	}
+
 	private async _openWindow(kind: IChatWindowKind, content: IChatWindowContent, options: IChatWindowOpenOptions | undefined, replacing: ChatWindow | undefined, session: ISession, created: IChatWindowOpening): Promise<ChatWindow> {
 
 		const defaults = new ChatWindowDefaults(kind, this._storageService);
@@ -285,8 +311,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			// One chat window docks at a time, in the corner it covers.
 			docked = false;
 		}
-		const state = new ChatWindowState(kind, docked, !!content.editor || !!content.editorArea, defaults);
 		const sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
+		// With an editor area, the layout is remembered for the chat; one editor of its own keeps to the kind's defaults.
+		const state = new ChatWindowState(kind, docked, !!content.editor || !!content.editorArea, defaults, content.editorArea ? this._rememberedMode(session, content, sessionObs) : undefined);
 		const input = new ChatWindowChatInput(sessionObs, state);
 		const windowDisposables = created.disposables;
 		let part: IEditorPart;
@@ -298,7 +325,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			floatingPart = await this._editorGroupsService.createFloatingEditorPart({
 				title: content.title?.get() ?? kind.title,
 				titleMenu: Menus.ChatWindowTitle,
-				customizableTitleMenu: { menu: Menus.ChatWindowTitleLayout, alwaysShownItems: [Menus.ChatWindowLayout.id] },
+				customizableTitleMenu: { menu: Menus.ChatWindowTitleLayout, alwaysShownItems: [Menus.SessionLayout.id] },
 				size: defaults.getDockedSize(),
 				minimumSize: kind.dockedMinimumSize ?? CHAT_WINDOW_DOCKED_MINIMUM_SIZE,
 			});
@@ -332,12 +359,13 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		// Its groups are the chat window's: the chat, and its editor or editor area.
 		EditorPartFixedGroupsContext.bindTo(windowContextKeyService).set(true);
 		ChatWindowDockableContext.bindTo(windowContextKeyService).set(!!kind.dockable);
+		ChatWindowHasSessionActivityBarContext.bindTo(windowContextKeyService).set(!!kind.showActivityBar);
 		ChatWindowDockedContext.bindTo(windowContextKeyService).set(docked);
 		ChatWindowHasEditorContext.bindTo(windowContextKeyService).set(!!content.editor || !!content.editorArea);
 		const editorViewTypeContext = ChatWindowEditorViewTypeContext.bindTo(windowContextKeyService);
-		const layoutContext = ChatWindowLayoutContext.bindTo(windowContextKeyService);
+		const layoutContext = SessionLayoutModeContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => layoutContext.set(state.layout.read(reader))));
-		const splitLayoutContext = ChatWindowSplitLayoutContext.bindTo(windowContextKeyService);
+		const splitLayoutContext = SessionSplitLayoutContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => splitLayoutContext.set(state.splitLayout.read(reader))));
 		const terminalPositionContext = ChatWindowTerminalPositionContext.bindTo(windowContextKeyService);
 		windowDisposables.add(autorun(reader => terminalPositionContext.set(state.terminalPosition.read(reader))));

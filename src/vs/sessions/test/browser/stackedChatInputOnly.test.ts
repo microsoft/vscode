@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { chatWindowConversationFits, chatWindowForcedByWindow, chatWindowPersistedInputOnly, clampChatWindowOnResize, shouldRestoreChatWindowConversation, decideChatWindowInputOnly, shouldDecideChatWindowInputOnly } from '../../browser/chatWindowInputOnly.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { stackedChatConversationFits, stackedChatForcedByWindow, stackedChatPersistedInputOnly, clampStackedChatOnResize, shouldRestoreStackedChatConversation, decideStackedChatInputOnly, shouldDecideStackedChatInputOnly } from '../../browser/parts/stackedChatInputOnly.js';
 
-suite('decideChatWindowInputOnly', () => {
+suite('decideStackedChatInputOnly', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -15,7 +15,7 @@ suite('decideChatWindowInputOnly', () => {
 
 	test('snaps to the input or to the conversation, never resting between', () => {
 		assert.deepStrictEqual(
-			[99, 100, 101, 159, 160, 161, 219, 220, 300].map(groupHeight => decideChatWindowInputOnly({ ...base, groupHeight })),
+			[99, 100, 101, 159, 160, 161, 219, 220, 300].map(groupHeight => decideStackedChatInputOnly({ ...base, groupHeight })),
 			[
 				{ inputOnly: true, settleHeight: 100 },
 				{ inputOnly: true, settleHeight: undefined },
@@ -32,36 +32,36 @@ suite('decideChatWindowInputOnly', () => {
 
 	test('does not settle while dragging', () => {
 		assert.deepStrictEqual(
-			[130, 180].map(groupHeight => decideChatWindowInputOnly({ ...base, groupHeight, dragging: true })),
+			[130, 180].map(groupHeight => decideStackedChatInputOnly({ ...base, groupHeight, dragging: true })),
 			[{ inputOnly: true, settleHeight: undefined }, { inputOnly: false, settleHeight: undefined }]
 		);
 	});
 
-	suite('clampChatWindowOnResize', () => {
+	suite('clampStackedChatOnResize', () => {
 
 		const resized = { collapsedHeight: 100, conversationMinHeight: 120 };
 
 		test('a conversation shrunk by the window is clamped to its least height, never to the input', () => {
 			assert.deepStrictEqual(
-				[60, 100, 130, 219, 220, 400].map(groupHeight => clampChatWindowOnResize({ ...resized, groupHeight, inputOnly: false })),
+				[60, 100, 130, 219, 220, 400].map(groupHeight => clampStackedChatOnResize({ ...resized, groupHeight, inputOnly: false })),
 				[220, 220, 220, 220, undefined, undefined]
 			);
 		});
 
 		test('the input alone stays at its height', () => {
 			assert.deepStrictEqual(
-				[100, 140].map(groupHeight => clampChatWindowOnResize({ ...resized, groupHeight, inputOnly: true })),
+				[100, 140].map(groupHeight => clampStackedChatOnResize({ ...resized, groupHeight, inputOnly: true })),
 				[undefined, 100]
 			);
 		});
 
 		test('asks for the least height however short the window, for its neighbours to give way', () => {
-			assert.strictEqual(clampChatWindowOnResize({ ...resized, groupHeight: 30, inputOnly: false }), 220);
+			assert.strictEqual(clampStackedChatOnResize({ ...resized, groupHeight: 30, inputOnly: false }), 220);
 		});
 	});
 });
 
-suite('shouldDecideChatWindowInputOnly', () => {
+suite('shouldDecideStackedChatInputOnly', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -72,13 +72,13 @@ suite('shouldDecideChatWindowInputOnly', () => {
 				{ afterWindowResize: false, pointerDown: true },
 				{ afterWindowResize: true, pointerDown: false },
 				{ afterWindowResize: true, pointerDown: true },
-			].map(shouldDecideChatWindowInputOnly),
+			].map(shouldDecideStackedChatInputOnly),
 			[true, true, false, true]
 		);
 	});
 });
 
-suite('chat window forced to its input by the window', () => {
+suite('stacked chat forced to its input by the window', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -86,20 +86,20 @@ suite('chat window forced to its input by the window', () => {
 
 	test('forced to the input, it returns to the conversation once the editor can give the height', () => {
 		assert.deepStrictEqual(
-			[70, 150, 189, 190, 400].map(editorHeight => shouldRestoreChatWindowConversation({ ...restore, forcedByWindow: true, editorHeight })),
+			[70, 150, 189, 190, 400].map(editorHeight => shouldRestoreStackedChatConversation({ ...restore, forcedByWindow: true, editorHeight })),
 			[false, false, false, true, true]
 		);
 	});
 
 	test('the conversation does not fit when the editor is at its minimum', () => {
 		assert.deepStrictEqual(
-			[{ groupHeight: 100, editorHeight: 70 }, { groupHeight: 100, editorHeight: 200 }, { groupHeight: 250, editorHeight: 70 }].map(c => chatWindowConversationFits({ ...restore, ...c })),
+			[{ groupHeight: 100, editorHeight: 70 }, { groupHeight: 100, editorHeight: 200 }, { groupHeight: 250, editorHeight: 70 }].map(c => stackedChatConversationFits({ ...restore, ...c })),
 			[false, true, true]
 		);
 	});
 
 	test('chosen by the user, it stays at the input however the window grows', () => {
-		assert.strictEqual(shouldRestoreChatWindowConversation({ ...restore, forcedByWindow: false, editorHeight: 1000 }), false);
+		assert.strictEqual(shouldRestoreStackedChatConversation({ ...restore, forcedByWindow: false, editorHeight: 1000 }), false);
 	});
 
 	test('the user dragging or toggling clears it', () => {
@@ -111,13 +111,13 @@ suite('chat window forced to its input by the window', () => {
 				{ wasForced: false, wasInputOnly: false, inputOnly: true, byUser: true },
 				{ wasForced: false, wasInputOnly: true, inputOnly: true, byUser: false },
 				{ wasForced: true, wasInputOnly: true, inputOnly: false, byUser: false },
-			].map(chatWindowForcedByWindow),
+			].map(stackedChatForcedByWindow),
 			[true, true, false, false, false, false]
 		);
 	});
 });
 
-suite('chatWindowPersistedInputOnly', () => {
+suite('stackedChatPersistedInputOnly', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('only what the user chose is remembered', () => {
@@ -127,7 +127,7 @@ suite('chatWindowPersistedInputOnly', () => {
 				{ inputOnly: false, forcedByWindow: true, lastUserChoice: true },
 				{ inputOnly: true, forcedByWindow: false, lastUserChoice: false },
 				{ inputOnly: false, forcedByWindow: false, lastUserChoice: true },
-			].map(chatWindowPersistedInputOnly),
+			].map(stackedChatPersistedInputOnly),
 			[false, true, true, false]
 		);
 	});

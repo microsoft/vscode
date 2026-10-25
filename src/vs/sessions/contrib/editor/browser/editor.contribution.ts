@@ -29,6 +29,7 @@ import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { CustomViewVisibleContext, EditorMaximizedContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -41,14 +42,13 @@ import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../workbench/browser/parts
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
-import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID, RESTORE_MAIN_EDITOR_PART_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { maximizeMainEditorPart, restoreMainEditorPart } from '../../../browser/mainEditorMaximize.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
-
-const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
 export class SessionsTabStyleContribution extends Disposable implements IWorkbenchContribution {
 
@@ -140,7 +140,7 @@ class DesktopAddTabContribution extends Disposable implements IWorkbenchContribu
 registerWorkbenchContribution2(DesktopAddTabContribution.ID, DesktopAddTabContribution, WorkbenchPhase.BlockStartup);
 
 class MaximizeMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
+	static readonly ID = MAXIMIZE_MAIN_EDITOR_PART_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -163,29 +163,14 @@ class MaximizeMainEditorPartAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		const viewsService = accessor.get(IViewsService);
-		let hidTerminalPanel = false;
-
-		if (layoutService.isVisible(Parts.PANEL_PART) && viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
-			layoutService.setPartHidden(true, Parts.PANEL_PART);
-			hidTerminalPanel = true;
-		}
-
-		if (hidTerminalPanel) {
-			terminalPanelHiddenForMaximizedEditor.add(layoutService);
-		} else {
-			terminalPanelHiddenForMaximizedEditor.delete(layoutService);
-		}
-
-		layoutService.setEditorMaximized(true);
+		maximizeMainEditorPart(accessor.get(IAgentWorkbenchLayoutService), accessor.get(IViewsService).isViewVisible(TERMINAL_VIEW_ID));
 	}
 }
 
 registerAction2(MaximizeMainEditorPartAction);
 
 class RestoreMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.restoreMainEditorPart';
+	static readonly ID = RESTORE_MAIN_EDITOR_PART_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -209,16 +194,7 @@ class RestoreMainEditorPartAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		const shouldRestoreTerminalPanel = terminalPanelHiddenForMaximizedEditor.has(layoutService);
-
-		layoutService.setEditorMaximized(false);
-
-		if (shouldRestoreTerminalPanel && !layoutService.isVisible(Parts.PANEL_PART)) {
-			layoutService.setPartHidden(false, Parts.PANEL_PART);
-		}
-
-		terminalPanelHiddenForMaximizedEditor.delete(layoutService);
+		restoreMainEditorPart(accessor.get(IAgentWorkbenchLayoutService));
 	}
 }
 

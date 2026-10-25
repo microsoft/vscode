@@ -42,7 +42,8 @@ export const Menus = {
 	ChatWindowTitle: new MenuId('SessionsChatWindowTitle'),
 	/** The layout actions in the header of a docked chat window, before its Close button, as {@link ChatWindowTitleBarLayout}. */
 	ChatWindowTitleLayout: new MenuId('SessionsChatWindowTitleLayout'),
-	ChatWindowLayout: new MenuId('SessionsChatWindowLayout'),
+	/** Where the terminal row of a chat window shows, in the More Actions menu of the row. */
+	ChatWindowTerminalPosition: new MenuId('SessionsChatWindowTerminalPosition'),
 	MobileTitleBarCenter: new MenuId('SessionsMobileTitleBarCenter'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
@@ -119,14 +120,22 @@ export const Menus = {
 	 */
 	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
 	/**
-	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
-	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
-	 * the side pane when it is closed; these entries are gated on availability only. The terminal
-	 * entry reveals the terminal in the panel. The side panel toggle before the tab entries and the
-	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
+	 * The Session Activity Bar, docked at the right edge of the active chat view, or of the editor area
+	 * while the chat is below the editor or hidden, grouped by {@link SessionActivityBarGroup}. Each tab
+	 * entry opens or activates its side pane tab, revealing the side pane when it is closed; these entries
+	 * are gated on availability only. The terminal entry reveals the terminal in the panel. While the
+	 * activity bar shows its layout actions, the Layout button leads it, opening
+	 * {@link SessionLayout}, and the panel toggle follows the
+	 * terminal, in place of the title bar's side panel and panel toggles.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
 	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
+	/**
+	 * The Layout menu of a window: Show Chat, Show Editor, and Stacked, checked as the window shows them, and, in a chat
+	 * window, where it shows. One Layout button opens it, in the Session Activity Bar or in the title bar. The main
+	 * window and chat windows each contribute theirs, scoped to their kind of window.
+	 */
+	SessionLayout: new MenuId('SessionsLayout'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
@@ -152,7 +161,9 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
-	/** The side panel toggle, followed by the entries that open its tabs. */
+	/** The Layout button, which opens the layout modes: chat only, editor only, stacked and side by side. */
+	Layout: '0_layout',
+	/** The entries that open the side panel's tabs. */
 	SidePanel: '1_sidePanel',
 	/** The terminal, followed by the panel toggle. */
 	Panel: '2_panel',

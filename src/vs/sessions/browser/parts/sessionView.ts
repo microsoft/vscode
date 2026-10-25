@@ -58,13 +58,15 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	readonly minimumHeight = 200;
+	get minimumHeight() { return this._sizedByHost ? 0 : 200; }
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
 	readonly onDidChange: Event<IViewSize | undefined> = this._onDidChange.event;
 
 	private readonly _header: SessionHeader;
+	/** Whether the host sizes this view to what its chat shows; see {@link setSizedByHost}. */
+	private _sizedByHost = false;
 	private readonly _groupsView: ChatGroupsView;
 	private readonly _standaloneView = this._register(disposableObservableValue<AbstractChatView | undefined>(this, undefined));
 	private readonly _preparationView = observableValue<AbstractChatView | undefined>(this, undefined);
@@ -383,6 +385,20 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._headerHidden.set(hidden, undefined);
 	}
 
+	/**
+	 * Whether the host sizes this view to what its chat shows, such as only the chat input below the editor, which can be
+	 * shorter than the view and its chat groups otherwise are at least. They then set no minimum height, so that the
+	 * grids they are in do not overflow and scroll.
+	 */
+	setSizedByHost(sized: boolean): void {
+		if (this._sizedByHost === sized) {
+			return;
+		}
+		this._sizedByHost = sized;
+		this._groupsView.setSizedByHost(sized);
+		this._onDidChange.fire(undefined);
+	}
+
 	focus(): void {
 		const standaloneView = this._visibleStandaloneView;
 		standaloneView ? standaloneView.focus() : this._groupsView.focus();
@@ -552,7 +568,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			this._lastContentLayout = undefined;
 		}
 		this._standaloneSessionActivityBar?.setChatActions(standaloneView?.activityBarActions);
-		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isVisible && !!standaloneView);
+		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isLeafVisible && !!standaloneView, !this._isPartVisible);
 	}
 
 	/**
@@ -593,11 +609,14 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private _updateVisibility(wasVisible: boolean): void {
 		const visible = this._isVisible;
 		if (visible === wasVisible) {
+			// Only where the part is hidden changed: the session activity bar can show outside the chat while it is.
+			this._groupsView.setSessionVisible(visible, this._isPartVisible);
+			this._updateStandaloneSessionActivityBar();
 			return;
 		}
 		this._lastContentLayout = undefined;
 		this._isVisibleObs.set(visible, undefined);
-		this._groupsView.setSessionVisible(visible);
+		this._groupsView.setSessionVisible(visible, this._isPartVisible);
 		this._visibleStandaloneView?.setVisible(visible);
 		this._updateStandaloneSessionActivityBar();
 		if (visible) {

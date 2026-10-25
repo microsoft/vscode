@@ -29,7 +29,8 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TOGGLE_TERMINAL_COMMAND_ID, ChatWindowEditorAreaEditorContext, ChatWindowHasEditorAreaContext, ChatWindowSessionHasWorkspaceContext, ChatWindowTerminalShownContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { SessionLayoutMode, SessionLayoutModeContext } from '../../../common/sessionLayoutMode.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
@@ -120,7 +121,7 @@ function getChatWindowForGroup(chatWindowService: IChatWindowService, context: I
 
 for (const entry of chatWindowTabEntries) {
 	// Checked while the editor area shows its tab; clicking it then hides the editor area.
-	const shown = ContextKeyExpr.and(ChatWindowEditorAreaEditorContext.isEqualTo(entry.editorId), ChatWindowLayoutContext.notEqualsTo(ChatWindowLayout.ChatOnly));
+	const shown = ContextKeyExpr.and(ChatWindowEditorAreaEditorContext.isEqualTo(entry.editorId), SessionLayoutModeContext.notEqualsTo(SessionLayoutMode.ChatOnly));
 	const when = ContextKeyExpr.and(ChatWindowHasEditorAreaContext, ChatContextKeys.enabled, entry.when);
 	// The same entries as the Add Tab actions of the main window, in its menus, for the empty editor area of a chat window.
 	for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab]) {
