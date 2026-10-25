@@ -470,16 +470,24 @@ jobs:
   # cannot affect one, it passes affected: false so that its reusable workflow skips its job, which
   # has a fixed name. GitHub reports a skipped calling job under its own name only, without
   # evaluating the expressions in it, such as the matrix of the smoke test shards.
+  # On Linux, which runs every unit test, the Electron and node.js unit tests in one job could be the
+  # slowest job of the workflow, so they run on separate machines. macOS and Windows run only the
+  # selected unit tests, so they rarely take as long.
   linux-electron-unit-tests:
-    name: Electron-Unit
+    name: Electron-Unit (${{ matrix.suite }})
     needs: changes
     if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [electron, node]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true' }}
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_suite: ${{ matrix.suite }}
 
   linux-electron-tests:
     name: Electron
