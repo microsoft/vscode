@@ -17,7 +17,7 @@ import { BugIndicatingError, onUnexpectedError } from './errors.js';
  * Enables logging of potentially leaked disposables.
  *
  * A disposable is considered leaked if it is not disposed or not registered as the child of
- * another disposable. This tracking is very simple an only works for classes that either
+ * another disposable. This tracking is very simple and only works for classes that either
  * extend Disposable or use a DisposableStore. This means there are a lot of false positives.
  */
 const TRACK_DISPOSABLES = false;
@@ -681,6 +681,11 @@ export class RefCountedDisposable {
 
 export interface IReference<T> extends IDisposable {
 	readonly object: T;
+
+	/**
+	 * A label that describes the referenced object, for example in leak reports.
+	 */
+	readonly debugLabel?: string;
 }
 
 export abstract class ReferenceCollection<T> {
