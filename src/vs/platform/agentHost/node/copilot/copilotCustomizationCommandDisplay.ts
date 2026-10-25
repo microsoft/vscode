@@ -157,19 +157,17 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 			if (typeof plugin === 'string') {
 				return pluginUsage(plugin);
 			}
-			if (plugin.directSourceId !== undefined) {
-				return pluginUsage(localize('copilotPlugin.directEnablementUnsupported', "Plugin {0} is installed directly and cannot be enabled or disabled. Uninstall it instead.", rest));
-			}
 			const enabled = command === 'enable';
 			if (plugin.enabled === enabled) {
 				return pluginUsage(enabled
 					? localize('copilotPlugin.alreadyEnabled', "Plugin {0} is already enabled.", rest)
 					: localize('copilotPlugin.alreadyDisabled', "Plugin {0} is already disabled.", rest));
 			}
+			const target = plugin.directSourceId ?? pluginDisplayName(plugin.name, plugin.marketplace);
 			if (command === 'enable') {
-				await plugins.enable({ names: [plugin.name] });
+				await plugins.enable({ names: [target] });
 			} else {
-				await plugins.disable({ names: [plugin.name] });
+				await plugins.disable({ names: [target] });
 			}
 			await reload('enablement');
 			return pluginResult(command === 'enable'
@@ -273,12 +271,12 @@ function splitCommand(input: string): { command: string; rest: string } {
 }
 
 async function findPlugin(target: string, plugins: ICopilotPluginCommandApi): Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'][number] | string | undefined> {
-	const matches = (await plugins.list()).plugins.filter(plugin => pluginDisplayName(plugin.name, plugin.marketplace) === target || plugin.name === target);
+	const matches = (await plugins.list()).plugins.filter(plugin => plugin.directSourceId === target || pluginDisplayName(plugin.name, plugin.marketplace) === target || plugin.name === target);
 	if (!matches.length) {
 		return undefined;
 	}
 	if (matches.length > 1) {
-		return localize('copilotPlugin.ambiguous', "Multiple plugins are named {0}. Use the full plugin@marketplace name.", target);
+		return localize('copilotPlugin.ambiguous', "Multiple plugins are named {0}. Use the full plugin@marketplace name or direct source ID.", target);
 	}
 	return matches[0];
 }

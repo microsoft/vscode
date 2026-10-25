@@ -44,6 +44,7 @@ protocol.registerSchemesAsPrivileged([
  * _: string[];
  * grep: string;
  * run: string | string[];
+ * runList: string;
  * runGlob: string;
  * excludeRunGlob: string;
  * testSplit: string;
@@ -64,7 +65,7 @@ protocol.registerSchemesAsPrivileged([
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files'],
+	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -95,6 +96,7 @@ Bare .ts/.js file paths passed as positional arguments are treated as
 Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
+--runList <file>              only run tests whose files are listed in <file>, one per line
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
@@ -119,6 +121,11 @@ if (bareFiles.length > 0) {
 	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
 	args.run = [...existing, ...bareFiles];
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
+}
+
+// The renderer reads the --runList file (see loadTestModules in renderer.js)
+if (args.runList) {
+	args.runList = path.resolve(args.runList);
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];

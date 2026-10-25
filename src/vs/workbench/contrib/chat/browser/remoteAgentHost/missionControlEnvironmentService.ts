@@ -325,6 +325,34 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		await this._connections.disconnect(id);
 	}
 
+	async delete(id: string, token: CancellationToken): Promise<void> {
+		const host = this._requireHost(id);
+		const account = this._accountKey;
+		if (host.kind !== 'user-local' || !account) {
+			throw new Error(localize('missionControl.deleteUnsupported', "Only user-shared environments can be deleted here."));
+		}
+		const generation = this._generation;
+		const operation = new DisposableStore();
+		const source = operation.add(new CancellationTokenSource(token));
+		operation.add(this._lifetimeToken.onCancellationRequested(() => source.cancel()));
+		const cancellation = this._discoveryCancellation.value ??= new CancellationTokenSource();
+		operation.add(cancellation.token.onCancellationRequested(() => source.cancel()));
+		try {
+			this._checkGeneration(generation, source.token);
+			await this._api.deleteEnvironment(id, source.token, account);
+			const currentAccount = await this._api.getAccountKey();
+			this._checkGeneration(generation, source.token);
+			if (account !== currentAccount) {
+				throw new CancellationError();
+			}
+			this._refreshGeneration++;
+			this._replaceHosts(this.hosts.get().filter(host => host.id !== id));
+			this._persist();
+		} finally {
+			operation.dispose();
+		}
+	}
+
 	setDisplayName(id: string, name: string | undefined): void {
 		this._requireHost(id);
 		const key = `${this._storagePrefix}${id}.displayName`;
