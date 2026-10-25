@@ -51,7 +51,7 @@ suite('Chatpad contribution', () => {
 	let providers: IFakeProvider[];
 	let onDidChangeProviders: Emitter<void>;
 	let opened: unknown[];
-	let windows: ReturnType<typeof observableValue<readonly { kind: unknown }[]>>;
+	let windows: ReturnType<typeof observableValue<readonly { kind: unknown; content?: unknown }[]>>;
 	let messages: string[];
 	let storage: InMemoryStorageService;
 	let contextKeyService: ContextKeyService;
