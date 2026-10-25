@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,24 +20,25 @@ import { IListService, ListService } from '../../../../../../platform/list/brows
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
+import { IProgress } from '../../../../../../platform/progress/common/progress.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ICustomizationRemote, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
+import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 const remotes: ICustomizationRemote[] = [
 	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: false, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
-	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the picker.' },
 	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
 	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1']) },
 	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.connected, removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.' },
-	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.' },
+	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.', removeUnavailableReason: 'Removing environments is not supported here. Manage sharing in the application running on that machine.' },
 	{ id: 'container:project', kind: 'devContainer', name: 'Project development container', detail: '/Users/developer/projects/example-project-with-a-long-source-folder-name', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = '640px';
 	container.classList.add('remotes-editor');
@@ -59,10 +62,35 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			}());
 		},
 	});
+	const pendingRefresh = refreshing ? new DeferredPromise<void>() : undefined;
+	if (pendingRefresh) {
+		disposableStore.add(toDisposable(() => pendingRefresh.complete()));
+	}
+	const pendingSignIn = signInRequired === 'pending' ? new DeferredPromise<void>() : undefined;
+	if (pendingSignIn) {
+		disposableStore.add(toDisposable(() => pendingSignIn.complete()));
+	}
 	const model = disposableStore.add(new class extends Disposable implements IRemotesModel {
 		readonly environmentsEnabled = observableValue(this, environments);
+		readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, signInRequired ? 'github' : undefined);
+		async signInToTunnels(): Promise<void> {
+			await pendingSignIn?.p;
+			this.tunnelAuthenticationRequired.set(undefined, undefined);
+		}
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
-		async refresh() { return failedKinds; }
+		async refresh(_token: CancellationToken, progress?: IProgress<IRemoteRefreshProgress>) {
+			if (pendingRefresh && refreshing) {
+				progress?.report({ kind: refreshing, refreshing: true });
+				for (const kind of failedKinds) {
+					progress?.report({ kind, refreshing: false, failed: true });
+				}
+				await pendingRefresh.p;
+			}
+			return failedKinds;
+		}
+		setHidden(id: string, hidden: boolean) {
+			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, hidden } : remote), undefined);
+		}
 		async rename(id: string) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: `${remote.name} (renamed)` } : remote), undefined);
 		}
@@ -77,12 +105,23 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	}());
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));
 	widget.setVisible(true);
-	await waitForFixtureCondition(() => content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should finish before capture');
+	await waitForFixtureCondition(() => refreshing
+		? content.querySelectorAll('.remotes-group-progress:not([hidden])').length === 1
+		: content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should reach its fixture state before capture');
+	if (pendingSignIn) {
+		content.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!.click();
+		await waitForFixtureCondition(() => !!content.querySelector('.remotes-signin-progress:not([hidden])'), 'Sign-in spinner should appear before capture');
+	}
 	widget.layout();
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
-	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, false, [], true) }),
+	Environments: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true) }),
+	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, 'tunnel') }),
+	TunnelDiscoveryFailure: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true, 'ssh') }),
+	TunnelSignIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true) }),
+	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending') }),
+	TunnelSignInNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, ['tunnel'], true, undefined, true) }),
 	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
 	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),
