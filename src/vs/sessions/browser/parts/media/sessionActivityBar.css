@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Docked in the space the host reserves at the right of the chat (`ChatViewSessionActivityBar.RESERVED_WIDTH`); `ChatViewSessionActivityBar` sets `top`. */
+/* Docked in the column the host keeps at the right of the chat, which the chat is laid out to the left of
+ * (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`); `ChatViewSessionActivityBar` sets `top`. */
 .monaco-workbench .session-activity-bar-host {
 	position: relative;
 }
 
 .monaco-workbench .session-activity-bar.docked {
 	position: absolute;
-	/* Just clears the transcript's 10px overlay scrollbar. */
-	right: var(--vscode-spacing-size120);
-	/* Above the chat transcript's sticky scroll (13), scrollbar (14), prompt timeline rail (15), and
-	 * state indicator (16) where they extend into the reserved space; below the chat's hovers. */
+	/* With an equal gap on either side in its column (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`). */
+	right: var(--vscode-spacing-size20);
+	/* Above the chat transcript's layers (sticky scroll 13, scrollbar 14, prompt timeline rail 15, state indicator 16);
+	 * below the chat's hovers. */
 	z-index: 17;
 }
 
