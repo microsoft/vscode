@@ -25,7 +25,7 @@ suite('Response readers', () => {
 		});
 		const result = await readBoundedResponse(new Response(body), 4, new AbortController().signal);
 		assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
-			bytes: [1, 2, 3, 4], truncated: false, cancellations: 0, locked: false,
+			bytes: [1, 2, 3, 4], truncated: false, cancellations: 0, locked: true,
 		});
 	});
 
@@ -42,10 +42,23 @@ suite('Response readers', () => {
 			});
 			const result = await readBoundedResponse(new Response(body), limit, new AbortController().signal);
 			assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
-				bytes: [1, 2, 3].slice(0, limit), truncated: true, cancellations: 1, locked: false,
+				bytes: [1, 2, 3].slice(0, limit), truncated: true, cancellations: 1, locked: true,
 			});
 		});
 	}
+
+	test('never releases the reader lock after complete or truncated reads', async () => {
+		// releaseLock() can hang WebKit (regressed by https://bugs.webkit.org/show_bug.cgi?id=309882).
+		const read = async (maximumBytes: number) => {
+			const response = new Response('hello');
+			const { bytes, truncated } = await readBoundedResponse(response, maximumBytes, new AbortController().signal);
+			return { text: new TextDecoder().decode(bytes), truncated, locked: response.body?.locked };
+		};
+		assert.deepStrictEqual([await read(5), await read(2)], [
+			{ text: 'hello', truncated: false, locked: true },
+			{ text: 'he', truncated: true, locked: true },
+		]);
+	});
 
 	test('a missing response body is empty unless the caller already cancelled', async () => {
 		const controller = new AbortController();
@@ -65,14 +78,14 @@ suite('Response readers', () => {
 		const reason = new Error('Cancelled');
 		controller.abort(reason);
 		await assert.rejects(pending, error => error === reason);
-		assert.deepStrictEqual({ cancellations, locked: body.locked }, { cancellations: 1, locked: false });
+		assert.deepStrictEqual({ cancellations, locked: body.locked }, { cancellations: 1, locked: true });
 	});
 
-	test('read errors propagate without retaining the reader lock', async () => {
+	test('read errors propagate unchanged', async () => {
 		const error = new Error('Body read failed');
 		const body = new ReadableStream<Uint8Array>({ start: controller => controller.error(error) });
 		await assert.rejects(readBoundedResponse(new Response(body), 10, new AbortController().signal), actual => actual === error);
-		assert.strictEqual(body.locked, false);
+		assert.strictEqual(body.locked, true);
 	});
 
 	test('body cancellation failures are logged without rejecting the caller', async () => {

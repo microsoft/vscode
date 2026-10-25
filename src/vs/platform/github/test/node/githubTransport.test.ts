@@ -875,7 +875,7 @@ suite('GitHubTransport', () => {
 						? transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r' }, signal())
 						: transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal());
 					await assert.rejects(pending, { name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)' });
-					assert.deepStrictEqual({ attempts, locked: streams.some(stream => stream.locked) }, { attempts: 2, locked: false });
+					assert.deepStrictEqual({ attempts, locked: streams.every(stream => stream.locked) }, { attempts: 2, locked: true });
 				} finally {
 					transport.dispose();
 				}
@@ -933,7 +933,7 @@ suite('GitHubTransport', () => {
 				scheduler.advanceBy(1_000);
 			}
 			await Promise.all([rejected, cancelled.p]);
-			assert.deepStrictEqual({ attempts, locked: stream.locked, timers: scheduler.pendingCount }, { attempts: 1, locked: false, timers: 0 });
+			assert.deepStrictEqual({ attempts, locked: stream.locked, timers: scheduler.pendingCount }, { attempts: 1, locked: true, timers: 0 });
 		});
 	}
 
@@ -1537,12 +1537,12 @@ suite('GitHubTransport', () => {
 			results.push({ maximumBytes, text: result.text, truncated: result.truncated, bytesRead: result.bytesRead, cancelled, locked: stream.locked });
 		}
 		assert.deepStrictEqual(results, [
-			{ maximumBytes: 3, text: 'abc', truncated: false, bytesRead: 3, cancelled: false, locked: false },
-			{ maximumBytes: 3, text: 'abc', truncated: true, bytesRead: 3, cancelled: true, locked: false },
-			{ maximumBytes: 0, text: '', truncated: false, bytesRead: 0, cancelled: false, locked: false },
-			{ maximumBytes: 0, text: '', truncated: true, bytesRead: 0, cancelled: true, locked: false },
-			{ maximumBytes: -1, text: '', truncated: true, bytesRead: 0, cancelled: true, locked: false },
-			{ maximumBytes: 3, text: '\u00e9\ufffd', truncated: true, bytesRead: 3, cancelled: true, locked: false },
+			{ maximumBytes: 3, text: 'abc', truncated: false, bytesRead: 3, cancelled: false, locked: true },
+			{ maximumBytes: 3, text: 'abc', truncated: true, bytesRead: 3, cancelled: true, locked: true },
+			{ maximumBytes: 0, text: '', truncated: false, bytesRead: 0, cancelled: false, locked: true },
+			{ maximumBytes: 0, text: '', truncated: true, bytesRead: 0, cancelled: true, locked: true },
+			{ maximumBytes: -1, text: '', truncated: true, bytesRead: 0, cancelled: true, locked: true },
+			{ maximumBytes: 3, text: '\u00e9\ufffd', truncated: true, bytesRead: 3, cancelled: true, locked: true },
 		]);
 	});
 
@@ -1575,7 +1575,7 @@ suite('GitHubTransport', () => {
 			}
 			await rejected;
 			assert.deepStrictEqual({ cancelled, locked: stream.locked, pendingTimers: scheduler.pendingCount }, {
-				cancelled: true, locked: false, pendingTimers: 0,
+				cancelled: true, locked: true, pendingTimers: 0,
 			});
 		});
 	}
@@ -1596,10 +1596,10 @@ suite('GitHubTransport', () => {
 		}, signal());
 		assert.deepStrictEqual({
 			text: result.text, truncated: result.truncated, cancelled, locked: stream.locked, pendingTimers: scheduler.pendingCount,
-		}, { text: 'abc', truncated: true, cancelled: true, locked: false, pendingTimers: 0 });
+		}, { text: 'abc', truncated: true, cancelled: true, locked: true, pendingTimers: 0 });
 	});
 
-	test('sanitizes body read failures and releases the reader and deadline', async () => {
+	test('sanitizes body read failures and releases the deadline', async () => {
 		const scheduler = disposables.add(new FakeScheduler());
 		const stream = new ReadableStream<Uint8Array>({
 			pull(controller) { controller.error(new Error('private-token https://storage.example.test/log?sig=private')); },
@@ -1610,7 +1610,7 @@ suite('GitHubTransport', () => {
 		}, signal()), {
 			name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)',
 		});
-		assert.deepStrictEqual({ locked: stream.locked, pendingTimers: scheduler.pendingCount }, { locked: false, pendingTimers: 0 });
+		assert.deepStrictEqual({ locked: stream.locked, pendingTimers: scheduler.pendingCount }, { locked: true, pendingTimers: 0 });
 	});
 
 	test('cleans up a body returned after cancellation without reading it', async () => {
@@ -1646,7 +1646,7 @@ suite('GitHubTransport', () => {
 			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
 		}, signal());
 		assert.deepStrictEqual({ text: result.text, locked: stream.locked, warnings }, {
-			text: 'abc', locked: false, warnings: ['[Request] Failed to cancel a response body'],
+			text: 'abc', locked: true, warnings: ['[Request] Failed to cancel a response body'],
 		});
 	});
 

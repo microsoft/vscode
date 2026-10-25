@@ -254,7 +254,7 @@ suite('GitHub request lifecycle', () => {
 			scheduler.advanceBy(10);
 			await rejected;
 			await cancelled.p;
-			assert.deepStrictEqual({ locked: body.locked, timers: scheduler.pendingCount }, { locked: false, timers: 0 });
+			assert.deepStrictEqual({ locked: body.locked, timers: scheduler.pendingCount }, { locked: true, timers: 0 });
 		});
 
 		test(`${kind}: a waiter's deadline does not cancel another coalesced reader`, async () => {
@@ -493,7 +493,7 @@ suite('GitHub request lifecycle', () => {
 		assert.deepStrictEqual({
 			chunks, cancelled, locked: body.locked, timers: scheduler.pendingCount,
 			graphqlCooldown: transport.rateLimits.getDelay(account, 'graphql'),
-		}, { chunks: 3, cancelled: true, locked: false, timers: 0, graphqlCooldown: 60_000 });
+		}, { chunks: 3, cancelled: true, locked: true, timers: 0, graphqlCooldown: 60_000 });
 	});
 
 	test('download authorization failures and storage-origin limits do not park GitHub traffic', async () => {
@@ -540,7 +540,7 @@ suite('GitHub request lifecycle', () => {
 		scheduler.advanceBy(10);
 		await rejected;
 		await cancelled.p;
-		assert.deepStrictEqual({ locked: body.locked, timers: scheduler.pendingCount }, { locked: false, timers: 0 });
+		assert.deepStrictEqual({ locked: body.locked, timers: scheduler.pendingCount }, { locked: true, timers: 0 });
 	});
 
 	test('rechecks cooldowns between admission and network dispatch', async () => {

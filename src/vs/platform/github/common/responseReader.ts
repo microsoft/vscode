@@ -56,7 +56,7 @@ export async function readBoundedResponse(
 		if (!complete) {
 			cancelResponseBody(reader, logService);
 		}
-		reader.releaseLock();
+		// Never release the reader: releaseLock() can hang WebKit (regressed by https://bugs.webkit.org/show_bug.cgi?id=309882), and the body is already finished or cancelled.
 	}
 }
 
