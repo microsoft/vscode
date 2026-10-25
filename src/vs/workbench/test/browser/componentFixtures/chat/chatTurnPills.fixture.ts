@@ -69,13 +69,7 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 	const partContext = upcastPartial<IChatContentPartRenderContext>({ container });
 
 	const listPool = disposableStore.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined));
-	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, partContext, listPool));
-
-	if (options.expanded) {
-		const disclosure = part.domNode.querySelector<HTMLDetailsElement>('.checkpoint-file-changes-disclosure')!;
-		disclosure.open = true;
-		disclosure.dispatchEvent(new Event('toggle'));
-	}
+	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, partContext, listPool, { open: !!options.expanded }));
 
 	// The turn changes summary reuses the checkpoint summary styling, which is
 	// scoped under `.interactive-session` (and relies on `.monaco-workbench` for

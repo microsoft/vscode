@@ -14,7 +14,7 @@ import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChange
 import { ChangesSummaryFileListPool } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
-import { ChatTurnPillsContentPart } from '../../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
+import { ChatTurnPillsContentPart, IChatTurnPillsDisclosureState } from '../../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { emptySessionEntryDiff, IEditSessionEntryDiff } from '../../../../common/editing/chatEditingService.js';
 import { IChatTurnPillsPart } from '../../../../common/model/chatViewModel.js';
 
@@ -44,6 +44,7 @@ suite('ChatTurnPillsContentPart', () => {
 			content,
 			{} as IChatContentPartRenderContext,
 			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
+			{ open: false },
 		));
 
 		const readState = () => ({
@@ -100,6 +101,7 @@ suite('ChatTurnPillsContentPart', () => {
 			},
 			{} as IChatContentPartRenderContext,
 			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
+			{ open: false },
 		));
 
 		const readState = () => ({
@@ -161,6 +163,7 @@ suite('ChatTurnPillsContentPart', () => {
 			},
 			{} as IChatContentPartRenderContext,
 			store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined)),
+			{ open: false },
 		));
 
 		let toggleCount = 0;
@@ -236,16 +239,17 @@ suite('ChatTurnPillsContentPart', () => {
 
 		const listPool = store.add(instantiationService.createInstance(ChangesSummaryFileListPool, undefined));
 		let requestCount = 0;
-		const createPart = () => instantiationService.createInstance(
+		const createPart = (requestId = `request${requestCount++}`, isLastTurn = false, disclosureState: IChatTurnPillsDisclosureState = { open: false }) => instantiationService.createInstance(
 			ChatTurnPillsContentPart,
 			{
 				kind: 'turnPills',
-				requestId: `request${requestCount++}`,
+				requestId,
 				sessionResource: URI.parse('vscode-chat-session://agent-host/session'),
-				isLastTurn: false,
+				isLastTurn,
 			},
 			{} as IChatContentPartRenderContext,
 			listPool,
+			disclosureState,
 		);
 		return { listPool, createPart, modelAddedListenerCount: () => modelAddedListeners.size };
 	}
@@ -314,6 +318,30 @@ suite('ChatTurnPillsContentPart', () => {
 			firstDisposed: { list: null, modelAddedListeners: 1 },
 			thirdReusesFirstList: true,
 			afterPoolDisposed: 0,
+		});
+	});
+
+	test('keeps the turn expanded with its changed-file list when it is rebuilt as no longer the last turn', () => {
+		const { createPart } = setUpTurnChanges();
+		const disclosureState: IChatTurnPillsDisclosureState = { open: false };
+		const lastTurn = createPart('request', true, disclosureState);
+		expand(lastTurn);
+		const stateAfterExpand = { ...disclosureState };
+		lastTurn.dispose();
+
+		const rebuilt = store.add(createPart('request', false, disclosureState));
+		const readState = () => ({
+			open: rebuilt.domNode.querySelector<HTMLDetailsElement>('details')!.open,
+			ariaExpanded: rebuilt.domNode.querySelector('summary')!.getAttribute('aria-expanded'),
+			rows: rebuilt.domNode.querySelectorAll('.monaco-list-row').length,
+		});
+		const afterRebuild = readState();
+		expand(rebuilt, false);
+
+		assert.deepStrictEqual({ stateAfterExpand, afterRebuild, stateAfterCollapse: { ...disclosureState } }, {
+			stateAfterExpand: { open: true },
+			afterRebuild: { open: true, ariaExpanded: 'true', rows: 2 },
+			stateAfterCollapse: { open: false },
 		});
 	});
 });
