@@ -27,7 +27,7 @@ import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesEditor, RemotesEditorFocusedContext } from './remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(RemotesEditor, RemotesEditor.ID, localize('remotes.editorLabel', "Remote Environments")),
@@ -40,6 +40,7 @@ registerAction2(class extends Action2 {
 			ChatContextKeys.enabled,
 			ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
 			ContextKeyExpr.equals(`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`, true),
+			ContextKeyExpr.equals(`config.${ENVIRONMENT_PICKER_SETTING}`, true),
 		);
 		super({
 			id: OPEN_REMOTES_EDITOR_COMMAND_ID,
@@ -60,6 +61,9 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		if (!accessor.get(IConfigurationService).getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
 			throw new Error(localize('remotes.managementDisabled', "Remote Environments management is disabled."));
+		}
+		if (!accessor.get(IConfigurationService).getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
+			throw new Error(localize('remotes.environmentPickerDisabled', "The Environment picker is disabled."));
 		}
 		if (!accessor.get(IConfigurationService).getValue<boolean>(RemoteAgentHostsEnabledSettingId) || accessor.get(IChatEntitlementService).sentiment.hidden) {
 			throw new Error(localize('remotes.editorDisabled', "Remote agent hosts are disabled."));

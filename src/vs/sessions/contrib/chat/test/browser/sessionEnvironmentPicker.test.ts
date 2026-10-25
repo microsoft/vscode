@@ -33,7 +33,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../common/constants.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 
 suite('SessionEnvironmentPicker', () => {
@@ -228,12 +228,13 @@ suite('SessionEnvironmentPicker', () => {
 		});
 	});
 
-	for (const remotesEnabled of [false, true]) {
+	for (const { remotesEnabled, environmentPickerEnabled } of [false, true].flatMap(remotesEnabled => [false, true].map(environmentPickerEnabled => ({ remotesEnabled, environmentPickerEnabled })))) {
 		for (const manageEnabled of [undefined, false, true]) {
-			test(`Manage visibility follows the setting and remote-host availability (remotes: ${remotesEnabled}, manage: ${manageEnabled})`, async () => {
+			test(`Manage visibility follows all gates (remotes: ${remotesEnabled}, picker: ${environmentPickerEnabled}, manage: ${manageEnabled})`, async () => {
 				const instantiation = store.add(new TestInstantiationService());
 				const configuration = new TestConfigurationService({
 					[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
+					[ENVIRONMENT_PICKER_SETTING]: environmentPickerEnabled,
 					...(manageEnabled === undefined ? {} : { [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: manageEnabled }),
 					[RemoteAgentHostsSettingId]: [
 						{ name: 'WebSocket', address: 'ws://localhost:3000' },
@@ -329,7 +330,7 @@ suite('SessionEnvironmentPicker', () => {
 				const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
 				assert.deepStrictEqual(telemetry.triggers, []);
 				trigger.click();
-				const showManage = remotesEnabled && manageEnabled === true;
+				const showManage = remotesEnabled && environmentPickerEnabled && manageEnabled === true;
 				await websocketActions?.[0].run();
 				if (showManage) {
 					accept!(menu.length - 1);
@@ -356,7 +357,7 @@ suite('SessionEnvironmentPicker', () => {
 					],
 					calls: ['manage:WebSocket', ...(showManage ? ['hide', `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}:`] : [])],
 					selected: 'local', expanded: showManage ? 'false' : 'true',
-					triggers: remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
+					triggers: remotesEnabled && environmentPickerEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
 				});
 				hide?.();
 				configuredEntries = [...entries];
@@ -367,11 +368,11 @@ suite('SessionEnvironmentPicker', () => {
 					sshSubmenu: submenus[1], environmentSubmenu: submenus[4], websocketSubmenu: submenus[6],
 					triggers: telemetry.triggers,
 				}, {
-					visibleAfterSettingChange: remotesEnabled && !manageEnabled,
-					sshSubmenu: remotesEnabled && !manageEnabled ? undefined : ['Manage SSH'],
-					environmentSubmenu: remotesEnabled && !manageEnabled ? undefined : ['Manage Environment'],
+					visibleAfterSettingChange: remotesEnabled && environmentPickerEnabled && !manageEnabled,
+					sshSubmenu: remotesEnabled && environmentPickerEnabled && !manageEnabled ? undefined : ['Manage SSH'],
+					environmentSubmenu: remotesEnabled && environmentPickerEnabled && !manageEnabled ? undefined : ['Manage Environment'],
 					websocketSubmenu: ['Manage WebSocket'],
-					triggers: remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
+					triggers: remotesEnabled && environmentPickerEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
 				});
 				if (showManage) {
 					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true);
@@ -380,6 +381,11 @@ suite('SessionEnvironmentPicker', () => {
 						trigger.click();
 						return submenus[4];
 					};
+					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, false);
+					const pickerDisabled = environmentSubmenu();
+					const manageWithoutPicker = menu.some(item => item.label === 'Manage...');
+					await configuration.setUserConfiguration(ENVIRONMENT_PICKER_SETTING, true);
+					const pickerReenabled = environmentSubmenu();
 					hosts.set(hosts.get().map(host => ({ ...host, status: 'offline' })), undefined);
 					const offline = environmentSubmenu();
 					accept!(4);
@@ -393,7 +399,8 @@ suite('SessionEnvironmentPicker', () => {
 					inventory.accountKey = 'other-account';
 					hosts.set([], undefined);
 					const withdrawn = environmentSubmenu();
-					assert.deepStrictEqual({ offline, selectedEnvironment, disabled, signedOut, withdrawn }, {
+					assert.deepStrictEqual({ pickerDisabled, manageWithoutPicker, pickerReenabled, offline, selectedEnvironment, disabled, signedOut, withdrawn }, {
+						pickerDisabled: ['Manage Environment'], manageWithoutPicker: false, pickerReenabled: undefined,
 						offline: undefined, selectedEnvironment: remoteEnvironments[3].id,
 						disabled: ['Manage Environment'], signedOut: ['Manage Environment'], withdrawn: ['Manage Environment'],
 					});

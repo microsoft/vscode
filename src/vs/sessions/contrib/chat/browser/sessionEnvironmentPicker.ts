@@ -39,7 +39,7 @@ import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../common/constants.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -220,7 +220,8 @@ export class SessionEnvironmentPicker extends Disposable {
 			return;
 		}
 		const remotesEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-		const showManage = remotesEnabled && this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+		const environmentPickerEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING);
+		const showManage = remotesEnabled && environmentPickerEnabled && this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 		const items: IActionListItem<IEnvironmentPickerItem>[] = this.environments.get().map(environment => ({
 			kind: ActionListItemKind.Action,
 			label: environment.label,
@@ -245,7 +246,7 @@ export class SessionEnvironmentPicker extends Disposable {
 				}
 			}
 		}
-		if (remotesEnabled) {
+		if (remotesEnabled && environmentPickerEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 			if (showManage) {
 				items.push(
