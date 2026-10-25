@@ -11,7 +11,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import * as semver from '../../../base/common/semver/semver.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { Promises as FSPromises } from '../../../base/node/pfs.js';
+import { Promises as FSPromises, RimRafMode } from '../../../base/node/pfs.js';
 import { buffer, CorruptZipMessage } from '../../../base/node/zip.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
@@ -169,6 +169,8 @@ export class ExtensionsDownloader extends Disposable {
 	}
 
 	private async downloadFile(extension: IGalleryExtension, location: URI, downloadFn: (location: URI) => Promise<void>): Promise<void> {
+		await this.cleanUpTemporaryDownloads();
+
 		// Do not download if exists
 		if (await this.fileService.exists(location)) {
 			return;
@@ -185,9 +187,7 @@ export class ExtensionsDownloader extends Disposable {
 		try {
 			await downloadFn(tempLocation);
 		} catch (error) {
-			try {
-				await this.fileService.del(tempLocation);
-			} catch (e) { /* ignore */ }
+			await this.deleteTemporaryDownload(tempLocation);
 			throw error;
 		}
 
@@ -195,7 +195,7 @@ export class ExtensionsDownloader extends Disposable {
 			// Rename temp location to original
 			await FSPromises.rename(tempLocation.fsPath, location.fsPath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
-			try { await this.fileService.del(tempLocation); } catch (e) { /* ignore */ }
+			await this.deleteTemporaryDownload(tempLocation);
 			let exists = false;
 			try { exists = await this.fileService.exists(location); } catch (e) { /* ignore */ }
 			if (exists) {
@@ -232,11 +232,51 @@ export class ExtensionsDownloader extends Disposable {
 
 	async delete(location: URI): Promise<void> {
 		await this.cleanUpPromise;
+		await this.moveToTrash(location);
+	}
+
+	private async moveToTrash(location: URI): Promise<void> {
 		const trashRelativePath = this.uriIdentityService.extUri.relativePath(this.extensionsDownloadDir, location);
 		if (trashRelativePath) {
 			await this.fileService.move(location, this.uriIdentityService.extUri.joinPath(this.extensionsTrashDir, trashRelativePath), true);
 		} else {
 			await this.fileService.del(location);
+		}
+	}
+
+	async cleanUpTemporaryDownloads(): Promise<void> {
+		await this.cleanUpPromise;
+		await this.emptyTrash();
+	}
+
+	private async deleteTemporaryDownload(location: URI): Promise<boolean> {
+		try {
+			await this.fileService.del(location);
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				try {
+					await this.moveToTrash(location);
+				} catch (trashError) {
+					this.logService.warn('Could not delete temporary extension download', location.toString(), getErrorMessage(trashError));
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	private async emptyTrash(): Promise<void> {
+		try {
+			if (this.extensionsTrashDir.scheme === Schemas.file) {
+				// Keep failed deletions in the cache trash so the next cleanup can retry.
+				await FSPromises.rm(this.extensionsTrashDir.fsPath, RimRafMode.UNLINK);
+			} else {
+				await this.fileService.del(this.extensionsTrashDir, { recursive: true });
+			}
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
 		}
 	}
 
@@ -247,13 +287,7 @@ export class ExtensionsDownloader extends Disposable {
 				return;
 			}
 
-			try {
-				await this.fileService.del(this.extensionsTrashDir, { recursive: true });
-			} catch (error) {
-				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-					this.logService.error(error);
-				}
-			}
+			await this.emptyTrash();
 
 			const folderStat = await this.fileService.resolve(this.extensionsDownloadDir, { resolveMetadata: true });
 			if (folderStat.children) {
