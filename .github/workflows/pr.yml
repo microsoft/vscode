@@ -706,6 +706,8 @@ jobs:
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
+  # On Windows, the WSL setup makes the first Electron smoke test shard one of the slowest jobs of
+  # the workflow, so the smoke tests run in three shards there, and in two on Linux and macOS.
   windows-electron-smoke-test-shards:
     name: Electron-Smoke (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
@@ -713,7 +715,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
@@ -745,14 +747,25 @@ jobs:
       browser_tests: true
       unit_tests: false
 
+  # On Windows, the remote integration tests and the remote smoke tests in one job could be the
+  # slowest job of the workflow, so they run on separate machines.
   windows-remote-tests:
-    name: Remote
+    name: Remote (${{ matrix.part }})
     needs: changes
     if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: integration, integration: true, smoke: false }
+          - { part: smoke, integration: false, smoke: true }
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       remote_tests: true
+      unit_tests: false
+      integration_tests: ${{ matrix.integration }}
+      smoke_tests: ${{ matrix.smoke }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
