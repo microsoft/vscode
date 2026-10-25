@@ -30,8 +30,8 @@ suite('Webview window drag relay', () => {
 			postMessage: (_channel: string, data: FromWebviewMessage['did-window-drag']) => feedback.push(data),
 		}, () => ({ contentDocument }));
 		assert.ok(receive);
-		const send = (type: WebviewWindowDragEvent['type'], data: WebviewWindowDragEvent['data'] = [['resourceurls', '']]) => receive!(undefined, {
-			id: 1, type, clientX: 10, clientY: 20,
+		const send = (type: WebviewWindowDragEvent['type'], data: WebviewWindowDragEvent['data'] = [['resourceurls', '']], id = 1) => receive!(undefined, {
+			id, type, clientX: 10, clientY: 20,
 			shiftKey: true, altKey: false, ctrlKey: false, metaKey: false,
 			data, effectAllowed: 'copyMove', dropEffect: 'copy',
 		});
@@ -45,7 +45,7 @@ suite('Webview window drag relay', () => {
 			store.add(addDisposableListener(first, type, (event: DragEvent) => {
 				observations.push({ type, value: event.dataTransfer!.getData('resourceurls'), allowed: event.dataTransfer!.effectAllowed, effect: event.dataTransfer!.dropEffect, shift: event.shiftKey });
 				event.preventDefault();
-				event.dataTransfer!.dropEffect = type === 'dragover' ? 'none' : 'copy';
+				event.dataTransfer!.dropEffect = 'copy';
 			}));
 		}
 		send('dragover');
@@ -56,7 +56,7 @@ suite('Webview window drag relay', () => {
 				{ type: 'dragover', value: '', allowed: 'copyMove', effect: 'copy', shift: true },
 				{ type: 'drop', value: '["file:///project/file.txt"]', allowed: 'copyMove', effect: 'copy', shift: true },
 			],
-			feedback: [{ id: 1, dropEffect: 'none' }, { id: 1, dropEffect: 'copy' }],
+			feedback: [{ id: 1, dropEffect: 'copy' }, { id: 1, dropEffect: 'copy' }],
 		});
 	});
 
@@ -77,12 +77,54 @@ suite('Webview window drag relay', () => {
 		]);
 	});
 
+	test('suppresses a queued drop after the target rejects its hover', async () => {
+		const { first, feedback, send } = await createRelay();
+		const drops: string[] = [];
+		store.add(addDisposableListener(first, 'dragover', (event: DragEvent) => {
+			event.preventDefault();
+			event.dataTransfer!.dropEffect = 'none';
+		}));
+		store.add(addDisposableListener(first, 'drop', () => drops.push('drop')));
+		send('dragover');
+		// The host may queue the drop before receiving the rejection feedback.
+		send('drop', [['resourceurls', '["file:///project/file.txt"]']]);
+		assert.deepStrictEqual({ drops, feedback }, {
+			drops: [], feedback: [{ id: 1, dropEffect: 'none' }, { id: 1, dropEffect: 'none' }],
+		});
+	});
+
+	for (const change of ['target', 'drag', 'leave', 'drop'] as const) {
+		test(`does not reuse acceptance after a ${change} change`, async () => {
+			const { first, second, send, setTarget } = await createRelay();
+			const drops: string[] = [];
+			const exposedOnLeave: string[] = [];
+			for (const element of [first, second]) {
+				store.add(addDisposableListener(element, 'dragover', event => event.preventDefault()));
+				store.add(addDisposableListener(element, 'drop', () => drops.push('drop')));
+				store.add(addDisposableListener(element, 'dragleave', (event: DragEvent) => exposedOnLeave.push(event.dataTransfer!.getData('resourceurls'))));
+			}
+			send('dragover');
+			if (change === 'target') {
+				setTarget(second);
+			} else if (change === 'leave') {
+				send('dragleave');
+			} else if (change === 'drop') {
+				send('drop');
+				drops.length = 0;
+			}
+			send('drop', [['resourceurls', '["file:///project/file.txt"]']], change === 'drag' ? 2 : 1);
+			assert.deepStrictEqual({ drops, exposedOnLeave }, {
+				drops: [], exposedOnLeave: change === 'drop' ? [] : [''],
+			});
+		});
+	}
+
 	test('balances enter and leave events and resets after drops and cancellation', async () => {
 		const { first, second, setTarget, send } = await createRelay();
 		const events: string[] = [];
 		for (const [name, element] of [['first', first], ['second', second]] as const) {
 			for (const type of ['dragenter', 'dragover', 'dragleave', 'drop']) {
-				store.add(addDisposableListener(element, type, () => events.push(`${name}:${type}`)));
+				store.add(addDisposableListener(element, type, event => { event.preventDefault(); events.push(`${name}:${type}`); }));
 			}
 		}
 		send('dragover');

@@ -142,8 +142,8 @@ suite('WebviewElement', () => {
 	};
 
 	suite('window resource drag forwarding', () => {
-		async function setupDrag() {
-			const { webview, frame, container, port } = await createWebview();
+		async function setupDrag(targetWindow = mainWindow) {
+			const { webview, frame, container, port } = await createWebview(undefined, 'browser', true, targetWindow);
 			sinon.stub(frame, 'getBoundingClientRect').returns(new DOMRect(10, 20, 200, 100));
 			for (const type of ['dragover', 'dragleave', 'drop']) {
 				store.add(addDisposableListener(container, type, event => webview.windowDidDrag(event)));
@@ -205,6 +205,23 @@ suite('WebviewElement', () => {
 				dispatch('drop', { clientY: 120 }).defaultPrevented,
 				dispatch('drop', {}, covered).defaultPrevented,
 			], [false, false, false, false]);
+		});
+
+		test('accepts targets created in either realm of an auxiliary window', async () => {
+			const auxiliaryFrame = append(document.body, $<HTMLIFrameElement>('iframe'));
+			store.add(toDisposable(() => auxiliaryFrame.remove()));
+			const targetWindow = auxiliaryFrame.contentWindow;
+			assert.ok(targetWindow);
+			ensureCodeWindow(targetWindow, 1002);
+			store.add(registerWindow(targetWindow));
+			const { container, dispatch } = await setupDrag(targetWindow);
+			const auxiliaryTarget = targetWindow.document.createElement('div');
+			container.appendChild(auxiliaryTarget);
+			assert.deepStrictEqual({
+				adopted: container.ownerDocument === targetWindow.document,
+				mainRealm: dispatch('dragover', {}, container).defaultPrevented,
+				auxiliaryRealm: dispatch('dragover', {}, auxiliaryTarget).defaultPrevented,
+			}, { adopted: true, mainRealm: true, auxiliaryRealm: true });
 		});
 
 		for (const end of ['dragleave', 'release-shift', 'dragend'] as const) {

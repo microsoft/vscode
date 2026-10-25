@@ -27,7 +27,7 @@ suite('WebviewWindowDragMonitor', () => {
 		return { calls, dispatch };
 	}
 
-	for (const mime of ['ResourceURLs', 'CodeFiles']) {
+	for (const mime of ['ResourceURLs', 'CodeFiles', 'application/vnd.code.uri-list']) {
 		test(`keeps ${mime} drags in the host until they can be forwarded`, () => {
 			const { calls, dispatch } = setupDrag(mime);
 			for (const type of ['dragstart', 'drag', 'dragover', 'dragleave', 'drop', 'dragend', 'dragover']) {

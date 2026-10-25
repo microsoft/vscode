@@ -7,7 +7,7 @@ import { isFirefox } from '../../../../base/browser/browser.js';
 import { addDisposableListener, EventType, getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
-import { CodeWindow } from '../../../../base/browser/window.js';
+import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -817,7 +817,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		const isOver = event.shiftKey && event.type !== EventType.DRAG_LEAVE
 			&& event.clientX >= bounds.left && event.clientX < bounds.right
 			&& event.clientY >= bounds.top && event.clientY < bounds.bottom
-			&& event.target instanceof getWindow(element).Node && element.parentElement?.contains(event.target);
+			&& (event.target instanceof mainWindow.Node || event.target instanceof getWindow(element).Node)
+			&& element.parentElement?.contains(event.target);
 		if (!isOver) {
 			this.clearWindowDrag();
 			return;

@@ -35,7 +35,9 @@ export class WebviewWindowDragMonitor extends Disposable {
 			// Electron rejects native drags from the workbench into a cross-site iframe.
 			// Keep these drags in the workbench and forward explicitly requested drops.
 			isDraggingResource = !isWeb && !!event.dataTransfer?.types.some(type =>
-				type.toLowerCase() === DataTransfers.RESOURCES.toLowerCase() || type.toLowerCase() === CodeDataTransfers.FILES.toLowerCase());
+				type.toLowerCase() === DataTransfers.RESOURCES.toLowerCase()
+				|| type.toLowerCase() === CodeDataTransfers.FILES.toLowerCase()
+				|| type.toLowerCase() === DataTransfers.INTERNAL_URI_LIST.toLowerCase());
 			onDragStart();
 		}));
 
