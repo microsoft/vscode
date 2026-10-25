@@ -13,7 +13,10 @@ import { snapshotToString } from '../../../../services/textfile/common/textfiles
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IVisibleEditorPane } from '../../../../common/editor.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 
 suite('TextResourceEditorInput', () => {
 
@@ -53,6 +56,39 @@ suite('TextResourceEditorInput', () => {
 			label: 'Generated document',
 			description: 'Virtual content',
 			options: { override: DEFAULT_EDITOR_ASSOCIATION.id }
+		});
+	});
+
+	test('toUntyped preserves view state only for the requested group and matching input', () => {
+		const resource = URI.parse('virtual://authority/example.md');
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider(resource.scheme, { provideTextContent: async () => null }));
+		const input = disposables.add(accessor.textEditorService.createTextEditor({ resource }));
+		const otherInput = disposables.add(accessor.textEditorService.createTextEditor({ resource: URI.parse('virtual://authority/other.md') }));
+		const firstViewState = { cursorState: [{ position: { lineNumber: 10, column: 3 } }], viewState: { scrollTop: 100 } };
+		const secondViewState = { cursorState: [{ position: { lineNumber: 20, column: 5 } }], viewState: { scrollTop: 300 } };
+		const createPane = (input: EditorInput, groupId: number, viewState: object): IVisibleEditorPane => new class extends mock<IVisibleEditorPane>() {
+			override input = input;
+			override group = new class extends mock<IEditorGroup>() { override id = groupId; };
+			override getViewState() { return viewState; }
+		};
+		accessor.editorService.visibleEditorPanes = [
+			createPane(input, 1, secondViewState),
+			createPane(otherInput, 0, { unrelated: true }),
+			createPane(input, 0, firstViewState)
+		];
+
+		assert.deepStrictEqual({
+			withoutOptions: input.toUntyped()?.options,
+			emptyOptions: input.toUntyped({})?.options,
+			firstGroup: input.toUntyped({ preserveViewState: 0 })?.options,
+			secondGroup: input.toUntyped({ preserveViewState: 1 })?.options,
+			missingGroup: input.toUntyped({ preserveViewState: 2 })?.options
+		}, {
+			withoutOptions: { override: DEFAULT_EDITOR_ASSOCIATION.id },
+			emptyOptions: { override: DEFAULT_EDITOR_ASSOCIATION.id },
+			firstGroup: { override: DEFAULT_EDITOR_ASSOCIATION.id, viewState: firstViewState },
+			secondGroup: { override: DEFAULT_EDITOR_ASSOCIATION.id, viewState: secondViewState },
+			missingGroup: { override: DEFAULT_EDITOR_ASSOCIATION.id, viewState: undefined }
 		});
 	});
 

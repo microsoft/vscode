@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IRevertOptions, isResourceEditorInput, IUntypedEditorInput } from '../editor.js';
-import { EditorInput } from './editorInput.js';
+import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, GroupIdentifier, IRevertOptions, isResourceEditorInput, IUntypedEditorInput } from '../editor.js';
+import { EditorInput, IUntypedEditorOptions } from './editorInput.js';
 import { AbstractResourceEditorInput } from './resourceEditorInput.js';
 import { URI } from '../../../base/common/uri.js';
 import { ITextFileService, ITextFileSaveOptions, ILanguageSupport } from '../../services/textfile/common/textfiles.js';
@@ -191,13 +191,13 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		return model;
 	}
 
-	override toUntyped(): ITextResourceEditorInput | undefined {
+	override toUntyped(options?: IUntypedEditorOptions): ITextResourceEditorInput | undefined {
 		// Model-only resources cannot be recreated from their URI once disposed.
 		if (this.resource.scheme === Schemas.inMemory || !this.textModelService.canHandleResource(this.resource)) {
 			return undefined;
 		}
 
-		return {
+		const untypedInput: ITextResourceEditorInput = {
 			resource: this.resource,
 			label: this.name,
 			description: this.description,
@@ -205,6 +205,15 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 				override: this.editorId
 			}
 		};
+
+		if (typeof options?.preserveViewState === 'number') {
+			untypedInput.options = {
+				...untypedInput.options,
+				viewState: findViewStateForEditor(this, options.preserveViewState, this.editorService)
+			};
+		}
+
+		return untypedInput;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
