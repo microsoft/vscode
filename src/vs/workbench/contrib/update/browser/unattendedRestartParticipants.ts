@@ -10,7 +10,8 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -51,8 +52,17 @@ export class WorkbenchUnattendedRestartParticipants extends Disposable implement
 			check: () => quickInputService.currentQuickInput ? 'workbench.quickInputOpen' : undefined
 		}));
 		this._register(unattendedRestartService.registerParticipant({
+			check: () => this.getWorkspaceBlocker()
+		}));
+		this._register(unattendedRestartService.registerParticipant({
 			check: () => this.getEditorsBlocker()
 		}));
+	}
+
+	private getWorkspaceBlocker(): string | undefined {
+		const workspace = this.contextService.getWorkspace();
+
+		return workspace.transient || isTemporaryWorkspace(workspace) ? 'workspace.notRestorable' : undefined; // the window would not be reopened as it is
 	}
 
 	private getEditorsBlocker(): string | undefined {
@@ -64,15 +74,23 @@ export class WorkbenchUnattendedRestartParticipants extends Disposable implement
 			return undefined;
 		}
 
-		if (this.configurationService.getValue<boolean>('workbench.editor.restoreEditors') === false || isTemporaryWorkspace(this.contextService.getWorkspace())) {
+		if (this.configurationService.getValue<boolean>('workbench.editor.restoreEditors') === false) {
 			return 'workbench.editorsNotRestored';
 		}
 
 		const editorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
-		if (this.editorService.editors.some(editor => !editorFactory.getEditorSerializer(editor)?.canSerialize(editor))) {
+		if (this.editorService.editors.some(editor => !isRestorableEditor(editor, editorFactory.getEditorSerializer(editor)))) {
 			return 'workbench.editorNotRestorable';
 		}
 
 		return undefined;
 	}
+}
+
+/**
+ * Whether an editor survives a restart. Like editor groups when they persist their state, this
+ * requires the serializer to produce a value: some editors can be serialized only once resolved.
+ */
+export function isRestorableEditor(editor: EditorInput, serializer: IEditorSerializer | undefined): boolean {
+	return !!serializer?.canSerialize(editor) && typeof serializer.serialize(editor) === 'string';
 }

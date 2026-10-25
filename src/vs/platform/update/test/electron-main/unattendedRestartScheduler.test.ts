@@ -16,8 +16,10 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IDialogMainService } from '../../../dialogs/electron-main/dialogMainService.js';
 import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService, ShutdownEvent, ShutdownReason } from '../../../lifecycle/electron-main/lifecycleMainService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { IStateService } from '../../../state/node/state.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 import { INativeWindowConfiguration } from '../../../window/common/window.js';
@@ -81,6 +83,9 @@ suite('UnattendedRestartScheduler', () => {
 		readonly hasAuxiliaryWindow?: boolean;
 		/** Blockers that the window reports for consecutive checks; afterwards it reports none. */
 		readonly windowBlockers?: string[][];
+		/** A restart that the previous instance remembered when it shut down. */
+		readonly previousRestart?: unknown;
+		readonly commit?: string;
 	}
 
 	function createFixture(options: IFixtureOptions = {}) {
@@ -91,6 +96,17 @@ suite('UnattendedRestartScheduler', () => {
 		const onDidSuspend = store.add(new Emitter<void>());
 		const onDidResume = store.add(new Emitter<void>());
 		const onDidBlurWindow = store.add(new Emitter<void>());
+		const onWillShutdown = store.add(new Emitter<ShutdownEvent>());
+
+		const stateItems = new Map<string, unknown>();
+		if (options.previousRestart !== undefined) {
+			stateItems.set('update.unattendedRestart', options.previousRestart);
+		}
+		const stateService = upcastPartial<IStateService>({
+			getItem: <T>(key: string) => stateItems.get(key) as T | undefined,
+			setItem: (key: string, data?: object | string | number | boolean | undefined | null) => { stateItems.set(key, data); },
+			removeItem: (key: string) => { stateItems.delete(key); },
+		});
 
 		const readyUpdate = { ...update, version: options.updateVersion ?? update.version };
 		let state: State = options.updateReady === false ? State.Idle(UpdateType.Archive) : State.Ready(readyUpdate, false, false);
@@ -137,9 +153,11 @@ suite('UnattendedRestartScheduler', () => {
 			upcastPartial<IDialogMainService>({ hasOpenDialogs: () => options.hasOpenDialogs ?? false }),
 			configurationService,
 			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
-			upcastPartial<IProductService>({ target: 'user' }),
+			upcastPartial<IProductService>({ target: 'user', commit: options.commit ?? 'current' }),
 			store.add(new NullLogService()),
 			createRecordingTelemetryService(log),
+			upcastPartial<ILifecycleMainService>({ onWillShutdown: onWillShutdown.event }),
+			stateService,
 		));
 
 		return {
@@ -159,11 +177,25 @@ suite('UnattendedRestartScheduler', () => {
 				state = State.Ready(readyUpdate, false, false);
 				onStateChange.fire(state);
 			},
+			veto: () => {
+				state = State.Ready(readyUpdate, false, false);
+				onStateChange.fire(state);
+			},
+			/** Completes the shutdown and returns the restart that is remembered for the next launch. */
+			shutdown: () => {
+				onWillShutdown.fire({ reason: ShutdownReason.QUIT, join: () => { } });
+				return stateItems.get('update.unattendedRestart');
+			},
+			stateItems,
 		};
 	}
 
 	function outcome(outcome: string, attempts: number, lockedMinutes: number, blockers = '', inBackground = false) {
 		return { eventName: 'update:unattendedRestart', data: { outcome, blockers, inBackground, attempts, lockedMinutes } };
+	}
+
+	function pendingRestart(attempts: number, lockedMinutes: number, inBackground = false) {
+		return { fromCommit: 'current', inBackground, attempts, lockedMinutes };
 	}
 
 	test('restarts once the screen has been locked long enough', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -174,9 +206,10 @@ suite('UnattendedRestartScheduler', () => {
 		const beforeThreshold = [...fixture.log];
 		await timeout(2 * MINUTE);
 
-		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log }, {
+		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, restart: fixture.shutdown() }, {
 			beforeThreshold: [],
-			afterThreshold: ['quitAndInstall(foreground)', outcome('restarting', 1, 15)],
+			afterThreshold: ['quitAndInstall(foreground)'],
+			restart: pendingRestart(1, 15),
 		});
 	}));
 
@@ -197,7 +230,7 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
 
-		assert.deepStrictEqual(fixture.log, ['quitAndInstall(background)', outcome('restarting', 1, 15, '', true)]);
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(background)'], restart: pendingRestart(1, 15, true) });
 	}));
 
 	test('does not restart in the background where the relaunch would take focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -224,7 +257,7 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
 
-		assert.deepStrictEqual(fixture.log, ['quitAndInstall(foreground)', outcome('restarting', 1, 15)]);
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(1, 15) });
 	}));
 
 	test('does not restart while a native dialog is open', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -243,8 +276,53 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.lock();
 		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + 6 * MINUTE);
 
-		assert.deepStrictEqual(fixture.log, ['quitAndInstall(foreground)', outcome('restarting', 2, 20)]);
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, { log: ['quitAndInstall(foreground)'], restart: pendingRestart(2, 20) });
 	}));
+
+	test('retries when the shutdown is vetoed and reports nothing until the restart completes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture();
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		fixture.veto();
+		await timeout(6 * MINUTE);
+
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, {
+			log: ['quitAndInstall(foreground)', 'quitAndInstall(foreground)'],
+			restart: pendingRestart(2, 21),
+		});
+	}));
+
+	test('reports a vetoed restart as blocked when the screen gets unlocked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture();
+
+		fixture.lock();
+		await timeout(UNATTENDED_RESTART_LOCKED_DURATION + MINUTE);
+		fixture.veto();
+		await timeout(MINUTE);
+		fixture.unlock();
+
+		assert.deepStrictEqual({ log: fixture.log, restart: fixture.shutdown() }, {
+			log: ['quitAndInstall(foreground)', outcome('blocked', 1, 17, 'shutdown.vetoed')],
+			restart: undefined,
+		});
+	}));
+
+	test('reports a completed restart on the next launch', () => {
+		const updated = createFixture({ previousRestart: { fromCommit: 'previous', inBackground: true, attempts: 2, lockedMinutes: 20 }, commit: 'current' });
+		const notUpdated = createFixture({ previousRestart: { fromCommit: 'current', inBackground: false, attempts: 1, lockedMinutes: 15 }, commit: 'current' });
+		const malformed = createFixture({ previousRestart: { fromCommit: 'previous' } });
+
+		assert.deepStrictEqual({
+			updated: { log: updated.log, remembered: updated.stateItems.size },
+			notUpdated: { log: notUpdated.log, remembered: notUpdated.stateItems.size },
+			malformed: { log: malformed.log, remembered: malformed.stateItems.size },
+		}, {
+			updated: { log: [outcome('restarted', 2, 20, '', true)], remembered: 0 },
+			notUpdated: { log: [outcome('restartedWithoutUpdate', 1, 15)], remembered: 0 },
+			malformed: { log: [], remembered: 0 },
+		});
+	});
 
 	test('restarts the clock when the machine resumes while locked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture();
@@ -258,9 +336,10 @@ suite('UnattendedRestartScheduler', () => {
 		const beforeThreshold = [...fixture.log];
 		await timeout(2 * MINUTE);
 
-		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log }, {
+		assert.deepStrictEqual({ beforeThreshold, afterThreshold: fixture.log, restart: fixture.shutdown() }, {
 			beforeThreshold: [],
-			afterThreshold: ['quitAndInstall(foreground)', outcome('restarting', 1, 15)],
+			afterThreshold: ['quitAndInstall(foreground)'],
+			restart: pendingRestart(1, 15),
 		});
 	}));
 
@@ -273,9 +352,10 @@ suite('UnattendedRestartScheduler', () => {
 		fixture.setUpdateReady();
 		await timeout(MINUTE);
 
-		assert.deepStrictEqual({ beforeReady, afterReady: fixture.log }, {
+		assert.deepStrictEqual({ beforeReady, afterReady: fixture.log, restart: fixture.shutdown() }, {
 			beforeReady: [],
-			afterReady: ['quitAndInstall(foreground)', outcome('restarting', 1, 75)],
+			afterReady: ['quitAndInstall(foreground)'],
+			restart: pendingRestart(1, 75),
 		});
 	}));
 
@@ -322,6 +402,7 @@ suite('UnattendedRestartScheduler', () => {
 			disabledExtension: hasArgumentsLostOnRelaunch(args({ 'disable-extension': ['publisher.extension'] }), [], OperatingSystem.Windows),
 			noDisabledExtension: hasArgumentsLostOnRelaunch(args({ 'disable-extension': [] }), [], OperatingSystem.Windows),
 			temporaryProfile: hasArgumentsLostOnRelaunch(args({ 'profile-temp': true }), [], OperatingSystem.Windows),
+			layoutRestoreDisabled: hasArgumentsLostOnRelaunch(args({ 'disable-layout-restore': true }), [], OperatingSystem.Windows),
 		}, {
 			none: false,
 			extensionsDirOnMacOS: true,
@@ -330,6 +411,7 @@ suite('UnattendedRestartScheduler', () => {
 			disabledExtension: true,
 			noDisabledExtension: false,
 			temporaryProfile: true,
+			layoutRestoreDisabled: true,
 		});
 	});
 });

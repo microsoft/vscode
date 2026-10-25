@@ -14,9 +14,11 @@ import { IDialogMainService } from '../../dialogs/electron-main/dialogMainServic
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { IUnattendedRestartReadiness } from '../../lifecycle/common/unattendedRestart.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { SystemIdleState, ThermalState } from '../../native/common/native.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -38,12 +40,13 @@ const WINDOW_READINESS_TIMEOUT = 10 * 1000;
 const FOCUS_LOSS_AT_LOCK_GRACE_PERIOD = 1000;
 
 /**
- * Switches that change how the session behaves but that are not carried over
- * when the update relaunches the application.
+ * Switches with which the session would not come back as it is after the update relaunch:
+ * they are either not carried over, or (`disable-layout-restore`) discard the saved layout.
  */
 const SESSION_ARGUMENTS: readonly (keyof NativeParsedArgs)[] = [
 	'disable-extensions',
 	'disable-extension',
+	'disable-layout-restore',
 	'enable-proposed-api',
 	'inspect-extensions',
 	'inspect-brk-extensions',
@@ -51,6 +54,11 @@ const SESSION_ARGUMENTS: readonly (keyof NativeParsedArgs)[] = [
 	'profile-temp',
 	'use-inmemory-secretstorage',
 ];
+
+/**
+ * Remembers an unattended restart across the restart, to report it once it completed.
+ */
+const PENDING_RESTART_STATE_KEY = 'update.unattendedRestart';
 
 /**
  * The operating system signals that decide whether the user is away.
@@ -155,7 +163,37 @@ export function getWindowBlockers(windows: readonly ICodeWindow[], auxiliaryWind
 	return Array.from(blockers);
 }
 
-type UnattendedRestartOutcome = 'restarting' | 'eligible' | 'blocked';
+type UnattendedRestartOutcome = 'restarted' | 'restartedWithoutUpdate' | 'eligible' | 'blocked';
+
+type UnattendedRestartEvent = {
+	outcome: UnattendedRestartOutcome;
+	blockers: string;
+	inBackground: boolean;
+	attempts: number;
+	lockedMinutes: number;
+};
+
+type UnattendedRestartClassification = {
+	owner: 'alexdima';
+	comment: 'Tracks whether a downloaded update could be applied by restarting while the screen was locked, to learn how often this applies and what prevents it.';
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the application restarted (reported once the restart completed, with or without the update installed), would have restarted if the setting was enabled, or was blocked for the whole time the screen was locked.' };
+	blockers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Sorted, comma separated identifiers of the conditions that blocked the most recent attempt.' };
+	inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether another application was active when the screen got locked, so that the restart must not take focus.' };
+	attempts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of restart attempts while the screen was locked.' };
+	lockedMinutes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Minutes since the screen was locked or the machine resumed while locked.' };
+};
+
+interface IPendingUnattendedRestart {
+	readonly fromCommit: string | undefined;
+	readonly inBackground: boolean;
+	readonly attempts: number;
+	readonly lockedMinutes: number;
+}
+
+function isPendingUnattendedRestart(value: unknown): value is IPendingUnattendedRestart {
+	const candidate = value as Partial<IPendingUnattendedRestart> | undefined;
+	return !!candidate && typeof candidate === 'object' && typeof candidate.inBackground === 'boolean' && typeof candidate.attempts === 'number' && typeof candidate.lockedMinutes === 'number';
+}
 
 /**
  * Restarts to apply a downloaded update while the user is away, but only when every
@@ -177,6 +215,7 @@ export class UnattendedRestartScheduler extends Disposable {
 	private lastBlockers: readonly string[] | undefined;
 	private isDone = false;
 	private isEvaluating = false;
+	private pendingRestart: IPendingUnattendedRestart | undefined;
 
 	private readonly host: IUnattendedRestartHost;
 	private readonly os: OperatingSystem;
@@ -193,6 +232,8 @@ export class UnattendedRestartScheduler extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@IStateService private readonly stateService: IStateService,
 	) {
 		super();
 
@@ -200,16 +241,63 @@ export class UnattendedRestartScheduler extends Disposable {
 		this.os = options.os ?? OS;
 		this.argv = options.argv ?? process.argv;
 
+		this.reportCompletedRestart();
+
 		this._register(this.host.onDidBlurWindow(() => this.lastWindowBlur = Date.now()));
 		this._register(this.host.onDidLockScreen(() => this.onDidLockScreen()));
 		this._register(this.host.onDidUnlockScreen(() => this.onDidUnlockScreen()));
 		this._register(this.host.onDidSuspend(() => this.evaluation.cancel()));
 		this._register(this.host.onDidResume(() => this.onDidResume()));
 		this._register(updateService.onStateChange(state => {
-			if (state.type === StateType.Ready) {
+			if (state.type !== StateType.Ready) {
+				return;
+			}
+
+			if (this.pendingRestart) {
+				this.onDidVetoRestart(); // the update service restores `Ready` when the shutdown is vetoed
+			} else {
 				this.scheduleEvaluation(0);
 			}
 		}));
+
+		// Fires only once no window vetoed the shutdown; the state service is flushed afterwards
+		this._register(lifecycleMainService.onWillShutdown(() => {
+			if (this.pendingRestart && this.hasUpdateState(StateType.Restarting)) {
+				this.stateService.setItem(PENDING_RESTART_STATE_KEY, this.pendingRestart);
+			}
+		}));
+	}
+
+	/**
+	 * Reports a restart once it completed. Reporting during shutdown is unreliable because
+	 * telemetry is sent through the shared process, which exits when the shutdown starts.
+	 */
+	private reportCompletedRestart(): void {
+		const restart = this.stateService.getItem<unknown>(PENDING_RESTART_STATE_KEY);
+		if (restart === undefined) {
+			return;
+		}
+
+		this.stateService.removeItem(PENDING_RESTART_STATE_KEY);
+		if (!isPendingUnattendedRestart(restart)) {
+			return;
+		}
+
+		this.logOutcome({
+			outcome: restart.fromCommit !== this.productService.commit ? 'restarted' : 'restartedWithoutUpdate',
+			blockers: '',
+			inBackground: restart.inBackground,
+			attempts: restart.attempts,
+			lockedMinutes: restart.lockedMinutes,
+		});
+	}
+
+	private onDidVetoRestart(): void {
+		this.logService.info('update#unattendedRestart - the restart was vetoed');
+		this.pendingRestart = undefined;
+		this.isDone = false;
+		this.lastBlockers = ['shutdown.vetoed'];
+		this.scheduleEvaluation(RETRY_INTERVAL);
 	}
 
 	private onDidLockScreen(): void {
@@ -294,11 +382,12 @@ export class UnattendedRestartScheduler extends Disposable {
 			}
 
 			this.logService.info(`update#unattendedRestart - restarting ${this.activeWhenLocked ? 'in the foreground' : 'in the background'} to apply the update while the screen is locked`);
-			await this.updateService.quitAndInstall({ relaunchInBackground: !this.activeWhenLocked });
+			this.pendingRestart = { fromCommit: this.productService.commit, inBackground: !this.activeWhenLocked, attempts: this.attempts, lockedMinutes: this.getLockedMinutes() };
+			await this.updateService.quitAndInstall({ relaunchInBackground: this.pendingRestart.inBackground });
 
-			if (this.hasUpdateState(StateType.Restarting)) {
-				this.reportOutcome('restarting', []);
-			} else {
+			// The shutdown can still be vetoed, which is handled when the update service restores `Ready`
+			if (!this.hasUpdateState(StateType.Restarting)) {
+				this.pendingRestart = undefined;
 				this.isDone = false; // a newer update postponed the restart
 			}
 		} finally {
@@ -389,30 +478,21 @@ export class UnattendedRestartScheduler extends Disposable {
 		}
 	}
 
-	private reportOutcome(outcome: UnattendedRestartOutcome, blockers: readonly string[]): void {
-		type UnattendedRestartEvent = {
-			outcome: UnattendedRestartOutcome;
-			blockers: string;
-			inBackground: boolean;
-			attempts: number;
-			lockedMinutes: number;
-		};
-		type UnattendedRestartClassification = {
-			owner: 'alexdima';
-			comment: 'Tracks whether a downloaded update could be applied by restarting while the screen was locked, to learn how often this applies and what prevents it.';
-			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the application restarted, would have restarted if the setting was enabled, or was blocked for the whole time the screen was locked.' };
-			blockers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Sorted, comma separated identifiers of the conditions that blocked the most recent attempt.' };
-			inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether another application was active when the screen got locked, so that the restart must not take focus.' };
-			attempts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of restart attempts while the screen was locked.' };
-			lockedMinutes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Minutes since the screen was locked or the machine resumed while locked.' };
-		};
+	private getLockedMinutes(): number {
+		return this.lockedSince === undefined ? 0 : Math.round((Date.now() - this.lockedSince) / 60_000);
+	}
 
-		this.telemetryService.publicLog2<UnattendedRestartEvent, UnattendedRestartClassification>('update:unattendedRestart', {
+	private reportOutcome(outcome: UnattendedRestartOutcome, blockers: readonly string[]): void {
+		this.logOutcome({
 			outcome,
 			blockers: blockers.join(','),
 			inBackground: !this.activeWhenLocked,
 			attempts: this.attempts,
-			lockedMinutes: this.lockedSince === undefined ? 0 : Math.round((Date.now() - this.lockedSince) / 60_000),
+			lockedMinutes: this.getLockedMinutes(),
 		});
+	}
+
+	private logOutcome(event: UnattendedRestartEvent): void {
+		this.telemetryService.publicLog2<UnattendedRestartEvent, UnattendedRestartClassification>('update:unattendedRestart', event);
 	}
 }
