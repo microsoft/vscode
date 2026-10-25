@@ -20,7 +20,7 @@ import { MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } fro
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
@@ -37,8 +37,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { getChatWindowSession, IChatWindow, IChatWindowService, SessionTitleBarActionsShownContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { getChatWindowSession, IChatWindowService, SessionTitleBarActionsShownContext } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
 
@@ -154,12 +153,6 @@ export class WindowScopedCache<K, V> extends Disposable {
 	}
 }
 
-/** Whether the session of a window has tasks to run, which moves the dropdown's configure actions out of its first group. */
-const RunScriptHasTasksContext = new RawContextKey<boolean>('sessions.runScript.hasTasks', false);
-
-/** Whether the session of a window has a working directory to add a task to. */
-const RunScriptCanConfigureContext = new RawContextKey<boolean>('sessions.runScript.canConfigure', false);
-
 type TaskConfigurationMode = 'add' | 'configure';
 
 /**
@@ -185,8 +178,6 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -196,37 +187,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			this._chatWindowService.windows.map(this, windows => windows.map(window => window.session)),
 			(session, store) => this._createRunState(session).recomputeInitiallyAndOnChange(store)));
 
-		this._register(this._bindRunContext(this._activeRunState, contextKeyService));
-		const windows = this._chatWindowService.windows.map(this, all => all.filter(window => !window.docked));
-		this._register(new WindowScopedCache<IChatWindow, void>(windows, (window, store) => {
-			const part = this._editorGroupsService.parts.find(candidate => candidate.windowId === window.windowId);
-			if (part) {
-				const windowContextKeyService = this._editorGroupsService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IContextKeyService));
-				store.add(this._bindRunContext(this._windowRunStates.get(window.session), windowContextKeyService));
-			}
-		}, true));
-
 		this._registerActionViewItemProvider();
 		this._registerActions();
-	}
-
-	/** Binds on `contextKeyService` what the Run dropdown reads of `state`, by value: only changes of those keys update the menu. */
-	private _bindRunContext(state: IObservable<IRunScriptActionContext | undefined>, contextKeyService: IContextKeyService): IDisposable {
-		const hasTasksContext = RunScriptHasTasksContext.bindTo(contextKeyService);
-		const canConfigureContext = RunScriptCanConfigureContext.bindTo(contextKeyService);
-		const keys = derivedOpts<{ readonly hasTasks: boolean; readonly canConfigure: boolean }>({
-			equalsFn: (a, b) => a.hasTasks === b.hasTasks && a.canConfigure === b.canConfigure
-		}, reader => {
-			const current = state.read(reader);
-			return { hasTasks: !!current && current.tasks.length > 0, canConfigure: !!current?.chat.workspace.read(reader)?.folders[0]?.workingDirectory };
-		});
-		return autorun(reader => {
-			const { hasTasks, canConfigure } = keys.read(reader);
-			contextKeyService.bufferChangeEvents(() => {
-				hasTasksContext.set(hasTasks);
-				canConfigureContext.set(canConfigure);
-			});
-		});
 	}
 
 	/** What the Run button of the title bar runs for `session`. */
@@ -339,8 +301,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 		}));
 
-		// Registered once: re-registering them as the session changes would rebuild every toolbar showing the dropdown.
-		// What differs per window is read from the context keys bound by `_bindRunContext`.
+		// Registered once, in one fixed group and without state-dependent conditions: they only keep the submenu
+		// non-empty (the Run view item builds its own dropdown), and any change to the menu would rebuild every
+		// toolbar showing it.
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -348,11 +311,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					title: localize2('configureDefaultRunAction', "Add Task..."),
 					category: SessionsCategories.Sessions,
 					icon: Codicon.add,
-					precondition: RunScriptCanConfigureContext,
-					menu: [
-						{ id: RunScriptDropdownMenuId, group: 'navigation', order: 0, when: RunScriptHasTasksContext.toNegated() },
-						{ id: RunScriptDropdownMenuId, group: '1_configure', order: 0, when: RunScriptHasTasksContext }
-					]
+					menu: { id: RunScriptDropdownMenuId, group: '1_configure', order: 0 }
 				});
 			}
 
@@ -375,11 +334,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					id: GENERATE_RUN_ACTION_ID,
 					title: localize2('generateRunAction', "Generate New Task..."),
 					category: SessionsCategories.Sessions,
-					precondition: SessionWorkspaceIsVirtualContext.toNegated(),
-					menu: [
-						{ id: RunScriptDropdownMenuId, group: 'navigation', order: 1, when: RunScriptHasTasksContext.toNegated() },
-						{ id: RunScriptDropdownMenuId, group: '1_configure', order: 1, when: RunScriptHasTasksContext }
-					]
+					menu: { id: RunScriptDropdownMenuId, group: '1_configure', order: 1 }
 				});
 			}
 
