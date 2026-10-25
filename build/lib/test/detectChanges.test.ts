@@ -169,8 +169,9 @@ suite('Detect Changes', () => {
 		// The changes job also passes on the outputs of the Agent Host E2E change detection, and combines both for the
 		// Linux and macOS Electron jobs, which also run Agent Host E2E.
 		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
-		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job.
-		const rippleOutputs = ['ripple-changed', 'ripple-failed'];
+		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job, and whether
+		// the macOS and Windows unit test jobs have planned files to run.
+		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests'];
 		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs].sort());
 	});
 
@@ -184,6 +185,21 @@ suite('Detect Changes', () => {
 			outputs: ['${{ steps.ripple.outputs.changed }}', '${{ steps.ripple.outputs.failed }}'],
 			ripple: { name: 'Ripple', needs: 'changes', if: `\${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}` },
 			failingSteps: [],
+		});
+	});
+
+	test('the unit test jobs that run only the planned files skip when the plan of a working ripple selects none', () => {
+		const { jobs } = loadWorkflow();
+		const parts = (jobs['required-checks'].strategy?.matrix.include ?? []).flatMap(({ parts }) => parts);
+		const macOSAndWindowsUnitTestJobs = ['macos-browser-unit-tests', 'macos-electron-unit-tests', 'windows-browser-unit-tests', 'windows-electron-unit-tests'];
+		assert.deepStrictEqual({
+			output: jobs.changes.outputs?.['selected-unit-tests'],
+			skippable: parts.filter(({ output }) => output === 'selected-unit-tests').map(({ job }) => job).sort(),
+			planned: Object.entries(jobs).filter(([, job]) => job.with?.unit_test_selection === true).map(([id]) => id).sort(),
+		}, {
+			output: `\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
+			skippable: macOSAndWindowsUnitTestJobs,
+			planned: macOSAndWindowsUnitTestJobs,
 		});
 	});
 
