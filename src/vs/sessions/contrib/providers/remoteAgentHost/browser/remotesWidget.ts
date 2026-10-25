@@ -266,6 +266,8 @@ export class RemotesWidget extends Disposable {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
 			} else if (action === 'rename') {
 				void this.renameRemote(entry.remote.id);
+			} else if (action === 'delete' && entry.remote.kind === 'environment' && entry.remote.canRemove) {
+				void this.deleteEnvironment(entry.remote.id);
 			}
 		}
 	}
@@ -490,6 +492,33 @@ export class RemotesWidget extends Disposable {
 				const index = this.rows.findIndex(row => row.id === id);
 				if (activeRow && activeRow.dataset.remoteId !== id && index >= 0) {
 					this.table.setFocus([index]);
+					this.table.domFocus();
+				}
+			}
+		}
+	}
+
+	private async deleteEnvironment(id: string): Promise<void> {
+		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
+			return;
+		}
+		const active = dom.getActiveElement();
+		const restoreFocus = dom.isHTMLElement(active) && this.domNode.contains(active) && active.closest<HTMLElement>('[data-remote-id]')?.dataset.remoteId === id;
+		this.pendingActions.add(id);
+		this.render();
+		try {
+			await this.model.remove(id);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		} finally {
+			this.pendingActions.delete(id);
+			if (!this._store.isDisposed) {
+				this.render();
+				const currentActive = dom.getActiveElement();
+				if (restoreFocus && !this.rows.some(row => row.id === id)
+					&& (currentActive === active || !active?.isConnected && currentActive === this.domNode.ownerDocument.body)) {
 					this.table.domFocus();
 				}
 			}
