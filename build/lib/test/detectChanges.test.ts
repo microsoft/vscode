@@ -171,8 +171,9 @@ suite('Detect Changes', () => {
 		// Linux and macOS Electron jobs, which also run Agent Host E2E.
 		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
 		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job, and whether
-		// the macOS and Windows unit test jobs have planned files to run, and the Browser ones a planned browser test.
-		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests'];
+		// the macOS and Windows test jobs have planned files to run: unit tests (for the Browser ones, browser tests),
+		// node.js integration tests and Agent Host E2E suites.
+		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'];
 		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs].sort());
 	});
 
@@ -189,21 +190,41 @@ suite('Detect Changes', () => {
 		});
 	});
 
-	test('the unit test jobs that run only the planned files skip when the plan of a working ripple selects none', () => {
+	test('the macOS and Windows test jobs run only the planned files, and skip when the plan of a working ripple selects none', () => {
 		const { jobs } = loadWorkflow();
 		const macOSAndWindowsUnitTestJobs = ['macos-browser-unit-tests', 'macos-electron-unit-tests', 'windows-browser-unit-tests', 'windows-electron-unit-tests'];
+		const macOSAndWindowsIntegrationTestJobs = ['macos-electron-tests', 'windows-agent-host-e2e-tests', 'windows-electron-tests'];
+		const selected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
 		assert.deepStrictEqual({
-			output: jobs.changes.outputs?.['selected-unit-tests'],
-			browserOutput: jobs.changes.outputs?.['selected-browser-unit-tests'],
-			skippable: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-unit-tests').map(([id]) => id).sort(),
-			skippableBrowser: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-browser-unit-tests').map(([id]) => id).sort(),
-			planned: Object.entries(jobs).filter(([, job]) => job.with?.unit_test_selection === true).map(([id]) => id).sort(),
+			outputs: ['selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'].map(output => jobs.changes.outputs?.[output]),
+			skippableUnitTests: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-unit-tests').map(([id]) => id).sort(),
+			skippableBrowserUnitTests: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-browser-unit-tests').map(([id]) => id).sort(),
+			skippableAgentHostE2E: Object.entries(jobs).filter(([, job]) => skipOutput(job) === 'selected-agent-host-e2e').map(([id]) => id).sort(),
+			planned: Object.entries(jobs).filter(([, job]) => job.with?.test_selection === true).map(([id]) => id).sort(),
+			// The macOS and Windows Electron jobs also run the extension host tests, so they skip their node.js
+			// integration tests and Agent Host E2E steps instead.
+			steps: Object.fromEntries(['linux-electron-tests', 'macos-electron-tests', 'windows-electron-tests'].map(id => [id, {
+				nodeIntegrationTests: jobs[id].with?.node_integration_tests,
+				agentHostE2E: jobs[id].with?.agent_host_e2e_tests,
+			}])),
 		}, {
-			output: `\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
-			browserOutput: `\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}`,
-			skippable: ['macos-electron-unit-tests', 'windows-electron-unit-tests'],
-			skippableBrowser: ['macos-browser-unit-tests', 'windows-browser-unit-tests'],
-			planned: macOSAndWindowsUnitTestJobs,
+			outputs: [
+				`\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
+				`\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' && steps.ripple.outputs.selects-no-browser-tests != 'true' }}`,
+				`\${{ steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}`,
+				`\${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
+			],
+			skippableUnitTests: ['macos-electron-unit-tests', 'windows-electron-unit-tests'],
+			skippableBrowserUnitTests: ['macos-browser-unit-tests', 'windows-browser-unit-tests'],
+			skippableAgentHostE2E: ['windows-agent-host-e2e-tests'],
+			planned: [...macOSAndWindowsUnitTestJobs, ...macOSAndWindowsIntegrationTestJobs].sort(),
+			steps: {
+				// Linux runs every node.js integration test.
+				'linux-electron-tests': { nodeIntegrationTests: undefined, agentHostE2E: selected('agent-host-e2e') },
+				'macos-electron-tests': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: selected('selected-agent-host-e2e') },
+				// Windows runs Agent Host E2E in its own job.
+				'windows-electron-tests': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: undefined },
+			},
 		});
 	});
 
@@ -243,7 +264,7 @@ suite('Detect Changes', () => {
 				'macos-remote-tests': skipsWhenUnaffected('product-tests'),
 				'windows-electron-unit-tests': skipsWhenUnaffected('selected-unit-tests'),
 				'windows-electron-tests': skipsWhenUnaffected('product-tests'),
-				'windows-agent-host-e2e-tests': skipsWhenUnaffected('agent-host-e2e'),
+				'windows-agent-host-e2e-tests': skipsWhenUnaffected('selected-agent-host-e2e'),
 				'windows-electron-smoke-test-shards': skipsWhenUnaffected('product-tests'),
 				'windows-browser-unit-tests': skipsWhenUnaffected('selected-browser-unit-tests'),
 				'windows-browser-integration-tests': skipsWhenUnaffected('browser-integration'),
