@@ -219,7 +219,7 @@ suite('Floating Editor Part', () => {
 		mainWindow.document.body.appendChild(layoutService.mainContainer); // laid out, so the header has a height
 		disposables.add({ dispose: () => layoutService.mainContainer.remove() });
 		const part = await parts.createFloatingEditorPart({ title: 'Floating', size: { width: 300, height: 300 } });
-		const editorPart = parts.parts.find(candidate => candidate === part)!;
+		const editorPart = parts.parts.find(candidate => (candidate as IEditorPart) === part)!;
 		const header = getElements(layoutService)[0].querySelector<HTMLElement>('.floating-editor-header')!;
 		const nextFrames = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
 		const describe = () => ({ header: header.offsetHeight, editorHeight: editorPart.contentDimension.height });
