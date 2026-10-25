@@ -2312,8 +2312,14 @@ export class AgentService extends Disposable implements IAgentService {
 				if (summary) {
 					return { provider: summary.provider };
 				}
-				const metadata = (await this._listAllSessions()).find(metadata => metadata.session.toString() === session);
-				return metadata && { provider: metadata.provider ?? AgentSession.provider(metadata.session) };
+				// Not loaded, e.g. after a restart: look up this one session rather than listing every session.
+				const resource = URI.parse(session);
+				const registered = await this._sessionRegistry.get(resource, entry => this._migrateRegisteredSession(entry));
+				if (!registered) {
+					return 'removed';
+				}
+				const metadata = await this._getSessionMetadata(resource, registered);
+				return metadata && { provider: metadata.provider ?? registered.provider };
 			},
 		};
 	}
@@ -4899,7 +4905,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
 		// The Chatpad chat is not listed: clients reach it through the Chatpad (see `getChatpad`).
-		return (await this._listAllSessions(mode)).filter(metadata => !this._chatpad.isChatpad(metadata.session.toString()));
+		const sessions = await this._listAllSessions(mode);
+		const chatpad = this._chatpad.session;
+		return chatpad === undefined ? sessions : sessions.filter(metadata => metadata.session.toString() !== chatpad);
 	}
 
 	private async _listAllSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {

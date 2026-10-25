@@ -25116,6 +25116,51 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('looks up the Chatpad chat without listing every session, while loaded, unloaded and after it is deleted', async () => {
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const pad = await localService.createSession({ legacyChatUris: true, provider: agent.id });
+			await localService.claimChatpad(pad);
+			const internals = localService as unknown as { _startSessionListComputation(mode: unknown): unknown; _sessionRegistry: { get(session: URI, migrate?: unknown): Promise<unknown> } };
+			let listings = 0;
+			let registryLookups = 0;
+			const startListing = internals._startSessionListComputation.bind(internals);
+			internals._startSessionListComputation = mode => { listings++; return startListing(mode); };
+			const getRegistered = internals._sessionRegistry.get.bind(internals._sessionRegistry);
+			internals._sessionRegistry.get = (session, migrate) => { registryLookups++; return getRegistered(session, migrate); };
+			const use = async () => {
+				const found = [];
+				for (let i = 0; i < 3; i++) {
+					found.push((await localService.getChatpad())?.session.toString());
+				}
+				const appended = await localService.appendToChatpad('item').then(() => 'appended', () => 'failed');
+				return { found, appended };
+			};
+
+			const loaded = await use();
+			// What a restart leaves: the session is known to the host but not loaded.
+			getStateManager(localService).removeSession(pad.toString());
+			const unloaded = await use();
+			await localService.disposeSession(pad);
+			registryLookups = 0;
+			const deleted = await use();
+			const lookupsAfterDeletion = registryLookups;
+			registryLookups = 0;
+			const later = await use();
+
+			assert.deepStrictEqual({ loaded, unloaded, deleted, later, listings, lookupsAfterDeletion, laterLookups: registryLookups }, {
+				loaded: { found: [pad.toString(), pad.toString(), pad.toString()], appended: 'appended' },
+				unloaded: { found: [pad.toString(), pad.toString(), pad.toString()], appended: 'appended' },
+				deleted: { found: [undefined, undefined, undefined], appended: 'failed' },
+				later: { found: [undefined, undefined, undefined], appended: 'failed' },
+				listings: 0,
+				lookupsAfterDeletion: 1,
+				laterLookups: 0,
+			});
+		});
+
 		test('does not let the Chatpad chat convert itself to a session with a workspace', async () => {
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
