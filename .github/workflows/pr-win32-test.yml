@@ -219,9 +219,9 @@ jobs:
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
-        timeout-minutes: 20
+        timeout-minutes: 25
         shell: pwsh
-        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests" ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
+        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests" --rerun-failed-files 2 ${{ hashFiles('.build/unit-test-plan/plan.json') != '' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 

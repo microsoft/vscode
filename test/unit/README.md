@@ -25,6 +25,7 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 - to run only a subset of tests use the `--run` or `--glob` options
 - test module import failures abort the run with a nonzero exit code, even when `--grep` would exclude the module's tests
 - if no test progress is reported for 5 minutes (e.g. the page is frozen), the run aborts and prints the in-flight test, whether the page still responds, and the browser processes' CPU usage; on macOS it also writes native stack samples to `.build/logs/browser-unit-stall`. Use `--stall-timeout <seconds>` to change the limit or `--stall-timeout 0` to disable it (it is always disabled with `--debug`)
+- use `--rerun-failed-files <count>` to rerun failures up to `<count>` more times, each time in a freshly launched browser, as with the Electron runner: only the failed tests (the suite of a failed hook), or their whole test files when there are too many failures. Each browser reruns its own failures. A failure only counts as passed when its test (or a test of its hook's suite) actually passes with the same suite ancestry in the same test file; skipped or renamed tests and ambiguous duplicate test or suite paths do not count. Failures that passed on a rerun are reported as flaky tests. Pull request CI uses `--rerun-failed-files 2`. Reruns are disabled with `--debug`
 
 **Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
 
