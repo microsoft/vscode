@@ -172,4 +172,10 @@ mod tests {
 		assert_eq!(PROTOCOL_VERSION_TAG, "protocolv6");
 		assert!(PROTOCOL_VERSION_TAG.starts_with(PROTOCOL_VERSION_TAG_PREFIX));
 	}
+
+	// [DO NOT MERGE] Validates PR Gate: fails on the first attempt of a workflow run and passes on re-runs.
+	#[test]
+	fn fails_on_the_first_run_attempt() {
+		assert_ne!(std::env::var("GITHUB_RUN_ATTEMPT").as_deref(), Ok("1"));
+	}
 }
