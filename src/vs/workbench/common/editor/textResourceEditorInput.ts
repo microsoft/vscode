@@ -20,6 +20,7 @@ import { createTextBufferFactory } from '../../../editor/common/model/textModel.
 import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextResourceConfigurationService } from '../../../editor/common/services/textResourceConfiguration.js';
 import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
+import { ITextResourceEditorInput } from '../../../platform/editor/common/editor.js';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -188,6 +189,22 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		}
 
 		return model;
+	}
+
+	override toUntyped(): ITextResourceEditorInput | undefined {
+		// Model-only resources cannot be recreated from their URI once disposed.
+		if (this.resource.scheme === Schemas.inMemory || !this.textModelService.canHandleResource(this.resource)) {
+			return undefined;
+		}
+
+		return {
+			resource: this.resource,
+			label: this.name,
+			description: this.description,
+			options: {
+				override: this.editorId
+			}
+		};
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
