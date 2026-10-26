@@ -14,7 +14,9 @@ import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabled
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
 import { ChatWindowContext } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ToggleSessionsDiffEditorWordWrapAction, wordWrapToggled } from '../../changes/browser/changesViewActions.js';
 import { SessionChangesEditor } from '../../changes/browser/sessionChangesEditor.js';
+import { SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING } from '../../editor/common/diffEditorOptionsService.js';
 
 /**
  * The changed files list of the Changes editor in chat windows. The core multi diff editor
@@ -42,10 +44,37 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	when: ChangesFileListContext,
 });
 
+// The "…" overflow of the header row: groups prefixed `secondary/` are not shown inline.
+const ChangesEditorContext = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.has(ChatWindowContext.key),
+	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
+)!;
+
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+	command: {
+		id: ToggleSessionsDiffEditorWordWrapAction.ID,
+		title: localize2('chatWindowChangesWordWrap', "Word Wrap"),
+		toggled: wordWrapToggled(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING),
+		precondition: ChangesEditorContext,
+	},
+	group: 'secondary/1_diff',
+	order: 20,
+	when: ChangesEditorContext,
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+	submenu: Menus.SessionsDiffEditorView,
+	title: localize('chatWindowChangesDiffView', "Diff View"),
+	group: 'secondary/1_diff',
+	order: 30,
+	when: ChangesEditorContext,
+});
+
 MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('chatWindowChangesFilesViewAndPosition', "Files View & Position"),
-	group: '2_files',
+	group: 'secondary/2_files',
 	order: 10,
 	when: ChangesFileListContext,
 });

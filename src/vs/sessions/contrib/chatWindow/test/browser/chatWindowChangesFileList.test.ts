@@ -9,6 +9,7 @@ import { IMenuItem, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '..
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ToggleSessionsDiffEditorWordWrapAction } from '../../../changes/browser/changesViewActions.js';
 import { SessionChangesEditor } from '../../../changes/browser/sessionChangesEditor.js';
 import '../../browser/chatWindowChangesFileList.js';
 
@@ -18,7 +19,7 @@ suite('Chat window - Changes editor file list', () => {
 	const chatWindowItems = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter((item): item is IMenuItem => isIMenuItem(item) && !!item.when?.keys().includes('sessions.chatWindow'));
 
 	test('the toolbar entry reuses the core command and only shows for the Changes editor of a chat window with AI enabled', () => {
-		const entries = chatWindowItems(Menus.SessionsEditorHeaderLayout);
+		const entries = chatWindowItems(Menus.SessionsEditorHeaderLayout).filter(entry => entry.group === 'navigation');
 		const when = entries[0].when!;
 		const matches = (values: Record<string, unknown>) => when.evaluate({ getValue: (key: string) => values[key] } as never);
 
@@ -32,13 +33,19 @@ suite('Chat window - Changes editor file list', () => {
 		);
 	});
 
-	test('the header row layout actions hold the file list submenu and nothing is added to the editor title', () => {
+	test('the header row layout actions hold the overflow submenus and word wrap, and nothing is added to the editor title', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).filter(item => !!item.when?.keys().includes('sessions.chatWindow'));
 		assert.deepStrictEqual(
 			{
-				header: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).filter(isISubmenuItem).map(item => item.submenu.id),
+				overflow: items.filter(item => item.group?.startsWith('secondary/')).map(item => isISubmenuItem(item) ? item.submenu.id : (item as IMenuItem).command.id).sort(),
+				inline: items.filter(item => !item.group?.startsWith('secondary/')).map(item => (item as IMenuItem).command.id),
 				editorTitle: MenuRegistry.getMenuItems(MenuId.EditorTitle).filter(item => isIMenuItem(item) && item.command.id === 'multiDiffEditor.toggleFileList' && !!item.when?.keys().includes('sessions.chatWindow')).length,
 			},
-			{ header: [MultiDiffEditorFilesViewAndPositionMenu.id], editorTitle: 0 },
+			{
+				overflow: [Menus.SessionsDiffEditorView.id, MultiDiffEditorFilesViewAndPositionMenu.id, ToggleSessionsDiffEditorWordWrapAction.ID].sort(),
+				inline: ['multiDiffEditor.toggleFileList'],
+				editorTitle: 0,
+			},
 		);
 	});
 
