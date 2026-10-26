@@ -34,15 +34,15 @@ suite('Chat window - Changes editor file list', () => {
 	});
 
 	test('the header row layout actions hold the overflow submenus and word wrap, and nothing is added to the editor title', () => {
-		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout).filter(item => !!item.when?.keys().includes('sessions.chatWindow'));
+		const chatWindowHeaderItems = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(item => !!item.when?.keys().includes('sessions.chatWindow'));
 		assert.deepStrictEqual(
 			{
-				overflow: items.filter(item => item.group?.startsWith('secondary/')).map(item => isISubmenuItem(item) ? item.submenu.id : (item as IMenuItem).command.id).sort(),
-				inline: items.filter(item => !item.group?.startsWith('secondary/')).map(item => (item as IMenuItem).command.id),
+				overflow: chatWindowHeaderItems(Menus.SessionsEditorHeaderSecondary).map(item => `${item.group?.startsWith('secondary/')}:${isISubmenuItem(item) ? item.submenu.id : (item as IMenuItem).command.id}`).sort(),
+				inline: chatWindowHeaderItems(Menus.SessionsEditorHeaderLayout).map(item => (item as IMenuItem).command.id),
 				editorTitle: MenuRegistry.getMenuItems(MenuId.EditorTitle).filter(item => isIMenuItem(item) && item.command.id === 'multiDiffEditor.toggleFileList' && !!item.when?.keys().includes('sessions.chatWindow')).length,
 			},
 			{
-				overflow: [Menus.SessionsDiffEditorView.id, MultiDiffEditorFilesViewAndPositionMenu.id, ToggleSessionsDiffEditorWordWrapAction.ID].sort(),
+				overflow: [Menus.SessionsDiffEditorView.id, MultiDiffEditorFilesViewAndPositionMenu.id, ToggleSessionsDiffEditorWordWrapAction.ID].map(id => `true:${id}`).sort(),
 				inline: ['multiDiffEditor.toggleFileList'],
 				editorTitle: 0,
 			},

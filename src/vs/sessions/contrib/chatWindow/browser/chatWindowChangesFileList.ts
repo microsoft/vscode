@@ -44,14 +44,14 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	when: ChangesFileListContext,
 });
 
-// The "…" overflow of the header row: groups prefixed `secondary/` are not shown inline.
+// The "…" overflow of the header row, in the secondary actions before the layout actions that hold the file list toggle: groups prefixed `secondary/` are not shown inline.
 const ChangesEditorContext = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.has(ChatWindowContext.key),
 	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
 )!;
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	command: {
 		id: ToggleSessionsDiffEditorWordWrapAction.ID,
 		title: localize2('chatWindowChangesWordWrap', "Word Wrap"),
@@ -63,7 +63,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	when: ChangesEditorContext,
 });
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('chatWindowChangesDiffView', "Diff View"),
 	group: 'secondary/1_diff',
@@ -71,7 +71,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	when: ChangesEditorContext,
 });
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('chatWindowChangesFilesViewAndPosition', "Files View & Position"),
 	group: 'secondary/2_files',
