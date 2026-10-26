@@ -87,6 +87,7 @@ export function downloadChromiumFile(filePath: string, destination: string, opti
 				const content = source.decode(result.body);
 				if (validate(content)) {
 					writeFileSync(destination, content);
+					console.log(`Downloaded Chromium ${version} ${filePath} from ${source.name}`);
 					return;
 				}
 				error = 'downloaded content is not the expected file';
