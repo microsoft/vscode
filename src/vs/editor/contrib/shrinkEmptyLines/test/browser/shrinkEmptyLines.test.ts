@@ -595,6 +595,46 @@ suite('Shrink Empty Lines', () => {
 		assert.deepStrictEqual(getLineHeights(editor), [19, 10, 10]);
 	});
 
+	test('retains shrinking decorations when folding and unfolding', () => {
+		const { editor, model } = createEditor('header\n{\n}\nfooter', { shrinkEmptyLines: 0.5 });
+		const getDecorationIds = () => model.getAllDecorations()
+			.filter(decoration => decoration.options.description.startsWith('shrink-empty-line-'))
+			.map(decoration => decoration.id)
+			.sort();
+		const decorationIds = getDecorationIds();
+		const results = [];
+		for (const hiddenAreas of [[new Range(2, 1, 3, 2)], [], [new Range(2, 1, 3, 2)], []]) {
+			editor.setHiddenAreas(hiddenAreas);
+			results.push({ decorationIds: getDecorationIds(), lineHeights: getLineHeights(editor) });
+		}
+
+		assert.deepStrictEqual(results, [
+			{ decorationIds, lineHeights: [19, 19] },
+			{ decorationIds, lineHeights: [19, 10, 10, 19] },
+			{ decorationIds, lineHeights: [19, 19] },
+			{ decorationIds, lineHeights: [19, 10, 10, 19] },
+		]);
+	});
+
+	test('updates folded lines without shrinking the fold header', () => {
+		const { editor, model } = createEditor('header\n{\n}', { shrinkEmptyLines: 0.5 });
+		const results = [];
+		editor.setHiddenAreas([new Range(2, 1, 3, 2)]);
+		editor.updateOptions({ shrinkEmptyLines: 0.25 });
+		results.push(getLineHeights(editor));
+		model.applyEdits([{ range: new Range(2, 1, 2, 2), text: 'body' }]);
+		results.push(getLineHeights(editor));
+		editor.setHiddenAreas([]);
+		results.push(getLineHeights(editor));
+		editor.setHiddenAreas([new Range(2, 1, 3, 2)]);
+		model.applyEdits([{ range: new Range(2, 1, 2, 5), text: '{' }]);
+		results.push(getLineHeights(editor));
+		editor.setHiddenAreas([]);
+		results.push(getLineHeights(editor));
+
+		assert.deepStrictEqual(results, [[19], [19], [19, 19, 5], [19], [19, 5, 5]]);
+	});
+
 	test('reacts to variable line height setting changes', () => {
 		const { editor } = createEditor('a\n}', {
 			shrinkEmptyLines: 0.5,

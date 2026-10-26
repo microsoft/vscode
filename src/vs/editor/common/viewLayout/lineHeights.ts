@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../base/common/arrays.js';
+import { findFirstMonotonous } from '../../../base/common/arraysFind.js';
 import { intersection } from '../../../base/common/collections.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { EditorOption } from '../config/editorOptions.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
+import { Range } from '../core/range.js';
+import { LineRange, LineRangeSet } from '../core/ranges/lineRange.js';
 import { IModelDecoration } from '../model.js';
 
 const enum PendingChangeKind {
@@ -450,17 +453,28 @@ export class CustomLineHeightData {
 		readonly lineHeight: number
 	) { }
 
-	public static fromDecorations(decorations: IModelDecoration[], coordinatesConverter: ICoordinatesConverter, configuration: IEditorConfiguration): CustomLineHeightData[] {
+	/** Fully hidden model-line ranges must not resize the visible lines they project onto. */
+	public static fromDecorations(decorations: IModelDecoration[], coordinatesConverter: ICoordinatesConverter, configuration: IEditorConfiguration, hiddenAreas: readonly Range[]): CustomLineHeightData[] {
 		const defaultLineHeight = configuration.options.get(EditorOption.lineHeight);
-		return decorations.map((d) => {
-			const viewRange = coordinatesConverter.convertModelRangeToViewRange(d.range);
-			return new CustomLineHeightData(
-				d.id,
+		const hiddenLineRanges = new LineRangeSet();
+		for (const hiddenArea of hiddenAreas) {
+			hiddenLineRanges.addRange(LineRange.fromRangeInclusive(hiddenArea));
+		}
+		const result: CustomLineHeightData[] = [];
+		for (const decoration of decorations) {
+			const hiddenArea = findFirstMonotonous(hiddenLineRanges.ranges, area => area.endLineNumberExclusive > decoration.range.endLineNumber);
+			if (hiddenArea && hiddenArea.startLineNumber <= decoration.range.startLineNumber) {
+				continue;
+			}
+			const viewRange = coordinatesConverter.convertModelRangeToViewRange(decoration.range);
+			result.push(new CustomLineHeightData(
+				decoration.id,
 				viewRange.startLineNumber,
 				viewRange.endLineNumber,
-				d.options.lineHeight ? d.options.lineHeight * defaultLineHeight : 0
-			);
-		});
+				decoration.options.lineHeight ? decoration.options.lineHeight * defaultLineHeight : 0
+			));
+		}
+		return result;
 	}
 }
 

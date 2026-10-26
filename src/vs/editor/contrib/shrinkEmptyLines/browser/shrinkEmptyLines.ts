@@ -44,7 +44,6 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 				this._updateAllDecorations();
 			}
 		}));
-		this._register(this.editor.onDidChangeHiddenAreas(() => this._updateAllDecorations()));
 		this._register(this.editor.onDidChangeModelContent(event => this._updateDecorations(event)));
 		this._updateDecorationOptions();
 		this._updateAllDecorations();
@@ -84,12 +83,10 @@ export class ShrinkEmptyLinesController extends Disposable implements IEditorCon
 		if (!this._decorationOptions) {
 			return decorations;
 		}
-		const hiddenAreas = this.editor._getViewModel()?.getHiddenAreas() ?? [];
 		for (const range of ranges) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-				const isHidden = hiddenAreas.some(area => area.startLineNumber <= lineNumber && lineNumber <= area.endLineNumber);
 				const lineContent = model.getLineContent(lineNumber);
-				if (!isHidden && this._shouldShrinkLine(lineContent)) {
+				if (this._shouldShrinkLine(lineContent)) {
 					decorations.push({
 						range: new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)),
 						options: this._decorationOptions.lineHeight,
