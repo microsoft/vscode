@@ -1266,6 +1266,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const mcpServerCompatibility = options.mcpServerCompatibility;
 	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
 		onDidChange: Event.None,
+		onDidChangeMarketplaces: Event.None,
 		list: async () => [],
 		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
 		queryMarketplace: async () => ({ items: [], total: 0 }),

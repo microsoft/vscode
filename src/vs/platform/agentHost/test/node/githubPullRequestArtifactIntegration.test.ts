@@ -868,10 +868,17 @@ suite('GitHub pull request artifact integration', () => {
 		});
 		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
 		assert.deepStrictEqual({
-			summary: f.model.snapshot.get().contributions[0].view.sections.find(section => section.id === 'checks')?.icon,
+			summary: f.model.snapshot.get().contributions[0].view.sections.find(section => section.id === 'checks'),
+			title: details.details.get().title,
 			items: details.details.get().items.map(item => ({ id: item.id, icon: item.icon })),
 		}, {
-			summary: { id: 'error-compact', colorId: 'errorForeground' },
+			summary: {
+				id: 'checks', detailsId: 'checks',
+				icon: { id: 'error-compact', colorId: 'errorForeground' },
+				label: '2/4',
+				description: '2 of 4 checks completed without failure; 1 failed; 1 skipped.',
+			},
+			title: 'Checks (2/4)',
 			items: [
 				{ id: 'pending', icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' } },
 				{ id: 'failed', icon: { id: 'error-compact', colorId: 'errorForeground' } },
@@ -947,12 +954,12 @@ suite('GitHub pull request artifact integration', () => {
 			};
 			f.snapshot.set(snapshot, undefined);
 			const section = f.model.snapshot.get().contributions[0].view.sections.find(section => section.id === 'checks');
-			states.push({ icon: section?.icon, label: section?.label, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
+			states.push({ icon: section?.icon, label: section?.label, description: section?.description, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
 		}
 		assert.deepStrictEqual(states, [
-			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', title: 'Checks (0/1)', checksReady: false },
-			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', title: 'Checks (1/1)', checksReady: true },
-			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '0/1', title: 'Checks (0/1)', checksReady: true },
+			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
+			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', description: '1 of 1 checks passed; 0 failed.', title: 'Checks (1/1)', checksReady: true },
+			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '1/1', description: '1 of 1 checks completed without failure; 0 failed; 1 skipped.', title: 'Checks (1/1)', checksReady: true },
 		]);
 	}));
 

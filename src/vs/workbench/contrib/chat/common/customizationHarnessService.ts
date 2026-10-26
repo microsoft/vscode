@@ -132,7 +132,17 @@ export interface ICustomizationMarketplaceRefreshResult {
 }
 
 export interface ICustomizationMarketplaceManagementProvider {
+	/**
+	 * Fires when provider state that may affect the marketplace list changes. Consumers should
+	 * list marketplaces again and treat an identical list as unchanged, because this also fires
+	 * for unrelated customization activity such as MCP server status changes.
+	 */
 	readonly onDidChange: Event<void>;
+	/**
+	 * Fires when marketplace contents may have changed even if the marketplace list is identical,
+	 * for example after a marketplace is added, removed, or refreshed.
+	 */
+	readonly onDidChangeMarketplaces: Event<void>;
 	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
 	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
 	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
