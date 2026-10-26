@@ -48,3 +48,8 @@
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact) .chat-window-card .session-view::after {
 	content: none;
 }
+
+/* The header row of an editor group in a chat window (such as the Changes picker) is separated from the content by a line. */
+.agent-sessions-workbench .chat-window-card .title > .editor-group-header {
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tabs-border, var(--vscode-widget-border));
+}
