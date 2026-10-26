@@ -27,9 +27,13 @@ import type { TaskClient } from '../../../../../../platform/github/common/missio
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { asText, IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPickerCard.js';
+import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { EnvironmentsClient } from '../../../../../../platform/github/common/missionControl/environmentsClient.js';
@@ -1445,6 +1449,46 @@ suite('CloudSandboxApiService connection credentials', () => {
 				{ id: 'auto', vision: undefined, input: undefined, efforts: undefined },
 				{ id: 'brand-new-model', vision: true, input: 1000, efforts: ['low', 'high', 'new-effort'] },
 			],
+		});
+	});
+
+	test('renders cloud catalogue prices and effort without a local Copilot catalogue or a fixed Auto price', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => jsonResponse({
+				data: [
+					{ id: 'auto', name: 'Auto', billing: { is_premium: true, multiplier: 0.9 } },
+					{
+						id: 'priced-model', name: 'Priced Model', model_picker_price_category: 'medium',
+						billing: { token_prices: { batch_size: 1_000_000, input_price: 200_000_000_000, output_price: 1_000_000_000_000, cache_price: 10_000_000_000 } },
+						capabilities: { supports: { reasoning_effort: ['low', 'medium', 'high', 'xhigh', 'max'] }, limits: { max_context_window_tokens: 1_050_000 } },
+					},
+				],
+			}),
+		});
+		const catalog = await service.listModels(CancellationToken.None);
+		const provider = store.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));
+		provider.updateAdditionalModels(catalog.models);
+		const [auto, model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const card = store.add(new ModelCard({
+			model,
+			isUBB: true,
+			openerService: NullOpenerService,
+			configurationAccess: { getModelConfiguration: () => undefined, setModelConfiguration: async () => { }, getModelConfigurationActions: () => [] },
+		}));
+		assert.deepStrictEqual({
+			autoDescription: createModelAction(auto, undefined, () => { }).action.description,
+			autoMultiplier: auto.metadata.multiplierNumeric,
+			titles: Array.from(card.element.querySelectorAll('.chat-model-card-section-title'), element => element.textContent),
+			prices: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-row'), row => ({
+				label: row.querySelector('.chat-model-card-pricing-label')?.textContent,
+				value: row.querySelector('.chat-model-card-pricing-value')?.textContent,
+			})),
+		}, {
+			autoDescription: undefined,
+			autoMultiplier: undefined,
+			titles: ['Effort Level', 'Max context', 'Pricing details'],
+			prices: [{ label: 'Input', value: '200' }, { label: 'Output', value: '1000' }, { label: 'Cache Read', value: '10' }],
 		});
 	});
 

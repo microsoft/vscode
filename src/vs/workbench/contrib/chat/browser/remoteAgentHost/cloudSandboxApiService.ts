@@ -1514,7 +1514,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						properties: {
 							reasoningEffort: {
 								type: 'string',
-								title: localize('cloudSandbox.reasoningEffort', "Reasoning Effort"),
+								title: localize('cloudSandbox.reasoningEffort', "Effort Level"),
 								enum: [...efforts],
 							},
 						},

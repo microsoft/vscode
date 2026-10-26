@@ -267,7 +267,7 @@ suite('AgentHostLanguageModelProvider', () => {
 
 	test('renders the auto-mode discount as the Auto model detail, leaving it out of the tooltip', async () => {
 		const provider = createProvider();
-		provider.updateModels([makeModel('auto', { discountPercent: 10 }), makeModel('gpt-5')]);
+		provider.updateModels([makeModel('auto', { discountPercent: 10, multiplierNumeric: 0.9 }), makeModel('gpt-5', { multiplierNumeric: 2 })]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const auto = infos.find(m => m.metadata.id === 'auto');
@@ -275,6 +275,9 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		assert.strictEqual(auto?.metadata.detail, '10% discount');
 		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, 10);
+		assert.deepStrictEqual({ autoPricing: auto?.metadata.pricing, autoMultiplier: auto?.metadata.multiplierNumeric, concretePricing: concrete?.metadata.pricing }, {
+			autoPricing: undefined, autoMultiplier: undefined, concretePricing: '2x',
+		});
 		// The picker describes the discount from `autoModelDiscountPercent`, alongside Auto's tiers.
 		assert.strictEqual(auto?.metadata.tooltip, ILanguageModelChatMetadata.getAutoModelDescription());
 
