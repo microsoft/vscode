@@ -285,6 +285,92 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}, { stateChanged: true, coOwnerChanged: true });
 	});
 
+	test('worktree sizes use metadata without changing session revisions or registrations', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		const session = 'session://disk-usage';
+		const other = 'session://other';
+		const worktree = 'file:///worktree';
+		database = new AgentHostDatabase(path);
+		for (const resource of [session, other]) {
+			await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		}
+		const revision = (await database.getWorktreeDiskUsageRevision(session, worktree))!;
+		const generation = await database.getRegistrationGeneration();
+		await database.writeWorktreeDiskUsage(session, worktree, revision, 42);
+		await database.writeWorktreeDiskUsage(session, 'file:///another-worktree', revision, 64);
+		await database.writeWorktreeDiskUsage('session://unknown', worktree, revision, 100);
+		const raw = await openDatabase(path);
+		try {
+			assert.deepStrictEqual({
+				record: await all(raw, 'SELECT value FROM metadata WHERE key = ?', [`worktreeDiskUsage:${worktree}`]),
+				table: await all(raw, `SELECT name FROM sqlite_master WHERE name = 'worktree_disk_usage'`),
+				version: await all(raw, 'PRAGMA user_version'),
+				revision: await database.getWorktreeDiskUsageRevision(session, worktree),
+				generation: await database.getRegistrationGeneration(),
+				unrelated: await database.readWorktreeDiskUsage(other, worktree, revision),
+				another: await database.readWorktreeDiskUsage(session, 'file:///another-worktree', revision),
+			}, {
+				record: [{ value: JSON.stringify({ session, revision, sizeBytes: 42 }) }],
+				table: [],
+				version: [{ user_version: 21 }],
+				revision,
+				generation,
+				unrelated: undefined,
+				another: 64,
+			});
+		} finally {
+			await close(raw);
+		}
+	});
+
+	for (const operation of ['tombstone', 'unregisterRuntime', 'unregisterV2', 'exclude'] as const) {
+		test(`${operation} removes worktree size metadata without removing other sessions' sizes`, async () => {
+			const path = join(temporaryDirectory!, 'agent-host.db');
+			const session = 'session://disk-usage';
+			const other = 'session://other';
+			database = new AgentHostDatabase(path);
+			for (const resource of [session, other]) {
+				await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+				await database.writeWorktreeDiskUsage(resource, `${resource}/worktree`, 'revision', 42);
+			}
+			if (operation === 'tombstone') {
+				await database.tombstoneAndUnregisterSession(session);
+			} else if (operation === 'unregisterRuntime') {
+				await database.unregisterRuntimeSession(session);
+			} else if (operation === 'unregisterV2') {
+				await database.unregisterSessionV2(session);
+			} else {
+				await database.excludeSessionV2({ provider: 'copilotcli', session, reason: 'staleExternal', fingerprint: 'test' }, {
+					identity: await database.getSessionV2Registration(session), catalog: undefined,
+				});
+			}
+			await database.writeWorktreeDiskUsage(session, `${session}/worktree`, 'revision', 99);
+			const raw = await openDatabase(path);
+			try {
+				assert.deepStrictEqual(await all(raw, `SELECT key FROM metadata WHERE key >= 'worktreeDiskUsage:' AND key < 'worktreeDiskUsage;'`), [
+					{ key: `worktreeDiskUsage:${other}/worktree` },
+				]);
+			} finally {
+				await close(raw);
+			}
+		});
+	}
+
+	test('invalidating a worktree size leaves other metadata and worktrees unchanged', async () => {
+		database = new AgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
+		const session = 'session://disk-usage';
+		await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		await database.setSessionAgentMergeEnabled(session, true);
+		await database.writeWorktreeDiskUsage(session, 'file:///worktree', 'revision', 42);
+		await database.writeWorktreeDiskUsage(session, 'file:///other', 'revision', 64);
+		await database.deleteWorktreeDiskUsage('file:///worktree');
+		assert.deepStrictEqual({
+			deleted: await database.readWorktreeDiskUsage(session, 'file:///worktree', 'revision'),
+			other: await database.readWorktreeDiskUsage(session, 'file:///other', 'revision'),
+			agentMergeEnabled: await database.listAgentMergeEnabledSessions(),
+		}, { deleted: undefined, other: 64, agentMergeEnabled: [session] });
+	});
+
 	test('creates the central catalog schema without changing the legacy registry', async () => {
 		const path = join(temporaryDirectory!, 'agent-host.db');
 		database = new AgentHostDatabase(path);
@@ -323,8 +409,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 22 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners', 'worktree_disk_usage'],
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -793,7 +879,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 22 }],
+					schemaVersion: [{ user_version: 21 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -840,8 +926,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 22 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners', 'worktree_disk_usage'],
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 			});
 		} finally {
 			await close(rawDatabase);
@@ -933,7 +1019,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 22 }],
+			version: [{ user_version: 21 }],
 		});
 	});
 
@@ -970,7 +1056,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v20', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 22 }],
+			version: [{ user_version: 21 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -1009,7 +1095,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 22 }],
+			version: [{ user_version: 21 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	});
@@ -2049,8 +2135,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
 				olderBuildRow: session,
 				reopened: {
-					15: { listed: [session, session, session], version: [{ user_version: 22 }] },
-					17: { listed: [session, session, session], version: [{ user_version: 22 }] },
+					15: { listed: [session, session, session], version: [{ user_version: 21 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 21 }] },
 				},
 			});
 		});
@@ -2437,7 +2523,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 							worktreeRemovals: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`)).length,
 							candidates,
 							recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
-						}, { version: [{ user_version: 22 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
+						}, { version: [{ user_version: 21 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
 					} finally {
 						await database?.close();
 						database = undefined;
@@ -2799,7 +2885,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 22 }],
+					restarted: before, before, version: [{ user_version: 21 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {

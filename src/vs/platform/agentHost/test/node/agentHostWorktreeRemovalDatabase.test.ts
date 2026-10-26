@@ -331,8 +331,8 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 			}
 		}
 		assert.deepStrictEqual(outcomes, {
-			missingTable: { version: 22, removals: ['coOwned'] },
-			oldCheck: { version: 22, removals: ['coOwned'] },
+			missingTable: { version: 21, removals: ['coOwned'] },
+			oldCheck: { version: 21, removals: ['coOwned'] },
 		});
 	});
 
@@ -357,7 +357,7 @@ suite('AgentHostWorktreeRemovalDatabase', () => {
 					removals: (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.owner}`),
 					coOwners: await database.readWorktreeCoOwners(WORKTREE),
 				}, {
-					version: [{ user_version: 22 }],
+					version: [{ user_version: 21 }],
 					removals: [`session:${OWNER}`, `coOwned:${OWNER}|${WORKTREE}`],
 					coOwners: [],
 				});
