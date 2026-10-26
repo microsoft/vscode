@@ -16,7 +16,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { hasCustomTitlebar } from '../../../../platform/window/common/window.js';
-import { IEditorGroupView, IEditorPartsView } from './editor.js';
+import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from './editor.js';
 import { EditorPart, IEditorPartUIState } from './editorPart.js';
 import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
@@ -39,6 +39,8 @@ export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOpt
 	readonly state?: IEditorPartUIState;
 	/** See `IEditorGroupsService.createAuxiliaryEditorPart`. */
 	readonly excludeFromWorkingSets?: boolean;
+	/** See `IEditorGroupsService.createAuxiliaryEditorPart`. */
+	readonly groupViewOptions?: IEditorGroupViewOptions;
 }
 
 export interface ICreateAuxiliaryEditorPartResult {
@@ -198,7 +200,7 @@ export class AuxiliaryEditorPart {
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label, options?.groupViewOptions));
 		editorPart.updateOptions({ compact });
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
@@ -353,6 +355,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		editorPartsView: IEditorPartsView,
 		private readonly state: IEditorPartUIState | undefined,
 		groupsLabel: string,
+		private readonly groupViewOptions: IEditorGroupViewOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -363,6 +366,10 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+	}
+
+	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
+		return this.groupViewOptions;
 	}
 
 	protected override handleContextKeys(): void {

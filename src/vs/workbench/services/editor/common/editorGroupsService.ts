@@ -630,6 +630,45 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
  * Options for an editor part that floats in the main window; see
  * {@link IEditorGroupsService.createFloatingEditorPart}.
  */
+export interface IEditorGroupViewOptions {
+
+	/**
+	 * Whether the editor group should receive keyboard focus
+	 * after creation or not.
+	 */
+	readonly preserveFocus?: boolean;
+
+	/**
+	 * Optional menu ids used by the group header and tab bar. When unset the
+	 * workbench uses the shared defaults and renders no custom header actions.
+	 */
+	readonly menuIds?: IEditorGroupMenuIds;
+
+	/** Shows the full-width group header with its configured actions and breadcrumbs. */
+	readonly showHeader?: boolean;
+
+	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
+	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
+
+	/** Uses the modern UI presentation for editor tabs. */
+	readonly useModernUITabs?: boolean;
+}
+
+export interface IEditorGroupMenuIds {
+	/** Menu whose actions render as the leading (left) header toolbar. */
+	readonly headerPrimary?: MenuId;
+	/** Menu whose actions render as the trailing (right) header toolbar. */
+	readonly headerSecondary?: MenuId;
+	/** Menu whose actions render after the trailing header toolbar. */
+	readonly headerLayout?: MenuId;
+	/** Menu whose actions render in the editor-actions toolbar on the tab bar. */
+	readonly editorActions?: MenuId;
+	/** Menu shown when right-clicking the empty tab-bar area. */
+	readonly tabsBarContext?: MenuId;
+	/** Menu whose actions populate the add-tab (`+`) control in the tab bar. */
+	readonly tabsBarAddTab?: MenuId;
+}
+
 export interface IFloatingEditorPartOptions {
 
 	/**
@@ -664,6 +703,12 @@ export interface IFloatingEditorPartOptions {
 	 * The size below which the part cannot be resized.
 	 */
 	readonly minimumSize?: IDimension;
+
+	/**
+	 * Options for the groups of the part, such as the menus of their headers;
+	 * see {@link IEditorGroupViewOptions}. By default, groups have no header.
+	 */
+	readonly groupViewOptions?: IEditorGroupViewOptions;
 }
 
 /**
@@ -869,6 +914,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 		 * shows a chat.
 		 */
 		excludeFromWorkingSets?: boolean;
+		/**
+		 * Options for the groups of the part, such as the menus of their
+		 * headers; see {@link IEditorGroupViewOptions}.
+		 */
+		groupViewOptions?: IEditorGroupViewOptions;
 	}): Promise<IAuxiliaryEditorPart>;
 
 	/**
