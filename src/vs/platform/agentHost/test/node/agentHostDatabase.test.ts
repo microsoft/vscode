@@ -287,6 +287,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 		}
 	});
 
+	test('migrates a fresh database in a single write transaction', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		database = new AgentHostDatabase(path);
+		await database.isSessionRegistryEmpty();
+		await database.close();
+		database = undefined;
+
+		// SQLite's file change counter (header offset 24) counts committed write transactions, each of which flushes the disk.
+		assert.strictEqual((await fs.readFile(path)).readUInt32BE(24), 1);
+	});
+
 	test('stores revisioned authoritative peer-chat membership', async () => {
 		database = new AgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
 		const session = 'session://chat-catalog';
