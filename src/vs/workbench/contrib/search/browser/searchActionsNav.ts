@@ -336,6 +336,24 @@ registerAction2(class ToggleSearchOnTypeAction extends Action2 {
 	}
 });
 
+// Explicit, keybindable focus target for keyboard-only sidebar navigation.
+// Unlike Find in Files, this does not seed, clear, or launch a search.
+registerAction2(class FocusSearchInputCommandAction extends Action2 {
+	constructor() {
+		super({
+			id: Constants.SearchCommandIds.FocusSearchInputCommandId,
+			title: nls.localize2('focusSearchInputCommandLabel', "Focus Search Input"),
+			category,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const searchView = await openSearchView(accessor.get(IViewsService), false);
+		searchView?.searchAndReplaceWidget.focus();
+	}
+});
+
 registerAction2(class FocusSearchListCommandAction extends Action2 {
 
 	constructor(
