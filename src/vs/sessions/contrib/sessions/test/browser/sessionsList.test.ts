@@ -2666,6 +2666,8 @@ suite('Sessions - SessionsList', () => {
 					'repository:workspace:osortega/simple-server': 'work',
 					'repository:workspace:microsoft/vscode': 'work',
 					'repository:workspace:scratch': 'work',
+					// The user placed `repository:contoso/app` at the top level, which promotes it.
+					'repository:workspace:contoso/app': 'work',
 					// Workspace grouping's placement, and a repository section's own placement.
 					'workspace:osortega/simple-server': 'other',
 					'repository:microsoft/vscode': 'other',
@@ -2677,8 +2679,8 @@ suite('Sessions - SessionsList', () => {
 				},
 			});
 			store('sessionsListControl.sectionOrder', {
-				order: ['workspace:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs'],
-				promoted: ['workspace:osortega/simple-server', 'workspace:microsoft/vscode-docs'],
+				order: ['workspace:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
+				promoted: ['workspace:osortega/simple-server', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
 			});
 			store('sessionsListControl.sectionCollapseState', {
 				'workspace:https://github.com/contoso/app': true,
@@ -2719,10 +2721,10 @@ suite('Sessions - SessionsList', () => {
 			migrate();
 
 			assert.deepStrictEqual({ ...migrated, groupAfterRerun: groupsService.getGroupOfSection('repository:osortega/simple-server') }, {
-				work: ['repository:workspace:osortega/simple-server', 'repository:osortega/simple-server', 'repository:workspace:microsoft/vscode', 'repository:workspace:scratch'],
+				work: ['repository:workspace:osortega/simple-server', 'repository:osortega/simple-server', 'repository:workspace:microsoft/vscode', 'repository:workspace:scratch', 'repository:workspace:contoso/app'],
 				other: ['workspace:osortega/simple-server', 'repository:microsoft/vscode'],
 				appearances: [{ color: 'charts.red' }, undefined],
-				order: ['workspace:osortega/simple-server', 'repository:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs'],
+				order: ['workspace:osortega/simple-server', 'repository:osortega/simple-server', 'group:work', 'workspace:microsoft/vscode-docs', 'repository:contoso/app'],
 				promoted: ['repository:osortega/simple-server'],
 				collapsed: {
 					'workspace:https://github.com/contoso/app': true,

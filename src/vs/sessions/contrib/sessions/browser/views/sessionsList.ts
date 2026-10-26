@@ -8140,7 +8140,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			}
 			for (const { key, groupId, repositorySectionId } of placements) {
-				if (sessionGroupsService.getGroupOfSection(repositorySectionId) === undefined) {
+				// A promoted section was placed at the top level by the user, which `getGroupOfSection` does not record.
+				if (sessionGroupsService.getGroupOfSection(repositorySectionId) === undefined && !sessionSectionOrderService.isPromoted(repositorySectionId)) {
 					sessionGroupsService.moveSection(repositorySectionId, groupId, { siblingId: key, position: 'after' });
 				}
 			}
@@ -8711,14 +8712,21 @@ export interface INewSessionSource {
 }
 
 /**
+ * Whether a new session can start in a session's workspace. A folder that only names a repository
+ * by URL, like a cloud sandbox session's before its sandbox connects, has no checkout to start in.
+ */
+export function canStartNewSessionLike(session: ISession): boolean {
+	return !getGitHubRepositoryOfUrl(session.workspace.get()?.folders[0]?.root);
+}
+
+/**
  * The most recently created session of each available environment among `sessions`, in
  * Environment filter order. New sessions in a repository section start in their workspaces.
  */
 export function getNewSessionSources(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): INewSessionSource[] {
 	const sources = new Map<string, INewSessionSource>();
 	for (const session of sessions) {
-		// A repository URL has no checkout that a new session could start in.
-		if (getGitHubRepositoryOfUrl(session.workspace.get()?.folders[0]?.root)) {
+		if (!canStartNewSessionLike(session)) {
 			continue;
 		}
 		const environment = sessionsProvidersService.getProvider(session.providerId)?.environment;
