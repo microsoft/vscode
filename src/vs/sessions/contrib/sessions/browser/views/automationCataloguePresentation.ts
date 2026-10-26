@@ -5,17 +5,37 @@
 
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
+import type { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+
+export function getAutomationOwnershipGroups(automations: readonly IAutomationDescriptor[]) {
+	return [
+		{ ownership: 'user', label: localize('automations.yours', "Your automations"), automations: automations.filter(automation => automation.ownership !== 'repository') },
+		{
+			ownership: 'repository',
+			label: localize('automations.repositoryOwned', "Shared automations"),
+			description: localize('automations.repositoryOwnedDescription', "These automations are visible to anyone with repository access, and can be edited by anyone with write access."),
+			automations: automations.filter(automation => automation.ownership === 'repository'),
+		},
+	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'));
+}
 
 export function getUnavailableAutomationsReasons(unavailableProviders: readonly IAutomationProviderDescriptor[]): string[] {
 	const reasons: string[] = [];
 	const groups = groupByMap(
 		[...unavailableProviders],
-		provider => provider.unavailableReasonCode !== undefined
-			? `code:${provider.unavailableReasonCode}`
-			: provider.unavailableReason !== undefined ? `text:${provider.unavailableReason}` : 'none',
+		provider => provider.unavailableMessage !== undefined
+			? `message:${provider.unavailableMessage}`
+			: provider.unavailableReasonCode !== undefined
+				? `code:${provider.unavailableReasonCode}`
+				: provider.unavailableReason !== undefined ? `text:${provider.unavailableReason}` : 'none',
 	);
 	for (const providers of groups.values()) {
+		const message = providers[0].unavailableMessage;
+		if (message !== undefined) {
+			reasons.push(message);
+			continue;
+		}
 		const labels = providers.map(provider => provider.label).join(', ');
 		switch (providers[0].unavailableReasonCode) {
 			case 'disconnected':

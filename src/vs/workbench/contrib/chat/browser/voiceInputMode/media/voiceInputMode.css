@@ -20,6 +20,12 @@
 	--segmented-icon-toggle-cell-radius: var(--vscode-cornerRadius-circle);
 }
 
+.monaco-segmented-icon-toggle-cell.chat-voice-input-mode-cell:focus-visible {
+	outline: none;
+	border-radius: var(--segmented-icon-toggle-cell-radius);
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+}
+
 .monaco-segmented-icon-toggle-container.chat-voice-input-mode-item.single:has(.dictation.preparing) .monaco-segmented-icon-toggle {
 	border-color: var(--vscode-input-border, var(--vscode-editorWidget-border));
 }
@@ -40,12 +46,10 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.chat-voice-input-mode-cell.voice.listening {
-	color: var(--voice-color-listening, var(--vscode-charts-blue, #58a6ff));
-}
-
+.chat-voice-input-mode-cell.voice.on,
+.chat-voice-input-mode-cell.voice.listening,
 .chat-voice-input-mode-cell.voice.speaking {
-	color: var(--voice-color-speaking, var(--vscode-charts-purple, #a371f7));
+	color: var(--voice-color-listening, var(--vscode-charts-blue, #58a6ff));
 }
 
 /* Compact glyph size, matching the agent / model picker icons that sit beside the pill.

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { FEEDBACK_ANNOTATION_META_KEY } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { annotationsReducer } from '../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AnnotationsState, ComponentToState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -20,13 +21,98 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AnnotationsAgentFeedbackItemsBackend } from '../../browser/agentFeedbackItemsBackend.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackService.js';
 
 suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const initiallyAvailable of [false, true]) {
+		test(`suspends unavailable annotations without discarding cached feedback (cold=${!initiallyAvailable})`, async () => {
+			const sessionResource = URI.parse('agent-host-claude:/saved');
+			const annotationsUri = URI.parse('claude:/saved/annotations');
+			const changes = store.add(new Emitter<ISessionsChangeEvent>());
+			const deletions = store.add(new Emitter<ISession>());
+			const operations: string[] = [];
+			const state: AnnotationsState = {
+				annotations: [{
+					id: 'saved-feedback', resource: URI.file('/repo/file.ts').toString(), resolved: false,
+					origin: { session: sessionResource.toString() },
+					entries: [{ id: 'saved-feedback:0', text: 'Saved feedback' }],
+					_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind: 'user', state: 'accepted', sessionResource: sessionResource.toString() } },
+				}],
+			};
+			let seq = 0;
+			const manager = store.add(new AgentSubscriptionManager('test', () => ++seq, () => { }, async resource => {
+				operations.push('subscribe');
+				return { resource: resource.toString(), state, fromSeq: 0 };
+			}, () => operations.push('unsubscribe')));
+			const connection = new class extends mock<IAgentConnection>() {
+				override readonly resourceUris = createAgentHostResourceUriMapper('test');
+				override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+					return manager.getSubscription(kind, resource, owner);
+				}
+				override dispatch(): void { operations.push('dispatch'); }
+			}();
+			let available = initiallyAvailable;
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override getFeedbackAnnotationsChannel() { return available ? { connection, annotationsUri } : undefined; }
+			}();
+			const session = new class extends mock<ISession>() {
+				override readonly resource = sessionResource;
+				override readonly providerId = 'agenthost-test';
+				override readonly sessionId = 'saved';
+			}();
+			let deleted = false;
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ISessionsManagementService, {
+				onDidDeleteSession: deletions.event,
+				onDidChangeSessions: changes.event,
+				getSession: () => deleted ? undefined : session,
+			});
+			instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }(), 'getProvider', () => provider);
+			const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
+			backend.getItems(sessionResource);
+			await timeout(0);
+			const opened = [...operations];
+			available = true;
+			changes.fire({ added: [], changed: [], removed: [] });
+			await timeout(0);
+			const enabled = [...operations];
+			const saved = backend.getItems(sessionResource)[0];
+			assert.ok(saved);
+			available = false;
+			changes.fire({ added: [], changed: [], removed: [] });
+			const suspended = [...operations];
+			backend.upsert(saved);
+			const disabled = {
+				operations: [...operations],
+				items: backend.getItems(sessionResource).map(item => item.text),
+				channel: backend.getAnnotationsChannelResource(sessionResource),
+				loaded: backend.hasLoaded(sessionResource),
+			};
+			available = true;
+			changes.fire({ added: [], changed: [], removed: [] });
+			await timeout(0);
+			const recovered = [...operations];
+			deleted = true;
+			deletions.fire(session);
+			changes.fire({ added: [], changed: [], removed: [] });
+			assert.deepStrictEqual({
+				opened, enabled, suspended, disabled, recovered,
+				deleted: { operations, items: backend.getItems(sessionResource) },
+			}, {
+				opened: initiallyAvailable ? ['subscribe'] : [],
+				enabled: ['subscribe'],
+				suspended: ['subscribe', 'unsubscribe'],
+				disabled: { operations: ['subscribe', 'unsubscribe'], items: ['Saved feedback'], channel: undefined, loaded: false },
+				recovered: ['subscribe', 'unsubscribe', 'subscribe'],
+				deleted: { operations: ['subscribe', 'unsubscribe', 'subscribe', 'unsubscribe'], items: [] },
+			});
+		});
+	}
 
 	test('maps annotation resources through the owning connection', () => {
 		const sessionResource = URI.parse('remote-agent-host:///session');
@@ -86,6 +172,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
 			override getSession() { return session; }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -178,6 +265,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
 			override getSession() { return session; }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -260,6 +348,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
 			override getSession() { return session; }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {

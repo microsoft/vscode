@@ -956,6 +956,7 @@ export class CancelAction extends Action2 {
 					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate()
 				),
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Escape },
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
 			}
 		});

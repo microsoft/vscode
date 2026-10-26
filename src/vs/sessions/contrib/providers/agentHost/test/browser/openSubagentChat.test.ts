@@ -10,7 +10,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { buildSubagentChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -20,6 +20,9 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatConfiguration } from '../../.
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { OpenSubagentChatActionViewItem, OpenSubagentChatActionViewItemContribution, shouldShowSubagentModel } from '../../browser/openSubagentChat.js';
@@ -41,14 +44,26 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 				const chat = upcastPartial<IChat>({ resource: resource.with({ fragment: 'subagent/launch' }) });
 				const session = upcastPartial<IActiveSession>({
 					sessionId: 'session',
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					resource,
 					chats: constObservable([chat]),
 				});
 				const otherSession = upcastPartial<IActiveSession>({
 					sessionId: 'other',
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 					resource: resource.with({ path: '/other' }),
 					chats: constObservable([upcastPartial<IChat>({ resource: chat.resource.with({ path: '/other' }) })]),
 				});
+				// The host records each session's own subagent chat.
+				const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					getBackendChatResource: chatResource => URI.parse(buildSubagentChatUri(`copilot:${chatResource.path}`, 'launch')),
+				});
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override getProvider<T extends ISessionsProvider>(): T | undefined {
+						return provider as T | undefined;
+					}
+				}());
 				const opened: { toSide: boolean; sessionId: string; resource: URI; referenceChatResource?: URI }[] = [];
 				instantiationService.stub(ISessionsService, {
 					activeSession: constObservable(otherSession),
@@ -100,6 +115,7 @@ suite('OpenSubagentChatActionViewItemContribution', () => {
 			visibleSessions: constObservable([session]),
 			openChatToSide: async (...args) => { opened.push(args); },
 		});
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
 		store.add(instantiationService.createInstance(OpenSubagentChatActionViewItemContribution));
 		const command = CommandsRegistry.getCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
 		assert.ok(command);

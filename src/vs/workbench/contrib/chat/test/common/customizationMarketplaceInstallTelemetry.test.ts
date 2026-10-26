@@ -29,20 +29,28 @@ suite('Customization marketplace install telemetry', () => {
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'mcpGallery', name: 'server', registry: 'default', registryUrl: 'https://registry.example' }),
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'plugin', repository: 'owner/repository', ref: 'main', path: 'plugins/demo' }),
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'configuredPlugin' }),
+			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'providerPlugin', name: 'azure', marketplace: 'awesome-copilot' }),
+			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection' }),
+			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection' }),
+			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection' }),
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', { kind: 'copilotConnector', name: 'mail' }),
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', undefined),
 			getAvailableCustomizationMarketplaceInstallTelemetryContext('mcpServer'),
 			getAvailableCustomizationMarketplaceInstallTelemetryContext('plugin'),
 		], [
-			{ surface: 'marketplace', customizationType: 'skill', installKind: 'skill' },
-			{ surface: 'marketplace', customizationType: 'mcpServer', installKind: 'mcp' },
-			{ surface: 'marketplace', customizationType: 'mcpServer', installKind: 'mcpGallery' },
-			{ surface: 'marketplace', customizationType: 'plugin', installKind: 'plugin' },
-			{ surface: 'marketplace', customizationType: 'plugin', installKind: 'configuredPlugin' },
-			{ surface: 'marketplace', customizationType: 'connector', installKind: 'copilotConnector' },
-			{ surface: 'marketplace', customizationType: 'unknown', installKind: 'unknown' },
-			{ surface: 'available', customizationType: 'mcpServer', installKind: 'mcpGallery' },
-			{ surface: 'available', customizationType: 'plugin', installKind: 'configuredPlugin' },
+			{ surface: 'marketplace', customizationType: 'skill', installKind: 'skill', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'mcpServer', installKind: 'mcp', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'mcpServer', installKind: 'mcpGallery', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'plugin', installKind: 'plugin', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'plugin', installKind: 'configuredPlugin', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'plugin', installKind: 'providerPlugin', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'skill', installKind: 'providerCatalog', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'mcpServer', installKind: 'providerCatalog', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'plugin', installKind: 'providerCatalog', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'connector', installKind: 'copilotConnector', origin: 'search' },
+			{ surface: 'marketplace', customizationType: 'unknown', installKind: 'unknown', origin: 'search' },
+			{ surface: 'available', customizationType: 'mcpServer', installKind: 'mcpGallery', origin: 'search' },
+			{ surface: 'available', customizationType: 'plugin', installKind: 'configuredPlugin', origin: 'search' },
 		]);
 	});
 
@@ -50,19 +58,19 @@ suite('Customization marketplace install telemetry', () => {
 		const telemetryService = new TestTelemetryService();
 		await runCustomizationMarketplaceInstallWithTelemetry(
 			telemetryService,
-			{ surface: 'marketplace', customizationType: 'skill', installKind: 'skill' },
+			{ surface: 'marketplace', customizationType: 'skill', installKind: 'skill', origin: 'curatedSection' },
 			async () => { },
 		);
 		await assert.rejects(runCustomizationMarketplaceInstallWithTelemetry(
 			telemetryService,
-			{ surface: 'available', customizationType: 'plugin', installKind: 'configuredPlugin' },
+			{ surface: 'available', customizationType: 'plugin', installKind: 'configuredPlugin', origin: 'search' },
 			async () => { throw new Error('private installation error'); },
 		), /private installation error/);
 		const cancellation = store.add(new CancellationTokenSource());
 		cancellation.cancel();
 		await assert.rejects(runCustomizationMarketplaceInstallWithTelemetry(
 			telemetryService,
-			{ surface: 'marketplace', customizationType: 'mcpServer', installKind: 'mcpGallery' },
+			{ surface: 'marketplace', customizationType: 'mcpServer', installKind: 'mcpGallery', origin: 'browseFallback' },
 			async () => { throw new Error('private cancellation error'); },
 			cancellation.token,
 		), /private cancellation error/);
@@ -76,6 +84,7 @@ suite('Customization marketplace install telemetry', () => {
 				surface: 'marketplace',
 				customizationType: 'skill',
 				installKind: 'skill',
+				origin: 'curatedSection',
 				outcome: 'success',
 				durationMs: true,
 			},
@@ -85,6 +94,7 @@ suite('Customization marketplace install telemetry', () => {
 				surface: 'available',
 				customizationType: 'plugin',
 				installKind: 'configuredPlugin',
+				origin: 'search',
 				outcome: 'error',
 				durationMs: true,
 			},
@@ -94,6 +104,7 @@ suite('Customization marketplace install telemetry', () => {
 				surface: 'marketplace',
 				customizationType: 'mcpServer',
 				installKind: 'mcpGallery',
+				origin: 'browseFallback',
 				outcome: 'cancelled',
 				durationMs: true,
 			},

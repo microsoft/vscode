@@ -86,7 +86,7 @@ registerAction2(class extends Action2 {
 						? localize('manageHosts.connectionStatus', "Connection: {0}", getStatusLabel(status))
 						: getStatusLabel(status) : undefined,
 					detail: p.hostDescription?.get() ?? p.remoteAddress,
-					buttons: p.removeLabel ? [{ ...removeButton, tooltip: p.removeLabel }] : [removeButton],
+					buttons: p.canRemove === false ? [] : p.removeLabel ? [{ ...removeButton, tooltip: p.removeLabel }] : [removeButton],
 				};
 				return item;
 			});

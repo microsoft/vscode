@@ -8,6 +8,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../base/common/htmlConten
 import { structuralEquals } from '../../../base/common/equals.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { GitHubActor, PullRequestCheck, PullRequestChecks, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
+import { isPullRequestFeedbackAuthor } from '../../github/common/pullRequestFeedback.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import type { URI as ProtocolURI } from './state/sessionState.js';
@@ -114,6 +115,12 @@ export interface AgentMergeSessionState {
 	readonly lastPromptAt?: string;
 	readonly repeatedPromptCount?: number;
 	readonly totalPromptCount?: number;
+	/** Pull request head when the most recent repair turn started; a different head afterwards counts as progress. */
+	readonly lastPromptHeadSha?: string;
+	/** Blockers the most recent repair turn was asked to fix; resolving any of them counts as progress. */
+	readonly lastPromptBlockers?: readonly string[];
+	/** Repair turns since Agent Merge was enabled. Unlike the other counters, progress never resets it. */
+	readonly lifetimePromptCount?: number;
 	/**
 	 * Local worktree commit observed when the most recent repair turn started.
 	 * A different local commit afterwards means that turn produced work, which
@@ -134,6 +141,9 @@ export interface AgentMergeControllerState {
 	readonly lastPromptAt?: string;
 	readonly repeatedPromptCount?: number;
 	readonly totalPromptCount?: number;
+	readonly lastPromptHeadSha?: string;
+	readonly lastPromptBlockers?: readonly string[];
+	readonly lifetimePromptCount?: number;
 	readonly repairBaseCommit?: string;
 }
 
@@ -236,9 +246,6 @@ const maximumFailedChecks = 20;
 const maximumFeedbackBodyLength = 1_000;
 const maximumFeedbackBudget = 20_000;
 
-const maintainerAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
-const copilotPullRequestReviewerId = '175728472';
-const copilotPullRequestReviewerLogins = new Set(['copilot', 'copilot-pull-request-reviewer[bot]']);
 const successfulCheckConclusions = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const mergeableStates = new Set(['CLEAN', 'HAS_HOOKS', 'UNSTABLE']);
 
@@ -324,6 +331,14 @@ export const agentMergeDisableReasons = {
 	repairBudgetExhausted: (): AgentMergeDisableReason => ({
 		log: 'the same pull request blockers remained after repeated repair attempts',
 		notice: localize('agentMerge.disabled.repairBudgetExhausted', "Agent Merge was disabled because the same pull request blockers remained after repeated repair attempts."),
+	}),
+	repairWithoutProgress: (attempts: number): AgentMergeDisableReason => ({
+		log: `${attempts} repair attempts in a row made no progress`,
+		notice: localize('agentMerge.disabled.repairWithoutProgress', "Agent Merge was disabled because {0} repair attempts in a row made no progress on the pull request.", attempts),
+	}),
+	repairLimitReached: (attempts: number): AgentMergeDisableReason => ({
+		log: `the limit of ${attempts} repair attempts was reached`,
+		notice: localize('agentMerge.disabled.repairLimitReached', "Agent Merge was disabled after {0} repair attempts on this pull request. Enable it again to continue.", attempts),
 	}),
 	pendingReviewReply: (): AgentMergeDisableReason => ({
 		log: 'a review reply is unpublished in the user\'s pending review',
@@ -498,6 +513,14 @@ export function agentMergeDisabledNotice(): string {
  */
 export function agentMergeMergePullRequestDemotedNotice(): string {
 	return localize('agentMerge.notice.mergeDemoted', "Agent Merge changed this pull request, so automatic merging was disabled for this session. Review the changes, then enable it again if you want it merged automatically.");
+}
+
+/**
+ * The transcript notice shown when a chat that runs Agent Merge moves into a
+ * session where another chat already runs it for the same pull request.
+ */
+export function agentMergeMoveConflictNotice(): string {
+	return localize('agentMerge.notice.moveConflict', "Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.");
 }
 
 export function readAgentMergeSessionState(values: Record<string, unknown> | undefined, sessionFolderKey?: string): AgentMergeSessionState | undefined {
@@ -695,6 +718,39 @@ export function hasAgentMergeFolderControllerState(state: AgentMergeFolderState)
 }
 
 /** Returns the session config patch that sets or clears the session-wide elevated configuration. */
+/**
+ * The elevation Agent Merge applied to each chat it runs in, keyed by chat:
+ * the chat's own values before elevation (`previous`; a missing key means the
+ * chat had no value of its own) and the values it applied (`applied`).
+ * Host-owned session state, like the folder lifecycle.
+ */
+export function readAgentMergeChatInjectedConfigurations(values: Readonly<Record<string, unknown>> | undefined): ReadonlyMap<ProtocolURI, AgentMergeInjectedConfiguration> {
+	const result = new Map<ProtocolURI, AgentMergeInjectedConfiguration>();
+	for (const [chat, value] of readRecordMap(values?.[SessionConfigKey.AgentMergeChatInjectedConfiguration])) {
+		const injected = readInjectedConfiguration(value);
+		if (injected) {
+			result.set(chat, injected);
+		}
+	}
+	return result;
+}
+
+/** Whether Agent Merge's elevation is applied in a session: to a chat, or session-wide by an older build. */
+export function hasAgentMergeElevation(values: Readonly<Record<string, unknown>> | undefined): boolean {
+	return readAgentMergeInjectedConfiguration(values as Record<string, unknown> | undefined) !== undefined || readAgentMergeChatInjectedConfigurations(values).size > 0;
+}
+
+/** A session config patch that records (or, with `undefined`, removes) one chat's elevation. */
+export function withAgentMergeChatInjectedConfiguration(values: Readonly<Record<string, unknown>> | undefined, chat: ProtocolURI, injectedConfiguration: AgentMergeInjectedConfiguration | undefined): Record<string, unknown> {
+	const chats = new Map(readAgentMergeChatInjectedConfigurations(values));
+	if (injectedConfiguration) {
+		chats.set(chat, injectedConfiguration);
+	} else {
+		chats.delete(chat);
+	}
+	return { [SessionConfigKey.AgentMergeChatInjectedConfiguration]: chats.size > 0 ? Object.fromEntries(chats) : undefined };
+}
+
 export function withAgentMergeInjectedConfiguration(injectedConfiguration: AgentMergeInjectedConfiguration | undefined): Record<string, unknown> {
 	return {
 		[SessionConfigKey.AgentMergeInjectedConfiguration]: injectedConfiguration ?? undefined,
@@ -709,7 +765,11 @@ export function getNonMergeSessionConfigValues(values: Readonly<Record<string, u
 	if (!values) {
 		return {};
 	}
-	const injected = readAgentMergeInjectedConfiguration(values as Record<string, unknown>);
+	return withoutAgentMergeElevation(values, readAgentMergeInjectedConfiguration(values as Record<string, unknown>));
+}
+
+/** Values with the elevation Agent Merge applied over them undone; a missing previous value means there was none. */
+export function withoutAgentMergeElevation(values: Readonly<Record<string, unknown>>, injected: AgentMergeInjectedConfiguration | undefined): Readonly<Record<string, unknown>> {
 	if (!injected) {
 		return values;
 	}
@@ -817,6 +877,9 @@ function readFolderControllerState(value: unknown): AgentMergeFolderControllerSt
 		...(typeof value.lastPromptAt === 'string' ? { lastPromptAt: value.lastPromptAt } : {}),
 		...(typeof value.repeatedPromptCount === 'number' && Number.isInteger(value.repeatedPromptCount) && value.repeatedPromptCount >= 0 ? { repeatedPromptCount: value.repeatedPromptCount } : {}),
 		...(typeof value.totalPromptCount === 'number' && Number.isInteger(value.totalPromptCount) && value.totalPromptCount >= 0 ? { totalPromptCount: value.totalPromptCount } : {}),
+		...(typeof value.lastPromptHeadSha === 'string' ? { lastPromptHeadSha: value.lastPromptHeadSha } : {}),
+		...(Array.isArray(value.lastPromptBlockers) && value.lastPromptBlockers.every(blocker => typeof blocker === 'string') ? { lastPromptBlockers: value.lastPromptBlockers } : {}),
+		...(typeof value.lifetimePromptCount === 'number' && Number.isInteger(value.lifetimePromptCount) && value.lifetimePromptCount >= 0 ? { lifetimePromptCount: value.lifetimePromptCount } : {}),
 		...(typeof value.repairBaseCommit === 'string' ? { repairBaseCommit: value.repairBaseCommit } : {}),
 	};
 }
@@ -828,17 +891,15 @@ function toAgentMergeFolderControllerState(state: AgentMergeFolderControllerStat
 		...(state.lastPromptAt ? { lastPromptAt: state.lastPromptAt } : {}),
 		...(state.repeatedPromptCount !== undefined ? { repeatedPromptCount: state.repeatedPromptCount } : {}),
 		...(state.totalPromptCount !== undefined ? { totalPromptCount: state.totalPromptCount } : {}),
+		...(state.lastPromptHeadSha ? { lastPromptHeadSha: state.lastPromptHeadSha } : {}),
+		...(state.lastPromptBlockers ? { lastPromptBlockers: state.lastPromptBlockers } : {}),
+		...(state.lifetimePromptCount !== undefined ? { lifetimePromptCount: state.lifetimePromptCount } : {}),
 		...(state.repairBaseCommit ? { repairBaseCommit: state.repairBaseCommit } : {}),
 	};
 }
 
 export function isAgentMergeFeedbackAuthor(actor: GitHubActor | undefined): boolean {
-	if (!actor) {
-		return false;
-	}
-	return maintainerAssociations.has(actor.association?.toUpperCase() ?? '')
-		|| actor.id === copilotPullRequestReviewerId
-		|| copilotPullRequestReviewerLogins.has(actor.login.toLowerCase());
+	return isPullRequestFeedbackAuthor(actor);
 }
 
 function readOverrides(value: unknown): AgentMergeSessionOverrides | undefined {
@@ -1169,4 +1230,90 @@ export function classifyAgentMergeRequiredChecks(checks: PullRequestChecks): Age
 		}
 	}
 	return { kind: 'ready', failed, pending };
+}
+
+const checkBlockerPrefix = 'check:';
+const threadBlockerPrefix = 'thread:';
+const feedbackBlocker = 'feedback';
+const conflictingBlocker = 'conflicting';
+const behindBlocker = 'behind';
+
+/**
+ * The blockers a repair turn is asked to fix, as stable keys that survive a
+ * new head or a workflow rerun, so a later evaluation can tell whether the
+ * turn made progress; see {@link hasAgentMergeRepairProgress}.
+ */
+export function getAgentMergeRepairBlockers(actions: readonly AgentMergeRepairAction[], context: AgentMergePromptContext): string[] {
+	const blockers: string[] = [];
+	if (actions.includes('addressReviews')) {
+		blockers.push(...context.reviewThreads.map(thread => `${threadBlockerPrefix}${thread.id}`));
+		if (context.reviewSummaries.length > 0 || context.newComments.length > 0) {
+			blockers.push(feedbackBlocker);
+		}
+	}
+	if (actions.includes('fixCI')) {
+		blockers.push(...context.failedChecks.map(name => `${checkBlockerPrefix}${name}`));
+	}
+	if (actions.includes('resolveConflicts')) {
+		if (context.conflicting) {
+			blockers.push(conflictingBlocker);
+		}
+		if (context.behind) {
+			blockers.push(behindBlocker);
+		}
+	}
+	return blockers;
+}
+
+/**
+ * Whether the pull request moved forward since the most recent repair turn
+ * started: its head changed, or one of the blockers that turn was asked to
+ * fix is now resolved. A failed check only counts as resolved once a check of
+ * the same name passes, not merely because a new head has not reported it yet.
+ *
+ * Expects a snapshot that {@link evaluateAgentMerge} could evaluate.
+ */
+export function hasAgentMergeRepairProgress(snapshot: PullRequestSnapshot, commentWatermark: string, previous: { readonly headSha?: string; readonly blockers?: readonly string[] }): boolean {
+	const headSha = snapshot.core.value?.headSha;
+	if (!headSha) {
+		return false;
+	}
+	if (previous.headSha !== undefined && previous.headSha !== headSha) {
+		return true;
+	}
+	if (!previous.blockers?.length) {
+		return false;
+	}
+	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
+	const unresolvedThreads = new Set(reviewThreads.map(thread => `${threadBlockerPrefix}${thread.id}`));
+	const checks = snapshot.checks.value?.checks.filter(check => check.required === true) ?? [];
+	const mergeability = snapshot.mergeability.value;
+	return previous.blockers.some(blocker => {
+		if (blocker.startsWith(checkBlockerPrefix)) {
+			const name = blocker.slice(checkBlockerPrefix.length);
+			const named = checks.filter(check => check.name === name);
+			return named.length > 0 && named.every(isSuccessfulCheck);
+		}
+		if (blocker.startsWith(threadBlockerPrefix)) {
+			return !unresolvedThreads.has(blocker);
+		}
+		switch (blocker) {
+			case feedbackBlocker:
+				return changesRequested.length === 0 && newComments.length === 0;
+			case conflictingBlocker:
+				return mergeability?.mergeable === 'MERGEABLE';
+			case behindBlocker: {
+				const status = mergeability?.mergeStateStatus?.toUpperCase();
+				return status !== undefined && status !== 'BEHIND' && status !== 'UNKNOWN';
+			}
+		}
+		return false;
+	});
+}
+
+function isSuccessfulCheck(check: PullRequestCheck): boolean {
+	const status = check.status?.toUpperCase();
+	return check.type === 'statusContext'
+		? status === 'SUCCESS'
+		: status === 'COMPLETED' && successfulCheckConclusions.has(check.conclusion?.toUpperCase() ?? '');
 }

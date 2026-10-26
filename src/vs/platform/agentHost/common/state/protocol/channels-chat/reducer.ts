@@ -354,7 +354,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 			};
 
 			// If this turn was auto-started from a pending message, remove it
-			if (action.queuedMessageId) {
+			if (action.queuedMessageId !== undefined) {
 				if (next.steeringMessage?.id === action.queuedMessageId) {
 					next = { ...next, steeringMessage: undefined };
 				}
@@ -878,35 +878,37 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 		// ── Pending Messages ──────────────────────────────────────────────────
 
 		case ActionType.ChatPendingMessageSet: {
-			const entry: PendingMessage = { id: action.id, message: action.message };
-			if (action.kind === PendingMessageKind.Steering) {
-				return { ...state, steeringMessage: entry };
-			}
+			const entry: PendingMessage = { id: action.id, kind: action.kind, message: action.message };
 			const existing = state.queuedMessages ?? [];
 			const idx = existing.findIndex(m => m.id === action.id);
-			if (idx >= 0) {
-				const updated = [...existing];
-				updated[idx] = entry;
-				return { ...state, queuedMessages: updated };
+			const next = existing.slice();
+			if (idx < 0) {
+				next.push(entry);
+			} else {
+				next[idx] = entry;
 			}
-			return { ...state, queuedMessages: [...existing, entry] };
+			const nextState = { ...state, queuedMessages: next };
+			if (action.kind === PendingMessageKind.Steering) {
+				nextState.steeringMessage = entry;
+			} else if (state.steeringMessage?.id === action.id) {
+				nextState.steeringMessage = undefined;
+			}
+			return nextState;
 		}
 
 		case ActionType.ChatPendingMessageRemoved: {
-			if (action.kind === PendingMessageKind.Steering) {
-				if (!state.steeringMessage || state.steeringMessage.id !== action.id) {
-					return state;
-				}
-				return { ...state, steeringMessage: undefined };
+			let next = state;
+			if (action.kind === PendingMessageKind.Steering && state.steeringMessage?.id === action.id) {
+				next = { ...next, steeringMessage: undefined };
 			}
-			const existing = state.queuedMessages;
-			if (!existing) {
-				return state;
+			const existing = state.queuedMessages ?? [];
+			const idx = existing.findIndex(m => m.id === action.id && (m.kind ?? PendingMessageKind.Queued) === action.kind);
+			if (idx < 0) {
+				return next;
 			}
-			const filtered = existing.filter(m => m.id !== action.id);
-			return filtered.length === existing.length
-				? state
-				: { ...state, queuedMessages: filtered.length > 0 ? filtered : undefined };
+			const queuedMessages = existing.slice();
+			queuedMessages.splice(idx, 1);
+			return { ...next, queuedMessages: queuedMessages.length > 0 ? queuedMessages : undefined };
 		}
 
 		case ActionType.ChatQueuedMessagesReordered: {
@@ -944,6 +946,19 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
 
 		case ActionType.ChatIsArchivedChanged:
 			return { ...state, status: withStatusFlag(state.status, SessionStatus.IsArchived, action.isArchived) };
+
+		// ── Config ────────────────────────────────────────────────────────────
+
+		case ActionType.ChatConfigChanged:
+			return {
+				...state,
+				config: {
+					...state.config,
+					values: action.replace || !state.config
+						? { ...action.config }
+						: { ...state.config.values, ...action.config },
+				},
+			};
 
 		default:
 			softAssertNever(action, log);

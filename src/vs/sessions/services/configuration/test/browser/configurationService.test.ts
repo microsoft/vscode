@@ -45,6 +45,7 @@ import { LayoutSettings, ModernUIDensity, ModernUIFrostedGlassOpacity } from '..
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../../../workbench/contrib/preferences/browser/settingsTreeModels.js';
 import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
+import { DefaultConfiguration } from '../../../../../workbench/services/configuration/browser/configuration.js';
 import { ISetting } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
@@ -68,8 +69,8 @@ suite('Sessions ConfigurationService', () => {
 	const logService = new NullLogService();
 	const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
 
-	function createConfigurationService(policyService: IPolicyService): ConfigurationService {
-		return disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, nullConfigurationCache, TestEnvironmentService));
+	function createConfigurationService(policyService: IPolicyService, configurationCache = nullConfigurationCache): ConfigurationService {
+		return disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, configurationCache, TestEnvironmentService));
 	}
 
 	function startAccountPolicyInitialization(policyData: IPolicyData | null) {
@@ -598,6 +599,48 @@ suite('Sessions ConfigurationService', () => {
 	test('updateValue writes to user settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.updateValue('sessionsConfigurationService.testSetting', 'writtenValue');
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting'), 'writtenValue');
+	}));
+
+	test('settings writes preserve cached experiment defaults until defaults are explicitly reloaded', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const cacheExistsKey = DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY;
+		const previousCacheFlag = localStorage.getItem(cacheExistsKey);
+		disposables.add(toDisposable(() => {
+			if (previousCacheFlag === null) {
+				localStorage.removeItem(cacheExistsKey);
+			} else {
+				localStorage.setItem(cacheExistsKey, previousCacheFlag);
+			}
+		}));
+		localStorage.setItem(cacheExistsKey, 'yes');
+		testObject.dispose();
+		testObject = createConfigurationService(new NullPolicyService(), {
+			...nullConfigurationCache,
+			read: async () => JSON.stringify({ 'sessionsConfigurationService.applicationSetting': 'cachedTreatment' }),
+		});
+		await testObject.initialize();
+		const folder = joinPath(ROOT, 'cachedDefaultsFolder');
+		await fileService.createFolder(folder);
+		await workspaceService.addFolders([{ uri: folder }]);
+		const values = [testObject.getValue('sessionsConfigurationService.applicationSetting')];
+		const sources: ConfigurationTarget[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('sessionsConfigurationService.applicationSetting')) {
+				sources.push(e.source);
+			}
+		}));
+
+		for (const target of [ConfigurationTarget.USER, ConfigurationTarget.USER_LOCAL, ConfigurationTarget.APPLICATION, ConfigurationTarget.WORKSPACE, ConfigurationTarget.WORKSPACE_FOLDER]) {
+			await testObject.updateValue('sessionsConfigurationService.testSetting', `value-${target}`, { resource: folder }, target);
+			await testObject.reloadConfiguration(target);
+			values.push(testObject.getValue('sessionsConfigurationService.applicationSetting'));
+		}
+		await testObject.reloadConfiguration(ConfigurationTarget.DEFAULT);
+		values.push(testObject.getValue('sessionsConfigurationService.applicationSetting'));
+
+		assert.deepStrictEqual({ values, sources }, {
+			values: ['cachedTreatment', 'cachedTreatment', 'cachedTreatment', 'cachedTreatment', 'cachedTreatment', 'cachedTreatment', 'defaultValue'],
+			sources: [ConfigurationTarget.DEFAULT],
+		});
 	}));
 
 	test('updateValue persists to settings file', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

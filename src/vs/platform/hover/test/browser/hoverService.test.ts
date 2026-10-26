@@ -272,6 +272,40 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should position the hover next to the part of the target visible within the clipping element', () => {
+			const layoutHoverX = (clippingRect?: DOMRect) => {
+				const target = createTarget();
+				target.getBoundingClientRect = () => new DOMRect(0, 100, 300, 22);
+				let clippingElement: HTMLElement | undefined;
+				if (clippingRect) {
+					clippingElement = createTarget();
+					clippingElement.getBoundingClientRect = () => clippingRect;
+				}
+
+				const hover = showHover('Clipped target', target, {
+					position: { hoverPosition: HoverPosition.RIGHT, clippingElement },
+					appearance: { showPointer: true }
+				});
+				const hoverWidget = asHoverWidget(hover);
+				Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: 200 });
+				hoverWidget.layout();
+				const x = hoverWidget.x;
+				hover.dispose();
+				return x;
+			};
+
+			// The hover sits 3px (the pointer size) to the right of the target's right edge
+			assert.deepStrictEqual({
+				withoutClippingElement: layoutHoverX(),
+				partiallyVisible: layoutHoverX(new DOMRect(0, 0, 200, 400)),
+				notVisible: layoutHoverX(new DOMRect(400, 0, 200, 400)),
+			}, {
+				withoutClippingElement: 303,
+				partiallyVisible: 203,
+				notVisible: 303,
+			});
+		});
+
 		test('should size the hover pointer as a border box so its centre matches the pointer size', () => {
 			const target = createTarget();
 			const hover = showHover('Pointer geometry', target, {
@@ -531,6 +565,64 @@ suite('HoverService', () => {
 	});
 
 	suite('nested hovers', () => {
+		for (const delayed of [false, true]) {
+			test(`keeps a shown delayed parent when creating ${delayed ? 'a delayed' : 'an instant'} nested hover`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				let parentHides = 0;
+				const parent = hoverService.showDelayedHover({ content: 'Parent', target: createTarget(), onDidHide: () => parentHides++ }, {});
+				assert.ok(parent);
+				store.add(parent);
+				await timeout(0);
+
+				const target = mainWindow.document.createElement('div');
+				target.textContent = 'Check';
+				asHoverWidget(parent).domNode.appendChild(target);
+				const nested = delayed
+					? hoverService.showDelayedHover({ content: 'Check details', target }, {})
+					: hoverService.showInstantHover({ content: 'Check details', target });
+				assert.ok(nested);
+				store.add(nested);
+				const before = { parentVisible: isInDOM(parent), parentDisposed: parent.isDisposed, parentHides };
+				await timeout(0);
+				const shown = { parentVisible: isInDOM(parent), nestedVisible: isInDOM(nested), parentHides };
+				parent.dispose();
+				assert.deepStrictEqual({ before, shown, disposed: { parent: parent.isDisposed, nested: nested.isDisposed, parentHides } }, {
+					before: { parentVisible: true, parentDisposed: false, parentHides: 0 },
+					shown: { parentVisible: true, nestedVisible: true, parentHides: 0 },
+					disposed: { parent: true, nested: true, parentHides: 1 },
+				});
+			}));
+		}
+
+		test('replaces a pending nested hover without disposing its shown delayed parent', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const parent = hoverService.showDelayedHover({ content: 'Parent', target: createTarget() }, {});
+			assert.ok(parent);
+			store.add(parent);
+			await timeout(0);
+
+			const targets = ['First check', 'Second check'].map(label => {
+				const target = mainWindow.document.createElement('div');
+				target.textContent = label;
+				asHoverWidget(parent).domNode.appendChild(target);
+				return target;
+			});
+			const first = hoverService.showDelayedHover({ content: 'First details', target: targets[0] }, {});
+			assert.ok(first);
+			store.add(first);
+			const second = hoverService.showDelayedHover({ content: 'Second details', target: targets[1] }, {});
+			assert.ok(second);
+			store.add(second);
+			await timeout(0);
+			assert.deepStrictEqual({
+				parent: { visible: isInDOM(parent), disposed: parent.isDisposed },
+				first: { visible: isInDOM(first), disposed: first.isDisposed },
+				second: { visible: isInDOM(second), disposed: second.isDisposed },
+			}, {
+				parent: { visible: true, disposed: false },
+				first: { visible: false, disposed: true },
+				second: { visible: true, disposed: false },
+			});
+		}));
+
 		test('should keep parent hover visible when nested hover is created', () => {
 			const parentHover = showHover('Parent');
 			assertInDOM(parentHover, 'Parent hover should be in DOM');
@@ -1051,6 +1143,21 @@ suite('HoverService', () => {
 	});
 
 	suite('showDelayedHover', () => {
+		test('replaces a shown delayed hover for an unrelated target', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = hoverService.showDelayedHover({ content: 'First', target: createTarget() }, {});
+			assert.ok(first);
+			store.add(first);
+			await timeout(0);
+			const second = hoverService.showDelayedHover({ content: 'Second', target: createTarget() }, {});
+			assert.ok(second);
+			store.add(second);
+			const disposedImmediately = first.isDisposed;
+			await timeout(0);
+			assert.deepStrictEqual({ disposedImmediately, firstVisible: isInDOM(first), secondVisible: isInDOM(second) }, {
+				disposedImmediately: true, firstVisible: false, secondVisible: true,
+			});
+		}));
+
 		test('should reject hover when current hover is locked and target is outside', () => {
 			const lockedHover = showHover('Locked', undefined, {
 				persistence: { sticky: true }

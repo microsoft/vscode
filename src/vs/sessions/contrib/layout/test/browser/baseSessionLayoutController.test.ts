@@ -15,6 +15,11 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
+import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
+import { Menus } from '../../../../browser/menus.js';
+import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
@@ -53,6 +58,51 @@ suite('BaseLayoutController', () => {
 
 	teardown(() => store.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function describeWorkingSetRestore() {
+		const { owner, restoring, applying } = harness.editorWorkingSetService.restoreState.get();
+		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
+	}
+
+	test('shows the side panel toggle at the top of the session activity bar only while it can show there', () => {
+		const registration = BaseLayoutController.registerSidePaneToggleAction();
+		try {
+			const find = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentToggleSidePanel');
+			const titleBar = find(Menus.TitleBarSessionMenu)[0];
+			const activityBar = find(Menus.SessionActivityBar)[0];
+			const appearance = find(MenuId.MenubarAppearanceMenu)[0];
+			// Where the toggle shows in each layout, for a hidden panel and a closed welcome view in the main window.
+			const base: Record<string, ContextKeyValue> = { agentSessionsDesktopLayout: true, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: true, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true };
+			const scenarios: Record<string, Record<string, ContextKeyValue>> = {
+				layoutActions: base,
+				layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
+				activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
+				// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
+				editorMaximized: { ...base, editorMaximized: true },
+				phoneLayout: { ...base, sessionsIsPhoneLayout: true },
+			};
+			const shows = (item: IMenuItem | undefined, values: Record<string, ContextKeyValue>) => !!item && item.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
+			const placement = Object.fromEntries(Object.entries(scenarios).map(([name, values]) => [name, [
+				...(shows(titleBar, values) ? ['titleBar'] : []),
+				...(shows(activityBar, values) ? ['activityBar'] : []),
+			]]));
+
+			assert.deepStrictEqual({ titleBar: { group: titleBar?.group, order: titleBar?.order }, activityBar: { group: activityBar?.group, order: activityBar?.order }, appearance: { group: appearance?.group, order: appearance?.order }, placement }, {
+				titleBar: { group: 'navigation', order: 11 },
+				activityBar: { group: '1_sidePanel', order: 0 },
+				appearance: { group: '2_workbench_layout', order: 2 },
+				placement: {
+					layoutActions: ['activityBar'],
+					layoutActionsOff: ['titleBar'],
+					activityBarOff: ['titleBar'],
+					editorMaximized: ['titleBar'],
+					phoneLayout: ['titleBar'],
+				},
+			});
+		} finally {
+			registration.dispose();
+		}
+	});
 
 	// --- [B1] Panel visibility ---
 
@@ -410,6 +460,32 @@ suite('BaseLayoutController', () => {
 
 	// --- [B2] Editor working sets ---
 
+	test('[B2] a settled-owner update supersedes the published owner while older restore work drains', () => {
+		const service = new SessionEditorWorkingSetService();
+		const first = { sessionResource: URI.parse('session:first'), chatResource: undefined };
+		const second = { sessionResource: URI.parse('session:second'), chatResource: undefined };
+		const restore = service.beginRestore(first);
+		service.setCurrentOwner(second);
+		const whilePending = service.restoreState.get();
+		restore.dispose();
+
+		assert.deepStrictEqual({
+			whilePending: {
+				owner: whilePending.owner?.sessionResource.toString(),
+				restoring: whilePending.restoring,
+				applying: whilePending.applying,
+			},
+			settled: {
+				owner: service.restoreState.get().owner?.sessionResource.toString(),
+				restoring: service.restoreState.get().restoring,
+				applying: service.restoreState.get().applying,
+			},
+		}, {
+			whilePending: { owner: 'session:second', restoring: true, applying: false },
+			settled: { owner: 'session:second', restoring: false, applying: false },
+		});
+	});
+
 	test('[B2] does not reveal the editor part on reload when its working set is restored but the part was hidden', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 
@@ -568,6 +644,70 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply should hold back while the incoming workspace is not ready');
 	});
 
+	test('[B2] publishes an initial owner as settled when no working set needs to be applied', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session = makeSession(URI.parse('session:1'));
+
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			restore: describeWorkingSetRestore(),
+			applies: harness.applyWorkingSetCalls,
+		}, {
+			restore: { owner: { session: 'session:1', chat: undefined }, restoring: false, applying: false },
+			applies: [],
+		});
+	});
+
+	test('[B2] publishes an owner that was already active when the controller starts', () => {
+		const session = makeSession(URI.parse('session:1'));
+		harness = createTestHarness(store, { useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		harness.activeSessionObs.set(session, undefined);
+		store.add(harness.instaService.createInstance(TestBaseLayoutController));
+
+		assert.deepStrictEqual(describeWorkingSetRestore(), {
+			owner: { session: 'session:1', chat: undefined },
+			restoring: false,
+			applying: false,
+		});
+	});
+
+	test('[B2] publishes the queued incoming owner before workspace hydration and settles it after apply', async () => {
+		const otherWorkspace = {
+			uri: URI.file('/other'),
+			label: 'other',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'), { workspace: otherWorkspace });
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+		const whileHydrating = describeWorkingSetRestore();
+
+		harness.workspaceFolders = [...harness.workspaceFolders, { uri: otherWorkspace.uri }];
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			whileHydrating,
+			settled: describeWorkingSetRestore(),
+			applies: harness.applyWorkingSetCalls,
+		}, {
+			whileHydrating: { owner: { session: 'session:2', chat: undefined }, restoring: true, applying: false },
+			settled: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false },
+			applies: ['empty'],
+		});
+	});
+
 	test('[B2] once a held-back workspace folder arrives, the gated apply restores the still-current session\'s own saved working set, not a stale or empty one', async () => {
 		const otherWorkspace = {
 			uri: URI.file('/other'),
@@ -647,6 +787,37 @@ suite('BaseLayoutController', () => {
 			id: `session-working-set:${session.resource.toString()}`,
 			name: `session-working-set:${session.resource.toString()}`,
 		}]);
+	});
+
+	test('[B2] publishes the incoming session as the working-set restore owner until its apply settles', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'));
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		const statesDuringApply: ReturnType<typeof describeWorkingSetRestore>[] = [];
+		harness.onApplyWorkingSet = () => statesDuringApply.push(describeWorkingSetRestore());
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ statesDuringApply, settled: describeWorkingSetRestore() }, {
+			statesDuringApply: [{ owner: { session: 'session:2', chat: undefined }, restoring: true, applying: true }],
+			settled: { owner: { session: 'session:2', chat: undefined }, restoring: false, applying: false },
+		});
+	});
+
+	test('[B2] publishes the focused chat as the working-set restore owner when layout is scoped to chats', async () => {
+		createWorkbenchPanelController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		setActiveChat(session, peer);
+		await timeout(0);
+
+		assert.deepStrictEqual(describeWorkingSetRestore(), { owner: { session: 'session:a', chat: 'chat:peer' }, restoring: false, applying: false });
 	});
 
 	test('[R4] a superseded working-set apply does not publish stale reveal/hide once the chat-layout owner has moved on', async () => {

@@ -77,6 +77,8 @@ export interface LogFileOptions {
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
+	/** Optional. Resolve the path of the file at each commit, which differs from the given file before a rename when following renames. */
+	readonly filePaths?: boolean;
 }
 
 function parseVersion(raw: string): string {
@@ -705,7 +707,14 @@ export class Git {
 			options.cwd = sanitizePath(cwd);
 		}
 
-		return cp.spawn(this.path, args, options);
+		const child = cp.spawn(this.path, args, options);
+
+		// Writing to stdin fails with EPIPE when git fails to spawn or exits before
+		// reading all of its input. The child's `error`/`exit` events already report
+		// the failure, so keep the stream error from becoming an uncaught exception.
+		child.stdin?.on('error', () => { });
+
+		return child;
 	}
 
 	private getCwd(options: SpawnOptions): string | undefined {
@@ -774,6 +783,8 @@ export interface Commit {
 	refNames: string[];
 	shortStat?: CommitShortStat;
 	coAuthors?: CoAuthor[];
+	/** The path of the file at this commit, relative to the repository root. Only set by `logFile` with `filePaths`. */
+	filePath?: string;
 }
 
 export interface RefQuery extends ApiRefQuery {
@@ -973,6 +984,27 @@ export function parseGitCommits(data: string): Commit[] {
 	} while (true);
 
 	return commits;
+}
+
+// `--numstat` adds `<added>\t<deleted>\t<path>\0`, or `<added>\t<deleted>\t\0<old path>\0<new path>\0` for renames, after each commit
+const fileLogNumStatRegex = /(([0-9a-f]{40})\n[^\x00]*\x00\n)(?:-|\d+)\t(?:-|\d+)\t(?:\x00[^\x00]*\x00([^\x00]*)|([^\x00]*))\x00/g;
+
+/**
+ * Parses the output of `git log --numstat` for a single file, setting the path of the file at each commit.
+ */
+export function parseGitFileLog(data: string): Commit[] {
+	const filePaths = new Map<string, string>();
+
+	// Remove the `--numstat` records so that the remaining output is parsed like any other log
+	const log = data.replace(fileLogNumStatRegex, (_match, commit: string, hash: string, renamedPath: string | undefined, path: string | undefined) => {
+		filePaths.set(hash, renamedPath ?? path ?? '');
+		return commit;
+	});
+
+	return parseGitCommits(log).map(commit => {
+		const filePath = filePaths.get(commit.hash);
+		return filePath ? { ...commit, filePath } : commit;
+	});
 }
 
 const coAuthorRegex = /^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim;
@@ -1544,6 +1576,10 @@ export class Repository {
 			args.push('--shortstat');
 		}
 
+		if (options?.filePaths) {
+			args.push('--numstat');
+		}
+
 		if (options?.sortByAuthorDate) {
 			args.push('--author-date-order');
 		}
@@ -1561,7 +1597,7 @@ export class Repository {
 				return [];
 			}
 
-			return parseGitCommits(result.stdout);
+			return options?.filePaths ? parseGitFileLog(result.stdout) : parseGitCommits(result.stdout);
 		} catch (err) {
 			// Repository has no commits yet
 			if (/does not have any commits yet/.test(err.stderr)) {

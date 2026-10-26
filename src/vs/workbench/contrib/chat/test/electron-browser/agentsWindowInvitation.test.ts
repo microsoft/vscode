@@ -38,7 +38,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { ChatEditorInput } from '../../browser/widgetHosts/editor/chatEditorInput.js';
 import { agentsWindowInvitationScenarios, getAgentsWindowInvitationTreatment } from '../../common/agentsWindowInvitation.js';
 import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
@@ -47,6 +47,7 @@ import { IChatSessionsService, SessionType } from '../../common/chatSessionsServ
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { AgentsWindowInvitationContribution } from '../../electron-browser/agentSessions/agentsWindowInvitation.js';
 import { AgentHostEditorActivity, IAgentHostEditorActivityService } from '../../electron-browser/agentSessions/agentHostEditorActivity.js';
 
@@ -137,11 +138,23 @@ suite('AgentsWindowInvitation', () => {
 			onDidRemoveWidget: removed.event,
 			onDidChangeWidgetVisibility: Event.None,
 		}));
+		const notificationContext = (): IChatInputNotificationContext => {
+			const resource = focusedWidget?.viewModel?.sessionResource;
+			return {
+				inputUri: focusedWidget?.inputPart.inputUri,
+				sessionType: resource ? getChatSessionType(resource) : undefined,
+				sessionResource: resource,
+				deferredNotificationsEnabled: true,
+				isTransientChat: false,
+				sessionStarted: focusedWidget?.viewModel?.model.hasRequests ?? false,
+				modelState: { currentModel: undefined, models: [] },
+			};
+		};
 		instantiation.stub(IChatInputNotificationService, upcastPartial<IChatInputNotificationService>({
 			setNotification: value => {
 				notification = value;
 				if (autoShow) {
-					value.onDidShow?.();
+					value.onDidShow?.(notificationContext());
 				}
 			},
 			deleteNotification: () => { notification = undefined; },
@@ -225,7 +238,7 @@ suite('AgentsWindowInvitation', () => {
 				const editor = store.add(instantiation.createInstance(ChatEditorInput, resource, {}));
 				closed.fire({ editor, groupId: 1, context, index: 0, sticky: false });
 			},
-			show: () => { autoShow = true; notification?.onDidShow?.(); },
+			show: () => { autoShow = true; notification?.onDidShow?.(notificationContext()); },
 			refetch: async () => { refetched.fire(); await timeout(0); },
 			configure: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
@@ -297,7 +310,7 @@ suite('AgentsWindowInvitation', () => {
 						{ label: 'Don\'t Show Again', primary: false },
 					],
 				},
-				opens: [{ sessionResource: chat.resource.toJSON(), onboardingSessionResource: chat.resource.toJSON(), source: scenario.source }],
+				opens: [{ reveal: chat.resource.toJSON(), onboardingSessionResource: chat.resource.toJSON(), source: scenario.source }],
 				notification: undefined, warnings: [],
 			});
 		}));
@@ -321,7 +334,7 @@ suite('AgentsWindowInvitation', () => {
 					opens: h.opens, triggeredBeforeClick, triggeredAfterClick: h.telemetry.triggers.includes(treatment),
 				}, {
 					opens: [{
-						sessionResource: revealCurrentSession ? chat.resource.toJSON() : undefined,
+						reveal: revealCurrentSession ? chat.resource.toJSON() : 'new',
 						onboardingSessionResource: chat.resource.toJSON(),
 						source: scenario.source,
 					}],
@@ -790,10 +803,10 @@ suite('AgentsWindowInvitation', () => {
 		await timeout(0);
 		await h.click(0);
 		assert.deepStrictEqual({
-			session: h.opens[0]?.sessionResource,
+			reveal: h.opens[0]?.reveal,
 			spotlight: h.opens[0]?.onboardingSessionResource,
 			triggers: h.telemetry.triggers,
-		}, { session: undefined, spotlight: chat.resource.toJSON(), triggers: [] });
+		}, { reveal: 'new', spotlight: chat.resource.toJSON(), triggers: [] });
 	}));
 
 	test('developer mode forces scenarios without exposure telemetry, usage gating, or history writes', () => runWithFakedTimers({ startTime: 100_000 }, async () => {

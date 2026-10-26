@@ -189,7 +189,7 @@ export function setup(logger: Logger): void {
 			await workbenchPage.keyboard.press('Escape');
 		});
 
-		it('prompts for and remembers a camera permission decision', async function () {
+		it('remembers camera permissions and shares them with about:blank frames', async function () {
 			const app = this.app as Application;
 			const browserPage = await openBrowserPage(app, `${baseUrl}/permission`, openPages);
 			const workbenchPage = app.code.driver.currentPage;
@@ -211,6 +211,32 @@ export function setup(logger: Logger): void {
 			await browserPage.waitForFunction(previous => document.querySelector('#permission-result')?.textContent !== previous, previousPermissionResult);
 			assert.match(await browserPage.locator('#permission-result').textContent() ?? '', /^NotAllowedError:\d+$/);
 			assert.strictEqual(await workbenchPage.locator('.monaco-dialog-box:visible').count(), 0);
+
+			await runBrowserOverflowAction(browserPage, workbenchPage, 'Site Permissions');
+			const cameraRow = permissionsPicker.locator('.monaco-list-row', { hasText: 'Camera' });
+			await cameraRow.hover();
+			await cameraRow.locator('[aria-label="Allow"]').click();
+			await permissionsPicker.getByRole('button', { name: 'Save 1 Change', exact: true }).click();
+			await permissionsPicker.waitFor({ state: 'hidden' });
+			await browserPage.waitForFunction(async () => (await navigator.permissions.query({ name: 'camera' as PermissionName })).state === 'granted');
+
+			const inheritedPermission = await browserPage.evaluate(async () => {
+				const frame = document.createElement('iframe');
+				frame.src = 'about:blank';
+				const loaded = new Promise<void>(resolve => { frame.onload = () => resolve(); });
+				document.body.appendChild(frame);
+				try {
+					await loaded;
+					const child = frame.contentWindow!;
+					return {
+						url: child.location.href,
+						camera: (await child.navigator.permissions.query({ name: 'camera' as PermissionName })).state,
+					};
+				} finally {
+					frame.remove();
+				}
+			});
+			assert.deepStrictEqual(inheritedPermission, { url: 'about:blank', camera: 'granted' });
 		});
 
 		it('adds browser context to chat', async function () {

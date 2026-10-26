@@ -128,4 +128,77 @@ suite('ElectronWebviewElement', () => {
 			searchesAfterDisposal: [],
 		});
 	}));
+
+	test('does not send stop requests before a search starts', () => runWithFakedTimers({}, async () => {
+		const { webview, calls } = createWebview();
+		let stopped = 0;
+		store.add(webview.onDidStopFind(() => stopped++));
+
+		webview.stopFind(true);
+		webview.updateFind('cancelled');
+		webview.stopFind(false);
+		await timeout(250);
+
+		assert.deepStrictEqual({ calls, stopped }, { calls: [], stopped: 2 });
+	}));
+
+	test('can clear a retained selection without repeating stop requests', () => runWithFakedTimers({}, async () => {
+		const { webview, calls } = createWebview();
+		webview.updateFind('text');
+		await timeout(250);
+		calls.length = 0;
+
+		webview.stopFind(true);
+		webview.stopFind(true);
+		webview.stopFind(false);
+		webview.stopFind(false);
+
+		assert.deepStrictEqual(calls, [
+			{ command: 'stopFindInFrame', args: [{ windowId: 42 }, webview.frameName, { keepSelection: true }] },
+			{ command: 'stopFindInFrame', args: [{ windowId: 42 }, webview.frameName, { keepSelection: false }] },
+		]);
+	}));
+
+	test('clears a retained selection when the webview content changes', () => runWithFakedTimers({}, async () => {
+		const { webview, calls } = createWebview();
+		webview.updateFind('text');
+		await timeout(250);
+		webview.stopFind(true);
+		calls.length = 0;
+
+		webview.setHtml('new content');
+
+		assert.deepStrictEqual(calls, [
+			{ command: 'stopFindInFrame', args: [{ windowId: 42 }, webview.frameName, { keepSelection: false }] },
+		]);
+	}));
+
+	test('stops an active search before disposing the webview', () => runWithFakedTimers({}, async () => {
+		const { webview, calls } = createWebview();
+		webview.updateFind('text');
+		await timeout(250);
+		calls.length = 0;
+
+		webview.dispose();
+		webview.dispose();
+
+		assert.deepStrictEqual(calls, [
+			{ command: 'stopFindInFrame', args: [{ windowId: 42 }, webview.frameName, { keepSelection: false }] },
+		]);
+	}));
+
+	test('starts a new search after stopping the previous one', () => runWithFakedTimers({}, async () => {
+		const { webview, calls } = createWebview();
+		webview.updateFind('first');
+		await timeout(250);
+		webview.stopFind(true);
+		calls.length = 0;
+
+		webview.find('second', false);
+		await timeout(250);
+
+		assert.deepStrictEqual(calls, [
+			{ command: 'findInFrame', args: [{ windowId: 42 }, webview.frameName, 'second', { forward: true, findNext: true, matchCase: false }] },
+		]);
+	}));
 });

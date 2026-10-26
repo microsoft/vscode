@@ -1,0 +1,58 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "MOVE_TARGET_READY".
+    response:
+      content: MOVE_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PEER_READY".
+    response:
+      content: PEER_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-into?chat=${uuid_0}" and into "agent-host-session://copilotcli/e2e-server-tools-move-into-target", then reply exactly "moved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            session: agent-host-session://copilotcli/e2e-server-tools-move-into?chat=${uuid_0}
+            into: agent-host-session://copilotcli/e2e-server-tools-move-into-target
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://copilotcli/e2e-server-tools-move-into?chat=${uuid_0}" and into "agent-host-session://copilotcli/e2e-server-tools-move-into-target", then reply exactly "moved".
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: move_session
+              input:
+                session: agent-host-session://copilotcli/e2e-server-tools-move-into?chat=${uuid_0}
+                into: agent-host-session://copilotcli/e2e-server-tools-move-into-target
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Nested session moved into agent-host-session://copilotcli/e2e-server-tools-move-into-target (agent-host-session://copilotcli/e2e-server-tools-move-into-target?chat=${uuid_0}).
+    response:
+      content: moved
+      stopReason: end_turn

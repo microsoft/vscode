@@ -58,17 +58,3 @@ export function LogExecTime<T>(
 		return descriptor;
 	};
 }
-
-
-/**
- * Decorator that adds a callback about how long an async method takes to execute.
- */
-export function MeasureExecTime<T>(cb: (this: T, time: number, status: 'success' | 'failed' | 'cancelled') => void) {
-	return function (target: T, propertyKey: string, descriptor: PropertyDescriptor) {
-		const originalMethod = descriptor.value;
-		descriptor.value = function (this: T, ...args: any[]) {
-			return measureExecTime(() => originalMethod.apply(this, args), cb.bind(this));
-		};
-		return descriptor;
-	};
-}

@@ -118,13 +118,13 @@ suite('AgentHostStartupPerformance', () => {
 			override warn(message: string): void { warnings.push(message); }
 		};
 		const performance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, log, () => 10));
-		performance.mark('services', { since: 'telemetry', catalogEnabled: true });
+		performance.mark('services', { since: 'telemetry', migrateLegacyEnabled: true });
 		assert.deepStrictEqual({
 			warnings,
 			mark: telemetry.events[1]?.data,
 		}, {
 			warnings: ['[AgentHostStartupPerformance] Missing predecessor \'telemetry\' for \'services\''],
-			mark: { agentHostSessionId: performance.agentHostSessionId, hostLaunchKind: AgentHostLaunchKind.Unknown, schemaVersion: 1, provider: 'host', attempt: 1, name: 'services', timestampMs: 10, since: 'telemetry', catalogEnabled: true },
+			mark: { agentHostSessionId: performance.agentHostSessionId, hostLaunchKind: AgentHostLaunchKind.Unknown, schemaVersion: 1, provider: 'host', attempt: 1, name: 'services', timestampMs: 10, since: 'telemetry', migrateLegacyEnabled: true },
 		});
 	});
 

@@ -1067,12 +1067,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		} catch (e) {
 			this._logService.error(e, agent.extension);
 
+			const isLanguageModelRateLimited = e instanceof extHostTypes.LanguageModelError && e.code === extHostTypes.LanguageModelError.RateLimited.name;
 			if (e instanceof extHostTypes.LanguageModelError && e.cause) {
 				e = e.cause;
 			}
 
 			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
-			const isRateLimited = e instanceof Error && e.name === 'ChatRateLimited';
+			const isRateLimited = isLanguageModelRateLimited || (e instanceof Error && e.name === 'ChatRateLimited');
 			const isExpectedError = e instanceof Error && e.name === 'ChatExpectedError';
 			const { callstack: errorCallstack } = packErrorForTelemetry(e);
 			const errorName = e instanceof Error ? e.name : undefined;

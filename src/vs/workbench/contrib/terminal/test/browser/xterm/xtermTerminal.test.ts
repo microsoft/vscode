@@ -24,10 +24,9 @@ import { TerminalCapabilityStore } from '../../../../../../platform/terminal/com
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
-import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
-import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
+import { ITerminalConfiguration } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
@@ -35,26 +34,6 @@ import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 import { stub } from 'sinon';
 
 registerColors();
-
-export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
-	private _location = ViewContainerLocation.Panel;
-	private _onDidChangeLocation = new Emitter<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }>();
-	onDidChangeLocation = this._onDidChangeLocation.event;
-	getViewLocationById(id: string) {
-		return this._location;
-	}
-	moveTerminalToLocation(to: ViewContainerLocation) {
-		const oldLocation = this._location;
-		this._location = to;
-		this._onDidChangeLocation.fire({
-			views: [
-				{ id: TERMINAL_VIEW_ID } as unknown as IViewDescriptor
-			],
-			from: oldLocation,
-			to
-		});
-	}
-}
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	enableImages: false,
@@ -402,6 +381,39 @@ suite('XtermTerminal', () => {
 		}, {
 			regularXtermListeners: 1,
 			detachedXtermListeners: 0,
+		});
+	});
+
+	test('keeps a scrollback override when the configuration changes', async () => {
+		const detached = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+			cols: 80,
+			rows: 30,
+			xtermColorProvider: { getBackgroundColor: () => undefined },
+			capabilities: store.add(new TerminalCapabilityStore()),
+			disableShellIntegrationReporting: true,
+			xtermAddonImporter: new TestXtermAddonImporter(),
+			detached: true,
+			scrollback: 5000,
+		}, undefined));
+		const initial = { configured: xterm.raw.options.scrollback, overridden: detached.raw.options.scrollback };
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			scrollback: 20,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+		xterm.updateConfig();
+		detached.updateConfig();
+
+		deepStrictEqual({
+			initial,
+			updated: { configured: xterm.raw.options.scrollback, overridden: detached.raw.options.scrollback },
+		}, {
+			initial: { configured: 10, overridden: 5000 },
+			updated: { configured: 20, overridden: 5000 },
 		});
 	});
 

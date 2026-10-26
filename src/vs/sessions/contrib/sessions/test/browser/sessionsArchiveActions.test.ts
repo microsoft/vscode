@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -17,14 +20,16 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
+import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionComparisonService } from '../../../../services/sessions/browser/sessionComparisonService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 import { SessionsView } from '../../browser/views/sessionsView.js';
 import { getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
@@ -66,6 +71,7 @@ suite('Sessions - Bulk archive undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions.map(entry => entry.session); }
 			override getInFlightNewSessionRequests() { return []; }
 			override getSession(resource: URI) {
@@ -77,7 +83,6 @@ suite('Sessions - Bulk archive undo', () => {
 				}
 				archived.push(session.sessionId);
 				sessions.find(entry => entry.session === session)!.isArchived.set(true, undefined);
-				sessionsChanged.fire({ added: [], removed: [], changed: [session] });
 				sessionArchived.fire(session);
 			}
 			override async unarchiveSession(session: ISession) {
@@ -90,6 +95,7 @@ suite('Sessions - Bulk archive undo', () => {
 			}
 		};
 		instantiationService.stub(ISessionsManagementService, managementService);
+		instantiationService.stub(ISessionSectionOrderService, store.add(new SessionSectionOrderService(storageService)));
 		const groupsService = store.add(instantiationService.createInstance(SessionGroupsService));
 		instantiationService.stub(ISessionGroupsService, groupsService);
 		const group = groupsService.createGroup('Group', ['first', 'second']);
@@ -106,7 +112,7 @@ suite('Sessions - Bulk archive undo', () => {
 			storageService.store('sessions.comparisons', JSON.stringify([{
 				...comparison,
 				version: 1,
-				workspace: comparison.workspace.toString(),
+				workspace: comparison.workspace?.toString(),
 				participants: comparison.participants.map(participant => ({ ...participant, sessionResource: participant.sessionResource?.toString() })),
 			}]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
@@ -120,21 +126,22 @@ suite('Sessions - Bulk archive undo', () => {
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
 			.map(entry => [entry.session.sessionId, groupsService.getGroupOfSession(entry.session.sessionId)]);
 		const notification = new class extends mock<SessionsListNotification>() {
-			override show(message: string, undo: () => Promise<void>) {
-				state.message = message;
-				state.undo = undo;
+			override show(notice: ISessionsListNotice) {
+				state.message = notice.message;
+				state.undo = () => notice.undo!();
 				state.notices++;
 			}
 		};
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override getViewWithId<T>() { return upcastPartial<SessionsView>({ archiveNotification: notification }) as T; }
+			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
 		});
-		const run = async (kind: 'workspace' | 'section' | 'group' = 'workspace', targets = sessions.map(entry => entry.session)) => {
+		/** `ownSessions` are a group's own sessions, while `targets` also include those of its subgroups. */
+		const run = async (kind: 'workspace' | 'section' | 'group' = 'workspace', targets = sessions.map(entry => entry.session), ownSessions = targets) => {
 			const actionId = kind === 'group' ? 'sessionsView.markAllInGroupAsDone' : 'sessionsView.sectionArchive';
 			const action = getSessionsArchiveActionConstructors(wording).map(ctor => new ctor()).find(action => action.desc.id === actionId)!;
 			const context = kind === 'group'
 				? upcastPartial<ISessionGroupItem>({
-					group, sessions: targets,
+					group, sessions: ownSessions, subtreeSessions: targets,
 					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '' } : undefined,
 				})
 				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: targets } satisfies ISessionSection;
@@ -196,6 +203,12 @@ suite('Sessions - Bulk archive undo', () => {
 		});
 	});
 
+	test('a group\'s Mark All as Done includes the sessions of its subgroups', async () => {
+		const test = setup();
+		await test.run('group', test.sessions.slice(0, 2).map(entry => entry.session), []);
+		assert.deepStrictEqual({ archived: test.archived, message: test.state.message }, { archived: ['first', 'second'], message: '2 marked done' });
+	});
+
 	test('comparison cleanup does not delete an unrelated empty manual group', async () => {
 		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
 		const manualGroup = test.groupsService.createGroup('Manual group');
@@ -203,17 +216,19 @@ suite('Sessions - Bulk archive undo', () => {
 		assert.deepStrictEqual(test.groupsService.getGroups(), [manualGroup]);
 	});
 
-	test('marking only visible comparison participants done keeps the group', async () => {
+	test('marking a comparison done includes participants outside the visible group rows', async () => {
 		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
 		await test.run('group', [test.sessions[0].session]);
 		assert.deepStrictEqual({
 			groups: test.groupsService.getGroups(),
 			membership: test.membership(),
 			archived: test.archived,
+			comparisonArchived: test.comparisonService.getComparison('comparison')?.archivedAt !== undefined,
 		}, {
-			groups: [test.group],
-			membership: [['second', test.group.id]],
-			archived: ['first'],
+			groups: [],
+			membership: [],
+			archived: ['first', 'second'],
+			comparisonArchived: true,
 		});
 	});
 
@@ -414,4 +429,93 @@ suite('Sessions - Bulk archive undo', () => {
 		await test.state.undo();
 		assert.deepStrictEqual(test.restored, ['second']);
 	});
+});
+
+suite('Sessions - Delete group undo', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('deleting a group with subgroups offers Undo, which restores the groups, their order, and their sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const storageService = store.add(new InMemoryStorageService());
+		const sessions = ['ship', 'fix', 'other'].map(id => createTestSession(id).session);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidArchiveSession = Event.None;
+			override readonly onDidDeleteSession = Event.None;
+			override readonly onWillSendRequest = Event.None;
+			override readonly onDidReplaceSession = Event.None;
+			override readonly onDidReplaceNewDraftSession = Event.None;
+			override readonly onDidStartSession = Event.None;
+			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
+			override getSessions() { return sessions; }
+			override getInFlightNewSessionRequests() { return []; }
+		});
+		const orderService = store.add(new SessionSectionOrderService(storageService));
+		instantiationService.stub(ISessionSectionOrderService, orderService);
+		const groupsService = store.add(instantiationService.createInstance(SessionGroupsService));
+		instantiationService.stub(ISessionGroupsService, groupsService);
+		const notices: ISessionsListNotice[] = [];
+		const notification = new class extends mock<SessionsListNotification>() {
+			override show(notice: ISessionsListNotice) { notices.push(notice); }
+		};
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
+		});
+		// Groups are newest first by default, so Other would come before Release, and Docs before Hotfixes.
+		const release = groupsService.createGroup('Release', ['ship']);
+		const hotfixes = groupsService.createGroup('Hotfixes', ['fix'], release.id);
+		await timeout(1);
+		const docs = groupsService.createGroup('Docs', [], release.id);
+		await timeout(1);
+		const lone = groupsService.createGroup('Lone');
+		await timeout(1);
+		const other = groupsService.createGroup('Other', ['other']);
+		const topLevelIds = () => groupsService.getTree().getSubgroups(undefined).map(group => getSessionGroupSectionId(group.id));
+		// The user moved Release above Other, and Hotfixes above Docs.
+		orderService.reorder(topLevelIds(), getSessionGroupSectionId(release.id), getSessionGroupSectionId(other.id), 'before');
+		groupsService.moveGroup(hotfixes.id, release.id, { siblingId: docs.id, position: 'before' });
+		const deleteGroup = (groupId: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID)!.handler(accessor, groupId));
+		const outline = (parentId?: string, indent = ''): string[] => groupsService.getTree().getSubgroups(parentId).flatMap(group => [`${indent}${group.name}`, ...outline(group.id, `${indent}  `)]);
+		const describe = () => ({
+			groups: outline(),
+			membership: Object.fromEntries(sessions.map(session => [session.sessionId, groupsService.getGroup(groupsService.getGroupOfSession(session.sessionId) ?? '')?.name ?? null])),
+		});
+
+		deleteGroup(lone.id);
+		const noticesForSingleGroup = notices.length;
+		const sectionParent = groupsService.createGroup('Section parent');
+		groupsService.moveSection('environment:local', sectionParent.id);
+		deleteGroup(sectionParent.id);
+		const sectionNotice = notices.pop()!;
+		const releasedSection = groupsService.getGroupOfSection('environment:local');
+		assert.ok(sectionNotice.undo);
+		await sectionNotice.undo();
+		const restoredSection = groupsService.getGroupOfSection('environment:local');
+		deleteGroup(sectionParent.id);
+		notices.pop();
+		deleteGroup(release.id);
+		// The sessions list drops the positions of deleted groups.
+		orderService.retain(topLevelIds());
+		const afterDelete = describe();
+		await notices[0].undo!();
+
+		assert.deepStrictEqual({
+			noticesForSingleGroup,
+			sectionUndo: { message: sectionNotice.message, releasedSection, restoredSection },
+			message: notices[0].message,
+			afterDelete,
+			restored: describe(),
+		}, {
+			noticesForSingleGroup: 0,
+			sectionUndo: { message: 'Group deleted', releasedSection: undefined, restoredSection: sectionParent.id },
+			message: '3 groups deleted',
+			afterDelete: { groups: ['Other'], membership: { ship: null, fix: null, other: 'Other' } },
+			restored: {
+				groups: ['Release', '  Hotfixes', '  Docs', 'Other'],
+				membership: { ship: 'Release', fix: 'Hotfixes', other: 'Other' },
+			},
+		});
+	}));
 });

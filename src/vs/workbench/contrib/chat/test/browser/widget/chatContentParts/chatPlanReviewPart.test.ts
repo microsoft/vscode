@@ -27,6 +27,8 @@ import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { AgentEditorCommentsBridge, IAgentEditorComment, IAgentEditorCommentsBridge } from '../../../../../../services/agentEditorComments/common/agentEditorComments.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../../../base/common/event.js';
 import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { toAgentHostUri, fromAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -90,9 +92,13 @@ suite('ChatPlanReviewPart', () => {
 	let lastCommentsBridge: AgentEditorCommentsBridge | undefined;
 	let lastContextMenuService: IContextMenuService | undefined;
 	let fileChangesEmitter: Emitter<FileChangesEvent> | undefined;
+	const notificationErrors: string[] = [];
 
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService, onSubmit?: () => void): ChatPlanReviewPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		sinon.stub(instantiationService.get(INotificationService), 'error').callsFake(message => {
+			notificationErrors.push(String(message));
+		});
 		const commentsBridge = store.add(new AgentEditorCommentsBridge());
 		const feedbackService = store.add(new PlanReviewFeedbackService(commentsBridge));
 		instantiationService.stub(IAgentEditorCommentsBridge, commentsBridge);
@@ -138,6 +144,7 @@ suite('ChatPlanReviewPart', () => {
 		lastCommentsBridge = undefined;
 		lastContextMenuService = undefined;
 		fileChangesEmitter = undefined;
+		notificationErrors.length = 0;
 		sinon.restore();
 	});
 
@@ -562,6 +569,56 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Inline comments list', () => {
+		test('failed feedback submission preserves comments and overall feedback for retry', async () => {
+			const review = createMockReviewWithPlan();
+			let failSubmission = true;
+			createWidget(review, undefined, () => {
+				if (failSubmission) {
+					throw new Error('Submission failed');
+				}
+			});
+			const planUri = URI.revive(review.planUri!);
+			const service = lastFeedbackService!;
+			service.addFeedback(planUri, 5, 1, 'Keep this comment');
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Keep this overall feedback';
+			textarea.dispatchEvent(new Event('input'));
+			const submitted = await service.submitAllFeedback(planUri);
+
+			assert.deepStrictEqual({
+				submitted,
+				used: widget.domNode.classList.contains('chat-plan-review-used'),
+				comments: service.getFeedback(planUri).map(item => item.text),
+				overall: textarea.value,
+				errors: notificationErrors,
+			}, {
+				submitted: false,
+				used: false,
+				comments: ['Keep this comment'],
+				overall: 'Keep this overall feedback',
+				errors: ['Unable to submit plan feedback: Submission failed'],
+			});
+
+			failSubmission = false;
+			const retried = await service.submitAllFeedback(planUri);
+			assert.deepStrictEqual({
+				retried,
+				used: widget.domNode.classList.contains('chat-plan-review-used'),
+				comments: service.getFeedback(planUri),
+				result: lastSubmitResult,
+			}, {
+				retried: true,
+				used: true,
+				comments: [],
+				result: {
+					rejected: false,
+					feedback: 'Keep this overall feedback\n\nInline comments on `plan.md`:\n- **Line 5:** Keep this comment',
+					feedbackOverall: 'Keep this overall feedback',
+					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Keep this comment',
+				},
+			});
+		});
+
 		test('renders comments list and updates Submit Feedback count when service has items', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
@@ -706,7 +763,7 @@ suite('ChatPlanReviewPart', () => {
 					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Fix this step',
 				},
 				didSubmit: true,
-				commentsChanged: 2,
+				commentsChanged: 1,
 				remainingComments: [],
 			});
 			assert.ok(widget.domNode.classList.contains('chat-plan-review-used'));
@@ -959,6 +1016,54 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Multiple actions', () => {
+		test('Open Full Plan preserves the Windows host artifact URI and native identity', async () => {
+			const nativeUri = URI.parse('file:///c:/Users/test/.copilot/session-state/native-id/plan.md');
+			const remoteUri = toAgentHostUri(nativeUri, 'windows-host');
+			createWidget(createMockReviewWithPlan({ planUri: remoteUri.toJSON() }));
+			const open = sinon.stub(lastEditorService!, 'openEditor').resolves(undefined);
+			getReviewButton(widget)!.click();
+			await tick();
+			assert.deepStrictEqual({
+				input: open.firstCall.args[0],
+				native: fromAgentHostUri(remoteUri).toString(),
+			}, {
+				input: { resource: remoteUri, options: { pinned: true, override: 'vscode.markdown.editor' } },
+				native: nativeUri.toString(),
+			});
+		});
+
+		for (const rejected of [false, true]) {
+			test(`plan read failure is visible and ${rejected ? 'rejection' : 'approval'} can be retried`, async () => {
+				const planUri = URI.parse('vscode-agent-host://windows-host/c:/Users/test/.copilot/session-state/native-id/plan.md');
+				const review = new ChatPlanReviewData('Review Plan', 'Summary', [{ id: 'implement', label: 'Implement Plan', default: true }], true, planUri.toJSON());
+				createWidget(review);
+				sinon.stub(lastTextFileService!, 'isDirty').returns(false);
+				const read = sinon.stub(lastTextFileService!, 'read');
+				read.onFirstCall().rejects(new Error('Resource is outside the host workspace grants'));
+				read.onSecondCall().resolves({ resource: planUri, name: 'plan.md', size: 11, mtime: 1, ctime: 1, etag: '1', readonly: false, locked: false, executable: false, encoding: 'utf8', value: '# Full plan' });
+				const label = rejected ? 'Reject' : 'Implement Plan';
+				getFooterButtons(widget).find(button => button.textContent?.includes(label))!.click();
+				await tick();
+				assert.deepStrictEqual({ errors: notificationErrors, submitCount, used: widget.domNode.classList.contains('chat-plan-review-used') }, {
+					errors: [`Unable to ${rejected ? 'reject' : 'approve'} the plan: Resource is outside the host workspace grants`], submitCount: 0, used: false,
+				});
+				getFooterButtons(widget).find(button => button.textContent?.includes(label))!.click();
+				await tick();
+				assert.deepStrictEqual({ result: lastSubmitResult, submitCount, content: review.content }, {
+					result: rejected ? { rejected: true } : { action: 'Implement Plan', actionId: 'implement', rejected: false }, submitCount: 1, content: '# Full plan',
+				});
+			});
+		}
+
+		test('failed plan save reports an error without submitting', async () => {
+			createWidget(createMockReviewWithPlan({ actions: [{ id: 'implement', label: 'Implement Plan', default: true }] }));
+			sinon.stub(lastTextFileService!, 'isDirty').returns(true);
+			sinon.stub(lastTextFileService!, 'save').resolves(undefined);
+			getFooterButtons(widget).find(button => button.textContent?.includes('Implement Plan'))!.click();
+			await tick();
+			assert.deepStrictEqual({ errors: notificationErrors, submitCount }, { errors: ['Unable to approve the plan: The plan file could not be saved.'], submitCount: 0 });
+		});
+
 		test('persists edited plan content before submission', async () => {
 			const planUri = URI.parse('file:///plan.md');
 			const review = new ChatPlanReviewData(

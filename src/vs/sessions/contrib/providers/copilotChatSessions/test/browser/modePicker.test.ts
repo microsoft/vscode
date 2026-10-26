@@ -271,9 +271,11 @@ suite('ModePicker', () => {
 			trigger.focus = () => focusCalls++;
 		}
 		trigger?.click();
+		const expandedWhileOpen = trigger?.getAttribute('aria-expanded');
 		assert.ok(hidePicker);
 		hidePicker();
 		const pointerFocusCalls = focusCalls;
+		const expandedAfterHide = trigger?.getAttribute('aria-expanded');
 
 		trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 		assert.ok(hidePicker);
@@ -289,6 +291,8 @@ suite('ModePicker', () => {
 			requestedChatResources,
 			pointerFocusCalls,
 			keyboardFocusCalls,
+			expandedWhileOpen,
+			expandedAfterHide,
 		}, {
 			events: [{
 				name: 'chat.modeChange',
@@ -307,6 +311,8 @@ suite('ModePicker', () => {
 			requestedChatResources: [chatResource.toString()],
 			pointerFocusCalls: 1,
 			keyboardFocusCalls: 2,
+			expandedWhileOpen: 'true',
+			expandedAfterHide: 'false',
 		});
 	});
 });

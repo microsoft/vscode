@@ -31,9 +31,11 @@ A new terminal may be needed for `PATH` to pick them up, or set `FFMPEG_PATH` an
 | Target | Flags | Also required | Use for |
 |--------|-------|---------------|---------|
 | Installed Insiders, else Stable | *(none — the default)* | nothing | Reproducing a report against shipped behavior |
-| Dev build from this checkout | `--dev` | `npm run electron`, `npm run transpile-client` | Verifying an unmerged change |
+| Dev build from this checkout | `--dev` | Matching Electron runtime, `npm run build-fast` | Verifying an unmerged change |
 | A specific install | `--build <app-root>` | nothing | Pinning an exact build |
-| Web | `--web --headless` | `npm run transpile-client` | Browser-only behavior |
+| Web | `--web --headless` | `npm run build-fast -- --client-only` | Browser-only behavior |
+
+Reuse the matching Electron runtime when present; run `npm run electron` only when it is missing or incompatible. Fast builds refresh outputs without type checking; validate types separately when warranted.
 
 With no target flag the runner finds an installed VS Code Insiders (falling back to Stable) and logs which one it chose. `--build` takes the application root — the install directory on Windows and Linux, or the `.app` bundle on macOS:
 
@@ -183,7 +185,7 @@ Always call out, separately from the pass/fail result:
 
 ## Related
 
-- **Interactive exploration.** `test/mcp` also serves these tools over MCP (`vscode_automation_*`), which helps when you need to inspect the UI before knowing what to assert. Configure it as an MCP server with `cwd` `test/mcp` and command `npm run start-stdio`.
+- **Interactive exploration.** Use the `launch` skill to drive a development window with Playwright when you need to inspect the UI before knowing what to assert.
 - **Automated validation on a pull request.** `microsoft/vscode-engineering` runs the same harness in CI: labelling a pull request `~requires-ui-validation` researches the change, runs a scenario against the exact merge candidate, and posts the per-step result with captioned video. Use this skill when a scenario is not yet covered there, or to iterate locally before proposing one.
 
 <example>

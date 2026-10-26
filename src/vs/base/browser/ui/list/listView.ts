@@ -726,12 +726,16 @@ export class ListView<T> implements IListView<T> {
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
 		const insertedItems: IItem<T>[] = [];
 
-		for (const range of insertRanges) {
+		insert: for (const range of insertRanges) {
 			for (let i = range.end - 1; i >= range.start; i--) {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
 				this.insertItemInDOM(i, row);
+				if (!item.row) {
+					// Rendering recycled this row, invalidating the remaining insertion ranges.
+					break insert;
+				}
 				insertedItems.push(item);
 			}
 		}
@@ -1032,6 +1036,11 @@ export class ListView<T> implements IListView<T> {
 
 		if (!alreadyRendered) {
 			renderer.renderElement(item.element, index, item.row.templateData, { height: item.size });
+		}
+
+		// Rendering can synchronously recycle the row, for example when the viewport collapses.
+		if (!item.row) {
+			return;
 		}
 
 		const uri = this.dnd.getDragURI(item.element);
@@ -1755,6 +1764,7 @@ export class ListView<T> implements IListView<T> {
 
 		const { row } = this.cache.alloc(item.templateId);
 		row.domNode.style.height = '';
+		row.domNode.dataset.index = String(index);
 		this.rowsContainer.appendChild(row.domNode);
 
 		const renderer = this.renderers.get(item.templateId);
@@ -1803,6 +1813,7 @@ export class ListView<T> implements IListView<T> {
 			measurements.push(measurement);
 
 			row.domNode.style.height = '';
+			row.domNode.dataset.index = String(index);
 			this.rowsContainer.appendChild(row.domNode);
 
 			const renderer = this.renderers.get(item.templateId);

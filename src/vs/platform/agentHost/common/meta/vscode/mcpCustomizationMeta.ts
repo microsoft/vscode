@@ -10,13 +10,33 @@ const displayNameKey = 'vscode.mcpServerDisplayName';
 const maxDisplayNameLength = 512;
 const sourcePluginKey = 'agentHost.mcpServerSourcePlugin';
 const controllingSettingKey = 'vscode.mcpServerControllingSetting';
+const connectorNameKey = 'vscode.mcpServerConnectorName';
+const routingServersKey = 'vscode.mcpRoutingServers';
+
+/** Reads the servers with registered routing tools on this chat. */
+export function readMcpRoutingServers(session: { readonly _meta?: Record<string, unknown> } | undefined, chat: string): readonly string[] {
+	const entries = session?._meta?.[routingServersKey];
+	const value = isMetadataRecord(entries) ? entries[chat] : undefined;
+	return Array.isArray(value) && value.every(name => typeof name === 'string' && name.length > 0) ? [...value] : [];
+}
+
+/** Records one chat's routing tools while preserving other chats and unrelated session metadata. */
+export function withMcpRoutingServers(meta: Record<string, unknown> | undefined, chat: string, servers: readonly string[]): Record<string, unknown> {
+	const previous = meta?.[routingServersKey];
+	return { ...meta, [routingServersKey]: { ...(isMetadataRecord(previous) ? previous : {}), [chat]: [...servers] } };
+}
+
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.
 	| 'workspace' // Defined in workspace-level configuration.
 	| 'plugin' // Contributed by a plugin.
 	| 'builtin' // Bundled with the provider.
-	| 'managed'; // Supplied by a trusted host-managed catalog.
+	| 'managed' // Supplied by a trusted host-managed catalog.
+	| 'account'; // Contributed by the signed-in account.
 
 /** Reads the runtime-reported configuration source, independently of the server's lifecycle state. */
 export function readMcpServerSource(customization: McpServerCustomization | undefined): McpServerSource | undefined {
@@ -27,18 +47,19 @@ export function readMcpServerSource(customization: McpServerCustomization | unde
 		case 'plugin':
 		case 'builtin':
 		case 'managed':
+		case 'account':
 			return source;
 		default:
 			return undefined;
 	}
 }
 
-/** Records the configuration source in an open metadata bag, preserving every other entry. */
+/**
+ * Records the configuration source in an open metadata bag. An absent source removes a previously
+ * recorded one, because it describes the current configuration; every other entry is preserved.
+ */
 export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefined, source: McpServerSource | undefined): Record<string, unknown> | undefined {
-	if (source === undefined) {
-		return meta;
-	}
-	return { ...(meta ?? {}), [sourceKey]: source };
+	return withMetaEntry(meta, sourceKey, source);
 }
 
 /** Reads an optional Connector catalog name without changing the MCP server's runtime identity. */
@@ -91,6 +112,23 @@ export function readMcpServerControllingSetting(customization: McpServerCustomiz
  */
 export function withMcpServerControllingSettingMeta(meta: Record<string, unknown> | undefined, settingId: string | undefined): Record<string, unknown> | undefined {
 	return withMetaEntry(meta, controllingSettingKey, settingId);
+}
+
+/**
+ * Reads the canonical Copilot Connector name a host declares as owning a server. Connector-owned servers
+ * authenticate with the session's GitHub credential, so clients must authorize the account rather than
+ * supply a per-server MCP token.
+ */
+export function readMcpServerConnectorName(customization: McpServerCustomization | undefined): string | undefined {
+	return readNonEmptyString(customization?._meta?.[connectorNameKey]);
+}
+
+/**
+ * Records the canonical Copilot Connector name that owns a server. An absent name removes a previously
+ * recorded one; every other entry is preserved.
+ */
+export function withMcpServerConnectorNameMeta(meta: Record<string, unknown> | undefined, connectorName: string | undefined): Record<string, unknown> | undefined {
+	return withMetaEntry(meta, connectorNameKey, connectorName);
 }
 
 function readNonEmptyString(value: unknown): string | undefined {

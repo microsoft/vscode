@@ -36,6 +36,7 @@ export interface IAgentsWindowWorkspaceHandoff {
 	readonly isDefault: boolean;
 	readonly draft?: IAgentsWindowDraft;
 	readonly noWorkspace?: boolean;
+	readonly revealNewSession?: boolean;
 }
 
 /** Keeps one opening intent alive until the target composer applies it or a newer user intent wins. */
@@ -117,7 +118,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			previousCreated = created;
 		}));
 		try {
-			if (intent.draft && this._hasDraftInput()) {
+			if (intent.draft && !intent.revealNewSession && this._hasDraftInput()) {
 				onState('preservedSession');
 				return;
 			}
@@ -127,28 +128,36 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				return;
 			}
 			onState('waitingForSessionView');
-			if (intent.isDefault && !intent.draft) {
+			if (intent.isDefault && !intent.draft && !intent.revealNewSession) {
 				await waitForState(this.sessionsService.initialRestoreComplete, complete => complete, undefined, source.token);
 			} else {
 				await raceCancellationError(this.lifecycleService.when(LifecyclePhase.Restored), source.token);
 				if (source.token.isCancellationRequested) {
 					return;
 				}
-				if (intent.draft && this._hasDraftInput()) {
+				if (intent.draft && !intent.revealNewSession && this._hasDraftInput()) {
 					onState('preservedSession');
 					return;
 				}
-				if (!intent.draft) {
+				if (!intent.draft || intent.revealNewSession) {
+					// Navigation can rebind the mounted composer before its draft is restored.
+					const preserveDraft = intent.revealNewSession && this._hasDraftInput();
 					await this.sessionsService.openNewSession({ cancelRestore: true }, source.token);
+					if (preserveDraft) {
+						if (!source.token.isCancellationRequested) {
+							onState('preservedSession');
+						}
+						return;
+					}
 				}
 			}
 
-			let draftNeedsNavigation = !!intent.draft;
+			let draftNeedsNavigation = !!intent.draft && !intent.revealNewSession;
 			let noWorkspaceNeedsSelection = !!intent.noWorkspace;
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this.sessionsService.activeSession.get();
-				if ((!intent.draft && currentSession?.isCreated.get()) || (intent.draft && this._hasDraftInput())) {
+				if ((!intent.draft && currentSession?.isCreated.get()) || ((intent.draft || intent.revealNewSession) && this._hasDraftInput())) {
 					onState('preservedSession');
 					return;
 				}

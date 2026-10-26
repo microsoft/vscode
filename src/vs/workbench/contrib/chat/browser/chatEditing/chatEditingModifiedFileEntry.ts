@@ -24,6 +24,8 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
+import { getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
@@ -58,8 +60,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _waitsForLastEdits = observableValue<boolean>(this, false);
 	readonly waitsForLastEdits: IObservable<boolean> = this._waitsForLastEdits;
 
-	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>(this, undefined);
-	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined> = this._isCurrentlyBeingModifiedByObs;
+	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<{ responseModel: IChatResponseModel | undefined; undoStopId: string | undefined } | undefined>(this, undefined);
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel | undefined; undoStopId: string | undefined } | undefined> = this._isCurrentlyBeingModifiedByObs;
 
 	/**
 	 * Flag to track if we're currently in an external edit operation.
@@ -112,6 +114,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
+		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -294,6 +297,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
 				isAgentHostSession,
+				...getChatSessionTelemetryIds(this._telemetryInfo.sessionResource, this._agentHostConnectionsService),
 			});
 		} else if (action.kind === 'chatEditingHunkAction' && action.outcome === 'rejected') {
 			this._aiEditTelemetryService.handleCodeRejected({
@@ -314,6 +318,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
 				isAgentHostSession,
+				...getChatSessionTelemetryIds(this._telemetryInfo.sessionResource, this._agentHostConnectionsService),
 			});
 		}
 

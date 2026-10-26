@@ -5,15 +5,16 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { readSessionAdditionalWorktrees } from '../../shared/sessionAdditionalWorktrees.js';
-import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
+import { IAgentHostWorktreeCleanupService } from '../../agentHostWorktreeCleanupService.js';
 
 export const IAdditionalWorktreeLifecycleService = createDecorator<IAdditionalWorktreeLifecycleService>('additionalWorktreeLifecycleService');
 
 export interface IAdditionalWorktreeLifecycleService {
 	readonly _serviceBrand: undefined;
 	runWithAutomaticArchive<T>(session: URI, operation: () => T): T;
+	runWithPreservedWorktrees<T>(session: URI, operation: () => T): T;
 	synchronizeArchiveState(session: URI, archived: boolean, strictCleanup?: boolean): Promise<void>;
 }
 
@@ -21,10 +22,11 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _automaticArchiveDepth = new Map<string, number>();
+	private readonly _preservedWorktrees = new Set<string>();
 
 	constructor(
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
-		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@IAgentHostWorktreeCleanupService private readonly _worktreeCleanup: IAgentHostWorktreeCleanupService,
 	) { }
 
 	runWithAutomaticArchive<T>(session: URI, operation: () => T): T {
@@ -43,7 +45,24 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 	}
 
 	async synchronizeArchiveState(session: URI, archived: boolean, strictCleanup = archived && this._automaticArchiveDepth.has(session.toString())): Promise<void> {
-		const worktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
-		await Promise.all(worktrees.map(worktree => this._worktree.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup)));
+		if (this._preservedWorktrees.has(session.toString())) {
+			return;
+		}
+		const worktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
+		await Promise.all(worktrees.map(worktree => this._worktreeCleanup.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup, session)));
+	}
+
+	/** Suppresses worktree lifecycle changes during synchronous metadata-only publication. */
+	runWithPreservedWorktrees<T>(session: URI, operation: () => T): T {
+		const key = session.toString();
+		const alreadyPreserved = this._preservedWorktrees.has(key);
+		this._preservedWorktrees.add(key);
+		try {
+			return operation();
+		} finally {
+			if (!alreadyPreserved) {
+				this._preservedWorktrees.delete(key);
+			}
+		}
 	}
 }

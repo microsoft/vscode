@@ -24,6 +24,7 @@ import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/br
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { getSessionChatItemHorizontalPadding } from '../../browser/chatView.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
@@ -32,8 +33,6 @@ import '../../browser/media/chatView.css';
 
 const fixtureWidth = 800;
 const fixtureHeight = 720;
-const plainContentHorizontalPadding = 64;
-const backgroundContentHorizontalPadding = 88;
 const codiconsBackground = { kind: 'codicons' } as const;
 
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
@@ -123,7 +122,7 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 		width,
 		height,
 		listHeight: 430,
-		contentHorizontalPadding: withBackground ? backgroundContentHorizontalPadding : plainContentHorizontalPadding,
+		contentHorizontalPadding: getSessionChatItemHorizontalPadding(withBackground),
 		hostLayoutMode: 'listOnly',
 		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
 		responseFooterAction: true,
