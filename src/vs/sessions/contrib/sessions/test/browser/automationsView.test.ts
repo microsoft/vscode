@@ -4551,13 +4551,13 @@ suite('AutomationsCardsWidget', () => {
 			disposables.add(provider);
 			return provider.provideContent();
 		};
-		const disabled = content().includes('a Run in the cloud switch follows the Name field');
+		const disabled = content().includes('a Run in the cloud switch, described as Preview, follows the Name field');
 		sessionsManagementService.providerSessionTypes = [{ providerId: 'cloud', sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None } }];
 		automationService.getProviderConfiguration = id => id === 'cloud' ? upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud-agent'] }) : undefined;
 		const enabled = content();
 		assert.deepStrictEqual({
 			disabled,
-			enabledBeforeCreation: enabled.includes('a Run in the cloud switch follows the Name field'),
+			enabledBeforeCreation: enabled.includes('When creating an automation and cloud automations are enabled, a Run in the cloud switch, described as Preview, follows the Name field'),
 			triggerPlacement: enabled.includes('Trigger follows the tools controls'),
 		}, { disabled: false, enabledBeforeCreation: true, triggerPlacement: true });
 	});
