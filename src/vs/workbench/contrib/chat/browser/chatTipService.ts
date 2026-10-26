@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -12,7 +13,7 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { getSelectedModelIdentifier } from '../common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
@@ -65,6 +66,15 @@ export interface IChatTip {
 	readonly id: string;
 	readonly content: MarkdownString;
 	readonly enabledCommands?: readonly string[];
+	readonly icon?: URI;
+}
+
+export interface IChatTipProvider {
+	readonly onDidChange: Event<void>;
+	provideTip(): IChatTip | undefined;
+	dismissTip(tipId: string): void;
+	hasMultipleTips?(): boolean;
+	navigateTip?(direction: 1 | -1): IChatTip | undefined;
 }
 
 export interface IChatTipService {
@@ -89,6 +99,9 @@ export interface IChatTipService {
 	 * Fired when tips are disabled.
 	 */
 	readonly onDidDisableTips: Event<void>;
+	readonly onDidChangeTip: Event<void>;
+
+	registerTipProvider(provider: IChatTipProvider): IDisposable;
 
 	/**
 	 * Gets a tip to show on the welcome/getting-started view.
@@ -180,6 +193,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	private readonly _onDidDisableTips = this._register(new Emitter<void>());
 	readonly onDidDisableTips = this._onDidDisableTips.event;
+	private readonly _onDidChangeTip = this._register(new Emitter<void>());
+	readonly onDidChangeTip = this._onDidChangeTip.event;
+	private readonly _tipProviders = new Set<IChatTipProvider>();
+	private _activeTipProvider: IChatTipProvider | undefined;
+	private _activeProvidedTip: IChatTip | undefined;
 
 	/**
 	 * The request ID that was assigned a tip (for stable rerenders).
@@ -338,14 +356,38 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._hideShownTipIfNowIneligible();
 	}
 
+	registerTipProvider(provider: IChatTipProvider): IDisposable {
+		const store = new DisposableStore();
+		this._tipProviders.add(provider);
+		store.add(provider.onDidChange(() => this._onDidChangeTip.fire()));
+		store.add(toDisposable(() => {
+			this._tipProviders.delete(provider);
+			if (this._activeTipProvider === provider) {
+				this._activeTipProvider = undefined;
+				this._activeProvidedTip = undefined;
+				this._onDidChangeTip.fire();
+			}
+		}));
+		return store;
+	}
+
 	resetSession(): void {
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
 		this._tipsHiddenForSession = false;
+		this._activeTipProvider = undefined;
+		this._activeProvidedTip = undefined;
 	}
 
 	dismissTip(): void {
+		if (this._activeTipProvider && this._activeProvidedTip) {
+			this._activeTipProvider.dismissTip(this._activeProvidedTip.id);
+			this._activeTipProvider = undefined;
+			this._activeProvidedTip = undefined;
+			this._onDidDismissTip.fire();
+			return;
+		}
 		if (this._shownTip) {
 			this._logTipTelemetry(this._shownTip.id, 'dismissed');
 			const dismissed = new Set(this._getDismissedTipIds());
@@ -472,6 +514,17 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		if (this._isChatQuotaExceeded(contextKeyService)) {
 			return undefined;
 		}
+
+		for (const provider of this._tipProviders) {
+			const tip = provider.provideTip();
+			if (tip) {
+				this._activeTipProvider = provider;
+				this._activeProvidedTip = tip;
+				return tip;
+			}
+		}
+		this._activeTipProvider = undefined;
+		this._activeProvidedTip = undefined;
 
 		// Return the already-shown tip for stable rerenders
 		if (this._tipRequestId === 'welcome' && this._shownTip) {
@@ -672,6 +725,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	hasMultipleTips(): boolean {
+		if (this._activeProvidedTip) {
+			return this._activeTipProvider?.hasMultipleTips?.() ?? false;
+		}
 		if (!this._contextKeyService) {
 			return false;
 		}
@@ -681,6 +737,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	private _navigateTip(direction: 1 | -1, contextKeyService: IContextKeyService): IChatTip | undefined {
+		if (this._activeTipProvider && this._activeProvidedTip) {
+			const tip = this._activeTipProvider.navigateTip?.(direction);
+			if (tip) {
+				this._activeProvidedTip = tip;
+				this._onDidNavigateTip.fire(tip);
+			}
+			return tip;
+		}
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
 		if (!this._shownTip) {
 			return undefined;

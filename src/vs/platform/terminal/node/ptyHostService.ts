@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, OS, OperatingSystem, isWindows } from '../../../base/common/platform.js';
@@ -220,8 +221,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void> {
 		return this._proxy.updateIcon(id, userInitiated, icon, color);
 	}
-	attachToProcess(id: number): Promise<void> {
-		return this._proxy.attachToProcess(id);
+	attachToProcess(id: number, pid?: number): Promise<void> {
+		return this._proxy.attachToProcess(id, pid);
 	}
 	detachFromProcess(id: number, forcePersist?: boolean): Promise<void> {
 		return this._proxy.detachFromProcess(id, forcePersist);
@@ -258,6 +259,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 	clearBuffer(id: number): Promise<void> {
 		return this._proxy.clearBuffer(id);
+	}
+	setParentWindow(id: number, handle: VSBuffer): Promise<void> {
+		return this._proxy.setParentWindow(id, handle);
 	}
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._proxy.acknowledgeDataEvent(id, charCount);

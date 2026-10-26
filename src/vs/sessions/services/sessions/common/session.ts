@@ -10,14 +10,17 @@ import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey, parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
 import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export { getHighestPriorityPullRequestIcon };
 export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+export { type ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -120,7 +123,7 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 		case SessionStatus.InProgress:
 			return description ?? localize('working', "Working...");
 		case SessionStatus.NeedsInput:
-			return description ?? localize('needsInput', "Input needed");
+			return description ?? localize('needsInput', "Attention needed");
 		case SessionStatus.Error:
 			return description ?? localize('failed', "Failed");
 		default:
@@ -231,7 +234,7 @@ export interface ISessionWorkspace {
 	/**
 	 * Optional group label for categorizing this workspace in pickers. The
 	 * workspace picker uses this to bucket entries into top-level tabs
-	 * (e.g. `"Local"`, `"Cloud"`, `"Remote"`). Providers contribute the
+	 * (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`). Providers contribute the
 	 * label — the picker just renders whatever values are present.
 	 */
 	readonly group?: string;
@@ -312,6 +315,57 @@ export interface ISessionArtifact {
 }
 
 /**
+ * Identity of the resource an entry points to. GitHub pull request and issue links ignore case and trailing
+ * slashes, like the pull request and issue pills; other links and resources compare exactly, since their paths
+ * and queries can be case-sensitive. Commit hashes ignore case.
+ */
+export function getSessionArtifactKey(artifact: ISessionArtifact): string | undefined {
+	if (artifact.link) {
+		const link = artifact.link.toString(true);
+		return parseGitHubPullRequestUrl(link) || parseGitHubIssueUrl(link)
+			? `github:${getPullRequestUrlKey(link)}`
+			: `link:${artifact.link.toString()}`;
+	}
+	if (artifact.uri) {
+		return `uri:${artifact.uri.toString()}`;
+	}
+	const commitHash = artifact.commitHash?.trim().toLowerCase();
+	return commitHash ? `commit:${commitHash}` : undefined;
+}
+
+/**
+ * The entries a chat-scoped surface for `chat` shows: only those the chat recorded, where unowned legacy
+ * entries belong to the main chat (or to any chat while the main chat is unknown). A chat shows each resource
+ * (see {@link getSessionArtifactKey}) once, preferring an artifact over a reference. Without a chat, every chat's entries are shown, so chats that
+ * recorded the same resource each keep theirs.
+ */
+export function getChatSessionArtifacts(session: ISession | undefined, chat: IChat | undefined, reader: IReader | undefined): readonly ISessionArtifact[] {
+	const mainChat = session?.mainChat?.read(reader)?.resource;
+	const result: ISessionArtifact[] = [];
+	const indexByKey = new Map<string, number>();
+	for (const artifact of session?.artifacts?.read(reader) ?? []) {
+		const owner = artifact.chat ?? mainChat;
+		if (chat && owner && !isEqual(owner, chat.resource)) {
+			continue;
+		}
+		const value = getSessionArtifactKey(artifact);
+		if (!value) {
+			result.push(artifact);
+			continue;
+		}
+		const key = `${owner?.toString() ?? ''}\n${value}`;
+		const index = indexByKey.get(key);
+		if (index === undefined) {
+			indexByKey.set(key, result.length);
+			result.push(artifact);
+		} else if (artifact.isArtifact && !result[index].isArtifact) {
+			result[index] = artifact;
+		}
+	}
+	return result;
+}
+
+/**
  * GitHub information associated with a session.
  */
 export interface IGitHubInfo {
@@ -329,7 +383,7 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Last host-observed pull request state. */
 		readonly state?: 'open' | 'closed' | 'merged';
-		/** State from the live workbench pull request model, when resolved. */
+		/** Last workbench-observed state, restored from cache until the live model resolves. */
 		readonly liveState?: 'open' | 'closed' | 'merged';
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
@@ -361,7 +415,7 @@ export interface IGitHubPullRequestRef {
 	readonly icon?: ThemeIcon;
 	/** Last host-observed pull request state. */
 	readonly state?: 'open' | 'closed' | 'merged';
-	/** State from the live workbench pull request model, when resolved. */
+	/** Last workbench-observed state, restored from cache until the live model resolves. */
 	readonly liveState?: 'open' | 'closed' | 'merged';
 	/**
 	 * Pull request title, when the session recorded one. Absent for pull requests
@@ -636,19 +690,21 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
-/** A model-opened canvas owned by one chat. */
-export interface ISessionCanvas {
-	/** Stable canvas identity within its owning chat. */
-	readonly resource: URI;
-	/** Stable provider-supplied instance identifier; absent before canvas state hydrates. */
-	readonly instanceId: string | undefined;
-	/** Display title. */
-	readonly title: string;
-	/** Optional provider status text. */
-	readonly status?: string;
-	/** Current live HTTP(S) source; absent while the provider is unavailable. */
-	readonly source: URI | undefined;
+export type SessionCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+
+/** A canvas type registered by an extension in one live chat. */
+export interface ISessionCanvasDefinition {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionSource: SessionCanvasExtensionSource;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly requiresInput: boolean;
 }
+
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type SessionCanvasDefinitionSnapshot = readonly ISessionCanvasDefinition[] | undefined;
 
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
@@ -931,10 +987,13 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
+	readonly supportsArtifactIntegrations?: boolean;
 	/** Whether the owning provider permits presenting server-published canvases for this session. */
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether chats in this session can update their read state independently. */
+	readonly supportsIndependentChatReadState?: boolean;
 	/**
 	 * Whether this session supports forking a chat from a turn into a new peer
 	 * chat. The agents-window fork gesture gates on this flag rather than on the
@@ -983,7 +1042,7 @@ export interface ISessionCapabilities {
  * `ISessionWorkspaceBrowseAction`; the picker discovers tabs from the union
  * of contributed values.
  */
-export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "This Computer");
 export const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
@@ -1005,7 +1064,7 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly description?: string;
 	/**
 	 * Optional group label used by the workspace picker to bucket browse
-	 * actions into top-level tabs (e.g. `"Local"`, `"Cloud"`, `"Remote"`).
+	 * actions into top-level tabs (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`).
 	 * Providers contribute the label — the picker dynamically renders tabs
 	 * for whichever values are present and filters items accordingly.
 	 */

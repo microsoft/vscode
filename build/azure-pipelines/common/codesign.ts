@@ -16,7 +16,11 @@ export function printBanner(title: string) {
 }
 
 export async function streamProcessOutputAndCheckResult(name: string, promise: ProcessPromise): Promise<void> {
-	const result = await promise.pipe(process.stdout);
+	// Await the process itself: the promise returned by `pipe(process.stdout)` only
+	// resolves once every process piped into stdout has finished
+	promise.nothrow().pipe(process.stdout);
+	const result = await promise;
+
 	if (result.ok) {
 		console.log(`\n${name} completed successfully. Duration: ${result.duration} ms`);
 		return;

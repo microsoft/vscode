@@ -104,14 +104,20 @@ export class ActiveClientToolSet {
 
 	/**
 	 * The union of every client's tools, deduplicated by `name` with the
-	 * first-inserted contributor winning. Order follows client insertion
-	 * order, then per-client tool order.
+	 * preferred client winning, then client insertion order. Only included
+	 * clients participate in selection.
 	 */
-	merged(): readonly ToolDefinition[] {
+	merged(preferredClientId?: string, includesClient: (clientId: string) => boolean = () => true): readonly ToolDefinition[] {
 		const seen = new Set<string>();
 		const result: ToolDefinition[] = [];
-		for (const tools of this._byClient.values()) {
-			for (const tool of tools) {
+		const clientIds = preferredClientId && this._byClient.has(preferredClientId)
+			? [preferredClientId, ...[...this._byClient.keys()].filter(clientId => clientId !== preferredClientId)]
+			: this._byClient.keys();
+		for (const clientId of clientIds) {
+			if (!includesClient(clientId)) {
+				continue;
+			}
+			for (const tool of this.get(clientId)) {
 				if (seen.has(tool.name)) {
 					continue;
 				}

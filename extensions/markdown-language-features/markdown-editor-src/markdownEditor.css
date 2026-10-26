@@ -18,7 +18,10 @@ body {
 #editor {
 	height: 100%;
 	width: 100%;
-	overflow: scroll;
+	overflow: auto;
+	scrollbar-gutter: stable both-edges;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
 .md-comment-widget {

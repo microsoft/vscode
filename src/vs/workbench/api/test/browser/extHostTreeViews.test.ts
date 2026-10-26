@@ -9,7 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { ExtHostTreeViews } from '../../common/extHostTreeViews.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { MainThreadTreeViewsShape, MainContext, MainThreadCommandsShape } from '../../common/extHost.protocol.js';
-import { TreeDataProvider, TreeItem } from 'vscode';
+import { TreeDataProvider, TreeItem, DataTransfer as ApiDataTransfer, DataTransferItem as ApiDataTransferItem, TreeDragAndDropController } from 'vscode';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from '../../../common/views.js';
@@ -19,6 +19,10 @@ import { nullExtensionDescription as extensionsDescription } from '../../../serv
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { TreeViewsDnDService } from '../../../../editor/common/services/treeViewsDnd.js';
+import { DataTransferItem } from '../../common/extHostTypes.js';
 
 function unBatchChildren(result: (readonly (number | ITreeItem)[])[] | undefined): readonly ITreeItem[] | undefined {
 	if (!result || result.length === 0) {
@@ -101,6 +105,90 @@ suite('ExtHostTreeView', function () {
 		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, extensionsDescription);
 
 		return loadCompleteTree('testNodeTreeProvider');
+	});
+
+	async function prepareDragTransfer(handleDrag: TreeDragAndDropController<{ key: string }>['handleDrag'], handleDrop?: TreeDragAndDropController<{ key: string }>['handleDrop']) {
+		store.add(testObject.createTreeView('dragTransferTree', {
+			treeDataProvider: aNodeTreeDataProvider(),
+			dragAndDropController: { dragMimeTypes: ['text/plain'], dropMimeTypes: ['text/plain'], handleDrag, handleDrop }
+		}, extensionsDescription));
+		const children = unBatchChildren(await testObject.$getChildren('dragTransferTree'));
+		assert.ok(children?.length);
+		const service: TreeViewsDnDService<ApiDataTransfer> = Reflect.get(testObject, '_treeDragAndDropService');
+		const operations: Map<string, Promise<ApiDataTransfer | undefined>> = Reflect.get(service, '_dragOperations');
+		return { handle: children[0].handle, operations };
+	}
+
+	test('drag transfer remains available until it is consumed', async () => {
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', new DataTransferItem('Owned transfer')));
+		const result = await testObject.$handleDrag('dragTransferTree', [state.handle], 'active-drag', CancellationToken.None);
+		assert.deepStrictEqual({ operations: state.operations.size, text: result?.items[0][1].asString }, { operations: 1, text: 'Owned transfer' });
+	});
+
+	test('drag transfer is released when canceled before provider completion', async () => {
+		const pending = new DeferredPromise<void>();
+		const state = await prepareDragTransfer(async (_items, transfer) => {
+			transfer.set('text/plain', new DataTransferItem('Owned transfer'));
+			await pending.p;
+		});
+		const cancellation = store.add(new CancellationTokenSource());
+		const creation = testObject.$handleDrag('dragTransferTree', [state.handle], 'canceled-drag', cancellation.token);
+		cancellation.cancel();
+		await pending.complete();
+		const result = await creation;
+		assert.deepStrictEqual({ operations: state.operations.size, result }, { operations: 0, result: undefined });
+	});
+
+	test('drag transfer is released when the provider rejects', async () => {
+		const state = await prepareDragTransfer(async () => { throw new Error('Expected drag provider failure'); });
+		await assert.rejects(testObject.$handleDrag('dragTransferTree', [state.handle], 'failed-drag', CancellationToken.None), /Expected drag provider failure/);
+		assert.strictEqual(state.operations.size, 0);
+	});
+
+	test('drag transfer release retires completed data without touching a live operation', async () => {
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', new DataTransferItem('Owned transfer')));
+		await testObject.$handleDrag('dragTransferTree', [state.handle], 'retired-drag', CancellationToken.None);
+		await testObject.$handleDrag('dragTransferTree', [state.handle], 'live-drag', CancellationToken.None);
+		const live = state.operations.get('live-drag');
+		testObject.$releaseDragOperation('retired-drag');
+		testObject.$releaseDragOperation('retired-drag');
+		testObject.$releaseDragOperation('unknown-drag');
+		assert.deepStrictEqual({ keys: [...state.operations.keys()], sameLive: state.operations.get('live-drag') === live }, { keys: ['live-drag'], sameLive: true });
+	});
+
+	test('drag transfer release does not restore data after late provider completion', async () => {
+		const pending = new DeferredPromise<void>();
+		const state = await prepareDragTransfer(async (_items, transfer) => {
+			transfer.set('text/plain', new DataTransferItem('Owned transfer'));
+			await pending.p;
+		});
+		const creation = testObject.$handleDrag('dragTransferTree', [state.handle], 'retired-drag', CancellationToken.None);
+		testObject.$releaseDragOperation('retired-drag');
+		assert.strictEqual(state.operations.size, 0);
+		await pending.complete();
+		await creation;
+		assert.strictEqual(state.operations.size, 0);
+	});
+
+	test('drag transfer release does not accumulate over repeated completed cancellations', async () => {
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', new DataTransferItem('Owned transfer')));
+		for (let index = 0; index < 37; index++) {
+			const uuid = `retired-drag-${index}`;
+			await testObject.$handleDrag('dragTransferTree', [state.handle], uuid, CancellationToken.None);
+			testObject.$releaseDragOperation(uuid);
+		}
+		assert.strictEqual(state.operations.size, 0);
+	});
+
+	test('drag transfer consumption preserves original item identity for a successful drop', async () => {
+		const original = new DataTransferItem({ label: 'Owned transfer' });
+		let dropped: ApiDataTransferItem | undefined;
+		const state = await prepareDragTransfer((_items, transfer) => transfer.set('text/plain', original), async (_target, transfer) => {
+			dropped = transfer.get('text/plain');
+		});
+		await testObject.$handleDrag('dragTransferTree', [state.handle], 'successful-drag', CancellationToken.None);
+		await testObject.$handleDrop('dragTransferTree', 0, { items: [] }, undefined, CancellationToken.None, 'successful-drag', 'dragTransferTree', [state.handle]);
+		assert.deepStrictEqual({ operations: state.operations.size, originalItem: dropped === original }, { operations: 0, originalItem: true });
 	});
 
 	test('construct node tree', () => {

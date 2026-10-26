@@ -29,7 +29,7 @@ import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } fro
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../agentHostCompletionAction.js';
-import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { applyAgentHostSessionConfigChange, getAgentHostSessionConfig } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -64,6 +64,8 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -105,7 +107,8 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				workspaceContextService: accessor.get(IWorkspaceContextService),
 				configurationService: accessor.get(IConfigurationService),
 			};
-			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); });
+			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); },
+				getAgentHostSessionConfig(sessionResource, this._provisionalService, this._connectionsService));
 			if (applied && arg.reference) {
 				arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 					id: arg.reference.id,
@@ -182,10 +185,9 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
-					// Omit an elevated auto-approve toggle (Allow all / Assisted)
-					// when enterprise policy disables global auto-approval, rather
-					// than offering an item that would warn then clamp to Default.
-					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+					const resource = widget.viewModel?.model.sessionResource;
+					const config = resource ? getAgentHostSessionConfig(resource, this._provisionalService, this._connectionsService) : undefined;
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, config)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text

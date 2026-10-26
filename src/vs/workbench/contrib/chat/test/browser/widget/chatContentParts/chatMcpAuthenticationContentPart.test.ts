@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setARIAContainer } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ChatMcpAuthenticationContentPart } from '../../../../browser/widget/chatContentParts/chatMcpAuthenticationContentPart.js';
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../../common/chatService/chatService.js';
@@ -26,10 +29,12 @@ suite('ChatMcpAuthenticationContentPart', () => {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
+	let configurationService: TestConfigurationService;
 
 	setup(() => {
 		disposables = store.add(new DisposableStore());
-		instantiationService = workbenchInstantiationService(undefined, disposables);
+		configurationService = new TestConfigurationService();
+		instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
 	});
 
 	function server(id: string, name: string, status: McpServerStatus, enabled = true, displayName?: string): McpServer {
@@ -78,6 +83,41 @@ suite('ChatMcpAuthenticationContentPart', () => {
 		document.body.appendChild(part.domNode);
 		disposables.add(toDisposable(() => part.domNode.remove()));
 	}
+
+	test('announces the dedicated authentication prompt when verbose progress updates are enabled', async () => {
+		const ariaHost = document.createElement('div');
+		document.body.appendChild(ariaHost);
+		disposables.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		await configurationService.setUserConfiguration(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates, true);
+		const { part, setLiveServers } = createPart(
+			[
+				{ id: 'azure-exp', name: 'Azure Experimental', resource: 'https://azure.example.com' },
+				{ id: 'slack', name: 'Slack', resource: 'https://slack.example.com' },
+				{ id: 'github', name: 'GitHub', resource: 'https://github.example.com' },
+			],
+			[server('azure-exp', 'Azure ExP', McpServerStatus.AuthRequired)],
+		);
+		const announcement = () => [...ariaHost.querySelectorAll('.monaco-alert')].map(element => element.textContent).find(Boolean);
+		const initial = announcement();
+		await configurationService.setUserConfiguration(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates, false);
+		setLiveServers([server('slack', 'Slack', McpServerStatus.AuthRequired)]);
+		const muted = announcement();
+		await configurationService.setUserConfiguration(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates, true);
+		setLiveServers([server('github', 'GitHub', McpServerStatus.AuthRequired)]);
+
+		assert.deepStrictEqual({
+			initial,
+			muted,
+			updated: announcement(),
+			visible: part.domNode.textContent,
+		}, {
+			initial: 'The MCP server Azure ExP requires authentication. Authenticate?',
+			muted: 'The MCP server Azure ExP requires authentication. Authenticate?',
+			updated: 'The MCP server GitHub requires authentication. Authenticate?',
+			visible: 'The MCP server GitHub requires authentication. Authenticate?',
+		});
+	});
 
 	test('updates stale server names and authentication targets from live pending servers', async () => {
 		const { part, data, authenticated, setLiveServers } = createPart(

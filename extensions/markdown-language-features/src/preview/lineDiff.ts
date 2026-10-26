@@ -124,11 +124,7 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 			mappings.modifiedToOriginal[i] = clampLine(origStart, originalLineCount);
 		}
 
-		// Collect change indicators for deletions and modifications
-		const origChangedCount = origEnd - origStart;
-		if (origChangedCount > 0) {
-			changedLineRanges.push(change);
-		}
+		changedLineRanges.push(change);
 
 		// Collect inner changes (character-level changes within modified lines)
 		if (change.innerChanges) {
@@ -145,7 +141,8 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	// Map unchanged lines after the last change
 	fillUnchangedLineMappings(mappings, lastOriginalEnd, originalLineCount, lastModifiedEnd, modifiedLineCount);
 	fillMissingLineMappings(mappings);
-	const splitChangedLineRanges = splitChangedLineRangesByMarkdownBlocks(changedLineRanges, originalDocument, modifiedDocument);
+	const indicatorRanges = changedLineRanges.filter(range => range.originalRange.end.line > range.originalRange.start.line);
+	const splitChangedLineRanges = splitChangedLineRangesByMarkdownBlocks(indicatorRanges, originalDocument, modifiedDocument);
 	const changeIndicators = createChangeIndicators(splitChangedLineRanges, originalDocument, modifiedDocument, originalInnerChanges, modifiedInnerChanges);
 
 	return { added, deleted, changedLineRanges, originalInnerChanges, modifiedInnerChanges, changeIndicators, ...mappings };

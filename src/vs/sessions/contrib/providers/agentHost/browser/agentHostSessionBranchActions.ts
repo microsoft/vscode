@@ -12,10 +12,10 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildExternalOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionIsCreatedContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
 
 interface ISessionChatLinkContext {
 	readonly session: ISession;
@@ -40,12 +40,12 @@ registerAction2(class CopyAgentHostSessionLinkAction extends Action2 {
 				group: '2_open',
 				order: 2,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}, {
-				id: Menus.SessionHeaderContext,
-				group: '2_edit',
-				order: 2,
-				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}],
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/1_session',
+				order: 40,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE)),
+			}))],
 		});
 	}
 

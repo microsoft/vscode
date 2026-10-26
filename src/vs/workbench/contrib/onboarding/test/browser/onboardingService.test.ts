@@ -9,6 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -119,6 +120,31 @@ class FakeAssignmentService extends NullWorkbenchAssignmentService {
 	/** True when the given assignment-context id is currently excluded from telemetry. */
 	isExcluded(assignment: string): boolean {
 		return this._filters.some(f => f.exclude(assignment));
+	}
+}
+
+/**
+ * Assignment service test double whose treatments change when assignments are refetched, like
+ * experiments served by an account endpoint that only becomes known after startup. A read
+ * returns the treatments current when it started, after the optional `pause` settles.
+ */
+class RefetchingAssignmentService extends NullWorkbenchAssignmentService {
+	readonly reads: string[] = [];
+	pause: Promise<void> | undefined;
+	override readonly onDidRefetchAssignments: Event<void>;
+	constructor(private treatments: Record<string, string | number | boolean>, private readonly refetched: Emitter<void>) {
+		super();
+		this.onDidRefetchAssignments = refetched.event;
+	}
+	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		this.reads.push(name);
+		const value = this.treatments[name] as T | undefined;
+		await this.pause;
+		return value;
+	}
+	refetch(treatments: Record<string, string | number | boolean>): void {
+		this.treatments = treatments;
+		this.refetched.fire();
 	}
 }
 
@@ -297,6 +323,49 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(presentation.runs, ['observable-1']);
 	});
 
+	test('an automatic run that waited behind another presentation is dropped once it is no longer eligible', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('onboardingTestSignal', true);
+		registerScenario({ id: 'stale-1', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		signal.set(false, undefined);
+		finish.complete();
+		await occupant;
+		await timeout(0);
+		const whileIneligible = { runs: [...presentation.runs], shown: service.hasBeenShown('stale-1') };
+		signal.set(true, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileIneligible, runs: presentation.runs }, {
+			whileIneligible: { runs: [], shown: false },
+			runs: ['stale-1'],
+		});
+	});
+
+	test('an explicit request that joins an automatic run waiting for the presentation slot keeps it running', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('onboardingTestSignal', true);
+		registerScenario({ id: 'joined-1', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		const explicit = service.runScenario('joined-1');
+		signal.set(false, undefined);
+		finish.complete();
+		await occupant;
+		await explicit;
+
+		assert.deepStrictEqual(presentation.runs, ['joined-1']);
+	});
+
 	test('command-triggered scenarios never run automatically', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);
@@ -375,6 +444,32 @@ suite('OnboardingScenarioService', () => {
 		const [a, b] = await Promise.all([first, second]);
 
 		assert.deepStrictEqual({ runs, a, b }, { runs: ['inflight-1'], a: OnboardingOutcome.Completed, b: OnboardingOutcome.Completed });
+	});
+
+	test('isPresenting is true while a scenario is queued or running', async () => {
+		let release!: () => void;
+		const gate = new Promise<void>(resolve => { release = resolve; });
+		const kind = uniqueKind();
+		registerPresentation({
+			kind,
+			async run(): Promise<IOnboardingRunResult> {
+				await gate;
+				return completedResult();
+			}
+		});
+		registerScenario({ id: 'presenting-1', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind, payload: undefined } });
+
+		const { service } = createService();
+		service.start();
+		const before = service.isPresenting.get();
+		const run = service.runScenario('presenting-1');
+		const queued = service.isPresenting.get();
+		await timeout(0);
+		const running = service.isPresenting.get();
+		release();
+		await run;
+
+		assert.deepStrictEqual({ before, queued, running, after: service.isPresenting.get() }, { before: false, queued: true, running: true, after: false });
 	});
 
 	test('runScenario does not enqueue an already cancelled request', async () => {
@@ -564,6 +659,64 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(presentation.runs, []);
+	});
+
+	test('reads unresolved experiment flags again when assignments are refetched, then keeps the resolved arm', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-refetch',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const { service } = createService({}, assignment);
+
+		service.start();
+		await timeout(0);
+		const runsAtStartup = [...presentation.runs];
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-refetch' });
+		await timeout(0);
+		await timeout(0);
+		const runsAfterRefetch = [...presentation.runs];
+		assignment.refetch({ 'exp.show': false, 'exp.id': 'onb-other' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ runsAtStartup, runsAfterRefetch, reads: assignment.reads }, {
+			runsAtStartup: [],
+			runsAfterRefetch: ['exp-refetch'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+		});
+	});
+
+	test('a refetch during an unresolved read reads the experiment flags again once that read settles', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-inflight',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const firstRead = new DeferredPromise<void>();
+		assignment.pause = firstRead.p;
+		const { service } = createService({}, assignment);
+
+		service.start();
+		assignment.pause = undefined;
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-inflight' });
+		const readsWhileInFlight = [...assignment.reads];
+		await firstRead.complete();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ readsWhileInFlight, reads: assignment.reads, runs: presentation.runs }, {
+			readsWhileInFlight: ['exp.show', 'exp.id'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+			runs: ['exp-inflight'],
+		});
 	});
 
 	for (const { name, treatments, developerMode, enabled, expected } of [

@@ -7,10 +7,11 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn } from '../../../common/agentHostChatContributionsService.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isDefaultChatUri, ResponsePartKind, type Turn } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, type Turn } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { readSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from '../../shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
 
@@ -25,14 +26,15 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostWorktreeIsolation private readonly _worktreeIsolation: IAgentHostWorktreeIsolation,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
 
 	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		if (isDefaultChatUri(context.chat)) {
+		if (context.isDefaultChat) {
 			return this._worktreeIsolation.applyRestoreAnnouncement(URI.parse(context.session), turns);
 		}
 		const worktree = await this._findOwnedWorktree(context.session, context.chat);
@@ -47,7 +49,7 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 	}
 
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<undefined> {
-		if (isDefaultChatUri(turn.chat)) {
+		if (this._chatOwnership.isDefaultChat(turn.session, turn.chat)) {
 			return undefined;
 		}
 		const emitted = this._context.memento(announcementEmittedKey, turn.chat);
@@ -76,7 +78,7 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 	}
 
 	private async _findOwnedWorktree(session: string, chat: string): Promise<ISessionAdditionalWorktree | undefined> {
-		const worktrees = await readSessionAdditionalWorktrees(this._sessionDataService, URI.parse(session));
+		const worktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, URI.parse(session));
 		return worktrees.find(worktree => worktree.chat === chat);
 	}
 }

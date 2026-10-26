@@ -85,6 +85,7 @@ import { IIgnoreService, NullIgnoreService } from '../../platform/ignore/common/
 import { DocumentId } from '../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService, IUndesiredModelsManager, NullUndesiredModelsManager } from '../../platform/inlineEdits/common/inlineEditsModelService';
+import { observeModelConfigValue } from '../../platform/inlineEdits/common/modelConfigurationResolution';
 import { ObservableGit } from '../../platform/inlineEdits/common/observableGit';
 import { IObservableDocument, ObservableWorkspace } from '../../platform/inlineEdits/common/observableWorkspace';
 import { NesHistoryContextProvider } from '../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
@@ -117,9 +118,12 @@ import { ITerminalService, NullTerminalService } from '../../platform/terminal/c
 import { ITokenizerProvider, TokenizerProvider } from '../../platform/tokenizer/node/tokenizer';
 import { IWorkspaceService, NullWorkspaceService } from '../../platform/workspace/common/workspaceService';
 import { InstantiationServiceBuilder } from '../../util/common/services';
-import { CancellationToken } from '../../util/vs/base/common/cancellation';
+import { raceCancellationError } from '../../util/vs/base/common/async';
+import { cancelOnDispose, CancellationToken } from '../../util/vs/base/common/cancellation';
 import { Emitter, Event as VsEvent } from '../../util/vs/base/common/event';
+import { CancellationError } from '../../util/vs/base/common/errors';
 import { Disposable, IDisposable } from '../../util/vs/base/common/lifecycle';
+import { derivedOpts, IObservable } from '../../util/vs/base/common/observable';
 import { IObservableWithChange } from '../../util/vs/base/common/observableInternal';
 import { URI } from '../../util/vs/base/common/uri';
 import { generateUuid } from '../../util/vs/base/common/uuid';
@@ -237,7 +241,27 @@ export interface INESResult {
 	};
 }
 
+export interface INESProviderCapabilities {
+	/**
+	 * Whether the selected NES model can also serve inline completions.
+	 */
+	readonly inlineCompletions: boolean;
+}
+
+function toNESProviderCapabilities(inlineCompletions: boolean | undefined): INESProviderCapabilities {
+	return { inlineCompletions: inlineCompletions ?? false };
+}
+
 export interface INESProvider<T extends INESResult = INESResult> {
+	/**
+	 * Fires when the capabilities of the selected NES model change.
+	 */
+	readonly onDidChangeCapabilities: VsEvent<INESProviderCapabilities>;
+	/**
+	 * Resolves the capabilities of the selected NES model after settling model
+	 * selection. Rejects when required authentication or model discovery fails.
+	 */
+	getCapabilities(cancellationToken?: CancellationToken): Promise<INESProviderCapabilities>;
 	getId(): string;
 	getNextEdit(documentUri: vscode.Uri, cancellationToken: CancellationToken): Promise<T>;
 	handleShown(suggestion: T): void;
@@ -265,6 +289,9 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 	private readonly _nextEditProvider: INextEditProvider<INextEditResult, LlmNESTelemetryBuilder>;
 	private readonly _telemetrySender: TelemetrySender;
 	private readonly _debugRecorder: DebugRecorder;
+	private readonly _disposeToken = cancelOnDispose(this._store);
+	private readonly _capabilities: IObservable<INESProviderCapabilities>;
+	readonly onDidChangeCapabilities: VsEvent<INESProviderCapabilities>;
 
 	constructor(
 		private _options: INESProviderOptions,
@@ -272,8 +299,16 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
+		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
 	) {
 		super();
+		this._register(instantiationService);
+		const inlineCompletions = observeModelConfigValue(this, this._configurationService, this._expService, ConfigKey.TeamInternal.InlineEditsUnification, this._modelService.supportsUnifiedCompletions);
+		this._capabilities = derivedOpts(
+			{ owner: this, equalsFn: (a, b) => a.inlineCompletions === b.inlineCompletions },
+			reader => toNESProviderCapabilities(inlineCompletions.read(reader))
+		);
+		this.onDidChangeCapabilities = VsEvent.fromObservable(this._capabilities, this._store);
 		const statelessNextEditProvider = instantiationService.createInstance(XtabProvider);
 		const git = instantiationService.createInstance(ObservableGit);
 		const historyContextProvider = new NesHistoryContextProvider(this._options.workspace, git);
@@ -283,6 +318,14 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 
 		this._nextEditProvider = instantiationService.createInstance(NextEditProvider, this._options.workspace, statelessNextEditProvider, historyContextProvider, xtabHistoryTracker, this._debugRecorder);
 		this._telemetrySender = this._register(instantiationService.createInstance(TelemetrySender, this._options.workspace));
+	}
+
+	async getCapabilities(cancellationToken = CancellationToken.None): Promise<INESProviderCapabilities> {
+		if (this._disposeToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		await raceCancellationError(this._modelService.ensureModelSelection(cancellationToken), this._disposeToken);
+		return this._capabilities.get();
 	}
 
 	getId(): string {

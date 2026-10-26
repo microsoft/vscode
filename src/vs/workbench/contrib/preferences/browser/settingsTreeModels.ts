@@ -158,6 +158,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	hasPolicyValue = false;
 
+	policyValueDescription: string | undefined;
+
 	/**
 	 * Whether the setting is read-only in the Agents window.
 	 */
@@ -361,8 +363,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
 		// Runtime restrictions affect presentation only; they are not VS Code configuration policies.
-		const policyValue = this.managedSettingsPresentationService.getValue(this.setting.key) ?? inspected.policyValue;
+		const policyValue = this.managedSettingsPresentationService.getValue(this.setting.key, inspected.value) ?? inspected.policyValue;
 		this.hasPolicyValue = policyValue !== undefined;
+		this.policyValueDescription = inspected.policyValue !== undefined
+			? Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[this.setting.key]?.policyValueDescription?.(inspected.policyValue, inspected[targetSelector])
+			: undefined;
 		if (this.hasPolicyValue) {
 			isConfigured = false; // The user did not manually configure the setting themselves.
 			displayValue = policyValue;
@@ -819,6 +824,9 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 		case AgentSandboxSettingId.AgentSandboxAuthenticateGh:
 			displayLabel = localize('agentSandbox.authenticateGh.label', "Authenticate gh");
 			break;
+		case AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables:
+			displayLabel = localize('agentSandbox.maskedEnvironmentVariables.label', "Masked environment variables");
+			break;
 		case AgentSandboxSettingId.AgentSandboxUserConfiguredPaths:
 			displayLabel = localize('agentSandbox.userConfiguredPaths.label', "User-Configured Paths");
 			break;
@@ -1155,7 +1163,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		combinedFilterMatches = this.sortResults(combinedFilterMatches);
 		const result = {
 			filterMatches: combinedFilterMatches,
-			exactMatch: localResult.exactMatch // remote results should never have an exact match
+			exactMatch: localResult?.exactMatch ?? false // remote results should never have an exact match
 		};
 		this.cachedUniqueSearchResults.set(false, result);
 		return result;

@@ -13,6 +13,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
+import '../workbench/contrib/modernUI/browser/media/suggestWidget.css';
 import { agentsPanelBackground } from './common/theme.js';
 import './common/sizes.js';
 import './contrib/providers/remoteAgentHost/browser/connectionDiagnostics.contribution.js';
@@ -150,6 +151,7 @@ import '../platform/agentHost/browser/agentHostEnablementService.js';
 import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
 import { IAllowedExtensionsService, IGlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionManagement.js';
 import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
@@ -178,8 +180,10 @@ import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServe
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
 import { ISessionsSetUpService, SessionsSetUpService } from './browser/sessionsSetUpService.js';
+import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IArtifactIntegrationRegistry, ArtifactIntegrationRegistry, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
@@ -196,6 +200,7 @@ registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
 registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType.Delayed);
+registerSingleton(IAgentHostMcpOAuthMetadataService, AgentHostMcpOAuthMetadataService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -316,6 +321,9 @@ import '../workbench/contrib/webview/browser/webview.contribution.js';
 import '../workbench/contrib/webviewPanel/browser/webviewPanel.contribution.js';
 import '../workbench/contrib/webviewView/browser/webviewView.contribution.js';
 import '../workbench/contrib/customEditor/browser/customEditor.contribution.js';
+
+// Media Preview
+import '../workbench/contrib/mediaPreview/browser/mediaPreview.contribution.js';
 
 // External Uri Opener
 import '../workbench/contrib/externalUriOpener/common/externalUriOpener.contribution.js';
@@ -464,13 +472,14 @@ import './services/sessions/browser/sessionsService.js';
 import './services/workspaceFolderLabel/browser/workspaceFolderLabelService.js';
 import './services/mcp/browser/mcpWorkspaceInstallTargetService.js';
 import './services/customView/browser/customViewService.js';
+import './services/activity/common/sessionActivityBarActivityService.js';
 import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/btwSlashCommand.contribution.js';
+import './contrib/chat/browser/sharedChatInputComposer.contribution.js';
 import './contrib/chat/browser/requestOriginProvider.contribution.js';
 import './contrib/chat/browser/sideChatProvider.contribution.js';
 import './contrib/sessionComparison/browser/sessionComparison.contribution.js';
@@ -513,6 +522,7 @@ import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
 import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
+import './contrib/getStarted/browser/getStarted.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
 //#endregion

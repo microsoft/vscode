@@ -7,9 +7,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGitHubChangedFile, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
+import { IGitHubChangedFile, IGitHubPullRequestChanges, IGitHubPullRequestContext, IGitHubPullRequestSummary, IGitHubPullRequestsPage, IGitHubRepository } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
-import { GitHubRepositoryModel, GitHubRepositoryModelReferenceCollection } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel, GitHubPullRequestModelReferenceCollection } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel, GitHubPullRequestReviewThreadsModelReferenceCollection } from './models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection } from './models/githubPullRequestCIModel.js';
@@ -26,6 +25,9 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { ApiRequestOptions } from '../../../../platform/github/common/client/request.js';
+import { URI } from '../../../../base/common/uri.js';
 
 /**
  * Shared trace prefix for the pull-request polling/fetching pipeline that feeds
@@ -33,6 +35,11 @@ import { GitHubCommit } from '../../../../platform/github/common/githubQueryServ
  * whole flow end-to-end (lookup -> fetch -> poll -> icon).
  */
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
+
+/** Whether a reference can be resolved by the currently configured GitHub service. */
+export function isGitHubReferenceSupported(uri: URI, enterpriseHost: string | undefined): boolean {
+	return uri.scheme === 'https' && uri.authority.toLowerCase() === (enterpriseHost ?? 'github.com').toLowerCase();
+}
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
@@ -47,11 +54,6 @@ export interface IGitHubService {
 
 	/** Silently search up to 100 repositories, or list the user's most recently updated accessible repositories for an empty query. */
 	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]>;
-
-	/**
-	 * Get a reference to a reactive model for a GitHub repository.
-	 */
-	createRepositoryModelReference(owner: string, repo: string): IReference<GitHubRepositoryModel>;
 
 	/**
 	 * Get a reference to a reactive model for a GitHub pull request.
@@ -79,6 +81,11 @@ export interface IGitHubService {
 	 */
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
 	getPullRequestChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<readonly IGitHubChangedFile[]>;
+	/**
+	 * List the files a pull request changes along with its current title and
+	 * the merge base and head commits that bound its diff.
+	 */
+	getPullRequestChanges(owner: string, repo: string, pullRequestNumber: number): Promise<IGitHubPullRequestChanges>;
 	getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string>;
 
 	/** List one page of open pull requests, ordered by most recently updated. */
@@ -98,10 +105,10 @@ export interface IGitHubService {
 	 */
 	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined>;
 
-	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentIssue[]>;
-	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentPullRequest[]>;
-	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken): Promise<readonly IGitHubRecentPullRequestReviewThread[]>;
-	getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken): Promise<ReadonlySet<number>>;
+	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentIssue[]>;
+	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequest[]>;
+	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequestReviewThread[]>;
+	getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken, options?: ApiRequestOptions): Promise<ReadonlySet<number>>;
 }
 
 export const IGitHubService = createDecorator<IGitHubService>('sessionsGitHubService');
@@ -120,7 +127,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestFetcher: GitHubPRFetcher;
 	private readonly _pullRequestContextFetcher: GitHubPullRequestContextFetcher;
 	private readonly _repositoryFetcher: GitHubRepositoryFetcher;
-	private readonly _repositoryReferences: GitHubRepositoryModelReferenceCollection;
 	private readonly _pullRequestReferences: GitHubPullRequestModelReferenceCollection;
 	private readonly _pullRequestReviewThreadsReferences: GitHubPullRequestReviewThreadsModelReferenceCollection;
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
@@ -157,17 +163,17 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._pullRequestContextFetcher = new GitHubPullRequestContextFetcher(apiClient);
 		this._repositoryFetcher = new GitHubRepositoryFetcher(apiClient);
 
-		this._repositoryReferences = instantiationService.createInstance(GitHubRepositoryModelReferenceCollection, apiClient);
 		this._pullRequestReferences = instantiationService.createInstance(GitHubPullRequestModelReferenceCollection, apiClient);
 		this._pullRequestReviewThreadsReferences = instantiationService.createInstance(GitHubPullRequestReviewThreadsModelReferenceCollection, apiClient);
 		this._pullRequestCIReferences = instantiationService.createInstance(GitHubPullRequestCIModelReferenceCollection, apiClient);
-		this._issueReferences = instantiationService.createInstance(GitHubIssueModelReferenceCollection, apiClient);
+		this._issueReferences = this._register(instantiationService.createInstance(GitHubIssueModelReferenceCollection, apiClient));
+		this._register(apiClient.onDidChange(() => this._findPRByBranchCache.clear()));
 
 		const gitHubInfoObs = derivedOpts<{ owner: string; repo: string; pullRequestNumber: number } | undefined>({ equalsFn: structuralEquals },
 			reader => {
 				const gitHubInfo = sessionsService.activeSession.read(reader)?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 
-				if (!gitHubInfo?.pullRequest) {
+				if (!gitHubInfo?.pullRequest || !isGitHubReferenceSupported(gitHubInfo.pullRequest.uri, this.enterpriseHost)) {
 					return undefined;
 				}
 
@@ -240,10 +246,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 		return this._repositoryFetcher.getRepositories(query, token);
 	}
 
-	createRepositoryModelReference(owner: string, repo: string): IReference<GitHubRepositoryModel> {
-		return this._repositoryReferences.acquire(`${owner}/${repo}`, owner, repo);
-	}
-
 	createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
 		return this._pullRequestReferences.acquire(getPullRequestKey(owner, repo, prNumber), owner, repo, prNumber);
 	}
@@ -261,42 +263,36 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	async getCommit(owner: string, repo: string, sha: string, token: CancellationToken): Promise<GitHubCommit> {
-		const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`;
-		const response = await this._apiClient.request<{
-			readonly sha: string;
-			readonly html_url: string;
-			readonly author?: { readonly login?: string };
-			readonly commit: {
-				readonly message: string;
-				readonly author: { readonly name: string; readonly date: string };
+		return this._apiClient.withClient(async (client, signal) => {
+			const commit = await client.repositories.getCommit({ owner, repo }, sha, signal, { priority: 'enrichment' });
+			const committedAt = commit.commit.author?.date;
+			if (!committedAt) {
+				throw new GitHubRequestError('GitHub commit did not include its author date', 'malformedResponse');
+			}
+			return {
+				sha: commit.sha,
+				message: commit.commit.message,
+				url: commit.html_url,
+				author: { login: commit.author?.login ?? commit.commit.author?.name ?? 'ghost' },
+				committedAt,
 			};
-		}>('GET', path, 'GitHubService.getCommit', { token, createAuthenticationSession: false });
-		if (!response.data) {
-			throw new Error(`GitHub commit ${owner}/${repo}@${sha} returned no data`);
-		}
-		return {
-			sha: response.data.sha,
-			message: response.data.commit.message,
-			url: response.data.html_url,
-			author: { login: response.data.author?.login ?? response.data.commit.author.name },
-			committedAt: response.data.commit.author.date,
-		};
+		}, token);
 	}
 
-	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentIssue[]> {
-		return this._recentUserWorkFetcher.getRecentAssignedIssues(owner, repo, token);
+	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentIssue[]> {
+		return this._recentUserWorkFetcher.getRecentAssignedIssues(owner, repo, token, options);
 	}
 
-	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken): Promise<readonly IGitHubRecentPullRequest[]> {
-		return this._recentUserWorkFetcher.getRecentAuthoredPullRequests(owner, repo, token);
+	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequest[]> {
+		return this._recentUserWorkFetcher.getRecentAuthoredPullRequests(owner, repo, token, options);
 	}
 
-	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken): Promise<readonly IGitHubRecentPullRequestReviewThread[]> {
-		return this._recentUserWorkFetcher.getPullRequestReviewThreads(owner, repo, pullRequestNumber, token);
+	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequestReviewThread[]> {
+		return this._recentUserWorkFetcher.getPullRequestReviewThreads(owner, repo, pullRequestNumber, token, options);
 	}
 
-	getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken): Promise<ReadonlySet<number>> {
-		return this._recentUserWorkFetcher.getIssuesWithLinkedPullRequests(owner, repo, issueNumbers, token);
+	getIssuesWithLinkedPullRequests(owner: string, repo: string, issueNumbers: readonly number[], token: CancellationToken, options?: ApiRequestOptions): Promise<ReadonlySet<number>> {
+		return this._recentUserWorkFetcher.getIssuesWithLinkedPullRequests(owner, repo, issueNumbers, token, options);
 	}
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
@@ -307,16 +303,18 @@ export class GitHubService extends Disposable implements IGitHubService {
 		return this._pullRequestFetcher.getChangedFiles(owner, repo, pullRequestNumber);
 	}
 
+	getPullRequestChanges(owner: string, repo: string, pullRequestNumber: number): Promise<IGitHubPullRequestChanges> {
+		return this._pullRequestFetcher.getChanges(owner, repo, pullRequestNumber);
+	}
+
 	async getFileContent(owner: string, repo: string, path: string, ref: string): Promise<string> {
-		const response = await this._apiClient.request<{ content: string; encoding: string }>(
-			'GET',
-			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}`,
-			'githubApi.getFileContent',
-		);
-		if (!response.data || response.data.encoding !== 'base64') {
-			throw new Error(`GitHub file content not found: ${owner}/${repo}/${path}@${ref}`);
-		}
-		return decodeBase64(response.data.content.replace(/\s/g, '')).toString();
+		return this._apiClient.withClient(async (client, signal) => {
+			const content = await client.content.getContent({ owner, repo }, path, signal, { query: { ref } });
+			if (content.type !== 'file' || content.encoding !== 'base64') {
+				throw new Error(`GitHub file content not found: ${owner}/${repo}/${path}@${ref}`);
+			}
+			return decodeBase64(content.content.replace(/\s/g, '')).toString();
+		});
 	}
 
 	getPullRequests(owner: string, repo: string, cursor?: string): Promise<IGitHubPullRequestsPage> {
@@ -348,16 +346,18 @@ export class GitHubService extends Disposable implements IGitHubService {
 			// "no PR yet" results, drop the cache entry so the next call retries.
 			promise.then(
 				value => {
-					if (typeof value !== 'number') {
+					if (typeof value !== 'number' && this._findPRByBranchCache.get(key) === promise) {
 						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved with NO pr number; dropping cache entry so a later call retries`);
 						this._findPRByBranchCache.delete(key);
-					} else {
+					} else if (typeof value === 'number') {
 						this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} resolved PR #${value}; caching indefinitely`);
 					}
 				},
 				err => {
 					this._logService.trace(`${TRACE_PREFIX} [GitHubService] findPullRequestNumberByHeadBranch for ${key} FAILED; dropping cache entry.`, err);
-					this._findPRByBranchCache.delete(key);
+					if (this._findPRByBranchCache.get(key) === promise) {
+						this._findPRByBranchCache.delete(key);
+					}
 				},
 			);
 		} else {
@@ -367,19 +367,14 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	private async _fetchPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {
-		// Use the REST `pulls` list API filtered by `head=${owner}:${branch}`.
-		// Default state is `open`; we include closed/merged so the button still
-		// surfaces the PR after the agent run finishes and the PR is merged.
-		// `per_page=1` + `sort=updated` gives us the most recent match.
-		const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`;
-		this._logService.trace(`${TRACE_PREFIX} [GitHubService] Fetching PR number for head ${owner}:${branch} via GET ${path}`);
-		const response = await this._apiClient.request<readonly { readonly number: number }[]>(
-			'GET',
-			path,
-			'githubApi.findPullRequestByHeadBranch',
-		);
-		const first = response.data?.[0];
-		this._logService.trace(`${TRACE_PREFIX} [GitHubService] PR number lookup for ${owner}:${branch} -> ${first ? `#${first.number}` : 'no match'} (status ${response.statusCode}, ${response.data?.length ?? 0} result(s))`);
-		return first ? first.number : undefined;
+		return this._apiClient.withClient(async (client, signal) => {
+			const pullRequests = await client.pullRequests.list({ owner, repo }, signal, {
+				priority: 'background',
+				query: { head: `${owner}:${branch}`, state: 'all', sort: 'updated', direction: 'desc', per_page: 1 },
+			});
+			const number = pullRequests[0]?.number;
+			this._logService.trace(`${TRACE_PREFIX} [GitHubService] PR number lookup for ${owner}:${branch} -> ${number ?? 'no match'}`);
+			return number;
+		});
 	}
 }

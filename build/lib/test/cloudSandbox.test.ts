@@ -27,6 +27,10 @@ function fixture(t: TestContext): string {
 	t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
 	fs.writeFileSync(path.join(directory, '.nvmrc'), '24.18.0\n');
 	fs.writeFileSync(path.join(directory, '.npmrc'), 'target="43.7.7"\nms_build_id="15553055"\n');
+	fs.mkdirSync(path.join(directory, 'host-bin'));
+	for (const executable of ['node', 'npm', 'npx']) {
+		fs.writeFileSync(path.join(directory, 'host-bin', executable), '', { mode: 0o755 });
+	}
 	return directory;
 }
 
@@ -42,7 +46,7 @@ suite('Cloud Sandbox install setup', () => {
 			const checksum = createHash('sha256').update(archive).digest('hex');
 			const options = {
 				root, home: root, platform: 'linux' as const, arch: 'x64', nodeVersion: '26.0.0',
-				env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+				env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: path.join(root, 'host-bin') },
 				run: (command: string, args: readonly string[]) => {
 					if (command === 'dpkg-query') {
 						return installedPackages;
@@ -58,9 +62,13 @@ suite('Cloud Sandbox install setup', () => {
 						assert.equal(fs.readFileSync(cachedNode, 'utf8'), 'stale');
 						const extracted = path.join(args[args.indexOf('-C') + 1], 'node-v24.18.0-linux-x64/bin');
 						fs.mkdirSync(extracted, { recursive: true });
-						fs.writeFileSync(path.join(extracted, 'node'), 'replacement');
+						for (const executable of ['node', 'npm', 'npx']) {
+							fs.writeFileSync(path.join(extracted, executable), 'replacement', { mode: 0o755 });
+						}
 					} else if (path.basename(command) === 'node') {
-						assert.equal(fs.readFileSync(cachedNode, 'utf8'), 'stale');
+						if (command !== 'node') {
+							assert.equal(fs.readFileSync(cachedNode, 'utf8'), 'stale');
+						}
 						return replacement === 'wrong-version' ? 'v22.20.0\n' : 'v24.18.0\n';
 					} else {
 						throw new Error(`Unexpected command ${command}`);
@@ -68,9 +76,12 @@ suite('Cloud Sandbox install setup', () => {
 					return '';
 				},
 			};
-			const message = replacement === 'valid' ? /export PATH=/ : replacement === 'bad-checksum'
-				? /checksum verification failed/ : /downloaded Node.js version does not match/;
-			assert.throws(() => prepareCloudSandbox(options), message);
+			if (replacement === 'valid') {
+				assert.equal(prepareCloudSandbox(options), cachedNode);
+			} else {
+				assert.throws(() => prepareCloudSandbox(options), replacement === 'bad-checksum'
+					? /checksum verification failed/ : /downloaded Node.js version does not match/);
+			}
 			assert.deepStrictEqual({
 				cached: fs.readFileSync(cachedNode, 'utf8'),
 				directories: fs.readdirSync(path.dirname(nodeDirectory)),
@@ -262,13 +273,14 @@ suite('Cloud Sandbox install setup', () => {
 	});
 
 	for (const nodeVersion of ['24.17.9', '22.20.0', '26.0.0']) {
-		test(`installs Node for ${nodeVersion}, reports PATH instructions and stops until rerun`, t => {
+		test(`installs Node for ${nodeVersion} and continues without PATH changes in the parent`, t => {
 			const root = fixture(t);
 			const archive = Buffer.from('test Node archive');
 			const checksum = createHash('sha256').update(archive).digest('hex');
 			const downloads: string[] = [];
 			const options = {
-				root, home: root, platform: 'linux' as const, arch: 'arm64', nodeVersion, env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+				root, home: root, platform: 'linux' as const, arch: 'arm64', nodeVersion,
+				env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: path.join(root, 'host-bin') },
 				run: (command: string, args: readonly string[]) => {
 					if (command === 'dpkg-query') {
 						return installedPackages;
@@ -281,7 +293,9 @@ suite('Cloud Sandbox install setup', () => {
 					} else if (command === 'tar') {
 						const extracted = path.join(args[args.indexOf('-C') + 1], 'node-v24.18.0-linux-arm64', 'bin');
 						fs.mkdirSync(extracted, { recursive: true });
-						fs.writeFileSync(path.join(extracted, 'node'), '');
+						for (const executable of ['node', 'npm', 'npx']) {
+							fs.writeFileSync(path.join(extracted, executable), '', { mode: 0o755 });
+						}
 					} else if (path.basename(command) === 'node') {
 						return 'v24.18.0\n';
 					} else {
@@ -290,22 +304,105 @@ suite('Cloud Sandbox install setup', () => {
 					return '';
 				},
 			};
+			const nodeBin = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-arm64/bin');
 			for (let attempt = 0; attempt < 2; attempt++) {
-				assert.throws(() => prepareCloudSandbox(options), /export PATH='.*node-v24\.18\.0-linux-arm64\/bin':"\$PATH"\nhash -r/);
+				assert.equal(prepareCloudSandbox(options), path.join(nodeBin, 'node'));
 			}
 			prepareCloudSandbox({ ...options, nodeVersion: '24.18.0' });
 			assert.deepStrictEqual({
 				downloads,
 				files: fs.readdirSync(path.join(root, '.local/share/vscode-cloud-sandbox')),
+				links: ['node', 'npm', 'npx'].map(executable => fs.readlinkSync(path.join(root, 'host-bin', executable))),
 			}, {
 				downloads: [
 					'https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-arm64.tar.xz',
 					'https://nodejs.org/dist/v24.18.0/SHASUMS256.txt',
 				],
 				files: ['node-v24.18.0-linux-arm64'],
+				links: ['node', 'npm', 'npx'].map(executable => path.join(nodeBin, executable)),
 			});
 		});
 	}
+
+	for (const unusable of ['missing', 'non-executable']) {
+		test(`validates cached npx before replacing any host executable (${unusable})`, t => {
+			const root = fixture(t);
+			const bin = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-x64/bin');
+			fs.mkdirSync(bin, { recursive: true });
+			for (const executable of ['node', 'npm']) {
+				fs.writeFileSync(path.join(bin, executable), '', { mode: 0o755 });
+			}
+			if (unusable === 'non-executable') {
+				fs.writeFileSync(path.join(bin, 'npx'), '', { mode: 0o644 });
+			}
+			const options = {
+				root, home: root, platform: 'linux' as const, arch: 'x64', nodeVersion: '26.0.0',
+				env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: path.join(root, 'host-bin') },
+				run: (command: string) => command === 'dpkg-query' ? installedPackages : 'v24.18.0\n',
+			};
+			assert.throws(() => prepareCloudSandbox(options), unusable === 'missing' ? /ENOENT/ : /EACCES/);
+			assert.deepStrictEqual(['node', 'npm', 'npx'].map(executable => ({
+				link: fs.lstatSync(path.join(root, 'host-bin', executable)).isSymbolicLink(),
+				data: fs.readFileSync(path.join(root, 'host-bin', executable), 'utf8'),
+			})), Array.from({ length: 3 }, () => ({ link: false, data: '' })));
+
+			fs.writeFileSync(path.join(bin, 'npx'), '');
+			fs.chmodSync(path.join(bin, 'npx'), 0o755);
+			assert.equal(prepareCloudSandbox(options), path.join(bin, 'node'));
+		});
+	}
+
+	test('selects node, npm and npx from their independently resolved PATH directories', t => {
+		const root = fixture(t);
+		const earlierBin = path.join(root, 'earlier-bin');
+		fs.mkdirSync(earlierBin);
+		for (const executable of ['npm', 'npx']) {
+			fs.writeFileSync(path.join(earlierBin, executable), '', { mode: 0o755 });
+		}
+		const bin = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-x64/bin');
+		fs.mkdirSync(bin, { recursive: true });
+		for (const executable of ['node', 'npm', 'npx']) {
+			fs.writeFileSync(path.join(bin, executable), '', { mode: 0o755 });
+		}
+		const options = {
+			root, home: root, platform: 'linux' as const, arch: 'x64', nodeVersion: '26.0.0',
+			env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: `${earlierBin}${path.delimiter}${path.join(root, 'host-bin')}` },
+			run: (command: string) => command === 'dpkg-query' ? installedPackages : 'v24.18.0\n',
+		};
+		assert.equal(prepareCloudSandbox(options), path.join(bin, 'node'));
+		// A retry already running the downloaded Node must repair other PATH tools too.
+		fs.unlinkSync(path.join(earlierBin, 'npx'));
+		fs.writeFileSync(path.join(earlierBin, 'npx'), '', { mode: 0o755 });
+		assert.equal(prepareCloudSandbox({ ...options, nodeVersion: '24.18.0', nodeExecutable: path.join(bin, 'node') }), path.join(bin, 'node'));
+		assert.deepStrictEqual({
+			node: fs.readlinkSync(path.join(root, 'host-bin/node')),
+			npm: fs.readlinkSync(path.join(earlierBin, 'npm')),
+			npx: fs.readlinkSync(path.join(earlierBin, 'npx')),
+		}, {
+			node: path.join(bin, 'node'),
+			npm: path.join(bin, 'npm'),
+			npx: path.join(bin, 'npx'),
+		});
+	});
+
+	test('creates missing npm and npx alongside the selected host Node executable', t => {
+		const root = fixture(t);
+		const bin = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-x64/bin');
+		fs.mkdirSync(bin, { recursive: true });
+		for (const executable of ['node', 'npm', 'npx']) {
+			fs.writeFileSync(path.join(bin, executable), '', { mode: 0o755 });
+		}
+		for (const executable of ['npm', 'npx']) {
+			fs.unlinkSync(path.join(root, 'host-bin', executable));
+		}
+		prepareCloudSandbox({
+			root, home: root, platform: 'linux', arch: 'x64', nodeVersion: '26.0.0',
+			env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: path.join(root, 'host-bin') },
+			run: command => command === 'dpkg-query' ? installedPackages : 'v24.18.0\n',
+		});
+		assert.deepStrictEqual(['node', 'npm', 'npx'].map(executable => fs.readlinkSync(path.join(root, 'host-bin', executable))),
+			['node', 'npm', 'npx'].map(executable => path.join(bin, executable)));
+	});
 
 	test('rejects a bad Node checksum and removes partial downloads', t => {
 		const root = fixture(t);
@@ -453,7 +550,7 @@ suite('Cloud Sandbox install setup', () => {
 		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 			import fs from 'node:fs';
 			export function isCloudSandbox() { return Boolean(process.env.GITHUB_ENVIRONMENT_ID); }
-			export function prepareCloudSandbox() { fs.appendFileSync('calls', 'prepare\\n'); return true; }
+			export function prepareCloudSandbox() { fs.appendFileSync('calls', 'prepare\\n'); return process.execPath; }
 			export function raiseCloudSandboxFileLimit(pid) {
 				if (!Number.isSafeInteger(pid) || pid <= 1) { throw new Error('Invalid limit target'); }
 				fs.appendFileSync('calls', 'limit\\n');
@@ -614,6 +711,73 @@ suite('Cloud Sandbox install setup', () => {
 		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ status: 0, stdout: '', stderr: '' })));
 	});
 
+	test('the dev launcher uses the existing shared-memory workaround for Linux Cloud Sandboxes', t => {
+		if (process.platform === 'win32') {
+			t.skip('The development launcher uses bash.');
+			return;
+		}
+		const root = fixture(t);
+		fs.mkdirSync(path.join(root, 'scripts'));
+		fs.copyFileSync(path.join(repositoryRoot, 'scripts/code.sh'), path.join(root, 'scripts/code.sh'));
+		fs.mkdirSync(path.join(root, '.build/electron'), { recursive: true });
+		const fakeNode = path.join(root, 'host-bin/node');
+		fs.writeFileSync(fakeNode, '#!/bin/sh\nprintf "code\\n"\n', { mode: 0o755 });
+		fs.writeFileSync(path.join(root, '.build/electron/code'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 });
+		const result = spawnSync('bash', ['-c', 'OSTYPE=linux-gnu; source "$0" --test-launch', path.join(root, 'scripts/code.sh')], {
+			encoding: 'utf8', timeout: 10_000,
+			env: { ...process.env, PATH: `${path.dirname(fakeNode)}${path.delimiter}${process.env.PATH}`, GITHUB_ENVIRONMENT_ID: 'environment', VSCODE_SKIP_PRELAUNCH: '1' },
+		});
+		assert.deepStrictEqual({
+			status: result.status,
+			args: result.stdout.trim().split('\n'),
+		}, { status: 0, args: ['.', '--disable-extension=vscode.vscode-api-tests', '--disable-dev-shm-usage', '--test-launch'] }, result.stderr);
+	});
+
+	test('startup continues under the selected Node executable without a manual second invocation', t => {
+		if (process.platform === 'win32') {
+			t.skip('The sandbox startup executable fixture uses a POSIX shell.');
+			return;
+		}
+		const root = fixture(t);
+		const npmDirectory = path.join(root, 'build/npm');
+		fs.mkdirSync(path.join(npmDirectory, 'gyp'), { recursive: true });
+		fs.mkdirSync(path.join(root, 'remote'));
+		fs.writeFileSync(path.join(root, 'remote/.npmrc'), '');
+		for (const file of ['package.json', 'package-lock.json']) {
+			fs.writeFileSync(path.join(npmDirectory, 'gyp', file), '{}');
+		}
+		const selectedNode = path.join(root, 'selected-node');
+		const quote = (value: string) => `'${value.replaceAll('\'', '\'\\\'\'')}'`;
+		fs.writeFileSync(selectedNode, `#!/bin/sh
+export SELECTED_NODE_EXECUTED=1
+exec ${quote(process.execPath)} "$@"
+`, { mode: 0o755 });
+		fs.copyFileSync(path.join(repositoryRoot, 'build/npm/cloudSandboxSetup.ts'), path.join(npmDirectory, 'cloudSandboxSetup.ts'));
+		fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), 'export const root = process.cwd();');
+		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
+			export function isCloudSandbox() { return true; }
+			export function prepareCloudSandbox() { return ${JSON.stringify(selectedNode)}; }
+			export function raiseCloudSandboxFileLimit() {}
+		`);
+		fs.writeFileSync(path.join(npmDirectory, 'preinstall.ts'), `
+			import assert from 'node:assert/strict';
+			import fs from 'node:fs';
+			assert.equal(process.env.SELECTED_NODE_EXECUTED, '1');
+			assert.equal(process.env.PATH.split(${JSON.stringify(path.delimiter)})[0], ${JSON.stringify(root)});
+			fs.mkdirSync('build/npm/gyp/node_modules/.bin', { recursive: true });
+			fs.writeFileSync('build/npm/gyp/node_modules/.bin/node-gyp', '');
+		`);
+		const result = spawnSync(process.execPath, [path.join(npmDirectory, 'cloudSandboxSetup.ts')], {
+			cwd: root, encoding: 'utf8', timeout: 10_000,
+			env: { ...process.env, HOME: root, USERPROFILE: root, GITHUB_ENVIRONMENT_ID: 'environment' },
+		});
+		assert.deepStrictEqual({
+			status: result.status,
+			completed: fs.existsSync(path.join(root, '.build/cloud-sandbox-setup')),
+			lockRemaining: fs.existsSync(path.join(root, '.local/share/vscode-cloud-sandbox/setup.lock')),
+		}, { status: 0, completed: true, lockRemaining: false }, result.stdout + result.stderr);
+	});
+
 	for (const failFirst of [false, true]) {
 		test(`concurrent sessions serialize setup and reuse success (initial failure: ${failFirst})`, async t => {
 			const root = fixture(t);
@@ -634,7 +798,7 @@ suite('Cloud Sandbox install setup', () => {
 					fs.writeFileSync('mutation', 'prepare', { flag: 'wx' });
 					Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
 					fs.unlinkSync('mutation');
-					return true;
+					return process.execPath;
 				}
 				export function raiseCloudSandboxFileLimit() { fs.appendFileSync('calls', 'limit\\n'); }
 			`);

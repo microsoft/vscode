@@ -27,6 +27,7 @@ import { NullHoverService } from '../../../../../../../platform/hover/test/brows
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatResourceGroupWidget } from '../../../../browser/widget/chatContentParts/chatResourceGroupWidget.js';
+import { getGeneratedImageResultParts } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { IChatCollapsibleIODataPart } from '../../../../browser/widget/chatContentParts/chatToolInputOutputContentPart.js';
 import '../../../../browser/widget/media/chat.css';
 
@@ -49,6 +50,39 @@ suite('ChatResourceGroupWidget', () => {
 				}
 				return Disposable.None;
 			},
+		});
+	});
+
+	test('saving separate generated images uses hashed names without changing their resource URIs', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const destination = URI.from({ scheme: Schemas.inMemory, path: '/saved' });
+		await fileService.createFolder(destination);
+		const suggested: string[] = [];
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async defaultFilePath() { return destination; }
+			override async pickFileToSave(resource: URI) { suggested.push(resource.path); return resource; }
+		}());
+		const command = CommandsRegistry.getCommand('chat.toolOutput.save')!;
+		for (const [index, toolCallId] of ['image-call-1', 'image-call-2'].entries()) {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: `/source-${index}/generated-image.png` });
+			await fileService.createFolder(dirname(uri));
+			await fileService.writeFile(uri, VSBuffer.fromString(`image-${index}`));
+			const parts = getGeneratedImageResultParts({ input: '', output: [{ type: 'ref', uri, mimeType: 'image/png' }] }, URI.parse('agent-host://local/session'), toolCallId);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, { parts }));
+		}
+		const saved = await fileService.resolve(destination);
+		const contents = await Promise.all((saved.children ?? []).map(async file => ({
+			name: file.name,
+			value: (await fileService.readFile(file.resource)).value.toString(),
+		})));
+		assert.deepStrictEqual({ suggested, contents: contents.sort((a, b) => a.name.localeCompare(b.name)) }, {
+			suggested: ['/saved/generated-image-3c41e71d9ac9.png', '/saved/generated-image-dc4b1335ceec.png'],
+			contents: [
+				{ name: 'generated-image-3c41e71d9ac9.png', value: 'image-0' },
+				{ name: 'generated-image-dc4b1335ceec.png', value: 'image-1' },
+			],
 		});
 	});
 
@@ -95,10 +129,10 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	}
 
-	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>): ChatResourceGroupWidget {
+	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>, revealSize?: number): ChatResourceGroupWidget {
 		const host = dom.append(mainWindow.document.body, dom.$(animateImageReveal ? '.chat-image-generation-single' : 'div'));
 		const container = dom.append(host, dom.$(inline ? '.chat-generated-image-result' : 'div'));
-		const imageReveal = animateImageReveal ? { container: host } : undefined;
+		const imageReveal = animateImageReveal ? { container: host, size: revealSize } : undefined;
 		const widget = store.add(instantiationService.createInstance(ChatResourceGroupWidget, parts, inline ? { imagePresentation: 'inline', showImageInHover: false, imageReveal, imageDimensions } : undefined));
 		container.appendChild(widget.domNode);
 		store.add(toDisposable(() => host.remove()));
@@ -115,6 +149,25 @@ suite('ChatResourceGroupWidget', () => {
 		}());
 		instantiationService.stub(IFileService, fileService);
 		return { content, fileService };
+	}
+
+	/** Resolves with the first element in `container` that matches `selector`, waiting for the DOM mutation that adds it. */
+	function waitForElement<T extends Element>(container: HTMLElement, selector: string): Promise<T> {
+		const existing = container.querySelector<T>(selector);
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+		return new Promise(resolve => {
+			const observer = new MutationObserver(() => {
+				const element = container.querySelector<T>(selector);
+				if (element) {
+					observer.disconnect();
+					resolve(element);
+				}
+			});
+			observer.observe(container, { childList: true, subtree: true });
+			store.add(toDisposable(() => observer.disconnect()));
+		});
 	}
 
 	function snapshot(widget: ChatResourceGroupWidget) {
@@ -280,6 +333,7 @@ suite('ChatResourceGroupWidget', () => {
 		const container = widget.domNode.parentElement!;
 		container.classList.add('interactive-session');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--chat-generated-image-max-height', '300px');
 		const reveal = widget.domNode.querySelector('.chat-image-reveal')!;
 		const image = reveal.querySelector<HTMLImageElement>('img')!;
 		const initial = { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, hasSource: !!image.getAttribute('src'), width: reveal.getBoundingClientRect().width };
@@ -290,7 +344,7 @@ suite('ChatResourceGroupWidget', () => {
 			initial,
 			loaded: { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, sameImage: reveal.querySelector('img') === image },
 		}, {
-			initial: { pending: true, busy: 'true', hasSource: false, width: 320 },
+			initial: { pending: true, busy: 'true', hasSource: false, width: 200 },
 			loaded: { pending: false, busy: 'false', sameImage: true },
 		});
 	});
@@ -323,7 +377,7 @@ suite('ChatResourceGroupWidget', () => {
 			await frame();
 			await frame();
 			const waiting = bandState();
-			const waitingHeight = reveal.getBoundingClientRect().height;
+			const waitingBounds = reveal.getBoundingClientRect();
 			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 400, height: 240 });
 			const context = canvas.getContext('2d')!;
 			context.fillStyle = '#4682b4';
@@ -341,17 +395,69 @@ suite('ChatResourceGroupWidget', () => {
 			}
 			assert.deepStrictEqual({
 				waiting,
-				waitingHeight,
+				waitingSquare: Math.round(waitingBounds.width) === Math.round(waitingBounds.height),
 				sameField: reveal.querySelector('.chat-image-loading-glyphs') === field,
 				expansion: states,
 			}, {
 				waiting: { visible: true, painted: true },
-				waitingHeight: 50,
+				waitingSquare: true,
 				sameField: true,
 				expansion: Array.from({ length: 4 }, () => ({ visible: true, painted: true })),
 			});
 		});
 	}
+
+	test('a pending glyph square narrows with the chat while referenced image bytes load, so the image only grows from it', async () => {
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return false; }
+		}());
+		const { content } = deferImageRead();
+		// The loader measured 200px where it loaded, in a 760px chat.
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true, undefined, 200);
+		const gallery = widget.domNode.parentElement!;
+		gallery.style.setProperty('--chat-generated-image-max-height', '300px');
+		const host = gallery.parentElement!;
+		const reveal = widget.domNode.querySelector<HTMLElement>('.chat-image-reveal')!;
+		const size = () => {
+			const bounds = reveal.getBoundingClientRect();
+			return [bounds.width, bounds.height];
+		};
+		host.style.width = '760px';
+		const wide = size();
+		host.style.width = '240px';
+		const narrow = size();
+		const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 });
+		const context = canvas.getContext('2d')!;
+		context.fillStyle = '#4682b4';
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		await content.complete(decodeBase64(canvas.toDataURL('image/png').split(',')[1]));
+		await retry(async () => assert.ok(reveal.classList.contains('revealing')), 20, 50);
+		const clock = reveal.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!.getAnimations()[0];
+		assert.ok(clock);
+		clock.pause();
+		const frames = [];
+		for (const fraction of [0, 1]) {
+			clock.currentTime = Number(clock.effect?.getTiming().duration) * fraction;
+			await new Promise<void>(resolve => store.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			frames.push(size());
+		}
+
+		// The square narrows to two thirds of the width beside the save action, 140px give or take the engine's rounding, which is the shortest edge any image shape is shown at, so this 240x160 image only grows from it.
+		const [narrowSize] = narrow;
+		assert.deepStrictEqual({
+			wide,
+			narrowSquare: narrow[0] === narrow[1],
+			narrowToShortestEdge: Math.abs(narrowSize - 140) <= 1,
+			revealStartsFromSquare: frames[0][0] === narrowSize && frames[0][1] === narrowSize,
+			revealEnd: frames[1],
+		}, {
+			wide: [200, 200],
+			narrowSquare: true,
+			narrowToShortestEdge: true,
+			revealStartsFromSquare: true,
+			revealEnd: [240, 160],
+		});
+	});
 
 	test('an image read failure removes the glyph band and keeps the error visible', async () => {
 		const { content } = deferImageRead();
@@ -437,16 +543,17 @@ suite('ChatResourceGroupWidget', () => {
 	test('ordinary tool resources keep their deferred attachment thumbnails', async () => {
 		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], false);
 		const initial = snapshot(widget);
-		await retry(async () => {
-			const image = widget.domNode.querySelector<HTMLImageElement>('img');
-			assert.ok(image?.complete && image.naturalWidth > 0);
-		}, 20, 50);
+		// The thumbnail replaces the placeholder only after a decode delay and an asynchronous canvas
+		// encode whose duration depends on renderer load, so wait for it instead of polling on a budget.
+		const image = await waitForElement<HTMLImageElement>(widget.domNode, 'img.chat-attached-context-pill-image');
+		await image.decode();
 
 		assert.deepStrictEqual({
 			initialFilePills: initial.filePills,
 			initialImages: initial.images,
 			finalImages: snapshot(widget).images,
+			decoded: image.naturalWidth > 0,
 			hoverImages: imageHovers.flatMap(hover => [...hover.querySelectorAll('img')]).length,
-		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, hoverImages: 1 });
+		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
 	});
 });

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtemp } from 'fs/promises';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -25,6 +24,7 @@ import { AUTOMATION_CATALOG_URI, MessageKind, ROOT_STATE_URI, type AutomationRun
 import { resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const AUTOMATIONS_DISABLED_MESSAGE = 'Automations are disabled.';
 /** Mirrors the host's advertised `runHistoryLimit`. */
@@ -374,7 +374,7 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		});
 		await openAutomationGates();
 		await subscribeCatalog();
-		const workspace = await mkdtemp(join(tmpdir(), 'ahp-automation-lifecycle-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-automation-lifecycle-'));
 		context.tempDirs.push(workspace);
 		const resource = automationResource(prefix);
 		const definition: AutomationDefinition = {
@@ -597,7 +597,7 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 	if (context.tier === 'parity' && config.provider === 'copilotcli') {
 		test('an automation run restores Mode and Approvals after host restart', async function () {
 			this.timeout(240_000);
-			const workspace = await mkdtemp(join(tmpdir(), 'ahp-automation-session-config-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-automation-session-config-'));
 			context.tempDirs.push(workspace);
 			await initializeRoot('automations-session-config');
 			await openAutomationGates();

@@ -28,9 +28,7 @@ Follow the matching guide:
 - [Pre-1.133 permission-policy migration](./legacy-permission-policy.md)
 - [Agent Host policy support and migration readiness](./policy-support-maintenance.md)
 
-Use the support-maintenance guide when changing policy classifications,
-applied-requirement predicates, or admin migration-readiness diagnostics. It
-applies when reviewing an existing control as well as when adding a new one.
+Use the support-maintenance guide when changing policy classifications, applied-requirement predicates, or admin migration-readiness diagnostics. It applies when reviewing an existing control as well as when adding a new one.
 
 General rules:
 
@@ -40,6 +38,12 @@ General rules:
 - New Copilot enterprise controls should target the shared managed-settings/SDK model.
 - The VS Code settings-to-managed-settings bridge is a compatibility path for legacy settings only. Do not add a new VS Code setting in order to bridge it; define new runtime-owned controls directly in the managed-settings/SDK contract. The bridge itself is unconditional; do not reintroduce a compatibility gate for it.
 - Run `npm run export-policy-data` for every VS Code or extension policy change. Never edit `build/lib/policies/policyData.jsonc` manually.
+
+## Explain policy-disabled features
+
+Users should be able to understand why a feature described in release notes or documentation is unavailable. Prefer an otherwise relevant option remaining visible but disabled, with the standard briefcase managed-policy indicator, localized explanation, and accessible next step, rather than silently filtering it out. Follow the [shared design guidance and settings/model/permission-picker examples](../design-philosophy/SKILL.md#make-unavailable-features-understandable).
+
+Use authoritative policy provenance to distinguish prohibited options from unsupported capabilities, feature gates, and pending state. Keep presentation separate from authorization: showing Assisted or Allow All as disabled must never put a prohibited value back into the runtime's allowed enum or bypass create/resume/write validation. Test policy refresh/removal, keyboard and pointer activation, stale menus, and independent help links; preserve explicit AI-hiding behavior.
 
 ## Deprecated and Historical Channels
 

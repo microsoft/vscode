@@ -71,6 +71,7 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 	) {
 		super(remoteAgentHostService, configurationService, logService, instantiationService, sessionsProvidersService, notificationService);
 
+		this._register(this._remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
 			this._resumeSSHReconnects();
 			this._reconcile();

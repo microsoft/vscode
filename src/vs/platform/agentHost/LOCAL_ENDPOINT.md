@@ -4,6 +4,26 @@ VS Code's local agent host exposes the Agent Host Protocol (AHP) to other proces
 
 The local workbench uses a separate MessagePort transport. This document describes only the discoverable endpoint for external local clients.
 
+## AHP transport logging
+
+`chat.agentHost.ahpJsonlLoggingEnabled` defaults to enabled only in Insiders. Local and ordinary remote connections capture both directions in the window; the generic host WebSocket transport does not capture a second copy. Mission Control connections capture only on the host, including connections from VS Code windows.
+
+Desktop and remote-server starters forward the setting through `VSCODE_AGENT_HOST_AHP_JSONL_LOGGING` at launch so host capture can include the first handshake. The owning local window also mirrors the setting into the read-only `ahpJsonlLoggingEnabled` AHP root-config property; updates affect existing Mission Control lanes without restarting or replenishing the byte budget. Remote Mission Control clients do not mirror their window's setting over the host owner's choice. Hosts without an explicit startup value use the Insiders default.
+
+Mission Control hosts advertise their log directory in the optional `vscode.ahpLogDirectory` initialization metadata. The wire-log viewer reads those host-owned files through standard AHP resource operations, subject to the existing authentication and filesystem grants. Debug-log exports include Mission Control transport logs collected by the local Agent Host, but do not fetch logs from remote Mission Control hosts. Reads of the capture directory, their responses, and log-only file-watch changes are excluded from capture so inspection cannot recursively record log contents or feed back into file watching. This does not enable host-management methods, advertise OTLP diagnostic logs, or expand filesystem access. Hosts without this metadata retain historical window-local logs as a fallback.
+
+Debug-log exports log and skip unsupported or unavailable individual log sources. Up to 1,000 client-file candidates are retained independently of the host archive; the combined ZIP entry budget and Mission Control deduplication are applied only after the host archive is available. A failed host-archive download does not prevent exporting client-owned logs. Cancellation and destination folder, write, or installation failures stop the operation and preserve the previous export.
+
+Native ZIP creation reports skipped sources back to the exporter. If the host archive disappears during native inspection or opening, the exporter rebuilds the ZIP from the retained client candidates and reports the partial export.
+
+All AHP JSONL writers in one process that use the same log directory share a cumulative 500 MiB budget, including concurrent connections, reconnects, and Mission Control lanes. Each window and host process accounts independently. Existing per-connection rotation (five files of up to 75 MiB each) still applies, but deleting or rotating a file does not replenish the shared budget. Pending entries and dropped-entry markers reserve their UTF-8 byte count before being queued, so queued writes cannot overshoot the budget.
+
+When the next complete entry would exceed the budget, the process emits one `[AHPLog]` warning and stops capture for that log directory until the window or host process restarts. Already queued entries still flush. Subsequent messages are skipped before serialization; accounting uses memory only, without extra filesystem scans or metadata calls. Protocol traffic and other diagnostic logs are unaffected.
+
+## Mission Control authentication
+
+Mission Control hosts advertise public credential-encryption keys in root-state metadata. Every root snapshot, including subscriptions refreshed after authentication and reconnect snapshots, must retain these keys so clients can encrypt subsequent provider and MCP credentials. Listener-owned metadata stays scoped to that listener rather than modifying shared host state.
+
 ## Metadata location
 
 The registry is a **directory of per-instance entry files**:
@@ -81,6 +101,22 @@ Connect to `endpoint.path` (socket endpoints) using WebSocket framing and provid
 After the WebSocket upgrade succeeds, send the normal AHP `initialize` request. The metadata `protocolVersion` is useful for discovery and diagnostics, but it does not replace protocol negotiation.
 
 Connections without the token, or with the wrong token, are rejected with HTTP 403 during the WebSocket upgrade.
+
+### TCP connections and windowed delivery
+
+Authenticated owner connections can open outbound sockets in the agent host's network when the host advertises the standard `tcpConnections` capability in `initialize`. Trusted local MessagePort connections also support this capability; unauthenticated WebSockets and multi-tenant relay connections do not.
+
+Default VS Code clients offer upstream's released `SUPPORTED_PROTOCOL_VERSIONS` plus the legacy `0.10.0` compatibility alias. TCP availability is capability-based, with no additional 1.1 version gate or version override. Web PubSub and Mission Control transports reject TCP before opening a destination because their relay envelopes do not preserve original AHP JSON sizes.
+
+Use `createTcpConnection`, then `subscribe` with `flowControl.receive`. TCP requires windowed delivery: the subscribe response contains accepted limits, followed by a `channel/snapshot` with empty state. Small `tcp/data` and `tcp/eof` notifications are sent directly; larger notifications use `channel/frame`, sized to the remaining credit as well as the frame limit. Tiny windows permit enough overshoot for the envelope and forward progress. `tcp/reset`, `unsubscribe`, and `channel/credit` bypass the data window but share a separately bounded control lane. TCP channels belong to the exact transport that created them and are never replayed or restored on reconnect. Requested TCP channels are reported in a replay result's `missing`; snapshot results omit their snapshots and have no `missing` field.
+
+The control lane limits each notification to 16 KiB of UTF-16 JSON. Per transport, the receive token bucket allows a burst of 4096 controls and 1 MiB, replenished at those rates per second; outgoing controls are paced at half those limits to leave headroom for bunched delivery. Outgoing controls have a 64 KiB / 1024-entry queue, coalesce pending cumulative credits, and may use up to 64 KiB of reserved transport space beyond the 256 KiB data threshold. Incomplete fragments and releases reaching a quarter of the receive window schedule credit in a microtask, avoiding a browser timer delay on each credit/data round trip. Smaller complete-message releases coalesce for up to 10 ms. All credits still pass through the control budget. Incoming control-budget violations or outgoing queue overflow close the transport explicitly. These limits also cover TCP `unsubscribe` before subscription and controls for unknown TCP channels; ordinary subscriptions keep their existing unsubscribe behavior.
+
+The client exposes `IAgentConnection.openTcpConnection()` as a bounded pull stream (`read`, `write`, `drain`, `end`, `close`). Consumers must read continuously rather than wait for EOF before releasing data. `end` half-closes the outgoing direction; `drain` waits for peer consumption credit, not application-level delivery at the destination.
+
+The implementation allows 256 opening/live sockets per transport and 512 per host. Aggregate pending application writes are limited to 16 MiB per transport and 32 MiB per host, with a 4 MiB / 64-call per-stream write queue. Receive windows default to 256 KiB with 16 KiB frames, and separate local budgets bound reassembly and unread data. Creation/subscription and graceful drain after both half-closes have 30-second deadlines. Transport loss, reset, early unsubscribe, invalid data, and deadlines abort established sockets with TCP RST rather than normal EOF. Graceful closure preserves accepted writes; pending connection attempts are cancelled.
+
+[`AgentHostChannelDelivery`](common/agentHostChannelDelivery.ts) owns generic direct/fragmented delivery, original JSON UTF-16 byte accounting, credit, and fair scheduling. Channel adapters own snapshot installation, data consumption, reset behavior, and recovery. TCP is its first consumer; chat, terminal, telemetry, and other subscriptions still use their existing delivery paths. TCP and fragment payloads are redacted from AHP JSONL logs.
 
 ## Endpoint paths
 

@@ -105,19 +105,22 @@ export type IFolderGitHubInfoResolver = (workingDirectory: URI) => IObservable<I
 /**
  * Projects a chat's working-directory scope onto its owning session workspace.
  * Returns no workspace rather than exposing a partial scope when a required folder is unavailable.
+ * Pass `resolveDetachedFolders` for a chat whose folders are intentionally detached from the
+ * session workspace, such as an archived chat, so those folders are resolved on their own.
  *
  * Pass `getFolderGitHubInfo` to have each folder report its own repository and
  * pull request information instead of what the session workspace carries.
  * Pass `gitState` to project the chat scope's branch state onto its primary folder.
  */
-export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver, gitState?: ISessionGitState): ISessionWorkspace | undefined {
+export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace | undefined, workingDirectories: readonly URI[] | undefined, getFolderGitHubInfo?: IFolderGitHubInfoResolver, gitState?: ISessionGitState, resolveDetachedFolders = false): ISessionWorkspace | undefined {
 	if (!sessionWorkspace || (workingDirectories === undefined && !getFolderGitHubInfo && !gitState)) {
 		return sessionWorkspace;
 	}
 
 	const folders: ISessionFolder[] = [];
 	for (const workingDirectory of workingDirectories ?? sessionWorkspace.folders.map(folder => folder.workingDirectory)) {
-		const folder = sessionWorkspace.folders.find(candidate => extUri.isEqual(candidate.workingDirectory, workingDirectory));
+		const folder = sessionWorkspace.folders.find(candidate => extUri.isEqual(candidate.workingDirectory, workingDirectory))
+			?? (resolveDetachedFolders ? createAdditionalFolder(workingDirectory, sessionWorkspace.description) : undefined);
 		if (!folder) {
 			return undefined;
 		}
@@ -140,6 +143,61 @@ export function buildAgentHostChatWorkspace(sessionWorkspace: ISessionWorkspace 
 		uri: usesSessionPrimary ? sessionWorkspace.uri : primaryFolder.root,
 		label: usesSessionPrimary ? sessionWorkspace.label : primaryFolder.name,
 		folders,
+	};
+}
+
+/** Membership test over a session's host scratch folders (`vscode.scratchFolders`). */
+export interface IAgentHostScratchFolders {
+	has(folder: URI): boolean;
+}
+
+/** Removes host scratch folders from `workingDirectories`; they are internal and never shown or used as roots. */
+export function withoutScratchFolders(workingDirectories: readonly URI[], scratchFolders: IAgentHostScratchFolders | undefined): readonly URI[] {
+	return scratchFolders ? workingDirectories.filter(directory => !scratchFolders.has(directory)) : workingDirectories;
+}
+
+/**
+ * Like {@link buildAgentHostChatWorkspace}, for a session that reports host scratch folders.
+ * Scratch folders are never shown: a chat working only in scratch folders has no workspace, and a
+ * chat with folders of its own in a session without a workspace (a quick chat) gets a workspace of
+ * those folders from `buildOwnWorkspace`, each reporting its own GitHub info. Without `scratchFolders` (an older host) this is
+ * {@link buildAgentHostChatWorkspace}.
+ */
+export function buildAgentHostChatWorkspaceWithScratchFolders(
+	sessionWorkspace: ISessionWorkspace | undefined,
+	workingDirectories: readonly URI[] | undefined,
+	scratchFolders: IAgentHostScratchFolders | undefined,
+	buildOwnWorkspace: (workingDirectories: readonly URI[]) => ISessionWorkspace | undefined,
+	getFolderGitHubInfo: IFolderGitHubInfoResolver | undefined,
+	gitState: ISessionGitState | undefined,
+	resolveDetachedFolders: boolean,
+): ISessionWorkspace | undefined {
+	if (!scratchFolders || !workingDirectories?.length) {
+		return buildAgentHostChatWorkspace(sessionWorkspace, workingDirectories, getFolderGitHubInfo, gitState, resolveDetachedFolders);
+	}
+	const ownFolders = withoutScratchFolders(workingDirectories, scratchFolders);
+	if (ownFolders.length === 0) {
+		return undefined;
+	}
+	if (!sessionWorkspace) {
+		// Its folders report their own GitHub repository and pull requests, as in a session workspace; `buildOwnWorkspace` applied the Git state.
+		return buildAgentHostChatWorkspace(buildOwnWorkspace(ownFolders), undefined, getFolderGitHubInfo, undefined, false);
+	}
+	return buildAgentHostChatWorkspace(sessionWorkspace, ownFolders, getFolderGitHubInfo, gitState, resolveDetachedFolders);
+}
+
+/** A non-primary folder; a VS Code-created worktree reports its repository as the folder's root. */
+function createAdditionalFolder(workingDirectory: URI, description: string | undefined): ISessionFolder {
+	const repositoryRoot = getRepositoryRootFromWorktree(workingDirectory);
+	const root = repositoryRoot ?? workingDirectory;
+	return {
+		root,
+		workingDirectory,
+		name: basename(root) || root.path,
+		description,
+		...(repositoryRoot ? {
+			gitRepository: { uri: repositoryRoot, workTreeUri: workingDirectory, baseBranchName: undefined, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) },
+		} : {}),
 	};
 }
 
@@ -200,19 +258,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	// git state; a VS Code-created worktree reports its repository as the
 	// folder's project, so a chat working in it shows that project.
 	const primary = workingDirectories?.[0];
-	const additionalFolders: ISessionFolder[] = (workingDirectories ?? []).slice(1).map(dir => {
-		const repositoryRoot = getRepositoryRootFromWorktree(dir);
-		const root = repositoryRoot ?? dir;
-		return {
-			root,
-			workingDirectory: dir,
-			name: basename(root) || root.path,
-			description: options.description,
-			...(repositoryRoot ? {
-				gitRepository: { uri: repositoryRoot, workTreeUri: dir, baseBranchName: undefined, isRepository: constObservable(true), gitHubInfo: constObservable<IGitHubInfo | undefined>(undefined) },
-			} : {}),
-		};
-	});
+	const additionalFolders = (workingDirectories ?? []).slice(1).map(dir => createAdditionalFolder(dir, options.description));
 
 	if (project) {
 		const workTreeUri = extUri.isEqual(primary, project.uri) ? undefined : primary;
