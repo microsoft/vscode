@@ -151,6 +151,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _webglAddon?: WebglAddonType;
 	private readonly _webglContextLossListener = this._register(new MutableDisposable());
 	private _webglAddonCustomGlyphs?: boolean;
+	private _webglAddonWindow?: Window;
 	private _webglAddonLoading = false;
 	private _webglAddonLoadId = 0;
 	private _serializeAddon?: SerializeAddonType;
@@ -952,6 +953,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._webglAddon = new Addon({
 			customGlyphs
 		});
+		this._webglAddonWindow = dom.getWindow(this.raw.element);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
@@ -1155,6 +1157,19 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	 */
 	updateTheme(): void {
 		this._updateTheme();
+	}
+
+	/**
+	 * The WebGL canvas and context belong to the window they were created in, so when the terminal
+	 * moved to another window, the renderer is recreated there.
+	 */
+	rebindRendererToWindow(): void {
+		if (this._webglAddon && this.raw.element && dom.getWindow(this.raw.element) !== this._webglAddonWindow) {
+			this._disposeOfWebglRenderer();
+			if (this._attached?.options.enableGpu && this._shouldLoadWebgl()) {
+				this._enableWebglRenderer();
+			}
+		}
 	}
 
 	refresh() {

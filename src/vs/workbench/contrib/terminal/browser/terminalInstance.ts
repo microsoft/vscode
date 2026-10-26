@@ -1099,6 +1099,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// If xterm is already attached, call open again to pick up any changes to the window.
 		if (this.xterm?.raw.element) {
 			this.xterm.raw.open(this.xterm.raw.element);
+			this.xterm.rebindRendererToWindow();
 		}
 
 		this.xterm?.refresh();
