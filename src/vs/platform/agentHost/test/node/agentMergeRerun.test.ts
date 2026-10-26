@@ -41,19 +41,16 @@ import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const ref: PullRequestRef = { host: 'api.github.com', accountId: '1', owner: 'octo', repo: 'repo', number: 1 };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/1';
-/** Mirrors the controller's quiet period before CI-only repair starts while checks are pending. */
-const ciQuietPeriod = 10 * 60_000;
+const unchangedRepairCooldown = 10 * 60_000;
 
 suite('Agent Merge workflow reruns', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withController(fn: (harness: RerunTestHarness) => Promise<void>): Promise<void> {
-		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1_000 }, async () => {
 			const harness = disposables.add(new RerunTestHarness());
 			try {
 				await timeout(1);
-				// The initial repair only fixes CI while a sibling check is still running, so it waits for the checks to settle.
-				await timeout(ciQuietPeriod + 1_000);
 				await fn(harness);
 				assert.deepStrictEqual(harness.errors, []);
 			} finally {
@@ -424,46 +421,41 @@ suite('Agent Merge repair pacing', () => {
 		}));
 	}
 
-	test('holds CI-only repair while checks keep changing and starts once they are quiet, even if a check never completes', () => withHarness(async h => {
-		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
-		await timeout(1);
-		const initially = h.prompts.length;
-		await timeout(8 * 60_000);
+	test('starts CI-only repair immediately when enabled while an approval check is pending', () => withHarness(async h => {
+		await h.controller.setEnabled(h.session, false);
 		h.snapshot.set(readySnapshot([
 			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
-			check('windows', 'Windows', 'COMPLETED', 'SUCCESS'),
 			check('other-workflow', 'Approval', 'IN_PROGRESS', undefined, '2'),
 		]), undefined);
-		await timeout(9 * 60_000);
-		const whileChanging = h.prompts.length;
-		await timeout(2 * 60_000);
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		await h.controller.setEnabled(h.session, true);
+		await timeout(1);
+
+		assert.deepStrictEqual(h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks), [['macOS']]);
+	}));
+
+	test('starts CI repair for a new head immediately after the previous repair', () => withHarness(async h => {
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+			check('windows', 'Windows', 'IN_PROGRESS'),
+		], 'fixed-head'), undefined);
+		await h.completeTurn();
 
 		assert.deepStrictEqual({
-			initially,
-			whileChanging,
-			failures: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks),
+			heads: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.headSha),
+			state: h.controllerState(),
 		}, {
-			initially: 0,
-			whileChanging: 0,
-			failures: [['macOS']],
+			heads: ['head', 'fixed-head'],
+			state: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
 		});
 	}));
 
-	test('starts held CI-only repair after the maximum hold, and holds a later repair on the same head again', () => withHarness(async h => {
+	test('starts repair for a new failure without waiting for other checks to settle', () => withHarness(async h => {
 		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
 		await timeout(1);
-		for (let minute = 5; minute < 60; minute += 5) {
-			await timeout(5 * 60_000);
-			h.snapshot.set(readySnapshot([
-				check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
-				check('windows', 'Windows', minute % 10 === 0 ? 'IN_PROGRESS' : 'QUEUED'),
-			]), undefined);
-		}
-		await timeout(4 * 60_000);
-		const beforeLimit = h.prompts.length;
-		await timeout(2 * 60_000);
-		const afterLimit = h.prompts.length;
-
 		await h.completeTurn();
 		h.snapshot.set(readySnapshot([
 			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
@@ -471,13 +463,94 @@ suite('Agent Merge repair pacing', () => {
 			check('other-workflow', 'Slow unrelated workflow', 'IN_PROGRESS', undefined, '2'),
 		]), undefined);
 		await timeout(31_000);
-		const afterNewFailure = h.prompts.length;
-		await timeout(ciQuietPeriod);
 
-		assert.deepStrictEqual(
-			{ beforeLimit, afterLimit, afterNewFailure, afterQuiet: h.prompts.length },
-			{ beforeLimit: 0, afterLimit: 1, afterNewFailure: 1, afterQuiet: 2 },
-		);
+		assert.deepStrictEqual(h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks), [['macOS'], ['macOS', 'Windows']]);
+	}));
+
+	test('starts the next repair immediately when a previous blocker was resolved on the same head', () => withHarness(async h => {
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+			check('windows', 'Windows', 'COMPLETED', 'FAILURE'),
+		]), undefined);
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'SUCCESS'),
+			check('windows', 'Windows', 'COMPLETED', 'FAILURE'),
+		]), undefined);
+		await h.completeTurn();
+
+		assert.deepStrictEqual({
+			failures: h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks),
+			state: h.controllerState(),
+		}, {
+			failures: [['macOS', 'Windows'], ['Windows']],
+			state: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
+		});
+	}));
+
+	test('polls fresh pull request state within 60 seconds without a snapshot notification', () => withHarness(async h => {
+		h.snapshot.set(readySnapshot([check('windows', 'Windows', 'IN_PROGRESS')]), undefined);
+		let failureAvailable = false;
+		const subscribe = h.client.pullRequests.subscribePullRequest;
+		h.client.pullRequests.subscribePullRequest = (ref, options) => {
+			const subscription = subscribe(ref, options);
+			const refresh = subscription.refresh;
+			subscription.refresh = async (...args) => {
+				await refresh(...args);
+				if (failureAvailable) {
+					h.snapshot.set(readySnapshot([
+						check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+						check('windows', 'Windows', 'IN_PROGRESS'),
+					]), undefined);
+				}
+			};
+			return subscription;
+		};
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		await timeout(59_998);
+		const beforeFirstPoll = { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length };
+		await timeout(1);
+		const afterFirstPoll = { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length };
+		failureAvailable = true;
+		await timeout(59_999);
+		const beforeSecondPoll = { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length };
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			beforeFirstPoll,
+			afterFirstPoll,
+			beforeSecondPoll,
+			afterSecondPoll: { refreshes: h.authoritativeRefreshes.count, prompts: h.prompts.length },
+		}, {
+			beforeFirstPoll: { refreshes: 1, prompts: 0 },
+			afterFirstPoll: { refreshes: 2, prompts: 0 },
+			beforeSecondPoll: { refreshes: 2, prompts: 0 },
+			afterSecondPoll: { refreshes: 3, prompts: 1 },
+		});
+	}));
+
+	test('keeps polling every 60 seconds while unchanged repairs wait for the 10-minute cooldown', () => withHarness(async h => {
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		await h.completeTurn();
+		const initialRefreshes = h.authoritativeRefreshes.count;
+		await timeout(60_000);
+		const afterPoll = { prompts: h.prompts.length, refreshes: h.authoritativeRefreshes.count - initialRefreshes };
+		await timeout(unchangedRepairCooldown - 60_000 - 3);
+		const beforeCooldown = h.prompts.length;
+		await timeout(60_000);
+
+		assert.deepStrictEqual({
+			afterPoll,
+			beforeCooldown,
+			afterCooldown: h.prompts.length,
+		}, {
+			afterPoll: { prompts: 1, refreshes: 1 },
+			beforeCooldown: 1,
+			afterCooldown: 2,
+		});
 	}));
 
 	const pendingWithoutRequiredChecks: readonly { readonly name: string; readonly snapshot: () => PullRequestSnapshot }[] = [
@@ -496,14 +569,11 @@ suite('Agent Merge repair pacing', () => {
 		},
 	];
 	for (const { name, snapshot } of pendingWithoutRequiredChecks) {
-		test(`holds CI-only repair while ${name} is still running`, () => withHarness(async h => {
+		test(`starts CI-only repair immediately while ${name} is still running`, () => withHarness(async h => {
 			h.snapshot.set(snapshot(), undefined);
 			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
 			await timeout(1);
-			const whileRunning = h.prompts.length;
-			await timeout(ciQuietPeriod);
-
-			assert.deepStrictEqual({ whileRunning, afterQuiet: h.prompts.length }, { whileRunning: 0, afterQuiet: 1 });
+			assert.deepStrictEqual(h.prompts.map(prompt => parseAgentMergePrompt(prompt)?.failedChecks), [['macOS']]);
 		}));
 	}
 
@@ -615,7 +685,7 @@ suite('Agent Merge evaluation authorization', () => {
 					await timeout(1);
 					const whileDisabled = { prompts: h.prompts.length, state: h.controllerState() };
 					await setFixCI(true);
-					await timeout(ciQuietPeriod + 1_000);
+					await timeout(1);
 
 					assert.deepStrictEqual({
 						whileDisabled,
@@ -690,7 +760,7 @@ class RerunTestHarness extends Disposable {
 	readonly mutations = new TestMutations();
 	readonly prompts: string[] = [];
 	readonly notices: string[] = [];
-	/** Authoritative pull request refreshes, which follow the end of every repair turn. */
+	/** Authoritative pull request refreshes at startup, on polling, and after repair turns. */
 	readonly authoritativeRefreshes = { count: 0 };
 	readonly controller: AgentMergeController;
 	readonly tools: AgentMergeTools;
