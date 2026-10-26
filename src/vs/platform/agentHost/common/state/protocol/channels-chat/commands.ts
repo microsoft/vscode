@@ -211,9 +211,10 @@ export type ChatMoveDestination =
  * the chat's agent matches its session's.
  *
  * A moved chat's `config.values` move with it unchanged. If a move changes
- * whether the chat needs its own `config.schema`, the host either sets or
- * clears it, and clients SHOULD resubscribe to the chat since no action
- * carries a schema change, or refuses the move as an unsupported destination.
+ * whether the chat needs its own `config.schema`, the host sets or clears it,
+ * or refuses the move as an unsupported destination. After a cross-session
+ * move the host dispatches `chat/moved` on the chat's channel with its new
+ * session, `provider` and `config.schema`.
  *
  * On success every moved chat keeps its URI, state, and immutable
  * `ChatOrigin`. The host commits ownership and catalog order before publishing

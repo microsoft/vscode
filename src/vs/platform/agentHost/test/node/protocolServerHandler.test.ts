@@ -7966,6 +7966,44 @@ suite('ProtocolServerHandler', () => {
 	suite('createChat / disposeChat', () => {
 		const peerChat = buildChatUri(sessionUri, 'peer-1');
 
+		test('chat/moved is server-only, and reaches only clients from protocol 1.1.0', async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			const connect = async (clientId: string, protocolVersions: readonly string[]) => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				const response = waitForResponse(transport, 1);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions, clientId, initialSubscriptions: [sessionUri, defaultChatUri] }));
+				await response;
+				transport.sent.length = 0;
+				return transport;
+			};
+			const current = await connect('moved-current', [PROTOCOL_VERSION]);
+			const older = await connect('moved-older', ['1.0.0']);
+			const hostActions: ActionType[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => hostActions.push(envelope.action.type)));
+
+			current.simulateMessage(notification('dispatchAction', { channel: defaultChatUri, clientSeq: 1, action: { type: ActionType.ChatMoved, session: sessionUri } }));
+			await timeout(0);
+			const rejected = findNotifications(current.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+			current.sent.length = 0;
+			older.sent.length = 0;
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatMoved, session: sessionUri, provider: 'other' });
+			const received = (transport: MockProtocolTransport) => findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action.type);
+
+			assert.deepStrictEqual({
+				rejection: { action: rejected?.action.type, reason: rejected?.rejectionReason },
+				hostActions,
+				current: received(current),
+				older: received(older),
+			}, {
+				rejection: { action: ActionType.ChatMoved, reason: `Server-only action: ${ActionType.ChatMoved}` },
+				hostActions: [ActionType.ChatMoved],
+				current: [ActionType.ChatMoved],
+				older: [],
+			});
+		});
+
 		test('advertises multipleChatProviders only behind the setting and from protocol 1.1.0', () => {
 			const capability = (clientId: string, protocolVersions: readonly string[]) => {
 				const transport = disposables.add(new MockProtocolTransport());

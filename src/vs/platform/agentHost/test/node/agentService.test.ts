@@ -35425,6 +35425,41 @@ suite('AgentService (node dispatcher)', () => {
 				return { db, service, agent, source, target, peer, folder };
 			}
 
+			/** The `chat/moved` actions dispatched while `run` runs. */
+			async function chatMovedDuring(service: AgentService, run: () => Promise<unknown>): Promise<unknown[]> {
+				const announced: unknown[] = [];
+				const listener = getStateManager(service).onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.ChatMoved) {
+						announced.push({ channel: envelope.channel, action: envelope.action });
+					}
+				});
+				try {
+					await run();
+				} finally {
+					listener.dispose();
+				}
+				return announced;
+			}
+
+			test('a chat moved to another session, or promoted to a new one, announces chat/moved; a reorder does not', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const other = URI.parse(buildChatUri(target, 'other'));
+				await service.createChat(target, other);
+				await timeout(0);
+
+				const moved = await chatMovedDuring(service, () => service.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
+				const reordered = await chatMovedDuring(service, () => service.moveChat(target, peer, { kind: 'session', session: target, after: other }));
+				completeTurn(service, peer);
+				let promotedSession: URI | undefined;
+				const promoted = await chatMovedDuring(service, async () => { promotedSession = await service.moveChat(target, peer, { kind: 'newSession' }); });
+
+				assert.deepStrictEqual({ moved, reordered, promoted }, {
+					moved: [{ channel: peer.toString(), action: { type: ActionType.ChatMoved, session: target.toString() } }],
+					reordered: [],
+					promoted: [{ channel: peer.toString(), action: { type: ActionType.ChatMoved, session: promotedSession!.toString() } }],
+				});
+			});
+
 			test('a moved chat snapshots new attachments in its own storage and keeps reading those of the session it came from', async () => {
 				const { service, agent, source, target, peer } = await setupMove();
 				const sessionDataService = createSessionDataService();

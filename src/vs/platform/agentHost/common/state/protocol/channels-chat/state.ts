@@ -69,9 +69,10 @@ export interface ChatState {
 	/**
 	 * Agent provider ID backing this chat. Absent means the session's
 	 * {@link SessionMetadata.provider | `provider`}; hosts set it when it
-	 * differs. It never changes: like `resource`, it is an identity field and is
-	 * omitted from `session/chatUpdated` changes. Forks and side chats use the
-	 * source chat's agent.
+	 * differs. The chat's agent never changes, but `provider` is reported
+	 * relative to its session, so `chat/moved` may set or clear it. Like
+	 * `resource`, it is omitted from `session/chatUpdated` changes. Forks and
+	 * side chats use the source chat's agent.
 	 * @stability 1.0
 	 */
 	provider?: string;
@@ -413,27 +414,32 @@ export const enum ChatInteractivity {
 // ─── Chat Config Types ───────────────────────────────────────────────────────
 
 /**
- * A chat's configuration. It does not inherit from the session: changing the
- * session's config never changes a chat's.
+ * A chat's configuration. `values` holds the chat's `chatMutable` properties
+ * of the effective schema. For a chat without its own `schema`, other
+ * properties are session-wide and come from the session's config; a chat with
+ * its own `schema` does not use the session's config. It does not inherit
+ * from the session: a chat's `values` change only through
+ * `chat/configChanged` on the chat.
  *
- * Only properties with `chatMutable: true` in the effective schema can be
- * changed with `chat/configChanged`; hosts reject other keys. Hosts set the
- * initial `values` when they create the chat.
+ * Only `chatMutable` properties can be changed with `chat/configChanged`;
+ * hosts reject other keys. Hosts set the initial `values` when they create
+ * the chat. When the session has a config, hosts set `config` on every chat.
  *
  * @category Chat Config Types
  */
 export interface ChatConfigState {
 	/**
-	 * Config schema for this chat. Absent means the session's schema. Hosts set
-	 * it when the chat's {@link ChatState.provider | `provider`} differs from
-	 * the session's; when present, clients use it instead of the session's
-	 * schema.
+	 * Config schema for this chat's `chatMutable` properties. Absent means the
+	 * session's schema. Hosts set it, as the chat's own schema, when the chat's
+	 * {@link ChatState.provider | `provider`} differs from the session's; when
+	 * present, clients use it instead of the session's schema.
 	 * @stability 1.0
 	 */
 	schema?: SessionConfigSchema;
 	/**
-	 * The chat's complete config, keyed by property id. A missing key takes the
-	 * effective schema's `default`.
+	 * The chat's values for the `chatMutable` properties of the effective
+	 * schema, keyed by property id. A missing key takes that property's
+	 * `default`.
 	 */
 	values: Record<string, unknown>;
 }

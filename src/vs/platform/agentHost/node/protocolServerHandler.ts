@@ -53,7 +53,7 @@ import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
-import { compareProtocolVersions, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { compareProtocolVersions, isActionKnownToVersion, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
@@ -3937,6 +3937,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					envelope = { ...envelope, action: { ...action, turns: action.turns.map(projectVSCodeCopilotTurn) } };
 					break;
 			}
+		}
+		if (envelope.action.type === ActionType.ChatMoved && !isActionKnownToVersion(envelope.action, client.protocolVersion)) {
+			// Older clients learn a moved chat's owner from the sessions' chat lists only.
+			return undefined;
 		}
 		if (!client.legacyChatUris) {
 			return envelope;
