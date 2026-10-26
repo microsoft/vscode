@@ -21,6 +21,8 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -53,6 +55,7 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
@@ -160,7 +163,8 @@ suite('ChatListWidget', () => {
 				},
 			}],
 		});
-		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const { model, container, widget, contextKeyService } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const createOverlay = sinon.spy(contextKeyService, 'createOverlay');
 		const requestText = 'Show documentation';
 		const request = model.addRequest({
 			text: requestText,
@@ -180,6 +184,7 @@ suite('ChatListWidget', () => {
 		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 
 		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const withoutSelection = new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key);
 		const actionContext = menuDelegate?.getActionsContext?.();
 		if (!isChatContextMenuActionContext(actionContext)) {
 			assert.fail('Expected a chat context menu action context.');
@@ -191,6 +196,27 @@ suite('ChatListWidget', () => {
 			linkTarget: 'file:///workspace/README.md',
 			itemKind: 'response',
 		});
+
+		const selection = mainWindow.getSelection();
+		assert.ok(selection);
+		store.add(toDisposable(() => selection.removeAllRanges()));
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(link);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+		const selectionDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const selectionContext = selectionDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(selectionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		selection.removeAllRanges();
+		assert.deepStrictEqual({
+			text: selectionContext.responseSelection?.text,
+			response: selectionContext.responseSelection?.response === selectionContext.item,
+			hasSelection: new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key),
+			withoutSelection,
+		}, { text: 'Documentation', response: true, hasSelection: true, withoutSelection: false });
 	});
 
 	test('shows Open With only for resources backed by a file system provider', () => {
@@ -350,6 +376,45 @@ suite('ChatListWidget', () => {
 		}, { messages: ['say bar', 'say baz'], responseCount: 1, compact: true }, `Bubble gap: pending=${pendingGap}, timestamp=${timestampHeight}, consumed=${gap()}`);
 	});
 
+	for (const { kind, isSystemInitiated } of [
+		{ kind: ChatRequestQueueKind.Queued, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: true },
+	]) {
+		test(`pending messages retain their existing fractional row measurements (${kind}, system=${isSystemInitiated})`, async () => {
+			const { model, container, widget } = createWidget({}, undefined, true);
+			const message = (text: string) => ({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			});
+			const request = model.addRequest(message('Review the changes'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewing the changes.') });
+			model.addPendingRequest(new ChatRequestModel({
+				session: model,
+				message: message('Summarize the findings'),
+				variableData: { variables: [] },
+				isSystemInitiated,
+			}), kind, { isSystemInitiated });
+			widget.refresh();
+			widget.layout(600, 500);
+			await waitForStableLayout(widget);
+			const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')];
+			assert.strictEqual(rows.length, 4);
+			const content = rows.map(row => row.querySelector<HTMLElement>('.interactive-item-container')!);
+			for (const element of content) {
+				element.style.height = `${Math.ceil(element.getBoundingClientRect().height) + 0.25}px`;
+			}
+			widget.layout(600, 501);
+			assert.deepStrictEqual({
+				fractions: content.map(element => element.getBoundingClientRect().height % 1),
+				allocatedHeights: rows.map(row => row.getBoundingClientRect().height),
+			}, {
+				fractions: content.map(() => 0.25),
+				allocatedHeights: content.map(element => element.offsetHeight),
+			});
+		});
+	}
+
 	test('empty intermediate responses retain errors, cancellation, and streaming state', () => {
 		const { model, viewModel } = createWidget();
 		const addRequest = () => model.addRequest({
@@ -371,6 +436,119 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('generated image preview retention', () => {
+		for (const { imageCount, fraction } of [1, 3].flatMap(imageCount => [undefined, 0.25, 0.75].map(fraction => ({ imageCount, fraction })))) {
+			test(`image generation preserves scroll position on every frame before expansion (${imageCount} calls, fraction=${fraction ?? 'natural'})`, async () => {
+				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, configuration => {
+					configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+					configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				}, true);
+				container.classList.remove('monaco-reduce-motion');
+				container.classList.add('interactive-list', 'monaco-enable-motion');
+				container.style.fontSize = '13px';
+				for (const [token, value] of [
+					['--vscode-chat-font-size-body-m', '13px'],
+					['--vscode-chat-font-size-body-s', '0.923em'],
+					['--vscode-chat-font-size-body-xs', '0.846em'],
+					['--vscode-spacing-size40', '4px'],
+					['--vscode-spacing-size80', '8px'],
+					['--vscode-spacing-size120', '12px'],
+					['--vscode-spacing-size160', '16px'],
+					['--vscode-spacing-size240', '24px'],
+					['--vscode-codiconFontSize-compact', '12px'],
+					['--vscode-strokeThickness', '1px'],
+				]) {
+					container.style.setProperty(token, value);
+				}
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced() { return false; }
+				}());
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = 600;
+				canvas.height = 400;
+				const context = canvas.getContext('2d')!;
+				context.fillStyle = '#4682b4';
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				const imageData = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				const imageBytes = new DeferredPromise<typeof imageData>();
+				disposables.add(toDisposable(() => {
+					if (!imageBytes.isSettled) {
+						void imageBytes.complete(imageData);
+					}
+				}));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						return { ...await super.readFile(resource), value: await imageBytes.p };
+					}
+				}()));
+				const text = 'Generate a landscape.';
+				const request = model.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+				}, { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will generate the requested landscape.') });
+				const tools = Array.from({ length: imageCount }, (_, index) => new ChatToolInvocation({
+					invocationMessage: 'Generating image', pastTenseMessage: 'Generated image',
+				}, {
+					id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, `image-${index}`, undefined, {}, {}, request.id));
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+				}
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				if (fraction !== undefined) {
+					const row = container.querySelector<HTMLElement>('.interactive-response')!;
+					const markdown = row.querySelector<HTMLElement>('.chat-markdown-part')!;
+					const height = row.getBoundingClientRect().height;
+					markdown.style.height = `${markdown.getBoundingClientRect().height + Math.ceil(height) - height + fraction}px`;
+					await waitForStableLayout(widget);
+					assert.strictEqual(row.getBoundingClientRect().height % 1, fraction);
+				}
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				assert.ok(widget.scrollTop > 0);
+				const response = viewModel.getItems().filter(isResponseVM)[0];
+				const surface = container.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+				const capture = () => {
+					const bounds = container.querySelector('.chat-image-generation-line')!.getBoundingClientRect();
+					return { scrollTop: widget.scrollTop, scrollHeight: widget.scrollHeight, rowHeight: response.currentRenderedHeight, top: bounds.top, height: bounds.height };
+				};
+				const running = capture();
+				const scrollHeights: number[] = [];
+				const heightListener = disposables.add(widget.onDidChangeContentHeight(() => scrollHeights.push(widget.scrollHeight)));
+				await tools[0].didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'ref', uri: URI.parse('generated-images:/handoff.png'), mimeType: 'image/png' }] },
+				});
+				widget.refresh();
+				const frames = [capture()];
+				for (let frame = 0; frame < 6; frame++) {
+					await nextFrame();
+					frames.push(capture());
+				}
+				const sameSurface = container.querySelector('.chat-image-loading-glyphs') === surface;
+				heightListener.dispose();
+				await imageBytes.complete(imageData);
+				await retry(async () => assert.ok(container.querySelector('.chat-image-reveal.revealing')), 10, 50);
+				disposables.dispose();
+				assert.deepStrictEqual({
+					frames: frames.map(({ scrollTop, scrollHeight, rowHeight }) => ({ scrollTop, scrollHeight, rowHeight })),
+					boundsUnchanged: frames.every(frame => Math.abs(frame.top - running.top) <= 1 / 64 && Math.abs(frame.height - running.height) <= 1 / 64),
+					sameSurface,
+					maxScrollHeightChange: Math.max(0, ...scrollHeights.map(height => Math.abs(height - running.scrollHeight))),
+					disposedSurface: !surface.isConnected && surface.width === 0 && surface.height === 0,
+				}, {
+					frames: Array.from({ length: 7 }, () => ({ scrollTop: running.scrollTop, scrollHeight: running.scrollHeight, rowHeight: running.rowHeight })),
+					boundsUnchanged: true,
+					sameSurface: true,
+					maxScrollHeightChange: 0,
+					disposedSurface: true,
+				});
+			});
+		}
+
 		for (const width of [280, 500]) {
 			test(`virtualized images retain their row and scroll height while reloading (${width}px)`, async () => {
 				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, undefined, true);
@@ -798,6 +976,88 @@ suite('ChatListWidget', () => {
 			{ showButton: true, atBottom: false },
 		]);
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		for (const activation of ['click', 'Enter', ' '] as const) {
+			test(`scroll arrow returns to the bottom with ${activation === ' ' ? 'Space' : activation} in ${isSessionsWindow ? 'sessions' : 'workbench'} chat`, async () => {
+				const { model, container, widget } = createWidget({}, undefined, isSessionsWindow);
+				container.classList.add('interactive-session');
+				container.style.setProperty('--vscode-editorWidget-border', 'rgb(40, 50, 60)');
+				container.style.setProperty('--vscode-editorWidget-background', 'rgb(10, 20, 30)');
+				container.style.setProperty('--vscode-icon-foreground', 'rgb(70, 80, 90)');
+				const button = container.querySelector<HTMLElement>('.chat-scroll-down');
+				assert.ok(button);
+				const buttonStyle = mainWindow.getComputedStyle(button);
+				assert.deepStrictEqual({
+					label: button.textContent?.trim(),
+					ariaLabel: button.getAttribute('aria-label'),
+					role: button.getAttribute('role'),
+					tabIndex: button.tabIndex,
+					iconHidden: button.querySelector('.codicon')?.getAttribute('aria-hidden'),
+					display: button.style.display,
+					borderColor: buttonStyle.borderColor,
+					borderWidth: buttonStyle.borderWidth,
+					borderStyle: buttonStyle.borderStyle,
+					background: buttonStyle.backgroundColor,
+					foreground: buttonStyle.color,
+				}, {
+					label: '',
+					ariaLabel: 'Scroll to Latest',
+					role: 'button',
+					tabIndex: 0,
+					iconHidden: 'true',
+					display: 'none',
+					borderColor: 'rgb(40, 50, 60)',
+					borderWidth: '1px',
+					borderStyle: 'solid',
+					background: 'rgb(10, 20, 30)',
+					foreground: 'rgb(70, 80, 90)',
+				});
+
+				for (let i = 0; i < 10; i++) {
+					const text = `question ${i}`;
+					const request = model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+				}
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				widget.setScrollLock(false);
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					overflows: widget.scrollHeight > widget.renderHeight,
+					atBottom: widget.isScrolledToBottom,
+					display: button.style.display,
+				}, { overflows: true, atBottom: false, display: 'flex' });
+
+				if (activation === 'click') {
+					button.click();
+				} else {
+					button.focus();
+					const event = new KeyboardEvent('keydown', {
+						key: activation,
+						code: activation === 'Enter' ? 'Enter' : 'Space',
+						bubbles: true,
+					});
+					// StandardKeyboardEvent reads keyCode; mirror its tests without relying on KeyboardEventInit support.
+					Object.defineProperty(event, 'keyCode', { get: () => activation === 'Enter' ? 13 : 32 });
+					button.dispatchEvent(event);
+				}
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					atBottom: widget.isScrolledToBottom,
+					scrollLock: widget.scrollLock,
+					display: button.style.display,
+				}, { atBottom: true, scrollLock: true, display: 'none' });
+			});
+		}
+	}
 
 	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
 	// scroll through it or the list never reports being at the bottom - which both
@@ -1346,7 +1606,7 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('sticky content retention', () => {
-		async function createTranscript() {
+		async function createTranscript(text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3), completeResponse = true) {
 			const context = createWidget({}, configurationService => {
 				configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
 				configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, true);
@@ -1355,8 +1615,6 @@ suite('ChatListWidget', () => {
 			const { model, container, widget, viewModel } = context;
 			container.classList.add('interactive-list');
 			container.style.setProperty('--vscode-spacing-size80', '8px');
-			// Keep the sticky request clamped to two lines at both test widths.
-			const text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3);
 			const request = model.addRequest({
 				text,
 				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
@@ -1365,7 +1623,9 @@ suite('ChatListWidget', () => {
 				kind: 'markdownContent',
 				content: new MarkdownString('```typescript\nconst answer = 42;\n```\n\n' + Array.from({ length: 40 }, (_, index) => `Response paragraph ${index}.`).join('\n\n')),
 			});
-			request.response?.complete();
+			if (completeResponse) {
+				request.response?.complete();
+			}
 			widget.refresh();
 			widget.layout(300, 500);
 			await waitForStableLayout(widget);
@@ -1381,6 +1641,92 @@ suite('ChatListWidget', () => {
 			assert.ok(row && bubble);
 			return { ...context, request, row, bubble };
 		}
+
+		for (const partiallyVisible of [false, true]) {
+			test(`multi-paragraph sticky requests retain their width when rendered (source partially visible: ${partiallyVisible})`, async () => {
+				const { container, widget } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12));
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+				assert.ok(source);
+				const sourceBounds = source.getBoundingClientRect();
+				const scrollTop = partiallyVisible
+					? Math.max(0, sourceBounds.top - container.getBoundingClientRect().top - 8) + 1
+					: sourceBounds.bottom + 200;
+				const measure = () => {
+					const row = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+					const bubble = row?.querySelector<HTMLElement>('.chat-markdown-part');
+					assert.ok(row && bubble);
+					const bounds = bubble.getBoundingClientRect();
+					return {
+						matchesSourceWidth: Math.abs(bounds.width - sourceBounds.width) < 1,
+						matchesSourceLeft: Math.abs(bounds.left - sourceBounds.left) < 1,
+						partiallyVisible: row.classList.contains('source-node-partially-visible'),
+					};
+				};
+
+				widget.scrollTop = scrollTop;
+				const samples = [measure()];
+				await waitForStableLayout(widget);
+				samples.push(measure());
+				for (let render = 0; render < 3; render++) {
+					widget.rerender();
+					samples.push(measure());
+					await nextFrame();
+					samples.push(measure());
+				}
+
+				assert.deepStrictEqual(samples, samples.map(() => ({
+					matchesSourceWidth: true,
+					matchesSourceLeft: true,
+					partiallyVisible,
+				})));
+			});
+		}
+
+		test('streaming and completion preserve the width of an offscreen sticky request', async () => {
+			const { container, widget, model, request } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12), false);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+			assert.ok(source);
+			const sourceWidth = source.getBoundingClientRect().width;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.strictEqual(container.querySelector('.monaco-list-rows .interactive-request'), null);
+			const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+			assert.ok(initialBubble);
+			const widths: number[] = [];
+			const measure = () => {
+				const stickyBubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
+				assert.ok(stickyBubble);
+				widths.push(stickyBubble.getBoundingClientRect().width);
+			};
+			measure();
+
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nNew response content.') });
+			widget.refresh();
+			measure();
+			for (let frame = 0; frame < 3; frame++) {
+				await nextFrame();
+				measure();
+			}
+			request.response?.complete();
+			widget.refresh();
+			measure();
+			for (let frame = 0; frame < 3; frame++) {
+				await nextFrame();
+				measure();
+			}
+
+			assert.deepStrictEqual({
+				replaced: container.querySelector('.monaco-tree-sticky-row .chat-markdown-part') !== initialBubble,
+				widths,
+			}, {
+				replaced: true,
+				widths: widths.map(() => sourceWidth),
+			});
+		});
 
 		test('unchanged and height-only layouts preserve sticky DOM, focus and reading position without measuring', async () => {
 			const { container, widget, model, row, bubble } = await createTranscript();
@@ -1535,7 +1881,7 @@ suite('ChatListWidget', () => {
 
 		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
 		assert.ok(requestValue);
-		const children = Array.from(requestValue.children);
+		const children = Array.from(requestValue.children).filter(child => child.checkVisibility());
 		assert.deepStrictEqual({
 			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
 			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),
@@ -2182,7 +2528,7 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('persistent progress collapse anchoring', () => {
-		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false) {
+		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false, text = 'Keep the earlier content in place') {
 			const context = createWidget({ paddingBottom }, configurationService => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
@@ -2194,7 +2540,6 @@ suite('ChatListWidget', () => {
 			}, true);
 			const { model, container, widget } = context;
 			container.classList.add('interactive-list');
-			const text = 'Keep the earlier content in place';
 			const request = model.addRequest({
 				text,
 				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
@@ -2252,6 +2597,52 @@ suite('ChatListWidget', () => {
 			request.response?.complete();
 			widget.refresh();
 			await waitForStableLayout(widget);
+		}
+
+		for (const incrementalRendering of [false, true]) {
+			test(`streaming tool collapse retains the sticky bubble and its source width (incremental: ${incrementalRendering})`, async () => {
+				const { model, request, container, widget } = await createPreview('tools', incrementalRendering, 0, 3, true,
+					'Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12));
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+				assert.ok(source);
+				const sourceWidth = source.getBoundingClientRect().width;
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+				const preview = container.querySelector<HTMLElement>('.chat-thinking-box');
+				assert.ok(initialBubble && preview);
+				const measure = () => {
+					const bubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
+					assert.ok(bubble);
+					return {
+						sameBubble: bubble === initialBubble,
+						width: bubble.getBoundingClientRect().width,
+					};
+				};
+				const samples = [measure()];
+				const previewHeight = preview.getBoundingClientRect().height;
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The next response.') });
+				widget.refresh();
+				samples.push(measure());
+				for (let frame = 0; frame < 6; frame++) {
+					await nextFrame();
+					samples.push(measure());
+				}
+				await waitForStableLayout(widget);
+				samples.push(measure());
+
+				assert.deepStrictEqual({
+					collapsed: preview.classList.contains('chat-used-context-collapsed'),
+					shrank: preview.getBoundingClientRect().height < previewHeight,
+					samples,
+				}, {
+					collapsed: true,
+					shrank: true,
+					samples: samples.map(() => ({ sameBubble: true, width: sourceWidth })),
+				});
+			});
 		}
 
 		for (const kind of ['thinking', 'tools'] as const) {

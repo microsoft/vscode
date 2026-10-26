@@ -28,7 +28,9 @@ import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { createFileEditAcceptRecordAfter, fileEditContentEquals, getUnacceptedFileEditRecords, getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
-import { isPathWithinFolderScope } from './sessionDiffAggregator.js';
+import { FileEditsInProgressError, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
+import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
+import { createChangedSinceShownError } from './workingSetNonce.js';
 import { computeWorkingSetFileContents, computeWorkingSetRangeChanges } from './workingSetFileContents.js';
 
 /**
@@ -49,6 +51,13 @@ export function getLastTurn(stateManager: AgentHostStateManager, owner: Protocol
 
 function isFilePath(path: string | undefined, resource: URI): boolean {
 	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
+}
+
+/** The one-based lines that a zero-based range covers; a range that ends at the start of a line doesn't cover it. */
+function toLineRange(range: TextRange): { readonly startLineNumber: number; readonly endLineNumberExclusive: number } {
+	const startLineNumber = range.start.line + 1;
+	const endLineNumberExclusive = range.end.character > 0 ? range.end.line + 2 : range.end.line + 1;
+	return { startLineNumber, endLineNumberExclusive: Math.max(startLineNumber, endLineNumberExclusive) };
 }
 
 /** How to record and check a discard of a file's recorded changes. */
@@ -98,6 +107,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 	) { }
 
 	async invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
@@ -363,7 +373,27 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		if (!this._stateManager.getSessionState(owner)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${owner}`);
 		}
-		this._throwIfTurnActive(session);
+		// While a turn runs, the Working Set's changes can be discarded when the agent's edit tool calls wait for it.
+		const duringTurn = sinceAccepted && this._fileEditCoordinator.isCoordinatedProvider(this._stateManager.getSessionSummary(session)?.provider);
+		if (!duringTurn) {
+			this._throwIfTurnActive(session);
+		}
+		if (!sinceAccepted) {
+			return this._doDiscardSessionFile(owner, session, resource, undefined, false, false, undefined, token);
+		}
+		const shownNonce = params.target?.nonce;
+		try {
+			// The agent's edit tool calls on the file wait meanwhile, so each one's snapshots and the discard are recorded in order.
+			return await this._fileEditCoordinator.runExclusive(resource, () => this._doDiscardSessionFile(owner, session, resource, range, true, duringTurn, shownNonce, token));
+		} catch (err) {
+			if (err instanceof FileEditsInProgressError) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardWorkingSetChanges.editInProgress', "The agent is still editing '{0}'. Try again once it has finished.", basename(resource)));
+			}
+			throw err;
+		}
+	}
+
+	private async _doDiscardSessionFile(owner: ProtocolURI, session: ProtocolURI, resource: URI, range: { readonly side?: 'before' | 'after'; readonly range: TextRange } | undefined, sinceAccepted: boolean, duringTurn: boolean, shownNonce: string | undefined, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		const turnsBefore = this._getSessionTurnsKey(session);
 		const messages = sinceAccepted ? {
 			multiRoot: localize('agentHost.changeset.discardWorkingSetChanges.multiRoot', "Changes that have not been accepted can't be discarded in a session with more than one folder."),
@@ -401,6 +431,9 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.noChanges);
 			}
 			await this._throwIfEditedByOtherChats([...otherMatches.map(other => other.source.db), ...tracked.otherChatDatabases], resource);
+			if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(match.records[match.records.length - 1])) {
+				throw createChangedSinceShownError(resource);
+			}
 
 			const { source } = match;
 			const { records, acceptedTurns } = sinceAccepted
@@ -412,9 +445,12 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			const recording: IDiscardRecording = {
 				db: source.db,
 				// A turn that ran meanwhile, in any chat, could have recorded
-				// edits that the rows would hide.
+				// edits that the rows would hide. While a turn runs, its edit tool
+				// calls on the file wait for the discard.
 				throwIfTurnRan: () => {
-					this._throwIfTurnActive(session);
+					if (!duringTurn) {
+						this._throwIfTurnActive(session);
+					}
 					if (this._getSessionTurnsKey(session) !== turnsBefore) {
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.turnRan);
 					}
@@ -426,6 +462,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 					const discardRowIds = new Set(discardRows.map(row => row.toolCallId));
 					const current = this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope)
 						.filter(record => !discardRowIds.has(record.toolCallId));
+					const last = current.at(-1);
+					if (shownNonce !== undefined && last && shownNonce !== getWorkingSetFileNonce(last)) {
+						throw createChangedSinceShownError(resource);
+					}
 					if (!equals(current, match.records, (a, b) => a.toolCallId === b.toolCallId)) {
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, this._getChangedDuringDiscardMessage(resource));
 					}
@@ -453,6 +493,16 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				}, token);
 			}
 			discardedChat = source.chat;
+			if (sinceAccepted) {
+				// The agent may still be working on the file, or edit it later, so it's told what changed.
+				this._fileEditCoordinator.reportDiscarded({
+					storage: source.storage,
+					resource,
+					lines: range && toLineRange(range.range),
+					// Undoing every change to a file the session created deletes it.
+					deleted: !range && records[0]?.kind === FileEditKind.Create,
+				});
+			}
 		} catch (err) {
 			throw this._toDiscardError(err, resource, messages.conflict);
 		} finally {

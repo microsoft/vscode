@@ -33,6 +33,7 @@ import { AgentHostSignedOutModelsNotificationContribution } from './agentHostSig
 import { AgentHostTerminalContribution } from './agentHostTerminalContribution.js';
 import { CopilotConfigSlashSubmitHandlerContribution } from './copilotConfigSlashSubmitHandler.js';
 import { primeLegacyMigrationStartupSnapshot } from './agentHostLegacyMigration.js';
+import './agentHostManagedPluginRetry.js';
 import './agentHostSettings.contribution.js';
 import './agentSessionSettings.contribution.js';
 

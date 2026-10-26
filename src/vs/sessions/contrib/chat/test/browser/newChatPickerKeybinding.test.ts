@@ -4,22 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, registerPickerKeybindingPresentation } from '../../browser/newChatPickerKeybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, FOCUS_SESSION_SYNC_ACTION_WHEN, registerPickerKeybindingPresentation } from '../../browser/newChatPickerKeybinding.js';
+import { noSessionPickerVisibility, SessionInputPickerVisibility, SessionPickerVisibilityContextKeys } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 
 suite('New chat picker keybindings', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('repository and environment shortcuts require new-session input focus and an available control', () => {
+		const rules = [
+			[FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, 'sessionEnvironmentPickerVisible'],
+			[FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN, 'sessionBranchPickerVisible'],
+			[FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN, 'sessionWorktreePickerVisible'],
+			[FOCUS_SESSION_SYNC_ACTION_WHEN, 'sessionSyncActionVisible'],
+		] as const;
+		const results = rules.map(([rule, key]) => {
+			const context = new Context(0, null);
+			for (const name of ['chatInputHasFocus', 'chatIsEnabled', 'isNewChatSession', 'isSessionsWindow', key]) {
+				context.setValue(name, true);
+			}
+			const enabled = rule.evaluate(context);
+			context.setValue('chatInputHasFocus', false);
+			const outsideInput = rule.evaluate(context);
+			context.setValue('chatInputHasFocus', true);
+			context.setValue('isNewChatSession', false);
+			const existingSession = rule.evaluate(context);
+			context.setValue('isNewChatSession', true);
+			context.setValue('chatIsEnabled', false);
+			const disabledAI = rule.evaluate(context);
+			context.setValue('chatIsEnabled', true);
+			context.setValue(key, false);
+			return [enabled, outsideInput, existingSession, disabledAI, rule.evaluate(context)];
+		});
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => [true, false, false, false, false]));
+	});
+
+	test('registers repository controls per composer and clears visibility with their lifetime', () => {
+		const first = disposables.add(new SessionInputPickerVisibility());
+		const second = disposables.add(new SessionInputPickerVisibility());
+		const context = new MockContextKeyService();
+		const keys = disposables.add(new SessionPickerVisibilityContextKeys(context));
+		const calls: string[] = [];
+		const old = disposables.add(first.registerPicker('branch', () => calls.push('old')));
+		const current = disposables.add(first.registerPicker('branch', () => calls.push('first')));
+		disposables.add(second.registerPicker('branch', () => calls.push('second')));
+		old.dispose();
+		first.focusPicker('branch');
+		second.focusPicker('branch');
+		keys.set(first.visibility.get());
+		const visible = context.getContextKeyValue('sessionBranchPickerVisible');
+		current.dispose();
+		keys.set(first.visibility.get());
+		assert.deepStrictEqual({ calls, visible, hidden: context.getContextKeyValue('sessionBranchPickerVisible'), state: first.visibility.get() },
+			{ calls: ['first', 'second'], visible: true, hidden: false, state: noSessionPickerVisibility });
+	});
 
 	test('keep Ctrl/Cmd held for both chord strokes', () => {
 		assert.deepStrictEqual({
@@ -51,19 +100,12 @@ suite('New chat picker keybindings', () => {
 			keybinding: undefined,
 			contextMenuCount: 0,
 		};
-		const hoverService = new class extends mock<IHoverService>() {
-			override setupDelayedHover(
-				_target: HTMLElement,
-				options: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
-				_lifecycleOptions?: IHoverLifecycleOptions,
-			): IDisposable {
-				const content = (typeof options === 'function' ? options() : options).content;
-				if (typeof content === 'string') {
-					hoverContents.push(content);
-				}
-				return Disposable.None;
+		const action = store.add(new Action('sessions.focusHarness'));
+		store.add(action.onDidChange(event => {
+			if (event.tooltip !== undefined) {
+				hoverContents.push(event.tooltip);
 			}
-		}();
+		}));
 		const keybindingService = new class extends MockKeybindingService {
 			override get onDidUpdateKeybindings() {
 				return keybindingsChanged.event;
@@ -87,7 +129,7 @@ suite('New chat picker keybindings', () => {
 			enabled,
 			new class extends mock<ICommandService>() { }(),
 			contextMenuService,
-			hoverService,
+			action,
 			keybindingService,
 		);
 
@@ -104,7 +146,6 @@ suite('New chat picker keybindings', () => {
 			contextMenuCount: state.contextMenuCount,
 		}, {
 			hoverContents: [
-				'Choose harness',
 				'Choose harness',
 				'Choose harness (Cmd+K Cmd+H)',
 				'Choose harness',

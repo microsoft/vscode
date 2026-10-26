@@ -27,6 +27,7 @@ import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../common/types.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../services/sessions/common/session.js';
+import { PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 
 //#region Mock Fetchers
 
@@ -141,9 +142,11 @@ suite('GitHubPullRequestModel', () => {
 	const store = new DisposableStore();
 	let mockFetcher: MockPRFetcher;
 	const logService = new NullLogService();
+	let iconCache: PullRequestIconCache;
 
 	setup(() => {
 		mockFetcher = new MockPRFetcher();
+		iconCache = new PullRequestIconCache(store.add(new TestStorageService()));
 	});
 
 	teardown(() => store.clear());
@@ -151,7 +154,7 @@ suite('GitHubPullRequestModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('foreground refresh upgrades background work without publishing an older response', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService, iconCache));
 		const gate = new DeferredPromise<void>();
 		mockFetcher.nextPR = { ...makePR(), title: 'Older' };
 		mockFetcher.getPullRequestGate = gate;
@@ -169,7 +172,7 @@ suite('GitHubPullRequestModel', () => {
 	});
 
 	test('periodic PR refreshes use background priority', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService, iconCache));
 		mockFetcher.nextPR = makePR();
 		await model.refresh({ priority: 'visible' });
 		store.add(model.startPolling(10));
@@ -178,13 +181,61 @@ suite('GitHubPullRequestModel', () => {
 	}));
 
 	test('initial state has empty observables', () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService, iconCache));
 		assert.strictEqual(model.pullRequest.get(), undefined);
 		assert.strictEqual(model.mergeability.get(), undefined);
 	});
 
+	test('records successful PR state without requiring a presentation observer', async () => {
+		const storage = store.add(new TestStorageService());
+		const cache = new PullRequestIconCache(storage);
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService, cache));
+		mockFetcher.nextPR = { ...makePR(), state: GitHubPullRequestState.Merged };
+		await model.refresh();
+		const restored = new PullRequestIconCache(storage);
+		assert.deepStrictEqual({
+			state: restored.getState('https://github.com/owner/repo/pull/1')?.state,
+			icon: restored.get('https://github.com/owner/repo/pull/1'),
+		}, { state: GitHubPullRequestState.Merged, icon: computePullRequestIcon(GitHubPullRequestState.Merged) });
+	});
+
+	test('does not publish an open response for an observed merged PR after restart', async () => {
+		iconCache.setState('https://github.com/owner/repo/pull/1', { state: GitHubPullRequestState.Merged, isDraft: false });
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService, iconCache));
+		mockFetcher.nextPR = makePR();
+		await model.refresh();
+		assert.deepStrictEqual({
+			liveState: model.pullRequest.get(),
+			cachedState: iconCache.getState('https://github.com/owner/repo/pull/1')?.state,
+		}, { liveState: undefined, cachedState: GitHubPullRequestState.Merged });
+	});
+
+	test('refreshes immediately on client restoration and discards the previous account response', async () => {
+		const changed = store.add(new Emitter<void>());
+		let generation = 0;
+		const fetcher = new class extends MockPRFetcher {
+			override readonly client = upcastPartial<GitHubApiClient>({ onDidChange: changed.event, get generation() { return generation; } });
+		}();
+		const gate = new DeferredPromise<void>();
+		fetcher.nextPR = makePR();
+		fetcher.getPullRequestGate = gate;
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, fetcher, logService, iconCache));
+		const previous = model.refresh({ priority: 'background' });
+		fetcher.getPullRequestGate = undefined;
+		fetcher.nextPR = { ...makePR(), state: GitHubPullRequestState.Merged };
+		generation++;
+		changed.fire();
+		await model.refresh({ priority: 'background' });
+		await gate.complete();
+		await previous;
+		assert.deepStrictEqual({
+			requests: fetcher.getPullRequestCalls, state: model.pullRequest.get()?.state,
+			cachedState: iconCache.getState('https://github.com/owner/repo/pull/1')?.state,
+		}, { requests: 2, state: GitHubPullRequestState.Merged, cachedState: GitHubPullRequestState.Merged });
+	});
+
 	test('refresh populates pull request and mergeability without fetching review threads', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService, iconCache));
 		mockFetcher.nextPR = makePR();
 		mockFetcher.nextReviews = [];
 		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
@@ -207,7 +258,7 @@ suite('GitHubPullRequestModel', () => {
 	});
 
 	test('refresh shares an in-progress request', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService, iconCache));
 		mockFetcher.nextPR = makePR();
 		mockFetcher.nextReviews = [];
 		mockFetcher.getPullRequestGate = new DeferredPromise<void>();
@@ -242,7 +293,7 @@ suite('GitHubPullRequestModel', () => {
 	});
 
 	test('postIssueComment calls fetcher', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService, iconCache));
 
 		const comment = await model.postIssueComment('Great work!');
 		assert.strictEqual(comment.body, 'Great work!');
@@ -250,7 +301,7 @@ suite('GitHubPullRequestModel', () => {
 	});
 
 	test('postReviewComment uses the pull request head and selected line', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService, iconCache));
 		mockFetcher.nextPR = makePR();
 		mockFetcher.nextReviews = [];
 
@@ -262,7 +313,7 @@ suite('GitHubPullRequestModel', () => {
 	});
 
 	test('polling can be started and stopped', () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService, iconCache));
 		// Just ensure no errors; actual polling behavior is timer-based
 		const polling = model.startPolling(60_000);
 		polling.dispose();
@@ -270,7 +321,7 @@ suite('GitHubPullRequestModel', () => {
 	});
 
 	test('polling stops when the last client stops polling', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService, iconCache));
 		mockFetcher.nextPR = makePR();
 		mockFetcher.nextReviews = [];
 		mockFetcher.getPullRequestGate = new DeferredPromise<void>();

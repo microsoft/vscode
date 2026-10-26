@@ -354,6 +354,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 						label: 'Agent Host guide',
 						isArtifact: false,
 						link: 'https://example.com/agent-host',
+						origin: { chat: session.chatUri, turnId: 'turn-artifact-add' },
 					},
 					{
 						chat: defaultChatChannel(session.sessionUri),
@@ -361,6 +362,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 						label: 'Agent Host report',
 						isArtifact: true,
 						uri: 'file:///agent-host-report.md',
+						origin: { chat: session.chatUri, turnId: 'turn-artifact-add' },
 					},
 				],
 			});

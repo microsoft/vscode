@@ -90,7 +90,7 @@ class TestGitHubQuery extends mock<IIssuesClient>() {
 	readonly responses = new Map<string, Pick<Issue, 'title' | 'body'> | Error>();
 	readonly pendingResponses = new Set<string>();
 
-	override async get({ owner, name: repo }: RepositoryRef, number: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+	override async get({ owner, repo }: RepositoryRef, number: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
 		this.calls.push({ owner, repo, number, options, signal });
 		const key = `${owner}/${repo}#${number}`;
 		if (this.pendingResponses.has(key)) {

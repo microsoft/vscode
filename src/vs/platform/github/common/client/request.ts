@@ -109,10 +109,11 @@ export abstract class BufferedApiRequestProvider implements IApiRequestProvider 
 	async request<T>(request: ApiRequest, signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> {
 		signal.throwIfAborted();
 		this.clientSignal?.throwIfAborted();
-		const bodyText = serializeRequestBody(request.body);
+		const { body, ...metadata } = request;
+		const bodyText = serializeRequestBody(body);
 		let response: ApiResponse<string | undefined>;
 		try {
-			response = await this.requestText(request, signal, bodyText);
+			response = await this.requestText(metadata, signal, bodyText);
 		} catch (error) {
 			if (isMissingCommitResponse(error)) {
 				throw new MissingCommitError(error);

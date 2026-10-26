@@ -127,6 +127,8 @@ async function collectDirectoryFiles(fileService: IFileService, logService: ILog
 export interface ISyncableFile {
 	readonly uri: URI;
 	readonly type: PromptsType;
+	/** Inline content for client-authored rules that have no source file. */
+	readonly content?: string;
 	/**
 	 * Where this file originally came from (extension, plugin, built-in, ...).
 	 * Optional because it is only used to populate the provenance reverse map;
@@ -147,7 +149,7 @@ export interface ISyncableFile {
  * recover it by mapping a synced (destination) URI back to this record.
  */
 export interface ISyncedCustomizationOrigin {
-	/** The original local file URI before it was copied into the synthetic bundle. */
+	/** The source file URI, or the bundled URI for client-authored content without a source file. */
 	readonly uri: URI;
 	/** Where the file originally came from (extension, plugin, built-in, ...). */
 	readonly source: AICustomizationSource;
@@ -281,13 +283,13 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		const entries: { sourceUri: URI; destUri: URI; hashKey: string }[] = [];
+		const entries: { sourceUri: URI; destUri: URI; hashKey: string; content?: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		const addEntry = (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): void => {
-			entries.push({ sourceUri, destUri, hashKey });
+			entries.push({ sourceUri, destUri, hashKey, content: file.content });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
-					uri: sourceUri,
+					uri: file.content === undefined ? sourceUri : destUri,
 					source: file.source,
 					extensionId: file.extensionId,
 					pluginUri: file.pluginUri,
@@ -351,7 +353,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		const fileContents = await Promise.all(entries.map(async entry => ({
 			destUri: entry.destUri,
 			hashKey: entry.hashKey,
-			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
+			content: entry.content !== undefined ? VSBuffer.fromString(entry.content) : (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
 		})));
 		this._throwIfDisposed();
 

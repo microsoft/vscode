@@ -27,16 +27,16 @@ suite('CustomizationDiscoveryQuery', () => {
 	});
 
 	test('canonicalizes aliases, casing, duplicates, and token order', () => {
-		const query = CustomizationDiscoveryQuery.parse('@TYPE:PLUGINS @Installed @type:Skills @type:MCPs @type:plugin');
+		const query = CustomizationDiscoveryQuery.parse('@TYPE:PLUGINS @Installed @type:Skills @type:MCPs @type:plugin @type:Canvases');
 
 		assert.deepStrictEqual({
 			types: [...query.types],
 			serialized: query.toString(),
 			stable: CustomizationDiscoveryQuery.parse(query.toString()).toString(),
 		}, {
-			types: ['plugin', 'skill', 'mcp'],
-			serialized: '@type:skill @type:mcp @type:plugin @installed',
-			stable: '@type:skill @type:mcp @type:plugin @installed',
+			types: ['plugin', 'skill', 'mcp', 'canvas'],
+			serialized: '@type:skill @type:mcp @type:plugin @type:canvas @installed',
+			stable: '@type:skill @type:mcp @type:plugin @type:canvas @installed',
 		});
 	});
 
@@ -119,7 +119,7 @@ suite('CustomizationDiscoveryQuery', () => {
 	test('provides SuggestEnabledInput-compatible values', () => {
 		assert.deepStrictEqual(
 			getCustomizationDiscoveryQuerySuggestions('@installed @type:skills '),
-			['@type:mcp ', '@type:plugin '],
+			['@type:mcp ', '@type:plugin ', '@type:canvas '],
 		);
 	});
 });

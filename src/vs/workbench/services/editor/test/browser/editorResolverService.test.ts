@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Barrier } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -11,11 +12,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IExtensionService } from '../../../extensions/common/extensions.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('EditorResolverService', () => {
 	test('Agents window editor defaults use the Integrated Browser for HTML when available and follow the Markdown editor setting', () => {
@@ -1472,6 +1475,43 @@ suite('EditorResolverService', () => {
 
 		defaultEditor.dispose();
 		customEditor.dispose();
+	});
+
+	test('Editor registered while waiting for extensions on startup is resolved #325506', async () => {
+		const extensionsRegistered = new Barrier();
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({
+				[editorsAssociationsSettingId]: {
+					'*.md': 'CUSTOM_MD_EDITOR'
+				}
+			})
+		}, disposables);
+		instantiationService.stub(IExtensionService, new class extends TestExtensionService {
+			override whenInstalledExtensionsRegistered() {
+				return extensionsRegistered.wait();
+			}
+		});
+		const [part, service] = await createEditorResolverService(instantiationService);
+		registerDefaultEditorTestEditors(service);
+
+		const resolution = service.resolveEditor({ resource: URI.file('test.md') }, part.activeGroup);
+
+		// Simulates an extension contributed editor that is registered when extension points are handled
+		disposables.add(service.registerEditor('*.md', {
+			id: 'CUSTOM_MD_EDITOR',
+			label: 'Custom Markdown Editor',
+			priority: RegisteredEditorPriority.option
+		}, {}, {
+			createEditorInput: ({ resource }) => ({ editor: new TestFileEditorInput(resource, 'testCustomMarkdownEditorInput') })
+		}));
+		extensionsRegistered.open();
+
+		const result = await resolution;
+		if (typeof result === 'number') {
+			assert.fail(`Expected editor to resolve, got ${result}`);
+		}
+		disposables.add(result.editor);
+		assert.deepStrictEqual({ typeId: result.editor.typeId, override: result.options?.override }, { typeId: 'testCustomMarkdownEditorInput', override: 'CUSTOM_MD_EDITOR' });
 	});
 
 	test('Diff editor Resolve - priority.diff overrides priority.editor for diffs', async () => {

@@ -11,6 +11,12 @@ parameters:
   - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
     type: boolean
     default: false
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 steps:
   - template: product-build-win32-setup.yml@self
@@ -38,10 +44,12 @@ steps:
   - template: ../../common/agent-sdk-produce.yml@self
     parameters:
       vscodePlatform: win32
+      VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
   - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
       vscodePlatform: win32
+      VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
   - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:

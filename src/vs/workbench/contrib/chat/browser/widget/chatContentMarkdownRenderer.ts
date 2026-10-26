@@ -8,7 +8,7 @@ import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/br
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { type MarkedExtension } from '../../../../../base/common/marked/marked.js';
+import { type MarkedExtension, type Token, type Tokens } from '../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -62,6 +62,39 @@ const literalSingleTildeExtension: MarkedExtension = {
 		},
 	}]
 };
+
+const htmlLineBreak = /^<br\s*\/?>$/i;
+
+function replaceHtmlLineBreaks(tokens: Token[]): void {
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token.type === 'html' && htmlLineBreak.test(token.raw)) {
+			tokens[i] = { type: 'br', raw: token.raw } satisfies Tokens.Br;
+		} else {
+			const children = (token as Tokens.Generic).tokens;
+			if (children) {
+				replaceHtmlLineBreaks(children);
+			}
+		}
+	}
+}
+
+/**
+ * GFM table cells cannot contain newlines, so `<br>` is the conventional way to break lines
+ * inside them. Chat renders without `supportHtml`, which would otherwise show the tag as text.
+ */
+const tableCellLineBreakExtension: MarkedExtension = {
+	walkTokens: token => {
+		if (token.type === 'table') {
+			const table = token as Tokens.Table;
+			for (const cell of [...table.header, ...table.rows.flat()]) {
+				replaceHtmlLineBreaks(cell.tokens);
+			}
+		}
+	}
+};
+
+const chatMarkedExtensions: readonly MarkedExtension[] = [literalSingleTildeExtension, tableCellLineBreakExtension];
 
 function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
 	const value = markdown.value;
@@ -123,9 +156,10 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
 	return {
 		...options,
-		markedExtensions: options?.markedExtensions?.includes(literalSingleTildeExtension)
-			? options.markedExtensions
-			: [...(options?.markedExtensions ?? []), literalSingleTildeExtension],
+		markedExtensions: [
+			...(options?.markedExtensions ?? []),
+			...chatMarkedExtensions.filter(extension => !options?.markedExtensions?.includes(extension)),
+		],
 		sanitizerConfig: {
 			replaceWithPlaintext: true,
 			allowedTags: {

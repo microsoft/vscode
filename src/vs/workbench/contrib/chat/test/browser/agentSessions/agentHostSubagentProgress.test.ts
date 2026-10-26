@@ -46,6 +46,22 @@ suite('AgentHostSubagentProgress', () => {
 		assert.deepStrictEqual(received, []);
 	});
 
+	test('publishes a queued launch once when its child is discovered already settled', () => {
+		const received: IChatProgress[] = [];
+		const publisher = store.add(new AgentHostSubagentProgress(parts => received.push(...parts)));
+		const invocation = new ChatToolInvocation({
+			toolSpecificData: { kind: 'subagent', hasStarted: false },
+		}, toolData, 'task', undefined, {});
+		publisher.publish([invocation]);
+		const beforeDiscovery = received.length;
+		invocation.toolSpecificData = { kind: 'subagent', isChatAvailable: true, isActive: false };
+		invocation.notifyToolSpecificDataChanged();
+		const afterDiscovery = received.length;
+		invocation.toolSpecificData = { kind: 'subagent', hasStarted: true, isChatAvailable: true, isActive: true };
+		invocation.notifyToolSpecificDataChanged();
+		assert.deepStrictEqual({ beforeDiscovery, afterDiscovery, received }, { beforeDiscovery: 0, afterDiscovery: 1, received: [invocation] });
+	});
+
 	test('publishes a pending launch when it requires confirmation', () => {
 		const received: IChatProgress[] = [];
 		const publisher = store.add(new AgentHostSubagentProgress(parts => received.push(...parts)));

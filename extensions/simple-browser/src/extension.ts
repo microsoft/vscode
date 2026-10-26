@@ -109,7 +109,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}, {
 		schemes: ['http', 'https'],
-		label: vscode.l10n.t("Open in simple browser"),
+		label: vscode.l10n.t("Open in Simple Browser"),
 	}));
 }
 

@@ -84,6 +84,7 @@ suite('CloudSandboxLegacySessionPreparation', () => {
 		root.handleSnapshot(rootState([]), 0);
 		const closed = store.add(new Emitter<void>());
 		const connection = sinon.createStubInstance(AgentHostProtocolClient);
+		connection.traceRepositoryPreparation.callsFake((_phase, operation) => operation());
 		Object.defineProperties(connection, {
 			rootState: { value: root },
 			onDidClose: { value: closed.event },

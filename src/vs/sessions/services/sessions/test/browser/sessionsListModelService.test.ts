@@ -72,6 +72,20 @@ suite('SessionsListModelService', () => {
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
 
+	test('untitled sessions ignore the completed-state icon', () => {
+		const completedStateIcon = Codicon.gitPullRequest;
+		const readIcon = service.getStatusIcon(SessionStatus.Untitled, true, false, completedStateIcon);
+		const unreadIcon = service.getStatusIcon(SessionStatus.Untitled, false, false, completedStateIcon);
+
+		assert.deepStrictEqual({
+			read: { id: readIcon.id, color: readIcon.color?.id },
+			unread: { id: unreadIcon.id, color: unreadIcon.color?.id },
+		}, {
+			read: { id: Codicon.circleSmallFilled.id, color: 'agentSessionReadIndicator.foreground' },
+			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
+		});
+	});
+
 	test('unread state takes precedence over the completed-state icon', () => {
 		const completedStateIcon = Codicon.gitPullRequest;
 		const unreadIcon = service.getStatusIcon(SessionStatus.Completed, false, false, completedStateIcon);
