@@ -233,6 +233,144 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('worktree sizes survive reopening, invalidate on session changes, and are deleted with the session', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		const session = 'session://disk-usage';
+		const worktree = 'file:///worktree';
+		database = new AgentHostDatabase(path);
+		await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		const revision = (await database.getWorktreeDiskUsageRevision(session, worktree))!;
+		await database.writeWorktreeDiskUsage(session, worktree, revision, 0);
+		await database.close();
+		database = new AgentHostDatabase(path);
+		const restored = await database.readWorktreeDiskUsage(session, worktree, revision);
+		await database.updateSessionModifiedTime(session, 2);
+		const updatedRevision = (await database.getWorktreeDiskUsageRevision(session, worktree))!;
+		const invalidated = await database.readWorktreeDiskUsage(session, worktree, updatedRevision);
+		await database.tombstoneAndUnregisterSession(session);
+		assert.deepStrictEqual({
+			restored, invalidated,
+			revisionChanged: revision !== updatedRevision,
+			deleted: await database.readWorktreeDiskUsage(session, worktree, revision),
+			unknown: await database.getWorktreeDiskUsageRevision(session, worktree),
+		}, { restored: 0, invalidated: undefined, revisionChanged: true, deleted: undefined, unknown: undefined });
+	});
+
+	test('worktree size revisions include central session state and shared worktree owners', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		const session = 'session://disk-usage';
+		const coOwner = 'session://co-owner';
+		const worktree = 'file:///worktree';
+		database = new AgentHostDatabase(path);
+		for (const resource of [session, coOwner]) {
+			await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		}
+		await database.importSessionState(session, {
+			importVersion: 1, importedAt: 1, values: {}, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+		});
+		const raw = await openDatabase(path);
+		try {
+			await exec(raw, `INSERT INTO worktree_co_owners VALUES ('${worktree}', '${coOwner}', 'file:///repo', 'branch')`);
+		} finally {
+			await close(raw);
+		}
+		const initial = await database.getWorktreeDiskUsageRevision(session, worktree);
+		await database.bumpSessionStateRowsRevision(session);
+		const stateChanged = await database.getWorktreeDiskUsageRevision(session, worktree);
+		await database.updateSessionModifiedTime(coOwner, 2);
+		const coOwnerChanged = await database.getWorktreeDiskUsageRevision(session, worktree);
+		assert.deepStrictEqual({
+			stateChanged: initial !== stateChanged,
+			coOwnerChanged: stateChanged !== coOwnerChanged,
+		}, { stateChanged: true, coOwnerChanged: true });
+	});
+
+	test('worktree sizes use metadata without changing session revisions or registrations', async () => {
+		const path = join(temporaryDirectory!, 'agent-host.db');
+		const session = 'session://disk-usage';
+		const other = 'session://other';
+		const worktree = 'file:///worktree';
+		database = new AgentHostDatabase(path);
+		for (const resource of [session, other]) {
+			await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		}
+		const revision = (await database.getWorktreeDiskUsageRevision(session, worktree))!;
+		const generation = await database.getRegistrationGeneration();
+		await database.writeWorktreeDiskUsage(session, worktree, revision, 42);
+		await database.writeWorktreeDiskUsage(session, 'file:///another-worktree', revision, 64);
+		await database.writeWorktreeDiskUsage('session://unknown', worktree, revision, 100);
+		const raw = await openDatabase(path);
+		try {
+			assert.deepStrictEqual({
+				record: await all(raw, 'SELECT value FROM metadata WHERE key = ?', [`worktreeDiskUsage:${worktree}`]),
+				table: await all(raw, `SELECT name FROM sqlite_master WHERE name = 'worktree_disk_usage'`),
+				version: await all(raw, 'PRAGMA user_version'),
+				revision: await database.getWorktreeDiskUsageRevision(session, worktree),
+				generation: await database.getRegistrationGeneration(),
+				unrelated: await database.readWorktreeDiskUsage(other, worktree, revision),
+				another: await database.readWorktreeDiskUsage(session, 'file:///another-worktree', revision),
+			}, {
+				record: [{ value: JSON.stringify({ session, revision, sizeBytes: 42 }) }],
+				table: [],
+				version: [{ user_version: 21 }],
+				revision,
+				generation,
+				unrelated: undefined,
+				another: 64,
+			});
+		} finally {
+			await close(raw);
+		}
+	});
+
+	for (const operation of ['tombstone', 'unregisterRuntime', 'unregisterV2', 'exclude'] as const) {
+		test(`${operation} removes worktree size metadata without removing other sessions' sizes`, async () => {
+			const path = join(temporaryDirectory!, 'agent-host.db');
+			const session = 'session://disk-usage';
+			const other = 'session://other';
+			database = new AgentHostDatabase(path);
+			for (const resource of [session, other]) {
+				await database.registerSessionV2(resource, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+				await database.writeWorktreeDiskUsage(resource, `${resource}/worktree`, 'revision', 42);
+			}
+			if (operation === 'tombstone') {
+				await database.tombstoneAndUnregisterSession(session);
+			} else if (operation === 'unregisterRuntime') {
+				await database.unregisterRuntimeSession(session);
+			} else if (operation === 'unregisterV2') {
+				await database.unregisterSessionV2(session);
+			} else {
+				await database.excludeSessionV2({ provider: 'copilotcli', session, reason: 'staleExternal', fingerprint: 'test' }, {
+					identity: await database.getSessionV2Registration(session), catalog: undefined,
+				});
+			}
+			await database.writeWorktreeDiskUsage(session, `${session}/worktree`, 'revision', 99);
+			const raw = await openDatabase(path);
+			try {
+				assert.deepStrictEqual(await all(raw, `SELECT key FROM metadata WHERE key >= 'worktreeDiskUsage:' AND key < 'worktreeDiskUsage;'`), [
+					{ key: `worktreeDiskUsage:${other}/worktree` },
+				]);
+			} finally {
+				await close(raw);
+			}
+		});
+	}
+
+	test('invalidating a worktree size leaves other metadata and worktrees unchanged', async () => {
+		database = new AgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
+		const session = 'session://disk-usage';
+		await database.registerSessionV2(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		await database.setSessionAgentMergeEnabled(session, true);
+		await database.writeWorktreeDiskUsage(session, 'file:///worktree', 'revision', 42);
+		await database.writeWorktreeDiskUsage(session, 'file:///other', 'revision', 64);
+		await database.deleteWorktreeDiskUsage('file:///worktree');
+		assert.deepStrictEqual({
+			deleted: await database.readWorktreeDiskUsage(session, 'file:///worktree', 'revision'),
+			other: await database.readWorktreeDiskUsage(session, 'file:///other', 'revision'),
+			agentMergeEnabled: await database.listAgentMergeEnabledSessions(),
+		}, { deleted: undefined, other: 64, agentMergeEnabled: [session] });
+	});
+
 	test('creates the central catalog schema without changing the legacy registry', async () => {
 		const path = join(temporaryDirectory!, 'agent-host.db');
 		database = new AgentHostDatabase(path);
