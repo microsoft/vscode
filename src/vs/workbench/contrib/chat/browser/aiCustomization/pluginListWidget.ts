@@ -40,7 +40,7 @@ import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWid
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, isSyncedFromClientCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -50,7 +50,7 @@ import { UpdateAgentPluginsCommandId } from '../chat.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationScope, AICustomizationScopes, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
@@ -1457,10 +1457,20 @@ export class PluginListWidget extends Disposable {
 
 		const partitionedInstalledItems = partitionInstalledPluginItemsByScope(this.installedItems);
 		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
+		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
+		// Plugins the agent host reports itself belong to the scope they apply to
+		// (a host-level install is the user's), not to a separate "remote" group.
+		const hostItems = this.remoteItems
+			.filter(item => !isSyncedFromClientCustomizationItem(item) && (!item.name || !installedNames.has(item.name.toLowerCase())));
+		const hostEntriesFor = (scope: AICustomizationScope) => hostItems
+			.filter(item => (item.scope ?? AICustomizationScopes.user) === scope)
+			.map(item => ({ type: 'remote-item' as const, item }));
+		const workspaceHostEntries = hostEntriesFor(AICustomizationScopes.workspace);
+		const harnessEntries = hostEntriesFor(AICustomizationScopes.application);
 		const workspaceDefinitions = workspaceGroups.length > 0
 			? workspaceGroups.map(group => ({
 				id: group.key,
-				label: group.label,
+				label: localize('workspaceFolderPluginsGroup', "Workspace · {0}", group.label),
 				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
 				icon: Codicon.folder,
 				children: partitionedInstalledItems.workspace
@@ -1472,13 +1482,9 @@ export class PluginListWidget extends Disposable {
 				label: localize('workspacePluginsGroup', "Workspace"),
 				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
 				icon: Codicon.folder,
-				children: partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item })),
+				children: [...partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item })), ...workspaceHostEntries],
 			}];
-		const userEntries = partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item }));
-		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
-		const remoteEntries = this.remoteItems
-			.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())))
-			.map(item => ({ type: 'remote-item' as const, item }));
+		const userEntries = [...partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item })), ...hostEntriesFor(AICustomizationScopes.user)];
 		const showLegacyMarketplace = shouldShowLegacyPluginMarketplace(this.configurationService);
 		const availableItems = !showLegacyMarketplace ? [] : this.browseMode || this.searchQuery.trim()
 			? this.marketplaceItems : this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
@@ -1492,13 +1498,27 @@ export class PluginListWidget extends Disposable {
 				children: userEntries,
 			},
 			...workspaceDefinitions,
+			...(workspaceGroups.length > 0 ? [{
+				id: 'workspace',
+				label: localize('workspacePluginsGroup', "Workspace"),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: workspaceHostEntries,
+			}] : []),
 			{
-				id: 'remote',
-				label: localize('sessionPluginsSection', "Session"),
-				description: localize('sessionPluginsSectionDescription', "Plugins configured directly on the active agent host."),
-				icon: Codicon.remote,
-				children: remoteEntries,
+				id: 'account',
+				label: localize('accountPluginsGroup', "Account"),
+				description: localize('accountPluginsGroupDescription', "Plugins required by your signed-in account, such as your GitHub organization."),
+				icon: Codicon.organization,
+				children: hostEntriesFor(AICustomizationScopes.account),
 			},
+			...(harnessEntries.length > 0 ? [{
+				id: 'harness',
+				label: this.harnessService.getActiveDescriptor().label,
+				description: localize('harnessPluginsGroupDescription', "Plugins built into {0}.", this.harnessService.getActiveDescriptor().label),
+				icon: this.harnessService.getActiveDescriptor().icon,
+				children: harnessEntries,
+			}] : []),
 			{
 				id: 'available',
 				label: localize('availablePluginsSection', "Available"),
@@ -1508,7 +1528,7 @@ export class PluginListWidget extends Disposable {
 			},
 		].filter(group => group.id === 'available'
 			? showLegacyMarketplace
-			: group.id === 'user' || group.id === 'workspace' || workspaceGroups.some(workspace => workspace.key === group.id) || group.children.length > 0);
+			: group.id === 'user' || (group.id === 'workspace' && workspaceGroups.length === 0) || workspaceGroups.some(workspace => workspace.key === group.id) || group.children.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IPluginListEntry> => {
 			const element: IPluginGroupHeaderEntry = {
@@ -1547,7 +1567,8 @@ export class PluginListWidget extends Disposable {
 
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
-		if (entry.group === 'user' || entry.group === 'workspace' || isAICustomizationWorkspaceGroupKey(entry.group)) {
+		const isMultiRootWorkspaceFallback = entry.group === 'workspace' && getAICustomizationWorkspaceGroups(this.workspaceContextService).length > 0;
+		if (entry.group === 'user' || (entry.group === 'workspace' && !isMultiRootWorkspaceFallback) || isAICustomizationWorkspaceGroupKey(entry.group)) {
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
 				this.renderPluginUpdateAction(actions, disposables);
 			}
@@ -2208,7 +2229,7 @@ export class PluginListWidget extends Disposable {
 	get itemCount(): number {
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const uniqueRemote = this.remoteItems.filter(item => {
-			if (item.groupKey === 'remote-client') {
+			if (isSyncedFromClientCustomizationItem(item)) {
 				return false;
 			}
 			if (item.name && installedNames.has(item.name.toLowerCase())) {

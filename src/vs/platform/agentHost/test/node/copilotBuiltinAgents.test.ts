@@ -140,6 +140,7 @@ suite('Copilot built-in agents', () => {
 			contents: CustomizationType.Agent,
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
+			_meta: { 'vscode.customization.scope': 'application' },
 			children: COPILOT_BUILTIN_AGENTS.map(agent => ({
 				type: CustomizationType.Agent,
 				id: getCopilotBuiltinAgentUri(agent).toString(),

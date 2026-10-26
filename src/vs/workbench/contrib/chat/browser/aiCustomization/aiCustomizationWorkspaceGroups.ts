@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 const WORKSPACE_GROUP_KEY_PREFIX = 'workspace:';
@@ -37,4 +37,27 @@ export function getAICustomizationWorkspaceGroupForResource(resource: URI, works
 	}
 	const folder = workspaceContextService.getWorkspaceFolder(resource);
 	return groups.find(group => folder && isEqual(group.uri, folder.uri)) ?? groups[0];
+}
+
+/**
+ * Returns the workspace folder group that contains the resource, or
+ * `undefined` when the resource is outside every workspace folder. Unlike
+ * {@link getAICustomizationWorkspaceGroupForResource}, it never attributes a
+ * resource to an arbitrary folder.
+ */
+export function findAICustomizationWorkspaceGroupContaining(resource: URI, workspaceContextService: IWorkspaceContextService): IAICustomizationWorkspaceGroup | undefined {
+	let match: IAICustomizationWorkspaceGroup | undefined;
+	for (const group of getAICustomizationWorkspaceGroups(workspaceContextService)) {
+		if (isEqualOrParent(resource, group.uri) && (!match || group.uri.path.length > match.uri.path.length)) {
+			match = group;
+		}
+	}
+	return match;
+}
+
+/**
+ * Returns whether the resource lives in any workspace folder of the window.
+ */
+export function isInAICustomizationWorkspaceFolder(resource: URI, workspaceContextService: IWorkspaceContextService): boolean {
+	return workspaceContextService.getWorkspace().folders.some(folder => isEqualOrParent(resource, folder.uri));
 }

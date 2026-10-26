@@ -22,14 +22,15 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationOverride, ICustomizationSourceFolder, isLegacyDeliveryGroupKey, isSyncedFromClientCustomizationItem } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { isOrganizationPromptFile } from '../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { sourceToIcon } from './aiCustomizationIcons.js';
 import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
@@ -38,6 +39,17 @@ import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationMa
 interface IAICustomizationMarketplaceMetadata {
 	readonly resource: ICustomizationMarketplaceResource;
 	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
+
+/**
+ * Identifies who supplied a customization within its scope.
+ * Items sharing an origin `id` are shown together under one separator.
+ */
+export interface IAICustomizationListItemOrigin {
+	readonly kind: 'plugin' | 'extension' | 'vscode' | 'harness' | 'account';
+	readonly id: string;
+	/** Display label. Optional for `harness`, which uses the active harness name. */
+	readonly label?: string;
 }
 
 /**
@@ -55,6 +67,14 @@ export interface IAICustomizationListItem {
 	readonly disabled: boolean;
 	/** When set, overrides `source` for display grouping purposes. */
 	readonly groupKey?: string;
+	/** Who this customization applies to; the primary display grouping. Derived from `source` when omitted. */
+	readonly scope?: AICustomizationScope;
+	/** Supplier within the scope, used to subgroup items. Undefined for files authored directly in the scope. */
+	readonly origin?: IAICustomizationListItemOrigin;
+	/** Set when the item was synced from this client to a remote agent environment. */
+	readonly delivery?: 'syncedFromClient';
+	/** Set when another customization with the same name takes precedence over this one. */
+	readonly overriddenBy?: ICustomizationOverride;
 	/** URI of the parent plugin, when this item comes from an installed plugin. */
 	readonly pluginUri?: URI;
 	/** When set, overrides the formatted name for display. */
@@ -100,6 +120,13 @@ export interface IAICustomizationItemSource extends IDisposable {
 // #endregion
 
 // #region Utilities
+
+/**
+ * Returns the scope a list item is grouped under.
+ */
+export function getCustomizationListItemScope(item: Pick<IAICustomizationListItem, 'scope' | 'source'>): AICustomizationScope {
+	return item.scope ?? AICustomizationScopes.fromSource(item.source);
+}
 
 /**
  * Returns true if the given extension identifier matches the default
@@ -213,6 +240,7 @@ export class AICustomizationItemNormalizer {
 
 	normalizeItem(item: ICustomizationItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
 		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
+		const scope = this.inferScope(item, source);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
 		uriUseCounts.set(item.uri, seenCount + 1);
 		const duplicateSuffix = seenCount === 0 ? '' : `#${seenCount}`;
@@ -227,6 +255,10 @@ export class AICustomizationItemNormalizer {
 				: basename(item.uri),
 			description: item.description,
 			source,
+			scope,
+			origin: this.inferOrigin(item, source, scope, pluginUri, extensionId),
+			delivery: isSyncedFromClientCustomizationItem(item) ? 'syncedFromClient' : undefined,
+			overriddenBy: item.overriddenBy,
 			promptType,
 			disabled: item.enabled === false,
 			groupKey,
@@ -243,7 +275,7 @@ export class AICustomizationItemNormalizer {
 	}
 
 	private inferStorageAndGroup(item: ICustomizationItem): { source: AICustomizationSource; groupKey?: string; isBuiltin?: boolean; extensionId?: string; pluginUri?: URI } {
-		const groupKey = item.groupKey;
+		const groupKey = isLegacyDeliveryGroupKey(item.groupKey) ? undefined : item.groupKey;
 		const hasBuiltinStorage = item.source === AICustomizationSources.builtin;
 		const isBuiltin = groupKey === BUILTIN_STORAGE || hasBuiltinStorage;
 
@@ -263,6 +295,52 @@ export class AICustomizationItemNormalizer {
 			return { source: AICustomizationSources.extension, extensionId: item.extensionId, groupKey, isBuiltin };
 		}
 		return { source: item.source, groupKey, isBuiltin, pluginUri: item.pluginUri, extensionId: item.extensionId };
+	}
+
+	private inferScope(item: ICustomizationItem, source: AICustomizationSource): AICustomizationScope {
+		if (item.scope) {
+			return item.scope;
+		}
+		if (item.origin?.kind === 'account' || this.getOrganizationName(item) !== undefined) {
+			return AICustomizationScopes.account;
+		}
+		return AICustomizationScopes.fromSource(source);
+	}
+
+	private inferOrigin(item: ICustomizationItem, source: AICustomizationSource, scope: AICustomizationScope, pluginUri: URI | undefined, extensionId: string | undefined): IAICustomizationListItemOrigin | undefined {
+		if (item.origin) {
+			return { kind: item.origin.kind, id: `${item.origin.kind}:${item.origin.label ?? ''}`, label: item.origin.label };
+		}
+		if (pluginUri) {
+			return { kind: 'plugin', id: `plugin:${pluginUri.toString()}`, label: item.pluginLabel ?? basename(pluginUri) };
+		}
+		if (scope === AICustomizationScopes.account) {
+			const organization = this.getOrganizationName(item);
+			return { kind: 'account', id: `account:${organization ?? ''}`, label: organization };
+		}
+		if (extensionId) {
+			if (isChatExtensionItem(new ExtensionIdentifier(extensionId), this.productService)) {
+				return { kind: 'vscode', id: 'vscode:' };
+			}
+			return { kind: 'extension', id: `extension:${extensionId.toLowerCase()}`, label: item.extensionLabel ?? extensionId };
+		}
+		if (source === AICustomizationSources.builtin || scope === AICustomizationScopes.application) {
+			return { kind: 'vscode', id: 'vscode:' };
+		}
+		return undefined;
+	}
+
+	/**
+	 * Organization customizations are cached by the default chat extension
+	 * under a `/github/<organization>/` folder.
+	 */
+	private getOrganizationName(item: ICustomizationItem): string | undefined {
+		if (!item.extensionId || !isOrganizationPromptFile(item.uri, new ExtensionIdentifier(item.extensionId), this.productService)) {
+			return undefined;
+		}
+		const segments = item.uri.path.split('/');
+		const githubIndex = segments.lastIndexOf('github');
+		return githubIndex >= 0 ? segments[githubIndex + 1] || undefined : undefined;
 	}
 }
 
@@ -355,8 +433,8 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	 * into the provider's items. The provider may re-discover the bundled
 	 * copies when scanning disk — those duplicates are dropped (deduped by
 	 * URI) and replaced with the authoritative built-in entry tagged
-	 * `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
-	 * group. User-authored overrides (different URI, same name) are preserved.
+	 * `groupKey: BUILTIN_STORAGE`. A built-in that a user or workspace skill
+	 * with the same name replaces is kept and marked as overridden.
 	 *
 	 * A workbench that uses the base `PromptsService` contributes no built-in
 	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
@@ -376,19 +454,19 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		// re-discovered the bundled copy by scanning disk).
 		const deduped = items.filter(item => !builtinUris.has(item.uri));
 
-		// Collect names of user/workspace skills so we can hide the built-in
-		// copy once the user has added an override at either level.
-		const overriddenNames = new Set<string>();
+		// Collect user/workspace skills by name so a built-in copy that has
+		// been overridden at either level is shown as overridden.
+		const overridingItems = new Map<string, IAICustomizationListItem>();
 		for (const item of deduped) {
-			if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
-				if (item.name) {
-					overriddenNames.add(item.name);
+			if ((item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) && item.name && !item.overriddenBy) {
+				const existing = overridingItems.get(item.name);
+				if (!existing || (existing.source === AICustomizationSources.user && item.source === AICustomizationSources.local)) {
+					overridingItems.set(item.name, item);
 				}
 			}
 		}
 
-		// Append authoritative built-in entries (excluding any that have been
-		// overridden by a workspace or user copy with the same name).
+		// Append authoritative built-in entries.
 		const uriUseCounts = new ResourceMap<number>();
 		for (const item of deduped) {
 			uriUseCounts.set(item.uri, (uriUseCounts.get(item.uri) ?? 0) + 1);
@@ -397,9 +475,7 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		const disabledPromptFiles = this.promptsService.getDisabledPromptFiles(PromptsType.skill);
 		for (const p of builtinPaths) {
 			const name = p.name ?? basename(p.uri);
-			if (overriddenNames.has(name)) {
-				continue;
-			}
+			const overridingItem = overridingItems.get(name);
 			const builtinItem: ICustomizationItem = {
 				uri: p.uri,
 				type: PromptsType.skill,
@@ -411,6 +487,7 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
+				overriddenBy: overridingItem ? { name: overridingItem.name, uri: overridingItem.uri, scope: getCustomizationListItemScope(overridingItem) } : undefined,
 			};
 			appended.push(this.itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
 		}

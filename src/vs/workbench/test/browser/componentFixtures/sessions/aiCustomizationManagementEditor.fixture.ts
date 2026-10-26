@@ -479,6 +479,9 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 				userInvocable: true,
 			}));
 		}
+		override async getDiscoveryInfo(type: PromptsType) {
+			return { type, files: [], durationInMillis: 0 };
+		}
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
 			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
 			const commands = await Promise.all(promptFiles.map(async f => {

@@ -38,7 +38,7 @@ import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -87,8 +87,9 @@ import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHei
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
-import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
+import { findAICustomizationWorkspaceGroupContaining, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey, isInAICustomizationWorkspaceFolder } from './aiCustomizationWorkspaceGroups.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -1094,7 +1095,15 @@ export function getMcpRowKey(entry: IMcpInstalledEntry): string {
 	}
 }
 
-export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace' | 'plugins' | 'extensions' | 'builtin' {
+export type McpEntryGroup = 'user' | 'workspace' | 'account' | 'application';
+
+/**
+ * Returns the scope group an installed MCP server is listed under. Plugins
+ * belong to the scope they are installed in (user), extensions and built-in
+ * servers to the application, and servers supplied by the signed-in account or
+ * a host-managed catalog to the account.
+ */
+export function getMcpEntryGroup(entry: IMcpInstalledEntry): McpEntryGroup {
 	if (entry.type === 'provider-item') {
 		return 'user';
 	}
@@ -1102,14 +1111,14 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 		return entry.server.local?.scope === LocalMcpServerScope.Workspace ? 'workspace' : 'user';
 	}
 	if (entry.type === 'connector-item') {
-		return 'plugins';
+		return 'account';
 	}
 	if (entry.type === 'builtin-item') {
 		if (entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
-			return 'plugins';
+			return 'user';
 		}
 		if (entry.extensionId) {
-			return isCopilotExtension(entry.extensionId) ? 'builtin' : 'extensions';
+			return 'application';
 		}
 		const collection = entry.localServer?.readDefinitions().get().collection;
 		if (collection?.provenance === McpCollectionProvenance.ExternalConfiguration) {
@@ -1119,18 +1128,59 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 	const activeSessionServer = getActiveSessionServer(entry);
 	switch (activeSessionServer?.source) {
 		case 'user':
+		case 'plugin':
 			return 'user';
 		case 'workspace':
 			return 'workspace';
-		case 'plugin':
-			return 'plugins';
+		case 'account':
+		case 'managed':
+			return 'account';
+		case 'builtin':
+			return 'application';
 		case undefined:
 			// The agent host's own configuration applies to all of its sessions, like user configuration.
 			if (activeSessionServer?.hostConfiguration) {
 				return 'user';
 			}
+			// A host-reported server with no reported source is not known to be built in
+			// (for example a workspace server the host still advertises after removal).
+			if (activeSessionServer) {
+				return 'user';
+			}
 	}
-	return 'builtin';
+	return 'application';
+}
+
+/**
+ * Returns the origin an installed MCP server is subgrouped under within its
+ * scope group, or `undefined` for servers configured directly in the scope.
+ */
+export function getMcpEntryOrigin(entry: IMcpInstalledEntry): { readonly id: string; readonly kind: 'plugin' | 'extension' | 'vscode' | 'harness' | 'account'; readonly label: string | undefined } | undefined {
+	if (entry.type === 'connector-item') {
+		return { id: 'account:connectors', kind: 'account', label: undefined };
+	}
+	if (entry.type === 'builtin-item') {
+		if (entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
+			const plugin = entry.collectionId.slice(PLUGIN_COLLECTION_PREFIX.length);
+			return { id: `plugin:${plugin}`, kind: 'plugin', label: undefined };
+		}
+		if (entry.extensionId) {
+			return isCopilotExtension(entry.extensionId)
+				? { id: 'vscode:', kind: 'vscode', label: undefined }
+				: { id: `extension:${entry.extensionId.value.toLowerCase()}`, kind: 'extension', label: undefined };
+		}
+	}
+	const activeSessionServer = getActiveSessionServer(entry);
+	switch (activeSessionServer?.source) {
+		case 'plugin':
+			return activeSessionServer.sourcePluginName ? { id: `plugin:${activeSessionServer.sourcePluginName}`, kind: 'plugin', label: activeSessionServer.sourcePluginName } : undefined;
+		case 'builtin':
+			return { id: 'harness:', kind: 'harness', label: undefined };
+		case 'account':
+		case 'managed':
+			return { id: `account:${activeSessionServer.source}`, kind: 'account', label: undefined };
+	}
+	return entry.type === 'builtin-item' && getMcpEntryGroup(entry) === 'application' ? { id: 'vscode:', kind: 'vscode', label: undefined } : undefined;
 }
 
 /** Everything the status actions of a row are built from: what they show, and what they act on. */
@@ -2023,6 +2073,7 @@ export class McpListWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
@@ -2880,36 +2931,51 @@ export class McpListWidget extends Disposable {
 		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
 		const grouped = new Map<string, IMcpSectionEntry[]>([
 			['user', []],
-			...(workspaceGroups.length > 0
-				? workspaceGroups.map(group => [group.key, []] as [string, IMcpSectionEntry[]])
-				: [['workspace', []] as [string, IMcpSectionEntry[]]]),
-			['plugins', []],
+			...workspaceGroups.map(group => [group.key, []] as [string, IMcpSectionEntry[]]),
+			['workspace', []],
+			['account', []],
 			['extensions', []],
-			['builtin', []],
+			['harness', []],
+			['vscode', []],
 			['available', showGallery ? this.getAvailableGalleryServers().map(server => ({ type: 'marketplace-item', server })) : []],
 		]);
 
 		for (const entry of allInstalledEntries) {
-			const group = getMcpEntryGroup(entry);
 			const sourceUri = getMcpEntrySourceUri(entry);
-			const groupKey = group === 'workspace' && workspaceGroups.length > 0
-				? (sourceUri ? getAICustomizationWorkspaceGroupForResource(sourceUri, this.workspaceContextService)?.key : undefined) ?? workspaceGroups[0].key
-				: group;
-			grouped.get(groupKey)!.push(entry);
+			let group = getMcpEntryGroup(entry);
+			// A host server with no reported source still has a known location; one
+			// configured inside a workspace folder belongs to that workspace.
+			const hostServer = getActiveSessionServer(entry);
+			if (group === 'user' && sourceUri && hostServer && hostServer.source === undefined && !hostServer.hostConfiguration && this.isInActiveWorkspace(sourceUri)) {
+				group = 'workspace';
+			}
+			grouped.get(this.getMcpTreeGroupKey(entry, group, sourceUri, workspaceGroups.length > 0))!.push(entry);
 		}
 
+		// Servers configured directly in a scope come first, followed by those
+		// supplied by each plugin, extension, or the agent.
+		const originRank = (entry: IMcpSectionEntry) => entry.type === 'group-header' || entry.type === 'marketplace-item' ? '' : getMcpEntryOrigin(entry)?.id ?? '';
+		for (const [key, entries] of grouped) {
+			if (key !== 'available') {
+				entries.sort((a, b) => originRank(a).localeCompare(originRank(b)));
+			}
+		}
+
+		const workspaceDescription = localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace.");
+		const harness = grouped.get('harness')!.length > 0 ? this.customizationHarnessService.getActiveDescriptor() : undefined;
+		const productName = grouped.get('vscode')!.length > 0 ? this.productService.nameShort || 'VS Code' : '';
 		const definitions = [
-			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userMcpServersGroupDescription', "MCP servers configured for your profile and available across workspaces."), icon: Codicon.account },
-			...(workspaceGroups.length > 0
-				? workspaceGroups.map(group => ({ id: group.key, label: group.label, description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder, workspaceFolder: group.uri }))
-				: [{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder, workspaceFolder: undefined }]),
-			{ id: 'plugins', label: localize('pluginMcpServersGroup', "Plugins"), description: localize('pluginMcpServersGroupDescription', "MCP servers provided by installed plugins or connected connectors."), icon: Codicon.plug },
+			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userScopeMcpServersGroupDescription', "MCP servers configured for your profile or provided by plugins you installed. Available across workspaces."), icon: Codicon.account },
+			...workspaceGroups.map(group => ({ id: group.key, label: localize('workspaceFolderMcpServersGroup', "Workspace · {0}", group.label), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: group.uri })),
+			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: workspaceDescription, icon: Codicon.folder, workspaceFolder: undefined },
+			{ id: 'account', label: localize('accountMcpServersGroup', "Account"), description: localize('accountMcpServersGroupDescription', "MCP servers provided by your signed-in account, connected connectors, or a managed catalog."), icon: Codicon.organization },
 			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
-			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-In"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into the application or active agent host."), icon: mcpServerIcon },
+			...(harness ? [{ id: 'harness', label: harness.label, description: localize('harnessMcpServersGroupDescription', "MCP servers built into {0}.", harness.label), icon: harness.icon }] : []),
+			{ id: 'vscode', label: productName, description: localize('vscodeMcpServersGroupDescription', "MCP servers built into {0}.", productName), icon: Codicon.vscode },
 			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
 		].filter(group => group.id === 'available'
 			? showGallery
-			: group.id === 'user' || group.id === 'workspace' || isAICustomizationWorkspaceGroupKey(group.id) || grouped.get(group.id)!.length > 0);
+			: group.id === 'user' || (group.id === 'workspace' && workspaceGroups.length === 0) || isAICustomizationWorkspaceGroupKey(group.id) || grouped.get(group.id)!.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IMcpSectionEntry> => {
 			const entries = grouped.get(group.id)!;
@@ -2946,6 +3012,35 @@ export class McpListWidget extends Disposable {
 		this.list.setChildren(null);
 		this.list.setChildren(null, children);
 		this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
+	}
+
+	/**
+	 * Returns the tree group for a server: its scope, a specific workspace folder
+	 * for multi-root workspaces, or for application servers the supplier that
+	 * built or contributed it.
+	 */
+	private getMcpTreeGroupKey(entry: IMcpInstalledEntry, group: McpEntryGroup, sourceUri: URI | undefined, isMultiRoot: boolean): string {
+		if (group === 'application') {
+			switch (getMcpEntryOrigin(entry)?.kind) {
+				case 'extension': return 'extensions';
+				case 'harness': return 'harness';
+				default: return 'vscode';
+			}
+		}
+		// Servers outside every workspace folder stay in a plain Workspace group.
+		if (group === 'workspace' && isMultiRoot && sourceUri) {
+			return findAICustomizationWorkspaceGroupContaining(sourceUri, this.workspaceContextService)?.key ?? group;
+		}
+		return group;
+	}
+
+	/** Whether a resource lives in one of the window's workspace folders or the active session's project. */
+	private isInActiveWorkspace(resource: URI): boolean {
+		if (isInAICustomizationWorkspaceFolder(resource, this.workspaceContextService)) {
+			return true;
+		}
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		return !!projectRoot && isEqualOrParent(resource, projectRoot);
 	}
 
 	private updateMcpTreeEmptyState(itemCount: number): void {

@@ -33,6 +33,48 @@ export namespace AICustomizationSources {
 export const BUILTIN_STORAGE = AICustomizationSources.builtin;
 
 /**
+ * Who a customization applies to. This is the primary grouping axis of the
+ * management UI and is independent of {@link AICustomizationSource}, which
+ * describes where an item is stored and therefore what can be done with it.
+ *
+ * - `user`: the harness user's home folder (on the agent host when remote),
+ *   including plugins installed there.
+ * - `workspace`: the working directories, including workspace-configured plugins.
+ * - `account`: provided by the signed-in account, such as a GitHub organization.
+ * - `application`: built into VS Code or the agent harness, or contributed by
+ *   a VS Code extension.
+ */
+export type AICustomizationScope = 'user' | 'workspace' | 'account' | 'application';
+
+export namespace AICustomizationScopes {
+	export const user: AICustomizationScope = 'user';
+	export const workspace: AICustomizationScope = 'workspace';
+	export const account: AICustomizationScope = 'account';
+	export const application: AICustomizationScope = 'application';
+	export const all: readonly AICustomizationScope[] = [user, workspace, account, application];
+
+	export function is(value: unknown): value is AICustomizationScope {
+		return typeof value === 'string' && (all as readonly string[]).includes(value);
+	}
+
+	/**
+	 * Derives the scope implied by a storage source when a provider does not
+	 * report one. Extension and plugin items fall back to `application` and
+	 * `user` respectively; providers that know better should set the scope.
+	 */
+	export function fromSource(source: AICustomizationSource): AICustomizationScope {
+		switch (source) {
+			case AICustomizationSources.local: return workspace;
+			case AICustomizationSources.user: return user;
+			case AICustomizationSources.plugin: return user;
+			case AICustomizationSources.extension: return application;
+			case AICustomizationSources.builtin: return application;
+			default: return user;
+		}
+	}
+}
+
+/**
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {

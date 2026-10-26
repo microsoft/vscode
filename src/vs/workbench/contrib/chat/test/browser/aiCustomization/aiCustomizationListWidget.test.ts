@@ -21,12 +21,12 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getCustomizationOverrideReason, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, matchesCustomizationSearchQuery, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { AICustomizationManagementSection, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -270,6 +270,30 @@ suite('aiCustomizationListWidget', () => {
 		}, {
 			agents: 'agents:local',
 			skills: 'skills:local',
+		});
+	});
+
+	test('overridden customizations explain which scope is used instead', () => {
+		const item: IAICustomizationListItem = {
+			id: 'review',
+			uri: URI.file('/home/.copilot/skills/review/SKILL.md'),
+			name: 'review',
+			filename: '~/.copilot/skills/review/SKILL.md',
+			source: PromptsStorage.user,
+			promptType: PromptsType.skill,
+			disabled: false,
+			overriddenBy: { name: 'review', uri: URI.file('/workspace/.github/skills/review/SKILL.md'), scope: AICustomizationScopes.workspace },
+		};
+		assert.deepStrictEqual({
+			reason: getCustomizationOverrideReason(item),
+			agentReason: getCustomizationOverrideReason({ ...item, promptType: PromptsType.agent }),
+			notOverridden: getCustomizationOverrideReason({ ...item, overriddenBy: undefined }),
+			ariaLabel: getCustomizationItemAriaLabel(item),
+		}, {
+			reason: 'The skill with the same name in Workspace is used instead.',
+			agentReason: 'The agent with the same name in Workspace is used instead.',
+			notOverridden: undefined,
+			ariaLabel: 'review. The skill with the same name in Workspace is used instead.',
 		});
 	});
 
@@ -619,6 +643,40 @@ suite('aiCustomizationListWidget', () => {
 		}, PromptsType.prompt);
 
 		assert.strictEqual(item.filename, 'relative:/workspace/.github/prompts/review.prompt.md');
+	});
+
+	test('normalizes scope, origin, and delivery independently of storage', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI): string { return resource.path; }
+		}();
+		const productService = new class extends mock<IProductService>() {
+			override readonly defaultChatAgent = { chatExtensionId: 'GitHub.copilot-chat' } as IProductService['defaultChatAgent'];
+		}();
+		const normalizer = new AICustomizationItemNormalizer(labelService, productService);
+		const normalize = (item: Partial<ICustomizationItem> & Pick<ICustomizationItem, 'uri' | 'source'>) => {
+			const normalized = normalizer.normalizeItem({ type: PromptsType.agent, name: 'Agent', extensionId: undefined, pluginUri: undefined, ...item }, PromptsType.agent);
+			return { scope: normalized.scope, origin: normalized.origin, delivery: normalized.delivery, groupKey: normalized.groupKey };
+		};
+
+		assert.deepStrictEqual([
+			normalize({ uri: URI.file('/workspace/.github/agents/a.agent.md'), source: PromptsStorage.local }),
+			normalize({ uri: URI.file('/home/.copilot/agents/a.agent.md'), source: PromptsStorage.user, groupKey: 'remote-client' }),
+			normalize({ uri: URI.file('/home/.copilot/plugins/azure/agents/a.agent.md'), source: PromptsStorage.plugin, pluginUri: URI.file('/home/.copilot/plugins/azure'), pluginLabel: 'azure', groupKey: 'remote-host' }),
+			normalize({ uri: URI.file('/ext/acme/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'acme.tools', extensionLabel: 'Acme Tools' }),
+			normalize({ uri: URI.file('/ext/copilot/agents/Plan.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.file('/storage/github.copilot-chat/github/contoso/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.parse('copilot-builtin:/agents/ask.agent.md'), source: AICustomizationSources.builtin, origin: { kind: 'harness' } }),
+			normalize({ uri: URI.file('/host/agents/a.agent.md'), source: PromptsStorage.user, scope: AICustomizationScopes.application }),
+		], [
+			{ scope: 'workspace', origin: undefined, delivery: undefined, groupKey: undefined },
+			{ scope: 'user', origin: undefined, delivery: 'syncedFromClient', groupKey: undefined },
+			{ scope: 'user', origin: { kind: 'plugin', id: 'plugin:file:///home/.copilot/plugins/azure', label: 'azure' }, delivery: undefined, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, delivery: undefined, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, delivery: undefined, groupKey: 'builtin' },
+			{ scope: 'account', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, delivery: undefined, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'harness', id: 'harness:', label: undefined }, delivery: undefined, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, delivery: undefined, groupKey: undefined },
+		]);
 	});
 
 	suite('extractExtensionIdFromPath', () => {
@@ -1242,6 +1300,73 @@ suite('aiCustomizationListWidget', () => {
 				groups: ['User', 'Workspace'],
 				rowCount: 6,
 			});
+		});
+
+		test('groups items by scope and supplier and labels each item with its source', async () => {
+			const listItem = (id: string, source: IAICustomizationListItem['source'], extra: Partial<IAICustomizationListItem> = {}): IAICustomizationListItem => ({
+				id,
+				uri: URI.file(`/${id}/SKILL.md`),
+				name: id,
+				filename: 'SKILL.md',
+				source,
+				promptType: PromptsType.skill,
+				disabled: false,
+				...extra,
+			});
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [
+				listItem('triage', PromptsStorage.user),
+				listItem('review', PromptsStorage.user, { overriddenBy: { name: 'review', uri: URI.file('/workspace-review/SKILL.md'), scope: AICustomizationScopes.workspace } }),
+				listItem('azure-deploy', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
+				listItem('workspace-review', PromptsStorage.local),
+				listItem('release', AICustomizationSources.extension, { scope: AICustomizationScopes.account, origin: { kind: 'account', id: 'account:contoso', label: 'contoso' } }),
+				listItem('acme-lint', AICustomizationSources.extension, { scope: AICustomizationScopes.application, origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' } }),
+				listItem('init', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'vscode', id: 'vscode:' } }),
+				listItem('ask', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'harness', id: 'harness:' } }),
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: () => Promise.resolve(),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 1000);
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(1000, 800);
+
+			const visibleText = (element: HTMLElement | null) => element && element.style.display !== 'none' ? element.textContent : undefined;
+			const rows = Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row'), row => {
+				const group = row.querySelector('.group-label')?.textContent;
+				if (group) {
+					return `# ${group}`;
+				}
+				const labels = [visibleText(row.querySelector('.item-override-label')), visibleText(row.querySelector('.item-source-label:not(.item-synced-label)'))].filter(Boolean);
+				const reason = visibleText(row.querySelector('.item-override-reason'));
+				return [row.querySelector('.item-name')?.textContent, ...labels.map(label => `[${label}]`), ...(reason ? [`(${reason})`] : [])].join(' ');
+			});
+			assert.deepStrictEqual(rows, [
+				'# User',
+				'review [Overridden by Workspace] (The skill with the same name in Workspace is used instead.Show)',
+				'triage',
+				'azure-deploy [azure]',
+				'# Workspace',
+				'workspace-review',
+				'# Account',
+				'release [contoso]',
+				'# Extensions',
+				'acme-lint [Acme Tools]',
+				'# Test',
+				'ask',
+				`# ${instaService.get(IProductService).nameShort}`,
+				'init',
+			]);
+
+			widget.element.querySelector<HTMLElement>('.item-override-reason-link')!.click();
+			const selected = Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row.selected'), row => row.querySelector('.item-name')?.textContent);
+			assert.deepStrictEqual(selected, ['workspace-review']);
 		});
 	});
 });

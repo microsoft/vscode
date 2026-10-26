@@ -217,7 +217,7 @@ suite('pluginListWidget', () => {
 
 		(Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void).call(widget);
 
-		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['User', 'First', 'Second']);
+		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['User', 'Workspace · First', 'Workspace · Second']);
 	});
 
 	test('reveals, selects, and focuses an installed plugin by URI', async () => {

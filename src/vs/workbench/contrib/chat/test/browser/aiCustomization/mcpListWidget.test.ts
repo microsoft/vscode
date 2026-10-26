@@ -587,11 +587,11 @@ suite('mcpListWidget', () => {
 		], [
 			'user',
 			'workspace',
-			'plugins',
-			'plugins',
-			'extensions',
-			'builtin',
-			'builtin',
+			'user',
+			'account',
+			'application',
+			'application',
+			'user',
 		]);
 	});
 
@@ -687,8 +687,8 @@ suite('mcpListWidget', () => {
 			servers: group.children?.map(child => child.element.type === 'server-item' ? child.element.server.id : ''),
 		})), [
 			{ label: 'User', servers: [] },
-			{ label: 'First', servers: ['first'] },
-			{ label: 'Second', servers: ['second'] },
+			{ label: 'Workspace · First', servers: ['first'] },
+			{ label: 'Workspace · Second', servers: ['second'] },
 		]);
 	});
 
@@ -725,7 +725,7 @@ suite('mcpListWidget', () => {
 			'user',
 			'workspace',
 			'workspace',
-			'builtin',
+			'application',
 		]);
 	});
 
@@ -747,11 +747,11 @@ suite('mcpListWidget', () => {
 			{ name: 'local-memory', group: 'user' },
 			{ name: 'github', group: 'user' },
 			{ name: 'workspace-server', group: 'workspace' },
-			{ name: 'plugin-server', group: 'plugins' },
-			{ name: 'github-mcp-server', group: 'builtin' },
-			{ name: 'managed-server', group: 'builtin' },
+			{ name: 'plugin-server', group: 'user' },
+			{ name: 'github-mcp-server', group: 'application' },
+			{ name: 'managed-server', group: 'account' },
 			{ name: 'my-mcp-server-618d857f', group: 'user' },
-			{ name: 'legacy-server', group: 'builtin' },
+			{ name: 'legacy-server', group: 'user' },
 		]);
 	});
 
@@ -1631,7 +1631,7 @@ suite('mcpListWidget', () => {
 			hasSameMcpMembership('server:one:session', 'server:one:session'),
 			hasSameMcpMembership('server:one:session', 'server:one:session|server:two:session'),
 			hasSameMcpMembership(getMembershipSignature(URI.file('/workspace/old.json')), getMembershipSignature(URI.file('/workspace/new.json'))),
-			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'user')),
+			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'builtin')),
 			hasSameMcpMembership(getMembershipSignature(undefined, 'managed'), getMembershipSignature(undefined, 'managed', 'Linear')),
 		], [true, false, false, false, false]);
 	});
@@ -2673,7 +2673,7 @@ suite('mcpListWidget', () => {
 				detail: { source: detail.source, label: detail.provenance?.label, ariaLabel: detail.provenance?.ariaLabel },
 				openedExtensions: ctx.openedExtensions,
 			}, {
-				group: 'builtin',
+				group: 'application',
 				source: {
 					label: 'Built-in: GitHub Copilot Chat',
 					hover: 'Open extension details for GitHub Copilot Chat',

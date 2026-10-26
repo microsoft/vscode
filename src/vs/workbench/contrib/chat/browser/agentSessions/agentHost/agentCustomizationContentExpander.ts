@@ -28,7 +28,7 @@ export class AgentCustomizationContentExpander {
 	) {
 	}
 
-	async expandPluginContents(pluginUri: URI, groupKey: string, isBundleItem: boolean, source: AICustomizationSource, pluginLabel: string | undefined, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+	async expandPluginContents(pluginUri: URI, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, source: AICustomizationSource, pluginLabel: string | undefined, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
 		// pluginUri is already an agent-host:// URI (from toRemoteUri),
 		// so use it directly as the filesystem root.
 		const fsRoot = pluginUri;
@@ -66,9 +66,9 @@ export class AgentCustomizationContentExpander {
 					continue;
 				}
 				if (promptType === PromptsType.skill) {
-					children.push(...await this.collectFromSkillDir(stat.children, pluginUri, source, groupKey, isBundleItem, pluginLabel, token));
+					children.push(...await this.collectFromSkillDir(stat.children, pluginUri, source, delivery, isBundleItem, pluginLabel, token));
 				} else {
-					children.push(...await this.collectFromRegularDir(stat.children, pluginUri, source, promptType, groupKey, isBundleItem, pluginLabel, token));
+					children.push(...await this.collectFromRegularDir(stat.children, pluginUri, source, promptType, delivery, isBundleItem, pluginLabel, token));
 				}
 			}
 			children.sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`));
@@ -85,7 +85,7 @@ export class AgentCustomizationContentExpander {
 	 * Emits one item per skill subfolder that contains a SKILL.md file.
 	 * The skill metadata comes from SKILL.md frontmatter.
 	 */
-	private async collectFromSkillDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, groupKey: string, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
+	private async collectFromSkillDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
 		type Entry = { name: string; resource: URI; isDirectory: boolean };
 		const eligible: Entry[] = [];
 		const readMetaDataPromises = [];
@@ -123,7 +123,7 @@ export class AgentCustomizationContentExpander {
 				name: name,
 				description,
 				source,
-				groupKey,
+				delivery,
 				extensionId: undefined,
 				pluginUri: isBundleItem ? undefined : pluginUri,
 				pluginLabel: isBundleItem ? undefined : pluginLabel,
@@ -139,7 +139,7 @@ export class AgentCustomizationContentExpander {
 	 * agents additionally surface userInvocable. Instruction (rules)
 	 * folders additionally accept `.mdc` files per the Open Plugins spec.
 	 */
-	private async collectFromRegularDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, promptType: PromptsType, groupKey: string, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
+	private async collectFromRegularDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, source: AICustomizationSource, promptType: PromptsType, delivery: 'syncedFromClient' | undefined, isBundleItem: boolean, pluginLabel: string | undefined, token: CancellationToken): Promise<ICustomizationItem[]> {
 		type Entry = { name: string; resource: URI; isDirectory: boolean };
 		const eligible: Entry[] = [];
 		for (const child of entries) {
@@ -173,7 +173,7 @@ export class AgentCustomizationContentExpander {
 				name: meta?.name ?? stripPromptFileExtensions(child.name),
 				description: meta?.description,
 				source,
-				groupKey,
+				delivery,
 				extensionId: undefined,
 				pluginUri: isBundleItem ? undefined : pluginUri,
 				pluginLabel: isBundleItem ? undefined : pluginLabel,
