@@ -895,6 +895,28 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('Selecting Repository keeps the footer buttons at their natural size beside the warning', async () => {
+		const dialog = openDialog({}, cloudConfiguration());
+		await dialog.setCloud(true);
+		await dialog.selectWorkspace(REPOSITORY);
+		const measure = () => [dialog.cancelButton, dialog.saveButton].map(button => ({
+			width: Math.round(button.getBoundingClientRect().width),
+			flexShrink: DOM.getWindow(button).getComputedStyle(button).flexShrink,
+		}));
+		const before = measure();
+		dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]')[1].click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			warning: !!dialog.container.querySelector('.automation-dialog-notification-center.warning'),
+			buttons: measure(),
+		}, {
+			warning: true,
+			buttons: before.map(button => ({ ...button, flexShrink: '0' })),
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('Owner is read-only on edit, including legacy Only me, and never enters the update', async () => {
 		for (const ownership of [undefined, 'repository'] as const) {
 			const existing: IAutomationDescriptor = {
