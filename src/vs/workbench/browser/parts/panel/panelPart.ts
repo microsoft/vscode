@@ -24,7 +24,8 @@ import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IToolBarResponsiveBehaviorOptions } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -208,6 +209,17 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 		// Layout contents
 		super.layout(dimensions.width, dimensions.height, top, left);
+		this.toolBar?.relayout();
+	}
+
+	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
+		return {
+			enabled: true,
+			kind: 'all',
+			minItems: 0,
+			actionMinWidth: 22,
+			getActionMinWidth: action => action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined,
+		};
 	}
 
 	protected override shouldShowCompositeBar(): boolean {
