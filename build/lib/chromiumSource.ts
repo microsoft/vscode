@@ -29,10 +29,11 @@ export function getChromiumVersion(): string {
 	return chromiumManifest.version;
 }
 
-// Pass the token through a curl config on stdin so it does not appear in the process list.
+// Pass the token through a curl config on stdin so it does not appear in the process list. Bound
+// each request so a stalled connection fails over to the next source instead of hanging the job.
 export function curlGet(url: string, token: string | undefined): HttpGetResult {
 	const curlConfig = token ? `header = "Authorization: Bearer ${token}"\n` : '';
-	const result = spawnSync('curl', ['-fsSL', '--config', '-', url], { input: curlConfig, maxBuffer: 64 * 1024 * 1024 });
+	const result = spawnSync('curl', ['-fsSL', '--connect-timeout', '20', '--max-time', '120', '--config', '-', url], { input: curlConfig, maxBuffer: 64 * 1024 * 1024 });
 	if (result.status === 0) {
 		return { ok: true, body: result.stdout };
 	}
