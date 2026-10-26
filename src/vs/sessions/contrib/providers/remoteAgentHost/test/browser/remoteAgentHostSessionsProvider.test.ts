@@ -641,6 +641,26 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.isVisibleInEnvironmentPicker?.get(), true);
 	});
 
+	for (const status of [ProtocolSessionStatus.Idle, ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded]) {
+		test(`forwards the advertised identity so the host decides whether all worktree owners are idle (${status})`, async () => {
+			const sessions: (string | undefined)[] = [];
+			connection.measureWorktreeDiskUsage = async (_root, _token, session) => {
+				sessions.push(session?.toString());
+				return 1234;
+			};
+			const provider = createProvider(disposables, connection);
+			const backendUri = URI.parse('other-host:/opaque/session');
+			provider.seedSessions([createSession('cached-size', {
+				session: backendUri,
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/cached-size'),
+				status,
+			})]);
+			await provider.getSessionWorktreeDiskUsage(provider.getSessions()[0].sessionId);
+			assert.deepStrictEqual(sessions, [backendUri.toString()]);
+		});
+	}
+
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {
 			let resourceRequests = 0;

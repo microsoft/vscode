@@ -204,6 +204,17 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 	}
 
+	didHandOverWorktree(session: ProtocolURI, chat: ProtocolURI): void {
+		this._recordChatOwner(chat, session);
+		for (const registration of this._getOrderedContributions()) {
+			try {
+				registration.contribution.onDidHandOverWorktree?.(session, chat);
+			} catch (err) {
+				this._logContributionFailure(registration, err);
+			}
+		}
+	}
+
 	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {
 		this._recordChatOwner(turn.chat, turn.session);
 		const instructions: string[] = [];
