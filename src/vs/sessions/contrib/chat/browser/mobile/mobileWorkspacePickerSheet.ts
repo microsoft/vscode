@@ -164,6 +164,7 @@ export async function showMobileWorkspacePickerSheet(
 	browseActions: readonly ISessionWorkspaceBrowseAction[],
 	showSearch = false,
 	cancellationToken: CancellationToken = CancellationToken.None,
+	caption?: string,
 ): Promise<void> {
 	if (cancellationToken.isCancellationRequested) {
 		return;
@@ -290,9 +291,9 @@ export async function showMobileWorkspacePickerSheet(
 				cancellationToken,
 				headerActions,
 				search,
-				caption: inlineFolderActions.length > 0
+				caption: caption ?? (inlineFolderActions.length > 0
 					? localize('mobileWorkspacePicker.caption', "Search to browse folders on the host")
-					: undefined,
+					: undefined),
 				stayOpenOnSelect: true,
 				doneLabel: localize('mobileWorkspacePicker.cancel', "Cancel"),
 				onDidSelect: (id) => {

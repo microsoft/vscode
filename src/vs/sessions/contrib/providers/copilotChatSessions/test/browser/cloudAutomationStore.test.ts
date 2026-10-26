@@ -19,6 +19,7 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, AutomationTriggerDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
@@ -82,6 +83,8 @@ class TestApi extends mock<IAutomationsClient>() {
 	created: CreateAutomationRequest | undefined;
 	canManage = true;
 	readonly repositoryManageability = new Map<string, boolean | Error>();
+	readonly repositoryPrivacy = new Map<string, boolean>();
+	readonly repositoryMetadataRequests: string[] = [];
 	override async getConfiguration(repository: RepositoryRef, signal: AbortSignal): Promise<AutomationRepositoryConfiguration> {
 		this.calls.push('capability');
 		this.configurationRepositories.push(repository.repo);
@@ -212,6 +215,13 @@ suite('CloudAutomationStore', () => {
 			override dispose(): void { }
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
 			override readonly automations = api;
+			override readonly repositories = upcastPartial<IRepositoriesClient>({
+				get: async repository => {
+					api.repositoryMetadataRequests.push(repository.repo);
+					const isPrivate = api.repositoryPrivacy.get(repository.repo) ?? true;
+					return upcastPartial<Repository>({ private: isPrivate });
+				},
+			});
 			override readonly tasks = new class extends mock<ITasksClient>() {
 				override async get() { return api.tasks[0]; }
 				override async abort() { api.calls.push('stop'); }
@@ -829,7 +839,7 @@ suite('CloudAutomationStore', () => {
 				];
 			},
 		}));
-		api.repositoryManageability.set('private', false);
+		api.repositoryPrivacy.set('public', false);
 		let placeholder: string | undefined;
 		const repositories: Array<readonly string[]> = [];
 		instantiation.stubInstance(RepositoryPicker, {
@@ -837,7 +847,7 @@ suite('CloudAutomationStore', () => {
 				placeholder = options?.placeholder;
 				repositories.push(await search('', CancellationToken.None));
 				repositories.push(await search('https://github.com/owner/private.git', CancellationToken.None));
-				return { cloneUrl: 'https://github.com/owner/public.git' };
+				return { cloneUrl: 'https://github.com/owner/private.git' };
 			},
 			dispose: () => { },
 		});
@@ -849,8 +859,8 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({ authenticated, queries, placeholder, repositories, selected: selected?.toString(), configurationRepositories: api.configurationRepositories }, {
 			authenticated: true, queries: ['', 'owner/private'],
 			placeholder: 'Search for a repository or paste a repository URL...',
-			repositories: [['owner/public'], ['owner/public']], selected: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/public/HEAD' }).toString(),
-			configurationRepositories: ['public', 'private'],
+			repositories: [['owner/private'], ['owner/private']], selected: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' }).toString(),
+			configurationRepositories: ['private', 'private'],
 		});
 	});
 
@@ -863,6 +873,9 @@ suite('CloudAutomationStore', () => {
 			authenticateForRepositoryAccess: async () => { },
 			getRepositories: async () => repositories,
 		}));
+		for (const repository of repositories) {
+			api.repositoryPrivacy.set(repository.name, repository.isPrivate);
+		}
 		const searchStarted = new DeferredPromise<void>();
 		const searchResult = new DeferredPromise<readonly string[]>();
 		instantiation.stubInstance(RepositoryPicker, {
@@ -886,11 +899,13 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			startedBeforeRelease,
 			maxActiveConfigurations: api.maxActiveConfigurations,
+			metadataRequestsBeforeRelease: api.repositoryMetadataRequests.length,
 			result: await searchResult.p,
 		}, {
-			startedBeforeRelease: 5,
-			maxActiveConfigurations: 5,
-			result: repositories.map(repository => repository.fullName),
+			startedBeforeRelease: 3,
+			maxActiveConfigurations: 3,
+			metadataRequestsBeforeRelease: 5,
+			result: repositories.filter(repository => repository.isPrivate).map(repository => repository.fullName),
 		});
 		await selection;
 	});

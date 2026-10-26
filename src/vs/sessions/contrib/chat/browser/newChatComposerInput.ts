@@ -128,6 +128,8 @@ export interface INewChatComposerInputOptions {
 	readonly loading: IObservable<boolean>;
 	readonly useExperimentalLayout?: IObservable<boolean>;
 	readonly placeholder?: string;
+	/** Marks the input box as this onboarding spotlight target. */
+	readonly onboardingTargetId?: string;
 	/**
 	 * The repository controls (such as isolation and branch). By default the session provider
 	 * contributes them; `false` renders none, and a function renders the host's own controls in

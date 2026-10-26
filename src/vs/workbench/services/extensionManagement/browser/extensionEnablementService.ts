@@ -12,7 +12,7 @@ import { areSameExtensions, BetterMergeId, getExtensionDependencies, isMalicious
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { ExtensionType, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -131,9 +131,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => unificationExtensions.includes(ext.identifier.id.toLowerCase())));
 				}
 			}
-			if (this.environmentService.isSessionsWindow && e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT)) {
-				// Start or stop the extensions whose state depends on Agents window management.
-				const affected = this.extensionsManager.extensions.filter(ext => !ext.isBuiltin && !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(ext.manifest, ext.isBuiltin));
+			if (this.environmentService.isSessionsWindow && (e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) || e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE))) {
+				// Start or stop the extensions whose state depends on Agents window management, and the extensions that depend on them.
+				const affected = this._withDependents(this.extensionsManager.extensions.filter(ext => !ext.isBuiltin && !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(ext.manifest, ext.isBuiltin)));
 				if (affected.length) {
 					this._onEnablementChanged.fire(affected);
 				}
@@ -679,9 +679,15 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		// The sessions window has a dedicated workspace, so enabling an extension for it opts that extension into the sessions window only.
-		if (!extension.isBuiltin && userEnablementState === EnablementState.EnabledWorkspace && this._isSessionsWindowManagementEnabled()) {
-			return false;
+		if (!extension.isBuiltin && this._isSessionsWindowManagementEnabled()) {
+			// The sessions window has a dedicated workspace, so enabling an extension for it opts that extension into the sessions window only.
+			if (userEnablementState === EnablementState.EnabledWorkspace) {
+				return false;
+			}
+			// Extensions that users haven't enabled or disabled for the sessions window are enabled there automatically when they could be useful.
+			if (userEnablementState === EnablementState.EnabledGlobally && this._isSessionsWindowAutoEnablementEnabled() && this.extensionManifestPropertiesService.canAutoEnableOnSessionsWindow(extension.manifest)) {
+				return false;
+			}
 		}
 
 		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest, extension.isBuiltin);
@@ -701,6 +707,27 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isSessionsWindowManagementEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) === true;
+	}
+
+	private _isSessionsWindowAutoEnablementEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE) === true;
+	}
+
+	/**
+	 * Returns the given extensions and the installed extensions that depend on them, directly or transitively, as
+	 * their {@link EnablementState.DisabledByExtensionDependency} state follows the state of their dependencies.
+	 */
+	private _withDependents(extensions: IExtension[]): IExtension[] {
+		const result = [...extensions];
+		for (let i = 0; i < result.length; i++) {
+			const extension = result[i];
+			for (const dependent of this.extensionsManager.extensions) {
+				if (!result.includes(dependent) && dependent.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, extension.identifier))) {
+					result.push(dependent);
+				}
+			}
+		}
+		return result;
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

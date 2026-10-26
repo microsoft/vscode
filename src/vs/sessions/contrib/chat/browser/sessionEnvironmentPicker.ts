@@ -13,7 +13,9 @@ import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { cloudSandboxAddress } from '../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -25,26 +27,19 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Menus } from '../../../browser/menus.js';
-import { getAgentHostConnectionStatusLabel, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { getAgentHostConnectionStatusLabel, isAgentHostEnvironmentAvailable, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isWeb } from '../../../../base/common/platform.js';
-import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
-
-export function isEnvironmentPickerLocalIsolationEnabled(configurationService: IConfigurationService): boolean {
-	return !isWeb
-		&& configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING) === true
-		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING) === true
-		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true
-		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING) === true;
-}
+import { isWindows } from '../../../../base/common/platform.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../common/constants.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -53,38 +48,41 @@ export interface ISessionCreationEnvironment {
 	readonly icon: ThemeIcon;
 	readonly providerIds: readonly string[];
 	readonly description?: string;
-	readonly isolation?: 'folder' | 'worktree';
 }
 
-export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[], localIsolation = false): ISessionCreationEnvironment[] {
+export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
 		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false));
 	const local = visible.filter(provider => provider.environment.id === 'local');
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
-		if (localIsolation) {
-			environments.push({ id: 'local:folder', kind: 'local', isolation: 'folder', label: localize('environmentPicker.localFolder', "Local Folder"), icon: Codicon.folder, providerIds: local.map(provider => provider.id) });
-			const worktreeProviders = local.filter(provider => provider.setIsolationMode);
-			if (worktreeProviders.length) {
-				environments.push({ id: 'local:worktree', kind: 'local', isolation: 'worktree', label: localize('environmentPicker.localWorktree', "New Worktree"), icon: Codicon.worktree, providerIds: worktreeProviders.map(provider => provider.id) });
-			}
-		} else {
-			environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
-		}
+		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
 	}
 	if (cloud.length) {
 		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
 	}
 	for (const provider of visible) {
-		if (!isAgentHostProvider(provider) || !provider.connectionStatus || provider.hostGroup) {
-			continue;
+		const environment = getRemoteSessionCreationEnvironment(provider);
+		if (environment) {
+			environments.push(environment);
 		}
-		const connection = provider.connectionStatus.get();
-		const description = getAgentHostConnectionStatusLabel(connection);
-		environments.push({ id: provider.id, kind: 'remote', label: provider.label, icon: provider.icon, providerIds: [provider.id], description });
 	}
 	return environments;
+}
+
+/** Describes a remote independently of picker visibility so an existing draft can retain its destination. */
+export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider, containerRequested = false): ISessionCreationEnvironment | undefined {
+	if (!isRemoteSessionCreationEnvironment(provider)) {
+		return undefined;
+	}
+	return {
+		id: containerRequested ? `container:${provider.id}` : provider.id,
+		kind: containerRequested ? 'container' : 'remote',
+		label: containerRequested ? localize('environmentPicker.container', "Dev Container") : provider.label,
+		icon: containerRequested ? Codicon.remote : provider.icon, providerIds: [provider.id],
+		description: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
+	};
 }
 
 export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): ISessionsProvider | undefined {
@@ -95,13 +93,10 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	for (const provider of providers) {
 		if (!environment.providerIds.includes(provider.id)
 			|| provider.supportsWorkspaceSelection === false
-			|| isAgentHostProvider(provider) && provider.isVisibleInEnvironmentPicker?.get() === false) {
+			|| isAgentHostProvider(provider) && !isAgentHostEnvironmentAvailable(provider)) {
 			continue;
 		}
 		const workspace = provider.resolveWorkspace(folderUri);
-		if (environment.isolation === 'worktree' && !provider.getSessionTypes(folderUri).some(type => type.supportsWorktreeConfiguration)) {
-			continue;
-		}
 		if (workspace && (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0)) {
 			return { provider, workspace };
 		}
@@ -109,12 +104,14 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	return undefined;
 }
 
-export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false): ISessionCreationEnvironment | undefined {
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false, selectedProvider?: ISessionsProvider): ISessionCreationEnvironment | undefined {
 	const local = environments.find(environment => environment.kind === 'local');
 	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
 		return local;
 	}
-	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? '')) ?? local;
+	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? ''))
+		?? (selectedProvider && selectedProvider.id === providerId ? getRemoteSessionCreationEnvironment(selectedProvider, containerRequested) : undefined)
+		?? local;
 }
 
 interface IEnvironmentPickerItem {
@@ -147,6 +144,9 @@ export class SessionEnvironmentPicker extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
 	) {
 		super();
 	}
@@ -219,11 +219,14 @@ export class SessionEnvironmentPicker extends Disposable {
 		if (!trigger || this.actionWidgetService.isVisible) {
 			return;
 		}
+		const remotesEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		const environmentPickerEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING);
+		const showManage = remotesEnabled && environmentPickerEnabled && this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
 		const items: IActionListItem<IEnvironmentPickerItem>[] = this.environments.get().map(environment => ({
 			kind: ActionListItemKind.Action,
 			label: environment.label,
 			description: environment.description,
-			submenuActions: this.getActions(environment),
+			submenuActions: showManage && this.isManagedInRemotes(environment) ? undefined : this.getActions(environment),
 			group: { title: '', icon: environment.icon },
 			item: { run: () => this.select(environment), checked: environment.id === this.selected.get()?.id },
 		}));
@@ -243,9 +246,9 @@ export class SessionEnvironmentPicker extends Disposable {
 				}
 			}
 		}
-		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+		if (remotesEnabled && environmentPickerEnabled) {
 			logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
-			if (this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
+			if (showManage) {
 				items.push(
 					{ kind: ActionListItemKind.Separator, label: '' },
 					{
@@ -273,6 +276,27 @@ export class SessionEnvironmentPicker extends Disposable {
 			getAriaLabel: item => typeof item.description === 'string' && item.description
 				? localize('environmentPicker.item', "{0}, {1}", item.label ?? '', item.description) : item.label ?? '',
 			getWidgetAriaLabel: () => localize('environmentPicker.title', "Environment"),
-		}, { className: 'sessions-new-chat-picker-list', minWidth: 240 });
+		}, { className: 'sessions-new-chat-picker-list', minWidth: 240, hideDefaultKeybindingTooltip: true });
+	}
+
+	private isManagedInRemotes(environment: ISessionCreationEnvironment): boolean {
+		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
+		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
+			return false;
+		}
+		if (this.environmentService.enabled && this.environmentService.accountKey
+			&& this.environmentService.hosts.get().some(host => host.kind === 'user-local' && cloudSandboxAddress(host.id) === provider.remoteAddress)) {
+			return true;
+		}
+		const connection = this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === provider.remoteAddress)?.connection;
+		switch (connection?.type) {
+			case RemoteAgentHostEntryType.SSH:
+			case RemoteAgentHostEntryType.Tunnel:
+				return true;
+			case RemoteAgentHostEntryType.WSL:
+				return isWindows;
+			default:
+				return false;
+		}
 	}
 }

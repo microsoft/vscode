@@ -467,5 +467,41 @@ suite('Workbench - TerminalProcessManager', () => {
 			await manager.createProcess({}, 80, 24, false);
 			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [['start']]);
 		});
+
+		test('does not set the parent window of a process relaunched after the setting is disabled', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await setReparentConsoleWindow(false);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start'] : ['start'], ['start']]);
+		});
+
+		test('sets the parent window of a process relaunched after the setting is enabled', async () => {
+			await setReparentConsoleWindow(false);
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await setReparentConsoleWindow(true);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [['start'], isWindows ? [sent(4), 'start'] : ['start']]);
+		});
+
+		test('uses the window the terminal moved to while the setting was disabled', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await setReparentConsoleWindow(false);
+			await manager.setParentWindow(5);
+			await setReparentConsoleWindow(true);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), isWindows ? [[sent(4), 'start'], [sent(5), 'start']] : [['start'], ['start']]);
+		});
+
+		test('does not send the previous window\'s handle when the new window\'s handle is not found', async () => {
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async (windowId: number) => windowId === 5 ? undefined : windowHandle(windowId));
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await manager.setParentWindow(5);
+			await manager.relaunch({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start'] : ['start'], ['start']]);
+		});
 	});
 });

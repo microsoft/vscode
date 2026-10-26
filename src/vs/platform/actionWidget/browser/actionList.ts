@@ -162,6 +162,8 @@ export interface IActionListItem<T> {
 	 */
 	readonly standaloneToggle?: IActionListItemInlineToggle;
 	readonly description?: string | IMarkdownString;
+	/** Additional nonvisual text matched by the built-in filter. */
+	readonly filterText?: string;
 	/**
 	 * Optional accessible description used in place of {@link description} for
 	 * screen reader labels. Useful when the visual description contains icons
@@ -1660,8 +1662,10 @@ export class ActionListWidget<T> extends Disposable {
 			const matchesFilter = (item: IActionListItem<T>) => {
 				const label = (item.label ?? '').toLowerCase();
 				const descValue = typeof item.description === 'string' ? item.description : (item.description?.value ?? '');
+				const filterText = item.filterText?.toLowerCase() ?? '';
 				return label.includes(filterLower)
 					|| descValue.toLowerCase().includes(filterLower)
+					|| filterText.includes(filterLower)
 					|| (!!item.toolbarLabels && (item.toolbarActions?.some(action => action.label.toLowerCase().includes(filterLower)) ?? false));
 			};
 
@@ -3392,18 +3396,21 @@ export class ActionListWidget<T> extends Disposable {
 		}
 	}
 
+	private _restoreListFocusBeforeHidingToolbar(nextIndex: number | undefined): void {
+		const activeElement = dom.getActiveElement();
+		if (this._options?.tabThroughItemActions && this._list.getFocus()[0] !== nextIndex
+			&& dom.isHTMLElement(activeElement) && this.domNode.contains(activeElement) && activeElement.closest('.action-list-item-toolbar')) {
+			this._list.domFocus();
+		}
+	}
+
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
 		this._setKeyboardNavigation(false);
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
 			const focus = typeof e.index === 'number' ? [e.index] : [];
-			const activeElement = dom.getActiveElement();
-			if (this._options?.tabThroughItemActions && this._list.getFocus()[0] !== e.index
-				&& dom.isHTMLElement(activeElement) && this.domNode.contains(activeElement) && activeElement.closest('.action-list-item-toolbar')) {
-				// Moving to another row hides the focused toolbar, so keep DOM focus in the list.
-				this._list.domFocus();
-			}
+			this._restoreListFocusBeforeHidingToolbar(e.index);
 			// Check if the hover target is inside a toolbar - if so, skip the splice
 			// to avoid re-rendering which would destroy the element mid-hover.
 			// But still maintain submenu state for items with submenu actions.
@@ -3467,6 +3474,8 @@ export class ActionListWidget<T> extends Disposable {
 				}
 			}
 		} else if (element && element.hover?.content && typeof e.index === 'number') {
+			this._restoreListFocusBeforeHidingToolbar(e.index);
+			this._list.setFocus([]);
 			if (this._currentSubmenuElement === element) {
 				this._cancelSubmenuHide();
 				this._cancelSubmenuShow();

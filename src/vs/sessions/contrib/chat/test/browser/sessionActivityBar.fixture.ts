@@ -32,7 +32,7 @@ import { IconBadge } from '../../../../../workbench/services/activity/common/act
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
 import { SessionActivityBarGroup } from '../../../../browser/menus.js';
-import { OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -137,7 +137,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	const width = options.width ?? 640;
 	const githubEntries: readonly IFixtureEntry[] = options.githubReferenceCount ? [
 		{ id: OPEN_PULL_REQUEST_ACTION_ID, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel },
-		{ id: OPEN_ISSUE_ACTION_ID, title: 'Open Issue', icon: Codicon.issues, group: SessionActivityBarGroup.SidePanel },
 	] : [];
 	const entries = [...(options.entries ?? workspaceChatEntries), ...githubEntries];
 	container.style.width = `${width}px`;
@@ -203,13 +202,14 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 		run: () => { },
 	}))));
 	activityBar.layout(HEADER_HEIGHT, areaHeight);
-	const reservedWidth = activityBar.reservedWidth.get();
+	// As the chat group lays it out: to the left of the strip's column.
+	const chatWidth = Math.max(0, width - activityBar.reservedWidth.get());
 
 	const view = disposableStore.add(new FixtureChatView());
 	view.element.classList.add('chat-view-chat');
 	chatGroup.appendChild(view.element);
 	const widgetContainer = append(view.element, $('.chat-view-widget'));
-	view.layout(width, areaHeight, HEADER_HEIGHT, 0, reservedWidth);
+	view.layout(chatWidth, areaHeight, HEADER_HEIGHT, 0);
 
 	if (options.externalBanner) {
 		const banner = disposableStore.add(instantiationService.createInstance(ExternalSessionBanner, view.element, {}));
@@ -223,14 +223,12 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}
 	// As in `ChatView`, only the external-session banner precedes the widget in normal flow.
 	const widgetHeight = areaHeight - widgetContainer.offsetTop;
-	// As in `ChatView`, content is inset by the reserved width on both sides.
-	const contentWidth = Math.max(0, width - 2 * reservedWidth);
 	// Mirrors `ChatWidget`, which caps its renderer to the centered band outside a multi-group grid.
-	const rendererWidth = options.split ? contentWidth : Math.min(AGENTS_CENTERED_CONTENT_MAX_WIDTH, contentWidth);
+	const rendererWidth = options.split ? chatWidth : Math.min(AGENTS_CENTERED_CONTENT_MAX_WIDTH, chatWidth);
 
 	let renderedChat: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget({ ...context, container: widgetContainer }, {
-		width,
+		width: chatWidth,
 		height: widgetHeight,
 		contentHorizontalPadding: 48,
 		useAuxiliaryBarWrapper: false,
@@ -251,7 +249,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	});
 	await waitForFixtureCondition(() => !!view.element.querySelector('.interactive-item-container.interactive-response .rendered-markdown'), 'The chat response did not render');
 	const { listWidget } = renderedChat!;
-	activityBar.setScrollDownButton(listWidget.scrollDownButtonDomNode);
 	let previousHeight = -1;
 	let stableFrames = 0;
 	await waitForFixtureCondition(() => {

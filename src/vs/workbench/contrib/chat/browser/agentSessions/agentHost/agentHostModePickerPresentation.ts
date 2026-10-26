@@ -22,6 +22,7 @@ import { SessionConfigPropertySchema } from '../../../../../../platform/agentHos
 import { ChatPermissionLevel } from '../../../common/constants.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../../widget/input/chatInputPickerActionItem.js';
+import { organizationDefaultLabel } from '../../widget/input/modelPicker/modelPickerBadges.js';
 
 export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = '@tag:chatPermissions';
 
@@ -91,11 +92,19 @@ export function getOfferedPermissionLevels(available: readonly ChatPermissionLev
 	return PERMISSION_LEVEL_ORDER.filter(level => available.includes(level) || unavailable.some(entry => entry.level === level));
 }
 
-export function getPermissionLevelBadge(level: string, disabled = false): { readonly badge?: string; readonly className?: string } {
-	return level === ChatPermissionLevel.Assisted && !disabled ? {
-		badge: localize('agentHostModePicker.new', "New"),
-		className: 'agent-host-assisted-permissions',
-	} : {};
+export function getPermissionLevelBadge(level: string, disabled = false, organizationDefault?: ChatPermissionLevel): Pick<IActionListItem<unknown>, 'badge' | 'className' | 'additionalBadges'> {
+	const additionalBadges = organizationDefault !== undefined && level === organizationDefault ? [{
+		label: organizationDefaultLabel,
+		className: 'agent-host-org-default-badge',
+		tooltip: localize('agentHostModePicker.organizationDefaultDescription', "Your organization sets this as the default for new sessions. You can choose other permissions for this session."),
+	}] : undefined;
+	return {
+		...(level === ChatPermissionLevel.Assisted && !disabled ? {
+			badge: localize('agentHostModePicker.new', "New"),
+			className: 'agent-host-assisted-permissions',
+		} : {}),
+		...(additionalBadges ? { additionalBadges } : {}),
+	};
 }
 
 export function getModePermissionsPickerOptions(openPermissions = false, initialFocusItemId?: string): IActionListOptions {
