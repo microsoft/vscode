@@ -604,7 +604,7 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
-				group: 'manage',
+				group: '2_manage',
 				order: 0,
 				when: ChatContextKeys.enabled,
 			}],
@@ -680,7 +680,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -713,7 +713,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.compareAgents.enabled', "Controls whether the Compare Models action is shown in the model picker for eligible new Agent sessions."),
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: {
@@ -768,17 +767,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[ENVIRONMENT_PICKER_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.environmentPicker', "Controls whether a separate Environment picker chooses where new sessions run in the desktop Agents Window. Requires the unified workspace picker and experimental new-session composer layout. When disabled, environment choices remain in the workspace and harness pickers."),
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
 		[ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.environmentPickerManageRemotes', "Controls whether Remote Environments management and its picker visibility preferences are enabled. Adds a command and a Sessions menu entry, plus a Manage entry when the Environment picker is enabled. Requires remote agent hosts to be enabled. When disabled, saved visibility preferences are ignored but retained."),
+			description: localize('sessions.chat.experimental.environmentPickerManageRemotes', "Controls whether Remote Environments management and its picker visibility preferences are enabled. Adds a command, a Sessions menu entry, and a Manage Remote Environments entry when the Environment picker and remote agent hosts are enabled. When disabled, saved visibility preferences are ignored but retained."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

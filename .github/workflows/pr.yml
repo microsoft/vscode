@@ -48,7 +48,7 @@ jobs:
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
       ripple-changed: ${{ steps.ripple.outputs.changed }}
       ripple-failed: ${{ steps.ripple.outputs.failed }}
-      # Linux and macOS run Agent Host E2E in the Electron integration tests job.
+      # macOS runs Agent Host E2E in the Electron integration tests job.
       electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
       # The macOS and Windows unit test jobs run only the unit test files that the plan selects, so
       # they also skip when the plan of a working ripple selects none (see the Check ripple step).
@@ -201,13 +201,16 @@ jobs:
             echo "selects-no-agent-host-e2e=$selects_no_agent_host_e2e"
           } >> "$GITHUB_OUTPUT"
 
+  # Keep these checks first after Detect Changes so they appear at the top of the job group.
   compile:
     name: Compile & Hygiene
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       # Hygiene and ESLint check only the files that changed since this commit, unless
       # a change can affect other files (see build/lib/changedFiles.ts). The full checks
-      # run in the product build.
+      # run in the scheduled and manual product builds.
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
       - name: Checkout microsoft/vscode
@@ -308,6 +311,120 @@ jobs:
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
 
+  monaco-editor:
+    name: Monaco Editor
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions: {}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      # Reuse the node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
+      # `main`. Never save: PR-scoped caches are not shared with other PRs and only evict the
+      # shared ones.
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-compile
+          key-args: "compile $(node -p process.arch)"
+
+      - name: Install system dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          sudo apt update
+          sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
+
+      - name: Execute npm
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: |
+          npm ci
+
+      - name: Download Playwright
+        run: npm run playwright-install
+
+      - name: Run Monaco Editor Checks
+        run: npm run monaco-compile-check
+
+      - name: Check generated Monaco declarations
+        run: npm run gulp monacodts-check
+
+      - name: Editor Distro & ESM
+        run: npm run gulp editor-distro
+
+      - name: Editor ESM sources check
+        working-directory: ./test/monaco
+        run: npm run esm-check
+
+      - name: Typings validation prep
+        run: |
+          mkdir typings-test
+
+      - name: Typings validation
+        working-directory: ./typings-test
+        run: |
+          npm init -yp
+          ../node_modules/.bin/tsc6 --init
+          echo "import '../out-monaco-editor-core';" > a.ts
+          ../node_modules/.bin/tsc6 --noEmit
+
+      - name: Package Editor with Webpack
+        working-directory: ./test/monaco
+        run: npm run bundle-webpack
+
+      - name: Compile Editor Tests
+        working-directory: ./test/monaco
+        run: npm run compile
+
+      - name: Run Editor Tests
+        timeout-minutes: 5
+        working-directory: ./test/monaco
+        run: npm run test
+
+  telemetry:
+    name: Telemetry
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install telemetry extractor
+        run: |
+          # Use the same exact version as npm ci in the official builds.
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          npm install --prefix "$RUNNER_TEMP/telemetry-extractor" --no-save --no-package-lock --no-audit --no-fund "@vscode/telemetry-extractor@$version"
+
+      - name: Run vscode-telemetry-extractor
+        run: node build/azure-pipelines/common/extract-telemetry.ts
+        env:
+          VSCODE_TELEMETRY_EXTRACTOR: ${{ runner.temp }}/telemetry-extractor/node_modules/@vscode/telemetry-extractor/out/extractor.js
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # Fails when a pull request that changes build/ripple breaks ripple's build, its tests or the
   # planning of the pull request, before the failure reaches main. Skipped for the other pull
   # requests, which a broken ripple must not block (see the Check ripple step of Detect Changes).
@@ -328,7 +445,7 @@ jobs:
           echo "ripple built, passed its tests and planned the tests in Detect Changes."
 
   linux-cli-tests:
-    name: Linux
+    name: CLI
     needs: changes
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
@@ -337,7 +454,7 @@ jobs:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
 
   linux-copilot-shim-tests:
-    name: Linux Copilot Shim
+    name: Copilot Shim
     needs: changes
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
@@ -349,32 +466,58 @@ jobs:
       all_targets: true
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
 
-  # The test jobs below report "<OS> (<part>) / <job>" checks and skip when the
-  # changes cannot affect them.
+  # The test jobs below report "<job> / <OS>" checks, whether they run or not: when the changes
+  # cannot affect one, it passes affected: false so that its reusable workflow skips its job, which
+  # has a fixed name. GitHub reports a skipped calling job under its own name only, without
+  # evaluating the expressions in it, such as the matrix of the smoke test shards.
+  # On Linux, which runs every unit test, the Electron and node.js unit tests in one job could be the
+  # slowest job of the workflow, so they run on separate machines. macOS and Windows run only the
+  # selected unit tests, so they rarely take as long.
   linux-electron-unit-tests:
-    name: Linux (run)
+    name: Electron-Unit (${{ matrix.suite }})
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [electron, node]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      job_name: Electron-Unit
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true' }}
       electron_tests: true
       integration_tests: false
       smoke_tests: false
+      unit_test_suite: ${{ matrix.suite }}
 
   linux-electron-tests:
-    name: Linux (run)
+    name: Electron
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      job_name: Electron
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       smoke_tests: false
-      # On Linux and macOS the job is short enough to also run Agent Host E2E.
-      agent_host_e2e_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
-      # The provider integration tests and the Agent Host E2E tests read the profile.
+      # The provider integration tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+
+  # On Linux, the integration tests and Agent Host E2E in one job would be the slowest job of the
+  # workflow, so Agent Host E2E runs in parallel on its own machine.
+  linux-agent-host-e2e-tests:
+    name: Agent-Host-E2E
+    needs: changes
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      # The Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
@@ -382,16 +525,16 @@ jobs:
   # step, so on every platform the matrix splits them into shards that run on parallel machines
   # (see .github/skills/smoke-tests/SKILL.md). PR Gate fails when any shard fails.
   linux-electron-smoke-test-shards:
-    name: Linux (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    name: Electron-Smoke (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2]
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      job_name: Electron-Smoke
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       integration_tests: false
@@ -399,54 +542,54 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   linux-browser-unit-tests:
-    name: Linux (unit)
+    name: Browser-Unit
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      job_name: Browser
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true' }}
       browser_tests: true
       integration_tests: false
       smoke_tests: false
 
   linux-browser-integration-tests:
-    name: Linux (integration & smoke)
+    name: Browser
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      job_name: Browser
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
       browser_tests: true
       unit_tests: false
 
   linux-remote-tests:
-    name: Linux (run)
+    name: Remote
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
-      job_name: Remote
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       remote_tests: true
 
   macos-electron-unit-tests:
-    name: macOS (run)
+    name: Electron-Unit
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
-      job_name: Electron-Unit
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
       electron_tests: true
       integration_tests: false
       smoke_tests: false
       test_selection: true
 
   macos-electron-tests:
-    name: macOS (run)
+    name: Electron
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
-      job_name: Electron
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       smoke_tests: false
@@ -460,16 +603,16 @@ jobs:
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   macos-electron-smoke-test-shards:
-    name: macOS (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    name: Electron-Smoke (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2]
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
-      job_name: Electron-Smoke
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       integration_tests: false
@@ -477,55 +620,55 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   macos-browser-unit-tests:
-    name: macOS (unit)
+    name: Browser-Unit
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
-      job_name: Browser
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
       browser_tests: true
       integration_tests: false
       smoke_tests: false
       test_selection: true
 
   macos-browser-integration-tests:
-    name: macOS (integration & smoke)
+    name: Browser
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
-      job_name: Browser
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
       browser_tests: true
       unit_tests: false
 
   macos-remote-tests:
-    name: macOS (run)
+    name: Remote
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
-      job_name: Remote
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       remote_tests: true
 
   windows-electron-unit-tests:
-    name: Windows (run)
+    name: Electron-Unit
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
-      job_name: Electron-Unit
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
       electron_tests: true
       integration_tests: false
       smoke_tests: false
       test_selection: true
 
   windows-electron-tests:
-    name: Windows (run)
+    name: Electron
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
-      job_name: Electron
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       smoke_tests: false
@@ -537,36 +680,45 @@ jobs:
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   # On Windows, Agent Host E2E is the slowest part of the Electron job, so it runs in parallel
-  # with the integration tests on its own machine. It runs only the suites that the plan selects.
-  # A skipped caller shows only its own name, so the name says what it runs.
+  # with the integration tests on other machines. It runs only the suites that the plan selects.
+  # The six suites take twice as long on one 8-core larger runner as on the 1ES runners, so the
+  # selected suites run in two shards.
   windows-agent-host-e2e-tests:
-    name: Windows (agent host)
+    name: Agent-Host-E2E (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true') }}
-    uses: ./.github/workflows/pr-win32-test.yml
-    with:
-      job_name: Agent-Host-E2E
-      electron_tests: true
-      unit_tests: false
-      integration_tests: false
-      smoke_tests: false
-      agent_host_e2e_tests: true
-      test_selection: true
-      # The provider integration tests and the Agent Host E2E tests read the profile.
-      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
-      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
-
-  windows-electron-smoke-test-shards:
-    name: Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2]
     uses: ./.github/workflows/pr-win32-test.yml
     with:
-      job_name: Electron-Smoke
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      test_selection: true
+      agent_host_e2e_shard_index: ${{ matrix.shard }}
+      agent_host_e2e_shard_total: ${{ strategy.job-total }}
+      # The provider integration tests and the Agent Host E2E tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+
+  # On Windows, the WSL setup makes the first Electron smoke test shard one of the slowest jobs of
+  # the workflow, so the smoke tests run in three shards there, and in two on Linux and macOS.
+  windows-electron-smoke-test-shards:
+    name: Electron-Smoke (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       electron_tests: true
       unit_tests: false
       integration_tests: false
@@ -574,35 +726,46 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   windows-browser-unit-tests:
-    name: Windows (unit)
+    name: Browser-Unit
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
-      job_name: Browser
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
       browser_tests: true
       integration_tests: false
       smoke_tests: false
       test_selection: true
 
   windows-browser-integration-tests:
-    name: Windows (integration & smoke)
+    name: Browser
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
-      job_name: Browser
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
       browser_tests: true
       unit_tests: false
 
+  # On Windows, the remote integration tests and the remote smoke tests in one job could be the
+  # slowest job of the workflow, so they run on separate machines.
   windows-remote-tests:
-    name: Windows (run)
+    name: Remote (${{ matrix.part }})
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { part: integration, integration: true, smoke: false }
+          - { part: smoke, integration: false, smoke: true }
     uses: ./.github/workflows/pr-win32-test.yml
     with:
-      job_name: Remote
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
       remote_tests: true
+      unit_tests: false
+      integration_tests: ${{ matrix.integration }}
+      smoke_tests: ${{ matrix.smoke }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
@@ -776,7 +939,7 @@ jobs:
     name: Copilot - Test (Windows)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-windows-8-core
     permissions:
       contents: read
     steps:
@@ -844,8 +1007,11 @@ jobs:
         working-directory: extensions/copilot
         run: npm run test:completions-core
 
+  # GitHub neither expands the matrix of a job that its if: skips nor evaluates the expressions in
+  # the name of a skipped job, so the name does not reference the matrix: GitHub appends the matrix
+  # values to it when the job runs, as in "chat-lib tests (ubuntu-latest)".
   chat-lib-tests:
-    name: chat-lib tests (${{ matrix.os }})
+    name: chat-lib tests
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     strategy:
@@ -876,11 +1042,14 @@ jobs:
     needs:
       - changes
       - compile
+      - monaco-editor
+      - telemetry
       - ripple
       - linux-cli-tests
       - linux-copilot-shim-tests
       - linux-electron-unit-tests
       - linux-electron-tests
+      - linux-agent-host-e2e-tests
       - linux-electron-smoke-test-shards
       - linux-browser-unit-tests
       - linux-browser-integration-tests

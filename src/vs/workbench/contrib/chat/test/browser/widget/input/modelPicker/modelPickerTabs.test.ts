@@ -781,7 +781,7 @@ suite('Model picker destinations', () => {
 				oneChanged: getModelConfigSummary(model, createConfigurationAccess({ contextSize: 1000000 })),
 				noSchema: getModelConfigSummary(gpt, createConfigurationAccess()),
 			},
-			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: '132K' },
+			{ defaults: 'Medium · 264K', explicitDefaults: 'Medium · 264K', bothChanged: 'Extra high · 1M', oneChanged: 'Medium · 1M', noSchema: 'Max 132K' },
 		);
 	});
 
@@ -851,7 +851,7 @@ suite('Model picker destinations', () => {
 			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
 			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion', { modelGroupId: 'copilotcli' }), createConfigurationAccess()),
 			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
-		}, { unresolved: undefined, stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
+		}, { unresolved: 'Model default', stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
 	});
 
 	test('effort-only and context-only models summarize the available settings', () => {
@@ -864,6 +864,6 @@ suite('Model picker destinations', () => {
 		assert.deepStrictEqual({
 			effort: summarize(['reasoningEffort']),
 			context: summarize(['contextSize']),
-		}, { effort: 'Medium · 132K', context: '264K' });
+		}, { effort: 'Medium · Max 132K', context: '264K' });
 	});
 });

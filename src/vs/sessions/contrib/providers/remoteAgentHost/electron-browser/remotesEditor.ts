@@ -25,7 +25,7 @@ import { IEditorGroup } from '../../../../../workbench/services/editor/common/ed
 import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
 import { RemotesModel } from '../browser/remotesModel.js';
 import { RemotesWidget } from '../browser/remotesWidget.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../chat/common/constants.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../chat/common/constants.js';
 
 export const RemotesEditorFocusedContext = new RawContextKey<boolean>('remotesEditorFocused', false);
 
@@ -51,7 +51,7 @@ export class RemotesEditor extends EditorPane {
 	) {
 		super(RemotesEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || event.affectsConfiguration('chat.disableAIFeatures') || event.affectsConfiguration(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING) || event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)) {
 				this.updateWidget();
 			}
 		}));
@@ -93,10 +93,12 @@ export class RemotesEditor extends EditorPane {
 			return;
 		}
 		const managementEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
-		const enabled = managementEnabled && this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+		const environmentPickerEnabled = this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING);
+		const enabled = managementEnabled && environmentPickerEnabled && this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures');
 		this.disabledMessage.textContent = managementEnabled
-			? localize('remotes.editorDisabled', "Remote agent hosts are disabled.")
+			? environmentPickerEnabled ? localize('remotes.editorDisabled', "Remote agent hosts are disabled.")
+				: localize('remotes.environmentPickerDisabled', "The Environment picker is disabled.")
 			: localize('remotes.managementDisabled', "Remote Environments management is disabled.");
 		this.disabledMessage.hidden = enabled;
 		this.content.hidden = !enabled;

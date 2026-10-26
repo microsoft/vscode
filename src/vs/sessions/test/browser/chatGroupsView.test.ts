@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../base/browser/dom.js';
+import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { IAction, toAction } from '../../../base/common/actions.js';
@@ -38,6 +38,7 @@ import { IWorkbenchLayoutService } from '../../../workbench/services/layout/brow
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { SESSION_ACTIVITY_BAR_COLUMN_WIDTH } from '../../browser/parts/sessionActivityBar.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
@@ -641,7 +642,8 @@ suite('Sessions - ChatGroupsView', () => {
 		const main = createChat('main');
 		const child = createChat('child', SessionStatus.Completed, main.resource);
 		const session = new TestActiveSession([main, child]);
-		// Each group's position on screen, whether its Session Activity Bar is active, and the width left for its chat.
+		// Each group's position on screen, whether its Session Activity Bar is active, and the width left for its chat:
+		// every group keeps the strip's column at its right edge, active or not, so focusing another does not shift it.
 		const activityBars = () => {
 			const origin = view.element.getBoundingClientRect();
 			return [...view.element.querySelectorAll<HTMLElement>('.chat-group-view')]
@@ -649,7 +651,6 @@ suite('Sessions - ChatGroupsView', () => {
 					left: Math.round(group.getBoundingClientRect().left - origin.left),
 					active: !!group.querySelector(':scope > .session-activity-bar:not(.inactive)'),
 					chatWidth: group.querySelector<HTMLElement>('.chat-view')?.style.width,
-					contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-activity-bar-reserved-width'),
 					headerWidth: group.querySelector<HTMLElement>('.chat-group-view-bar')?.style.width,
 				}))
 				.sort((first, second) => first.left - second.left);
@@ -667,10 +668,10 @@ suite('Sessions - ChatGroupsView', () => {
 		const sessionInactive = activityBars();
 
 		assert.deepStrictEqual({ single, split, previousFocused, sessionInactive }, {
-			single: [{ left: 0, active: true, chatWidth: '1000px', contentInset: '30px', headerWidth: '1000px' }],
-			split: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
-			previousFocused: [{ left: 0, active: true, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
-			sessionInactive: [{ left: 0, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '500px', contentInset: '30px', headerWidth: '500px' }],
+			single: [{ left: 0, active: true, chatWidth: '966px', headerWidth: '1000px' }],
+			split: [{ left: 0, active: false, chatWidth: '466px', headerWidth: '500px' }, { left: 500, active: true, chatWidth: '466px', headerWidth: '500px' }],
+			previousFocused: [{ left: 0, active: true, chatWidth: '466px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '466px', headerWidth: '500px' }],
+			sessionInactive: [{ left: 0, active: false, chatWidth: '466px', headerWidth: '500px' }, { left: 500, active: false, chatWidth: '466px', headerWidth: '500px' }],
 		});
 	});
 
@@ -684,7 +685,7 @@ suite('Sessions - ChatGroupsView', () => {
 			return {
 				kind: group.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
 				activityBarShown: !!group.querySelector(':scope > .session-activity-bar:not(.inactive)'),
-				contentInset: group.querySelector<HTMLElement>('.chat-view')?.style.getPropertyValue('--session-activity-bar-reserved-width'),
+				chatWidth: group.querySelector<HTMLElement>('.chat-view')?.style.width,
 			};
 		};
 		view.setSession(session, options);
@@ -695,8 +696,39 @@ suite('Sessions - ChatGroupsView', () => {
 		const existingChat = state();
 
 		assert.deepStrictEqual({ newChat, existingChat }, {
-			newChat: { kind: 'newChatInSession', activityBarShown: true, contentInset: '30px' },
-			existingChat: { kind: 'chat', activityBarShown: true, contentInset: '30px' },
+			newChat: { kind: 'newChatInSession', activityBarShown: true, chatWidth: '966px' },
+			existingChat: { kind: 'chat', activityBarShown: true, chatWidth: '966px' },
+		});
+	});
+
+	test('docks the Session Activity Bar in a column of its own at the right edge, 2px from the chat and the edge, the chat and its scrollbar to its left, at either density', () => {
+		const results: Record<string, unknown> = {};
+		for (const density of ['default', 'compact'] as const) {
+			const store = disposables.add(new DisposableStore());
+			const { view, configurationService } = createHarness(store, true, true);
+			configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			store.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('modern-ui-compact', density === 'compact');
+			for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+				workbench.style.setProperty(`--vscode-${token}`, value);
+			}
+			workbench.appendChild(view.element);
+			view.setSession(new TestActiveSession([createChat('main')]), options);
+			view.layout(1000, 600, 0, 0);
+
+			const group = view.element.querySelector<HTMLElement>('.chat-group-view')!.getBoundingClientRect();
+			const strip = view.element.querySelector<HTMLElement>('.chat-group-view > .session-activity-bar:not(.inactive)')!.getBoundingClientRect();
+			// The chat view's scroll viewport, and so its scrollbar, spans the view's full width.
+			const chat = view.element.querySelector<HTMLElement>('.chat-view')!.getBoundingClientRect();
+			results[density] = { strip: strip.width, column: group.right - chat.right, gaps: { chat: strip.left - chat.right, edge: group.right - strip.right } };
+			store.dispose();
+		}
+
+		const geometry = { strip: 30, column: SESSION_ACTIVITY_BAR_COLUMN_WIDTH, gaps: { chat: 2, edge: 2 } };
+		assert.deepStrictEqual(results, {
+			default: geometry,
+			compact: geometry,
 		});
 	});
 

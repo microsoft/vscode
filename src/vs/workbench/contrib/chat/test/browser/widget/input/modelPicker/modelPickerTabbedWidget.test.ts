@@ -580,6 +580,7 @@ suite('TabbedModelPicker', () => {
 		const comparison: IModelPickerComparison = {
 			showPickerHint: constObservable(true),
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models', startCommandId: 'test.compareModels',
+			description: constObservable('Run one prompt in parallel and compare results.'),
 			start: () => state.set({
 				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
 				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
@@ -607,7 +608,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			label: `Send Query to Multiple Models (${shortcutLabel})`,
 			addIcon: false,
-			toggleLabel: `Compare Models (${shortcutLabel})`,
+			toggleLabel: `Compare Models (${shortcutLabel})\n\nRun one prompt in parallel and compare results.`,
 			step: 'Attempts', selections: [], visible: true, footer: true, toggle: true,
 		});
 	});
@@ -2502,7 +2503,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			rows: [
 				{ name: 'First', summary: 'Low · 32K', details: 'First Details, Low · 32K', infoIcon: false },
-				{ name: 'Fixed', summary: '200K', details: 'Fixed Details, 200K', infoIcon: false },
+				{ name: 'Fixed', summary: 'Max 200K', details: 'Fixed Details, Max 200K', infoIcon: false },
 				{ name: 'Second', summary: 'Low · 32K', details: 'Second Details, Low · 32K', infoIcon: false },
 				{ name: 'Unknown', summary: 'Details', details: 'Unknown Details', infoIcon: false },
 			],

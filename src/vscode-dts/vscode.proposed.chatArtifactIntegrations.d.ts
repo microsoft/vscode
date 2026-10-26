@@ -70,6 +70,13 @@ declare module 'vscode' {
 	export interface ChatArtifactIntegrationState {
 		readonly availability?: ChatArtifactAvailability;
 		readonly main?: ChatArtifactPresentation;
+		/**
+		 * How this artifact contributes to a group of several artifacts of this provider, which shows the icon
+		 * with the highest priority among them, for example a failing pull request's icon over an open one's.
+		 * Priorities are only compared among this provider's artifacts, and only when this provider presents
+		 * the artifact's main part.
+		 */
+		readonly group?: { readonly icon: ThemeIcon; readonly priority: number };
 		readonly sections?: readonly ChatArtifactSection[];
 		/** Independent state lists. Their optional icons remain available even without a corresponding pill section. */
 		readonly lists?: readonly { readonly id: string; readonly label: string; readonly icon?: ThemeIcon; readonly detailsId: string }[];
@@ -240,6 +247,8 @@ declare module 'vscode' {
 		readonly label: string;
 		/** Names the recorded resources this provider supports, such as "Experiment links on example.com", so agents know when to use it. One line of plain text, at most 300 characters. */
 		readonly description?: string;
+		/** Names several of this provider's artifacts when they are grouped, such as "Experiments". One line of plain text, at most 100 characters. */
+		readonly groupLabel?: string;
 		/** Stable for this registration's lifetime. Every referenced action must exist on each observation. Option and choice labels are one line of plain text, at most 100 characters. */
 		readonly automationOptions?: readonly ChatArtifactAutomationOption[];
 		/** Invalidates matching and existing resource observations, for example after an account change. */

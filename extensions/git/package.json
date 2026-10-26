@@ -27,6 +27,7 @@
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "envIsConnectionMetered",
+    "notificationTelemetry",
     "quickDiffProvider",
     "quickPickSortByLabel",
     "scmActionButton",
