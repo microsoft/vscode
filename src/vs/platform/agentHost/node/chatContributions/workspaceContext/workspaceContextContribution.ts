@@ -166,7 +166,7 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			if (roots.length === 0) {
 				return undefined;
 			}
-			return { instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`] };
+			return { instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use it to locate relevant files; read only what the task needs.\n</workspace_info>`] };
 		} finally {
 			if (this._isActiveTurn(turn)) {
 				this._stopPreparing(turn.chat);

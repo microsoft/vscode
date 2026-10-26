@@ -212,7 +212,7 @@ suite('WorkspaceContextContribution', () => {
 		});
 		assert.deepStrictEqual(await context.firstTurn(), {
 			message: userMessage,
-			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + heading('/workspace') + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
+			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + heading('/workspace') + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use it to locate relevant files; read only what the task needs.\n</workspace_info>'],
 		});
 	});
 
