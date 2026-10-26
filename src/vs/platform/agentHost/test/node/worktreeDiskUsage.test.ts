@@ -183,7 +183,7 @@ suite('HostWorktreeDiskUsage', () => {
 		const active = await service.measure(worktree, CancellationToken.None, session);
 		setStatus(session, SessionStatus.Idle);
 		const size = await service.measure(worktree, CancellationToken.None, session);
-		assert.deepStrictEqual({ active, size, scans }, { active: undefined, size: expectedSize, scans: 2 });
+		assert.deepStrictEqual({ active, size, scans }, { active: expectedSize, size: expectedSize, scans: 3 });
 	});
 
 	test('measures live without reading or writing the cache when creation time is unavailable', async () => {
@@ -193,7 +193,7 @@ suite('HostWorktreeDiskUsage', () => {
 		const database = new class extends mock<IAgentHostDatabase>() {
 			override async readWorktreeCoOwners() { return []; }
 			override async getWorktreeDiskUsageRevision() { return 'revision'; }
-			override async readWorktreeDiskUsage() { reads++; return { revision: 'revision', sizeBytes: 42, stale: false }; }
+			override async readWorktreeDiskUsage() { reads++; return 42; }
 			override async writeWorktreeDiskUsage() { writes++; }
 		}();
 		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
@@ -233,7 +233,7 @@ suite('HostWorktreeDiskUsage', () => {
 	});
 
 	for (const status of [SessionStatus.InProgress, SessionStatus.InputNeeded]) {
-		test(`defers an uncached measurement while an owner has status ${status}`, async () => {
+		test(`measures a new worktree on request while an owner has status ${status}`, async () => {
 			const worktree = URI.file(join(root, 'worktree'));
 			await mkdir(worktree.fsPath);
 			const owner = URI.parse('session:/active');
@@ -248,10 +248,10 @@ suite('HostWorktreeDiskUsage', () => {
 			const activeScans = scans;
 			setStatus(owner, SessionStatus.Idle);
 			const idle = await service.measure(worktree, CancellationToken.None, owner);
-			assert.deepStrictEqual({ active, activeScans, idle, scans }, { active: undefined, activeScans: 0, idle: 0, scans: 1 });
+			assert.deepStrictEqual({ active, activeScans, idle, scans }, { active: 0, activeScans: 1, idle: 0, scans: 2 });
 		});
 
-		test(`retains the last estimate without scanning while a co-owner has status ${status}`, async () => {
+		test(`refreshes the estimate on request while a co-owner has status ${status}`, async () => {
 			const worktree = URI.file(join(root, 'worktree'));
 			await mkdir(worktree.fsPath);
 			const owners = [URI.parse('session:/idle'), URI.parse('session:/active')];
@@ -266,8 +266,10 @@ suite('HostWorktreeDiskUsage', () => {
 			await service.measure(worktree, CancellationToken.None, owners[0]);
 			setStatus(owners[1], status);
 			const sizes = [];
+			const expectedSizes = [];
 			for (const bytes of [8192, 16384]) {
 				await writeFile(join(worktree.fsPath, 'file'), Buffer.alloc(bytes, 1));
+				expectedSizes.push(Number((await lstat(join(worktree.fsPath, 'file'), { bigint: true })).blocks * 512n));
 				sizes.push(await service.measure(worktree, CancellationToken.None, owners[0]));
 			}
 			const active = await service.measure(worktree, CancellationToken.None, owners[1]);
@@ -276,11 +278,11 @@ suite('HostWorktreeDiskUsage', () => {
 			setStatus(owners[1], SessionStatus.Idle);
 			const idle = await service.measure(worktree, CancellationToken.None, owners[0]);
 			await service.measure(worktree, CancellationToken.None, owners[1]);
-			assert.deepStrictEqual({ sizes, active, idle, activeScans, scans }, { sizes: [0, 0], active: 0, idle: expected, activeScans: 1, scans: 2 });
+			assert.deepStrictEqual({ sizes, active, idle, activeScans, scans }, { sizes: expectedSizes, active: expected, idle: expected, activeScans: 4, scans: 5 });
 		});
 	}
 
-	test('persists invalidation through restart and refreshes only the changed idle worktree', async () => {
+	test('refreshes the active worktree on request while unchanged idle worktrees reuse the database after restart', async () => {
 		const worktrees = [URI.file(join(root, 'first')), URI.file(join(root, 'second'))];
 		const owners = [URI.parse('session:/first'), URI.parse('session:/second')];
 		const path = join(root, 'agent-host.db');
@@ -307,7 +309,6 @@ suite('HostWorktreeDiskUsage', () => {
 		await database.close();
 		const reopened = disposables.add(new AgentHostDatabase(path));
 		databases.push(reopened);
-		const stale = (await reopened.readWorktreeDiskUsage(owners[0].toString(), worktrees[0].toString()))?.stale;
 		const restarted = disposables.add(new AgentHostWorktreeDiskUsageService(fileSystem, reopened, stateManager));
 		setStatus(owners[0], SessionStatus.Idle);
 		const expected = Number((await lstat(join(worktrees[0].fsPath, 'new-file'), { bigint: true })).blocks * 512n);
@@ -316,10 +317,7 @@ suite('HostWorktreeDiskUsage', () => {
 				await restarted.measure(worktrees[i], CancellationToken.None, owners[i]);
 			}
 		}
-		assert.deepStrictEqual({
-			active, stale, scans,
-			updated: (await reopened.readWorktreeDiskUsage(owners[0].toString(), worktrees[0].toString()))?.sizeBytes,
-		}, { active: 0, stale: true, scans: [2, 1], updated: expected });
+		assert.deepStrictEqual({ active, scans }, { active: expected, scans: [3, 1] });
 	});
 
 	for (const status of [SessionStatus.InProgress, SessionStatus.Idle]) {
@@ -347,21 +345,19 @@ suite('HostWorktreeDiskUsage', () => {
 		});
 	}
 
-	test('marks the estimate stale without scanning if the owner starts work during the cache lookup', async () => {
+	test('scans instead of reusing or saving the cache if the owner starts work during lookup', async () => {
 		const session = URI.parse('session:/changing');
 		let invalidations = 0;
 		let writes = 0;
 		let scans = 0;
-		const stat = await lstat(root, { bigint: true });
-		const revision = `revision\0${stat.dev}:${stat.ino}:${stat.birthtimeNs}`;
 		const database = new class extends mock<IAgentHostDatabase>() {
 			override async readWorktreeCoOwners() { return []; }
 			override async getWorktreeDiskUsageRevision() { return 'revision'; }
 			override async readWorktreeDiskUsage() {
 				setStatus(session, SessionStatus.InProgress);
-				return { revision, sizeBytes: 42, stale: false };
+				return 42;
 			}
-			override async invalidateWorktreeDiskUsage() { invalidations++; }
+			override async deleteWorktreeDiskUsage() { invalidations++; }
 			override async writeWorktreeDiskUsage() { writes++; }
 		}();
 		const service = disposables.add(new AgentHostWorktreeDiskUsageService({
@@ -369,7 +365,7 @@ suite('HostWorktreeDiskUsage', () => {
 			opendir: async path => { scans++; return opendir(path); },
 		}, database, stateManager));
 		const size = await service.measure(URI.file(root), CancellationToken.None, session);
-		assert.deepStrictEqual({ size, invalidations, writes, scans }, { size: 42, invalidations: 1, writes: 0, scans: 0 });
+		assert.deepStrictEqual({ size, invalidations, writes, scans }, { size: 0, invalidations: 1, writes: 0, scans: 1 });
 	});
 
 	test('sums allocated bytes including dependencies without following directory symlinks', async () => {

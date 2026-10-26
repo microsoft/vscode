@@ -443,10 +443,10 @@ export interface IAgentHostDatabase extends IDisposable, IAgentHostSessionStateD
 	listSessions(): Promise<readonly IAgentHostDatabaseSession[]>;
 	/** Revision of a worktree's session and any recorded co-owners, for disk usage caching. */
 	getWorktreeDiskUsageRevision(session: string, worktree: string): Promise<string | undefined>;
-	readWorktreeDiskUsage(session: string, worktree: string): Promise<{ readonly revision: string; readonly sizeBytes: number; readonly stale: boolean } | undefined>;
+	readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined>;
 	writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void>;
-	/** Marks the checkout's estimate stale without losing its last measured size. */
-	invalidateWorktreeDiskUsage(worktree: string): Promise<void>;
+	/** Invalidates every owner's cached size after observing live work in the checkout. */
+	deleteWorktreeDiskUsage(worktree: string): Promise<void>;
 	isSessionRegistryEmpty(): Promise<boolean>;
 	/**
 	 * @deprecated superseded by per-provider {@link isProviderBackfilled}.
@@ -1205,7 +1205,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return rows.some(row => row.session_uri === session) ? stableStringify(rows) : undefined;
 	}
 
-	async readWorktreeDiskUsage(session: string, worktree: string): Promise<{ readonly revision: string; readonly sizeBytes: number; readonly stale: boolean } | undefined> {
+	async readWorktreeDiskUsage(session: string, worktree: string, revision: string): Promise<number | undefined> {
 		const row = await get(await this._ensureDatabase(), `SELECT value FROM metadata
 			WHERE key = ? AND EXISTS (
 				SELECT 1 FROM sessions_v2 WHERE session_uri = json_extract(metadata.value, '$.session')
@@ -1216,12 +1216,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		if (!row) {
 			return undefined;
 		}
-		const value: { readonly revision?: unknown; readonly sizeBytes?: unknown; readonly stale?: unknown } | null = JSON.parse(row.value as string);
-		if (typeof value?.revision !== 'string' || typeof value.sizeBytes !== 'number' || !Number.isSafeInteger(value.sizeBytes) || value.sizeBytes < 0
-			|| (value.stale !== undefined && typeof value.stale !== 'boolean')) {
+		const value: { readonly revision?: unknown; readonly sizeBytes?: unknown } | null = JSON.parse(row.value as string);
+		if (typeof value?.revision !== 'string' || typeof value.sizeBytes !== 'number' || !Number.isSafeInteger(value.sizeBytes) || value.sizeBytes < 0) {
 			throw new Error('Invalid stored worktree disk usage');
 		}
-		return { revision: value.revision, sizeBytes: value.sizeBytes, stale: value.stale === true };
+		return value.revision === revision ? value.sizeBytes : undefined;
 	}
 
 	async writeWorktreeDiskUsage(session: string, worktree: string, revision: string, sizeBytes: number): Promise<void> {
@@ -1236,10 +1235,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async invalidateWorktreeDiskUsage(worktree: string): Promise<void> {
+	async deleteWorktreeDiskUsage(worktree: string): Promise<void> {
 		await this._transactionSequencer.queue(async () => {
-			await run(await this._ensureDatabase(), `UPDATE metadata SET value = json_set(value, '$.stale', json('true')) WHERE key = ?`,
-				[WORKTREE_DISK_USAGE_KEY_PREFIX + worktree]);
+			await run(await this._ensureDatabase(), 'DELETE FROM metadata WHERE key = ?', [WORKTREE_DISK_USAGE_KEY_PREFIX + worktree]);
 		});
 	}
 

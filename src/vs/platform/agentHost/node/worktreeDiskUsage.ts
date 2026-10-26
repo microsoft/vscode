@@ -68,25 +68,28 @@ export class AgentHostWorktreeDiskUsageService extends Disposable implements IAg
 			const owners = [sessionKey, ...(await this._database.readWorktreeCoOwners(worktree)).map(owner => owner.session)];
 			const activityRevision = this._getIdleOwnersRevision(owners);
 			const sessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, worktree);
-			const rootIdentity = `\0${rootStat.dev}:${rootStat.ino}:${rootStat.birthtimeNs}`;
-			const revision = sessionRevision === undefined || rootStat.birthtimeNs <= 0n ? undefined : sessionRevision + rootIdentity;
-			const cached = revision === undefined ? undefined : await this._database.readWorktreeDiskUsage(sessionKey, worktree);
-			const cachedSize = cached?.revision.endsWith(rootIdentity) ? cached.sizeBytes : undefined;
-			throwIfCancelled(token);
 			const currentActivityRevision = this._getIdleOwnersRevision(owners);
+			let revision = sessionRevision === undefined || activityRevision === undefined || currentActivityRevision !== activityRevision || rootStat.birthtimeNs <= 0n
+				? undefined : `${sessionRevision}\0${rootStat.dev}:${rootStat.ino}:${rootStat.birthtimeNs}`;
 			if (activityRevision === undefined || currentActivityRevision !== activityRevision) {
-				await this._database.invalidateWorktreeDiskUsage(worktree);
-				return cachedSize;
+				await this._database.deleteWorktreeDiskUsage(worktree);
 			}
-			if (cached && !cached.stale && cached.revision === revision) {
-				return cached.sizeBytes;
+			if (revision !== undefined) {
+				const cached = await this._database.readWorktreeDiskUsage(sessionKey, worktree, revision);
+				throwIfCancelled(token);
+				if (this._getIdleOwnersRevision(owners) !== activityRevision) {
+					await this._database.deleteWorktreeDiskUsage(worktree);
+					revision = undefined;
+				} else if (cached !== undefined) {
+					return cached;
+				}
 			}
 			const sizeBytes = await measureWorktreeDiskUsage(root, token, fileSystem);
 			if (revision !== undefined && sizeBytes !== undefined) {
 				const currentSessionRevision = await this._database.getWorktreeDiskUsageRevision(sessionKey, worktree);
 				throwIfCancelled(token);
 				if (this._getIdleOwnersRevision(owners) !== activityRevision) {
-					await this._database.invalidateWorktreeDiskUsage(worktree);
+					await this._database.deleteWorktreeDiskUsage(worktree);
 				} else if (currentSessionRevision === sessionRevision) {
 					await this._database.writeWorktreeDiskUsage(sessionKey, worktree, revision, sizeBytes);
 				}

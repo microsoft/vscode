@@ -43,7 +43,7 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.deepStrictEqual({ unchangedScans, scans, size: worktrees[0].sizeBytes }, { unchangedScans: 1, scans: 2, size: 2 });
 	});
 
-	test('checks automatic storage hints hourly instead of measuring on session changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('throttles existing hint triggers to once an hour without a recurring timer', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const hour = 60 * 60 * 1000;
 		const updatedAt = observableValue('updatedAt', oldDate());
 		const changed = upcastPartial<ISession>({ ...createSession('changed', oldDate()), updatedAt });
@@ -58,23 +58,40 @@ suite('SessionWorktreeCleanupService', () => {
 			await service.activate();
 			updatedAt.set(new Date(), undefined);
 			onDidChangeSessions.fire({ added: [], removed: [], changed: [changed] });
-			await timeout(10_000);
-			await service.activate();
+			await timeout(10_001);
 			const beforeHour = [...requests];
-			await timeout(hour - 10_000);
-			await service.activate();
-			const firstHour = [...requests];
+			await timeout(hour - 10_001);
+			const withoutTrigger = [...requests];
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [changed] });
+			await timeout(10_001);
+			const afterTrigger = [...requests];
 			await timeout(hour);
-			await service.activate();
-			assert.deepStrictEqual({ beforeHour, firstHour, secondHour: requests }, {
+			assert.deepStrictEqual({ beforeHour, withoutTrigger, afterTrigger, withoutAnotherTrigger: requests }, {
 				beforeHour: ['changed', 'unchanged'],
-				firstHour: ['changed', 'unchanged', 'changed', 'unchanged'],
-				secondHour: ['changed', 'unchanged', 'changed', 'unchanged', 'changed', 'unchanged'],
+				withoutTrigger: ['changed', 'unchanged'],
+				afterTrigger: ['changed', 'unchanged', 'changed', 'unchanged'],
+				withoutAnotherTrigger: ['changed', 'unchanged', 'changed', 'unchanged'],
 			});
 		} finally {
 			service.dispose();
 		}
 	}));
+
+	test('explicitly opening cleanup shows a fresh size for a new active session and on reopening', async () => {
+		const session = createSession('active', new Date(), SessionStatus.InProgress);
+		let requests = 0;
+		const service = disposables.add(createService([session], true, () => ++requests));
+		const first = await service.getWorktrees(0, () => { }, CancellationToken.None, true);
+		const reopened = await service.getWorktrees(0, () => { }, CancellationToken.None, true);
+		assert.deepStrictEqual([first, reopened].map(worktrees => worktrees.map(worktree => ({
+			id: worktree.session.sessionId,
+			sizeBytes: worktree.sizeBytes,
+			state: worktree.cleanupState,
+		}))), [
+			[{ id: 'active', sizeBytes: 1, state: 'running' }],
+			[{ id: 'active', sizeBytes: 2, state: 'running' }],
+		]);
+	});
 
 	test('opening cleanup refreshes changed sessions before the next automatic hint check', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const updatedAt = observableValue('updatedAt', oldDate());

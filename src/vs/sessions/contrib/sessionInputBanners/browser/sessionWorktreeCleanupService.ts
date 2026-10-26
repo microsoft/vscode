@@ -106,8 +106,10 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private _foregroundMeasurement: Promise<void> | undefined;
 	private _refreshPromise: Promise<void> | undefined;
 	private readonly _refreshScheduler = this._register(new RunOnceScheduler(() => {
-		void this._refreshIfNeeded().catch(error => this.logService.warn('[SessionWorktreeCleanupService] Failed to refresh worktree usage', error));
-	}, SCAN_CACHE_DURATION_MS));
+		if (this._activated) {
+			void this._refreshIfNeeded().catch(error => this.logService.warn('[SessionWorktreeCleanupService] Failed to refresh worktree usage', error));
+		}
+	}, 10_000));
 	private _activated = false;
 	private _dismissed = false;
 	private _availableDiskSpace: number | undefined;
@@ -145,6 +147,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}));
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
 			this._updateSuggestion();
+			this._refreshScheduler.schedule();
 		}));
 	}
 
@@ -181,9 +184,6 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		return refresh.finally(() => {
 			if (this._refreshPromise === refresh) {
 				this._refreshPromise = undefined;
-			}
-			if (!this._store.isDisposed && this._isEnabled()) {
-				this._refreshScheduler.schedule();
 			}
 		});
 	}
