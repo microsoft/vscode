@@ -147,7 +147,7 @@
 		display: none !important;
 	}
 
-	.monaco-list-row .session-chat-twistie {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie) {
 		position: absolute;
 		top: var(--vscode-spacing-size80);
 		left: var(--vscode-spacing-size120);
@@ -161,8 +161,13 @@
 		z-index: 1;
 	}
 
+	.monaco-list-row .session-comparison-twistie {
+		left: var(--vscode-spacing-size360);
+		top: var(--vscode-spacing-size60);
+	}
+
 	/* Replace the status icon with the twistie only while hovering the session row. */
-	.monaco-list-row:is(:hover, .hovered) .session-chat-twistie.collapsible {
+	.monaco-list-row:is(:hover, .hovered) :is(.session-chat-twistie, .session-comparison-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 	}
@@ -655,7 +660,7 @@
 }
 
 .sessions-list-control.compact {
-	.monaco-list-row .session-chat-twistie {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie) {
 		top: var(--vscode-spacing-size60);
 	}
 
@@ -836,6 +841,19 @@
 
 .monaco-list-row[aria-expanded="true"] .session-item.session-hierarchy-guides-visible::after {
 	opacity: 1;
+}
+
+.monaco-list-row[aria-expanded="true"] .session-item[data-session-group-connector]::after {
+	left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size80));
+}
+
+.sessions-list-control .monaco-list-row .session-chat-item.session-comparison-chat {
+	padding-left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size240));
+
+	&::before,
+	&::after {
+		left: calc(var(--vscode-spacing-size360) + var(--vscode-spacing-size80));
+	}
 }
 
 .session-chat-item {
@@ -1524,7 +1542,7 @@
 		top: var(--vscode-spacing-size320);
 	}
 
-	.monaco-list-row .session-chat-twistie.collapsible {
+	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie).collapsible {
 		opacity: 1;
 		pointer-events: auto;
 		top: var(--vscode-spacing-size100);

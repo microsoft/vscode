@@ -766,6 +766,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
 		/** How many groups deep the custom group whose rows include a chat row is nested; the row steps in by that many levels. */
 		private readonly getGroupDepth: (item: ISessionChatItem) => number = () => 0,
+		private readonly isComparisonParticipant: (session: ISession) => boolean = () => false,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -828,6 +829,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		template.container.classList.toggle('last-chat', element.isLast);
 		template.container.classList.toggle('standalone', !!element.standalone);
+		template.container.classList.toggle('session-comparison-chat', !element.standalone && this.isComparisonParticipant(element.session));
 		template.isStandaloneContext.set(!!element.standalone);
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
@@ -4426,6 +4428,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			},
 			this.activeGuideSessionIds,
 			item => this.getRowGroupDepth(item),
+			session => this.renderedComparisonParticipantConnectorPositions.has(session.sessionId),
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -4695,7 +4698,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				overrideStyles: this.options.overrideStyles,
 				renderIndentGuides: RenderIndentGuides.None,
 				twistieAdditionalCssClass: element => isSessionItem(element) && this.getRenderedSessionListChats(element).length > 0
-					? 'session-chat-twistie'
+					? this.renderedComparisonParticipantConnectorPositions.has(element.sessionId) ? 'session-comparison-twistie' : 'session-chat-twistie'
 					: 'force-no-twistie',
 			}
 		));

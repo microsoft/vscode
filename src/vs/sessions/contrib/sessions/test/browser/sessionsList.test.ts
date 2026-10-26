@@ -5659,11 +5659,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-<<<<<<< HEAD
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup) {
-=======
 		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup, configure?: (harness: ReturnType<typeof createListHarness>) => void, mixedHarnesses = false, presentation: { compact?: boolean; phone?: boolean } = {}) {
->>>>>>> eabbcebd0a2 (sessions: align Agent Bakeoff rows with multi-chat sessions (#344312))
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -5746,13 +5742,10 @@ suite('Sessions - SessionsList', () => {
 				sectionMemberships: sectionParent ? new Map([[sectionId, sectionParent.id]]) : undefined,
 				memberships, comparisons: [comparison], pinnedSessionIds,
 			});
-<<<<<<< HEAD
-=======
 			harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 				override isMotionReduced(): boolean { return false; }
 			});
 			configure?.(harness);
->>>>>>> eabbcebd0a2 (sessions: align Agent Bakeoff rows with multi-chat sessions (#344312))
 			const contextMenus: (readonly IAction[])[] = [];
 			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuDelegate): void {
@@ -6037,6 +6030,36 @@ suite('Sessions - SessionsList', () => {
 				list.setFocusedItem({ session: session.resource });
 				const focused = appearance();
 				list.setFocusedItem({ session: judge.session.resource });
+
+				if (!presentation.phone) {
+					const chat = container.querySelector<HTMLElement>('.session-comparison-chat')!;
+					const row = participant.closest<HTMLElement>('.monaco-list-row')!;
+					const twistie = row.querySelector<HTMLElement>('.session-comparison-twistie')!;
+					const icon = participant.querySelector<HTMLElement>('.session-icon')!;
+					row.classList.add('hovered');
+					assert.deepStrictEqual({
+						outgoingGuide: mainWindow.getComputedStyle(participant, '::after').left,
+						chatTrunk: mainWindow.getComputedStyle(chat, '::before').left,
+						chatElbow: mainWindow.getComputedStyle(chat, '::after').left,
+						chatIndent: mainWindow.getComputedStyle(chat).paddingLeft,
+						twistieLeft: twistie.getBoundingClientRect().left,
+						twistieTop: twistie.getBoundingClientRect().top,
+						twistieOpacity: mainWindow.getComputedStyle(twistie).opacity,
+						twistiePointerEvents: mainWindow.getComputedStyle(twistie).pointerEvents,
+						iconVisibility: mainWindow.getComputedStyle(icon).visibility,
+					}, {
+						outgoingGuide: '44px',
+						chatTrunk: '44px',
+						chatElbow: '44px',
+						chatIndent: '60px',
+						twistieLeft: icon.getBoundingClientRect().left,
+						twistieTop: icon.getBoundingClientRect().top,
+						twistieOpacity: '1',
+						twistiePointerEvents: 'auto',
+						iconVisibility: 'hidden',
+					});
+					row.classList.remove('hovered');
+				}
 
 				const incoming = { top: '0px', opacity: '1', borderBottom: '1px' };
 				const outgoing = { top: presentation.phone ? '32px' : presentation.compact ? '20px' : '28px', opacity: '0', borderBottom: '0px' };
