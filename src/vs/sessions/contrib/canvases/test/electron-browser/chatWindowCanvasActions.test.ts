@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -28,6 +28,7 @@ suite('Chat window - canvases in the Add Tab list', () => {
 	const definition: ICanvasDefinition = { canvasId: 'plan', extensionId: 'user:plan', extensionSource: 'user', displayName: 'Plan', description: '', requiresInput: false };
 
 	function createFixture(sessions: readonly string[]) {
+		const providerIds = sessions.map(() => 'test');
 		const opened: unknown[] = [];
 		const reopened: ICanvasReference[] = [];
 		const revealed: ICanvasReference[] = [];
@@ -37,21 +38,21 @@ suite('Chat window - canvases in the Add Tab list', () => {
 			const chat = URI.parse(`test://chat/${name}`);
 			const canvas: ICanvas = { resource: URI.parse(`canvas://${name}/old`), instanceId: 'closed', title: `Old ${name}`, source: undefined };
 			return {
-				owner: { providerId: 'test', session, chat },
+				owner: { providerId: providerIds[index], session, chat },
 				canvas,
 				window: new class extends mock<IChatWindow>() {
 					override readonly editorGroup = new class extends mock<IEditorGroup>() {
 						override readonly id = index + 10;
 					}();
 					override readonly content = observableValue('content', { editorArea: {} } as never);
-					override readonly session = observableValue('session', { providerId: 'test', resource: session, activeChat: observableValue('chat', { resource: chat }) } as never);
+					override readonly session = observableValue('session', { providerId: providerIds[index], resource: session, activeChat: observableValue('chat', { resource: chat }) } as never);
 				}(),
 			};
 		});
 		const canvasLists = windows.map(() => observableValue<readonly ICanvas[]>('canvases', []));
 		const listed: string[] = [];
 		const createContexts = (): ICanvasContext[] => windows.map(({ owner }, index) => ({
-			owner,
+			owner: { ...owner, providerId: providerIds[index] },
 			canvases: canvasLists[index],
 			definitionProvider: {
 				onDidChangeDefinitions: Event.None,
@@ -78,7 +79,14 @@ suite('Chat window - canvases in the Add Tab list', () => {
 			new NullLogService() as ILogService,
 			new class extends mock<INotificationService>() { }(),
 		));
-		return { registration, listed, rebuildContexts: () => contexts.set(createContexts(), undefined), replaceCanvases: (index: number) => { canvasLists[index] = observableValue<readonly ICanvas[]>('canvases', []); contexts.set(createContexts(), undefined); }, opened, reopened, revealed, activeSession, windows, windowList, reopenable, canvasLists };
+		const changeProvider = (index: number, providerId: string) => {
+			providerIds[index] = providerId;
+			transaction(tx => {
+				windows[index].window.session.set({ providerId, resource: windows[index].owner.session, activeChat: observableValue('chat', { resource: windows[index].owner.chat }) } as never, tx);
+				contexts.set(createContexts(), tx);
+			});
+		};
+		return { registration, changeProvider, listed, rebuildContexts: () => contexts.set(createContexts(), undefined), replaceCanvases: (index: number) => { canvasLists[index] = observableValue<readonly ICanvas[]>('canvases', []); contexts.set(createContexts(), undefined); }, opened, reopened, revealed, activeSession, windows, windowList, reopenable, canvasLists };
 	}
 
 	async function entries(count: number) {
@@ -192,6 +200,17 @@ suite('Chat window - canvases in the Add Tab list', () => {
 		assert.deepStrictEqual(after, before);
 	});
 
+	test('the same session and chat of another provider is registered again', async () => {
+		const { changeProvider } = createFixture(['one']);
+		await entries(2);
+		let changes = 0;
+		store.add(MenuRegistry.onDidChangeMenu(ids => { changes += ids.has(Menus.ChatWindowAddTabCanvas) || ids.has(Menus.SessionActivityBar) ? 1 : 0; }));
+		changeProvider(0, 'other');
+		await timeout(0);
+
+		assert.strictEqual(changes > 0, true);
+	});
+
 	suite('Session Activity Bar', () => {
 
 		const title = (item: { command: { title: string | { value: string } } }) => typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
@@ -244,6 +263,21 @@ suite('Chat window - canvases in the Add Tab list', () => {
 			assert.deepStrictEqual({ first: activityBar(10), second: activityBar(11) }, {
 				first: { direct: ['Open a'], submenus: 0, submenuEntries: [] },
 				second: { direct: [], submenus: 1, submenuEntries: ['Open b', 'Open c'] },
+			});
+		});
+
+		test('a change of the canvases in the Canvas menu leaves the strips of all windows as they are', async () => {
+			const { canvasLists } = createFixture(['one', 'two']);
+			canvasLists[0].set([canvasOf('one', 'a'), canvasOf('one', 'b')], undefined);
+			canvasLists[1].set([canvasOf('two', 'c'), canvasOf('two', 'd')], undefined);
+			await timeout(0);
+			let stripChanges = 0;
+			store.add(MenuRegistry.onDidChangeMenu(ids => { stripChanges += ids.has(Menus.SessionActivityBar) ? 1 : 0; }));
+			canvasLists[0].set([canvasOf('one', 'a'), canvasOf('one', 'b'), canvasOf('one', 'e')], undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({ stripChanges, first: activityBar(10).submenuEntries, second: activityBar(11).submenuEntries }, {
+				stripChanges: 0, first: ['Open a', 'Open b', 'Open e'], second: ['Open c', 'Open d'],
 			});
 		});
 

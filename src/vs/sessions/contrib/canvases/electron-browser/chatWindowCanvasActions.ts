@@ -66,6 +66,8 @@ class ChatWindowCanvasMenu extends Disposable {
 	private signature: string | undefined;
 	private readonly activityBarRegistration = this._register(new MutableDisposable<IDisposable>());
 	private activityBarSignature: string | undefined;
+	private readonly activityBarItem = this._register(new MutableDisposable<IDisposable>());
+	private activityBarItemKey: string | undefined;
 
 	constructor(
 		window: IChatWindow,
@@ -130,7 +132,7 @@ class ChatWindowCanvasMenu extends Disposable {
 			}
 			const { context: { owner }, specs } = current;
 			// An unrelated canvas change leaves the entries as they are, so they are not registered again.
-			const signature = JSON.stringify([owner.session.toString(), owner.chat.toString(), specs.map(spec => [spec.group, spec.order, spec.title, spec.key])]);
+			const signature = JSON.stringify([owner.providerId, owner.session.toString(), owner.chat.toString(), specs.map(spec => [spec.group, spec.order, spec.title, spec.key])]);
 			if (signature === this.signature && this.registration.value) {
 				return;
 			}
@@ -155,7 +157,9 @@ class ChatWindowCanvasMenu extends Disposable {
 			const offered = canvases.length === 0 ? entries.read(reader) : undefined;
 			if (!current || (canvases.length === 0 && !offered)) {
 				this.activityBarSignature = undefined;
+				this.activityBarItemKey = undefined;
 				this.activityBarRegistration.clear();
+				this.activityBarItem.clear();
 				return;
 			}
 			const labels = getCanvasInstanceLabels(canvases);
@@ -164,18 +168,28 @@ class ChatWindowCanvasMenu extends Disposable {
 				run: () => this.canvasService.revealCanvas({ ...current.owner, canvas: canvas.resource }),
 			}));
 			const specs = offered ? offered.specs : reveals;
-			const signature = JSON.stringify([current.owner.session.toString(), current.owner.chat.toString(), canvases.length === 1, specs.map(spec => [spec.group, spec.order, spec.title, spec.key])]);
-			if (signature === this.activityBarSignature && this.activityBarRegistration.value) {
+			const direct = canvases.length === 1;
+			// The item in the strip changes only with the shape of the offer: the Canvas menu is registered once and its entries change on their own, so the strips of the other windows are not rebuilt.
+			const itemKey = direct ? JSON.stringify([current.owner.providerId, current.owner.session.toString(), current.owner.chat.toString(), reveals[0].key, reveals[0].title]) : 'menu';
+			if (itemKey !== this.activityBarItemKey || !this.activityBarItem.value) {
+				this.activityBarItemKey = itemKey;
+				const store = new DisposableStore();
+				if (direct) {
+					const id = this.registerCommand(store, reveals[0]);
+					store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id, title: reveals[0].title, icon: Codicon.preview }, group: SessionActivityBarGroup.SidePanel, order: 4, when }));
+				} else {
+					store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { submenu: Menus.ChatWindowActivityBarCanvas, title: localize('chatWindowCanvas.submenu', "Canvas"), icon: Codicon.preview, group: SessionActivityBarGroup.SidePanel, order: 4, when }));
+				}
+				this.activityBarItem.value = store;
+			}
+			const signature = direct ? undefined : JSON.stringify([current.owner.providerId, current.owner.session.toString(), current.owner.chat.toString(), specs.map(spec => [spec.group, spec.order, spec.title, spec.key])]);
+			if (signature === this.activityBarSignature && (direct || this.activityBarRegistration.value)) {
 				return;
 			}
 			this.activityBarSignature = signature;
 			const store = new DisposableStore();
-			if (canvases.length === 1) {
-				const id = this.registerCommand(store, reveals[0]);
-				store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id, title: reveals[0].title, icon: Codicon.preview }, group: SessionActivityBarGroup.SidePanel, order: 4, when }));
-			} else {
+			if (!direct) {
 				this.registerEntries(store, Menus.ChatWindowActivityBarCanvas, specs, when);
-				store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { submenu: Menus.ChatWindowActivityBarCanvas, title: localize('chatWindowCanvas.submenu', "Canvas"), icon: Codicon.preview, group: SessionActivityBarGroup.SidePanel, order: 4, when }));
 			}
 			this.activityBarRegistration.value = store;
 		}));

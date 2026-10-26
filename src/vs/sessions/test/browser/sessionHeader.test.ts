@@ -481,6 +481,16 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('showing the chrome of the window again does not apply it again', () => {
+		const { header } = createHarness(disposables);
+
+		header.setWindowChrome(true);
+		header.element.draggable = true;
+		header.setWindowChrome(true);
+
+		assert.strictEqual(header.element.draggable, true);
+	});
+
 	test('puts the overflow of the session actions after the chrome of the window', () => {
 		const { header } = createHarness(disposables);
 		const order = () => Array.from(header.element.querySelector('.chat-composite-bar-title-row')!.children)

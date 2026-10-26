@@ -11,6 +11,7 @@ import { toDisposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { getMacOSWindowControlsPosition } from '../../../platform/window/common/window.js';
@@ -97,6 +98,62 @@ suite('Sessions - Native Titlebar Part', () => {
 		part.layout(800, part.minimumHeight);
 		heights.push(lastHeight());
 		assert.deepStrictEqual(heights, [46, 32, 32, 28, 35]);
+	});
+
+	(isMacintosh ? test : test.skip)('centers the macOS traffic lights again when the density changes while the title bar is chromeless', async () => {
+		const initialZoom = getZoomFactor(mainWindow);
+		setZoomFactor(1, mainWindow);
+		store.add(toDisposable(() => setZoomFactor(initialZoom, mainWindow)));
+		const configuration = new TestConfigurationService({
+			window: { titleBarStyle: 'custom' },
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Default,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		const updates: Parameters<INativeHostService['updateWindowControls']>[0][] = [];
+		instantiationService.stub(INativeHostService, new class extends TestNativeHostService {
+			override async updateWindowControls(options: Parameters<INativeHostService['updateWindowControls']>[0]): Promise<void> {
+				updates.push(options);
+			}
+		}());
+		instantiationService.stub(INativeWorkbenchEnvironmentService, new class extends mock<INativeWorkbenchEnvironmentService>() {
+			override readonly os = { release: '25.0.0', hostname: 'test', arch: 'arm64' };
+		}());
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.mac'));
+		store.add(toDisposable(() => container.remove()));
+		const part = store.add(instantiationService.createInstance(NativeTitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		part.create(append(container, $('.part.titlebar')));
+
+		part.setChromeless(true);
+		const before = updates.at(-1)?.height;
+		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Compact);
+		configuration.onDidChangeConfigurationEmitter.fire({ source: ConfigurationTarget.USER, affectedKeys: new Set([LayoutSettings.MODERN_UI_DENSITY]), change: { keys: [LayoutSettings.MODERN_UI_DENSITY], overrides: [] }, affectsConfiguration: key => key === LayoutSettings.MODERN_UI_DENSITY });
+
+		assert.deepStrictEqual([before, updates.at(-1)?.height], [32, 28]);
+	});
+
+	test('a title bar that hosts the session header is as high as the header', () => {
+		const configuration = new TestConfigurationService({
+			window: { titleBarStyle: 'custom' },
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Default,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		instantiationService.stub(INativeHostService, new TestNativeHostService());
+		instantiationService.stub(INativeWorkbenchEnvironmentService, new class extends mock<INativeWorkbenchEnvironmentService>() {
+			override readonly os = { release: '25.0.0', hostname: 'test', arch: 'arm64' };
+		}());
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		const part = store.add(instantiationService.createInstance(NativeTitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		part.create(append(container, $('.part.titlebar')));
+
+		const own = part.minimumHeight;
+		part.setHostsSessionHeader(true);
+		const hosting = part.minimumHeight;
+		part.setHostsSessionHeader(false);
+
+		assert.deepStrictEqual({ own, hosting, restored: part.minimumHeight }, { own: 44, hosting: 32, restored: 44 });
 	});
 
 	for (const release of ['24.0.0', '25.0.0']) {

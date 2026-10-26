@@ -59,6 +59,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
 	private chromeless = false;
+	private hostsHeader = false;
 	private sessionHeaderHost: HTMLElement | undefined;
 
 	/**
@@ -75,7 +76,23 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	/** Shows the {@link getSessionHeaderHost} in place of the content of this title bar. The window title it sets stays. */
 	setHostsSessionHeader(hosts: boolean): void {
-		this.element.classList.toggle('hosts-session-header', hosts);
+		if (this.hostsHeader !== hosts) {
+			this.hostsHeader = hosts;
+			this.element.classList.toggle('hosts-session-header', hosts);
+			this._onDidChange.fire(undefined);
+			this.onDidChangeChromeless();
+		}
+	}
+
+	protected get hostsSessionHeader(): boolean {
+		return this.hostsHeader;
+	}
+
+	/** The height of the session header, which a title bar that hosts it takes, and whose row a chromeless one has none of. */
+	private get sessionHeaderHeight(): number {
+		return this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
+			? SESSION_HEADER_COMPACT_HEIGHT
+			: SESSION_HEADER_HEIGHT;
 	}
 
 	get height() { return this.chromeless ? 0 : this.minimumHeight; }
@@ -99,17 +116,15 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	 * sit in the session header, the top row of the window, whose height is set in `chatCompositeBar.css`.
 	 */
 	protected get windowControlsRowHeight(): number {
-		if (!this.chromeless) {
-			return this.minimumHeight;
-		}
-		return this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
-			? SESSION_HEADER_COMPACT_HEIGHT
-			: SESSION_HEADER_HEIGHT;
+		return this.chromeless ? this.sessionHeaderHeight : this.minimumHeight;
 	}
 
 	protected onDidChangeChromeless(): void { }
 
 	get minimumHeight(): number {
+		if (this.hostsHeader) {
+			return this.sessionHeaderHeight / (this.preventZoom ? getZoomFactor(getWindow(this.element)) : 1);
+		}
 		const wcoEnabled = isWeb && isWCOEnabled();
 		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
 			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT

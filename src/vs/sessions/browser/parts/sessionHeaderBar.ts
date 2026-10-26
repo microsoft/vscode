@@ -87,6 +87,7 @@ export class SessionHeaderBar extends Disposable {
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private readonly _titleActionsEl: HTMLElement;
 	private readonly _windowChromeEl: HTMLElement;
+	private _windowChromeShown = false;
 	private readonly _windowChromeLights = this._register(new MutableDisposable());
 	private readonly _windowChromeToolbars = this._register(new MutableDisposable<DisposableStore>());
 
@@ -246,6 +247,10 @@ export class SessionHeaderBar extends Disposable {
 	 * and the layout of a chat window. The empty space of the header then drags the window.
 	 */
 	setWindowChrome(shown: boolean): void {
+		if (shown === this._windowChromeShown) {
+			return;
+		}
+		this._windowChromeShown = shown;
 		this._container.classList.toggle('window-chrome', shown);
 		this._container.draggable = !shown;
 		// The overflow of the session actions comes last, after the actions of the window.
