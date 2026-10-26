@@ -2069,11 +2069,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		let page = await this.marketplaceService.query(getQuery(undefined), token, onProgress);
 		for (let pageCount = 1; page.nextCursor && page.items.length < depth && pageCount < maxRefreshCatalogPages && !token.isCancellationRequested; pageCount++) {
 			const next = await this.marketplaceService.query(getQuery(page.nextCursor), token);
+			const sourceErrors = new Map([...page.sourceErrors ?? [], ...next.sourceErrors ?? []].map(error => [error.sourceId, error]));
 			page = {
 				items: [...page.items, ...next.items],
 				total: next.total ?? page.total,
 				nextCursor: next.nextCursor,
-				sourceErrors: next.sourceErrors ?? page.sourceErrors,
+				sourceErrors: sourceErrors.size ? [...sourceErrors.values()] : undefined,
 			};
 		}
 		return page;

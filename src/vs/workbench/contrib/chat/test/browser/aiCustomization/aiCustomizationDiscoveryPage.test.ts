@@ -3613,10 +3613,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		await waitForRequestCount(fixture.requests, 4);
 		fixture.requests[3].onProgress?.({ page: { items: sourceResources(0, 5) }, completedSourceIds: [], cachedSourceIds: [], totalSourceCount: 1 });
 		const afterPartialProgress = state();
-		await fixture.requests[3].result.complete({ items: sourceResources(0, 24), nextCursor: { token: 'refreshed-page-2' } });
+		await fixture.requests[3].result.complete({ items: sourceResources(0, 24), nextCursor: { token: 'refreshed-page-2' }, sourceErrors: [{ sourceId: 'other', message: 'Refresh warning' }] });
 		await waitForRequestCount(fixture.requests, 5);
 		const whileRestoringDepth = state();
-		await fixture.requests[4].result.complete({ items: sourceResources(24, 10), nextCursor: { token: 'refreshed-page-3' } });
+		await fixture.requests[4].result.complete({ items: sourceResources(24, 10), nextCursor: { token: 'refreshed-page-3' }, sourceErrors: [{ sourceId: 'unrelated', message: 'Unrelated warning' }] });
 		await timeout(0);
 
 		assert.deepStrictEqual({
@@ -3624,11 +3624,13 @@ suite('AICustomizationDiscoveryPage', () => {
 			whileRestoringDepth,
 			after: state(),
 			cursors: fixture.requests.slice(3).map(request => request.options.cursor),
+			firstPageErrorReported: fixture.prompts.some(([, message]) => String(message).includes('Refresh warning')),
 		}, {
 			afterPartialProgress: before,
 			whileRestoringDepth: before,
 			after: before,
 			cursors: [undefined, { token: 'refreshed-page-2' }],
+			firstPageErrorReported: true,
 		});
 	});
 

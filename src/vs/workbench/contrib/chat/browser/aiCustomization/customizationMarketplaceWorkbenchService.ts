@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../../base/common/arrays.js';
 import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -32,6 +33,11 @@ import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizatio
 
 export function getProviderMarketplaceSourceId(name: string): string {
 	return `providerPluginMarketplace.${encodeURIComponent(name)}`;
+}
+
+/** Compares the fields that determine a provider marketplace's source identity, availability, and queries. */
+function providerMarketplacesEqual(a: ICustomizationMarketplaceInfo, b: ICustomizationMarketplaceInfo): boolean {
+	return a.name === b.name && a.source === b.source && a.available === b.available;
 }
 
 interface IAgentFinderBrowseFeed {
@@ -232,22 +238,22 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				descriptor?.marketplaceManagementProvider,
 			);
 		}));
-		const anySource: ICustomizationMarketplaceSourcesChangeEvent = {};
+		const anySource = (): ICustomizationMarketplaceSourcesChangeEvent => ({});
 		this.onDidChangeSources = Event.map(Event.any<ICustomizationMarketplaceSourcesChangeEvent>(
 			this._onDidChangeSources.event,
-			Event.map(pluginMarketplaceService.onDidChangeMarketplaces, () => anySource),
+			Event.map(pluginMarketplaceService.onDidChangeMarketplaces, anySource),
 			Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
-				affectsCustomizationMarketplaceSources(event, this.allSources)), () => anySource),
+				affectsCustomizationMarketplaceSources(event, this.allSources)), anySource),
 			platformService.onDidChangeSources ?? Event.None,
-			Event.map(Event.fromObservableLight(this.harnessService.activeHarness), () => anySource),
+			Event.map(Event.fromObservableLight(this.harnessService.activeHarness), anySource),
 			// Session switches only change the session-bound sources; account-bound sources such as Copilot Connectors keep their results.
 			Event.map(Event.fromObservableLight(this.harnessService.activeSessionResource), () => ({ sourceIds: this.getSessionBoundSourceIds() })),
-			Event.map(defaultAccountService.onDidChangeDefaultAccount, () => anySource),
+			Event.map(defaultAccountService.onDidChangeDefaultAccount, anySource),
 			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
 				const account = defaultAccountService.currentDefaultAccount;
 				return !!account && event.providerId === account.authenticationProvider.id &&
 					[...event.event.added ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
-			}), () => anySource),
+			}), anySource),
 		), event => {
 			this.service?.clearBrowseCache(event.sourceIds);
 			if (!event.sourceIds || event.sourceIds.includes(CustomizationMarketplaceSources.AgentFinderPublicFeed.id)) {
@@ -327,7 +333,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			this.providerMarketplaces = marketplaces;
 			const forceChangeEvent = this.pendingProviderMarketplaceContentChange;
 			this.pendingProviderMarketplaceContentChange = false;
-			if (forceChangeEvent || JSON.stringify(marketplaces) !== JSON.stringify(previousMarketplaces)) {
+			if (forceChangeEvent || !equals(marketplaces, previousMarketplaces, providerMarketplacesEqual)) {
 				this._onDidChangeSources.fire({ sourceIds: [...new Set(this.getProviderMarketplaceSourceIds([...previousMarketplaces, ...marketplaces]))] });
 			}
 		} catch (error) {
