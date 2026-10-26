@@ -1929,6 +1929,7 @@ suite('Sessions - Actions', () => {
 		const providers = [
 			{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
 			{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
+			{ id: 'sandbox-provider', environment: { id: 'cloud', label: 'Cloud' } },
 			{ id: 'host-provider', environment: { id: 'host', label: 'My Host', isConnected: constObservable(false) } },
 		].map(provider => upcastPartial<ISessionsProvider>(provider));
 		const session = (title: string, environment: string, minutesAgo: number) => createTestSession(title, {
@@ -1939,9 +1940,15 @@ suite('Sessions - Actions', () => {
 			createdAt: new Date(Date.now() - minutesAgo * 60_000),
 		}).session;
 		// The newest session runs on a host that is disconnected, so it can't start new sessions.
+		// A cloud sandbox session names only its repository URL, which has no checkout to start in.
+		const sandbox = createTestSession('sandbox', { providerId: 'sandbox-provider', environment: 'cloud', createdAt: new Date() }).session;
+		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const section = upcastPartial<ISessionSection>({
 			repository: { owner: 'microsoft', name: 'vscode' },
-			sessions: [session('host', 'host', 1), session('older-local', 'local', 4), session('cloud', 'cloud', 3), session('local', 'local', 2)],
+			sessions: [
+				session('host', 'host', 1), session('older-local', 'local', 4), session('cloud', 'cloud', 3), session('local', 'local', 2),
+				{ ...sandbox, workspace: constObservable({ uri: sandboxRoot, label: 'microsoft/vscode', icon: Codicon.repo, folders: [{ root: sandboxRoot, workingDirectory: sandboxRoot, name: 'microsoft/vscode', description: undefined }], requiresWorkspaceTrust: true, isVirtualWorkspace: false }) },
+			],
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const selections: string[] = [];
