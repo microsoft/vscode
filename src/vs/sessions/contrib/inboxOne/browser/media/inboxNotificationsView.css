@@ -603,11 +603,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-small);
-	border: 1px solid var(--vscode-widget-border);
-	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
-	padding: 0 var(--vscode-spacing-size80);
 	min-height: 20px;
 }
 
