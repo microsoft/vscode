@@ -830,6 +830,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
 				'chat.defaultModel': AGENT_HOST_MODEL,
+				// The mock server does not serve the `/meta` model catalog that dynamic Auto tiers read.
+				'chat.copilot.dynamicAutoTiers.enabled': false,
 				...config.settings,
 				...remoteFixture?.settings,
 			}, null, 2);
