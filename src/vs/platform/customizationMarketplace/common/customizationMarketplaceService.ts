@@ -78,6 +78,7 @@ export interface ICustomizationMarketplaceEntry {
 	readonly description: string;
 	readonly mediaType: string;
 	readonly tags: readonly string[];
+	readonly compatibilityTags?: readonly string[];
 	readonly capabilities: readonly string[];
 	readonly representativeQueries: readonly string[];
 	readonly connectorIds?: readonly string[];
@@ -92,6 +93,7 @@ export interface ICustomizationMarketplaceEntry {
 	/** Source-supplied origin within a feed, distinct from the feed's display name. */
 	readonly originLabel?: string;
 	readonly version?: string;
+	readonly installCount?: number;
 	readonly stars?: number;
 	/** Source-assigned relevance from 0 to 100, not a quality or trust rating. Unscored search results rank as 0. */
 	readonly score?: number;
