@@ -9,7 +9,7 @@ import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -880,6 +880,60 @@ suite('AgentHostSessionInputPills', () => {
 			releasedSubscriptions: true,
 		});
 	});
+
+	for (const opaque of [false, true]) {
+		test(`subagent chats expose their own transcript activity without changing input pills (${opaque ? 'host-advertised' : 'canonical'} identity)`, async () => {
+			const backendSession = URI.parse('vendor:/sessions/42');
+			const mainChat = opaque ? 'vendor-chat:/conversations/main' : buildDefaultChatUri(backendSession);
+			const childResource = (id: string) => opaque ? `vendor-chat:/workers/${id}` : buildSubagentChatUri(backendSession, id);
+			const workerChat = childResource('tool-1');
+			const chats: ChatSummary[] = [
+				{ id: 'tool-1', title: 'Worker', parent: mainChat, status: SessionStatus.InProgress },
+				{ id: 'nested', title: 'Nested worker', parent: workerChat, status: SessionStatus.InProgress },
+				{ id: 'completed', title: 'Completed nested worker', parent: workerChat, status: SessionStatus.Idle },
+				{ id: 'sibling', title: 'Sibling worker', parent: mainChat, status: SessionStatus.InProgress },
+			].map(({ id, title, parent, status }) => ({
+				resource: childResource(id), title, status, modifiedAt: '2026-09-01T00:00:00.000Z',
+				origin: { kind: ChatOriginKind.Tool, chat: parent, toolCallId: id },
+			}));
+			const session = upcastPartial<SessionState>({ defaultChat: mainChat, chats });
+			const shell: BackgroundShellWork = {
+				kind: BackgroundWorkKind.Shell, id: 'shell:child', label: 'Child command', command: 'sleep 30',
+				startedAt: '2026-09-01T00:00:00.000Z',
+			};
+			const harness = createActivityPills(session, upcastPartial<ChatState>({ backgroundWork: [shell] }));
+			harness.visibility.toggle(SessionChatPillKind.Subagents);
+			const editorResource = opaque
+				? getSubagentEditorResource({ chatResource: workerChat, parentSessionResource: harness.sessionResource.toString() })
+				: harness.sessionResource.with({ fragment: 'subagent/tool-1' });
+			harness.showSession(editorResource);
+			const activity = () => ({
+				inputPills: harness.labels(),
+				subagents: harness.backgroundActivityPillSections()?.subagents?.get().flatMap(section => section.entries.map(entry => entry.label)).sort(),
+				shells: harness.backgroundActivityPillSections()?.backgroundShells?.get().map(shell => shell.description),
+				chatSubscription: harness.connection.requested.filter(request => request.kind === StateComponents.Chat).at(-1)?.resource.toString(),
+			});
+			const running = activity();
+			await harness.backgroundActivityPillSections()?.subagents?.get()[0]?.entries[0]?.open?.();
+			harness.connection.setState(StateComponents.Session, {
+				...session,
+				chats: chats.map(chat => isEqual(URI.parse(chat.resource), URI.parse(childResource('nested'))) ? { ...chat, status: SessionStatus.Idle } : chat),
+			});
+			harness.connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
+			const finished = activity();
+			harness.showSession(harness.sessionResource);
+
+			assert.deepStrictEqual({ running, finished, parent: activity(), commands: harness.commands }, {
+				running: { inputPills: [], subagents: ['Nested worker'], shells: ['Child command'], chatSubscription: workerChat },
+				finished: { inputPills: [], subagents: [], shells: [], chatSubscription: workerChat },
+				parent: { inputPills: ['2 Subagents'], subagents: ['Sibling worker', 'Worker'], shells: [], chatSubscription: mainChat },
+				commands: [{
+					id: CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID,
+					args: [{ chatResource: childResource('nested'), parentSessionResource: editorResource.toString(), title: 'Nested worker' }],
+				}],
+			});
+		});
+	}
 
 	test('shows the chat\'s live canvases, reveals the selected canvas, and closes a canvas from its row', async () => {
 		const harness = createActivityPills(upcastPartial<SessionState>({ defaultChat: 'vendor-chat:/main', chats: [] }));

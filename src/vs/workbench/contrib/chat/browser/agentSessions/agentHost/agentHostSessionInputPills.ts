@@ -1021,8 +1021,8 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		const subagentPillData = createSessionSubagentsPillData(subagents, visibility.subagents);
 		this._register(this._widget.registerBackgroundActivityPillSections({
-			subagents: derived(this, reader => subagentChat.read(reader) ? [] : subagentPillData.inProgressSections.read(reader)),
-			backgroundShells: derived(this, reader => subagentChat.read(reader) ? [] : backgroundShellSource.read(reader)?.backgroundShells.read(reader) ?? []),
+			subagents: subagentPillData.inProgressSections,
+			backgroundShells: derived(this, reader => backgroundShellSource.read(reader)?.backgroundShells.read(reader) ?? []),
 		}));
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
