@@ -69,3 +69,31 @@
 .agent-sessions-workbench .chat-window-card .session-changes-editor-body .multi-diff-editor-with-file-list-files {
 	margin-top: calc(-1 * var(--vscode-spacing-size40));
 }
+
+/* The split view draws its separator on the view's wrapper, which stays inside the body's padding. The list draws the separator itself, so it starts at the line. */
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .multi-diff-editor-with-file-list .split-view-view::before {
+	display: none;
+}
+
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .multi-diff-editor-with-file-list-files {
+	position: relative;
+}
+
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .multi-diff-editor-with-file-list-files::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	z-index: 5;
+	pointer-events: none;
+	background-color: var(--separator-border, var(--vscode-multiDiffEditor-border));
+}
+
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .split-view-view:not(:first-child) > .multi-diff-editor-with-file-list-files::before {
+	left: 0;
+}
+
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body .split-view-view:first-child > .multi-diff-editor-with-file-list-files::before {
+	right: 0;
+}
