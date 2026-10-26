@@ -2212,7 +2212,7 @@ suite('Automation dialog creation', () => {
 						: element.classList.contains('automation-loading-spinner') ? 'loading spinner' : element.textContent),
 				iconHidden: row.querySelector('.codicon-cloud')?.getAttribute('aria-hidden'),
 				accessibleLabel: row.querySelector(`#${cloudSwitch.getAttribute('aria-labelledby')}`)?.textContent,
-				describedBy: cloudSwitch.getAttribute('aria-describedby'),
+				describedBy: row.querySelector(`#${cloudSwitch.getAttribute('aria-describedby')}`)?.textContent,
 				disabled: cloudSwitch.disabled,
 			};
 			dialog.cancelButton.click();
@@ -2221,10 +2221,10 @@ suite('Automation dialog creation', () => {
 		};
 		const expected = {
 			rowVisible: true,
-			content: ['cloud icon', 'Run in the Cloud', 'switch', 'loading spinner'],
+			content: ['cloud icon', 'Run in the Cloud', 'switch', 'Preview', 'loading spinner'],
 			iconHidden: 'true',
 			accessibleLabel: 'Run in the Cloud',
-			describedBy: null,
+			describedBy: 'Preview',
 		};
 		assert.deepStrictEqual({ create: await cloudRow({}), edit: await cloudRow({ existing }) }, {
 			create: { ...expected, disabled: false },

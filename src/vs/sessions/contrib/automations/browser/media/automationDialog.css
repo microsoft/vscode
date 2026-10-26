@@ -721,7 +721,8 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
-.automation-customization-outdated {
+.automation-customization-outdated,
+.automation-cloud-preview {
 	flex-shrink: 0;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
