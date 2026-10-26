@@ -450,18 +450,24 @@ suite('ChatImageReveal', () => {
 	});
 
 	test('time spent handling the image load does not extend the reveal deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		// Each surface times its reveal from the phase of its own last loading frame, so compare each
+		// animation with that surface's own timing rather than assuming both surfaces share one.
+		const revealTiming = sinon.spy(GlyphSurface.prototype, 'getRevealTiming');
 		const { container, image, reveal } = await render();
 		const fresh = await render();
 		const loadedAt = mainWindow.performance.now();
 		await timeout(100);
 		fresh.reveal.reveal();
+		const freshPace = revealTiming.lastCall.returnValue.pace.duration;
 		reveal.reveal(loadedAt);
+		const pace = revealTiming.lastCall.returnValue.pace.duration;
 		const duration = Number(container.getAnimations({ subtree: true })[0].effect?.getTiming().duration);
 		const freshDuration = Number(fresh.container.getAnimations({ subtree: true })[0].effect?.getTiming().duration);
 		await timeout(duration - 1);
 		const beforeDeadline = container.classList.contains('revealing');
 		await timeout(2);
-		assert.deepStrictEqual({ shortenedBy: Math.round(freshDuration - duration), beforeDeadline, finished: snapshot(container, image) }, {
+		assert.deepStrictEqual({ freshShortenedBy: Math.round(freshPace - freshDuration), shortenedBy: Math.round(pace - duration), beforeDeadline, finished: snapshot(container, image) }, {
+			freshShortenedBy: 0,
 			shortenedBy: 100,
 			beforeDeadline: true,
 			finished: { pending: false, revealing: false, effects: 0, imageOpacity: '1' },
