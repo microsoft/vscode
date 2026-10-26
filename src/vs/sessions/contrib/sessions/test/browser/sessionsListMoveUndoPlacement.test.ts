@@ -42,6 +42,8 @@ suite('Sessions List - Undoing a move restores placement', () => {
 		const promoted: ISession = { ...promotedTest.session, chats: constObservable([promotedTest.session.mainChat.get()]) };
 		let sessions: ISession[] = [nested.session, target.session];
 		const chatMoved = store.add(new Emitter<IChatMovedEvent>());
+		let reportPromotion: (() => void) | undefined;
+		let reportPromotionLate = false;
 		const management = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = Event.None;
 			override readonly onWillSendRequest = Event.None;
@@ -63,7 +65,12 @@ suite('Sessions List - Undoing a move restores placement', () => {
 			override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
 				assert.strictEqual(destination.kind, 'newSession');
 				sessions = [...sessions, promoted];
-				chatMoved.fire({ from: { session, chat: chat.resource }, to: { session: promoted, chat: promoted.mainChat.get().resource } });
+				const report = () => chatMoved.fire({ from: { session, chat: chat.resource }, to: { session: promoted, chat: promoted.mainChat.get().resource } });
+				if (reportPromotionLate) {
+					reportPromotion = report;
+				} else {
+					report();
+				}
 			}
 		}();
 		const storage = store.add(new InMemoryStorageService());
@@ -81,7 +88,7 @@ suite('Sessions List - Undoing a move restores placement', () => {
 			placementServices: { sessionsListModelService: listModelService, sessionGroupsService: groupsService },
 		});
 		const nest = () => run({ kind: 'session', session: nested.session, destination: target.session, after: target.landing });
-		return { management, nested: nested.session, target: target.session, promoted, groupsService, listModelService, placementOf, nest, run, undo: () => undo!() };
+		return { management, nested: nested.session, target: target.session, promoted, groupsService, listModelService, placementOf, nest, run, undo: () => undo!(), reportLate: () => { reportPromotionLate = true; return () => reportPromotion!(); } };
 	}
 
 	test('undoing a nest brings a pinned ungrouped session back pinned and ungrouped, not in the group of the session it was nested under', async () => {
@@ -149,6 +156,19 @@ suite('Sessions List - Undoing a move restores placement', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual([...new Set(seen.map(placement => JSON.stringify(placement)))], [JSON.stringify({ pinned: true, group: undefined })]);
+	});
+
+	test('undoing a nest still restores the placement when the provider reports the move after it resolved', async () => {
+		const { nested, target, promoted, groupsService, listModelService, placementOf, nest, undo, reportLate } = setup();
+		groupsService.createGroup('TPI Group', [target.sessionId]);
+		listModelService.pinSession(nested);
+		await nest();
+		const report = reportLate();
+
+		await undo();
+		report();
+
+		assert.deepStrictEqual(placementOf(promoted), { pinned: true, group: undefined });
 	});
 
 	test('promoting a chat to a session still keeps the group of the session it came from', async () => {

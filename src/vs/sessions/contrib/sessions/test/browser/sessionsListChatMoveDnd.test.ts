@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
@@ -309,6 +310,8 @@ suite('Move Chats Drag and Drop', () => {
 						chatMoved.fire({ from: { session, chat: chat.resource }, to: { session: target, chat: landed.resource } });
 					} else if (!options?.unreported && destination.kind === 'newSession' && session === own) {
 						chatMoved.fire({ from: { session, chat: chat.resource }, to: { session: promotedSession, chat: promoted.resource } });
+					} else if (!options?.unreported && destination.kind === 'newSession' && isEqual(chat.resource, landedSingle.resource)) {
+						chatMoved.fire({ from: { session, chat: chat.resource }, to: { session: promotedSession, chat: promotedSession.mainChat.get().resource } });
 					}
 				}
 				override async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {

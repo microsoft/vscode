@@ -312,8 +312,8 @@ interface ISessionsListMoveUndo extends IDisposable {
 	readonly messages: ISessionsListMoveMessages;
 	/** The move back, or `undefined` when the moved chat or its session can't be found anymore. */
 	getMoveBack(): Promise<SessionsListMove | undefined>;
-	/** Called when the move back has finished, whether it moved or not. */
-	finishMoveBack(): void;
+	/** Called when the move back has finished: a move back that did not move stops waiting for the move's report, one that moved waits for it. */
+	finishMoveBack(moved: boolean): void;
 }
 
 /** The services that hold where a session shows in the sessions list: whether it is pinned and its custom group. */
@@ -368,7 +368,7 @@ function prepareSessionsListMoveUndo(move: SessionsListMove, sessionsManagementS
 	if (move.kind === 'session') {
 		const placement = getSessionPlacement(move.session, placementServices);
 		let restoring: IDisposable | undefined;
-		const finishMoveBack = () => {
+		const stopRestoring = () => {
 			restoring?.dispose();
 			restoring = undefined;
 		};
@@ -381,9 +381,13 @@ function prepareSessionsListMoveUndo(move: SessionsListMove, sessionsManagementS
 				}
 				return found && { kind: 'chat', session: found.session, chat: found.chat, destination: { kind: 'newSession' } };
 			},
-			finishMoveBack,
+			finishMoveBack: moved => {
+				if (!moved) {
+					stopRestoring();
+				}
+			},
 			dispose: () => {
-				finishMoveBack();
+				stopRestoring();
 				store.dispose();
 			},
 		};
@@ -490,10 +494,11 @@ export async function runSessionsListMove(
 	// Undo is offered by the notice only.
 	const undo = options.notice ? prepareSessionsListMoveUndo(move, sessionsManagementService, options.placementServices) : undefined;
 	const moved = await executeSessionsListMove(async () => move, getSessionsListMoveMessages(move), undo && (async () => {
+		let movedBack = false;
 		try {
-			await executeSessionsListMove(() => undo.getMoveBack(), undo.messages, undefined, runner);
+			movedBack = await executeSessionsListMove(() => undo.getMoveBack(), undo.messages, undefined, runner);
 		} finally {
-			undo.finishMoveBack();
+			undo.finishMoveBack(movedBack);
 		}
 	}), runner);
 	if (!moved) {
