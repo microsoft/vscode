@@ -185,6 +185,9 @@ async function renderSeparateImageBatches(context: ComponentFixtureContext, last
 			throw new Error('All three image batches must render independently');
 		}
 		await Promise.all([...context.container.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch img')].map(image => image.decode()));
+		if ([...context.container.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch-thumbnail img')].some(image => image.hidden)) {
+			throw new Error('Batch thumbnails stay hidden until their load event shapes the tile');
+		}
 	}, 50, 20);
 }
 
@@ -292,6 +295,9 @@ async function renderBatchGrid(context: ComponentFixtureContext): Promise<void> 
 			throw new Error(`Expected ${expected} completed batch thumbnails, got ${images.length}`);
 		}
 		await Promise.all(images.map(image => image.decode()));
+		if (images.some(image => image.hidden)) {
+			throw new Error('Batch thumbnails stay hidden until their load event shapes the tile');
+		}
 	}, 50, 20);
 }
 

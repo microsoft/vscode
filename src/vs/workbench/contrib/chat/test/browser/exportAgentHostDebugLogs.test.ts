@@ -49,7 +49,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { observableValue } from '../../../../../base/common/observable.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { getAgentHostAhpLogDirectoryMeta } from '../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
-import { InitializeResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { InitializeResult, JsonRpcErrorCodes, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -314,6 +314,29 @@ suite('exportAgentHostDebugLogs progress', () => {
 		await context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
 		assert.strictEqual(context.notifications[0].message, 'Agent Host logs were not fully exported: Remote log read failed');
 	});
+
+	for (const unsupported of [true, false]) {
+		test(`${unsupported ? 'does not warn' : 'warns'} when host log collection ${unsupported ? 'is unsupported' : 'fails'}`, async () => {
+			const error = new ProtocolError(unsupported ? JsonRpcErrorCodes.MethodNotFound : JsonRpcErrorCodes.InternalError, 'Host collection unavailable');
+			const context = setupExport(async () => { throw error; });
+			let savedClientOnly = false;
+			context.instantiation.stub(IAgentHostDebugLogsExportService, {
+				hostArtifactKind: 'archive',
+				selectDestination: async () => URI.file('/exports/logs.zip'),
+				save: async (_destination, _files, artifact) => { savedClientOnly = artifact === undefined; },
+			});
+			await context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+			assert.deepStrictEqual({
+				savedClientOnly,
+				warnings: context.notifications.filter(notification => !notification.actions?.primary?.length).map(notification => notification.message),
+				successNotifications: context.notifications.filter(notification => notification.actions?.primary?.length).length,
+			}, {
+				savedClientOnly: true,
+				warnings: unsupported ? [] : ['Only VS Code logs were exported. Agent Host logs could not be collected: Host collection unavailable'],
+				successNotifications: 1,
+			});
+		});
+	}
 });
 
 suite('commitAgentHostDebugLogsExport', () => {

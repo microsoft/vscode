@@ -9,7 +9,9 @@ import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
 export interface IDiffCountResult {
 	added: number;
 	removed: number;
+	/** Whitespace-sensitive character edits, independent of the whitespace-insensitive line counts. */
 	changes: readonly IOffsetEdit[];
+	readonly hitTimeout?: boolean;
 }
 
 export interface IOffsetEdit {
@@ -71,7 +73,7 @@ export interface IDiffComputeService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Computes line-level diff counts and character edits between two text strings.
+	 * Computes whitespace-insensitive line counts and whitespace-sensitive character edits between two text strings.
 	 * @param original - The original text.
 	 * @param modified - The modified text to compare against the original.
 	 * @param timeoutMs - Maximum time in milliseconds before aborting. Defaults to {@link DEFAULT_DIFF_TIMEOUT_MS}.

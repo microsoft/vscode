@@ -258,6 +258,54 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('a disabled tab bar action explains why and does not run', () => {
+		const setupManagedHover = sinon.spy(NullHoverService.setupManagedHover);
+		const hoverService: IHoverService = { ...NullHoverService, setupManagedHover };
+		const { widget } = createWidget(disposables, true, undefined, hoverService);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
+		disposables.add({ dispose: () => { anchor.remove(); document.body.style.removeProperty('--vscode-toolbar-hoverBackground'); } });
+		let runs = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', checked: true, disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', checked: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const button = document.querySelector<HTMLElement>('[data-id="add"]')!;
+		button.click();
+		assert.deepStrictEqual({
+			label: button.getAttribute('aria-label'),
+			disabled: button.getAttribute('aria-disabled'),
+			description: button.getAttribute('aria-description'),
+			nativeTitle: button.getAttribute('title'),
+			managedHovers: setupManagedHover.getCalls().map(call => ({ action: call.args[1].dataset.id, content: call.args[2] })),
+			disabledClass: button.classList.contains('disabled'),
+			iconOpacity: mainWindow.getComputedStyle(button.querySelector('.codicon')!).opacity,
+			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
+			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
+			runs,
+		}, {
+			label: 'Add Models...',
+			disabled: 'true',
+			description: 'Not supported here',
+			nativeTitle: null,
+			managedHovers: [{ action: 'add', content: 'Not supported here' }],
+			disabledClass: true,
+			iconOpacity: '0.4',
+			checkedBackground: 'rgba(0, 0, 0, 0)',
+			enabledCheckedBackground: 'rgb(1, 2, 3)',
+			runs: 0,
+		});
+	});
+
 	test('Escape from a Details radio dismisses the entire popup, including retained search', async () => {
 		const { widget, input, selected } = createSearchableWidget(disposables, ['first match', 'second match']);
 		let radio: Radio | undefined;

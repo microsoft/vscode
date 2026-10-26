@@ -32,6 +32,7 @@ import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatC
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionResponseMeta.js';
 import { readMcpServerSource, type McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 
@@ -911,12 +912,15 @@ export class AgentSideEffects extends Disposable {
 		if (session === undefined) {
 			return;
 		}
-		const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(session, channel), this._agentConfigService.getChatConfigState({ session, chat: channel }), action.message.model?.id);
+		const { model, modelTelemetryKind, modelSelectionKind, autoTier, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(session, channel), this._agentConfigService.getChatConfigState({ session, chat: channel }), action.message.model);
 		const clientContext = {
 			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 		};
 		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined);
+		if (autoTier !== undefined) {
+			this._turnTracker.updateFusionTelemetry(channel, action.turnId, { autoTier });
+		}
 		if (startedWithSteering) {
 			this._turnTracker.markSteering(channel, action.turnId, 'started');
 		}
@@ -1001,6 +1005,13 @@ export class AgentSideEffects extends Disposable {
 			}
 			if (agent) {
 				this._updateTurnModel(agent, sessionKey, action.turnId, action.usage.model);
+			}
+		}
+		if (action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification) {
+			// Fusion progress milestones name the HydraFusion model the runtime routed the turn with.
+			const { kind, fusionModel } = readAgentSystemNotificationMeta(action.part);
+			if (kind === AgentSystemNotificationKind.FusionProgress && fusionModel) {
+				this._turnTracker.updateFusionTelemetry(sessionKey, action.turnId, { fusionModel });
 			}
 		}
 
@@ -1796,8 +1807,11 @@ export class AgentSideEffects extends Disposable {
 				if (!agent?.chats.resumeTurn) {
 					throw new Error(`ChatTurnResume reached side effects without provider support: ${sessionChannel}`);
 				}
-				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), this._agentConfigService.getChatConfigState({ session: sessionChannel, chat: channel }), resumedTurn.message.model?.id);
+				const { model, modelTelemetryKind, modelSelectionKind, autoTier, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), this._agentConfigService.getChatConfigState({ session: sessionChannel, chat: channel }), resumedTurn.message.model);
 				this._turnTracker.turnStarted(agent, channel, sessionChannel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(resumedTurn.message, this._stateManager.isEphemeralSession(sessionChannel)), undefined, URI.parse(channel), this._chatOwnership.getChatParent(channel) !== undefined ? 'task' : undefined);
+				if (autoTier !== undefined) {
+					this._turnTracker.updateFusionTelemetry(channel, action.turnId, { autoTier });
+				}
 				this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
 				const key = this._resumedTurnExecutionKey(channel, action.turnId);
 				const execution: IResumedTurnExecution = {

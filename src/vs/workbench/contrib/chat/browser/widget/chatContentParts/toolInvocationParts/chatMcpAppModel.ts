@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, autorunSelfDisposable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, IObservable, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
 import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
@@ -21,6 +21,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
+import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -36,6 +37,7 @@ import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVa
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { isToolResultInputOutputDetails, IToolResult } from '../../../../common/tools/languageModelToolsService.js';
+import { IAgentHostCustomizationService } from '../../../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidgetService } from '../../../chat.js';
 import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { IMcpAppRenderData } from './chatMcpAppSubPart.js';
@@ -48,6 +50,7 @@ const ORIGIN_STORE_KEY = 'chatMcpApp.origins';
  */
 export type McpAppLoadState =
 	| { readonly status: 'loading' }
+	| { readonly status: 'unavailable' }
 	| { readonly status: 'loaded' }
 	| { readonly status: 'error'; readonly error: Error };
 
@@ -97,6 +100,8 @@ export class ChatMcpAppModel extends Disposable {
 	private readonly _loadState = observableValue<McpAppLoadState>(this, { status: 'loading' });
 	public readonly loadState: IObservable<McpAppLoadState> = this._loadState;
 
+	public readonly server: IObservable<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number] | undefined>;
+
 	/** Event fired when height changes */
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
@@ -122,6 +127,7 @@ export class ChatMcpAppModel extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IAgentHostCustomizationService agentHostCustomizationService: IAgentHostCustomizationService,
 	) {
 		super();
 
@@ -188,7 +194,20 @@ export class ChatMcpAppModel extends Disposable {
 			this._webview.postMessage({ jsonrpc: '2.0', method: n.method, params: n.params });
 		}));
 
-		// Start loading the content
+		this.server = observableFromEvent(this, agentHostCustomizationService.onDidChangeCustomizations, () => {
+			if (renderData.kind !== 'agentHost' || !renderData.serverName) {
+				return undefined;
+			}
+			return agentHostCustomizationService.getMcpServers(renderData.sessionResource).find(server => server.name === renderData.serverName);
+		});
+		const serverStatus = this.server.map(server => server?.status);
+		this._register(autorun(reader => {
+			serverStatus.read(reader);
+			// Only status changes auto-retry an unavailable load, not other customization updates.
+			if (this._loadState.read(undefined).status === 'unavailable') {
+				this.retry();
+			}
+		}));
 		this._loadContent();
 	}
 
@@ -208,6 +227,9 @@ export class ChatMcpAppModel extends Disposable {
 	 * Retries loading the MCP App content.
 	 */
 	public retry(): void {
+		if (this._loadState.get().status === 'loading' || this._disposeCts.token.isCancellationRequested) {
+			return;
+		}
 		this._loadState.set({ status: 'loading' }, undefined);
 		this._loadContent();
 	}
@@ -237,8 +259,16 @@ export class ChatMcpAppModel extends Disposable {
 
 			this._loadState.set({ status: 'loaded' }, undefined);
 		} catch (error) {
-			this._logService.error('[MCP App] Error loading app:', error);
-			this._loadState.set({ status: 'error', error: error as Error }, undefined);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			if (this.renderData.kind === 'agentHost' && this.renderData.serverName && this.server.get()?.status !== McpServerStatus.Ready) {
+				this._logService.trace('[MCP App] Server unavailable while loading app:', error);
+				this._loadState.set({ status: 'unavailable' }, undefined);
+			} else {
+				this._logService.error('[MCP App] Error loading app:', error);
+				this._loadState.set({ status: 'error', error: error as Error }, undefined);
+			}
 		}
 	}
 

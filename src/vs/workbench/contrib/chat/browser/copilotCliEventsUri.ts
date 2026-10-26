@@ -160,6 +160,21 @@ export function migratedCopilotCliResource(resource: URI | undefined): URI | und
 	return rawId ? URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${rawId}` }) : undefined;
 }
 
+/**
+ * The legacy extension-host resource a local agent-host Copilot CLI session
+ * was migrated from, or `undefined` when `resource` is not such a session.
+ * The inverse of {@link migratedCopilotCliResource}; never maps a remote
+ * agent-host session, which is a different session, or a peer chat (a URI
+ * fragment), which never existed in the legacy session.
+ */
+export function legacyCopilotCliResource(resource: URI | undefined): URI | undefined {
+	if (resource?.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME || resource.fragment || resource.query) {
+		return undefined;
+	}
+	const rawId = getCopilotCliSessionRawId(resource);
+	return rawId ? URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${rawId}` }) : undefined;
+}
+
 export type ResolveEventsUriResult =
 	| { readonly kind: 'ok'; readonly resource: URI }
 	| { readonly kind: 'no-session' }

@@ -57,7 +57,7 @@ export interface IAgentHostPromptContext {
 	 * resolved system message gets a scratch/repoless section (see
 	 * {@link AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) telling the agent its
 	 * working directory is a scratch dir, not a code repo. Set by the launcher
-	 * from the session's `workspaceless` marker.
+	 * from the chat's recorded `workspaceless` decision.
 	 */
 	workspaceless: boolean;
 }
@@ -151,9 +151,8 @@ export class AgentHostPromptRegistry {
 	 * Lifetime: the SDK accepts a system message only at session create/resume
 	 * (there is no mid-session update), so this is resolved once per (re)launch
 	 * and any tool-gated content reflects the tool set at that moment. A change
-	 * to the session's tools/plugins is part of the launcher's restart-detection
-	 * snapshot, so it re-launches the session and recomputes this; an in-flight
-	 * turn keeps the prompt it launched with.
+	 * to tool-gated content still requires a relaunch; other client-tool changes
+	 * use `setTools` without rebuilding the prompt.
 	 */
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
