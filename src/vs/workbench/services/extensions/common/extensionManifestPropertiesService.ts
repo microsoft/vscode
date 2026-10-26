@@ -19,6 +19,9 @@ import { isBoolean } from '../../../../base/common/types.js';
 import { IWorkspaceTrustEnablementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
@@ -159,14 +162,13 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	}
 
 	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
-		// Allow-listed extensions are always supported in the sessions window.
-		if (this._productSessionsWindowAllowedExtensions.has(getGalleryExtensionId(manifest.publisher, manifest.name))) {
-			return true;
-		}
-
 		const configuredSessionsWindowSupport = this.getConfiguredSessionsWindowSupport(manifest);
 		if (configuredSessionsWindowSupport !== undefined) {
 			return configuredSessionsWindowSupport;
+		}
+
+		if (this._productSessionsWindowAllowedExtensions.has(getGalleryExtensionId(manifest.publisher, manifest.name))) {
+			return true;
 		}
 
 		const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
@@ -511,3 +513,27 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 }
 
 registerSingleton(IExtensionManifestPropertiesService, ExtensionManifestPropertiesService, InstantiationType.Delayed);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'extensions',
+	properties: {
+		[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
+			type: 'object',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Set an extension to `true` to enable it even when it would otherwise be disabled, or to `false` to disable it even when it is supported by default. This does not affect editor windows. Reload the Agents window to apply changes."),
+			patternProperties: {
+				'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+					type: 'boolean',
+					default: false
+				}
+			},
+			additionalProperties: false,
+			default: {},
+			defaultSnippets: [{
+				'body': {
+					'pub.name': true
+				}
+			}]
+		}
+	}
+});

@@ -1587,6 +1587,35 @@ suite('ExtensionEnablementService Test', () => {
 		]);
 	});
 
+	for (const isSessionsWindow of [false, true]) {
+		for (const managementEnabled of [false, true]) {
+			test(`test product allow-listed opt-out in ${isSessionsWindow ? 'sessions' : 'editor'} window with extension management ${managementEnabled ? 'enabled' : 'disabled'}`, async () => {
+				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'vue.volar': false, 'PUB.enabled': true });
+				await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, managementEnabled);
+				await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, true);
+				instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+				instantiationService.stub(IExtensionManifestPropertiesService, disposableStore.add(new ExtensionManifestPropertiesService(
+					{ ...TestProductService, sessionsWindowAllowedExtensions: ['Vue.volar', 'Pub.Allowed', 'Pub.Enabled', 'Pub.Disabled'] },
+					configurationService, new TestWorkspaceTrustEnablementService(), new NullLogService()
+				)));
+				testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+				const optedOut = aLocalExtension2('Vue.volar', { main: 'main.js', contributes: aContributes('grammars') });
+				const allowed = aLocalExtension2('pub.allowed', { main: 'main.js' });
+				const enabled = aLocalExtension2('pub.enabled', { main: 'main.js' });
+				const disabled = aLocalExtension2('pub.disabled', { main: 'main.js' });
+				await testObject.setEnablement([disabled], EnablementState.DisabledGlobally);
+
+				assert.deepStrictEqual([optedOut, allowed, enabled, disabled].map(ext => testObject.getEnablementState(ext)), [
+					isSessionsWindow ? (managementEnabled ? EnablementState.DisabledWorkspace : EnablementState.DisabledByEnvironment) : EnablementState.EnabledGlobally,
+					EnablementState.EnabledGlobally,
+					EnablementState.EnabledGlobally,
+					EnablementState.DisabledGlobally,
+				]);
+			});
+		}
+	}
+
 	test('test extensions declaring agents window support can still be disabled by the user', async () => {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
