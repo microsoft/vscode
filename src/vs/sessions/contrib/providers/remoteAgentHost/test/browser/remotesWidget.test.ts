@@ -43,7 +43,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 		{ id: 'container:project', kind: 'devContainer', name: 'Project', detail: '/project', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
 	readonly managementChanges: { id: string; action: 'rename' | 'remove' }[] = [];
@@ -52,6 +52,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly copiedAddresses: string[] = [];
 	readonly locationChanges: string[] = [];
 	readonly serverUpdates: string[] = [];
+	readonly tunnelDeletions: string[] = [];
 	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
@@ -102,6 +103,12 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.serverUpdates.push(id);
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected } : remote), undefined);
+	}
+
+	async deleteTunnel(id: string): Promise<void> {
+		this.tunnelDeletions.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
 
 	async remove(id: string): Promise<void> {
@@ -242,7 +249,7 @@ suite('RemotesWidget', () => {
 			rowHeight: row.getBoundingClientRect().height,
 			groupHeight: parent.querySelector('.remotes-group-row')!.getBoundingClientRect().height,
 			headerHeight: headers[1].getBoundingClientRect().height,
-			actionsWidth: headers[3].getBoundingClientRect().width === 120,
+			actionsWidth: headers[3].getBoundingClientRect().width === 144,
 			sashes: parent.querySelectorAll('.monaco-sash.vertical').length > 0,
 		}, {
 			values: ['Build server', 'Connected'], aligned: true,
@@ -539,7 +546,7 @@ suite('RemotesWidget', () => {
 		}, { changes: [{ id: 'ssh:build', action: 'rename' }], sameControl: true, focused: true, name: 'Renamed remote' });
 	});
 
-	test('only environment rows offer Delete, including after refresh', async () => {
+	test('environment and deletable tunnel rows offer Delete, including after refresh', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.environmentsEnabled.set(true, undefined);
 		model.remotes.set([...model.remotes.get(), {
@@ -554,7 +561,7 @@ suite('RemotesWidget', () => {
 		const expected = [
 			['Connect to Desktop', 'Rename Desktop...', 'Copy Address of Desktop', 'Delete Desktop'],
 			['Disconnect Build server', 'Rename Build server...', 'Copy Address of Build server', 'Change Preferred Agent Location for Build server'],
-			['Connect to Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop'],
+			['Connect to Laptop', 'Rename Laptop...', 'Copy Address of Laptop', 'Change Preferred Agent Location for Laptop', 'Delete Laptop'],
 			['Connect to Ubuntu', 'Rename Ubuntu...', 'Copy Address of Ubuntu'],
 		];
 		assert.deepStrictEqual({ before, after: actions(), changes: model.managementChanges }, { before: expected, after: expected, changes: [] });
@@ -587,6 +594,54 @@ suite('RemotesWidget', () => {
 			remaining: parent.querySelector('[data-remote-id="environment:desktop"]') !== null,
 			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
 		}, { busy: { deletion: 'true', rename: 'true' }, changes: [{ id: 'environment:desktop', action: 'remove' }], remaining: false, focused: true });
+	});
+
+	test('tunnel Delete is keyboard accessible, distinct from Remove and guarded while pending', async () => {
+		const { parent, model } = createWidget();
+		const row = parent.querySelector('[data-remote-id="tunnel:laptop"]')!;
+		const location = row.querySelector<HTMLElement>('.codicon-server-process')!;
+		location.focus();
+		location.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		location.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const deletion = row.querySelector<HTMLElement>('.codicon-trash')!;
+		assert.strictEqual(dom.getActiveElement(), deletion);
+		model.pendingManagement = new DeferredPromise<void>();
+		for (const type of ['keydown', 'keyup']) {
+			deletion.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		deletion.click();
+		const disabled = deletion.getAttribute('aria-disabled');
+		row.querySelector<HTMLElement>('.codicon-copy')!.click();
+		await model.pendingManagement.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			disabled, deleted: model.tunnelDeletions, removed: model.managementChanges, copied: model.copiedAddresses,
+			present: !!parent.querySelector('[data-remote-id="tunnel:laptop"]'),
+			focused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+		}, { disabled: 'true', deleted: ['tunnel:laptop'], removed: [], copied: ['tunnel:laptop'], present: false, focused: true });
+	});
+
+	test('failed tunnel deletion reports the error and keeps Delete available for retry', async () => {
+		const { parent, model, errors } = createWidget();
+		const deletion = parent.querySelector<HTMLElement>('[data-remote-id="tunnel:laptop"] .codicon-trash')!;
+		model.pendingManagement = new DeferredPromise<void>();
+		deletion.click();
+		const error = new Error('Tunnel deletion forbidden');
+		await model.pendingManagement.error(error);
+		await timeout(0);
+		assert.deepStrictEqual({ errors, enabled: deletion.getAttribute('aria-disabled'), deleted: model.tunnelDeletions }, {
+			errors: [error], enabled: null, deleted: ['tunnel:laptop'],
+		});
+	});
+
+	test('tunnel Delete tracks deletion capability independently of local removal', () => {
+		const { parent, model } = createWidget();
+		const remote = model.remotes.get().find(remote => remote.kind === 'tunnel')!;
+		const states = [false, true, false].map(canDelete => {
+			model.remotes.set([{ ...remote, canDelete }], undefined);
+			return !!parent.querySelector('[data-remote-id="tunnel:laptop"] .codicon-trash');
+		});
+		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
 	test('Copy Address works on every visible remote without changing connections or focus', async () => {

@@ -51,6 +51,16 @@ export async function removeRemoteHost(provider: IAgentHostSessionsProvider, rem
 	}
 }
 
+export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
+	const { confirmed } = await dialogService.confirm({
+		type: 'warning',
+		message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", name),
+		detail: localize('tunnelDeleteDetail', "This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again."),
+		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+	});
+	return confirmed;
+}
+
 export async function renameRemoteHost(
 	provider: Pick<IAgentHostSessionsProvider, 'remoteAddress' | 'label' | 'setDisplayName'>,
 	quickInputService: IQuickInputService,

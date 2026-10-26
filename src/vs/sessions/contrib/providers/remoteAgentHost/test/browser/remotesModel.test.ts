@@ -34,6 +34,7 @@ import { INotification, INotificationService } from '../../../../../../platform/
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IRemoteTunnelService, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { TestProgressService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -48,7 +49,7 @@ suite('RemotesModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const tunnel: ITunnelInfo = { tunnelId: 'laptop', clusterId: 'eu', name: 'Laptop', protocolVersion: 6, tags: [], hostConnectionCount: 1 };
 
-	function setup(discover: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]> = async () => [{ id: 'container', name: 'Project', workspaceFolder: '/project' }], restoreProvidersDuringInitialization = false, initialConnections: readonly IRemoteAgentHostConnectionInfo[] = []) {
+	function setup(discover: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]> = async () => [{ id: 'container', name: 'Project', workspaceFolder: '/project' }], restoreProvidersDuringInitialization = false, initialConnections: readonly IRemoteAgentHostConnectionInfo[] = [], initialTunnelStatus?: Promise<TunnelStatus>) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const configuration = new TestConfigurationService({
@@ -62,6 +63,9 @@ suite('RemotesModel', () => {
 		const providersChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const tunnelsChanged = store.add(new Emitter<void>());
+		const tunnelStatusChanged = store.add(new Emitter<TunnelStatus>());
+		const tunnelState: { canDelete: boolean; pendingDeletion?: DeferredPromise<void>; failure?: Error } = { canDelete: true };
+		const deletedTunnels: { tunnel: ITunnelInfo; authProvider?: 'github' | 'microsoft' }[] = [];
 		let connections = initialConnections;
 		let workspacesInitialized = false;
 		let initializingWorkspaces = false;
@@ -124,6 +128,10 @@ suite('RemotesModel', () => {
 		});
 		instantiationService.stub(IProductService, { nameShort: 'Code - OSS' });
 		instantiationService.stub(IProgressService, new TestProgressService());
+		instantiationService.stub(IRemoteTunnelService, {
+			onDidChangeTunnelStatus: tunnelStatusChanged.event,
+			getTunnelStatus: () => initialTunnelStatus ?? Promise.resolve({ type: 'disconnected' }),
+		});
 		instantiationService.stub(INotificationService, new class extends TestNotificationService {
 			override notify(notification: INotification) {
 				notifications.push(notification);
@@ -199,6 +207,16 @@ suite('RemotesModel', () => {
 			cacheDistro: distro => { distros = [distro]; },
 		});
 		instantiationService.stub(ITunnelAgentHostService, {
+			get canDeleteTunnels() { return tunnelState.canDelete; },
+			deleteTunnel: async (tunnel, authProvider) => {
+				deletedTunnels.push({ tunnel, authProvider });
+				await tunnelState.pendingDeletion?.p;
+				if (tunnelState.failure) {
+					throw tunnelState.failure;
+				}
+				tunnels = tunnels.filter(cached => cached.tunnelId !== tunnel.tunnelId);
+				tunnelsChanged.fire();
+			},
 			onDidChangeTunnels: tunnelsChanged.event,
 			getCachedTunnels: () => tunnels,
 			getAuthProvider: () => tunnelAuthentication(),
@@ -288,7 +306,8 @@ suite('RemotesModel', () => {
 			createProvider, setCachedDistros: (cached: IWSLCachedDistro[]) => { distros = cached; },
 			getCachedTunnels: () => tunnels,
 			setCachedTunnels: (cached: ICachedTunnel[]) => { tunnels = cached; tunnelsChanged.fire(); },
-			tunnelConnections,
+			tunnelConnections, tunnelState, deletedTunnels,
+			setTunnelStatus: (status: TunnelStatus) => tunnelStatusChanged.fire(status),
 			failConnection: (error: Error) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
@@ -1110,6 +1129,145 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual({
 			environmentDeletions, removals, remaining: model.remotes.get().filter(remote => remote.kind === 'environment'),
 		}, { environmentDeletions: ['online', 'offline'], removals: [], remaining: [] });
+	});
+
+	for (const confirmed of [true, false]) {
+		test(`tunnel deletion ${confirmed ? 'deletes the service-side registration' : 'cancels without deleting'} after confirmation`, async () => {
+			const { model, setTunnelDiscovery, setDisplayName, environmentState, confirmations, deletedTunnels, removals, connectionChanges } = setup();
+			const offline = { ...tunnel, hostConnectionCount: 0 };
+			setTunnelDiscovery(async () => [offline, { ...tunnel, tunnelId: 'other' }]);
+			await model.refresh(CancellationToken.None);
+			setDisplayName('tunnel:laptop', 'My test tunnel');
+			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+			const deletion = model.deleteTunnel('tunnel:laptop');
+			const before = { confirmations: [...confirmations], deletedTunnels: [...deletedTunnels] };
+			await environmentState.pendingConfirmation.complete({ confirmed });
+			await deletion;
+			assert.deepStrictEqual({
+				before, deletedTunnels, removals, connectionChanges,
+				remaining: model.remotes.get().filter(remote => remote.kind === 'tunnel').map(remote => remote.id).sort(),
+			}, {
+				before: {
+					confirmations: [{
+						type: 'warning',
+						message: 'Are you sure you want to delete dev tunnel \'My test tunnel\'?',
+						detail: 'This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again.',
+						primaryButton: '&&Delete',
+					}],
+					deletedTunnels: [],
+				},
+				deletedTunnels: confirmed ? [{ tunnel: offline, authProvider: 'github' }] : [],
+				removals: [], connectionChanges: [],
+				remaining: confirmed ? ['tunnel:other'] : ['tunnel:laptop', 'tunnel:other'],
+			});
+		});
+	}
+
+	test('failed tunnel deletion keeps the row and cache and can be retried', async () => {
+		const { model, setCachedTunnels, getCachedTunnels, tunnelState, deletedTunnels } = setup();
+		setCachedTunnels([{ ...tunnel, authProvider: 'github' }]);
+		await model.refresh(CancellationToken.None);
+		tunnelState.failure = new Error('Forbidden');
+		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /Forbidden/);
+		const retained = { row: model.remotes.get().some(remote => remote.id === 'tunnel:laptop'), cached: getCachedTunnels().length };
+		tunnelState.failure = undefined;
+		await model.deleteTunnel('tunnel:laptop');
+		assert.deepStrictEqual({ retained, calls: deletedTunnels.length, row: model.remotes.get().some(remote => remote.id === 'tunnel:laptop'), cached: getCachedTunnels() }, {
+			retained: { row: true, cached: 1 }, calls: 2, row: false, cached: [],
+		});
+	});
+
+	test('tunnel deletion rejects unsupported targets and protects the currently hosted tunnel by ID', async () => {
+		const { model, setTunnelStatus, tunnelState, deletedTunnels, confirmations, providersChanged } = setup();
+		await model.refresh(CancellationToken.None);
+		await assert.rejects(model.deleteTunnel('ssh:build'), /no longer available/);
+		await assert.rejects(model.deleteTunnel('missing'), /no longer available/);
+		tunnelState.canDelete = false;
+		providersChanged.fire({ added: [], removed: [] });
+		const unsupported = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete;
+		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /not supported/);
+		tunnelState.canDelete = true;
+		setTunnelStatus({ type: 'connected', info: { tunnelId: 'laptop', tunnelName: 'Different display name', isAttached: false }, serviceInstallFailed: false });
+		const hosted = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete;
+		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /currently hosting/);
+		setTunnelStatus({ type: 'disconnected' });
+		assert.deepStrictEqual({ unsupported, hosted, stopped: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete, deletedTunnels, confirmations }, {
+			unsupported: false, hosted: false, stopped: true, deletedTunnels: [], confirmations: [],
+		});
+	});
+
+	test('initial hosted tunnel status cannot overwrite a newer event', async () => {
+		const initialStatus = new DeferredPromise<TunnelStatus>();
+		const { model, setTunnelStatus } = setup(undefined, false, [], initialStatus.p);
+		await model.refresh(CancellationToken.None);
+		const loading = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete;
+		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /hosting status is not available/);
+		setTunnelStatus({ type: 'connected', info: { tunnelId: 'laptop', tunnelName: 'Laptop', isAttached: false }, serviceInstallFailed: false });
+		await initialStatus.complete({ type: 'disconnected' });
+		assert.deepStrictEqual({ loading, hosted: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.canDelete }, {
+			loading: false, hosted: false,
+		});
+	});
+
+	for (const change of ['inventory', 'configuration', 'AI', 'disposal', 'hosting', 'capability', 'authentication', 'cluster'] as const) {
+		test(`tunnel deletion revalidates ${change} after confirmation`, async () => {
+			const { model, setConfiguration, setTunnelDiscovery, setTunnelAuthentication, setTunnelStatus, tunnelState, environmentState, deletedTunnels } = setup();
+			await model.refresh(CancellationToken.None);
+			environmentState.pendingConfirmation = new DeferredPromise<IConfirmationResult>();
+			const deletion = model.deleteTunnel('tunnel:laptop');
+			const rejected = assert.rejects(deletion, change === 'hosting' ? /currently hosting/ : change === 'capability' ? /not supported/ : isCancellationError);
+			switch (change) {
+				case 'inventory':
+					setTunnelDiscovery(async () => []);
+					await model.refresh(CancellationToken.None);
+					break;
+				case 'configuration':
+					await setConfiguration(RemoteAgentHostsEnabledSettingId, false);
+					break;
+				case 'AI':
+					await setConfiguration('chat.disableAIFeatures', true);
+					break;
+				case 'disposal':
+					model.dispose();
+					break;
+				case 'hosting':
+					setTunnelStatus({ type: 'connected', info: { tunnelId: 'laptop', tunnelName: 'Laptop', isAttached: false }, serviceInstallFailed: false });
+					break;
+				case 'capability':
+					tunnelState.canDelete = false;
+					break;
+				case 'authentication':
+					setTunnelAuthentication(async () => 'microsoft');
+					await model.refresh(CancellationToken.None);
+					break;
+				case 'cluster':
+					setTunnelDiscovery(async () => [{ ...tunnel, clusterId: 'other' }]);
+					await model.refresh(CancellationToken.None);
+					break;
+			}
+			await environmentState.pendingConfirmation.complete({ confirmed: true });
+			await rejected;
+			assert.deepStrictEqual(deletedTunnels, []);
+		});
+	}
+
+	test('an in-flight refresh cannot restore a deleted tunnel but a later discovery can', async () => {
+		const { model, setCachedTunnels, setTunnelDiscovery, deletedTunnels } = setup();
+		setCachedTunnels([{ ...tunnel, authProvider: 'github' }]);
+		await model.refresh(CancellationToken.None);
+		const pendingDiscovery = new DeferredPromise<ITunnelInfo[]>();
+		setTunnelDiscovery(() => pendingDiscovery.p);
+		const refresh = model.refresh(CancellationToken.None);
+		await model.deleteTunnel('tunnel:laptop');
+		await pendingDiscovery.complete([tunnel]);
+		await refresh;
+		const afterStaleRefresh = model.remotes.get().some(remote => remote.id === 'tunnel:laptop');
+		await assert.rejects(model.deleteTunnel('tunnel:laptop'), /no longer available/);
+		setTunnelDiscovery(async () => [{ ...tunnel, name: 'Recreated tunnel' }]);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ afterStaleRefresh, recreated: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!.name, deletions: deletedTunnels.length }, {
+			afterStaleRefresh: false, recreated: 'Recreated tunnel', deletions: 1,
+		});
 	});
 
 	for (const confirmed of [true, false]) {

@@ -46,7 +46,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { runServerUpgrade } from './remoteHostOptions.js';
+import { confirmTunnelDeletion, runServerUpgrade } from './remoteHostOptions.js';
 import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
@@ -1019,13 +1019,7 @@ async function promptToConnectViaTunnel(
 			tunnelPicker.ignoreFocusOut = true;
 			let keepOpen = true;
 			try {
-				const confirmation = await dialogService.confirm({
-					type: 'warning',
-					message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", event.item.tunnel.name),
-					detail: localize('tunnelDeleteDetail', "The tunnel may be recreated if a machine starts hosting it again."),
-					primaryButton: localize('tunnelDeleteButton', "&&Delete"),
-				});
-				if (!confirmation.confirmed) {
+				if (!await confirmTunnelDeletion(dialogService, event.item.tunnel.name)) {
 					return;
 				}
 				if (isHostedTunnel(event.item.tunnel)) {

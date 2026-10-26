@@ -161,7 +161,7 @@ export class RemotesWidget extends Disposable {
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
 			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 144 },
-			{ id: 'actions', label: '', weight: 0, minimumWidth: 120, maximumWidth: 120 },
+			{ id: 'actions', label: '', weight: 0, minimumWidth: 144, maximumWidth: 144 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
@@ -275,8 +275,8 @@ export class RemotesWidget extends Disposable {
 				void this.manageRemote(entry.remote.id, 'locationPreference');
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote.id, 'updateServer');
-			} else if (action === 'delete' && entry.remote.kind === 'environment' && entry.remote.canRemove) {
-				void this.deleteEnvironment(entry.remote.id);
+			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || entry.remote.kind === 'tunnel' && entry.remote.canDelete)) {
+				void this.deleteRemote(entry.remote.id, entry.remote.kind);
 			}
 		}
 	}
@@ -526,7 +526,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async deleteEnvironment(id: string): Promise<void> {
+	private async deleteRemote(id: string, kind: 'environment' | 'tunnel'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -535,7 +535,11 @@ export class RemotesWidget extends Disposable {
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model.remove(id);
+			if (kind === 'tunnel') {
+				await this.model.deleteTunnel(id);
+			} else {
+				await this.model.remove(id);
+			}
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
