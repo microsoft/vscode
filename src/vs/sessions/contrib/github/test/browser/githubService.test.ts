@@ -6,11 +6,21 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { FileContent } from '../../../../../platform/github/common/content/content.js';
+import { PullRequestSummary } from '../../../../../platform/github/common/core/pullRequests.js';
+import { Commit } from '../../../../../platform/github/common/core/repositories.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 
@@ -18,11 +28,49 @@ suite('GitHubService', () => {
 
 	const store = new DisposableStore();
 	let service: GitHubService;
+	let domainCalls: { operation: string; args: readonly unknown[] }[];
 
 	setup(() => {
+		domainCalls = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly currentDefaultAccount = null;
+			override getDefaultAccountAuthenticationProvider() { return { id: 'github', name: 'GitHub', enterprise: false }; }
+		}());
+		instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.None;
+			override async acquireDefaultAccountApiClient() {
+				return upcastPartial<IGitHubAccountClient>({
+					onDidInvalidate: Event.None,
+					dispose: () => { },
+					repositories: upcastPartial<IGitHubAccountClient['repositories']>({
+						getCommit: async (repository, sha, _signal, options) => {
+							domainCalls.push({ operation: 'repositories.getCommit', args: [repository, sha, options] });
+							return upcastPartial<Commit>({
+								sha, html_url: 'https://github.com/o/r/commit/abc', author: null,
+								commit: { message: 'Message', author: { name: 'Author', date: '2026-10-14T00:00:00Z' }, committer: null, tree: { sha: 'tree', url: 'https://api.github.com/tree' } },
+							});
+						},
+					}),
+					content: upcastPartial<IGitHubAccountClient['content']>({
+						getContent: async (repository, path, _signal, options) => {
+							domainCalls.push({ operation: 'content.getContent', args: [repository, path, options] });
+							return upcastPartial<FileContent>({ type: 'file', encoding: 'base64', content: 'aGVsbG8=' });
+						},
+					}),
+					pullRequests: upcastPartial<IGitHubAccountClient['pullRequests']>({
+						list: async (repository, _signal, options) => {
+							domainCalls.push({ operation: 'pullRequests.list', args: [repository, options] });
+							return [upcastPartial<PullRequestSummary>({ number: 42 })];
+						},
+					}),
+				});
+			}
+		}());
 
 		service = store.add(instantiationService.createInstance(GitHubService));
 	});
@@ -31,34 +79,20 @@ suite('GitHubService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('createRepositoryModelReference returns shared model for same key', () => {
-		const ref1 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		const ref2 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		assert.strictEqual(ref1.object, ref2.object);
-	});
-
-	test('createRepositoryModelReference returns different models for different repos', () => {
-		const ref1 = store.add(service.createRepositoryModelReference('owner', 'repo1'));
-		const ref2 = store.add(service.createRepositoryModelReference('owner', 'repo2'));
-		assert.notStrictEqual(ref1.object, ref2.object);
-	});
-
-	test('createRepositoryModelReference disposes model when last reference is released', () => {
-		const ref1 = service.createRepositoryModelReference('owner', 'repo');
-		const ref2 = service.createRepositoryModelReference('owner', 'repo');
-		const model = ref1.object;
-		assert.strictEqual(ref2.object, model);
-
-		// Release one reference; model must still be alive and shared.
-		ref1.dispose();
-		const ref3 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		assert.strictEqual(ref3.object, model);
-
-		// Release remaining references; the next acquire should create a new model.
-		ref2.dispose();
-		ref3.dispose();
-		const ref4 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		assert.notStrictEqual(ref4.object, model);
+	test('delegates commit, file, and branch lookup to typed domains and reuses successful branch lookups', async () => {
+		const commit = await service.getCommit('o', 'r', 'abc', CancellationToken.None);
+		const content = await service.getFileContent('o', 'r', 'dir/file #.txt', 'feature/branch');
+		const pullRequest = await service.findPullRequestNumberByHeadBranch('o', 'r', 'feature/branch');
+		const repeated = await service.findPullRequestNumberByHeadBranch('o', 'r', 'feature/branch');
+		assert.deepStrictEqual({ commit, content, pullRequest, repeated, domainCalls }, {
+			commit: { sha: 'abc', message: 'Message', url: 'https://github.com/o/r/commit/abc', author: { login: 'Author' }, committedAt: '2026-10-14T00:00:00Z' },
+			content: 'hello', pullRequest: 42, repeated: 42,
+			domainCalls: [
+				{ operation: 'repositories.getCommit', args: [{ owner: 'o', repo: 'r' }, 'abc', { priority: 'enrichment' }] },
+				{ operation: 'content.getContent', args: [{ owner: 'o', repo: 'r' }, 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
+				{ operation: 'pullRequests.list', args: [{ owner: 'o', repo: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
+			],
+		});
 	});
 
 	test('createPullRequestModelReference returns shared model for same key', () => {

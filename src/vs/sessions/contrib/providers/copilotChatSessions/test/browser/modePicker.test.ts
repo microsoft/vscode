@@ -19,6 +19,7 @@ import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/
 import { IChatModeService, IChatModes, ChatMode, CustomChatMode } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { IChatModel, IChatRequestModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { PromptsStorage } from '../../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -214,11 +215,14 @@ suite('ModePicker', () => {
 		}();
 		const scopedSession = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly activeChat = observableValue<IChat>('activeChat', activeChat);
+			override readonly sessionType = 'agent-host-claude';
 		}());
 
 		let selectCustomAgent: (() => void) | undefined;
 		let hidePicker: (() => void) | undefined;
 		const requestedChatResources: string[] = [];
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([{ type: 'agent-host-claude', agentHostProviderId: 'claude', name: 'Claude', displayName: 'Claude', description: '' }]);
 		const picker = store.add(new ModePicker(
 			model,
 			scopedSession,
@@ -255,6 +259,7 @@ suite('ModePicker', () => {
 					}();
 				}
 			}(),
+			chatSessionsService,
 		));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -266,9 +271,11 @@ suite('ModePicker', () => {
 			trigger.focus = () => focusCalls++;
 		}
 		trigger?.click();
+		const expandedWhileOpen = trigger?.getAttribute('aria-expanded');
 		assert.ok(hidePicker);
 		hidePicker();
 		const pointerFocusCalls = focusCalls;
+		const expandedAfterHide = trigger?.getAttribute('aria-expanded');
 
 		trigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 		assert.ok(hidePicker);
@@ -284,10 +291,13 @@ suite('ModePicker', () => {
 			requestedChatResources,
 			pointerFocusCalls,
 			keyboardFocusCalls,
+			expandedWhileOpen,
+			expandedAfterHide,
 		}, {
 			events: [{
 				name: 'chat.modeChange',
 				data: {
+					provider: 'claude',
 					fromMode: 'agent',
 					mode: String(hash(customAgent.name.get())),
 					requestCount: 3,
@@ -301,6 +311,8 @@ suite('ModePicker', () => {
 			requestedChatResources: [chatResource.toString()],
 			pointerFocusCalls: 1,
 			keyboardFocusCalls: 2,
+			expandedWhileOpen: 'true',
+			expandedAfterHide: 'false',
 		});
 	});
 });

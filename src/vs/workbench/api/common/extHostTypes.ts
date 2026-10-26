@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
+import { illegalArgument, SerializedError, transformErrorForSerialization } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
@@ -33,6 +33,7 @@ import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookTypes.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
+export { ViewColumn } from '../../../platform/editor/common/editor.js';
 export {
 	Diagnostic, DiagnosticRelatedInformation,
 	DiagnosticSeverity, DiagnosticTag
@@ -642,20 +643,6 @@ export enum InlineCompletionEndOfLifeReasonKind {
 export enum InlineCompletionDisplayLocationKind {
 	Code = 1,
 	Label = 2
-}
-
-export enum ViewColumn {
-	Active = -1,
-	Beside = -2,
-	One = 1,
-	Two = 2,
-	Three = 3,
-	Four = 4,
-	Five = 5,
-	Six = 6,
-	Seven = 7,
-	Eight = 8,
-	Nine = 9
 }
 
 export enum StatusBarAlignment {
@@ -2712,6 +2699,11 @@ export class TimelineItem implements vscode.TimelineItem {
 	constructor(public label: string, public timestamp: number) { }
 }
 
+export enum TimelineTriggerKind {
+	Invoke = 1,
+	Automatic = 2
+}
+
 //#endregion Timeline
 
 //#region ExtensionContext
@@ -3571,6 +3563,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly id?: string,
 		readonly modelId?: string,
 		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
+		readonly isSystemInitiated?: boolean,
 	) { }
 }
 
@@ -3885,6 +3878,12 @@ export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
 	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
 }
 
+export enum LanguageModelChatApiType {
+	ChatCompletions = 1,
+	Responses = 2,
+	Messages = 3
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
@@ -4183,21 +4182,37 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
-	static tryDeserialize(data: SerializedError): LanguageModelError | undefined {
+	static RateLimited(message?: string, retryAfter?: number): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.RateLimited.name, undefined, retryAfter);
+	}
+
+	static tryDeserialize(data: SerializedLanguageModelError): LanguageModelError | undefined {
 		if (data.name !== LanguageModelError.#name) {
 			return undefined;
 		}
-		return new LanguageModelError(data.message, data.code, data.cause);
+		return new LanguageModelError(data.message, data.code, data.cause, data.retryAfter);
 	}
 
 	readonly code: string;
+	readonly retryAfter?: number;
 
-	constructor(message?: string, code?: string, cause?: Error) {
+	constructor(message?: string, code?: string, cause?: Error, retryAfter?: number) {
 		super(message, { cause });
 		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
+		if (typeof retryAfter === 'number' && retryAfter >= 0) {
+			this.retryAfter = retryAfter;
+		}
 	}
 
+}
+
+type SerializedLanguageModelError = SerializedError & { readonly retryAfter?: number };
+
+/** Like {@link transformErrorForSerialization}, but keeps {@link LanguageModelError.retryAfter}. */
+export function serializeLanguageModelError(error: unknown): SerializedLanguageModelError {
+	const data: SerializedLanguageModelError = transformErrorForSerialization(error);
+	return error instanceof LanguageModelError && error.retryAfter !== undefined ? { ...data, retryAfter: error.retryAfter } : data;
 }
 
 export class LanguageModelToolResult {

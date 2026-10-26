@@ -45,8 +45,8 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override getActiveProjectRoot(): URI {
 			return URI.file('/workspace');
 		}
-		override async commitFiles(): Promise<void> { }
-		override async deleteFiles(): Promise<void> { }
+		override async commitFiles(): Promise<boolean> { return true; }
+		override async deleteFiles(): Promise<boolean> { return true; }
 		override async generateCustomization(): Promise<void> { }
 		override setOverrideProjectRoot(): void { }
 		override clearOverrideProjectRoot(): void { }
@@ -89,7 +89,9 @@ function renderWelcomePage(ctx: ComponentFixtureContext): void {
 		{
 			selectSection: () => { },
 			selectSectionWithMarketplace: () => { },
+			openMarketplaceItem: () => { },
 			closeEditor: () => { },
+			createCustomization: async () => { },
 			reviewMigrations: () => { },
 			prefillChat: () => { },
 		},

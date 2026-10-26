@@ -10,11 +10,17 @@ import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey, parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export { getHighestPriorityPullRequestIcon };
+export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+export { type ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -46,7 +52,7 @@ export interface ISessionType {
 	 * is not usable yet. Absent when selecting the type cannot make progress.
 	 */
 	readonly initializationOnSelection?: {
-		/** Whether the provider already has non-GitHub authentication for initialization. */
+		/** Whether the provider can discover or use its own authentication without GitHub. */
 		readonly canInitializeWithoutGitHub: boolean;
 	};
 }
@@ -117,7 +123,7 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 		case SessionStatus.InProgress:
 			return description ?? localize('working', "Working...");
 		case SessionStatus.NeedsInput:
-			return description ?? localize('needsInput', "Input needed");
+			return description ?? localize('needsInput', "Attention needed");
 		case SessionStatus.Error:
 			return description ?? localize('failed', "Failed");
 		default:
@@ -144,6 +150,8 @@ export interface ISessionPreparationProgress {
 export const enum ChatInteractivity {
 	/** The user can send messages to the chat (default when unspecified). */
 	Full = 'full',
+	/** The user can compose a draft, but must connect before sending it. */
+	DraftOnly = 'draft-only',
 	/** The chat is visible but read-only — the user can watch but not send messages. */
 	ReadOnly = 'read-only',
 	/** The chat is an internal worker that should not be shown in the UI at all. */
@@ -179,6 +187,10 @@ export interface ISessionGitRepository {
 	readonly hasGitHubRemote?: boolean;
 	/** Upstream tracking branch name (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/** Default branch of the repository's `origin` remote (e.g. `main`). */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`). */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch is ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch is ahead of the upstream branch. */
@@ -222,7 +234,7 @@ export interface ISessionWorkspace {
 	/**
 	 * Optional group label for categorizing this workspace in pickers. The
 	 * workspace picker uses this to bucket entries into top-level tabs
-	 * (e.g. `"Local"`, `"Cloud"`, `"Remote"`). Providers contribute the
+	 * (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`). Providers contribute the
 	 * label — the picker just renders whatever values are present.
 	 */
 	readonly group?: string;
@@ -285,6 +297,8 @@ export interface ISessionArtifact {
 	readonly id: string;
 	readonly kind: SessionArtifactKind;
 	readonly label: string;
+	/** Chat that recorded this entry, when the provider exposes its provenance. */
+	readonly chat?: URI;
 	/**
 	 * `true` for an artifact — something the session produced — and `false` for
 	 * a reference, something it only points the user at.
@@ -300,24 +314,55 @@ export interface ISessionArtifact {
 	readonly isGitHub?: boolean;
 }
 
-/** The kinds of customization a chat can use. */
-export const enum SessionCustomizationKind {
-	Agent = 'agent',
-	Skill = 'skill',
-	Instruction = 'instruction',
-	Hook = 'hook',
-	Prompt = 'prompt',
-	McpServer = 'mcpServer',
-	Plugin = 'plugin',
+/**
+ * Identity of the resource an entry points to. GitHub pull request and issue links ignore case and trailing
+ * slashes, like the pull request and issue pills; other links and resources compare exactly, since their paths
+ * and queries can be case-sensitive. Commit hashes ignore case.
+ */
+export function getSessionArtifactKey(artifact: ISessionArtifact): string | undefined {
+	if (artifact.link) {
+		const link = artifact.link.toString(true);
+		return parseGitHubPullRequestUrl(link) || parseGitHubIssueUrl(link)
+			? `github:${getPullRequestUrlKey(link)}`
+			: `link:${artifact.link.toString()}`;
+	}
+	if (artifact.uri) {
+		return `uri:${artifact.uri.toString()}`;
+	}
+	const commitHash = artifact.commitHash?.trim().toLowerCase();
+	return commitHash ? `commit:${commitHash}` : undefined;
 }
 
-/** A customization the agent used or read during a chat. Provider-neutral. */
-export interface ISessionChatCustomization {
-	readonly id: string;
-	readonly kind: SessionCustomizationKind;
-	readonly name: string;
-	/** Source file or directory, used to reveal the customization. */
-	readonly uri?: URI;
+/**
+ * The entries a chat-scoped surface for `chat` shows: only those the chat recorded, where unowned legacy
+ * entries belong to the main chat (or to any chat while the main chat is unknown). A chat shows each resource
+ * (see {@link getSessionArtifactKey}) once, preferring an artifact over a reference. Without a chat, every chat's entries are shown, so chats that
+ * recorded the same resource each keep theirs.
+ */
+export function getChatSessionArtifacts(session: ISession | undefined, chat: IChat | undefined, reader: IReader | undefined): readonly ISessionArtifact[] {
+	const mainChat = session?.mainChat?.read(reader)?.resource;
+	const result: ISessionArtifact[] = [];
+	const indexByKey = new Map<string, number>();
+	for (const artifact of session?.artifacts?.read(reader) ?? []) {
+		const owner = artifact.chat ?? mainChat;
+		if (chat && owner && !isEqual(owner, chat.resource)) {
+			continue;
+		}
+		const value = getSessionArtifactKey(artifact);
+		if (!value) {
+			result.push(artifact);
+			continue;
+		}
+		const key = `${owner?.toString() ?? ''}\n${value}`;
+		const index = indexByKey.get(key);
+		if (index === undefined) {
+			indexByKey.set(key, result.length);
+			result.push(artifact);
+		} else if (artifact.isArtifact && !result[index].isArtifact) {
+			result[index] = artifact;
+		}
+	}
+	return result;
 }
 
 /**
@@ -338,7 +383,7 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Last host-observed pull request state. */
 		readonly state?: 'open' | 'closed' | 'merged';
-		/** State from the live workbench pull request model, when resolved. */
+		/** Last workbench-observed state, restored from cache until the live model resolves. */
 		readonly liveState?: 'open' | 'closed' | 'merged';
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
@@ -370,7 +415,7 @@ export interface IGitHubPullRequestRef {
 	readonly icon?: ThemeIcon;
 	/** Last host-observed pull request state. */
 	readonly state?: 'open' | 'closed' | 'merged';
-	/** State from the live workbench pull request model, when resolved. */
+	/** Last workbench-observed state, restored from cache until the live model resolves. */
 	readonly liveState?: 'open' | 'closed' | 'merged';
 	/**
 	 * Pull request title, when the session recorded one. Absent for pull requests
@@ -495,7 +540,8 @@ export interface ISessionChangeset {
 	 */
 	readonly isDefault: IObservable<boolean>;
 	/**
-	 * Whether this changeset is currently loading its file changes.
+	 * Whether this changeset has not yet published a usable file list.
+	 * This is false while a cached file list is available during recomputation.
 	 */
 	readonly isLoadingChanges: IObservable<boolean>;
 	/** Observable for the file changes in this changeset. */
@@ -644,6 +690,22 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
+export type SessionCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+
+/** A canvas type registered by an extension in one live chat. */
+export interface ISessionCanvasDefinition {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionSource: SessionCanvasExtensionSource;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly requiresInput: boolean;
+}
+
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type SessionCanvasDefinitionSnapshot = readonly ISessionCanvasDefinition[] | undefined;
+
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
  * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
@@ -673,14 +735,23 @@ export interface IChat {
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
-	/** When the chat was last updated. */
-	readonly updatedAt: IObservable<Date>;
+	/** When the chat was last updated. `undefined` while the provider resolves the exact per-chat timestamp; consumers should omit it rather than fall back to aggregate session time. */
+	readonly updatedAt: IObservable<Date | undefined>;
 	/** Current chat status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
+	/**
+	 * Compact summary of the changes associated with the chat, available without
+	 * loading the chat's details or changesets (e.g. for session lists). The
+	 * scope is provider-defined: a provider may report only the chat's own
+	 * changes, or a cumulative scope such as the whole session for a session's
+	 * main chat, so consumers must not assume the counts are chat-local.
+	 * Providers that cannot determine this omit the observable.
+	 */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
@@ -695,6 +766,10 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
+	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
+	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
+	/** Active background shells, including commands started in earlier turns. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -717,6 +792,7 @@ export interface IChat {
 	 * not distinguish read-only chats report {@link ChatInteractivity.Full}.
 	 *
 	 * - {@link ChatInteractivity.Full}: the user can send messages (default).
+	 * - {@link ChatInteractivity.DraftOnly}: the composer is editable, but sending is disabled.
 	 * - {@link ChatInteractivity.ReadOnly}: the chat is shown but the composer is
 	 *   hidden (e.g. an agent-team worker chat the user can watch but not steer).
 	 * - {@link ChatInteractivity.Hidden}: the chat is an internal worker that
@@ -765,6 +841,19 @@ export function getChatCapabilities(chat: IChat, session: ISession | undefined, 
  * A session groups one or more chats together.
  * All {@link ISessionData} fields are propagated from the primary (first) chat.
  */
+export interface ISessionApplication {
+	readonly id: string;
+	readonly label: string;
+}
+
+export interface ISessionEnvironment {
+	/** Stable identity, independent of the environment's display name. */
+	readonly id: string;
+	readonly label: string;
+	/** Remote environments appear in the filter menu only while connected. */
+	readonly isConnected?: IObservable<boolean>;
+}
+
 export interface ISession {
 	/** Globally unique session ID (`providerId:localId`). */
 	readonly sessionId: string;
@@ -774,6 +863,12 @@ export interface ISession {
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
+	/** Harness identity, independent of the session's routing type. */
+	readonly harness: string;
+	/** Provider-assigned environment identity: local, cloud, or a remote host identifier. */
+	readonly environment: string;
+	/** Creation provenance, which may hydrate after the session is discovered. */
+	readonly application: IObservable<ISessionApplication>;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */
@@ -820,6 +915,10 @@ export interface ISession {
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/** Provider-owned permission level selected while configuring a new session. */
+	readonly permissionLevel?: IObservable<string>;
+	/** Provider-owned branch selected while configuring a new session. */
+	readonly branch?: IObservable<string | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
 	/** Whether the first request lifecycle is in progress. Used to present a still-untitled draft as active during preparation. Absent means `false`. */
@@ -888,8 +987,13 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
+	readonly supportsArtifactIntegrations?: boolean;
+	/** Whether the owning provider permits presenting server-published canvases for this session. */
+	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether chats in this session can update their read state independently. */
+	readonly supportsIndependentChatReadState?: boolean;
 	/**
 	 * Whether this session supports forking a chat from a turn into a new peer
 	 * chat. The agents-window fork gesture gates on this flag rather than on the
@@ -938,7 +1042,7 @@ export interface ISessionCapabilities {
  * `ISessionWorkspaceBrowseAction`; the picker discovers tabs from the union
  * of contributed values.
  */
-export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "This Computer");
 export const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
@@ -960,7 +1064,7 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly description?: string;
 	/**
 	 * Optional group label used by the workspace picker to bucket browse
-	 * actions into top-level tabs (e.g. `"Local"`, `"Cloud"`, `"Remote"`).
+	 * actions into top-level tabs (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`).
 	 * Providers contribute the label — the picker dynamically renders tabs
 	 * for whichever values are present and filters items accordingly.
 	 */
@@ -1163,6 +1267,8 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
 		&& a.upstreamBranchName === b.upstreamBranchName
+		&& a.defaultBranchName === b.defaultBranchName
+		&& a.defaultRemoteBranchName === b.defaultRemoteBranchName
 		&& a.incomingChanges === b.incomingChanges
 		&& a.outgoingChanges === b.outgoingChanges
 		&& a.uncommittedChanges === b.uncommittedChanges

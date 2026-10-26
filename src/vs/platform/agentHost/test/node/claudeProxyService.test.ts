@@ -8,6 +8,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type * as http from 'http';
 import * as net from 'net';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import {
@@ -1323,6 +1324,7 @@ suite('ClaudeProxyService', () => {
 		test('dispose() with in-flight non-streaming aborts the upstream call', async () => {
 			const fake = new FakeCopilotApiService();
 			let signalSeen: AbortSignal | undefined;
+			const upstreamCalled = new DeferredPromise<void>();
 			let releaseUpstream: () => void = () => { };
 			const upstream = new Promise<Anthropic.Message>((_resolve, reject) => {
 				releaseUpstream = () => reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
@@ -1331,6 +1333,7 @@ suite('ClaudeProxyService', () => {
 				_serviceBrand: undefined,
 				messages: ((token, body, options) => {
 					signalSeen = options?.signal;
+					upstreamCalled.complete();
 					if (body.stream) {
 						return fake.messages(token, body as Anthropic.MessageCreateParamsStreaming, options);
 					}
@@ -1357,11 +1360,7 @@ suite('ClaudeProxyService', () => {
 			}).catch(err => ({ aborted: true, err: err as Error }));
 
 			// Wait until upstream has been called.
-			await new Promise<void>(resolve => {
-				const i = setInterval(() => {
-					if (signalSeen) { clearInterval(i); resolve(); }
-				}, 10);
-			});
+			await upstreamCalled.p;
 
 			handle.dispose();
 			service.dispose();

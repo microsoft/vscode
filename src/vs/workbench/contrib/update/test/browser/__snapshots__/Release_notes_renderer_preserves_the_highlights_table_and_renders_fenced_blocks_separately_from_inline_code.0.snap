@@ -1,0 +1,7 @@
+<table class="highlights-table"><tbody><tr><th>Editor</th></tr><tr><td><a href="#editor">Highlights</a></td></tr></tbody></table>
+
+<h2 id="editor">Editor</h2>
+<p>Inline <code>code</code>.</p>
+<pre><code class="language-typescript"><div class="monaco-tokenized-source"><span class="mtk1">const value = 42;</span></div>
+</code></pre><pre><code><div class="monaco-tokenized-source"><span class="mtk1">plain code</span></div>
+</code></pre>

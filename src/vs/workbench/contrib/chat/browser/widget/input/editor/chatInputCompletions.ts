@@ -34,11 +34,13 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { FileKind, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../../common/contributions.js';
 import { EditorsOrder, isDiffEditorInput } from '../../../../../../common/editor.js';
+import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
@@ -63,7 +65,8 @@ import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
-import { attachedContextCompletionAdditionalTriggerCharacters, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { InputEditorCommandArgumentHint } from './chatInputCommandArgumentHint.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
@@ -76,29 +79,45 @@ const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
  * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
  */
 const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
+const acceptCommandArgumentHintCommandId = '_chat.acceptCommandArgumentHint';
+
+interface IAcceptCommandArgumentHintContext {
+	readonly widget: IChatWidget;
+	readonly sessionResource: URI;
+	readonly model: ITextModel;
+	readonly range: Range;
+	readonly prefix: string;
+	readonly argumentHint: string;
+}
 
 /**
  * Returns `true` when the widget's chat session is backed by an agent
  * host (local or remote). For these sessions, completions are delegated
  * to the agent host via `AgentHostInputCompletions`, and the workbench's
- * default in-process providers (file/symbol/tool/agent) short-circuit.
+ * default in-process file/symbol/tool providers short-circuit.
  */
 function isAgentHostBackedWidget(widget: IChatWidget): boolean {
 	const sessionResource = widget.viewModel?.model.sessionResource;
 	return !!sessionResource && isAgentHostTarget(getChatSessionType(sessionResource));
 }
 
-class SlashCommandCompletions extends Disposable {
+export class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IChatService chatService: IChatService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMcpService mcpService: IMcpService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+
+		this._register(CommandsRegistry.registerCommand(acceptCommandArgumentHintCommandId, (_accessor: ServicesAccessor, context: IAcceptCommandArgumentHintContext) => {
+			context.widget.getContrib<InputEditorCommandArgumentHint>(InputEditorCommandArgumentHint.ID)
+				?.showLocalHint(context.sessionResource, context.model, context.range, context.prefix, context.argumentHint);
+		}));
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'globalSlashCommands',
@@ -131,11 +150,23 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const sessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+				const sessionResource = widget.viewModel.model.sessionResource;
+				const sessionType = getChatSessionType(sessionResource);
+				let forkSupported = false;
+				if (isAgentHostBackedWidget(widget) && slashCommands.some(command => command.command === 'fork')) {
+					try {
+						forkSupported = !!(await this.chatSessionsService.getOrCreateChatSession(sessionResource, _token)).forkSession;
+					} catch (error) {
+						this.logService.error(error, 'Failed to determine whether the chat session supports forking');
+					}
+				}
 
 				return {
 					suggestions: slashCommands
 						.filter(c => {
+							if (isAgentHostBackedWidget(widget) && c.command === 'fork' && !forkSupported) {
+								return false;
+							}
 							// silent commands are client-side only... so they're not "attaching anything"
 							// so this check can be scoped to when the command _does_ attach something before
 							// checking if the widget supports attachments at all
@@ -156,17 +187,41 @@ class SlashCommandCompletions extends Disposable {
 							}
 							return true;
 						})
-						.map((c, i): CompletionItem => {
+						.flatMap((c, i): CompletionItem[] => {
 							const withSlash = `/${c.command}`;
-							return {
-								label: { label: withSlash, description: c.detail },
-								insertText: c.executeImmediately ? '' : `${withSlash} `,
-								documentation: c.detail,
-								range,
-								sortText: c.sortText ?? 'a'.repeat(i + 1),
-								kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-								command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
-							};
+							const variants = isAgentHostBackedWidget(widget)
+								? (c.completionVariants ?? [{ label: withSlash, insertText: c.executeImmediately ? '' : `${withSlash} `, executeImmediately: c.executeImmediately }])
+								: [{ label: withSlash, insertText: c.executeImmediately ? '' : `${withSlash} `, executeImmediately: c.executeImmediately }];
+							return variants.map((variant, variantIndex) => {
+								const prefix = variant.insertText.trimEnd();
+								const prefixRange = new Range(range.replace.startLineNumber, range.replace.startColumn, range.replace.startLineNumber, range.replace.startColumn + prefix.length);
+								const command = variant.executeImmediately
+									? { id: ChatSubmitAction.ID, title: variant.label, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] }
+									: variant.argumentHint
+										? {
+											id: acceptCommandArgumentHintCommandId,
+											title: variant.label,
+											arguments: [{
+												widget,
+												sessionResource,
+												model,
+												range: prefixRange,
+												prefix,
+												argumentHint: variant.argumentHint,
+											} satisfies IAcceptCommandArgumentHintContext]
+										}
+										: undefined;
+								return {
+									label: { label: variant.label, description: variant.detail ?? c.detail },
+									insertText: variant.insertText,
+									filterText: withSlash,
+									documentation: variant.detail ?? c.detail,
+									range,
+									sortText: `${c.sortText ?? 'a'.repeat(i + 1)}${variantIndex}`,
+									kind: CompletionItemKind.Text,
+									command,
+								};
+							});
 						})
 				};
 			}
@@ -279,9 +334,7 @@ class SlashCommandCompletions extends Disposable {
 							insertText: `${displayLabel} `,
 							documentation: c.description,
 							range,
-							// Allow matching by either the space form (what the user sees) or the
-							// colon form (so legacy `/chronicle:tips` typing still filters).
-							filterText: hasSubcommand ? `${colonLabel} ${displayLabel}` : undefined,
+							filterText: getPromptSlashCommandFilterText(c.name),
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 						};
@@ -341,7 +394,7 @@ class SlashCommandCompletions extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
 
-class AgentCompletions extends Disposable {
+export class AgentCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -361,7 +414,8 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				const agentHostSession = isAgentHostBackedWidget(widget);
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 
@@ -371,7 +425,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = this.getCurrentAgentForWidget(widget);
-				if (!usedAgent || usedAgent.command) {
+				if (!usedAgent || usedAgent.command || (agentHostSession && (usedAgent.agent.isCore || usedAgent.agent.isDefault || this.chatSessionsService.getChatSessionContribution(usedAgent.agent.id)))) {
 					// Only one allowed
 					return;
 				}
@@ -402,11 +456,11 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				const agentHostSession = isAgentHostBackedWidget(widget);
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
-
-				if (widget.lockedAgentId) {
+				if (widget.lockedAgentId && !agentHostSession) {
 					return null;
 				}
 
@@ -421,7 +475,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location));
+					.filter(a => a.locations.includes(widget.location))
+					.filter(a => !agentHostSession || (!a.isCore && !a.isDefault));
 
 				// Filter out chatSessions contributions for slash command completions
 				const chatSessionContributions = this.chatSessionsService.getAllChatSessionContributions();
@@ -614,7 +669,7 @@ class AgentCompletions extends Disposable {
 	}
 
 	private getCurrentAgentForWidget(widget: IChatWidget): { agent: IChatAgentData; command?: string } | undefined {
-		if (widget.lockedAgentId) {
+		if (widget.lockedAgentId && !isAgentHostBackedWidget(widget)) {
 			const usedAgent = this.chatAgentService.getAgent(widget.lockedAgentId);
 			return usedAgent && { agent: usedAgent };
 		}

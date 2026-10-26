@@ -18,11 +18,15 @@ export const enum AccessibleViewProviderId {
 	TerminalChat = 'terminal-chat',
 	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
+	MultiDiffEditorFileList = 'multiDiffEditorFileList',
 	MergeEditor = 'mergeEditor',
 	PanelChat = 'panelChat',
 	CustomizationMigrations = 'customizationMigrations',
 	CustomizationDiscovery = 'customizationDiscovery',
+	Remotes = 'remotes',
+	McpServerConfiguration = 'mcpServerConfiguration',
 	ChatTerminalOutput = 'chatTerminalOutput',
+	ChatBackgroundShellOutput = 'chatBackgroundShellOutput',
 	ChatThinking = 'chatThinking',
 	InlineChat = 'inlineChat',
 	AgentChat = 'agentChat',
@@ -51,9 +55,16 @@ export const enum AccessibleViewProviderId {
 	ChatFindHelp = 'chatFindHelp',
 	ProblemsFilterHelp = 'problemsFilterHelp',
 	SessionsChat = 'sessionsChat',
+	ArtifactDetails = 'artifactDetails',
+	SessionsStorageCleanup = 'sessionsStorageCleanup',
 	SessionsChanges = 'sessionsChanges',
+	EmptyFileEditorSearch = 'emptyFileEditorSearch',
+	SessionsListNotification = 'sessionsListNotification',
+	SessionsGetStarted = 'sessionsGetStarted',
+	SessionCanvas = 'sessionCanvas',
 	Survey = 'survey',
 	Automations = 'automations',
+	AgentsWindowExtensions = 'agentsWindowExtensions',
 	ConnectionDiagnostics = 'connectionDiagnostics',
 	BrowserElementCommenting = 'browserElementCommenting',
 	ChatPetAchievements = 'chatPetAchievements',
@@ -181,7 +192,7 @@ export class AccessibleContentProvider extends Disposable implements IAccessible
 		public provideContent: () => string,
 		public onClose: () => void,
 		public verbositySettingKey: string,
-		public onOpen?: () => void,
+		public onOpen?: () => IDisposable | void,
 		public actions?: IAction[],
 		public provideNextContent?: () => string | undefined,
 		public providePreviousContent?: () => string | undefined,
@@ -230,7 +241,8 @@ export interface IBasicContentProvider extends IDisposable {
 	options: IAccessibleViewOptions;
 	onClose(): void;
 	provideContent(): string;
-	onOpen?(): void;
+	/** May return resources that are released when this showing of the view ends. */
+	onOpen?(): IDisposable | void;
 	actions?: IAction[];
 	providePreviousContent?(): void;
 	provideNextContent?(): void;

@@ -1,0 +1,209 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentConnection, type AuthenticateParams } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
+import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
+import { type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IProgressService, type IProgressStep } from '../../../../../../platform/progress/common/progress.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
+import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { createCloudSandboxConnectionCustomization } from '../../../browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
+import { RemoteAgentHostAuthenticationService, IRemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
+import { RemoteAgentHostContribution } from '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
+import { IRemoteAgentHostConnectionCustomization, IRemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
+import { RemoteAgentHostLogForwarder } from '../../../browser/remoteAgentHost/remoteAgentHostLogForwarder.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
+
+suite('Remote Agent Host silent MCP authentication', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const request: IAgentHostMcpAuthenticationRequest = {
+		target: { kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/conversations/opaque-session', customizationId: 'urn:example:mcp:docs' },
+		serverName: 'Docs',
+		auth: {
+			reason: McpAuthRequiredReason.Required,
+			resource: { resource: 'https://docs.example/mcp', authorization_servers: ['https://issuer.example'], scopes_supported: ['read'] },
+			oauthClient: { clientId: 'docs-client' },
+			requiredScopes: ['read'],
+		},
+	};
+
+	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote') {
+		const instantiation = store.add(new TestInstantiationService());
+		const connectionsChanged = store.add(new Emitter<void>());
+		const notifications = store.add(new Emitter<INotification>());
+		const opened: { steps: IProgressStep[]; settled: Promise<unknown> }[] = [];
+		const sent: AuthenticateParams[] = [];
+		const sessionOptions: boolean[] = [];
+		let handler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
+		let registered = true;
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly clientId = 'client';
+			override readonly rootState = {
+				value: undefined, verifiedValue: undefined,
+				onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
+			};
+			override readonly onDidNotification = notifications.event;
+			override registerMcpAuthenticationHandler(value: typeof handler) {
+				handler = value;
+				return toDisposable(() => { handler = undefined; });
+			}
+			override async authenticate(params: AuthenticateParams) {
+				sent.push(params);
+				return { authenticated: true };
+			}
+		}();
+		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+			override readonly onDidChangeConnections = connectionsChanged.event;
+			override readonly onDidChangeDisplayName = Event.None;
+			override get connections() {
+				return registered ? [new class extends mock<IRemoteAgentHostConnectionInfo>() {
+					override readonly address = address;
+					override readonly clientId = connection.clientId;
+					override readonly status = RemoteAgentHostConnectionStatus.connected;
+				}()] : [];
+			}
+			override getConnection() { return connection; }
+		}());
+		instantiation.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidRegisterAuthenticationProvider = Event.None;
+			override readonly onDidChangeSessions = Event.None;
+			override isDynamicAuthenticationProvider() { return true; }
+			override isAuthenticationProviderRegistered() { return true; }
+			override async getOrActivateProviderIdForServer() { return 'docs-provider'; }
+			override async getSessions(_providerId: string, _scopes: string[] | undefined, options?: { silent?: boolean }) {
+				sessionOptions.push(options?.silent === true);
+				return [{ id: 'docs-session', scopes: ['read'], accessToken: 'docs-token', account: { id: 'account', label: 'Docs Account' } }];
+			}
+		}());
+		instantiation.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None });
+		instantiation.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => allowed });
+		instantiation.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+		instantiation.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiation.stub(IDynamicAuthenticationProviderStorageService, { getClientRegistration: async () => ({ clientId: 'docs-client' }) });
+		instantiation.stub(IRemoteAgentHostConnectionCustomizationService, { get: () => customization });
+		instantiation.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
+		instantiation.stub(IAgentHostFileSystemService, { registerAuthority: () => Disposable.None });
+		instantiation.stubInstance(RemoteAgentHostLogForwarder, store.add(toDisposable(() => { })));
+		instantiation.stub(IChatSessionsService, {});
+		instantiation.stub(ILanguageModelsService, {});
+		instantiation.stub(IAgentHostSessionWorkingDirectoryResolver, {});
+		instantiation.stub(ICustomizationHarnessService, {});
+		instantiation.stub(IAgentHostTerminalService, {});
+		instantiation.stub(IAgentHostActiveClientService, {});
+		instantiation.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiation.stub(IProgressService, new class extends mock<IProgressService>() {
+			override withProgress<R>(options: Parameters<IProgressService['withProgress']>[0], task: (progress: { report(step: IProgressStep): void }) => Promise<R>): Promise<R> {
+				const steps: IProgressStep[] = [];
+				const settled = task({ report: step => steps.push(step) });
+				opened.push({ steps, settled });
+				return settled;
+			}
+		}());
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
+		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, { takePendingSessionRemovals: () => [] });
+		instantiation.stub(ILabelService, { getHostLabel: () => 'Remote' });
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		store.add(instantiation.createInstance(RemoteAgentHostContribution));
+		return {
+			authenticate: (value: IAgentHostMcpAuthenticationRequest) => { assert.ok(handler); return handler(value); }, sent, sessionOptions,
+			notifications, opened,
+			removeConnection: () => { registered = false; connectionsChanged.fire(); },
+		};
+	}
+
+	for (const address of ['cloudsandbox:remote', 'ws://remote.example:8081']) {
+		test(`editor forwards indeterminate progress and disposes it on disconnect: ${address}`, async () => {
+			const context = fixture(undefined, true, false, address);
+			context.notifications.fire({ type: 'root/progress', channel: 'custom-host:/root', progressToken: 'policy', progress: 0, message: 'Loading settings' });
+			assert.deepStrictEqual(context.opened.map(record => record.steps), [[]]);
+			context.removeConnection();
+			await context.opened[0].settled;
+			context.notifications.fire({ type: 'root/progress', channel: 'custom-host:/root', progressToken: 'late', progress: 0 });
+			assert.strictEqual(context.opened.length, 1);
+		});
+	}
+
+	test('Agents window leaves progress to the session provider', () => {
+		const context = fixture();
+		context.notifications.fire({ type: 'root/progress', channel: 'custom-host:/root', progressToken: 'policy', progress: 0 });
+		assert.strictEqual(context.opened.length, 0);
+	});
+
+	test('forwards remembered MCP credentials to the user-local protocol sealing boundary', async () => {
+		const customization = createCloudSandboxConnectionCustomization('cloudsandbox:remote',
+			new class extends mock<ICloudSandboxAgentHostService>() { }(), true);
+		const context = fixture(customization);
+		const authenticated = await context.authenticate(request);
+		assert.deepStrictEqual({ authenticated, sent: context.sent, silent: context.sessionOptions }, {
+			authenticated: true,
+			sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
+			silent: [true],
+		});
+	});
+
+	test('ordinary remotes keep their remembered credential path', async () => {
+		const context = fixture();
+		const authenticated = await context.authenticate(request);
+		assert.deepStrictEqual({ authenticated, sent: context.sent }, {
+			authenticated: true, sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
+		});
+	});
+
+	test('denied MCP access never seals or sends a credential', async () => {
+		let sealed = false;
+		const context = fixture({ authenticate: async params => { sealed = true; return params; } }, false);
+		const authenticated = await context.authenticate(request);
+		assert.deepStrictEqual({ authenticated, sealed, sent: context.sent }, { authenticated: false, sealed: false, sent: [] });
+	});
+
+	test('sealing failure never falls back to plaintext authentication', async () => {
+		const context = fixture({ authenticate: async () => { throw new Error('Untrusted recipient'); } });
+		await assert.rejects(context.authenticate(request), /Untrusted recipient/);
+		assert.deepStrictEqual(context.sent, []);
+	});
+
+	test('removing a connection during sealing prevents credential forwarding', async () => {
+		const started = new DeferredPromise<void>();
+		const sealed = new DeferredPromise<AuthenticateParams>();
+		const context = fixture({ authenticate: async () => { void started.complete(); return sealed.p; } });
+		const rejected = assert.rejects(context.authenticate(request), CancellationError);
+		await started.p;
+		context.removeConnection();
+		await sealed.complete({ resource: 'https://docs.example/mcp', token: 'copilot-sealed.v1.mcp.ciphertext' });
+		await rejected;
+		assert.deepStrictEqual(context.sent, []);
+	});
+});

@@ -598,6 +598,30 @@ suite('CommandAutoApprover', () => {
 			assert.deepStrictEqual(seen, []);
 		});
 
+		test('checks the destination of combined stdout and stderr redirects', () => {
+			const destinations: string[] = [];
+			const opts = {
+				isWriteDestApproved: (dest: string) => {
+					destinations.push(dest);
+					return !dest.startsWith('/');
+				},
+			};
+			assert.deepStrictEqual({
+				results: [
+					approver.shouldAutoApprove('echo hi >& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >&/outside/file', opts),
+					approver.shouldAutoApprove('echo hi 1>& /outside/file', opts),
+					approver.shouldAutoApprove('echo hi >& "/outside/file"', opts),
+					approver.shouldAutoApprove('echo hi >& out.txt', opts),
+					approver.shouldAutoApprove('echo hi 2>&1', opts),
+				],
+				destinations,
+			}, {
+				results: ['noMatch', 'noMatch', 'noMatch', 'noMatch', 'approved', 'approved'],
+				destinations: ['/outside/file', '/outside/file', '/outside/file', '/outside/file', 'out.txt'],
+			});
+		});
+
 		test('requires confirmation for redirect pathname globs', () => {
 			const allowAllDestinations = { isWriteDestApproved: () => true };
 			const powershell = { language: 'powershell', isWriteDestApproved: () => true } as const;

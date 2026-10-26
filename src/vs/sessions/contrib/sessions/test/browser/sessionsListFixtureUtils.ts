@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandAction } from '../../../../../platform/action/common/action.js';
@@ -41,34 +42,36 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import type { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
@@ -103,13 +106,15 @@ export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly approvalCommand?: string;
 }
 
-/** A custom group. Groups render in the order they are listed. */
+/** A custom group. Groups render in the order they are listed, after the group they are nested in. */
 export interface ISessionsListFixtureGroup {
 	/** Fixture-local id used by row references. */
 	readonly id: string;
 	readonly name: string;
 	/** Ids of the member sessions. */
 	readonly sessions?: readonly string[];
+	/** Fixture id of the group this group is nested in, listed before it. */
+	readonly parent?: string;
 }
 
 /**
@@ -137,7 +142,6 @@ export interface ISessionsListFixtureView {
 	readonly expanded?: readonly SessionsListFixtureRow[];
 	/** Defaults to whether any session is archived. */
 	readonly showArchived?: boolean;
-	readonly showEmptyGroups?: boolean;
 	readonly reducedMotion?: boolean;
 }
 
@@ -154,6 +158,13 @@ export interface ISessionsListFixtureInteraction {
 	readonly renaming?: SessionsListFixtureRow;
 	/** Creates a group from these sessions and shows its name editor, like Create Group. */
 	readonly createGroupFrom?: readonly string[];
+	/** Creates an empty subgroup in this group and shows its name editor, like Create Subgroup. */
+	readonly createSubgroupIn?: string;
+	/**
+	 * Drags the source row over the target row without dropping it, so the list
+	 * shows its drop feedback. `at` is the part of the target row under the pointer.
+	 */
+	readonly dragging?: { readonly source: SessionsListFixtureRow; readonly target: SessionsListFixtureRow; readonly at: 'top' | 'middle' | 'bottom' };
 	/** The row whose production context menu is open, as after a right-click. Applied last, since the menu takes focus. */
 	readonly contextMenu?: SessionsListFixtureRow;
 }
@@ -164,14 +175,14 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonStyle?: NewSessionButtonStyle;
 	/** Applied through the experiment treatment. */
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
-	readonly automations?: boolean;
-	readonly automationRunStatus?: IAutomationRun['status'];
-	/** Shows Automations and Customizations as navigation rows above the Sessions header. */
+	/** Shows New Session, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
-	/** Count shown on the Customizations navigation row. */
+	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
+	/** Shows the Customizations navigation row's badge for extensions that can be enabled in the Agents window. */
+	readonly customizationExtensionSuggestionsAvailable?: boolean;
 }
 
 /** Everything a sessions list fixture renders. */
@@ -184,6 +195,8 @@ export interface ISessionsListFixtureState {
 	readonly header?: ISessionsListFixtureHeader;
 	/** Configuration values by setting id. */
 	readonly settings?: Readonly<Record<string, unknown>>;
+	/** Environments, each served by a provider whose id is the environment's id, for sessions to name as their `providerId`. */
+	readonly environments?: readonly ISessionEnvironment[];
 	/** Room around the list, e.g. for an onboarding callout. */
 	readonly frame?: { readonly width: number; readonly height: number };
 }
@@ -224,7 +237,7 @@ const SETTLE_DELAY = 100;
 /** The sessions list still reads this Copilot-internal service (#320480); fixtures stub it by id instead of importing it. */
 const IFixtureAgentSessionsService = createDecorator<object>('agentSessions');
 
-class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
+export class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
 	declare _serviceBrand: undefined;
 
 	private readonly providers = new Map<string, IActionViewItemFactory>();
@@ -252,7 +265,7 @@ type MenuActionGroups = [string, Array<MenuItemAction | SubmenuItemAction>][];
  * Renders context menus in the fixture with the production menu widget and
  * styles, where the shared fixture services show nothing.
  */
-class FixtureContextMenuService extends Disposable implements IContextMenuService {
+export class FixtureContextMenuService extends Disposable implements IContextMenuService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly shownMenu = this._register(new MutableDisposable());
@@ -304,13 +317,27 @@ class FixtureContextMenuService extends Disposable implements IContextMenuServic
 			getKeyBinding: delegate.getKeyBinding ?? (action => this.keybindingService.lookupKeybinding(action.id)),
 		}, defaultMenuStyles));
 		store.add(menu.onDidCancel(() => this.shownMenu.clear()));
-		store.add(actionRunner.onDidRun(() => this.shownMenu.clear()));
+		store.add(actionRunner.onDidRun(event => {
+			this.shownMenu.clear();
+			if (event.error) {
+				onUnexpectedError(event.error);
+			}
+		}));
 		store.add(toDisposable(() => {
 			delegate.onHide?.(false);
 			this.onDidHideContextMenuEmitter.fire();
 		}));
 		this.shownMenu.value = store;
-		this.focus({ focus: () => menu.focus(!!delegate.autoSelectFirstItem) });
+		this.focus({
+			focus: () => {
+				const selection = getContextMenuAutoSelectItem(delegate, actions);
+				if (typeof selection === 'number') {
+					menu.focus(selection);
+				} else {
+					menu.focus(selection);
+				}
+			},
+		});
 		this.onDidShowContextMenuEmitter.fire();
 	}
 }
@@ -335,7 +362,11 @@ class SessionsListFixtureMenuService extends MenuService {
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
 			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
-			return { onDidChange: Event.None, getActions: () => [['navigation', [newSession]]], dispose: () => { } };
+			return {
+				onDidChange: Event.None,
+				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
+				dispose: () => { },
+			};
 		}
 		const menu = super.createMenu(id, contextKeyService, options);
 		return {
@@ -409,6 +440,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	override readonly onDidReplaceSession = Event.None;
 	override readonly onDidDiscardNewSession = Event.None;
 	override readonly onDidReplaceNewDraftSession = Event.None;
+	override readonly onDidMoveChat = Event.None;
 
 	constructor(private readonly sessions: ReadonlyMap<string, ITestSession>) {
 		super();
@@ -418,16 +450,24 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 		return [...this.sessions.values()].map(session => session.session);
 	}
 
+	override canMoveChat(): boolean {
+		return false;
+	}
+
+	override canMoveSessionUnder(): boolean {
+		return false;
+	}
+
 	override getSession(resource: URI): ISession | undefined {
 		return this.find(resource)?.session;
 	}
 
 	override async markRead(session: ISession): Promise<void> {
-		this.find(session.resource)?.isRead.set(true, undefined);
+		this.find(session.resource)?.mainChat.isRead.set(true, undefined);
 	}
 
 	override async markUnread(session: ISession): Promise<void> {
-		this.find(session.resource)?.isRead.set(false, undefined);
+		this.find(session.resource)?.mainChat.isRead.set(false, undefined);
 	}
 
 	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
@@ -492,7 +532,7 @@ let archiveActions: { readonly contribution: SessionsArchiveActionsContribution;
  * {@link SessionsListFixtureMenuService} shows them in each fixture's wording,
  * which keeps concurrently mounted fixtures independent.
  */
-function acquireArchiveActions(): IDisposable {
+export function acquireArchiveActions(): IDisposable {
 	archiveActions ??= {
 		contribution: new SessionsArchiveActionsContribution(new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: REGISTERED_ARCHIVE_WORDING })),
 		refs: 0,
@@ -565,14 +605,15 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		override readonly sessionId = spec.id;
 		override readonly sticky: IObservable<boolean> = constObservable(true);
 	}());
-	const automationRuns = observableValue<readonly IAutomationRun[]>('fixtureAutomationRuns', []);
 	const newSessionButtonStyle = header?.newSessionButtonStyle ?? header?.newSessionButtonTreatment;
-	const newSessionKeybinding = newSessionButtonStyle ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
+	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IQuickInputService, new TestQuickInputService());
+			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, SessionsListFixtureMenuService);
 			reg.defineInstance(IActionViewItemService, new FixtureActionViewItemService());
@@ -621,17 +662,10 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override readonly selectedHost = undefined;
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				private readonly providers = (state.environments ?? []).map(environment => upcastPartial<ISessionsProvider>({ id: environment.id, environment }));
 				override readonly onDidChangeProviders = Event.None;
-				override getProviders() { return []; }
-				override getProvider() { return undefined; }
-			}());
-			reg.defineInstance(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
-				override readonly hadPriorWindowOpen = true;
-				override readonly windowOpenCount = 2;
-			}());
-			reg.defineInstance(ILifecycleService, new class extends mock<ILifecycleService>() {
-				override phase = LifecyclePhase.Eventually;
-				override when(): Promise<void> { return Promise.resolve(); }
+				override getProviders() { return this.providers; }
+				override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined { return this.providers.find(provider => provider.id === providerId) as T | undefined; }
 			}());
 			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
@@ -639,7 +673,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);
-				override readonly runs = automationRuns;
+				override readonly runs = constObservable([]);
 				override readonly catalogueState = constObservable('ready' as const);
 			}());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
@@ -650,6 +684,14 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
+			}());
+			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([]);
+				override getComparison() { return undefined; }
+				override getComparisonForSession() { return undefined; }
+			}());
+			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
+				override readonly sentiment: IChatSentiment = {};
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
@@ -666,8 +708,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	// Render terminal-approval labels as real (monospace) code blocks; otherwise the command is blank.
-	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	// Pin the Linux screenshot font instead of depending on Chromium's generic monospace fallback.
+	await configurationService.setUserConfiguration('editor', { fontFamily: 'Liberation Mono, monospace' });
 	for (const [key, value] of Object.entries(state.settings ?? {})) {
 		await configurationService.setUserConfiguration(key, value);
 	}
@@ -676,11 +718,12 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
 	}
-	if (header?.automations || header?.navigationShortcuts) {
+	if (header?.navigationShortcuts) {
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 	}
 
@@ -723,23 +766,15 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	let listParent = container;
-	let createSessionsHeader: ((container: HTMLElement, disposables: DisposableStore) => HTMLElement) | undefined;
+	let navigationContainer: HTMLElement | undefined;
 	if (header) {
 		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
 		renderedHeader.toolbar?.refresh();
-		// Like the Sessions view, render the header inside the tree when the navigation rows lead it.
-		createSessionsHeader = (headerContainer, disposables) => {
-			const treeHeader = renderSessionsHeader(headerContainer, false, instantiationService, contextKeyService, disposables);
-			treeHeader.toolbar?.refresh();
-			return treeHeader.row;
-		};
-		if (header.navigationShortcuts) {
-			DOM.hide(renderedHeader.row);
-		}
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(header ? '.agent-sessions-control-container' : 'div'));
@@ -747,6 +782,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		listHost.style.width = `${width}px`;
 	}
 
+	// Disposed before the list, so a held drag ends while the list can still clear its feedback.
+	const interactionStore = disposableStore.add(new DisposableStore());
 	const list = disposableStore.add(instantiationService.createInstance(TestSessionsList, listHost, {
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
@@ -754,15 +791,19 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
-		createSessionsHeader,
+		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
+		navigationContainer,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
+	for (const spec of state.sessions) {
+		if (spec.application) {
+			const session = getSession(spec.id).session;
+			list.filters.setExcluded({ kind: 'application', environment: session.environment, id: session.application.get().id }, false);
+		}
+	}
 	if (view.showArchived ?? state.sessions.some(spec => spec.isArchived)) {
 		list.setExcludeArchived(false);
-	}
-	if (view.showEmptyGroups !== undefined) {
-		list.setShowEmptyGroups(view.showEmptyGroups);
 	}
 	list.layout(height, width);
 	if (view.collapsed === 'all') {
@@ -777,11 +818,11 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	if (header) {
-		await renderHeaderState(list, container, instantiationService, header, automationRuns);
+		await renderHeaderState(container, instantiationService, header);
 	}
 
 	await timeout(SETTLE_DELAY);
-	applyInteraction(context, list, interaction, resolve, getSession, groupIds);
+	applyInteraction(context, list, interaction, resolve, getSession, groupIds, interactionStore);
 	await timeout(SETTLE_DELAY);
 
 	return { list, container, listHost, instantiationService, sessions, resolve };
@@ -798,15 +839,27 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 
 	const groupsService = instantiationService.get(ISessionGroupsService);
 	const groupIds = new Map<string, string>();
-	for (const group of state.groups ?? []) {
-		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId));
-		groupIds.set(group.id, created.id);
-	}
 	// Groups created together share a timestamp, so persist the listed order explicitly.
-	const orderIds = [...groupIds.values()].map(id => `group:${id}`);
-	if (orderIds.length > 1) {
+	const topLevelIds: string[] = [];
+	const lastSubgroupIds = new Map<string, string>();
+	for (const group of state.groups ?? []) {
+		const parentId = group.parent === undefined ? undefined : groupIds.get(group.parent);
+		if (group.parent !== undefined && parentId === undefined) {
+			throw new Error(`Fixture group '${group.id}' must be listed after its parent '${group.parent}'.`);
+		}
+		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId), parentId);
+		groupIds.set(group.id, created.id);
+		if (parentId === undefined) {
+			topLevelIds.push(getSessionGroupSectionId(created.id));
+		} else {
+			const lastSubgroupId = lastSubgroupIds.get(parentId);
+			groupsService.moveGroup(created.id, parentId, lastSubgroupId === undefined ? undefined : { siblingId: lastSubgroupId, position: 'after' });
+			lastSubgroupIds.set(parentId, created.id);
+		}
+	}
+	if (topLevelIds.length > 1) {
 		const sectionOrderService = instantiationService.get(ISessionSectionOrderService);
-		sectionOrderService.reorder(orderIds, orderIds[1], orderIds[0], 'after');
+		sectionOrderService.reorder(topLevelIds, topLevelIds[1], topLevelIds[0], 'after');
 	}
 	return groupIds;
 }
@@ -817,19 +870,7 @@ function setCollapsed(list: TestSessionsList, item: SessionsListItemReference, c
 	}
 }
 
-async function renderHeaderState(list: SessionsList, container: HTMLElement, instantiationService: TestInstantiationService, header: ISessionsListFixtureHeader, automationRuns: ISettableObservable<readonly IAutomationRun[]>): Promise<void> {
-	if (header.automations) {
-		await list.resetAutomationsNewBadge();
-	}
-	if (header.automationRunStatus) {
-		automationRuns.set([{
-			id: 'fixture-run',
-			automationId: 'fixture-automation',
-			status: header.automationRunStatus,
-			trigger: 'schedule',
-			startedAt: new Date().toISOString(),
-		}], undefined);
-	}
+async function renderHeaderState(container: HTMLElement, instantiationService: TestInstantiationService, header: ISessionsListFixtureHeader): Promise<void> {
 	await Promise.resolve();
 	if (header.newSessionButtonStyle) {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -841,7 +882,11 @@ async function renderHeaderState(list: SessionsList, container: HTMLElement, ins
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	if (!container.querySelector('.agent-sessions-compact-new-button')) {
+	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button');
+	if (header.navigationShortcuts && newSessionButton) {
+		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
+	}
+	if (!header.navigationShortcuts && !newSessionButton) {
 		throw new Error('Expected the production New Session action in the Sessions header.');
 	}
 	const style = header.newSessionButtonStyle ?? header.newSessionButtonTreatment;
@@ -853,7 +898,7 @@ async function renderHeaderState(list: SessionsList, container: HTMLElement, ins
 	}
 }
 
-function applyInteraction(context: ComponentFixtureContext, list: TestSessionsList, interaction: ISessionsListFixtureInteraction, resolve: (row: SessionsListFixtureRow) => SessionsListItemReference, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>): void {
+function applyInteraction(context: ComponentFixtureContext, list: TestSessionsList, interaction: ISessionsListFixtureInteraction, resolve: (row: SessionsListFixtureRow) => SessionsListItemReference, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>, interactionStore: DisposableStore): void {
 	if (interaction.selected && !list.setSelectedItems(interaction.selected.map(resolve))) {
 		throw new Error(`Expected selectable session or chat rows for ${JSON.stringify(interaction.selected)}.`);
 	}
@@ -871,6 +916,19 @@ function applyInteraction(context: ComponentFixtureContext, list: TestSessionsLi
 		if (!list.element.querySelector('.session-group-input input')) {
 			throw new Error('Expected the new group to show its name editor.');
 		}
+	}
+	if (interaction.createSubgroupIn) {
+		const parentId = groupIds.get(interaction.createSubgroupIn);
+		if (!parentId) {
+			throw new Error(`Unknown fixture group '${interaction.createSubgroupIn}'.`);
+		}
+		list.createSubgroup(parentId);
+		if (!list.element.querySelector('.session-group-input input')) {
+			throw new Error('Expected the new subgroup to show its name editor.');
+		}
+	}
+	if (interaction.dragging) {
+		simulateDragOver(list, resolve(interaction.dragging.source), resolve(interaction.dragging.target), interaction.dragging.at, interactionStore);
 	}
 	if (interaction.renaming) {
 		startRename(list, interaction.renaming, getSession, groupIds);
@@ -891,6 +949,24 @@ function openContextMenu(container: HTMLElement, list: TestSessionsList, item: S
 	if (!container.querySelector('.context-view .monaco-menu')) {
 		throw new Error(`Expected the context menu of ${JSON.stringify(item)} to open.`);
 	}
+}
+
+/** Starts dragging the source row and holds it over a part of the target row, ending the drag when the fixture is disposed. */
+function simulateDragOver(list: TestSessionsList, source: SessionsListItemReference, target: SessionsListItemReference, at: 'top' | 'middle' | 'bottom', store: DisposableStore): void {
+	const sourceRow = list.getItemRow(source);
+	const targetRow = list.getItemRow(target);
+	if (!sourceRow || !targetRow) {
+		throw new Error(`Expected rows to drag ${JSON.stringify(source)} over ${JSON.stringify(target)}.`);
+	}
+	const dataTransfer = new DataTransfer();
+	sourceRow.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+	store.add(toDisposable(() => (sourceRow.isConnected ? sourceRow : list.element.querySelector('.monaco-list'))?.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }))));
+	const { left, top, height } = targetRow.getBoundingClientRect();
+	const clientY = top + height * (at === 'top' ? 0.1 : at === 'bottom' ? 0.9 : 0.5);
+	const dragOver = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, clientX: left + 10, clientY });
+	// Synthetic events don't compute `offsetY`, which the list reads for the part of the row under the pointer.
+	Object.defineProperty(dragOver, 'offsetY', { value: clientY - top });
+	targetRow.dispatchEvent(dragOver);
 }
 
 function startRename(list: SessionsList, row: SessionsListFixtureRow, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>): void {

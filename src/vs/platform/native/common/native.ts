@@ -8,6 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
+import { AgentHostEditorUpdate, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
@@ -70,6 +71,7 @@ export type INativeZipFile =
 		readonly path: string;
 		readonly source: URI;
 		readonly size: number;
+		readonly compress?: boolean;
 		/** Skip this entry when its source cannot be opened or inspected. */
 		readonly skipSourceErrors?: boolean;
 	}
@@ -78,14 +80,30 @@ export type INativeZipFile =
 export interface INativeZipOptions {
 	readonly maxSize?: number;
 	readonly maxEntries: number;
+	readonly operationId?: string;
+}
+
+export interface INativeZipProgress {
+	readonly operationId: string;
+	readonly bytes: number;
+	readonly total: number;
+	readonly path: string;
+}
+
+export interface INativeZipResult {
+	readonly skippedFiles: readonly { readonly path: string; readonly error: string }[];
 }
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
 	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
 	readonly folderUriIsDefault?: boolean;
-	readonly sessionResource?: UriComponents;
+	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
+	readonly reveal?: UriComponents | 'new';
+	/** Session to spotlight after a contextual invitation, even when it is not opened. */
+	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** Copy a draft only when explicitly revealing the new-session composer. */
 	readonly draft?: IAgentsWindowDraft;
 }
 
@@ -246,6 +264,8 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
+	readonly onDidChangeAgentHostEditorState: Event<IAgentHostEditorState>;
 
 	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
@@ -276,6 +296,12 @@ export interface ICommonNativeHostService {
 
 	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
+	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
+	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
+	claimAgentsWindowInvitation(resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined>;
+	markAgentsWindowInvitationShown(id: string): Promise<void>;
+	releaseAgentsWindowInvitation(id: string): Promise<void>;
+
 	/**
 	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
 	 * replacing any previously registered by this window. The shortcuts fire even when the
@@ -299,7 +325,7 @@ export interface ICommonNativeHostService {
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
-	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
@@ -328,6 +354,12 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+	/**
+	 * Drags the file or folder at absolute `path` out of the window, as if the user dragged it from the file manager, so
+	 * other apps can take it. Call it from a `dragstart` handler that cancels the HTML drag, while the mouse button is
+	 * still down. Does nothing for a path that doesn't exist.
+	 */
+	startFileDrag(path: string, options?: INativeHostOptions): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
 	/**
@@ -340,13 +372,20 @@ export interface ICommonNativeHostService {
 
 	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
 
+	/** Requests screen-capture permission without starting a recording. */
+	requestScreenCaptureAccess(): Promise<boolean>;
+
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 	isRunningUnderARM64Translation(): Promise<boolean>;
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
+	/** Returns the bytes available to the user on the filesystem containing the path or its nearest existing ancestor. */
+	getFreeDiskSpace(path: string): Promise<number>;
 	getOSVirtualMachineHint(): Promise<number>;
+
+	isGPUCompositingEnabled(): Promise<boolean>;
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
@@ -372,6 +411,7 @@ export interface ICommonNativeHostService {
 	readClipboardBuffer(format: string): Promise<VSBuffer>;
 	hasClipboard(format: string, type?: 'selection' | 'clipboard'): Promise<boolean>;
 	readImage(): Promise<Uint8Array>;
+	writeImage(data: VSBuffer): Promise<void>;
 
 	// macOS Touchbar
 	newWindowTab(): Promise<void>;
@@ -434,7 +474,9 @@ export interface ICommonNativeHostService {
 	 * file `source` URI together with the number of leading bytes (`size`) to
 	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<INativeZipResult>;
+	readonly onDidProgressZipFile: Event<INativeZipProgress>;
+	cancelZipFile(operationId: string): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

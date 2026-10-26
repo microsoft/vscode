@@ -25,20 +25,29 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationMigrationHint, ICustomizationMigrationService } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { getCustomizationMigrationCategory, homepageMigrationCategories } from './customizationMigrationCategories.js';
+import { CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY, getIgnoredCustomizationMigrationGroups } from './customizationMigrationIgnoredGroups.js';
 
 export interface IChatCustomizationMigrationNoticeContext {
 	readonly sessionResource: URI;
 	readonly workspace: URI | undefined;
+	readonly projectRoot: URI | undefined;
 }
+
+/** Controls migration discovery behavior for a notice host. */
+export interface IChatCustomizationMigrationNoticeOptions {
+	readonly skipDiscoveryWhenDismissed?: boolean;
+}
+
+const CUSTOMIZATION_MIGRATION_NOTICE_DISMISSED_STORAGE_KEY_PREFIX = 'chat.customizationMigrationNotice.dismissed.';
 
 export class ChatCustomizationMigrationNotice extends Disposable {
 	readonly element: HTMLElement;
 	private readonly message: HTMLElement;
 	private readonly migrationHint = observableValue<ICustomizationMigrationHint | undefined>(this, undefined);
-	private dismissalKey: string | undefined;
 	private contextKey: string | undefined;
 	private currentContext: IChatCustomizationMigrationNoticeContext | undefined;
 	private visible = false;
@@ -50,6 +59,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 		private readonly focusInput: () => void,
 		private readonly onDidChangeAvailability: (available: boolean) => void,
 		private readonly onDidChangeVisibility: (visible: boolean) => void,
+		options: IChatCustomizationMigrationNoticeOptions | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICustomizationMigrationService private readonly migrationService: ICustomizationMigrationService,
 		@ICustomizationMigrationTelemetryService private readonly migrationTelemetryService: ICustomizationMigrationTelemetryService,
@@ -68,6 +78,8 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 		dom.setVisibility(false, this.element);
 		const content = dom.append(this.element, dom.$('.chat-customization-migration-notice-content'));
 		this.message = dom.append(content, dom.$('span'));
+		const getDismissalKey = (workspace: URI | undefined) =>
+			`${CUSTOMIZATION_MIGRATION_NOTICE_DISMISSED_STORAGE_KEY_PREFIX}${workspace ? uriIdentityService.extUri.getComparisonKey(workspace) : 'noWorkspace'}`;
 		this._register(instantiationService.createInstance(Link, content, {
 			label: localize('reviewMigrations', "Review Migrations"),
 			href: `command:${AICustomizationManagementCommands.OpenEditor}`,
@@ -88,13 +100,18 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			ThemeIcon.asClassName(Codicon.close),
 			true,
 			() => {
-				if (this.dismissalKey) {
+				if (this.currentContext) {
 					const hint = this.migrationHint.get();
 					if (hint) {
 						this.migrationTelemetryService.hintClicked(hint, 'dismiss');
 					}
 					this.focusInput();
-					this.storageService.store(this.dismissalKey, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+					this.storageService.store(
+						getDismissalKey(this.currentContext.workspace),
+						true,
+						StorageScope.PROFILE,
+						StorageTarget.MACHINE,
+					);
 				}
 			},
 		)), { icon: true, label: false });
@@ -103,17 +120,26 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 		const configurationChanged = observableSignalFromEvent(this, Event.filter(configurationService.onDidChangeConfiguration,
 			event => categories.some(category => event.affectsConfiguration(category.enablementSetting))));
 		const customizationsChanged = observableSignalFromEvent(this, migrationService.onDidChangeCustomizations);
-		const storageChanged = observableSignalFromEvent(this, Event.filter(
+		const dismissalChanged = observableSignalFromEvent(this, Event.filter(
 			storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store),
-			event => event.key === this.dismissalKey,
+			event => event.key.startsWith(CUSTOMIZATION_MIGRATION_NOTICE_DISMISSED_STORAGE_KEY_PREFIX),
+		));
+		const ignoredGroupsChanged = observableSignalFromEvent(this, Event.filter(
+			storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store),
+			event => event.key === CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY,
 		));
 		this._register(autorun(reader => {
 			configurationChanged.read(reader);
 			customizationsChanged.read(reader);
+			ignoredGroupsChanged.read(reader);
 			const currentContext = context.read(reader);
 			this.currentContext = currentContext;
 			const nextContextKey = currentContext
-				? `${currentContext.sessionResource.toString()}\n${currentContext.workspace ? uriIdentityService.extUri.getComparisonKey(currentContext.workspace) : 'noWorkspace'}`
+				? [
+					currentContext.sessionResource.toString(),
+					currentContext.workspace ? uriIdentityService.extUri.getComparisonKey(currentContext.workspace) : 'noWorkspace',
+					currentContext.projectRoot ? uriIdentityService.extUri.getComparisonKey(currentContext.projectRoot) : 'noProject',
+				].join('\n')
 				: undefined;
 			if (this.contextKey !== nextContextKey) {
 				this.contextKey = nextContextKey;
@@ -123,6 +149,14 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 				this.migrationHint.set(undefined, undefined);
 				return;
 			}
+			if (options?.skipDiscoveryWhenDismissed) {
+				dismissalChanged.read(reader);
+				const dismissalKey = getDismissalKey(currentContext.workspace);
+				if (storageService.getBoolean(dismissalKey, StorageScope.PROFILE, false)) {
+					this.migrationHint.set(undefined, undefined);
+					return;
+				}
+			}
 			const enabledTypes = categories
 				.filter(category => configurationService.getValue<boolean>(category.enablementSetting) === true)
 				.map(category => category.migrationType);
@@ -130,23 +164,23 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 				this.migrationHint.set(undefined, undefined);
 				return;
 			}
-			void this.refresh(currentContext.sessionResource, cancelOnDispose(reader.store));
+			void this.refresh(currentContext, cancelOnDispose(reader.store));
 		}));
 		this._register(autorun(reader => {
 			const hint = this.migrationHint.read(reader);
 			this.onDidChangeAvailability(!!hint);
 		}));
 		this._register(autorun(reader => {
-			storageChanged.read(reader);
+			dismissalChanged.read(reader);
 			const currentContext = context.read(reader);
 			const hint = this.migrationHint.read(reader);
 			const workspace = currentContext?.workspace;
-			this.dismissalKey = `sessions.customizationMigrationNotice.dismissed.${workspace ? uriIdentityService.extUri.getComparisonKey(workspace) : 'noWorkspace'}`;
+			const dismissalKey = getDismissalKey(workspace);
 			const show = showNotice.read(reader)
 				&& !!currentContext
 				&& !!hint
 				&& !chatEntitlementService.sentimentObs.read(reader).hidden
-				&& !storageService.getBoolean(this.dismissalKey, StorageScope.PROFILE, false);
+				&& !storageService.getBoolean(dismissalKey, StorageScope.PROFILE, false);
 			if (show && hint) {
 				this.message.textContent = hint.message;
 			}
@@ -154,9 +188,14 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 		}));
 	}
 
-	private async refresh(sessionResource: URI, token: CancellationToken): Promise<void> {
+	private async refresh(context: IChatCustomizationMigrationNoticeContext, token: CancellationToken): Promise<void> {
 		try {
-			const hint = await this.migrationService.computeMigrationHint(sessionResource, token);
+			const ignoredGroups = getIgnoredCustomizationMigrationGroups(
+				this.storageService,
+				getChatSessionType(context.sessionResource),
+				context.projectRoot,
+			);
+			const hint = await this.migrationService.computeMigrationHint(context.sessionResource, token, ignoredGroups);
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -166,7 +205,7 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			this.migrationHint.set(hint, undefined);
 		} catch (error) {
 			if (!isCancellationError(error)) {
-				this.logService.error('Failed to check customization migrations for the chat panel notice', error);
+				this.logService.error('Failed to check customization migrations for the chat notice', error);
 			}
 			if (!token.isCancellationRequested) {
 				this.migrationHint.set(undefined, undefined);

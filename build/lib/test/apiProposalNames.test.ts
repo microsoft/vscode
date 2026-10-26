@@ -232,35 +232,46 @@ suite('API proposal registry tasks', () => {
 		await import('../../gulpfile.ts');
 	});
 
-	test('core-ci awaits the check exactly once before all consumers', async context => {
-		const fixture = createFixture(context);
-		const coreCI = getTask('core-ci');
-		const events: string[] = [];
-		const restore: (() => void)[] = [];
-		const before = snapshot(fixture.root);
-		try {
-			instrumentCoreCI(coreCI, events, restore);
-			await inDirectory(fixture.root, () => task.series(coreCI)());
-		} finally {
-			restore.reverse().forEach(fn => fn());
-		}
-		assert.deepStrictEqual({
-			first: events[0],
-			stages: events.filter(name => /api-proposal-names|tsgo-typecheck|esbuild-/.test(name)),
-			files: snapshot(fixture.root),
-		}, {
-			first: 'check-api-proposal-names',
-			stages: [
-				'check-api-proposal-names',
-				'tsgo-typecheck',
-				'esbuild-out-build',
-				'esbuild-vscode-min',
-				'esbuild-vscode-reh-min',
-				'esbuild-vscode-reh-web-min',
-			],
-			files: before,
+	const outBuildStages = [
+		'check-api-proposal-names',
+		'tsgo-typecheck',
+		'esbuild-out-build',
+	];
+	const expectedStages: Record<string, string[]> = {
+		'core-ci': [
+			...outBuildStages,
+			'esbuild-vscode-min',
+			'esbuild-vscode-reh-min',
+			'esbuild-vscode-reh-web-min',
+		],
+		// Pull request CI does not build the minified bundles.
+		'core-ci-pr': outBuildStages,
+	};
+
+	for (const [taskName, stages] of Object.entries(expectedStages)) {
+		test(`${taskName} awaits the check exactly once before all consumers`, async context => {
+			const fixture = createFixture(context);
+			const coreCI = getTask(taskName);
+			const events: string[] = [];
+			const restore: (() => void)[] = [];
+			const before = snapshot(fixture.root);
+			try {
+				instrumentCoreCI(coreCI, events, restore);
+				await inDirectory(fixture.root, () => task.series(coreCI)());
+			} finally {
+				restore.reverse().forEach(fn => fn());
+			}
+			assert.deepStrictEqual({
+				first: events[0],
+				stages: events.filter(name => /api-proposal-names|tsgo-typecheck|esbuild-/.test(name)),
+				files: snapshot(fixture.root),
+			}, {
+				first: 'check-api-proposal-names',
+				stages,
+				files: before,
+			});
 		});
-	});
+	}
 
 	test('a failed check stops the actual core-ci task before any consumer runs', async context => {
 		const fixture = createFixture(context, 'stale registry\n');

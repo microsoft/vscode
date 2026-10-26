@@ -11,7 +11,7 @@ import { NodeSocket } from '../../../base/parts/ipc/node/ipc.net.js';
 import { Barrier } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
-import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ISocket, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -157,7 +157,14 @@ export class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	}
 
 	private _mirrorGenericSocket(localSocket: net.Socket, remoteSocket: ISocket) {
-		remoteSocket.onClose(() => localSocket.destroy());
+		remoteSocket.onClose(e => {
+			// Abort on error so the local client can't mistake a truncated stream for a complete one; otherwise flush buffered data.
+			if (e?.type === SocketCloseEventType.NodeSocketCloseEvent && e.hadError) {
+				localSocket.destroy();
+			} else {
+				localSocket.end();
+			}
+		});
 		remoteSocket.onEnd(() => localSocket.end());
 		remoteSocket.onData(d => localSocket.write(d.buffer));
 		localSocket.on('data', d => remoteSocket.write(VSBuffer.wrap(d)));

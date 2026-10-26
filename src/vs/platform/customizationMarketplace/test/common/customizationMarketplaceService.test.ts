@@ -7,9 +7,11 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../common/customizationMarketplaceService.js';
+import { ColorScheme } from '../../../theme/common/theme.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, isCustomizationMarketplaceIconEqual } from '../../common/customizationMarketplaceService.js';
 
 suite('CustomizationMarketplaceService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,6 +26,35 @@ suite('CustomizationMarketplaceService', () => {
 		representativeQueries: [],
 		version: '1.0',
 	};
+
+	test('resolves and compares scalar and themed icons', () => {
+		const scalar = URI.parse('https://example.com/icon.png');
+		const themed = {
+			light: URI.parse('https://example.com/light.png'),
+			dark: URI.parse('https://example.com/dark.png'),
+		};
+
+		assert.deepStrictEqual({
+			scalarLight: getCustomizationMarketplaceIconUri(scalar, ColorScheme.LIGHT)?.toString(),
+			scalarDark: getCustomizationMarketplaceIconUri(scalar, ColorScheme.DARK)?.toString(),
+			themedLight: getCustomizationMarketplaceIconUri(themed, ColorScheme.LIGHT)?.toString(),
+			themedDark: getCustomizationMarketplaceIconUri(themed, ColorScheme.DARK)?.toString(),
+			scalarEqual: isCustomizationMarketplaceIconEqual(scalar, URI.parse(scalar.toString())),
+			themedEqual: isCustomizationMarketplaceIconEqual(themed, {
+				light: URI.parse(themed.light.toString()),
+				dark: URI.parse(themed.dark.toString()),
+			}),
+			crossSyntaxEqual: isCustomizationMarketplaceIconEqual(scalar, themed),
+		}, {
+			scalarLight: 'https://example.com/icon.png',
+			scalarDark: 'https://example.com/icon.png',
+			themedLight: 'https://example.com/light.png',
+			themedDark: 'https://example.com/dark.png',
+			scalarEqual: true,
+			themedEqual: true,
+			crossSyntaxEqual: false,
+		});
+	});
 
 	test('aggregates registered sources without conflating identifiers or mutating their entries', async () => {
 		const calls: { source: string; options: ICustomizationMarketplaceSourceQuery }[] = [];
@@ -47,6 +78,51 @@ suite('CustomizationMarketplaceService', () => {
 			sourceEntryWasNotReused: true,
 			originalQuery: '  review  ',
 		});
+	});
+
+	test('reports source progress and serves cached Browse content while refreshing', async () => {
+		const firstFast = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const firstSlow = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const secondFast = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const secondSlow = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		let fastCalls = 0;
+		let slowCalls = 0;
+		const service = new CustomizationMarketplaceService([
+			{
+				id: 'fast',
+				query: () => ++fastCalls === 1 ? firstFast.p : secondFast.p,
+			},
+			{
+				id: 'slow',
+				query: () => ++slowCalls === 1 ? firstSlow.p : secondSlow.p,
+			},
+		]);
+		const progress: { items: string[]; completed: string[]; cached: string[] }[] = [];
+		const first = service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None, update => {
+			progress.push({
+				items: update.page.items.map(item => item.identifier),
+				completed: [...update.completedSourceIds],
+				cached: [...update.cachedSourceIds],
+			});
+		});
+		firstFast.complete({ items: [{ ...entry, identifier: 'fast' }], total: 1 });
+		await timeout(0);
+		assert.deepStrictEqual(progress, [{ items: ['fast'], completed: ['fast'], cached: [] as string[] }]);
+		firstSlow.complete({ items: [{ ...entry, identifier: 'slow' }], total: 1 });
+		assert.deepStrictEqual((await first).items.map(item => item.identifier), ['fast', 'slow']);
+
+		const refreshProgress: typeof progress = [];
+		const refresh = service.query({ sourceIds: ['fast', 'slow'], pageSize: 2 }, CancellationToken.None, update => {
+			refreshProgress.push({
+				items: update.page.items.map(item => item.identifier),
+				completed: [...update.completedSourceIds],
+				cached: [...update.cachedSourceIds],
+			});
+		});
+		assert.deepStrictEqual(refreshProgress, [{ items: ['fast', 'slow'], completed: [] as string[], cached: ['fast', 'slow'] }]);
+		secondFast.complete({ items: [{ ...entry, identifier: 'fresh-fast' }], total: 1 });
+		secondSlow.complete({ items: [{ ...entry, identifier: 'fresh-slow' }], total: 1 });
+		assert.deepStrictEqual((await refresh).items.map(item => item.identifier), ['fresh-fast', 'fresh-slow']);
 	});
 
 	test('groups multiple providers behind one contributed source', async () => {

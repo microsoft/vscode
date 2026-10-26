@@ -53,6 +53,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
@@ -73,15 +74,17 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	setOverrideProjectRoot(_root: URI): void { }
 	clearOverrideProjectRoot(): void { }
 
-	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<boolean> {
 		// No-op in core VS Code.
+		return true;
 	}
 
-	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<boolean> {
 		// No-op in core VS Code.
+		return true;
 	}
 
-	async generateCustomization(type: PromptsType): Promise<void> {
+	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
 			[PromptsType.skill]: GENERATE_SKILL_COMMAND_ID,
@@ -91,7 +94,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		};
 		const commandId = commandIds[type];
 		if (commandId) {
-			await this.commandService.executeCommand(commandId);
+			await this.commandService.executeCommand(commandId, workspaceFolder);
 		}
 	}
 

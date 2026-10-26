@@ -37,6 +37,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { GetSessionMessagesOptions, Options, PermissionResult, Query, SDKControlInterruptResponse, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
 import type * as http from 'http';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
@@ -48,11 +49,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind, ToolResultContentType, ChatInputResponseKind, ChatInputAnswerState, ChatInputAnswerValueKind, type ChatInputRequest, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -86,9 +88,12 @@ import {
 	makeTextDelta,
 	makeUserToolResultMessage,
 } from './claudeMapSessionEventsTestUtils.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	enabled: false,
 	diagnosticsEnabled: false,
 	emitTurnTiming: () => { },
 	emitFirstResponse: () => { },
@@ -96,6 +101,7 @@ const noopOTelService: IAgentHostOTelService = {
 	getSdkTelemetryConfig: async () => undefined,
 	getNativeSdkTelemetryConfig: async () => undefined,
 	getSessionTraceContext: () => undefined,
+	setSessionComparisonMetadata: () => { },
 	releaseSessionTraceContext: () => { },
 	withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 	getCurrentTraceContext: () => undefined,
@@ -124,11 +130,15 @@ function claudeFileEnvServices(disposables: Pick<DisposableStore, 'add'>): [type
 }
 
 function createTestAuthenticationService(): IAgentHostAuthenticationService {
-	return {
-		_serviceBrand: undefined,
-		onDidChangeAuthToken: Event.None,
-		getAuthToken: request => request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined,
-	};
+	return new class extends mock<IAgentHostAuthenticationService>() {
+		override readonly onDidChangeAuthToken = Event.None;
+		override getAuthAccount() { return undefined; }
+		override getSessionCredentialSource() { return undefined; }
+		override getSessionCredentialPrincipal() { return undefined; }
+		override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]) {
+			return request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined;
+		}
+	}();
 }
 
 const ANTHROPIC_MODEL: CCAModel = {
@@ -693,7 +703,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
  * resource, mirroring the orchestrator's own context builder.
  */
 function chatContext(chat: URI, session: URI): IAgentChatContext {
-	return { configurationResource: session, resource: session };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session };
 }
 
 // #endregion
@@ -725,6 +735,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
@@ -733,11 +744,13 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -865,6 +878,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
@@ -873,11 +887,13 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
@@ -947,6 +963,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
@@ -955,11 +972,13 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 			[IAgentPluginManager, {
 				_serviceBrand: undefined,
 				basePath: URI.from({ scheme: 'inmemory', path: '/agentPlugins' }),
+				hostPluginsPath: URI.from({ scheme: 'inmemory', path: '/agentPlugins/.host' }),
 				async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[]) { return []; },
 			}],
 			[IAgentConfigurationService, configService],
 			[IAgentHostOTelService, noopOTelService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostGitHubEndpointService, createTestGitHubEndpointService()],
 			[IAgentHostGitService, createNoopGitService()],
