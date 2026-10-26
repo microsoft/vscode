@@ -657,6 +657,75 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
+	test('issue #331582: select to beginning of line jumps to the end of the previous line when positioned before an indented token', () => {
+		withTestCodeEditor([
+			'const memberships = await this.entityManager.find(',
+			'    CompanyMembershipEntity,',
+			'    where,',
+		], {}, (editor, viewModel) => {
+			moveTo(editor, viewModel, 2, 5);
+
+			moveToBeginningOfLine(editor, viewModel, true);
+			assertCursor(viewModel, new Selection(2, 5, 1, 51));
+
+			// a second press has nothing left to skip on line 1 (no indentation there),
+			// so it falls back to the regular smart-home toggle on that line
+			moveToBeginningOfLine(editor, viewModel, true);
+			assertCursor(viewModel, new Selection(2, 5, 1, 1));
+
+			moveToBeginningOfLine(editor, viewModel, true);
+			assertCursor(viewModel, new Selection(2, 5, 1, 1));
+		});
+	});
+
+	test('issue #331582: select to beginning of line with tabs jumps to the end of the previous line', () => {
+		withTestCodeEditor([
+			'find(',
+			'\tCompanyMembershipEntity,',
+		], {}, (editor, viewModel) => {
+			moveTo(editor, viewModel, 2, 2);
+
+			moveToBeginningOfLine(editor, viewModel, true);
+			assertCursor(viewModel, new Selection(2, 2, 1, 6));
+		});
+	});
+
+	test('issue #331582: select to beginning of line lands right after punctuation on the previous line', () => {
+		withTestCodeEditor([
+			'if (x) {',
+			'    foo();',
+		], {}, (editor, viewModel) => {
+			moveTo(editor, viewModel, 2, 5);
+
+			moveToBeginningOfLine(editor, viewModel, true);
+			assertCursor(viewModel, new Selection(2, 5, 1, 9));
+		});
+	});
+
+	test('issue #331582: plain (non-select) move to beginning of line is unaffected', () => {
+		withTestCodeEditor([
+			'find(',
+			'    CompanyMembershipEntity,',
+		], {}, (editor, viewModel) => {
+			moveTo(editor, viewModel, 2, 5);
+
+			moveToBeginningOfLine(editor, viewModel, false);
+			assertCursor(viewModel, new Position(2, 1));
+		});
+	});
+
+	test('issue #331582: select to beginning of line is unaffected when the line has no indentation', () => {
+		withTestCodeEditor([
+			'first',
+			'second',
+		], {}, (editor, viewModel) => {
+			moveTo(editor, viewModel, 2, 1);
+
+			moveToBeginningOfLine(editor, viewModel, true);
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
+		});
+	});
+
 	// --------- move to end of line
 
 	test('move to end of line', () => {
