@@ -185,7 +185,12 @@ interface ICatalogDiscoveryItem {
 	readonly alternativeExpanded?: boolean;
 }
 
-type DiscoveryListEntry = IInstalledDiscoveryItem | ICatalogDiscoveryItem | { readonly kind: 'loading'; readonly id: 'loading' };
+type DiscoveryListEntry = (IInstalledDiscoveryItem | ICatalogDiscoveryItem | { readonly kind: 'loading'; readonly id: 'loading' }) & {
+	// Snapshot action state so unchanged rows can be retained without leaving stale buttons.
+	readonly installationState?: CustomizationMarketplaceInstallState;
+	readonly uninstalling?: boolean;
+	readonly installError?: string;
+};
 type LinkedConnectionRole = 'connector' | 'alternative';
 
 interface IPrioritizedMarketplaceResource {
@@ -297,7 +302,10 @@ function normalizedName(value: string): string {
 	return value.trim().toLowerCase();
 }
 
-function installationStatesEqual(a: CustomizationMarketplaceInstallState, b: CustomizationMarketplaceInstallState): boolean {
+function installationStatesEqual(a: CustomizationMarketplaceInstallState | undefined, b: CustomizationMarketplaceInstallState | undefined): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
 	if (a.kind === 'unavailable' && b.kind === 'unavailable') {
 		return a.message === b.message && isEqual(a.setupUrl, b.setupUrl);
 	}
@@ -310,6 +318,18 @@ function installationStatesEqual(a: CustomizationMarketplaceInstallState, b: Cus
 		);
 	}
 	return structuralEquals(a, b);
+}
+
+function discoveryListEntriesEqual(a: DiscoveryListEntry, b: DiscoveryListEntry): boolean {
+	const { installationState: aState, ...aItem } = a;
+	const { installationState: bState, ...bItem } = b;
+	if (!installationStatesEqual(aState, bState)) {
+		return false;
+	}
+	if (aItem.kind === 'installed' && bItem.kind === 'installed') {
+		return isEqual(aItem.uri, bItem.uri) && structuralEquals({ ...aItem, uri: undefined }, { ...bItem, uri: undefined });
+	}
+	return structuralEquals(aItem, bItem);
 }
 
 function hasInstallationTarget(state: CustomizationMarketplaceInstallState): state is Extract<CustomizationMarketplaceInstallState, { target: CustomizationMarketplaceInstallationTarget }> {
@@ -900,11 +920,14 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly pendingDirectUninstalls = new Set<string>();
 	private readonly expandedAlternatives = new Set<string>();
 	private forceMarketplaceRefresh = false;
+	private clearMarketplaceResults = false;
 	private readonly marketplaceRefreshScheduler = this._register(new RunOnceScheduler(() => {
 		const force = this.forceMarketplaceRefresh;
+		const clearResults = this.clearMarketplaceResults;
 		this.forceMarketplaceRefresh = false;
+		this.clearMarketplaceResults = false;
 		this.updateSources();
-		this.handleAvailabilityChanged(force);
+		this.handleAvailabilityChanged(force, !clearResults);
 	}, 0));
 	private query = CustomizationDiscoveryQuery.parse('');
 	private installedItems: readonly IInstalledDiscoveryItem[] = [];
@@ -1121,9 +1144,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.render();
 			}
 		}));
-		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.render(false)));
 		if (this.marketplaceService.onDidChangeSources) {
-			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
+			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true, false)));
 		}
 		this._register(this.entitlementService.onDidChangeSentiment(() => this.handleAvailabilityChanged()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
@@ -1142,8 +1165,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}));
 	}
 
-	private scheduleMarketplaceRefresh(force: boolean): void {
+	private scheduleMarketplaceRefresh(force: boolean, clearResults = true): void {
 		this.forceMarketplaceRefresh ||= force;
+		this.clearMarketplaceResults ||= clearResults;
 		this.marketplaceRefreshScheduler.schedule();
 	}
 
@@ -1405,9 +1429,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.searchToolbar.setActions(actions);
 	}
 
-	private handleAvailabilityChanged(force = false): void {
+	private handleAvailabilityChanged(force = false, preserveResults = false): void {
 		const enabledSourceIds = this.getEnabledCatalogSourceIds();
-		if (!force && equals(this.enabledSourceIds, enabledSourceIds)) {
+		const sameSources = equals(this.enabledSourceIds, enabledSourceIds);
+		if (!force && sameSources) {
 			return;
 		}
 		this.enabledSourceIds = enabledSourceIds;
@@ -1415,10 +1440,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.cancelCatalogRequest();
 		this.catalogPage = undefined;
 		this.browseCatalogCache.clear();
-		this.catalogItems = [];
-		this.curatedSections = undefined;
-		this.curatedSourceId = undefined;
-		this.sourceSections = [];
+		if (!preserveResults || !sameSources) {
+			this.catalogItems = [];
+			this.curatedSections = undefined;
+			this.curatedSourceId = undefined;
+			this.sourceSections = [];
+		}
 		this.curatedSourceError = undefined;
 		this.loaded = false;
 		this.errorMessage = undefined;
@@ -1806,6 +1833,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				onUnexpectedError(error);
 			}
 		}
+		if (!token.isCancellationRequested) {
+			this.sourceSections = sections;
+		}
 	}
 
 	private cacheBrowseCatalog(): void {
@@ -1862,13 +1892,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						? { sourceId: progress.result.sourceId, message: progress.result.error }
 						: undefined;
 					this.noteBrowseFirstContent();
-					this.render(false);
+					this.render();
 				})
 				: undefined;
 			const sourceSectionsPromise = browseSectionsPromise && !this.selectedSourceId
 				? this.loadSourceSections(request.token, browseSectionsPromise, () => {
 					if (sequence === this.requestSequence && !request.token.isCancellationRequested) {
-						this.render(false);
+						this.render();
 					}
 				})
 				: undefined;
@@ -1894,8 +1924,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 							total: progress.totalSourceCount,
 							cached: progress.cachedSourceIds.length,
 						};
-						this.updateCatalogPage(progress.page, false, !this.selectedSourceId);
-						this.render(false);
+						if (progress.page.items.length > 0 || this.catalogItems.length === 0) {
+							this.updateCatalogPage(progress.page, false, !this.selectedSourceId);
+						}
+						this.render();
 					} : undefined);
 					if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
 						return;
@@ -1931,7 +1963,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			if (browseSectionsPromise) {
 				this.loaded = true;
 				this.errorMessage = catalogError ? getErrorMessage(catalogError) : undefined;
-				this.render(false);
+				this.render();
 				this.logBrowseRendered();
 				const outcome = await browseSectionsPromise;
 				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
@@ -1970,7 +2002,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.resetLoadingAnnouncement();
 				this.loading = false;
 				this.request.clear();
-				this.render(this.loadingMore);
+				this.render();
 			}
 		}
 	}
@@ -2035,7 +2067,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			|| this.filteredBackfillLimitReached && this.hasNextCatalogPage() && !this.hasMatchingCatalogItems());
 	}
 
-	private render(preserveResults = false): void {
+	private render(preserveResults = true): void {
 		const sourceErrors = [...this.catalogPage?.sourceErrors ?? []];
 		if (this.curatedSourceError && !sourceErrors.some(error => error.sourceId === this.curatedSourceError?.sourceId)) {
 			sourceErrors.push(this.curatedSourceError);
@@ -2187,18 +2219,34 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const unmatchedInstalled = this.selectedSourceId && !this.query.installed
 			? []
 			: installed.filter((_, index) => !consumedInstalledIndices.has(index));
-		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries];
+		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries].map(entry => {
+			const resource = entry.kind === 'available' ? entry.resource : entry.catalogResource;
+			return {
+				...entry,
+				installationState: resource ? this.getInstallState(resource) : undefined,
+				uninstalling: entry.kind === 'installed' && this.pendingDirectUninstalls.has(entry.id),
+				installError: resource ? this.installErrors.get(getCustomizationMarketplaceResourceKey(resource)) : undefined,
+			};
+		});
 		const resultCount = entries.length;
 		if (this.isLoadingMore() && resultCount > 0) {
 			entries.push({ kind: 'loading', id: 'loading' });
 		}
 		let start = 0;
+		let end = this.resultList.length;
+		let newEnd = entries.length;
 		if (preserveResults) {
-			while (start < this.resultList.length && start < entries.length && structuralEquals(this.resultList.element(start), entries[start])) {
+			while (start < this.resultList.length && start < entries.length && discoveryListEntriesEqual(this.resultList.element(start), entries[start])) {
 				start++;
 			}
+			while (end > start && newEnd > start && discoveryListEntriesEqual(this.resultList.element(end - 1), entries[newEnd - 1])) {
+				end--;
+				newEnd--;
+			}
 		}
-		this.resultList.splice(start, this.resultList.length - start, entries.slice(start));
+		if (start !== end || start !== newEnd) {
+			this.resultList.splice(start, end - start, entries.slice(start, newEnd));
+		}
 
 		const installError = this.installErrors.values().next().value;
 		const catalogPending = this.isCatalogPending();

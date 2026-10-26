@@ -674,7 +674,7 @@ suite('Sessions list context menus', () => {
 		}
 	});
 
-	test('a nested session\'s context menu knows whether the chat can move, for Promote to Session', () => {
+	test('a nested session\'s context menu knows whether the chat can move, for Move to New Session', () => {
 		const chat = (title: string) => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			workspace: constObservable(undefined),
@@ -759,7 +759,7 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual({ withOther: hasDestination([own, { ...other, capabilities: constObservable({ ...other.capabilities.get(), supportsMultipleChats: true }) }]), alone: hasDestination([own]) }, { withOther: true, alone: false });
 	});
 
-	test('Promote to Session moves a nested session into a new session without a dialog, explaining a refusal', async () => {
+	test('Move to New Session moves a nested session into a new session without a dialog, explaining a refusal', async () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(candidate => candidate.command.id === PROMOTE_CHAT_TO_SESSION_ACTION_ID);
 		const shownWhen = (values: Record<string, unknown>) => !!item?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
 		const enabled = { 'config.chat.agentHost.moveChats.enabled': true, [ChatContextKeys.enabled.key]: true, 'sessionChatItem.canMove': true };
@@ -797,7 +797,7 @@ suite('Sessions list context menus', () => {
 		const promote = (chat: IChat) => harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(PROMOTE_CHAT_TO_SESSION_ACTION_ID)!.handler, { session, chat });
 
 		const results = [await promote(peer)];
-		refusal = 'Send a message in this chat before moving it to its own session.';
+		refusal = 'Send a message in this chat before moving it.';
 		results.push(await promote(peer));
 		refusal = undefined;
 		results.push(await promote(main));
@@ -817,14 +817,14 @@ suite('Sessions list context menus', () => {
 			results,
 			events,
 		}, {
-			title: 'Promote to Session',
+			title: 'Move to New Session',
 			group: '1_move',
 			order: 1,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
 			results: [true, false, false, false],
 			events: [
 				'move Peer -> newSession',
-				'warn: Could not move \'Peer\'. Send a message in this chat before moving it to its own session.',
+				'warn: Could not move \'Peer\'. Send a message in this chat before moving it.',
 				// The main chat and a disabled setting don't move.
 			],
 		});
