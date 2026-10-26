@@ -16,7 +16,7 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { resolveCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { resolveCloudSandboxSessionConfig, validateCloudSandboxModelConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -85,6 +85,13 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
 		}
 		return resolveCloudSandboxSessionConfig(connection, values, token);
+	}
+
+	async validateInitialModelConfig(modelId: string, values: Readonly<Record<string, unknown>>, token: CancellationToken): Promise<void> {
+		if (!this.connection) {
+			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
+		}
+		await validateCloudSandboxModelConfig(this.connection, modelId, values, token);
 	}
 
 	protected override _adapterOptions(agentProvider: string) {

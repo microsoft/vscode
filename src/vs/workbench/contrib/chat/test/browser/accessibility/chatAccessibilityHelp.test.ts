@@ -177,7 +177,10 @@ suite('Chat Accessibility Help', () => {
 			managed: help.includes('Its value is announced as managed by the agent host and cannot be changed.'),
 			overridable: help.includes('An overridable default remains selectable.'),
 			modelSpecific: help.includes('Changing models uses the options available for the newly selected model.'),
-		}, { managed: true, overridable: true, modelSpecific: true });
+			unspecified: help.includes('Model default means no effort override is selected'),
+			maximum: help.includes('A value prefixed with Max is the model\'s capacity, not a selected context window.'),
+			cloudValidation: help.includes('New Cloud chat choices are checked against the host before the first request is sent.'),
+		}, { managed: true, overridable: true, modelSpecific: true, unspecified: true, maximum: true, cloudValidation: true });
 	});
 
 	test('documents participant redirection only in workbench panel and editor chats', () => {

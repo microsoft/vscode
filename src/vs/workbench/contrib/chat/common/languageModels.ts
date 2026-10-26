@@ -1865,16 +1865,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config, removing properties set to their schema default
+		// Reset keys must be removed from both persisted settings and the in-memory cache.
 		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
 		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
-		if (schema?.properties) {
-			for (const [key, value] of Object.entries(updatedConfig)) {
-				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key)) {
-					delete updatedConfig[key];
-				}
+		for (const [key, value] of Object.entries(updatedConfig)) {
+			const propSchema = schema?.properties?.[key];
+			if (value === undefined || (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key))) {
+				delete updatedConfig[key];
 			}
 		}
 
