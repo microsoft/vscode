@@ -156,6 +156,8 @@ function setSessionGroupDepth(container: HTMLElement, depth: number): void {
 }
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
+/** The session context menu group that changes where a session is listed: Pin, then the group membership actions. */
+export const SessionItemOrganizeMenuGroup = '2_organize';
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
 export const NEW_SESSION_FOR_WORKSPACE_ACTION_ID = 'sessionsView.sectionNewSession';
@@ -7388,9 +7390,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 			});
 		};
 
-		const baseActions = Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapAction)));
+		const menuGroups = menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([group, actions]): [string, IAction[]] => [group, actions.map(wrapAction)]);
 		const groupActions = this.getGroupSessionActions(selectedSessions);
-		const actions = groupActions.length > 0 ? [...baseActions, new Separator(), ...groupActions] : baseActions;
+		if (groupActions.length > 0) {
+			// Group membership actions depend on the list's groups, so they are built here and merged into the contributed Organize group.
+			const organizeGroup = menuGroups.find(([group]) => group === SessionItemOrganizeMenuGroup);
+			if (organizeGroup) {
+				organizeGroup[1].push(...groupActions);
+			} else {
+				const index = menuGroups.findIndex(([group]) => !group || (group !== 'navigation' && group.localeCompare(SessionItemOrganizeMenuGroup) > 0));
+				menuGroups.splice(index === -1 ? menuGroups.length : index, 0, [SessionItemOrganizeMenuGroup, groupActions]);
+			}
+		}
+		const actions = Separator.join(...menuGroups.map(([, actions]) => actions));
 		if (actions.length === 0) {
 			this._sessionContextMenuDisposables.clear();
 			return;
@@ -7452,34 +7464,34 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Build the group-related context menu actions for the given session(s):
-	 * "Create Group", an "Add to Group"/"Move to Group" submenu listing the
-	 * groups in display order, named by their path, and "Remove from Group"
-	 * when applicable.
+	 * Build the group membership context menu actions for the given session(s):
+	 * an "Add to Group"/"Move to Group" submenu listing the other groups in
+	 * display order, named by their path, followed by "New Group...", and
+	 * "Remove from Group" when applicable.
 	 */
 	private getGroupSessionActions(selected: ISession[]): IAction[] {
-		const actions: IAction[] = [];
 		if (selected.some(session => session.isArchived.get() || this.isActiveComparisonSession(session))) {
-			return actions;
+			return [];
 		}
-
-		actions.push(this.getCreateGroupAction(selected));
 
 		const currentGroupIds = new Set(selected.map(s => this._sessionGroupsService.getGroupOfSession(s.sessionId)));
 		const currentGroupId = currentGroupIds.size === 1 ? [...currentGroupIds][0] : undefined;
 
-		const groups = this.getGroupsInDisplayOrder();
 		const groupTree = this._sessionGroupsService.getTree();
-		const targetGroups = groups.filter(g => g.id !== currentGroupId);
-		if (targetGroups.length > 0) {
-			const subActions = targetGroups.map(g => toAction({
+		const targetActions = this.getGroupsInDisplayOrder()
+			.filter(g => g.id !== currentGroupId)
+			.map(g => toAction({
 				id: `sessions.addToGroup.${g.id}`,
 				label: getSessionGroupPathLabel(groupTree.getPath(g.id)),
 				run: () => this.addSessionsToGroup(selected, g.id),
 			}));
-			const label = currentGroupId !== undefined ? localize('moveToGroupAction', "Move to Group") : localize('addToGroupAction', "Add to Group");
-			actions.push(new SubmenuAction('sessions.addToGroupSubmenu', label, subActions));
-		}
+		const newGroupAction = toAction({
+			id: 'sessions.addToNewGroup',
+			label: localize('addToNewGroupAction', "New Group..."),
+			run: () => this.createGroupFromSessions(selected),
+		});
+		const label = currentGroupId !== undefined ? localize('moveToGroupAction', "Move to Group") : localize('addToGroupAction', "Add to Group");
+		const actions: IAction[] = [new SubmenuAction('sessions.addToGroupSubmenu', label, Separator.join(targetActions, [newGroupAction]))];
 
 		if (currentGroupId !== undefined) {
 			actions.push(toAction({
@@ -7501,17 +7513,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return comparison !== undefined && comparison.archivedAt === undefined;
 	}
 
-	private getCreateGroupAction(sessions?: ISession[]): IAction {
+	private getCreateGroupAction(): IAction {
 		return toAction({
 			id: 'sessions.createGroup',
 			label: localize('createGroupAction', "Create Group"),
-			run: () => {
-				if (sessions) {
-					this.createGroupFromSessions(sessions);
-				} else {
-					this.createGroup([]);
-				}
-			},
+			run: () => this.createGroup([]),
 		});
 	}
 
@@ -7540,6 +7546,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			actions.push(...getFlatContextMenuActions(this.menuService.getMenuActions(SessionSectionToolbarMenuId, contextKeyService, { arg: section, shouldForwardArgs: true })), new Separator());
 		}
 		const grouping = this.options.grouping();
+		if (grouping === SessionsGrouping.Date && DATE_SECTION_IDS.includes(section.id)) {
+			actions.push(this.getMarkAllSessionsReadAction(() => section.sessions), new Separator());
+		}
 		if (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id)) {
 			actions.push(this.getMarkAllSessionsReadAction(() => this.sessions.filter(session => getSessionGroupingSectionId(session, grouping) === section.id)));
 			const parentId = this.getSectionParentId(section.id);

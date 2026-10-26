@@ -834,8 +834,8 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				when: ContextKeyExpr.and(SessionsListPromoteNewChatActionContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate(), SessionItemIsCloudContext.negate()),
 			}, {
 				id: Menus.SessionItemContextMenu,
-				group: '1_newChat',
-				order: 0,
+				group: 'navigation',
+				order: 1,
 				when: ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), SessionItemInExternalSectionContext.negate()),
 			}],
 		});

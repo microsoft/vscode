@@ -113,8 +113,8 @@ suite('Sessions - Actions', () => {
 			},
 			contextMenu: {
 				title: 'New Nested Session',
-				group: '1_newChat',
-				order: 0,
+				group: 'navigation',
+				order: 1,
 				when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 		});
@@ -176,10 +176,10 @@ suite('Sessions - Actions', () => {
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 				],
 				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
-					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_edit', order: 2, when: '!sessionIsArchived' },
-					{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
-					{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_state', order: 3, when: '!sessionIsArchived' },
+					{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned' },
+					{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived' },
 				],
 			});
 		} finally {
@@ -286,34 +286,41 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('groups related session list context menu actions', () => {
+	test('orders session list context menu actions by open, triage, organize, and manage groups', () => {
 		const actionIds = new Set([
-			'sessionsViewPane.pinSession',
-			'sessionsViewPane.unpinSession',
+			'sessions.chatCompositeBar.addChat',
+			'sessionsViewPane.importSession',
 			'sessionsViewPane.openToTheSide',
 			MARK_SESSION_READ_COMMAND_ID,
 			MARK_SESSION_UNREAD_COMMAND_ID,
 			'sessionsViewPane.markAllNestedRead',
-			'sessionsViewPane.markAllRead',
+			'sessionsViewPane.pinSession',
+			'sessionsViewPane.unpinSession',
+			RENAME_SESSION_COMMAND_ID,
+			'sessionsViewPane.deleteSession',
 		]);
+		const groupRank = (group: string | undefined) => group === 'navigation' ? '' : group ?? '';
 		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
 			.filter(isIMenuItem)
 			.filter(item => actionIds.has(item.command.id))
+			.sort((a, b) => groupRank(a.group).localeCompare(groupRank(b.group)) || (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id))
 			.map(item => ({
 				id: item.command.id,
 				group: item.group,
 				order: item.order,
-				when: item.when?.serialize(),
 			}));
 
 		assert.deepStrictEqual(actions, [
-			{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
-			{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
-			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
-			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
-			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_edit', order: 1.6, when: 'sessionItem.hasUnreadNestedSessions' },
-			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
-			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
+			{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1 },
+			{ id: 'sessionsViewPane.importSession', group: 'navigation', order: 2 },
+			{ id: 'sessionsViewPane.openToTheSide', group: 'navigation', order: 3 },
+			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_state', order: 1 },
+			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_state', order: 1 },
+			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_state', order: 2 },
+			{ id: 'sessionsViewPane.pinSession', group: '2_organize', order: 1 },
+			{ id: 'sessionsViewPane.unpinSession', group: '2_organize', order: 1 },
+			{ id: RENAME_SESSION_COMMAND_ID, group: '4_manage', order: 2 },
+			{ id: 'sessionsViewPane.deleteSession', group: '4_manage', order: 3 },
 		]);
 	});
 

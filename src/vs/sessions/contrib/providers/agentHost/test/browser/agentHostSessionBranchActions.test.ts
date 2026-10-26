@@ -115,7 +115,7 @@ suite('Agent Host session link actions', () => {
 		}, {
 			submenu: {
 				title: 'Settings',
-				group: '2_settings',
+				group: '4_manage',
 				order: 1,
 				when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
 			},
