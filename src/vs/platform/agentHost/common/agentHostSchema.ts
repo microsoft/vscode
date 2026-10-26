@@ -6,7 +6,7 @@
 import { localize } from '../../../nls.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
-import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
+import { ChatExternalSessionsMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns, type IChatSensitiveEditLocation } from '../../chat/common/chatSettings.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
@@ -335,6 +335,29 @@ const shellInitScriptsProperty = schemaProperty<readonly IShellInitScript[]>({
 	sessionMutable: true,
 });
 
+const sensitiveEditLocationsProperty = schemaProperty<readonly IChatSensitiveEditLocation[]>({
+	type: 'array',
+	title: localize('agentHost.sessionConfig.sensitiveEditLocations', "Sensitive Edit Locations"),
+	description: localize('agentHost.sessionConfig.sensitiveEditLocationsDescription', "Workspace-relative customization locations whose edits always require confirmation."),
+	items: {
+		type: 'object',
+		title: localize('agentHost.sessionConfig.sensitiveEditLocations.item', "Sensitive Edit Location"),
+		properties: {
+			path: {
+				type: 'string',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.path', "Path"),
+			},
+			isDirectory: {
+				type: 'boolean',
+				title: localize('agentHost.sessionConfig.sensitiveEditLocations.isDirectory', "Directory"),
+			},
+		},
+		required: ['path', 'isDirectory'],
+	},
+	readOnly: true,
+	sessionMutable: true,
+});
+
 /**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
@@ -389,6 +412,7 @@ export const platformSessionSchema = createSchema({
 		sessionMutable: true,
 	}),
 	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
+	[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocationsProperty,
 });
 
 /**
@@ -553,6 +577,10 @@ const agentHostProxyConfigDefinition = {
 	}),
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
+
+/** Root config keys forwarded from the renderer for automatic title generation. */
+export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
+export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneration';
 
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
@@ -897,6 +925,18 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
+		default: false,
+	}),
+	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
+		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of immediate utility-model title generation. Deferred title generation takes precedence. Changes apply to new sessions."),
+		default: false,
+	}),
+	[AgentHostDeferredTitleGenerationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.deferredTitleGeneration.title', "Deferred Title Generation"),
+		description: localize('agentHost.config.deferredTitleGeneration.description', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
 		default: false,
 	}),
 	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({

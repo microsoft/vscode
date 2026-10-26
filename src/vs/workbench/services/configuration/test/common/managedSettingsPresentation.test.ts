@@ -89,6 +89,36 @@ suite('ManagedSettingsPresentationService', () => {
 		});
 	});
 
+	test('compares array values structurally and notifies on changes, empty lists and removal', () => {
+		register({
+			'test.managedArray': {
+				type: 'array', items: { type: 'string' }, default: [],
+				managedSettingsPresentation: read => {
+					const hosts = read('hosts');
+					return typeof hosts === 'string' ? (hosts ? hosts.split(',') : []) : undefined;
+				},
+			},
+		});
+		const { service, values, changed, events } = setup();
+		values.hosts = 'managed.example';
+		changed.fire();
+		changed.fire();
+		values.unrelated = true;
+		changed.fire();
+		values.hosts = 'updated.example';
+		changed.fire();
+		const updated = service.getValue('test.managedArray');
+		values.hosts = '';
+		changed.fire();
+		const empty = service.getValue('test.managedArray');
+		delete values.hosts;
+		changed.fire();
+		assert.deepStrictEqual({ updated, empty, removed: service.getValue('test.managedArray'), events }, {
+			updated: ['updated.example'], empty: [], removed: undefined,
+			events: Array.from({ length: 4 }, () => ['test.managedArray']),
+		});
+	});
+
 	test('stops notifications when disposed', () => {
 		register({ 'test.managedDisposable': { type: 'boolean', managedSettingsPresentation: read => read('value') } });
 		const { service, values, changed, events } = setup();

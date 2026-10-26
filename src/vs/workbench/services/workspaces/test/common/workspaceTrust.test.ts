@@ -5,14 +5,17 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteAuthorityResolverService, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -46,6 +49,7 @@ suite('Workspace Trust', () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		const uriIdentityService = store.add(new UriIdentityService(fileService));
 
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
 	});
@@ -131,6 +135,39 @@ suite('Workspace Trust', () => {
 			const testObject = await initializeTestObject();
 
 			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+		});
+
+		test('remote workspace does not inherit trust through backslash traversal', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			const root = URI.from({ scheme: Schemas.vscodeRemote, authority: 'host', path: '/c:/lab/ws' });
+			const workspaceUri = URI.parse(`${root.toString()}/..%5Cevilfolder`);
+			environmentService.remoteAuthority = root.authority;
+			store.add(instantiationService.get(IFileService).registerProvider(Schemas.vscodeRemote, store.add(new InMemoryFileSystemProvider())));
+			instantiationService.stub(IRemoteAuthorityResolverService, {
+				getCanonicalURI: async uri => uri,
+				resolveAuthority: async authority => ({
+					authority: { authority, connectTo: new WebSocketRemoteConnection('localhost', 0), connectionToken: undefined }
+				}),
+			});
+			workspaceService.setWorkspace(new Workspace('remote-workspace', [toWorkspaceFolder(workspaceUri)]));
+			const testObject = await initializeTestObject();
+			await testObject.workspaceResolved;
+			await testObject.setUrisTrust([root], true);
+
+			const uris = [
+				workspaceUri,
+				URI.parse(`${root.toString()}/../evilfolder`),
+				root.with({ path: '/c:/lab/evilfolder' }),
+				URI.parse(`${root.toString()}/child`),
+			];
+			const trustInfo = await Promise.all(uris.map(uri => testObject.getUriTrustInfo(uri)));
+			assert.deepStrictEqual({
+				workspaceTrusted: testObject.isWorkspaceTrusted(),
+				uriTrust: trustInfo.map(info => info.trusted),
+			}, {
+				workspaceTrusted: false,
+				uriTrust: [false, false, false, true],
+			});
 		});
 
 		test('agent host folder is not auto-trusted as a virtual resource', async () => {

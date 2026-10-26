@@ -135,7 +135,8 @@ suite('codexSessionConfigKeys', () => {
 		const fullAccess = await agent.resolveChatConfig({ config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
 
 		assert.deepStrictEqual({
-			// The visible schema is reduced to Mode + one permissions preset + Permissions.
+			// The visible schema is reduced to Mode + one permissions preset + Permissions,
+			// plus platform-owned transient config hidden from the picker.
 			schemaProperties: Object.keys(defaulted.schema.properties).sort(),
 			// Codex drops "Autopilot" (no native equivalent — it would duplicate
 			// "Interactive"), so the Mode picker offers only interactive + plan.
@@ -147,7 +148,7 @@ suite('codexSessionConfigKeys', () => {
 			// The preset is session-mutable and echoed back unchanged.
 			fullAccessPreset: fullAccess.values[CodexSessionConfigKey.PermissionsPreset],
 		}, {
-			schemaProperties: [SessionConfigKey.Mode, CodexSessionConfigKey.PermissionsPreset, SessionConfigKey.Permissions].sort(),
+			schemaProperties: [SessionConfigKey.Mode, CodexSessionConfigKey.PermissionsPreset, SessionConfigKey.Permissions, SessionConfigKey.SensitiveEditLocations].sort(),
 			modeEnum: ['interactive', 'plan'],
 			defaultedValues: { mode: 'interactive', preset: 'default' },
 			fullAccessPreset: 'full-access',

@@ -42,7 +42,7 @@ terminalDescription += terminalDescriptors;
 
 export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
-const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+export const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.SendKeybindingsToShell]: {
 		markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding {0}, which can be used alternatively for fine tuning.", '`#terminal.integrated.commandsToSkipShell#`'),
 		type: 'boolean',
@@ -527,6 +527,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 'on'
 	},
 	[TerminalSettingId.AllowedLinkSchemes]: {
+		restricted: true,
 		description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
 		type: 'array',
 		items: {

@@ -82,6 +82,18 @@ suite('AgentHostTelemetryReporter', () => {
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
 
+	test('bounds canvas provenance without exposing unknown source strings', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		for (const source of ['project', 'user', 'plugin', 'session', undefined, '/private/provider']) {
+			reporter.canvasOpened('copilotcli', session, source, undefined);
+		}
+		assert.deepStrictEqual(service.standardEvents, ['project', 'user', 'plugin', 'session', 'unknown', 'unknown'].map(extensionSource => ({
+			eventName: 'agentHost.canvasOpened',
+			data: { schemaVersion: 1, provider: 'copilotcli', agentSessionId: 'abc', extensionSource },
+		})));
+	});
+
 	test('limits turn context to schema fields on Codex completion and hang events', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);

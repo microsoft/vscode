@@ -455,6 +455,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onCanvasOpened ??= this._sdkEvent('session.canvas.opened');
 	}
 
+	private _onCanvasRecorded: Event<SessionEventPayload<'session.canvas.recorded'>> | undefined;
+	get onCanvasRecorded(): Event<SessionEventPayload<'session.canvas.recorded'>> {
+		return this._onCanvasRecorded ??= this._sdkEvent('session.canvas.recorded');
+	}
+
 	private _onCanvasClosed: Event<SessionEventPayload<'session.canvas.closed'>> | undefined;
 	get onCanvasClosed(): Event<SessionEventPayload<'session.canvas.closed'>> {
 		return this._onCanvasClosed ??= this._sdkEvent('session.canvas.closed');
