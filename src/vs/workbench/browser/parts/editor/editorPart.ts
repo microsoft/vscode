@@ -309,6 +309,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 		this._groupGap = next;
 		this.applyGroupGap();
+		this.applyGridStyles();
 	}
 
 	private applyGroupGap(): void {
@@ -1289,11 +1290,23 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	private get gridSeparatorBorder(): Color {
+		if (this._groupGap > 0) {
+			return Color.transparent; // groups set apart by a gap are cards of their own: a separator would be drawn in the middle of the gap
+		}
+
 		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
 	}
 
 	override updateStyles(): void {
 		this.container.style.backgroundColor = this.getColor(editorBackground) || '';
+
+		this.applyGridStyles();
+	}
+
+	private applyGridStyles(): void {
+		if (!this.gridWidget) {
+			return;
+		}
 
 		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder, background: this.theme.getColor(EDITOR_PANE_BACKGROUND) || Color.transparent };
 		this.gridWidget.style(separatorBorderStyle);
