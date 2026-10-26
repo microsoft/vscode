@@ -23,6 +23,40 @@ import { NativeTitlebarPart } from '../../electron-browser/parts/titlebarPart.js
 suite('Sessions - Native Titlebar Part', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('the chat window chrome is opt-in and leaves a native title bar untouched', () => {
+		const configuration = new TestConfigurationService({
+			window: { titleBarStyle: 'custom' },
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Default,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		instantiationService.stub(INativeHostService, new TestNativeHostService());
+		instantiationService.stub(INativeWorkbenchEnvironmentService, new class extends mock<INativeWorkbenchEnvironmentService>() {
+			override readonly os = { release: '25.0.0', hostname: 'test', arch: 'arm64' };
+		}());
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		const part = store.add(instantiationService.createInstance(NativeTitlebarPart, Parts.TITLEBAR_PART, mainWindow));
+		const element = append(container, $('.part.titlebar'));
+		part.create(element);
+
+		const read = () => ({
+			classes: [...element.classList].filter(c => c === 'chromeless' || c === 'hosts-session-header'),
+			height: part.height,
+			hostCount: element.querySelectorAll('.session-header-host').length,
+		});
+		const untouched = read();
+		part.setChromeless(true);
+		const optedIn = read();
+		part.setChromeless(false);
+		assert.deepStrictEqual({ untouched, optedIn, restored: read(), minimumHeight: part.minimumHeight }, {
+			untouched: { classes: [], height: part.minimumHeight, hostCount: 0 },
+			optedIn: { classes: ['chromeless'], height: 0, hostCount: 0 },
+			restored: { classes: [], height: part.minimumHeight, hostCount: 0 },
+			minimumHeight: part.minimumHeight,
+		});
+	});
+
 	for (const release of ['24.0.0', '25.0.0']) {
 		(isMacintosh ? test : test.skip)(`aligns macOS ${release} traffic lights with the optical toolbar center across densities and zoom levels`, async () => {
 			const initialZoom = getZoomFactor(mainWindow);

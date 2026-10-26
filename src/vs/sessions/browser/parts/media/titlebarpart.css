@@ -290,5 +290,7 @@
 
 .monaco-workbench .part.titlebar > .session-header-host {
 	height: 100%;
+	flex: 1 1 auto;
+	min-width: 0;
 	-webkit-app-region: drag;
 }
