@@ -211,15 +211,26 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		if (isMacintosh && isEqualOrParent(realPath, '/Volumes/', true)) {
 			this.error(`Refusing to watch ${realPath} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
 
+			this.notifyWatchFailed();
+
 			return;
 		}
 
 		// Windows: watching samba / UNC network shares can crash VSCode so we do
-		// a check for UNC paths
-		if (isWindows && (isUNC(realPath) || realPath.startsWith('\\\\') || realPath.startsWith('//'))) {
-			this.error(`Refusing to watch ${realPath} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
+		// a check for UNC paths, while distinguishing local device paths (\\?\C:\..., \\.\C:\...)
+		// from UNC network shares (\\server\share\..., \\?\UNC\server\share\...)
+		if (isWindows) {
+			const normalizedPath = realPath.replace(/\//g, '\\');
+			const isDevicePath = normalizedPath.startsWith('\\\\?\\') || normalizedPath.startsWith('\\\\.\\');
+			const isUNCPath = isDevicePath ? normalizedPath.slice(4).toUpperCase().startsWith('UNC\\') : isUNC(normalizedPath);
 
-			return;
+			if (isUNCPath) {
+				this.error(`Refusing to watch ${realPath} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
+
+				this.notifyWatchFailed();
+
+				return;
+			}
 		}
 
 		const cts = new CancellationTokenSource(this.cts.token);
