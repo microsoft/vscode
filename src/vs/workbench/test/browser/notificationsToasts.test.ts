@@ -143,13 +143,26 @@ suite('NotificationsToasts', () => {
 		model.addNotification({ severity: Severity.Error, message: 'Second', sticky: true });
 		await flushAnimationFrame();
 
-		let compactFitHeight: number | undefined;
-		for (let height = 1; height <= 500; height++) {
+		// More toasts fit as the height grows, so bisect for the smallest height that fits both:
+		// a layout per height is slow enough in WebKit to exceed the test timeout
+		const visibleToastsAt = (height: number) => {
 			toasts.layout(new Dimension(1024, height));
-			if (container.querySelectorAll('.notification-toast-container').length === 2) {
-				compactFitHeight = height;
-				break;
+			return container.querySelectorAll('.notification-toast-container').length;
+		};
+		let compactFitHeight: number | undefined;
+		if (visibleToastsAt(500) === 2) {
+			let low = 1;
+			let high = 500;
+			while (low < high) {
+				const middle = Math.floor((low + high) / 2);
+				if (visibleToastsAt(middle) === 2) {
+					high = middle;
+				} else {
+					low = middle + 1;
+				}
 			}
+			compactFitHeight = low;
+			visibleToastsAt(compactFitHeight);
 		}
 
 		setNotificationRowHeight(DEFAULT_NOTIFICATION_ROW_HEIGHT);

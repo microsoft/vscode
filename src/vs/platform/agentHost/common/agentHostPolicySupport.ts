@@ -87,6 +87,10 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 
 	// #region Plugins, customizations, and hooks
 
+	// Governs the workbench discovery surface; legacy marketplaces remain available.
+	ChatCustomizationMarketplace: { status: 'enforced' },
+	// The effective setting gates renderer operations and is mirrored to the host's Connector gate.
+	ChatCopilotConnectors: { status: 'enforced' },
 	// The workbench filters the plugins it synchronizes, but runtime configuration discovery and Claude's
 	// native plugin scan find plugins independently. Not yet tracked.
 	ChatPluginsEnabled: { status: 'partial' },

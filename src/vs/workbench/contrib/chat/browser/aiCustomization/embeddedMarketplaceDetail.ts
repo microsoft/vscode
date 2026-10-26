@@ -456,6 +456,18 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		button.label = label;
 		button.enabled = action !== undefined;
 		button.element.setAttribute('aria-busy', String(state.kind === 'installing' || state.kind === 'checking' || state.kind === 'repairing' || state.kind === 'uninstalling'));
+		if (state.kind === 'installing' || state.kind === 'repairing') {
+			const cancel = this.installActionDisposables.add(new Button(this.titleActionsEl, {
+				...defaultButtonStyles,
+				secondary: true,
+				ariaLabel: state.kind === 'installing'
+					? localize('marketplaceDetail.cancelConnectingAria', "Cancel connecting {0}", resource.displayName)
+					: localize('marketplaceDetail.cancelReconnectingAria', "Cancel reconnecting {0}", resource.displayName),
+			}));
+			this.primaryActionButton = cancel;
+			cancel.label = localize('marketplaceDetail.cancel', "Cancel");
+			this.installActionDisposables.add(cancel.onDidClick(() => this.installService.cancelConnectorOperation(resource)));
+		}
 		if (!action) {
 			return;
 		}
@@ -470,6 +482,12 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 					status(localize('marketplaceDetail.connectedStatus', "Connected {0}.", resource.displayName));
 				}
 			} catch (error) {
+				if (isCancellationError(error)) {
+					status(state.kind === 'missing'
+						? localize('marketplaceDetail.reconnectCancelledStatus', "Reconnection cancelled for {0}.", resource.displayName)
+						: localize('marketplaceDetail.connectCancelledStatus', "Connection cancelled for {0}.", resource.displayName));
+					return;
+				}
 				const message = state.kind === 'installed'
 					? localize('marketplaceDetail.disconnectError', "Could not disconnect {0}. {1}", resource.displayName, getErrorMessage(error))
 					: state.kind === 'missing'

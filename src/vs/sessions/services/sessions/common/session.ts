@@ -6,11 +6,12 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getPullRequestUrlKey, parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
+import { getGitHubRepositoryId, getPullRequestUrlKey, parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -79,6 +80,10 @@ export const enum SessionTypeAuthRequirement {
 	Unusable = 'unusable',
 }
 
+/**
+ * Scheme of files in a GitHub repository that a session works in directly, without a checkout,
+ * as Copilot cloud sessions do: `github-remote-file://github/<owner>/<repo>/<ref>/<path>`.
+ */
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
@@ -199,7 +204,10 @@ export interface ISessionGitRepository {
 	readonly uncommittedChanges?: number;
 	/** Whether a Git operation is currently in progress. */
 	readonly hasGitOperationInProgress?: boolean;
-	/** GitHub information associated with the repository. */
+	/**
+	 * GitHub information associated with the repository. Its `owner` and `repo` name the folder's
+	 * github.com repository; see {@link getSessionFolderGitHubRepository}.
+	 */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** Starts resolving GitHub information when the repository exposes it lazily. */
 	readonly resolveGitHubInfo?: () => void;
@@ -209,7 +217,10 @@ export interface ISessionGitRepository {
  * A folder within a session workspace.
  */
 export interface ISessionFolder {
-	/** Canonical URI of the folder. */
+	/**
+	 * Canonical URI of the folder. Some forms also name the folder's github.com repository; see
+	 * {@link getSessionFolderGitHubRepository}.
+	 */
 	readonly root: URI;
 	/** Working directory used for file operations. */
 	readonly workingDirectory: URI;
@@ -219,6 +230,59 @@ export interface ISessionFolder {
 	readonly description: string | undefined;
 	/** Git repository information associated with this folder. */
 	readonly gitRepository?: ISessionGitRepository;
+}
+
+/** A repository on github.com. */
+export interface IGitHubRepositoryRef {
+	/** The login of the user or organization that owns the repository. */
+	readonly owner: string;
+	/** The repository name, without a `.git` suffix. */
+	readonly repo: string;
+}
+
+/**
+ * The github.com repository a session folder belongs to. The Agents window groups the sessions
+ * of one repository together by it, whichever environment runs them. A provider names the
+ * repository in one of these ways, which take precedence in this order:
+ *
+ * 1. {@link ISessionFolder.root} is a {@link GITHUB_REMOTE_FILE_SCHEME} URI,
+ *    `github-remote-file://github/<owner>/<repo>/<ref>`, for a session that works in GitHub directly.
+ * 2. {@link ISessionGitRepository.gitHubInfo} reports the `owner` and `repo` of a checkout's
+ *    github.com remote.
+ * 3. {@link ISessionFolder.root} is the repository's URL, `https://github.com/<owner>/<repo>`
+ *    (optionally ending in `.git`), for a session that knows its repository before it has a
+ *    checkout or Git metadata, such as a cloud sandbox session whose sandbox is not connected.
+ *    Such a root names the repository but no folder that a new session could start in; see
+ *    {@link getGitHubRepositoryOfUrl}.
+ *
+ * Any other root names no repository, including a URL of another host such as GitHub Enterprise.
+ */
+export function getSessionFolderGitHubRepository(folder: ISessionFolder | undefined): IGitHubRepositoryRef | undefined {
+	const gitHubInfo = folder?.gitRepository?.gitHubInfo.get();
+	return getGitHubRepositoryOfRemoteFile(folder?.root)
+		?? (gitHubInfo ? { owner: gitHubInfo.owner, repo: gitHubInfo.repo } : undefined)
+		?? getGitHubRepositoryOfUrl(folder?.root);
+}
+
+/** The repository of a {@link GITHUB_REMOTE_FILE_SCHEME} URI, from the first two segments of its path. */
+export function getGitHubRepositoryOfRemoteFile(uri: URI | undefined): IGitHubRepositoryRef | undefined {
+	if (uri?.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+		return undefined;
+	}
+	const [owner, repo] = uri.path.split('/').filter(Boolean);
+	return owner && repo ? { owner, repo } : undefined;
+}
+
+/**
+ * The repository that `https://github.com/<owner>/<repo>`, optionally ending in `.git`, names.
+ * Other URLs, including ones into a repository such as its pull requests, name none.
+ */
+export function getGitHubRepositoryOfUrl(uri: URI | undefined): IGitHubRepositoryRef | undefined {
+	if (uri?.scheme !== Schemas.https || uri.authority.toLowerCase() !== 'github.com' || uri.query || uri.fragment) {
+		return undefined;
+	}
+	const [owner, repo] = getGitHubRepositoryId(uri.path.slice(1))?.split('/') ?? [];
+	return owner && repo ? { owner, repo } : undefined;
 }
 
 /**

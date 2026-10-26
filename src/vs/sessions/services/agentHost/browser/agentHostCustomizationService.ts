@@ -19,6 +19,7 @@ import { type CustomizationEnablement } from '../../../../platform/agentHost/com
 import { ISession } from '../../sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IAgentHostActiveClientService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
@@ -31,8 +32,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, logService);
+		super(instantiationService, logService, notificationService);
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			for (const session of e.removed) {
 				this._disposeMcpDiagnostics(session.resource);

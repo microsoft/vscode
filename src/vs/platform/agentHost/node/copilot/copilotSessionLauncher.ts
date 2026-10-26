@@ -352,6 +352,8 @@ interface ICopilotSessionLaunchBase {
 	 * {@link IAgentCreateChatOptions.hasScopedEditSurface}.
 	 */
 	readonly hasScopedEditSurface?: boolean;
+	/** Whether the owning chat surface is an inline chat. See {@link IAgentCreateChatOptions.isInlineChatSurface}. */
+	readonly isInlineChatSurface?: boolean;
 	readonly workingDirectory: URI | undefined;
 	/**
 	 * The additional working directories beyond the primary process root
@@ -420,6 +422,9 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 }
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
+
+/** How the chat surface that created a chat's owning session scopes its runtime. */
+export type CopilotChatSurface = Pick<ICopilotSessionLaunchBase, 'hasScopedEditSurface' | 'isInlineChatSurface'>;
 
 /**
  * The trust a created SDK session grants its working directory, forwarding
@@ -669,11 +674,55 @@ function toFusionTier(tier: string, logService: ILogService, sessionId: string):
 	return defaultAutoModeTier;
 }
 
-/** Resolves the shared override first, then the picker preference. */
-export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): string | undefined {
+/**
+ * The tier inline chat, editor or terminal, runs Copilot Fusion at, whatever effort level the picker
+ * holds, as latency matters more than routing depth there. Matches the Copilot extension's inline chat tier.
+ */
+const InlineChatFusionAutoTier = 'fast';
+
+/**
+ * The tier inline chat runs Copilot Fusion at, or `undefined` when Auto is not presented as Fusion or the
+ * provider does not accept the tier. Advertised on Fusion's model, so clients hide its effort level in
+ * inline chat only while the host pins it.
+ */
+export function getInlineChatFusionAutoTier(): string | undefined {
+	return isAutoAdvertisedAsFusion() && isSupportedAutoModeTier(InlineChatFusionAutoTier) ? InlineChatFusionAutoTier : undefined;
+}
+
+/** Fusion's tier for inline chat, or `undefined` when the model is not Fusion or the provider does not accept the tier. */
+function resolveInlineChatFusionAutoTier(model: ModelSelection | undefined, logService: ILogService, sessionId: string): string | undefined {
+	if (!isAutoModel(model?.id) || !isAutoAdvertisedAsFusion()) {
+		return undefined;
+	}
+	const tier = getInlineChatFusionAutoTier();
+	if (tier === undefined) {
+		logService.warn(`[Copilot:${sessionId}] Not pinning inline chat to Fusion's '${InlineChatFusionAutoTier}' tier, which the provider does not accept; expected one of [${getSupportedAutoModeTiers().join(', ')}]`);
+		return undefined;
+	}
+	logService.info(`[Copilot:${sessionId}] Using Fusion's '${tier}' tier for inline chat`);
+	return tier;
+}
+
+/**
+ * Resolves the tiers that take precedence over the picker: the shared override, then inline chat's
+ * Fusion tier. `null` applies the override by leaving the tier to the runtime.
+ */
+function resolveForcedAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat: boolean): string | null | undefined {
 	const override = resolveConfiguredAutoTierOverride(model, configurationService, logService, sessionId);
 	if (override !== undefined) {
-		return override ?? undefined;
+		return override;
+	}
+	return isInlineChat ? resolveInlineChatFusionAutoTier(model, logService, sessionId) : undefined;
+}
+
+/**
+ * Resolves the shared override first, then inline chat's Fusion tier, then the picker preference.
+ * `isInlineChat` is the launch's {@link ICopilotSessionLaunchBase.isInlineChatSurface}, set for editor and terminal inline chat.
+ */
+export function resolveCopilotAutoTier(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string, isInlineChat = false): string | undefined {
+	const forced = resolveForcedAutoTier(model, configurationService, logService, sessionId, isInlineChat);
+	if (forced !== undefined) {
+		return forced ?? undefined;
 	}
 	const tier = getCopilotAutoTier(model);
 	if (tier === undefined) {
@@ -1149,7 +1198,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),
 			contextTier: omittedContextDefault ? undefined : getCopilotContextTier(model, plan.longContextWindow, plan.freeLongContext),
-			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId)),
+			...toSdkCapiSessionOptions(resolveCopilotAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true)),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
@@ -1319,7 +1368,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
-		const tgrepEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
@@ -1328,7 +1376,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			AUTO_APPROVAL: true,
 			...catalogInstallationFeatureFlags,
 			CONNECTORS: copilotConnectorsEnabled,
-			TGREP: tgrepEnabled,
+			TGREP: true,
 			CONTENT_EXCLUSION: true,
 			// Attached long-lived services prevent the runtime from reaching session idle.
 			DETACH_LONG_LIVED_SERVICES: true,
@@ -1336,7 +1384,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Always explicit so only the VS Code opt-in can switch the store.
 			[COPILOT_LOCAL_MEMORY_FEATURE_FLAG]: localMemoryEnabled,
 			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
-			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
+			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true } : {}),
 			// The runtime regroups the system prompt into global, repository and
 			// per-session cache blocks so a new session reuses the stable prefix.
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
@@ -1553,7 +1601,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// while a resumed session keeps the effort the runtime journaled unless
 			// an override is configured (encoded like every other path).
 			...(plan.kind === 'resume' ? { reasoningEffort: toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId)) } : {}),
-			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveConfiguredAutoTierOverride(model, this._configurationService, this._logService, plan.sessionId) ?? undefined) : {}),
+			...(plan.kind === 'resume' ? toSdkCapiSessionOptions(resolveForcedAutoTier(model, this._configurationService, this._logService, plan.sessionId, plan.isInlineChatSurface === true) ?? undefined) : {}),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },

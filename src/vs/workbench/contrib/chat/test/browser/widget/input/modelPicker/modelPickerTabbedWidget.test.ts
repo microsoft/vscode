@@ -42,7 +42,7 @@ import { StateType } from '../../../../../../../../platform/update/common/update
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
-import type { IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
@@ -570,9 +570,9 @@ suite('TabbedModelPicker', () => {
 		action.click();
 		assert.deepStrictEqual({
 			disabled: action.getAttribute('aria-disabled'),
-			title: action.title,
+			description: action.getAttribute('aria-description'),
 			stillOpen: picker.isVisible,
-		}, { disabled: 'true', title: 'Not supported here', stillOpen: true });
+		}, { disabled: 'true', description: 'Not supported here', stillOpen: true });
 	});
 
 	test('comparison footer shows the configured shortcut and the shortcut opens Attempts without selecting a model', () => {
@@ -580,6 +580,7 @@ suite('TabbedModelPicker', () => {
 		const comparison: IModelPickerComparison = {
 			showPickerHint: constObservable(true),
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models', startCommandId: 'test.compareModels',
+			description: constObservable('Run one prompt in parallel and compare results.'),
 			start: () => state.set({
 				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
 				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
@@ -607,7 +608,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			label: `Send Query to Multiple Models (${shortcutLabel})`,
 			addIcon: false,
-			toggleLabel: `Compare Models (${shortcutLabel})`,
+			toggleLabel: `Compare Models (${shortcutLabel})\n\nRun one prompt in parallel and compare results.`,
 			step: 'Attempts', selections: [], visible: true, footer: true, toggle: true,
 		});
 	});
@@ -1702,6 +1703,40 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
 	});
 
+	test('in inline chat, Fusion whose host pins its tier there shows no effort level, offers none, and offers no HydraFusion; otherwise it keeps them', () => {
+		const open = (inlineChatTier: string | undefined) => {
+			const base = createFusionModel();
+			const fusion = { ...base, metadata: { ...base.metadata, autoModelFusionInlineChatTier: inlineChatTier } };
+			const available = [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()];
+			const values = new Map<string, IStringDictionary<unknown>>([[fusion.identifier, { tier: 'hydrafusion' }]]);
+			const access = withoutFusionEffortLevel({
+				getModelConfiguration: id => values.get(id),
+				getModelConfigurationActions: () => [],
+				setModelConfiguration: async (id, next) => { values.set(id, { ...values.get(id), ...next }); },
+			}, id => available.find(model => model.identifier === id)?.metadata);
+			const result = createPicker({ models: available, access, selectedModelId: models[0].identifier });
+			const fusionRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === copilotFusionName)!;
+			const row = { readout: fusionRow.querySelector('.action-label')?.textContent, ariaLabel: fusionRow.getAttribute('aria-label') };
+			const rows = listRows(result.popup);
+			openDetails(result.popup, copilotFusionName);
+			return { rows, row, tiers: autoTiers(result.popup), saved: values.get(fusion.identifier) };
+		};
+		assert.deepStrictEqual({ pinned: open('fast'), notPinned: open(undefined) }, {
+			pinned: {
+				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+				row: { readout: 'Details', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task' },
+				tiers: [],
+				saved: { tier: 'hydrafusion' },
+			},
+			notPinned: {
+				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'],
+				row: { readout: 'High', ariaLabel: 'Copilot Fusion, 10% discount, Picks or combines the best models for your task, Effort Level: High' },
+				tiers: ['Standard', 'High', 'Max'],
+				saved: { tier: 'hydrafusion' },
+			},
+		});
+	});
+
 	test('a chat on a HydraFusion model is shown on the provider tier of the same name, which moves it to Fusion', async () => {
 		const fusion = createFusionModel();
 		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
@@ -2502,7 +2537,7 @@ suite('TabbedModelPicker', () => {
 		}, {
 			rows: [
 				{ name: 'First', summary: 'Low · 32K', details: 'First Details, Low · 32K', infoIcon: false },
-				{ name: 'Fixed', summary: '200K', details: 'Fixed Details, 200K', infoIcon: false },
+				{ name: 'Fixed', summary: 'Max 200K', details: 'Fixed Details, Max 200K', infoIcon: false },
 				{ name: 'Second', summary: 'Low · 32K', details: 'Second Details, Low · 32K', infoIcon: false },
 				{ name: 'Unknown', summary: 'Details', details: 'Unknown Details', infoIcon: false },
 			],
