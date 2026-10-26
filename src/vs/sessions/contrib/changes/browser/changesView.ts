@@ -332,7 +332,6 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatPetService chatPetService: IChatPetService,
 		@ILogService private readonly logService: ILogService,
-		@ISessionsService sessionsService: ISessionsService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
@@ -442,7 +441,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 				run: () => {
 					if (isSessionPullRequestOperation(op)) {
 						const state = changesViewService.activeSessionStateObs.read(undefined);
-						const session = sessionsService.activeSession.read(undefined);
+						const session = changesViewService.activeSessionObs.read(undefined);
 						// The chat whose changes the form was opened from, even if the user switches chats meanwhile.
 						const chat = session?.activeChat.read(undefined);
 						createPullRequestContextView.show(container, op.pullRequestCreation, {
@@ -506,7 +505,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			}
 
 			// Resource-scoped Git settings can change the advertised operations once the new chat's folders are mounted.
-			if (!isChangesActionsWorkspaceReady(sessionsService.activeSession.read(reader), workspaceFoldersObs.read(reader), reader)) {
+			if (!isChangesActionsWorkspaceReady(changesViewService.activeSessionObs.read(reader), workspaceFoldersObs.read(reader), reader)) {
 				if (buttonBar.buttons.length > 0) {
 					buttonBar.update([], []);
 				}

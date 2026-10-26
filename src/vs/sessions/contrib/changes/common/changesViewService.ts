@@ -6,6 +6,7 @@
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
@@ -62,9 +63,10 @@ export interface IChangesViewService {
 
 	/**
 	 * Creates a service that reports on the session of `sessionResource` instead of the
-	 * main window's active session, for a window or editor showing a different session.
+	 * main window's active session, for a window or editor showing a different session. The
+	 * changeset context keys are bound on `contextKeyService`.
 	 */
-	createScoped(sessionResource: IObservable<URI | undefined>): IChangesViewService & IDisposable;
+	createScoped(sessionResource: IObservable<URI | undefined>, contextKeyService: IContextKeyService): IChangesViewService & IDisposable;
 
 	/** The session this service reports on: the main window's active session, or the scoped one. */
 	readonly activeSessionObs: IObservable<IActiveSession | undefined>;

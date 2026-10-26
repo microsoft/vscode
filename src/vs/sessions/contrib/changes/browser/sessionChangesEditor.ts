@@ -17,7 +17,7 @@ import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -197,6 +197,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	private _desktop = false;
 	private _hostsHeader = false;
 	private _inChatWindow = false;
+	private _scopedChangesViewService: IChangesViewService | undefined;
+
+	/** The changes service for this editor's session: scoped in a chat window, else the shared one. */
+	get changesViewServiceForSession(): IChangesViewService {
+		return this._scopedChangesViewService ?? this.changesViewService;
+	}
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
 	/** Session whose changes this editor is currently showing (from its input). */
@@ -278,7 +284,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		const inChatWindow = this._inChatWindow = ChatWindowContext.getValue(this.contextKeyService);
 		const scopedServices = new ServiceCollection([IContextKeyService, scopedContextKeyService]);
 		if (inChatWindow) {
-			scopedServices.set(IChangesViewService, this._register(this.changesViewService.createScoped(this._inputSessionResource)));
+			this._scopedChangesViewService = this._register(this.changesViewService.createScoped(this._inputSessionResource, this.contextKeyService));
+			scopedServices.set(IChangesViewService, this._scopedChangesViewService);
 		}
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(scopedServices));
 		this._scopedInstantiationService = scopedInstantiationService;
@@ -643,4 +650,10 @@ class ChangesetReviewActionViewItem extends CheckboxActionViewItem {
 			? localize('changeset.viewed.tooltip', "Mark as Not Viewed")
 			: localize('changeset.notViewed.tooltip', "Mark as Viewed");
 	}
+}
+
+/** The changes service of the active Changes editor when it shows a session of its own, such as in a chat window. */
+export function getSessionChangesViewService(accessor: ServicesAccessor): IChangesViewService | undefined {
+	const pane = accessor.get(IEditorService).activeEditorPane;
+	return pane instanceof SessionChangesEditor ? pane.changesViewServiceForSession : undefined;
 }

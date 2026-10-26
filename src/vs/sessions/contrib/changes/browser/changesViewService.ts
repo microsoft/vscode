@@ -192,8 +192,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			?? undefined;
 	}
 
-	createScoped(sessionResource: IObservable<URI | undefined>): IChangesViewService & IDisposable {
-		return this.instantiationService.createInstance(ChangesViewService, sessionResource);
+	createScoped(sessionResource: IObservable<URI | undefined>, contextKeyService: IContextKeyService): IChangesViewService & IDisposable {
+		return this.instantiationService.createInstance(ChangesViewService, sessionResource, contextKeyService);
 	}
 
 	getSessionChanges(sessionResource: URI): IObservable<readonly ISessionFileChange[]> {
@@ -235,6 +235,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	 */
 	constructor(
 		private readonly scopedSessionResource: IObservable<URI | undefined> | undefined,
+		private readonly scopedContextKeyService: IContextKeyService | undefined,
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -516,9 +517,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}));
 
 		// Global context keys
-		if (!scopedSessionResource) {
-			this._bindContextKeys();
-		}
+		this._bindContextKeys(scopedContextKeyService ?? this.contextKeyService);
 	}
 
 	private _createSessionChangesetSelections(sessionResource: URI): ISessionChangesetSelections {
@@ -784,13 +783,13 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		});
 	}
 
-	private _bindContextKeys(): void {
-		this._register(bindContextKey<boolean>(ChangesetReviewSupportContext, this.contextKeyService, reader => {
+	private _bindContextKeys(contextKeyService: IContextKeyService): void {
+		this._register(bindContextKey<boolean>(ChangesetReviewSupportContext, contextKeyService, reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			return changeset?.capabilities?.review === true;
 		}));
 
-		this._register(bindContextKey<string[]>(ChangesetReviewedFilesContext, this.contextKeyService, reader => {
+		this._register(bindContextKey<string[]>(ChangesetReviewedFilesContext, contextKeyService, reader => {
 			const changes = this.activeSessionChangesObs.read(reader);
 
 			return changes
@@ -808,7 +807,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset)).length;
 		});
 
-		this._register(bindContextKey<boolean>(ChangesetHasOperationsContext, this.contextKeyService, reader => {
+		this._register(bindContextKey<boolean>(ChangesetHasOperationsContext, contextKeyService, reader => {
 			return changesetOperationCountObs.read(reader) > 0;
 		}));
 	}

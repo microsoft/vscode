@@ -160,6 +160,7 @@ suite('ChangesViewService', () => {
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		const service = disposables.add(new ChangesViewService(
 			undefined,
+			undefined,
 			agentFeedbackService,
 			codeReviewService,
 			contextKeyService,
@@ -1150,7 +1151,7 @@ suite('ChangesViewService', () => {
 		const windowSession = createSession('window', { changesets: [windowChangeset] });
 		const { service } = createHarness(mainSession, undefined, [windowSession]);
 
-		const scoped = disposables.add(service.createScoped(constObservable(windowSession.resource)));
+		const scoped = disposables.add(service.createScoped(constObservable(windowSession.resource), disposables.add(new MockContextKeyService())));
 
 		assert.deepStrictEqual({
 			main: service.activeSessionResourceObs.get()?.path,
@@ -1171,7 +1172,7 @@ suite('ChangesViewService', () => {
 		const windowSession = createSession('window', { changesets: [createChangeset([]), secondChangeset] });
 		const { service } = createHarness(mainSession, undefined, [windowSession]);
 		const resource = observableValue<URI | undefined>('test.scopedResource', undefined);
-		const scoped = disposables.add(service.createScoped(resource));
+		const scoped = disposables.add(service.createScoped(resource, disposables.add(new MockContextKeyService())));
 
 		const before = scoped.activeSessionResourceObs.get();
 		resource.set(windowSession.resource, undefined);

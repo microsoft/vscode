@@ -38,7 +38,7 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { getSessionChangesViewService, SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
 import { getChangesFileUri, isChangesFileResource } from './changesViewRenderer.js';
 
@@ -408,13 +408,16 @@ export class ChangesetOperationsActionControllerContribution extends Disposable 
 							return;
 						}
 
-						const change = changesViewService.activeSessionChangesObs.read(undefined)
+						// Act on the session of the active Changes editor, which is not the main window's in a chat window.
+						const sessionChangesViewService = getSessionChangesViewService(accessor) ?? changesViewService;
+						const sessionChangeset = sessionChangesViewService.activeSessionChangesetObs.read(undefined) ?? changeset;
+						const change = sessionChangesViewService.activeSessionChangesObs.read(undefined)
 							.find(change => isChangesFileResource(change, resource));
 						if (!change) {
 							return;
 						}
 
-						await changeset?.invokeOperation(operation.id, {
+						await sessionChangeset?.invokeOperation(operation.id, {
 							kind: 'resource',
 							resource: getChangesFileUri(change),
 						});

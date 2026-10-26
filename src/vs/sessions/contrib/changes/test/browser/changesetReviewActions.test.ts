@@ -13,6 +13,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionChangeset, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesetReviewAction } from '../../browser/changesetReviewActions.js';
+import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 
 suite('ChangesetReviewAction', () => {
@@ -40,6 +41,31 @@ suite('ChangesetReviewAction', () => {
 			[IEditorService, editorService],
 		)));
 	}
+
+	test('toggles the review state of the Changes editor\'s session, not the main window\'s', () => {
+		const resource = URI.file('/workspace/current.ts');
+		const mainCalls: ISetReviewStateCall[] = [];
+		const windowCalls: ISetReviewStateCall[] = [];
+		const windowChangesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetObs = constObservable(upcastPartial<ISessionChangeset>({ capabilities: { review: true } }));
+			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([{ modifiedUri: resource, insertions: 1, deletions: 0, reviewed: false }]);
+			override setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
+				windowCalls.push({ resources, reviewed });
+			}
+		}();
+		const pane = Object.create(SessionChangesEditor.prototype, {
+			changesViewServiceForSession: { value: windowChangesViewService },
+			collapse: { value: () => { } },
+		});
+		const instantiationService = createInstantiationService([], mainCalls);
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override readonly activeEditorPane = pane;
+		}());
+
+		new ChangesetReviewAction().run(instantiationService, resource);
+
+		assert.deepStrictEqual({ mainCalls, windowCalls }, { mainCalls: [], windowCalls: [{ resources: [resource], reviewed: true }] });
+	});
 
 	test('ignores a resource that is not part of the active changeset', () => {
 		const setReviewStateCalls: ISetReviewStateCall[] = [];

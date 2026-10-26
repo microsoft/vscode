@@ -13,7 +13,7 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { findChangesEditorFileChange, getChangesEditorFileResource } from './changesEditorLabels.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
 import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext } from './changesViewService.js';
-import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor } from './sessionChangesEditor.js';
+import { CHANGESET_REVIEW_ACTION_ID, getSessionChangesViewService, SessionChangesEditor } from './sessionChangesEditor.js';
 
 export class ChangesetReviewAction extends Action2 {
 	constructor() {
@@ -44,7 +44,7 @@ export class ChangesetReviewAction extends Action2 {
 			return;
 		}
 
-		const changesViewService = accessor.get(IChangesViewService);
+		const changesViewService = getSessionChangesViewService(accessor) ?? accessor.get(IChangesViewService);
 		if (changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
 			return;
 		}

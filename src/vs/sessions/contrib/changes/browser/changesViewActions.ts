@@ -41,7 +41,7 @@ import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesV
 import { IChangesViewService } from '../common/changesViewService.js';
 import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../editor/common/diffEditorOptionsService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { getSessionChangesViewService, SessionChangesEditor } from './sessionChangesEditor.js';
 import { isChangesFileResource } from './changesViewRenderer.js';
 
 const openChangesViewActionOptions: IAction2Options = {
@@ -122,8 +122,7 @@ class OpenPullRequestAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const sessionsService = accessor.get(ISessionsService);
-		const activeSession = sessionsService.activeSession.get();
+		const activeSession = (getSessionChangesViewService(accessor) ?? accessor.get(IChangesViewService)).activeSessionObs.get();
 		if (!activeSession) {
 			return;
 		}
