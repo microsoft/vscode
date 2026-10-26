@@ -54,6 +54,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { CodexChatDiscovery } from './codexChatDiscovery.js';
 import { CodexChatHistory } from './codexChatHistory.js';
 import type { InitializeResponse } from './protocol/generated/InitializeResponse.js';
+import type { ModelServiceTier } from './protocol/generated/v2/ModelServiceTier.js';
 import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpAuthToken, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
@@ -1922,8 +1923,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		modelId?: string,
 		billing?: ICAPIModelBilling,
 		contextWindow?: ICodexModelContextWindow,
+		serviceTiers?: readonly ModelServiceTier[],
 	): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
+		const additionalTiers = serviceTiers?.filter(tier => tier.id !== 'default');
+		if (additionalTiers?.length) {
+			properties.serviceTier = {
+				type: 'string',
+				title: localize('codex.modelSpeed.title', "Speed"),
+				description: localize('codex.modelSpeed.description', "Choose a service tier for this conversation. Faster tiers can increase usage or cost."),
+				default: 'default',
+				enum: ['default', ...additionalTiers.map(tier => tier.id)],
+				enumLabels: [localize('codex.modelSpeed.standard', "Standard"), ...additionalTiers.map(tier => tier.name)],
+				enumDescriptions: [localize('codex.modelSpeed.standard.description', "Standard speed and usage."), ...additionalTiers.map(tier => tier.description)],
+			};
+		}
 		if (supportedEfforts?.length) {
 			const efforts = supportedEfforts.map(option => option.reasoningEffort);
 			properties[CODEX_THINKING_LEVEL_KEY] = {
@@ -1952,6 +1966,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const config = this._configValues(configResource, session.chatChannel);
 		return narrowReasoningEffort(config?.[CodexSessionConfigKey.ModelReasoningEffort]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.ModelReasoningEffort];
+	}
+
+	/** Only forward tiers advertised for the selected model and billing provider. */
+	private _getServiceTierForTurn(model: ModelSelection | undefined): string | undefined {
+		const schema = this._models.get().find(candidate => candidate.id === model?.id)?.configSchema?.properties.serviceTier;
+		if (!schema) {
+			return undefined;
+		}
+		const selected = model?.config?.serviceTier;
+		if (typeof selected === 'string' && schema.enum?.includes(selected)) {
+			return selected;
+		}
+		return typeof schema.default === 'string' && schema.enum?.includes(schema.default) ? schema.default : undefined;
 	}
 
 	/**
@@ -2025,7 +2052,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return roots.length ? roots : undefined;
 	}
 
-	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions: string | undefined, configResource: URI): Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode'> {
+	private _turnStartOptions(session: ICodexSession, modelId: string, developerInstructions: string | undefined, configResource: URI): Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer' | 'effort' | 'runtimeWorkspaceRoots' | 'personality' | 'summary' | 'collaborationMode' | 'serviceTierForTurn'> {
 		const config = this._readSessionConfig(configResource, session.chatChannel);
 		const resolvedPermissions = this._resolveSessionPermissions(configResource, session.chatChannel);
 		const approvalPolicy = session.agentMergeTurn ? 'on-request' : resolvedPermissions.approvalPolicy;
@@ -2054,6 +2081,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			personality,
 			summary,
 			collaborationMode,
+			serviceTierForTurn: this._getServiceTierForTurn(session.model),
 			...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 		};
 	}
@@ -2461,7 +2489,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						name: model.displayName,
 						maxContextWindow: contextWindow?.maxSize,
 						supportsVision: model.inputModalities.includes('image'),
-						configSchema: this._createModelConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model, undefined, contextWindow),
+						configSchema: this._createModelConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model, undefined, contextWindow, model.serviceTiers),
 						_meta: {
 							...createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
 							...createAgentModelGroupMeta(pickerProvider),

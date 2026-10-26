@@ -27,6 +27,19 @@ suite('AgentHostLanguageModelProvider', () => {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
 
+	test('groups catalog-backed service tiers as speed without changing their values or labels', async () => {
+		const provider = createProvider();
+		provider.updateModels([{
+			...makeModel('codex-model'),
+			configSchema: { type: 'object', properties: { serviceTier: { type: 'string', title: 'Speed', enum: ['default', 'priority'], enumLabels: ['Standard', 'Fast'], default: 'default' } } },
+		}]);
+		const [result] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const property = result.metadata.configurationSchema?.properties?.serviceTier;
+		assert.deepStrictEqual({ group: property?.group, values: property?.enum, labels: property?.enumItemLabels }, {
+			group: 'speed', values: ['default', 'priority'], labels: ['Standard', 'Fast'],
+		});
+	});
+
 	test('passes host-owned defaults and locks through without assuming model identifiers', async () => {
 		const provider = createProvider();
 		const model: SessionModelInfo = {

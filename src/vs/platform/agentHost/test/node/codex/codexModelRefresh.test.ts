@@ -46,6 +46,7 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { readCodexAccountInfo } from '../../../common/codexAccount.js';
 import type { GetAccountResponse } from '../../../node/codex/protocol/generated/v2/GetAccountResponse.js';
 import type { GetAccountRateLimitsResponse } from '../../../node/codex/protocol/generated/v2/GetAccountRateLimitsResponse.js';
+import type { ModelListResponse } from '../../../node/codex/protocol/generated/v2/ModelListResponse.js';
 import { createNullSessionDataService } from '../../common/sessionTestHelpers.js';
 
 interface ITestAgentContext {
@@ -92,7 +93,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Pr
 	return createAgentContext(disposables, models, rootConfig, sdkDownloader).agent;
 }
 
-const modelListResponse = {
+const modelListResponse: ModelListResponse = {
 	data: [{
 		id: 'gpt-5.6-sol',
 		model: 'gpt-5.6-sol',
@@ -116,6 +117,9 @@ const modelListResponse = {
 		additionalSpeedTiers: [],
 		serviceTiers: [],
 		defaultServiceTier: null,
+		modelSpecialty: null,
+		multiAgentVersion: null,
+		availableAccessPrograms: null,
 		isDefault: true,
 	}],
 	nextCursor: null,
@@ -126,7 +130,7 @@ const modelListResponse = {
  * on enumeration specifically — `config/read` shares this connection once the
  * SDK is local, so a raw "did we connect" count conflates callers.
  */
-function createChatGPTConnection(account: unknown = { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requests: string[] = []) {
+function createChatGPTConnection(account: unknown = { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requests: string[] = [], models = modelListResponse) {
 	return {
 		kind: 'ready',
 		client: {
@@ -139,7 +143,7 @@ function createChatGPTConnection(account: unknown = { type: 'chatgpt', email: 'p
 					return { config: { model_provider: 'openai' } };
 				}
 				if (method === 'model/list') {
-					return modelListResponse;
+					return models;
 				}
 				if (method === 'thread/list') {
 					return { data: [], nextCursor: null };
@@ -153,6 +157,58 @@ function createChatGPTConnection(account: unknown = { type: 'chatgpt', email: 'p
 }
 
 suite('CodexAgent model refresh', () => {
+	test('offers only catalog-backed service tiers and keeps them separate from Copilot billing', async () => {
+		const agent = createAgent(disposables, async () => [{ id: 'copilot-model', model_picker_enabled: true, supported_endpoints: ['/responses'] } as CCAModel]);
+		agent['_githubToken'] = 'token';
+		const connection = createChatGPTConnection(undefined, [], {
+			...modelListResponse,
+			data: modelListResponse.data.map(model => ({ ...model, serviceTiers: [{ id: 'priority', name: 'Fast', description: 'Faster responses with increased usage.' }] })),
+		});
+		agent['_connection'] = connection as never;
+		await agent.refreshModels();
+		const nativeId = toCodexModelSelectionId('openai', 'gpt-5.6-sol');
+		const copilotId = toCodexModelSelectionId('vscode-proxy', 'copilot-model');
+		const schema = agent.models.get().find(model => model.id === nativeId)?.configSchema?.properties.serviceTier;
+		assert.deepStrictEqual({
+			values: schema?.enum,
+			labels: schema?.enumLabels,
+			default: schema?.default,
+			copilot: agent.models.get().find(model => model.id === copilotId)?.configSchema?.properties.serviceTier,
+			resolved: [undefined, 'priority', 'default', 'retired'].map(serviceTier => agent['_getServiceTierForTurn']({ id: nativeId, config: serviceTier ? { serviceTier } : undefined })),
+			crossProvider: agent['_getServiceTierForTurn']({ id: copilotId, config: { serviceTier: 'priority' } }),
+		}, {
+			values: ['default', 'priority'], labels: ['Standard', 'Fast'], default: 'default', copilot: undefined,
+			resolved: ['default', 'priority', 'default', 'default'], crossProvider: undefined,
+		});
+	});
+
+	test('does not offer a speed selector without an additional advertised tier', () => {
+		const agent = createAgent(disposables, async () => []);
+		assert.deepStrictEqual([undefined, [], [{ id: 'default', name: 'Standard', description: '' }]].map(tiers =>
+			agent['_createModelConfigSchema'](undefined, undefined, undefined, undefined, undefined, tiers)), [undefined, undefined, undefined]);
+	});
+
+	test('falls back only to an advertised string schema default', () => {
+		const agent = createAgent(disposables, async () => []);
+		const id = toCodexModelSelectionId('openai', 'native-model');
+		const observations = ['standard', undefined, 0, 'unlisted'].map(defaultTier => {
+			agent['_models'].set([{
+				provider: 'codex', id, name: 'Native Model', supportsVision: false,
+				configSchema: { type: 'object', properties: { serviceTier: { type: 'string', title: 'Speed', enum: ['standard', 'priority'], default: defaultTier } } },
+			}], undefined);
+			return {
+				unset: agent['_getServiceTierForTurn']({ id }),
+				retired: agent['_getServiceTierForTurn']({ id, config: { serviceTier: 'retired' } }),
+				selected: agent['_getServiceTierForTurn']({ id, config: { serviceTier: 'priority' } }),
+			};
+		});
+		assert.deepStrictEqual(observations, [
+			{ unset: 'standard', retired: 'standard', selected: 'priority' },
+			{ unset: undefined, retired: undefined, selected: 'priority' },
+			{ unset: undefined, retired: undefined, selected: 'priority' },
+			{ unset: undefined, retired: undefined, selected: 'priority' },
+		]);
+	});
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 

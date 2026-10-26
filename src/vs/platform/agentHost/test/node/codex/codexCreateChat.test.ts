@@ -89,6 +89,7 @@ interface ITestWireRequest {
 		readonly model?: string;
 		readonly modelProvider?: string;
 		readonly serviceTier?: string | null;
+		readonly serviceTierForTurn?: string;
 		readonly config?: Readonly<Record<string, JsonValue>>;
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
@@ -2160,6 +2161,41 @@ suite('CodexAgent createChat', () => {
 			peer.dispose();
 		}
 	});
+
+	for (const [selected, expected] of [['priority', 'priority'], ['default', 'default'], ['retired', 'default']]) {
+		test(`sends advertised service tier ${selected} as ${expected} without rewriting native settings`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+			const requests: ITestWireRequest[] = [];
+			const recordRequest = (chunk: Buffer) => requests.push(JSON.parse(chunk.toString('utf8')) as ITestWireRequest);
+			peer.transport.stdin.on('data', recordRequest);
+			disposables.add(toDisposable(() => peer.transport.stdin.off('data', recordRequest)));
+			// A synthetic catalog lets this test verify the wire contract without a paid model call.
+			const modelId = toCodexModelSelectionId('openai', 'gpt-test');
+			agent['_models'].set([{ id: modelId, provider: 'codex', name: 'GPT Test', supportsVision: false, configSchema: { type: 'object', properties: { serviceTier: { type: 'string', title: 'Speed', default: 'default', enum: ['default', 'priority'] } } } }], undefined);
+			const session = AgentSession.uri('codex', 'service-tier');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/service-tier');
+			const context = hostChatContext(session, chat);
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: modelId, config: { serviceTier: selected } } });
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'service-tier-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('service-tier')!.materializePromise;
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, context);
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+			assert.deepStrictEqual({
+				method: turn.method, tier: turn.params.serviceTierForTurn, model: turn.params.model,
+				modelProvider: start.params.modelProvider,
+				nativeSettingsWrites: requests.filter(request => /^config\/.*write$/i.test(request.method) || request.method.endsWith('/settings/update')
+					|| request.params.serviceTier !== undefined || request.params.config?.service_tier !== undefined),
+			}, {
+				method: 'turn/start', tier: expected, model: 'gpt-test', modelProvider: 'openai', nativeSettingsWrites: [],
+			});
+		});
+	}
 
 	test('prewarmed draft stays provisional while its launch config changes before first send', async () => {
 		const sessionStore = createTestSessionStore();
