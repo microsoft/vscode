@@ -16,7 +16,7 @@ export class GitHubPRCIFetcher {
 
 	getCheckRuns(owner: string, repo: string, ref: string, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubCICheck[]> {
 		return this.client.withClient(async (client, signal) => {
-			const checks = await client.checks.listRuns({ owner, name: repo }, ref, signal, {
+			const checks = await client.checks.listRuns({ owner, repo }, ref, signal, {
 				...options,
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
@@ -27,12 +27,12 @@ export class GitHubPRCIFetcher {
 
 	rerunFailedJobs(owner: string, repo: string, runId: number, token?: CancellationToken): Promise<void> {
 		return this.client.withClient((client, signal) =>
-			client.actions.rerunFailedJobs({ owner, name: repo }, runId, signal), token);
+			client.actions.rerunFailedJobs({ owner, repo }, runId, signal), token);
 	}
 
 	getCheckRunAnnotations(owner: string, repo: string, checkRunId: number, token?: CancellationToken): Promise<string> {
 		return this.client.withClient(async (client, signal) => {
-			const repository = { owner, name: repo };
+			const repository = { owner, repo };
 			const sections: string[] = [];
 			try {
 				const { output } = await client.checks.getRun(repository, checkRunId, signal);

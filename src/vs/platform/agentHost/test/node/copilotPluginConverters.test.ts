@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { mapCopilotCustomAgentTools, toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
@@ -283,6 +283,96 @@ suite('copilotPluginConverters', () => {
 				tools: ['read_file', 'grep_search'],
 				prompt: 'You are a meticulous code reviewer.\n',
 			}]);
+		});
+
+		test('translates extension-qualified tool references to SDK registration names', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/qualified-tools.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: qualified-tools',
+				'tools: [publisher.extension/toolXY, read, playwright/*]',
+				'---',
+				'Use the configured tools.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents(
+				[{ uri: agentUri, name: 'qualified-tools' }],
+				fileService,
+				undefined,
+				new Map([['publisher.extension/toolXY', 'toolXY']]),
+			);
+
+			assert.deepStrictEqual(result[0].tools, ['toolXY', 'read', 'playwright/*']);
+		});
+
+		test('reprojects retained tool references without changing authored configurations or null and undefined tools', () => {
+			const authored = [
+				{ name: 'explicit', prompt: 'Review', tools: ['publisher/tool', 'view'] },
+				{ name: 'all', prompt: 'Review', tools: null },
+				{ name: 'default', prompt: 'Review' },
+			];
+			const first = mapCopilotCustomAgentTools(authored, new Map([['publisher/tool', 'firstName']]));
+			const second = mapCopilotCustomAgentTools(authored, new Map([['publisher/tool', 'secondName']]));
+			assert.deepStrictEqual({
+				authored,
+				first,
+				second,
+			}, {
+				authored: [
+					{ name: 'explicit', prompt: 'Review', tools: ['publisher/tool', 'view'] },
+					{ name: 'all', prompt: 'Review', tools: null },
+					{ name: 'default', prompt: 'Review' },
+				],
+				first: [
+					{ name: 'explicit', prompt: 'Review', tools: ['firstName', 'view'] },
+					{ name: 'all', prompt: 'Review', tools: null },
+					{ name: 'default', prompt: 'Review' },
+				],
+				second: [
+					{ name: 'explicit', prompt: 'Review', tools: ['secondName', 'view'] },
+					{ name: 'all', prompt: 'Review', tools: null },
+					{ name: 'default', prompt: 'Review' },
+				],
+			});
+		});
+
+		test('preserves scalar and fallback-array models from frontmatter', async () => {
+			const scalarUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/scalar-model.md' });
+			const fallbackUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/fallback-models.md' });
+			await fileService.writeFile(scalarUri, VSBuffer.fromString([
+				'---',
+				'name: scalar-model',
+				'model: claude-haiku-4.5',
+				'---',
+				'Scalar body.',
+			].join('\n')));
+			await fileService.writeFile(fallbackUri, VSBuffer.fromString([
+				'---',
+				'name: fallback-models',
+				'model: [not-a-model, gpt-5.6-sol]',
+				'---',
+				'Fallback body.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: scalarUri, name: 'scalar-model' },
+				{ uri: fallbackUri, name: 'fallback-models' },
+			], fileService, new Set(['claude-haiku-4.5', 'gpt-5.6-sol']));
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'scalar-model',
+					model: 'claude-haiku-4.5',
+					tools: null,
+					prompt: 'Scalar body.',
+				},
+				{
+					name: 'fallback-models',
+					model: 'gpt-5.6-sol',
+					tools: null,
+					prompt: 'Fallback body.',
+				},
+			]);
 		});
 
 		test('preserves agent-specific frontmatter hooks without merging between agents', async () => {
@@ -726,6 +816,22 @@ suite('copilotPluginConverters', () => {
 			}
 		});
 
+		test('onPostToolUse returns output of a hook that exits without reading its input', async () => {
+			const expectedOutput = { additionalContext: 'stdin was ignored' };
+			const { command, cleanup } = echoJsonCmd(expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				const hooks = toSdkHooks([hookGroup]);
+				// Larger than any OS pipe buffer, so the stdin write is still pending
+				// when the hook exits and fails with EPIPE (EOF on Windows).
+				const toolResult = { textResultForLlm: 'x'.repeat(4 * 1024 * 1024), resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'view', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+			} finally {
+				cleanup();
+			}
+		});
+
 		test('onPostToolUse returns undefined when output is non-JSON', async () => {
 			// Use a script file so there are no cmd.exe quoting issues on Windows.
 			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
@@ -770,7 +876,7 @@ suite('copilotPluginConverters', () => {
 				let trackingInput: unknown;
 				const editTrackingHooks = {
 					onPreToolUse: async () => { },
-					onPostToolUse: async (input: unknown) => { trackingInput = input; },
+					onPostToolUse: async (input: unknown) => { trackingInput = input; return undefined; },
 				};
 				const hooks = toSdkHooks([hookGroup], editTrackingHooks);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
@@ -783,10 +889,63 @@ suite('copilotPluginConverters', () => {
 			}
 		});
 
+		test('tool hooks preserve host context alongside plugin output and after failures', async () => {
+			const { command, cleanup } = echoJsonCmd({ additionalContext: 'context from hook', suppressOutput: true });
+			try {
+				const hooks = toSdkHooks([makeHookGroup('PostToolUse', command)], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => ({ additionalContext: 'host context' }),
+					onPostToolUseFailure: () => ({ additionalContext: 'host context after a failure' }),
+				});
+				const base = { toolName: 'edit', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+
+				assert.deepStrictEqual({
+					success: await hooks.onPostToolUse!({ ...base, toolResult: { textResultForLlm: 'ok', resultType: 'success' } }, { sessionId: 'test' }),
+					failure: await hooks.onPostToolUseFailure!({ ...base, error: 'No match found' }, { sessionId: 'test' }),
+				}, {
+					success: { additionalContext: 'host context\n\ncontext from hook', suppressOutput: true },
+					failure: { additionalContext: 'host context after a failure' },
+				});
+			} finally {
+				cleanup();
+			}
+		});
+
+		test('onPostToolUse returns VS Code\'s own result change without plugin hooks', async () => {
+			const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
+			const hooks = toSdkHooks([], { onPreToolUse: async () => { }, onPostToolUse: async () => ({ modifiedResult }) });
+			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+
+			const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+
+			assert.deepStrictEqual(result, { modifiedResult });
+		});
+
+		test('onPostToolUse shows plugin hooks the result VS Code changed and keeps both outputs', async () => {
+			// Answers with the result text it received, so the test sees what the plugin hook saw.
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const filePath = `${dir}/vscode-test-hook-echo-result-${Date.now()}.js`;
+			writeFileSync(filePath, `let input = ''; process.stdin.on('data', data => input += data).on('end', () => process.stdout.write(JSON.stringify({ additionalContext: 'saw: ' + JSON.parse(input).toolResult.textResultForLlm })));\n`);
+			try {
+				const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
+				const hooks = toSdkHooks([makeHookGroup('PostToolUse', `node ${filePath}`)], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => ({ modifiedResult, additionalContext: 'from VS Code' }),
+				});
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+
+				const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(result, { modifiedResult, additionalContext: 'from VS Code\n\nsaw: ok\npath: /images/image.png' });
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
+			}
+		});
+
 		test('onUserPromptSubmitted returns host context without rewriting the prompt', async () => {
 			const hooks = toSdkHooks([], {
 				onPreToolUse: async () => { },
-				onPostToolUse: async () => { },
+				onPostToolUse: async () => undefined,
 				onUserPromptSubmitted: () => ({ additionalContext: 'Rename with exact casing' }),
 			});
 			const input = { prompt: 'Keep GitHub casing', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };

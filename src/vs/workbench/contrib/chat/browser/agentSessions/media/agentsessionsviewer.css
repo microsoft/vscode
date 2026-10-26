@@ -28,14 +28,11 @@
 
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.agent-session-icon.needs-input) {
-		animation: agent-session-needs-input-accent-pulse 3s ease-in-out infinite;
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 	}
 
-	@media (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.agent-session-icon.needs-input) {
-			animation: none;
-			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
-		}
+	.monaco-list-row:not(.selected):not(.focused):not(:hover) .agent-session-chat-item.needs-input {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -186,16 +183,6 @@
 				display: flex;
 				align-items: center;
 				justify-content: center;
-
-				&.needs-input {
-					animation: agent-session-needs-input-pulse 2s ease-in-out infinite;
-				}
-
-				@media (prefers-reduced-motion: reduce) {
-					&.needs-input {
-						animation: none;
-					}
-				}
 			}
 		}
 
@@ -221,16 +208,15 @@
 			max-height: 15px;
 			color: var(--vscode-descriptionForeground);
 
-			.agent-session-details-icon {
-				display: none;
-				font-size: 11px;
-				line-height: 1;
+			.agent-session-harness-icon {
+				/* muted, details-row scale, so it never competes with the status icon */
+				color: inherit;
+				display: flex;
+				align-items: center;
+				align-self: center;
 				flex-shrink: 0;
-
-				&.visible {
-					display: flex;
-					align-items: center;
-				}
+				font-size: var(--vscode-codiconFontSize-compact);
+				line-height: 1;
 			}
 
 			.rendered-markdown {
@@ -297,11 +283,20 @@
 
 		.agent-session-title,
 		.agent-session-description {
-			/* push other items to the end */
-			flex: 1;
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+		}
+
+		.agent-session-title {
+			/* push the title toolbar to the end */
+			flex: 1;
+		}
+
+		.agent-session-description {
+			/* size to content so following metadata stays inline after its separator */
+			flex: 0 1 auto;
+			min-width: 0;
 		}
 
 		.agent-session-description:empty {
@@ -461,16 +456,6 @@
 				width: var(--vscode-spacing-size120);
 				height: var(--vscode-spacing-size120);
 			}
-
-			&.needs-input {
-				animation: agent-session-needs-input-pulse 2s ease-in-out infinite;
-			}
-
-			@media (prefers-reduced-motion: reduce) {
-				&.needs-input {
-					animation: none;
-				}
-			}
 		}
 
 		.agent-session-chat-title {
@@ -589,24 +574,5 @@
 				outline-offset: 1px;
 			}
 		}
-	}
-}
-
-@keyframes agent-session-needs-input-pulse {
-	0%, 100% {
-		opacity: 1;
-	}
-	50% {
-		opacity: 0.4;
-	}
-}
-
-/* PROTO: yellow background pulse for "Input needed" session rows. */
-@keyframes agent-session-needs-input-accent-pulse {
-	0%, 100% {
-		background-color: transparent;
-	}
-	50% {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
 	}
 }

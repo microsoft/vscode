@@ -13,7 +13,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export type CustomizationMarketplaceInstallState =
 	| { readonly kind: 'available' | 'installing' }
-	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget }
+	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget; readonly uninstallUnavailableMessage?: string }
 	| { readonly kind: 'missing'; readonly target: CustomizationMarketplaceInstallationTarget; readonly repairUnavailableMessage?: string }
 	| { readonly kind: 'error'; readonly target: CustomizationMarketplaceInstallationTarget; readonly message: string }
 	| { readonly kind: 'unavailable'; readonly message: string; readonly setupUrl?: URI };
@@ -105,6 +105,8 @@ export const emptyCustomizationMarketplaceInstallationSnapshot = createCustomiza
 
 export const ICustomizationMarketplaceInstallService = createDecorator<ICustomizationMarketplaceInstallService>('customizationMarketplaceInstallService');
 
+export type CustomizationMarketplaceInstallOrigin = 'curatedSection' | 'search' | 'browseFallback';
+
 export interface ICustomizationMarketplaceInstallService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
@@ -112,7 +114,7 @@ export interface ICustomizationMarketplaceInstallService {
 	readonly installations: IObservable<ICustomizationMarketplaceInstallationSnapshot>;
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
-	install(resource: ICustomizationMarketplaceResource): Promise<void>;
+	install(resource: ICustomizationMarketplaceResource, origin?: CustomizationMarketplaceInstallOrigin): Promise<void>;
 	/** Restores files, registrations, or account connections missing from a recorded installation. */
 	repair(resource: ICustomizationMarketplaceResource): Promise<void>;
 	/** Cancels an in-progress Connector install or repair. */

@@ -38,7 +38,8 @@ import { IWorkspaceContextService, toWorkspaceFolder, WorkspaceFolder } from '..
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { TestContextService, TestLoggerService, TestProductService, TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { McpServerEditorInput } from '../../browser/mcpServerEditorInput.js';
@@ -63,6 +64,7 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	private readonly onDidRequestEmitter: Emitter<void>;
 	queryItems: IGalleryMcpServer[] = [];
 	queryBarrier: DeferredPromise<void> | undefined;
+	enabled = true;
 	get requestCount(): number { return this.requests.length; }
 
 	constructor(store: Pick<DisposableStore, 'add'>) {
@@ -71,7 +73,7 @@ class TestMcpGalleryService extends mock<IMcpGalleryService>() {
 	}
 
 	override isEnabled(): boolean {
-		return true;
+		return this.enabled;
 	}
 
 	override resolveMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<Map<string, IMcpGalleryServerResolveResult>> {
@@ -279,10 +281,20 @@ suite('McpWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function createFixture(installed: IWorkbenchLocalMcpServer[], accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IObservable<readonly IMcpServer[]> = constObservable([])) {
+		const fixture = createUninitializedFixture(installed, accessValue, initialInstalledError, runtimeServers);
+		await fixture.service.whenInitialLocalMcpServersLoaded;
+		return fixture;
+	}
+
+	function createUninitializedFixture(installed: IWorkbenchLocalMcpServer[] | Promise<IWorkbenchLocalMcpServer[]>, accessValue: McpAccessValue = McpAccessValue.Registry, initialInstalledError?: Error, runtimeServers: IObservable<readonly IMcpServer[]> = constObservable([])) {
 		const galleryService = new TestMcpGalleryService(store);
 		const manifestService = new TestMcpGalleryManifestService(store);
 		const managementService = new TestWorkbenchMcpManagementService(store);
-		managementService.installed = [...installed];
+		if (Array.isArray(installed)) {
+			managementService.installed = [...installed];
+		} else {
+			managementService.queueInstalledResult(installed);
+		}
 		if (initialInstalledError) {
 			managementService.failNextInstalledQuery(initialInstalledError);
 		}
@@ -321,7 +333,6 @@ suite('McpWorkbenchService', () => {
 		);
 		const instantiationService = store.add(new TestInstantiationService(services));
 		const service = store.add(instantiationService.createInstance(McpWorkbenchService));
-		await service.whenInitialLocalMcpServersLoaded;
 		return { service, galleryService, manifestService, managementService, allowedMcpServersEmitter, openedEditors, logService, workspaceService, configurationService };
 	}
 
@@ -451,6 +462,77 @@ suite('McpWorkbenchService', () => {
 			requested: ['failed', 'found', 'missing'],
 			enabled: ['found'],
 			verified: [['failed', false], ['found', true], ['missing', false]],
+		});
+	});
+
+	for (const initialQueryFinishesFirst of [true, false]) {
+		test(`verifies the latest startup query when the initial query finishes ${initialQueryFinishesFirst ? 'first' : 'last'}`, async () => {
+			const initialResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+			const latestResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+			const { service, galleryService, managementService } = createUninitializedFixture(initialResult.p);
+			const local = createLocal('server');
+			const gallery = { ...createGallery(local.name), displayName: 'Registry Server' };
+			managementService.queueInstalledResult(latestResult.p);
+			const latestQuery = service.queryLocal();
+
+			if (initialQueryFinishesFirst) {
+				await initialResult.complete([createLocal('stale')]);
+				await service.whenInitialLocalMcpServersLoaded;
+				await timeout(0);
+			}
+
+			await latestResult.complete([local]);
+			await latestQuery;
+			await timeout(0);
+			assert.strictEqual(galleryService.requestCount, 1);
+			const request = await galleryService.nextRequest();
+			await complete(request, new Map([[local.name, found(gallery)]]));
+
+			if (!initialQueryFinishesFirst) {
+				await initialResult.complete([createLocal('stale')]);
+				await service.whenInitialLocalMcpServersLoaded;
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				requested: request.infos.map(info => info.name),
+				local: service.local.map(server => ({ name: server.name, gallery: server.gallery })),
+				enabled: service.getEnabledLocalMcpServers().map(server => server.name),
+				requestCount: galleryService.requestCount,
+			}, {
+				requested: [local.name],
+				local: [{ name: local.name, gallery }],
+				enabled: [local.name],
+				requestCount: 1,
+			});
+		});
+	}
+
+	test('verifies startup servers when the registry becomes available before the initial query settles', async () => {
+		const initialResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+		const latestResult = new DeferredPromise<IWorkbenchLocalMcpServer[]>();
+		const { service, galleryService, manifestService, managementService } = createUninitializedFixture(initialResult.p);
+		const local = createLocal('server');
+		managementService.queueInstalledResult(latestResult.p);
+		galleryService.enabled = false;
+		const latestQuery = service.queryLocal();
+
+		await latestResult.complete([local]);
+		await latestQuery;
+		await timeout(0);
+		galleryService.enabled = true;
+		manifestService.fireChange();
+		await initialResult.complete([createLocal('stale')]);
+		await service.whenInitialLocalMcpServersLoaded;
+		const request = await galleryService.nextRequest();
+		await complete(request, new Map([[local.name, found(createGallery(local.name))]]));
+
+		assert.deepStrictEqual({
+			requested: request.infos.map(info => info.name),
+			enabled: service.getEnabledLocalMcpServers().map(server => server.name),
+		}, {
+			requested: [local.name],
+			enabled: [local.name],
 		});
 	});
 
@@ -932,6 +1014,7 @@ suite('McpWorkbenchService', () => {
 				[ITelemetryService, NullTelemetryService],
 				[IProductService, TestProductService],
 				[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true })],
+				[IUserDataProfileService, new TestUserDataProfileService()],
 			);
 			const instantiationService = store.add(new TestInstantiationService(services));
 			const registry = store.add(instantiationService.createInstance(McpRegistry));

@@ -78,7 +78,9 @@ Cookies/login/storage → **sessions**. "Which pages can this client see" → **
 
 ## Remote pages
 
-When a page must load as if from a remote machine (forwarded `localhost` in a remote workspace, container, or Codespace), a **tunnel proxy is applied to the page's session**; credentials come from the extension host, and navigation can defer until the proxy is live. "Open localhost" isn't always local — remote URLs are rewritten to their forwarded form, and the proxy lives on the **session**, not an individual call.
+A browser context (its storage) is bound to a **network**: local, or remote by authority. Tabs save their requested session (storage scope, affinity and network); creation applies current trust and proxy restrictions without overwriting that request. Popups and automation contexts inherit their parent's network. Remote traffic uses an HTTPS proxy in the window's local extension host; proxy startup failure fails the view rather than falling back locally.
+
+The network belongs to the browser context, not its owner, audience, or policy. Global storage is always local. Workspace storage uses the window's network; other networks require a storage **affinity** selecting a partition within the workspace's storage folder, or use per-view in-memory storage without one. Clearing workspace storage includes these partitions.
 
 ## Testing strategy
 

@@ -134,6 +134,8 @@ suite('Metadata compatibility', () => {
 		{ name: 'projected read permission', meta: { promptRequest: { kind: 'read' } }, expected: { kind: AgentPermissionRequestKind.Read } },
 		{ name: 'projected write permission', meta: { promptRequest: { kind: 'write', fileName: '/workspace/file.ts' } }, expected: { kind: AgentPermissionRequestKind.Write, fileName: '/workspace/file.ts' } },
 		{ name: 'raw write permission', meta: { permissionRequest: { kind: 'write', fileName: '/workspace/file.ts' } }, expected: { kind: AgentPermissionRequestKind.Write, fileName: '/workspace/file.ts' } },
+		{ name: 'projected URL permission', meta: { promptRequest: { kind: 'url', url: 'https://example.com/docs' } }, expected: { kind: AgentPermissionRequestKind.Url, url: 'https://example.com/docs' } },
+		{ name: 'raw URL permission', meta: { permissionRequest: { kind: 'url', url: 'https://example.com/docs' } }, expected: { kind: AgentPermissionRequestKind.Url, url: 'https://example.com/docs' } },
 		{ name: 'projected request wins without borrowing a raw filename', meta: { promptRequest: { kind: 'write' }, permissionRequest: { kind: 'write', fileName: '/other.ts' } }, expected: { kind: AgentPermissionRequestKind.Write } },
 		{ name: 'malformed filename', meta: { promptRequest: { kind: 'write', fileName: 42 } }, expected: { kind: AgentPermissionRequestKind.Write } },
 		{ name: 'empty filename', meta: { promptRequest: { kind: 'write', fileName: ' ' } }, expected: { kind: AgentPermissionRequestKind.Write } },

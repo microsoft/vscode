@@ -386,6 +386,43 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 suite('Dev Container Agent Host Main Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('discovers modern, legacy and volume Dev Containers without starting them', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			override async isDockerAvailable() { return true; }
+			protected override async _runDocker(args: readonly string[]) {
+				this.dockerCommands.push([...args]);
+				return {
+					code: 0, stderr: '', stdout: [
+						{ id: 'modern', name: 'project', workspaceFolder: '/work/project', legacyFolder: '', metadata: '{}' },
+						{ id: 'legacy', name: 'old', workspaceFolder: '', legacyFolder: '/work/old', metadata: '' },
+						{ id: 'volume', name: 'volume', workspaceFolder: '', legacyFolder: '', metadata: '{}' },
+						{ id: 'other', name: 'database', workspaceFolder: '', legacyFolder: '', metadata: '' },
+					].map(value => JSON.stringify(value)).join('\n')
+				};
+			}
+		}());
+		assert.deepStrictEqual({
+			containers: await service.listDevContainers(CancellationToken.None),
+			commands: service.dockerCommands.map(args => args.slice(0, 3)),
+			starts: service.devContainerArgs,
+		}, {
+			containers: [
+				{ id: 'modern', name: 'project', workspaceFolder: '/work/project' },
+				{ id: 'legacy', name: 'old', workspaceFolder: '/work/old' },
+				{ id: 'volume', name: 'volume', workspaceFolder: undefined },
+			],
+			commands: [['ps', '--all', '--no-trunc']], starts: [],
+		});
+	});
+
+	test('surfaces Docker discovery failures', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			override async isDockerAvailable() { return true; }
+			protected override async _runDocker() { return { code: 1, stdout: '', stderr: 'Docker daemon unavailable' }; }
+		}());
+		await assert.rejects(service.listDevContainers(CancellationToken.None), /Docker daemon unavailable/);
+	});
+
 	test('parses the final Dev Container CLI result', () => {
 		assert.deepStrictEqual(parseDevContainerUpResult([
 			'[10 ms] Starting container',

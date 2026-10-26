@@ -365,7 +365,7 @@
 
 /* Workspace picker centered vertically with icon above */
 .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container {
-	flex: 1 !important;
+	flex: 1;
 	display: flex !important;
 	flex-direction: column !important;
 	align-items: center !important;
@@ -378,7 +378,8 @@
 }
 
 /* Show the sessions logo above the workspace picker — same asset as the auth page */
-.agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before {
+.agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
+.agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before {
 	content: '';
 	display: block;
 	width: 64px;
@@ -392,7 +393,9 @@
 }
 
 .vs .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
-.hc-light .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before {
+.hc-light .agent-sessions-workbench.phone-layout .new-session-workspace-picker-container::before,
+.vs .agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before,
+.hc-light .agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before {
 	background-image: url('../../media/sessions-logo-dark.svg');
 }
 
@@ -409,9 +412,37 @@
 	align-items: stretch !important;
 }
 
-.agent-sessions-workbench.phone-layout .experimental-new-session-composer .new-session-workspace-picker-container::before {
-	align-self: center;
+.agent-sessions-workbench.phone-layout .experimental-new-session-composer:not(.no-agent-host) .new-session-workspace-picker-container {
+	order: 1;
+	flex: 0 0 auto;
+	margin: 0;
+}
+
+.agent-sessions-workbench.phone-layout .experimental-new-session-composer:not(.no-agent-host) .new-session-workspace-picker-container::before {
+	display: none;
+}
+
+/* Keep the hero independent so notices precede the picker tray docked to the input. */
+.agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer:not(.no-agent-host)::before {
+	flex: 1;
+	width: 100%;
+	height: auto;
+	min-height: 64px;
+	background-size: 64px 64px;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer.welcome-phrases-visible:not(.no-agent-host) .new-session-welcome-message {
+	top: auto;
 	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.agent-sessions-workbench.phone-layout .experimental-new-session-composer .new-session-below-input-surfaces {
+	order: 0;
+}
+
+.agent-sessions-workbench.phone-layout .new-chat-widget-container.revealed .experimental-new-session-composer .new-chat-bottom-container.empty {
+	display: none;
 }
 
 .agent-sessions-workbench.phone-layout .experimental-new-session-composer .sessions-workspace-category-picker.new-chat-session-options {
@@ -650,14 +681,6 @@
 /* Chat widget fills full width on phone */
 .agent-sessions-workbench.phone-layout .sessions-chat-widget {
 	width: 100% !important;
-}
-
-/* allow-any-unicode-next-line */
-/* Compact chat toolbar on phone */
-.agent-sessions-workbench.phone-layout .sessions-chat-toolbar {
-	padding: 0 6px 0 6px !important;
-	max-height: 32px !important;
-	gap: 4px !important;
 }
 
 /* Prevent card transitions from flashing on phone */

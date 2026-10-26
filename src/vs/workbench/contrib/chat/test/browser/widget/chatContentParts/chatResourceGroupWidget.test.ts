@@ -129,10 +129,10 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	}
 
-	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>): ChatResourceGroupWidget {
+	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>, revealSize?: number): ChatResourceGroupWidget {
 		const host = dom.append(mainWindow.document.body, dom.$(animateImageReveal ? '.chat-image-generation-single' : 'div'));
 		const container = dom.append(host, dom.$(inline ? '.chat-generated-image-result' : 'div'));
-		const imageReveal = animateImageReveal ? { container: host } : undefined;
+		const imageReveal = animateImageReveal ? { container: host, size: revealSize } : undefined;
 		const widget = store.add(instantiationService.createInstance(ChatResourceGroupWidget, parts, inline ? { imagePresentation: 'inline', showImageInHover: false, imageReveal, imageDimensions } : undefined));
 		container.appendChild(widget.domNode);
 		store.add(toDisposable(() => host.remove()));
@@ -333,6 +333,7 @@ suite('ChatResourceGroupWidget', () => {
 		const container = widget.domNode.parentElement!;
 		container.classList.add('interactive-session');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--chat-generated-image-max-height', '300px');
 		const reveal = widget.domNode.querySelector('.chat-image-reveal')!;
 		const image = reveal.querySelector<HTMLImageElement>('img')!;
 		const initial = { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, hasSource: !!image.getAttribute('src'), width: reveal.getBoundingClientRect().width };
@@ -343,7 +344,7 @@ suite('ChatResourceGroupWidget', () => {
 			initial,
 			loaded: { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, sameImage: reveal.querySelector('img') === image },
 		}, {
-			initial: { pending: true, busy: 'true', hasSource: false, width: 320 },
+			initial: { pending: true, busy: 'true', hasSource: false, width: 200 },
 			loaded: { pending: false, busy: 'false', sameImage: true },
 		});
 	});
@@ -376,7 +377,7 @@ suite('ChatResourceGroupWidget', () => {
 			await frame();
 			await frame();
 			const waiting = bandState();
-			const waitingHeight = reveal.getBoundingClientRect().height;
+			const waitingBounds = reveal.getBoundingClientRect();
 			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 400, height: 240 });
 			const context = canvas.getContext('2d')!;
 			context.fillStyle = '#4682b4';
@@ -394,17 +395,69 @@ suite('ChatResourceGroupWidget', () => {
 			}
 			assert.deepStrictEqual({
 				waiting,
-				waitingHeight,
+				waitingSquare: Math.round(waitingBounds.width) === Math.round(waitingBounds.height),
 				sameField: reveal.querySelector('.chat-image-loading-glyphs') === field,
 				expansion: states,
 			}, {
 				waiting: { visible: true, painted: true },
-				waitingHeight: 50,
+				waitingSquare: true,
 				sameField: true,
 				expansion: Array.from({ length: 4 }, () => ({ visible: true, painted: true })),
 			});
 		});
 	}
+
+	test('a pending glyph square narrows with the chat while referenced image bytes load, so the image only grows from it', async () => {
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return false; }
+		}());
+		const { content } = deferImageRead();
+		// The loader measured 200px where it loaded, in a 760px chat.
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true, undefined, 200);
+		const gallery = widget.domNode.parentElement!;
+		gallery.style.setProperty('--chat-generated-image-max-height', '300px');
+		const host = gallery.parentElement!;
+		const reveal = widget.domNode.querySelector<HTMLElement>('.chat-image-reveal')!;
+		const size = () => {
+			const bounds = reveal.getBoundingClientRect();
+			return [bounds.width, bounds.height];
+		};
+		host.style.width = '760px';
+		const wide = size();
+		host.style.width = '240px';
+		const narrow = size();
+		const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 });
+		const context = canvas.getContext('2d')!;
+		context.fillStyle = '#4682b4';
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		await content.complete(decodeBase64(canvas.toDataURL('image/png').split(',')[1]));
+		await retry(async () => assert.ok(reveal.classList.contains('revealing')), 20, 50);
+		const clock = reveal.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!.getAnimations()[0];
+		assert.ok(clock);
+		clock.pause();
+		const frames = [];
+		for (const fraction of [0, 1]) {
+			clock.currentTime = Number(clock.effect?.getTiming().duration) * fraction;
+			await new Promise<void>(resolve => store.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			frames.push(size());
+		}
+
+		// The square narrows to two thirds of the width beside the save action, 140px give or take the engine's rounding, which is the shortest edge any image shape is shown at, so this 240x160 image only grows from it.
+		const [narrowSize] = narrow;
+		assert.deepStrictEqual({
+			wide,
+			narrowSquare: narrow[0] === narrow[1],
+			narrowToShortestEdge: Math.abs(narrowSize - 140) <= 1,
+			revealStartsFromSquare: frames[0][0] === narrowSize && frames[0][1] === narrowSize,
+			revealEnd: frames[1],
+		}, {
+			wide: [200, 200],
+			narrowSquare: true,
+			narrowToShortestEdge: true,
+			revealStartsFromSquare: true,
+			revealEnd: [240, 160],
+		});
+	});
 
 	test('an image read failure removes the glyph band and keeps the error visible', async () => {
 		const { content } = deferImageRead();

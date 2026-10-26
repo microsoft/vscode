@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { IRecordedPullRequestAssociationResult } from '../../common/agentHostGitStateService.js';
@@ -13,6 +14,7 @@ import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../com
 import { SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { type ToolDefinition } from '../../common/state/sessionState.js';
 import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
+import { assertArtifactChangesAllowed } from './artifactIntegrationServerTools.js';
 import { SessionArtifacts } from './sessionArtifacts.js';
 
 const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
@@ -69,7 +71,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifactOrReference,
 		title: 'Add Artifact or Reference',
-		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report or plan the user asked for. References are noteworthy existing resources the user will likely want to view. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. Adding an artifact promotes a matching reference, preserving its id; duplicates never downgrade artifacts.`,
+		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report or plan the user asked for. References are noteworthy existing resources the user will likely want to view. Generated images are listed as artifacts automatically; do not register them again. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. Adding an artifact promotes a matching reference, preserving its id; duplicates never downgrade artifacts.`,
 		inputSchema: createAddArtifactInputSchema(artifactInputSchema),
 		annotations: { readOnlyHint: false },
 		deferLoading: false,
@@ -77,7 +79,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.RemoveArtifactOrReference,
 		title: 'Remove Artifact or Reference',
-		description: 'Remove an artifact or reference recorded in this chat by id.',
+		description: 'Remove an artifact or reference recorded in this chat by id. Removing it also pauses any automation its integrations run for it, such as automatic merging of a pull request. Only available in turns started by a person or a scheduled automation.',
 		inputSchema: removeArtifactInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
 		deferLoading: true,
@@ -98,6 +100,8 @@ export interface IArtifactServerToolAccessor {
 	readonly isEnabled: () => boolean;
 	/** Persists the session-wide artifact and reference collection, including entries from every chat. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
+	/** Labels of the automation that integrations run for a recorded artifact, which removal pauses. */
+	readonly getEnabledAutomation?: (session: string, artifactId: string, chat: string, turnId: string | undefined) => Promise<readonly string[]>;
 	/** Verifies a PR against the invoking chat's folder and associates it when its head branch matches. */
 	readonly associatePullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
 	/** Verifies a batch in one GitHub request and persists candidates that need retrying. */
@@ -105,6 +109,8 @@ export interface IArtifactServerToolAccessor {
 	readonly removePendingPullRequest?: (session: string, chat: string, url: string) => Promise<void>;
 	readonly reportAssociationError?: (error: unknown) => void;
 }
+
+const ENABLED_AUTOMATION_TIMEOUT = 5_000;
 
 /** The noun an entry is described by, so every message names what it acted on. */
 function entryNoun(isArtifact: boolean): string {
@@ -201,7 +207,7 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 						const messages: string[] = [];
 						const pullRequestUrls = new Set<string>();
 						for (const input of inputs) {
-							const result = collection.addOrPromoteArtifact(input, generateUuid);
+							const result = collection.addOrPromoteArtifact(input, generateUuid, { chat: context.chatUri, ...(context.turnId ? { turnId: context.turnId } : {}) });
 							const status = result.added
 								? `Added ${entryNoun(result.artifact.isArtifact)}`
 								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
@@ -245,6 +251,11 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					if (typeof id !== 'string' || id.length === 0) {
 						throw new Error(`Invalid ${ArtifactServerToolName.RemoveArtifactOrReference} input: id must be a non-empty string.`);
 					}
+					assertArtifactChangesAllowed(stateManager, context.chatUri, ArtifactServerToolName.RemoveArtifactOrReference);
+					const recorded = artifacts.read().artifacts.find(artifact => artifact.id === id);
+					const paused = recorded && (recorded.link || recorded.uri) && accessor.getEnabledAutomation
+						? await raceTimeout(accessor.getEnabledAutomation(context.sessionUri, id, context.chatUri, context.turnId).catch(() => []), ENABLED_AUTOMATION_TIMEOUT) ?? []
+						: [];
 					const result = await artifacts.mutate(collection => collection.remove(id), async result => {
 						if (result.removed?.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
 							try {
@@ -258,7 +269,9 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 						return `No artifact or reference with id ${id}.`;
 					}
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
-					return `${message}: ${result.removed.id}`;
+					return paused.length
+						? `${message}: ${result.removed.id}\nPaused automation: ${paused.join('; ')}.`
+						: `${message}: ${result.removed.id}`;
 				}
 				case ArtifactServerToolName.ListArtifactsAndReferences: {
 					const current = artifacts.read().artifacts;

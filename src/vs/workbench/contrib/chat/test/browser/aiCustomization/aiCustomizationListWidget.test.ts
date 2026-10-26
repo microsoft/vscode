@@ -739,8 +739,8 @@ suite('aiCustomizationListWidget', () => {
 				welcomePageFeatures: { showGettingStartedBanner: false },
 				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
-				commitFiles: async () => { },
-				deleteFiles: async () => { },
+				commitFiles: async () => true,
+				deleteFiles: async () => true,
 				generateCustomization: async () => { },
 				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
@@ -796,6 +796,25 @@ suite('aiCustomizationListWidget', () => {
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
+		});
+
+		test('shared creation actions preserve generation and user creation without a workspace', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			const events: { type: PromptsType; target: string }[] = [];
+			disposables.add(widget.onDidRequestCreateManual(({ type, target }) => events.push({ type, target })));
+			const actions = widget.getCreateActions();
+			actions.find(action => action.target === 'user')?.run();
+
+			assert.deepStrictEqual({
+				actions: actions.map(action => ({ label: action.label, enabled: action.enabled, target: action.target })),
+				events,
+			}, {
+				actions: [
+					{ label: 'Generate with AI', enabled: true, target: undefined },
+					{ label: 'New Agent (User)', enabled: true, target: 'user' },
+				],
+				events: [{ type: PromptsType.agent, target: 'user' }],
+			});
 		});
 
 		test('uses the rendered container height for list layout when available', () => {

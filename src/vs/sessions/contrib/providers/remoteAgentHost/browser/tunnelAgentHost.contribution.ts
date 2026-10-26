@@ -477,11 +477,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			// tunnels that do not currently have a service-owned connection.
 			const onlineTunnelMap = new Map(onlineTunnels.map(t => [t.tunnelId, t]));
 			for (const [address, provider] of this._providerInstances) {
-				// Skip tunnels that already have an active relay connection
-				// A reconnecting protocol client is already restoring this relay.
-				const hasConnection = this._remoteAgentHostService.connections.some(
-					c => c.address === address && (RemoteAgentHostConnectionStatus.isConnected(c.status) || RemoteAgentHostConnectionStatus.isReconnecting(c.status))
-				);
+				// Discovery must not override a service-owned connection's status.
+				const hasConnection = this._remoteAgentHostService.connections.some(c => c.address === address);
 				if (hasConnection) {
 					continue;
 				}

@@ -6,9 +6,9 @@
 import { Sequencer } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, disposableObservableValue, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -19,7 +19,10 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatProgress, IChatWorkspaceEdit } from '../../../common/chatService/chatService.js';
 import { ChatEditingSessionState, IChatEditingSession, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedFileEntry, IStreamingEdits } from '../../../common/editing/chatEditingService.js';
 import { IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { AgentHostEditReview } from './agentHostEditReview.js';
 import { fileEditsToExternalEdits, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+
+const NO_ENTRIES: readonly IModifiedFileEntry[] = [];
 
 /**
  * One checkpoint per request. Accumulates the before/after content URIs of
@@ -47,8 +50,10 @@ interface IAgentHostCheckpoint {
  *   viewers can resolve historical content)
  *
  * Everything else is a no-op / empty observable / `undefined`. In particular:
- * - `entries` is always empty → the global accept/reject UI doesn't appear
- * - no diff computation, no multi-diff editor, no streaming-edits APIs
+ * - `entries` is empty unless an {@link AgentHostEditReview} is attached
+ *   (`chat.editor.workingSet.enabled`); then they are the files of the
+ *   session's Working Set, which the editor's keep/undo UI shows
+ * - no streaming-edits APIs: the agent host writes files itself
  *
  * Undo/redo granularity is per-request: every request occupies one checkpoint
  * regardless of how many tool calls it ran. The `stopId` parameters on
@@ -60,11 +65,17 @@ interface IAgentHostCheckpoint {
  */
 export class AgentHostSnapshotController extends Disposable implements IChatEditingSession {
 
-	readonly supportsKeepUndo = false;
-	readonly isGlobalEditingSession = false;
+	private readonly _review = this._register(disposableObservableValue<AgentHostEditReview | undefined>(this, undefined));
+	private readonly _reviewBinding = this._register(new MutableDisposable());
+
+	/** True when the edits of this chat can be kept or undone. */
+	readonly supportsKeepUndo = this._review.map(review => review !== undefined);
+
+	/** A reviewing session participates in the editor's keep/undo overlay, like local chat. */
+	readonly isGlobalEditingSession = this.supportsKeepUndo;
 
 	readonly state: IObservable<ChatEditingSessionState> = constObservable(ChatEditingSessionState.Idle);
-	readonly entries: IObservable<readonly IModifiedFileEntry[]> = constObservable([]);
+	readonly entries: IObservable<readonly IModifiedFileEntry[]> = derived(this, reader => this._review.read(reader)?.entries.read(reader) ?? NO_ENTRIES);
 
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = derivedOpts(
 		{ equalsFn: (a, b) => a.length === b.length && a.every((v, i) => v.requestId === b[i].requestId) },
@@ -99,6 +110,19 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+	}
+
+	// ---- Keep / Undo review -------------------------------------------------
+
+	/** Owns editor review while enabled, releasing it immediately when the preference changes. */
+	attachReview(enabled: IObservable<boolean>, createReview: () => AgentHostEditReview): void {
+		this._reviewBinding.value = autorun(reader => {
+			this._review.set(enabled.read(reader) ? createReview() : undefined, undefined);
+		});
+	}
+
+	get review(): AgentHostEditReview | undefined {
+		return this._review.get();
 	}
 
 	// ---- Hydration from protocol state --------------------------------------
@@ -320,13 +344,26 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		return !!cp && (cp.edits.length > 0 || (this._turnEdits?.getChanges(requestId)?.read(reader).length ?? 0) > 0);
 	}
 
+	// ---- Keep / Undo, delegated to the review when attached -----------------
+
+	async show(previousChanges?: boolean): Promise<void> {
+		await this._review.get()?.show(this, previousChanges);
+	}
+	getEntry(uri: URI): IModifiedFileEntry | undefined {
+		return this._review.get()?.getEntry(uri);
+	}
+	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined {
+		return this._review.read(reader)?.readEntry(uri, reader);
+	}
+	async accept(...uris: URI[]): Promise<void> {
+		await this._review.get()?.accept(...uris);
+	}
+	async reject(...uris: URI[]): Promise<void> {
+		await this._review.get()?.reject(...uris);
+	}
+
 	// ---- Unsupported / no-op (agent host owns edits server-side) ------------
 
-	async show(_previousChanges?: boolean): Promise<void> { /* no-op */ }
-	getEntry(_uri: URI): IModifiedFileEntry | undefined { return undefined; }
-	readEntry(_uri: URI, _reader: IReader): IModifiedFileEntry | undefined { return undefined; }
-	async accept(..._uris: URI[]): Promise<void> { /* no-op */ }
-	async reject(..._uris: URI[]): Promise<void> { /* no-op */ }
 	getEntryDiffBetweenStops(_uri: URI, _requestId: string | undefined, _stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined { return undefined; }
 	getEntryDiffBetweenRequests(_uri: URI, _startRequestId: string, _stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> { return constObservable(undefined); }
 	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]> { return constObservable([]); }
@@ -357,6 +394,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	override dispose(): void {
+		this._review.set(undefined, undefined);
 		this._onDidDispose.fire();
 		super.dispose();
 	}

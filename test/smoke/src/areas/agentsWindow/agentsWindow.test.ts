@@ -16,7 +16,7 @@ import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getT
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
 // (without the `:not(.disabled)` filter so we can observe the disabled state).
-const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-chat-send-button .monaco-button';
+const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-shared-chat-input .chat-execute-toolbar .action-item.chat-submit-button';
 const NETWORK_PROXY_HEADER_NAME = 'X-VSCode-Smoke-Proxy';
 
 function mockServerStartOptions(logger: (message: string) => void, captureRequests = false) {
@@ -522,7 +522,7 @@ export function setup(logger: Logger, quality: Quality) {
 		it('recovers when the command palette loses focus before finding New Session', async function () {
 			const app = this.app as Application;
 			await app.workbench.agentsWindow.waitForNewSessionView();
-			const inputSelector = `.sessions-chat-editor .monaco-editor[role="code"] ${app.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
+			const inputSelector = `.sessions-shared-chat-input .interactive-input-part .monaco-editor[role="code"] ${app.code.editContextEnabled ? '.native-edit-context' : 'textarea'}`;
 			const interruption = await app.code.driver.currentPage.evaluateHandle(selector => {
 				const chatInput = document.querySelector<HTMLElement>(selector);
 				if (!chatInput) {
