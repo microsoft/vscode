@@ -337,6 +337,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		if (state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen) {
 
+			// maximize() and setFullScreen() would reveal a window that was never shown
+			if (isHiddenWindowMode(this.environmentMainService)) {
+				return;
+			}
+
 			// this call may or may not show the window, depends
 			// on the platform: currently on Windows and Linux will
 			// show the window as active. To be on the safe side,
@@ -349,9 +354,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
-			if (!isHiddenWindowMode(this.environmentMainService)) {
-				this._win?.show();
-			}
+			this._win?.show();
 		}
 	}
 
