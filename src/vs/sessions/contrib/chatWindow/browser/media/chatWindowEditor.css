@@ -54,7 +54,13 @@
 	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tabs-border, var(--vscode-widget-border));
 }
 
-/* The first diff block keeps the multi-diff's block-to-block gap below the header row's line. */
+/* The first diff block is a card like the others: the multi-diff's block-to-block gap sits above it, outside its border, below the header row's line. */
 .agent-sessions-workbench .chat-window-card .session-changes-editor-body .multiDiffEditor-card .multiDiffEntry.first-diff-entry > .header:not(.shadow) > .header-content {
 	margin-top: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size320);
+}
+
+/* The diffs start one block-to-block gap below the header row's line, so the first card sits as far from it as from the next card. */
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body {
+	padding-top: var(--vscode-spacing-size40);
 }
