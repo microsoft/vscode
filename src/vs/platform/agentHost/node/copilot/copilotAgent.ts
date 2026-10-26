@@ -776,7 +776,7 @@ class CopilotChatEntry extends Disposable {
 		anchor: IReference<CustomizationAnchor> | undefined,
 		onMcpNotification: Emitter<IMcpNotification>,
 		onDidRequireAuth: () => void,
-		onDidChangeRuntimePlugins: () => void,
+		private readonly _onDidChangeRuntimePlugins: () => void,
 	) {
 		super();
 		if (anchor) {
@@ -785,8 +785,13 @@ class CopilotChatEntry extends Disposable {
 		this._register(chatSession);
 		this._register(chatSession.onMcpNotification(notification => onMcpNotification.fire(notification)));
 		this._register(chatSession.onDidRequireAuth(onDidRequireAuth));
-		this._register(chatSession.onDidChangeRuntimePlugins(onDidChangeRuntimePlugins));
+		this._register(chatSession.onDidChangeRuntimePlugins(() => this._onDidChangeRuntimePlugins()));
 		this._register(autorun(reader => activeClient.pluginController.mcpServerStates.set(chatSession.mcpServerStates.read(reader), undefined)));
+	}
+
+	/** Applies a runtime plugin change the session reported before this entry subscribed. */
+	refreshRuntimePlugins(): void {
+		this._onDidChangeRuntimePlugins();
 	}
 }
 
@@ -9159,6 +9164,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		session.setExtensionLaunchAdmission(extensionLaunchAdmission);
 		this._sessionsPendingRegistration.add(session);
 		this._copilotChatDiscovery.ignoreSession(session.sessionId);
+		// Managed plugins often finish preparing while the session is created, before its entry subscribes.
+		let runtimePluginsChangedBeforeRegistration = false;
+		const runtimePluginsListener = session.onDidChangeRuntimePlugins(() => { runtimePluginsChangedBeforeRegistration = true; });
 		try {
 			await session.initializeSession(token);
 			await beforeRegistration?.();
@@ -9169,9 +9177,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
 				throw new CancellationError();
 			}
+			runtimePluginsListener.dispose();
 			register();
 		} finally {
+			runtimePluginsListener.dispose();
 			this._sessionsPendingRegistration.deleteAndLeak(session);
+		}
+		if (runtimePluginsChangedBeforeRegistration) {
+			const entry = this._chatEntriesBySdkId.get(session.sessionId);
+			if (entry?.chatSession === session) {
+				entry.refreshRuntimePlugins();
+			}
 		}
 	}
 
