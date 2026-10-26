@@ -152,19 +152,24 @@ export type SessionsListChatDrop =
  *   reorders it within its own session;
  * - anywhere else (empty space, a section or folder header): into a new session.
  * Positions are anchored in the order of the session's chats, whatever order the list shows them in.
+ * When the list doesn't show the session's chats in that order (`positionsShown` false), a chat can't be reordered in
+ * its own session, and dropped on a nested chat row of another session it goes to that session's end.
  */
-export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined): SessionsListChatDrop | undefined {
+export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined, positionsShown: boolean): SessionsListChatDrop | undefined {
 	const session = target?.session;
 	if (!target || !session) {
 		return { kind: 'newSession' };
 	}
 	const isOwnSession = session.sessionId === source.sessionId;
+	if (!positionsShown && isOwnSession) {
+		return undefined;
+	}
 	const append = isOwnSession ? { session, after: getChatMoveAppendAnchor(session, chat) } : getChatMoveAppendDestination(source, session, chat);
 	if (!append) {
 		return undefined;
 	}
 
-	if (!target.chat) {
+	if (!target.chat || !positionsShown) {
 		if (isOwnSession && !changesChatOrder(session, chat, append.after)) {
 			return undefined;
 		}
@@ -217,10 +222,13 @@ export type SessionsListSessionDrop =
  * In Pinned and custom groups, whose sessions the user orders by hand, the top quarter of a session's row places it
  * before that session, and the bottom quarter of the section's last row places it after the section's last session,
  * where the list accepts that placement; otherwise these quarters nest too.
+ * When the list doesn't show the session's chats in that order (`positionsShown` false), a nested chat row is the
+ * session's row: the session goes to its end.
  */
-export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget): SessionsListSessionDrop | undefined {
-	const { session, chat, quarter } = target;
-	if (!chat && quarter === ListViewTargetSector.TOP && target.isManuallyOrdered() && target.canPlace('before')) {
+export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget, positionsShown: boolean): SessionsListSessionDrop | undefined {
+	const { session, quarter } = target;
+	const chat = positionsShown ? target.chat : undefined;
+	if (!target.chat && quarter === ListViewTargetSector.TOP && target.isManuallyOrdered() && target.canPlace('before')) {
 		return { kind: 'place', session, position: 'before' };
 	}
 	if (quarter === ListViewTargetSector.BOTTOM && target.isManuallyOrdered() && target.isLastInSection() && target.canPlace('after')) {
