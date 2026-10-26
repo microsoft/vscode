@@ -9,15 +9,15 @@ import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDispos
 import { autorun, derived, derivedOpts, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getCanvasDefinitionInstanceId, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService, canvasOwnerKey, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { ChatWindowEditorGroupContext, IChatWindow, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 
 /**
@@ -52,10 +52,20 @@ export function registerChatWindowCanvasActions(
 
 let commandSequence = 0;
 
+interface ICanvasSpec {
+	readonly title: string;
+	readonly group: string;
+	readonly order: number;
+	readonly key: string;
+	readonly run: () => Promise<void>;
+}
+
 class ChatWindowCanvasMenu extends Disposable {
 
 	private readonly registration = this._register(new MutableDisposable<IDisposable>());
 	private signature: string | undefined;
+	private readonly activityBarRegistration = this._register(new MutableDisposable<IDisposable>());
+	private activityBarSignature: string | undefined;
 
 	constructor(
 		window: IChatWindow,
@@ -92,43 +102,42 @@ class ChatWindowCanvasMenu extends Disposable {
 			return { owner: current.owner, listCanvases: () => (context.get()?.definitionProvider ?? provider).listCanvases() };
 		}, '[ChatWindowCanvasActions]', logService)).definitions;
 
-		this._register(autorun(reader => {
+		const entries = derived<{ readonly context: ICanvasContext; readonly specs: readonly ICanvasSpec[] } | undefined>(this, reader => {
 			const current = context.read(reader);
 			const available = definitions.read(reader);
 			const targets = current ? canvasService.reopenableCanvases.read(reader).filter(target => isCanvasOwner(target.reference, current.owner)) : [];
 			if (!current || available.length + targets.length === 0) {
-				this.signature = undefined;
-				this.registration.clear();
-				return;
+				return undefined;
 			}
 			const definitionLabels = getCanvasDefinitionLabels(available);
 			const definitionInstanceIds = new Set(available.map(getCanvasDefinitionInstanceId));
 			const labels = getCanvasInstanceLabels(targets.map(target => target.canvas));
-			const specs: { title: string; group: string; order: number; key: string; run: () => Promise<void> }[] = [
+			const specs: ICanvasSpec[] = [
 				...available.map((definition, index) => ({ title: definitionLabels[index], group: '1_available', order: index, key: getCanvasDefinitionInstanceId(definition), run: () => this.openDefinition(current, definition) })),
 				...targets.flatMap((target, index) => !target.canvas.instanceId || !definitionInstanceIds.has(target.canvas.instanceId)
 					? [{ title: labels[index], group: '2_open', order: index, key: target.canvas.resource.toString(), run: () => this.canvasService.reopenCanvas(target.reference) }]
 					: []),
 			];
+			return { context: current, specs };
+		});
+
+		this._register(autorun(reader => {
+			const current = entries.read(reader);
+			if (!current) {
+				this.signature = undefined;
+				this.registration.clear();
+				return;
+			}
+			const { context: { owner }, specs } = current;
 			// An unrelated canvas change leaves the entries as they are, so they are not registered again.
-			const signature = JSON.stringify([current.owner.session.toString(), current.owner.chat.toString(), specs.map(spec => [spec.group, spec.order, spec.title, spec.key])]);
+			const signature = JSON.stringify([owner.session.toString(), owner.chat.toString(), specs.map(spec => [spec.group, spec.order, spec.title, spec.key])]);
 			if (signature === this.signature && this.registration.value) {
 				return;
 			}
 			this.signature = signature;
-			const entries = new DisposableStore();
-			for (const spec of specs) {
-				const id = `sessions.chatWindow.canvas.${++commandSequence}`;
-				entries.add(CommandsRegistry.registerCommand(id, async () => {
-					try {
-						await spec.run();
-					} catch (error) {
-						this.notificationService.error(localize('chatWindowCanvas.openFailed', "Could not open canvas {0}: {1}", spec.title, toErrorMessage(error)));
-					}
-				}));
-				entries.add(MenuRegistry.appendMenuItem(Menus.ChatWindowAddTabCanvas, { command: { id, title: spec.title, icon: Codicon.preview }, group: spec.group, order: spec.order, when }));
-			}
-			const submenu = (menu: typeof Menus.SessionsEmptyEditorGroupAddTab) => MenuRegistry.appendMenuItem(menu, {
+			const store = new DisposableStore();
+			this.registerEntries(store, Menus.ChatWindowAddTabCanvas, specs, when);
+			const submenu = (menu: typeof Menus.SessionsEditorTabsBarAddTab) => MenuRegistry.appendMenuItem(menu, {
 				submenu: Menus.ChatWindowAddTabCanvas,
 				title: localize('chatWindowCanvas.submenu', "Canvas"),
 				icon: Codicon.preview,
@@ -136,8 +145,59 @@ class ChatWindowCanvasMenu extends Disposable {
 				order: 4,
 				when,
 			});
-			this.registration.value = combinedDisposable(entries, submenu(Menus.SessionsEditorTabsBarAddTab), submenu(Menus.SessionsEmptyEditorGroupAddTab));
+			this.registration.value = combinedDisposable(store, submenu(Menus.SessionsEditorTabsBarAddTab), submenu(Menus.SessionsEmptyEditorGroupAddTab));
 		}));
+
+		// The Session Activity Bar of the window offers the canvases of its chat like the one of the main window: the canvas itself, a Canvas menu for several, or what Add Tab offers without any.
+		this._register(autorun(reader => {
+			const current = context.read(reader);
+			const canvases = current?.canvases.read(reader) ?? [];
+			const offered = canvases.length === 0 ? entries.read(reader) : undefined;
+			if (!current || (canvases.length === 0 && !offered)) {
+				this.activityBarSignature = undefined;
+				this.activityBarRegistration.clear();
+				return;
+			}
+			const labels = getCanvasInstanceLabels(canvases);
+			const reveals: ICanvasSpec[] = canvases.map((canvas, index) => ({
+				title: labels[index], group: 'navigation', order: index, key: canvas.resource.toString(),
+				run: () => this.canvasService.revealCanvas({ ...current.owner, canvas: canvas.resource }),
+			}));
+			const specs = offered ? offered.specs : reveals;
+			const signature = JSON.stringify([current.owner.session.toString(), current.owner.chat.toString(), canvases.length === 1, specs.map(spec => [spec.group, spec.order, spec.title, spec.key])]);
+			if (signature === this.activityBarSignature && this.activityBarRegistration.value) {
+				return;
+			}
+			this.activityBarSignature = signature;
+			const store = new DisposableStore();
+			if (canvases.length === 1) {
+				const id = this.registerCommand(store, reveals[0]);
+				store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id, title: reveals[0].title, icon: Codicon.preview }, group: SessionActivityBarGroup.SidePanel, order: 4, when }));
+			} else {
+				this.registerEntries(store, Menus.ChatWindowActivityBarCanvas, specs, when);
+				store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { submenu: Menus.ChatWindowActivityBarCanvas, title: localize('chatWindowCanvas.submenu', "Canvas"), icon: Codicon.preview, group: SessionActivityBarGroup.SidePanel, order: 4, when }));
+			}
+			this.activityBarRegistration.value = store;
+		}));
+	}
+
+	private registerCommand(store: DisposableStore, spec: ICanvasSpec): string {
+		const id = `sessions.chatWindow.canvas.${++commandSequence}`;
+		store.add(CommandsRegistry.registerCommand(id, async () => {
+			try {
+				await spec.run();
+			} catch (error) {
+				this.notificationService.error(localize('chatWindowCanvas.openFailed', "Could not open canvas {0}: {1}", spec.title, toErrorMessage(error)));
+			}
+		}));
+		return id;
+	}
+
+	private registerEntries(store: DisposableStore, menu: MenuId, specs: readonly ICanvasSpec[], when: ContextKeyExpression | undefined): void {
+		for (const spec of specs) {
+			const id = this.registerCommand(store, spec);
+			store.add(MenuRegistry.appendMenuItem(menu, { command: { id, title: spec.title, icon: Codicon.preview }, group: spec.group, order: spec.order, when }));
+		}
 	}
 
 	private async openDefinition(context: ICanvasContext, definition: ICanvasDefinition): Promise<void> {

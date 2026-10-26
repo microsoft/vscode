@@ -191,4 +191,69 @@ suite('Chat window - canvases in the Add Tab list', () => {
 
 		assert.deepStrictEqual(after, before);
 	});
+
+	suite('Session Activity Bar', () => {
+
+		const title = (item: { command: { title: string | { value: string } } }) => typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
+
+		/** What the Session Activity Bar of the window with the editor group offers: a direct entry or the Canvas menu. */
+		function activityBar(groupId: number) {
+			const when = whenGroup(groupId);
+			const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(item => item.when?.serialize() === when);
+			const direct = items.filter(isIMenuItem).map(title);
+			const submenus = items.filter(item => !isIMenuItem(item)).length;
+			const submenuEntries = MenuRegistry.getMenuItems(Menus.ChatWindowActivityBarCanvas).filter(isIMenuItem).filter(item => item.when?.serialize() === when).map(title);
+			return { direct, submenus, submenuEntries };
+		}
+
+		const canvasOf = (name: string, id: string): ICanvas => ({ resource: URI.parse(`canvas://${name}/${id}`), instanceId: id, title: `Open ${id}`, source: undefined });
+
+		test('a window whose chat has no canvas offers what Add Tab offers in a Canvas menu', async () => {
+			createFixture(['one']);
+			await entries(2);
+
+			assert.deepStrictEqual(activityBar(10), { direct: [], submenus: 1, submenuEntries: ['Plan', 'Old one'] });
+		});
+
+		test('a window whose chat has one canvas offers it directly and reveals it', async () => {
+			const { canvasLists, revealed, windows } = createFixture(['one']);
+			canvasLists[0].set([canvasOf('one', 'a')], undefined);
+			await timeout(0);
+			const item = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem).find(candidate => candidate.when?.serialize() === whenGroup(10))!;
+			await CommandsRegistry.getCommand(item.command.id)!.handler(undefined!);
+
+			assert.deepStrictEqual({ ...activityBar(10), revealed: revealed.map(reference => reference.canvas.toString()), chat: revealed[0].chat.toString() }, {
+				direct: [title(item)], submenus: 0, submenuEntries: [], revealed: ['canvas://one/a'], chat: windows[0].owner.chat.toString(),
+			});
+		});
+
+		test('a window whose chat has several canvases offers a Canvas menu with each of them', async () => {
+			const { canvasLists } = createFixture(['one']);
+			canvasLists[0].set([canvasOf('one', 'a'), canvasOf('one', 'b')], undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual(activityBar(10), { direct: [], submenus: 1, submenuEntries: ['Open a', 'Open b'] });
+		});
+
+		test('two chat windows with different chats each offer their own canvas', async () => {
+			const { canvasLists } = createFixture(['one', 'two']);
+			canvasLists[0].set([canvasOf('one', 'a')], undefined);
+			canvasLists[1].set([canvasOf('two', 'b'), canvasOf('two', 'c')], undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({ first: activityBar(10), second: activityBar(11) }, {
+				first: { direct: ['Open a'], submenus: 0, submenuEntries: [] },
+				second: { direct: [], submenus: 1, submenuEntries: ['Open b', 'Open c'] },
+			});
+		});
+
+		test('closing the window removes its entries', async () => {
+			const { windowList, canvasLists } = createFixture(['one']);
+			canvasLists[0].set([canvasOf('one', 'a')], undefined);
+			await timeout(0);
+			windowList.set([], undefined);
+
+			assert.deepStrictEqual(activityBar(10), { direct: [], submenus: 0, submenuEntries: [] });
+		});
+	});
 });
