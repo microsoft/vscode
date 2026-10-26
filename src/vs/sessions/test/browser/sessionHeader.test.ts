@@ -738,6 +738,36 @@ suite('Sessions - Headers', () => {
 		}
 	});
 
+	test('gives the header of a chat window the compact height when the layout density of its window is compact', () => {
+		const { header } = createHarness(disposables);
+		const container = header.element.parentElement!;
+		container.classList.add('agent-sessions-workbench', 'session-view');
+		container.style.setProperty('--vscode-spacing-size280', '28px');
+		container.style.setProperty('--vscode-spacing-size320', '32px');
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const headerRow = header.element.querySelector<HTMLElement>('.chat-composite-bar-header')!;
+			const read = () => mainWindow.getComputedStyle(headerRow).height;
+			const mainWindowHeader = (() => {
+				container.classList.add('modern-ui-compact');
+				return read();
+			})();
+			header.setWindowChrome(true);
+			const compactChatWindowHeader = read();
+			container.classList.remove('modern-ui-compact');
+			const defaultChatWindowHeader = read();
+
+			assert.deepStrictEqual({ mainWindowHeader, compactChatWindowHeader, defaultChatWindowHeader }, {
+				mainWindowHeader: '32px',
+				compactChatWindowHeader: '28px',
+				defaultChatWindowHeader: '32px',
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
 	test('uses a full-width backing surface with evenly inset titles and controls and no separator', () => {
 		const { header } = createHarness(disposables);
 		const container = header.element.parentElement!;
