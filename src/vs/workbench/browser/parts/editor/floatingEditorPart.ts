@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/floatingEditorPart.css';
-import { $, addDisposableListener, append, Dimension, EventHelper, EventType, IDimension, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, Dimension, DisposableResizeObserver, EventHelper, EventType, IDimension, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
@@ -150,16 +150,33 @@ export class FloatingEditorPart {
 				scheduledLayout.value = scheduleAtNextAnimationFrame(mainWindow, () => layoutEditorPart());
 			}
 		};
+
+		// The height of the header, measured when it changes rather than on every layout, which would
+		// force a reflow per floating part each time the main window lays out
+		let headerHeight = headerElement.offsetHeight;
+		const headerResizeObserver = disposables.add(new DisposableResizeObserver('FloatingEditorPart.headerHeight', () => {
+			const height = headerElement.offsetHeight;
+			if (height !== headerHeight) {
+				headerHeight = height;
+				layoutEditorPart();
+			}
+		}));
+		disposables.add(headerResizeObserver.observe(headerElement));
+
 		const layoutEditorPart = () => {
 			scheduledLayout.clear();
 			const { width, height } = resizableElement.size;
-			const headerHeight = headerElement.offsetHeight;
-			const bounds = resizableElement.domNode.getBoundingClientRect();
+
+			// Positioned from the bottom right corner of the main container, like the
+			// modal editor part relative to it, without measuring the part
+			const container = this.layoutService.mainContainerDimension;
+			const top = container.height - FLOATING_EDITOR_PART_MARGIN - height;
+			const left = container.width - FLOATING_EDITOR_PART_MARGIN - width;
 			editorPart.layout(
 				Math.max(0, width - FLOATING_EDITOR_PART_BORDER_SIZE),
 				Math.max(0, height - FLOATING_EDITOR_PART_BORDER_SIZE - headerHeight),
-				bounds.top + FLOATING_EDITOR_PART_BORDER_SIZE / 2 + headerHeight,
-				bounds.left + FLOATING_EDITOR_PART_BORDER_SIZE / 2,
+				top + FLOATING_EDITOR_PART_BORDER_SIZE / 2 + headerHeight,
+				left + FLOATING_EDITOR_PART_BORDER_SIZE / 2,
 			);
 		};
 		disposables.add(resizableElement.onDidResize(e => {

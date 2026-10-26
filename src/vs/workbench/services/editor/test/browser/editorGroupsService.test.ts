@@ -2506,6 +2506,43 @@ suite('EditorGroupsService', () => {
 		});
 	});
 
+	test('activating a group maximizeGroup kept visible keeps the group maximized, activating a hidden one exits it', async function () {
+		const [part] = await createPart();
+		const group1 = part.activeGroup;
+		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
+		const group3 = part.addGroup(group2, GroupDirection.RIGHT);
+		part.maximizeGroup(group1, [group2.id]);
+		part.layout(group1.minimumWidth + group2.minimumWidth, 800, 0, 0); // the kept visible group at its minimum size, which activating would otherwise expand
+		const atMinimum = part.getSize(group2).width === group2.minimumWidth;
+
+		part.activateGroup(group2);
+		const keptVisible = part.hasMaximizedGroup();
+		part.layout(1080, 800, 0, 0);
+		part.activateGroup(group3);
+		const afterHidden = part.hasMaximizedGroup();
+
+		// Once the maximized view was exited, the group no longer counts as kept visible
+		part.toggleMaximizeGroup(group1);
+		part.activateGroup(group2);
+		const afterPlainMaximize = part.hasMaximizedGroup();
+
+		// Removing a kept visible group exits the maximized view
+		part.maximizeGroup(group1, [group2.id]);
+		part.removeGroup(group2);
+		const afterRemove = part.hasMaximizedGroup();
+		part.maximizeGroup(group1, []);
+		part.activateGroup(group3);
+
+		assert.deepStrictEqual({ atMinimum, keptVisible, afterHidden, afterPlainMaximize, afterRemove, afterNoneKept: part.hasMaximizedGroup() }, {
+			atMinimum: true,
+			keptVisible: true,
+			afterHidden: false,
+			afterPlainMaximize: false,
+			afterRemove: false,
+			afterNoneKept: false,
+		});
+	});
+
 	test('setViewColumnGroup sets the view column group until disposed, replaced or the group is removed', async function () {
 		const [part] = await createPart();
 		const group1 = part.activeGroup;

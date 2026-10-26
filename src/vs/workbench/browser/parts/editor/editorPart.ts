@@ -125,6 +125,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<boolean>());
 	readonly onDidChangeGroupMaximized = this._onDidChangeGroupMaximized.event;
 
+	/** The groups that {@link maximizeGroup} kept visible beside the maximized one: activating them does not exit the maximized view. */
+	private maximizedVisibleGroups: ReadonlySet<IEditorGroupView> = new Set();
+
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupActivationEvent>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
@@ -667,7 +670,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			return;
 		}
 		const groupView = this.assertGroupView(group);
-		this.gridWidget.maximizeView(groupView, visibleGroups.map(visibleGroup => this.assertGroupView(visibleGroup)));
+		const visibleGroupViews = visibleGroups.map(visibleGroup => this.assertGroupView(visibleGroup));
+		this.gridWidget.maximizeView(groupView, visibleGroupViews);
+		this.maximizedVisibleGroups = new Set(visibleGroupViews);
 		groupView.focus();
 	}
 
@@ -981,6 +986,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 
 		try {
+			if (this.hasMaximizedGroup() && this.maximizedVisibleGroups.has(group)) {
+				return; // shown beside the maximized group: unmaximizing or expanding it would exit the maximized view
+			}
+
 			if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
 				this.unmaximizeGroup();
 			}
@@ -1613,7 +1622,13 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 		this._onDidScroll.input = gridWidget.onDidScroll;
 		this.gridWidgetDisposables.clear();
-		this.gridWidgetDisposables.add(gridWidget.onDidChangeViewMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
+		this.maximizedVisibleGroups = new Set(); // a new grid has no maximized group
+		this.gridWidgetDisposables.add(gridWidget.onDidChangeViewMaximized(maximized => {
+			if (!maximized) {
+				this.maximizedVisibleGroups = new Set();
+			}
+			this._onDidChangeGroupMaximized.fire(maximized);
+		}));
 
 		this.onDidSetGridWidget.fire(undefined);
 	}
