@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { INonSessionTaskEntry, ISessionsTasksService, SessionsTasksService, ITaskEntry } from '../../browser/sessionsTasksService.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { INonSessionTaskEntry, SessionsTasksService, ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -101,12 +103,16 @@ function tasksJsonContent(tasks: ITaskEntry[]): string {
 suite('SessionsTasksService', () => {
 
 	const store = new DisposableStore();
-	let service: ISessionsTasksService;
+	let service: SessionsTasksService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
 	let ranTasks: { label: string; session: ISession; chat: IChat | undefined }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
+	let activeWatches: Set<string>;
+	let activeFileChangeListeners: number;
+	let onDidFilesChange: Emitter<FileChangesEvent>;
+	let onDidChangeCurrentProfile: Emitter<DidChangeUserDataProfileEvent>;
 	let runnerCanRun: (session: ISession) => boolean;
 	let preferencesService: IPreferencesService & { userSettingsResource: URI };
 
@@ -119,6 +125,10 @@ suite('SessionsTasksService', () => {
 		jsonEdits = [];
 		ranTasks = [];
 		readFileCalls = [];
+		activeWatches = new Set();
+		activeFileChangeListeners = 0;
+		onDidFilesChange = store.add(new Emitter<FileChangesEvent>());
+		onDidChangeCurrentProfile = store.add(new Emitter<DidChangeUserDataProfileEvent>());
 		runnerCanRun = () => true;
 
 		const instantiationService = store.add(new TestInstantiationService());
@@ -132,8 +142,23 @@ suite('SessionsTasksService', () => {
 				}
 				return { value: VSBuffer.fromString(content) } as IFileContent;
 			}
-			override watch() { return { dispose() { } }; }
-			override onDidFilesChange: any = () => ({ dispose() { } });
+			override watch(resource: URI) {
+				const key = resource.toString();
+				activeWatches.add(key);
+				return { dispose() { activeWatches.delete(key); } };
+			}
+			override onDidFilesChange: Event<FileChangesEvent> = listener => {
+				activeFileChangeListeners++;
+				const disposable = onDidFilesChange.event(listener);
+				return toDisposable(() => {
+					activeFileChangeListeners--;
+					disposable.dispose();
+				});
+			};
+		});
+
+		instantiationService.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
+			override onDidChangeCurrentProfile = onDidChangeCurrentProfile.event;
 		});
 
 		instantiationService.stub(IJSONEditingService, new class extends mock<IJSONEditingService>() {
@@ -173,6 +198,144 @@ suite('SessionsTasksService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --- getSessionTasks ---
+
+	test('getSessionTasks of two sessions with different folders reads each tasks.json once, however often and in whatever order they are asked', async () => {
+		const otherRepo = URI.parse('file:///other');
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		const first = makeSession({ repository: repoUri });
+		const second = makeSession({ repository: otherRepo });
+
+		const a = service.getSessionTasks(first);
+		const b = service.getSessionTasks(second);
+		for (let i = 0; i < 5; i++) {
+			service.getSessionTasks(first);
+			service.getSessionTasks(second);
+		}
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => t.task.label),
+			b: b.get().map(t => t.task.label),
+			sameObservable: service.getSessionTasks(first) === a,
+			reads: readFileCalls.map(uri => uri.toString()).sort(),
+		}, {
+			a: ['a'],
+			b: ['b'],
+			sameObservable: true,
+			reads: [
+				'file:///other/.vscode/tasks.json',
+				'file:///repo/.vscode/tasks.json',
+				'file:///user/tasks.json',
+			],
+		});
+	});
+
+	test('getSessionTasks keeps at most 16 folders watched, evicting the least recently used and keeping the single user tasks.json watcher', async () => {
+		const sessions = Array.from({ length: 17 }, (_, i) => makeSession({ repository: URI.parse(`file:///repo${i}`) }));
+		for (const session of sessions) {
+			service.getSessionTasks(session);
+		}
+		service.getSessionTasks(sessions[0]);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual([...activeWatches].sort(), [
+			'file:///repo0/.vscode/tasks.json',
+			...Array.from({ length: 15 }, (_, i) => `file:///repo${i + 2}/.vscode/tasks.json`),
+			'file:///user/tasks.json',
+		].sort());
+	});
+
+	test('getSessionTasks updates the retained observable when its workspace tasks.json changes, without re-reading the user tasks.json', async () => {
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u', 'u', true)]));
+		const tasks = service.getSessionTasks(makeSession({ repository: repoUri }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		readFileCalls = [];
+
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a2', 'a2', true)]));
+		onDidFilesChange.fire(new FileChangesEvent([{ resource: URI.parse('file:///repo/.vscode/tasks.json'), type: FileChangeType.UPDATED }], false));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			tasks: tasks.get().map(t => `${t.target}:${t.task.label}`),
+			reads: readFileCalls.map(uri => uri.toString()),
+		}, {
+			tasks: ['workspace:a2', 'user:u'],
+			reads: ['file:///repo/.vscode/tasks.json'],
+		});
+	});
+
+	test('getSessionTasks updates all cached folders when the user tasks.json changes, without re-reading workspace tasks.json files', async () => {
+		const otherRepo = URI.parse('file:///other');
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u', 'u', true)]));
+		const a = service.getSessionTasks(makeSession({ repository: repoUri }));
+		const b = service.getSessionTasks(makeSession({ repository: otherRepo }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		readFileCalls = [];
+
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u2', 'u2', true)]));
+		onDidFilesChange.fire(new FileChangesEvent([{ resource: URI.parse('file:///user/tasks.json'), type: FileChangeType.UPDATED }], false));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => `${t.target}:${t.task.label}`),
+			b: b.get().map(t => `${t.target}:${t.task.label}`),
+			reads: readFileCalls.map(uri => uri.toString()),
+		}, {
+			a: ['workspace:a', 'user:u2'],
+			b: ['workspace:b', 'user:u2'],
+			reads: ['file:///user/tasks.json'],
+		});
+	});
+
+	test('getSessionTasks follows the user tasks.json of the current profile after a profile switch', async () => {
+		fileContents.set('file:///repo/.vscode/tasks.json', tasksJsonContent([makeTask('a', 'a', true)]));
+		fileContents.set('file:///other/.vscode/tasks.json', tasksJsonContent([makeTask('b', 'b', true)]));
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u', 'u', true)]));
+		fileContents.set('file:///profile/tasks.json', tasksJsonContent([makeTask('p', 'p', true)]));
+		const a = service.getSessionTasks(makeSession({ repository: repoUri }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		preferencesService.userSettingsResource = URI.parse('file:///profile/settings.json');
+		onDidChangeCurrentProfile.fire(new class extends mock<DidChangeUserDataProfileEvent>() { });
+		const b = service.getSessionTasks(makeSession({ repository: URI.parse('file:///other') }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		readFileCalls = [];
+
+		// The previous profile's tasks.json is no longer watched
+		fileContents.set('file:///user/tasks.json', tasksJsonContent([makeTask('u2', 'u2', true)]));
+		onDidFilesChange.fire(new FileChangesEvent([{ resource: URI.parse('file:///user/tasks.json'), type: FileChangeType.UPDATED }], false));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			a: a.get().map(t => `${t.target}:${t.task.label}`),
+			b: b.get().map(t => `${t.target}:${t.task.label}`),
+			watches: [...activeWatches].sort(),
+			reads: readFileCalls.map(uri => uri.toString()),
+		}, {
+			a: ['workspace:a', 'user:p'],
+			b: ['workspace:b', 'user:p'],
+			watches: ['file:///other/.vscode/tasks.json', 'file:///profile/tasks.json', 'file:///repo/.vscode/tasks.json'],
+			reads: [],
+		});
+	});
+
+	test('disposing the service releases all tasks.json watchers and file change listeners', async () => {
+		service.getSessionTasks(makeSession({ repository: repoUri }));
+		service.getSessionTasks(makeSession({ repository: URI.parse('file:///other') }));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const before = { watches: activeWatches.size, listeners: activeFileChangeListeners };
+
+		service.dispose();
+
+		assert.deepStrictEqual({ before, after: { watches: activeWatches.size, listeners: activeFileChangeListeners } }, {
+			before: { watches: 3, listeners: 3 },
+			after: { watches: 0, listeners: 0 },
+		});
+	});
 
 	test('getSessionTasks returns tasks with inAgents: true from worktree', async () => {
 		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
