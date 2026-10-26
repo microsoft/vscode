@@ -51,6 +51,16 @@ export async function removeRemoteHost(provider: IAgentHostSessionsProvider, rem
 	}
 }
 
+export async function confirmTunnelDeletion(dialogService: IDialogService, name: string): Promise<boolean> {
+	const { confirmed } = await dialogService.confirm({
+		type: 'warning',
+		message: localize('tunnelDeleteConfirmation', "Are you sure you want to delete dev tunnel '{0}'?", name),
+		detail: localize('tunnelDeleteDetail', "This deletes the tunnel registration and disconnects its clients. Files on the remote machine will not be deleted. The tunnel may be recreated if a machine starts hosting it again."),
+		primaryButton: localize('tunnelDeleteButton', "&&Delete"),
+	});
+	return confirmed;
+}
+
 export async function renameRemoteHost(
 	provider: Pick<IAgentHostSessionsProvider, 'remoteAddress' | 'label' | 'setDisplayName'>,
 	quickInputService: IQuickInputService,
@@ -101,19 +111,17 @@ export function hasUpgradeReconnectStarted(status: RemoteAgentHostConnectionStat
  * surfaced error). All user-facing errors are reported via the
  * notification service.
  */
-export async function runServerUpgrade(
-	accessor: ServicesAccessor,
+export async function upgradeRemoteHost(
 	provider: IAgentHostSessionsProvider,
 	upgradeMethod: string,
+	remoteAgentHostService: IRemoteAgentHostService,
+	notificationService: INotificationService,
+	progressService: IProgressService,
 ): Promise<void> {
 	const address = provider.remoteAddress;
 	if (!address) {
 		return;
 	}
-	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-	const notificationService = accessor.get(INotificationService);
-	const progressService = accessor.get(IProgressService);
-
 	await progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
@@ -192,6 +200,10 @@ export async function runServerUpgrade(
 			}
 		},
 	);
+}
+
+export async function runServerUpgrade(accessor: ServicesAccessor, provider: IAgentHostSessionsProvider, upgradeMethod: string): Promise<void> {
+	await upgradeRemoteHost(provider, upgradeMethod, accessor.get(IRemoteAgentHostService), accessor.get(INotificationService), accessor.get(IProgressService));
 }
 
 /**
