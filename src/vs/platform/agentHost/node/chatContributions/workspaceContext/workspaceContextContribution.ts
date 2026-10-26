@@ -43,6 +43,9 @@ const MAX_COMMONDIR_SIZE = 4096;
 const EXCLUDED_FOLDERS = new Set(['node_modules', 'bower_components', 'out', 'dist', '__pycache__', 'venv', 'pods']);
 /** File names never listed, mirroring the classic Copilot Chat workspace structure. */
 const EXCLUDED_FILES = new Set(['package-lock.json', 'yarn.lock', 'thumbs.db']);
+/** Listed files larger than this are marked, matching the size at which the Copilot CLI `view` tool truncates a full read. */
+const LARGE_FILE_SIZE = 20 * 1024;
+const LARGE_FILE_MARKER = ' [large]';
 
 type RootOutcome = 'pending' | 'included' | 'empty' | 'gitAdministrative' | 'failed';
 
@@ -54,6 +57,8 @@ interface IWorkspaceSnapshotRoot {
 	readonly lines: readonly string[];
 	/** Whether entries were left out to fit the size budget. */
 	readonly truncated: boolean;
+	/** Whether any listed file is marked as large. */
+	readonly hasLargeFiles: boolean;
 }
 
 function renderStructure(roots: readonly IWorkspaceSnapshotRoot[]): string {
@@ -166,7 +171,8 @@ export class WorkspaceContextContribution extends Disposable implements IAgentHo
 			if (roots.length === 0) {
 				return undefined;
 			}
-			return { instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>`] };
+			const largeFileGuidance = roots.some(root => root.hasLargeFiles) ? ` Files marked${LARGE_FILE_MARKER} exceed 20 KB: search them or read only the line ranges you need.` : '';
+			return { instructions: [`<workspace_info>\nInitial workspace structure (file names only):\n${appendEscapedMarkdownCodeBlockFence(structure, 'text')}\nThis snapshot may be truncated or stale. Use it to locate relevant files; read only what the task needs.${largeFileGuidance}\n</workspace_info>`] };
 		} finally {
 			if (this._isActiveTurn(turn)) {
 				this._stopPreparing(turn.chat);
@@ -446,14 +452,16 @@ async function readChildren(fileService: IFileService, directory: URI, maxEntrie
 /**
  * Lists the entries of `root` whose rendered lines fit in `maxLength`
  * characters, breadth first so top-level orientation survives truncation,
- * reading only the directories whose names fit. Like the classic Copilot Chat
- * workspace structure it does not apply `.gitignore`. Returns `undefined` once
- * `token` is cancelled.
+ * reading only the directories whose names fit. Each listed file is stat'ed
+ * (never read) so files over {@link LARGE_FILE_SIZE} can be marked; the marker
+ * counts toward the budget. Like the classic Copilot Chat workspace structure
+ * it does not apply `.gitignore`. Returns `undefined` once `token` is cancelled.
  */
-async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength: number, token: CancellationToken): Promise<{ lines: string[]; truncated: boolean } | undefined> {
+async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength: number, token: CancellationToken): Promise<{ lines: string[]; truncated: boolean; hasLargeFiles: boolean } | undefined> {
 	if (maxLength < 4) {
-		return { lines: [], truncated: false };
+		return { lines: [], truncated: false, hasLargeFiles: false };
 	}
+	const provider = fileService.getProvider(root.scheme);
 	const selected = new Map<IWorkspaceNode, string>();
 	// A line takes at least two characters, so no directory can contribute more entries than this.
 	const maxEntries = Math.floor(maxLength / 2);
@@ -462,19 +470,44 @@ async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength
 	let level = topLevel;
 	let length = 0;
 	let truncated = false;
+	let hasLargeFiles = false;
 	for (let depth = 0; level.length > 0 && !truncated; depth++) {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const expanded: IWorkspaceNode[] = [];
+		// Unmarked lines bound which files are worth a stat; the markers are then fitted in display order.
+		const candidates: { node: IWorkspaceNode; line: string; large?: boolean }[] = [];
+		let candidateLength = length;
 		for (const node of level) {
 			const line = `${'\t'.repeat(depth)}${JSON.stringify(node.name).slice(1, -1)}${node.isDirectory ? '/' : ''}`;
+			if (candidateLength + line.length + 1 > maxLength - 4) {
+				truncated = true;
+				break;
+			}
+			candidates.push({ node, line });
+			candidateLength += line.length + 1;
+		}
+		await Promise.all(candidates.map(async candidate => {
+			if (!candidate.node.isDirectory && provider) {
+				const size = await provider.stat(candidate.node.resource).then(stat => stat.size, () => undefined);
+				if (size !== undefined && size > LARGE_FILE_SIZE) {
+					candidate.line += LARGE_FILE_MARKER;
+					candidate.large = true;
+				}
+			}
+		}));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const expanded: IWorkspaceNode[] = [];
+		for (const { node, line, large } of candidates) {
 			if (length + line.length + 1 > maxLength - 4) {
 				truncated = true;
 				break;
 			}
 			selected.set(node, line);
 			length += line.length + 1;
+			hasLargeFiles ||= !!large;
 			if (node.expandable) {
 				expanded.push(node);
 			}
@@ -498,7 +531,7 @@ async function listWorkspaceTree(fileService: IFileService, root: URI, maxLength
 		}
 	};
 	collect(topLevel);
-	return { lines, truncated };
+	return { lines, truncated, hasLargeFiles };
 }
 
 /**

@@ -95,13 +95,13 @@ suite('WorkspaceContextContribution', () => {
 	const userMessage = { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } as const;
 	teardown(() => sinon.restore());
 
-	async function setupContext(options: { files?: readonly string[]; directories?: readonly string[]; roots?: readonly string[]; provider?: string; worktreePending?: boolean; enabled?: boolean } = {}) {
+	async function setupContext(options: { files?: readonly string[]; fileSizes?: Readonly<Record<string, number>>; directories?: readonly string[]; roots?: readonly string[]; provider?: string; worktreePending?: boolean; enabled?: boolean } = {}) {
 		const log = store.add(new NullLogService());
 		const disk = store.add(new RecordingFileSystemProvider());
 		const fileService = store.add(new FileService(log));
 		store.add(fileService.registerProvider(Schemas.file, disk));
 		for (const path of options.files ?? ['/workspace/meta.json']) {
-			await fileService.writeFile(URI.file(path), VSBuffer.fromString(''));
+			await fileService.writeFile(URI.file(path), VSBuffer.fromString('x'.repeat(options.fileSizes?.[path] ?? 0)));
 		}
 		for (const path of options.directories ?? []) {
 			await fileService.createFolder(URI.file(path));
@@ -212,13 +212,38 @@ suite('WorkspaceContextContribution', () => {
 		});
 		assert.deepStrictEqual(await context.firstTurn(), {
 			message: userMessage,
-			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + heading('/workspace') + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use tools to inspect file contents and collect more context as needed.\n</workspace_info>'],
+			instructions: ['<workspace_info>\nInitial workspace structure (file names only):\n```text\n' + heading('/workspace') + '\nmeta.json\nsrc/\n\tmain.ts\ntests/\n\tmain.test.ts\n```\nThis snapshot may be truncated or stale. Use it to locate relevant files; read only what the task needs.\n</workspace_info>'],
 		});
 	});
 
 	test('lists files that .gitignore excludes, like the classic workspace structure', async () => {
 		const context = await setupContext({ files: ['/workspace/.gitignore', '/workspace/vendor/sqlite/sqlite3.c'] });
 		assert.strictEqual(structureOf(await context.firstTurn()), heading('/workspace') + '\nvendor/\n\tsqlite/\n\t\tsqlite3.c');
+	});
+
+	test('marks files over 20 KB as large and explains the marker', async () => {
+		const context = await setupContext({
+			files: ['/workspace/SPEC.md', '/workspace/small.ts', '/workspace/src/generated.ts', '/workspace/src/exact.ts'],
+			fileSizes: { '/workspace/SPEC.md': 43 * 1024, '/workspace/small.ts': 100, '/workspace/src/generated.ts': 20 * 1024 + 1, '/workspace/src/exact.ts': 20 * 1024 },
+		});
+		const instruction = (await context.firstTurn()).instructions?.[0];
+		assert.deepStrictEqual({
+			structure: instruction && structureOf({ instructions: [instruction] }),
+			guidance: instruction?.endsWith('read only what the task needs. Files marked [large] exceed 20 KB: search them or read only the line ranges you need.\n</workspace_info>'),
+		}, {
+			structure: heading('/workspace') + '\nSPEC.md [large]\nsmall.ts\nsrc/\n\texact.ts\n\tgenerated.ts [large]',
+			guidance: true,
+		});
+	});
+
+	test('counts large-file markers toward the budget', async () => {
+		const files = Array.from({ length: 1200 }, (_, i) => `/workspace/${String(i).padStart(4, '0')}`);
+		const context = await setupContext({ files, fileSizes: Object.fromEntries(files.map(path => [path, 21 * 1024])) });
+		const structure = structureOf(await context.firstTurn())!;
+		const lines = structure.split('\n');
+		assert.deepStrictEqual({ first: lines.slice(1, 3), last: lines.at(-1), bounded: structure.length <= 2000 }, {
+			first: ['0000 [large]', '0001 [large]'], last: '...', bounded: true,
+		});
 	});
 
 	test('adds context once per chat and suppresses it for populated restored chats', async () => {
