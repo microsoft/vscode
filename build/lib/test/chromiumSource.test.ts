@@ -27,41 +27,42 @@ suite('chromiumSource', () => {
 		assert.match(getChromiumVersion(), /^\d+\.\d+\.\d+\.\d+$/);
 	});
 
-	test('downloads from Gitiles and decodes the base64 body', () => withTempFile(destination => {
+	test('downloads from the GitHub API with the token first', () => withTempFile(destination => {
 		const requests: string[] = [];
 		downloadChromiumFile('tools/clang/scripts/update.py', destination, {
 			version: '1.2.3.4',
 			token: 'secret',
 			retryDelaysMs: [],
-			httpGet: (url, token) => {
-				requests.push(`${url} ${token ?? '-'}`);
-				return { ok: true, body: Buffer.from(Buffer.from(script).toString('base64')) };
+			httpGet: (url, headers) => {
+				requests.push(`${url} ${headers.join('|')}`);
+				return { ok: true, body: Buffer.from(script) };
 			},
 		});
-		assert.deepStrictEqual(requests, ['https://chromium.googlesource.com/chromium/src/+/refs/tags/1.2.3.4/tools/clang/scripts/update.py?format=TEXT -']);
+		assert.deepStrictEqual(requests, ['https://api.github.com/repos/chromium/chromium/contents/tools/clang/scripts/update.py?ref=1.2.3.4 Authorization: Bearer secret|Accept: application/vnd.github.raw+json|X-GitHub-Api-Version: 2022-11-28']);
 		assert.strictEqual(fs.readFileSync(destination, 'utf8'), script);
 	}));
 
-	test('falls back to GitHub, authenticated then anonymous', () => withTempFile(destination => {
+	test('falls back to raw GitHub, then Gitiles, decoding its base64 body', () => withTempFile(destination => {
 		const requests: string[] = [];
 		downloadChromiumFile('a/b.pl', destination, {
 			version: '1.2.3.4',
 			token: 'secret',
 			retryDelaysMs: [],
-			httpGet: (url, token) => {
-				requests.push(`${url} ${token ?? '-'}`);
-				return requests.length < 3 ? rateLimited : { ok: true, body: Buffer.from(script) };
+			httpGet: (url, headers) => {
+				requests.push(`${new URL(url).host} ${headers.length ? headers[0] : '-'}`);
+				return url.includes('googlesource') ? { ok: true, body: Buffer.from(Buffer.from(script).toString('base64')) } : rateLimited;
 			},
 		});
 		assert.deepStrictEqual(requests, [
-			'https://chromium.googlesource.com/chromium/src/+/refs/tags/1.2.3.4/a/b.pl?format=TEXT -',
-			'https://raw.githubusercontent.com/chromium/chromium/1.2.3.4/a/b.pl secret',
-			'https://raw.githubusercontent.com/chromium/chromium/1.2.3.4/a/b.pl -',
+			'api.github.com Authorization: Bearer secret',
+			'raw.githubusercontent.com Authorization: Bearer secret',
+			'raw.githubusercontent.com -',
+			'chromium.googlesource.com -',
 		]);
 		assert.strictEqual(fs.readFileSync(destination, 'utf8'), script);
 	}));
 
-	test('rejects error pages served with a success status and retries every source', () => withTempFile(destination => {
+	test('skips the GitHub API without a token and rejects error pages served with a success status', () => withTempFile(destination => {
 		const requests: string[] = [];
 		downloadChromiumFile('a/b.pl', destination, {
 			version: '1.2.3.4',
@@ -70,13 +71,12 @@ suite('chromiumSource', () => {
 			httpGet: url => {
 				requests.push(new URL(url).host);
 				if (url.includes('githubusercontent')) {
-					return { ok: true, body: Buffer.from('429: Too Many Requests') };
+					return requests.length === 3 ? { ok: true, body: Buffer.from(script) } : { ok: true, body: Buffer.from('429: Too Many Requests') };
 				}
-				const content = requests.length === 1 ? '<!DOCTYPE html>' : script;
-				return { ok: true, body: Buffer.from(Buffer.from(content).toString('base64')) };
+				return { ok: true, body: Buffer.from(Buffer.from('<!DOCTYPE html>').toString('base64')) };
 			},
 		});
-		assert.deepStrictEqual(requests, ['chromium.googlesource.com', 'raw.githubusercontent.com', 'chromium.googlesource.com']);
+		assert.deepStrictEqual(requests, ['raw.githubusercontent.com', 'chromium.googlesource.com', 'raw.githubusercontent.com']);
 		assert.strictEqual(fs.readFileSync(destination, 'utf8'), script);
 	}));
 
@@ -90,8 +90,8 @@ suite('chromiumSource', () => {
 				calls++;
 				return rateLimited;
 			},
-		}), (error: Error) => error.message.includes('Cannot download Chromium 1.2.3.4 a/b.pl') && error.message.includes('Attempt 3/3'));
-		assert.strictEqual(calls, 9);
+		}), (error: Error) => error.message.includes('Cannot download Chromium 1.2.3.4 a/b.pl') && error.message.includes('Attempt 3/3') && error.message.includes('api.github.com'));
+		assert.strictEqual(calls, 12);
 		assert.strictEqual(fs.existsSync(destination), false);
 	}));
 });

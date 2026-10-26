@@ -39,8 +39,8 @@ EOF
 
 if [ "$npm_config_arch" == "x64" ]; then
   # Download clang based on chromium revision used by vscode. Fetch Chromium's
-  # update script to a file first, from Gitiles with a GitHub fallback, because
-  # raw.githubusercontent.com rate-limits shared agent IPs.
+  # update script to a file first, trying the GitHub API before the raw host,
+  # which rate-limits shared agent IPs, and Chromium's Gitiles host.
   CLANG_UPDATE_PY="$(mktemp)"
   CLANG_UPDATE_PY="$CLANG_UPDATE_PY" node -e 'import { downloadChromiumFile } from "./build/lib/chromiumSource.ts"; downloadChromiumFile("tools/clang/scripts/update.py", process.env["CLANG_UPDATE_PY"]);'
   python "$CLANG_UPDATE_PY" --output-dir=$PWD/.build/CR_Clang --host-os=linux
