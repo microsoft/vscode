@@ -40,11 +40,13 @@
 	cursor: default;
 }
 
-.session-worktree-cleanup-age {
+.session-worktree-cleanup-controls select {
 	cursor: pointer;
+	max-width: 100%;
+	min-width: 0;
 }
 
-.session-worktree-cleanup-age,
+.session-worktree-cleanup-controls select,
 .session-worktree-cleanup-setting input[type="number"] {
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
@@ -99,8 +101,24 @@
 
 .session-worktree-cleanup-summary-row.hidden,
 .session-worktree-cleanup-list.hidden,
+.session-worktree-cleanup-unavailable.hidden,
 .session-worktree-cleanup-empty.hidden {
 	display: none;
+}
+
+.session-worktree-cleanup-unavailable {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.session-worktree-cleanup-unavailable > summary {
+	padding: var(--vscode-spacing-size80) 0;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.session-worktree-cleanup-unavailable > summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .session-worktree-cleanup-empty {
@@ -120,12 +138,21 @@
 
 .session-worktree-cleanup-row {
 	display: grid;
-	grid-template-columns: 28px minmax(120px, 1fr) minmax(80px, 120px) minmax(70px, 100px);
+	grid-template-columns: 28px minmax(120px, 2fr) minmax(80px, 1fr) minmax(80px, 120px) minmax(70px, 100px);
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-height: 36px;
 	padding: 0 var(--vscode-spacing-size120);
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.session-worktree-cleanup-reason {
+	display: block;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .session-worktree-cleanup-session-link {
@@ -156,7 +183,7 @@
 	}
 
 	.session-worktree-cleanup-row > :first-child {
-		grid-row: 1 / 3;
+		grid-row: 1 / 4;
 	}
 
 	.session-worktree-cleanup-row > :nth-child(2) {
@@ -169,8 +196,13 @@
 	}
 
 	.session-worktree-cleanup-row > :nth-child(4) {
+		grid-column: 2;
+		grid-row: 3;
+	}
+
+	.session-worktree-cleanup-row > :nth-child(5) {
 		grid-column: 3;
-		grid-row: 2;
+		grid-row: 3;
 	}
 }
 
@@ -180,7 +212,8 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-worktree-cleanup-row .title {
+.session-worktree-cleanup-row .title,
+.session-worktree-cleanup-row .workspace {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;

@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs/promises';
 import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agent.js';
+import { type IAgentHostWorktreeCleanupStatus } from '../common/agentHostWorktreeCleanup.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { coOwnedWorktreeRemovalOwner, type IPendingWorktreeRemoval, type IWorktreeCoOwner, type IWorktreeCoOwnerState, type IWorktreeRemovalRequest, type WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
@@ -37,6 +39,8 @@ export interface IAgentHostWorktreeCleanupService {
 	readonly _serviceBrand: undefined;
 	/** Archive: records that the session's worktree is to be removed. */
 	requestSessionWorktreeRemoval(session: URI, mode: Extract<WorktreeRemovalMode, 'commit' | 'synced'>): Promise<void>;
+	/** Reports the host's known cleanup outcome; retries only archived, non-deleted session worktrees. */
+	sessionWorktreeCleanup(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus>;
 	/** Unarchive: drops the session's pending removal and recreates its folder when missing. */
 	restoreSessionWorktree(session: URI): Promise<void>;
 	/**
@@ -63,6 +67,8 @@ export interface IAgentHostWorktreeCleanupService {
 	start(): void;
 	/** Runs a pass now and resolves when it completes. */
 	runPass(): Promise<void>;
+	/** Marks a scratch folder's allocation as in flight, so no pass reclaims it, until the result is disposed. */
+	trackScratchAllocation(folder: string): IDisposable;
 }
 
 export interface IAgentHostWorktreeCleanupOptions {
@@ -74,6 +80,8 @@ export interface IAgentHostWorktreeCleanupOptions {
 	readonly backoffMs?: number;
 	readonly maxBackoffMs?: number;
 	readonly now?: () => number;
+	/** Removes a scratch folder; tests inject a failing one so failures don't depend on OS file semantics. */
+	readonly removeScratchFolder?: (path: string) => Promise<void>;
 }
 
 const DEFAULT_DEBOUNCE_MS = 3_000;
@@ -91,11 +99,14 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	private readonly _backoffMs: number;
 	private readonly _maxBackoffMs: number;
 	private readonly _now: () => number;
+	private readonly _removeScratchFolder: (path: string) => Promise<void>;
 	private readonly _scheduler: RunOnceScheduler;
 	private _started = false;
 	private _lastRequestedAt = 0;
 	private _pass: Promise<void> | undefined;
 	private _passAgain = false;
+	private readonly _scratchAllocationsInFlight = new Set<string>();
+	private readonly _removalStatuses = new Map<string, { readonly requestedAt: number; readonly mode: WorktreeRemovalMode; readonly status: IAgentHostWorktreeCleanupStatus }>();
 
 	constructor(
 		options: IAgentHostWorktreeCleanupOptions | undefined,
@@ -109,6 +120,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		this._backoffMs = options?.backoffMs ?? DEFAULT_BACKOFF_MS;
 		this._maxBackoffMs = options?.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
 		this._now = options?.now ?? Date.now;
+		this._removeScratchFolder = options?.removeScratchFolder ?? (path => fs.rm(path, { recursive: true, force: true }));
 		this._scheduler = this._register(new RunOnceScheduler(() => void this.runPass(), this._debounceMs));
 	}
 
@@ -117,6 +129,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			const worktree = await this._worktree.readSessionWorktreeForRemoval(session);
 			if (worktree) {
 				await this._database.upsertPendingWorktreeRemoval(this._request('session', session.toString(), session, worktree, mode, false));
+				this._removalStatuses.delete(`session:${session.toString()}`);
 			}
 			return worktree;
 		});
@@ -126,11 +139,55 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			// One removal per folder: the removal of a worktree the session records itself (its own, or an additional one,
 			// which its archive removes by handle) already covers its share of it.
 			if (!recorded.some(folder => isEqual(folder, URI.parse(coOwner.worktreePath)))) {
-				await this._worktree.runExclusive(coOwner.worktreePath, () => this._database.upsertPendingWorktreeRemoval(this._coOwnedRequest(session, coOwner, mode, false)));
+				await this._worktree.runExclusive(coOwner.worktreePath, async () => {
+					const request = this._coOwnedRequest(session, coOwner, mode, false);
+					await this._database.upsertPendingWorktreeRemoval(request);
+					this._removalStatuses.delete(this._removalKey(request));
+				});
 			}
 		}
 		// Even without a worktree of its own, the session may have kept another session's worktree in use.
 		this.schedule();
+	}
+
+	async sessionWorktreeCleanup(session: URI, retry: boolean): Promise<IAgentHostWorktreeCleanupStatus> {
+		if (retry) {
+			if (!await this._database.isSessionLive(session.toString()) || await this._database.readSessionArchived(session.toString()) !== true) {
+				throw new Error('Only archived sessions can retry worktree cleanup.');
+			}
+			await this.requestSessionWorktreeRemoval(session, 'commit');
+			const values = (await this._database.readSessionStateValues([session.toString()], [ADDITIONAL_WORKTREES_METADATA_KEY])).get(session.toString())?.values;
+			for (const worktree of parseSessionAdditionalWorktrees(values?.get(ADDITIONAL_WORKTREES_METADATA_KEY))) {
+				await this.setDetachedWorktreeArchived(worktree.handle, true, false, session);
+			}
+		}
+		const removals = (await this._database.listPendingWorktreeRemovals()).filter(removal =>
+			!removal.ownerDeleted && (removal.ownerSession === session.toString() || (removal.kind === 'session' && removal.owner === session.toString())));
+		const statuses = await Promise.all(removals.map(async removal => {
+			const known = this._removalStatuses.get(this._removalKey(removal));
+			if (known?.requestedAt === removal.requestedAt && known.mode === removal.mode) {
+				return known.status;
+			}
+			if (await this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession)) {
+				return { state: 'inUse' } as const;
+			}
+			return { state: 'pending' } as const;
+		}));
+		for (const state of ['running', 'pending', 'failed', 'inUse', 'skipped'] as const) {
+			const status = statuses.find(status => status.state === state);
+			if (status) {
+				return status;
+			}
+		}
+		return { state: 'unknown' };
+	}
+
+	private _removalKey(removal: IWorktreeRemovalRequest): string {
+		return `${removal.kind}:${removal.owner}`;
+	}
+
+	private _setRemovalStatus(removal: IWorktreeRemovalRequest, status: IAgentHostWorktreeCleanupStatus): void {
+		this._removalStatuses.set(this._removalKey(removal), { requestedAt: removal.requestedAt, mode: removal.mode, status });
 	}
 
 	async restoreSessionWorktree(session: URI): Promise<void> {
@@ -175,6 +232,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				const worktree = await this._worktree.readDetachedWorktreeForRemoval(handle);
 				if (worktree) {
 					await this._database.upsertPendingWorktreeRemoval(this._request('detached', handle, ownerSession, worktree, strictCleanup ? 'synced' : 'commit', false));
+					this._removalStatuses.delete(`detached:${handle}`);
 				}
 				return !!worktree;
 			});
@@ -293,17 +351,65 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		return this._pass;
 	}
 
+	trackScratchAllocation(folder: string): IDisposable {
+		this._scratchAllocationsInFlight.add(folder);
+		return toDisposable(() => this._scratchAllocationsInFlight.delete(folder));
+	}
+
 	private async _runPass(): Promise<void> {
 		const now = this._now();
 		// Rows of sessions deleted since (also by an older build) keep nothing in use; only a folder's marker stays.
 		await this._database.pruneDeletedWorktreeCoOwners();
-		for (const removal of await this._database.listPendingWorktreeRemovals()) {
+		const removals = await this._database.listPendingWorktreeRemovals();
+		const pendingKeys = new Set(removals.map(removal => this._removalKey(removal)));
+		for (const key of this._removalStatuses.keys()) {
+			if (!pendingKeys.has(key)) {
+				this._removalStatuses.delete(key);
+			}
+		}
+		for (const removal of removals) {
 			if (this._store.isDisposed) {
 				return;
 			}
 			if (removal.nextAttemptAt <= now) {
 				await this._process(removal, now);
 			}
+		}
+		await this._runScratchPass(now);
+	}
+
+	/**
+	 * Reclaims chat scratch folders: those of deleted chats (`removing`) and those an allocation that is no longer in
+	 * flight left behind (`allocating`; after a crash nothing is in flight). A folder a live chat or session, archived
+	 * ones included, still lists is kept, and an `allocating` one that is listed belongs to a published chat: it
+	 * becomes `owned`.
+	 */
+	private async _runScratchPass(now: number): Promise<void> {
+		for (const row of await this._database.listScratchFolders()) {
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (row.state === 'owned' || row.nextAttemptAt > now) {
+				continue;
+			}
+			await this._worktree.runExclusive(row.folder, async () => {
+				try {
+					if (row.state === 'allocating' && this._scratchAllocationsInFlight.has(row.folder)) {
+						return;
+					}
+					if (await this._database.isScratchFolderInUse(row.folder)) {
+						if (row.state === 'allocating') {
+							await this._database.markScratchFolderOwned(row.folder);
+						}
+						return;
+					}
+					await this._removeScratchFolder(URI.parse(row.folder).fsPath);
+					await this._database.deleteScratchFolder(row.folder);
+				} catch (error) {
+					await this._database.recordScratchFolderRemovalFailure(row.folder, now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** row.attempts));
+					this._logService.info(`[AgentHostWorktreeCleanup] Failed to remove scratch folder '${row.folder}' (attempt ${row.attempts + 1}): ${errorMessage(error)}`);
+				}
+			});
 		}
 	}
 
@@ -325,7 +431,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			return;
 		}
 		// An unarchive persists before it drops the request, so a crash in between leaves a request it cancelled.
-		const archiveOwner = removal.kind === 'session' ? removal.owner : removal.kind === 'coOwned' ? removal.ownerSession : undefined;
+		const archiveOwner = removal.kind === 'session' ? removal.owner : removal.ownerSession;
 		if (archiveOwner !== undefined && !removal.ownerDeleted && await this._database.readSessionArchived(archiveOwner) === false) {
 			this._logService.info(`[AgentHostWorktreeCleanup:${key}] Dropping the removal of '${removal.worktreePath}': its session is no longer archived`);
 			await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
@@ -333,6 +439,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		}
 		const isUnused = async () => !await this._database.isWorktreeInUse(removal.worktreePath, removal.ownerSession);
 		if (!await isUnused()) {
+			this._setRemovalStatus(removal, { state: 'inUse' });
 			this._logService.trace(`[AgentHostWorktreeCleanup:${key}] Keeping worktree '${removal.worktreePath}': another session or chat uses it`);
 			return;
 		}
@@ -345,12 +452,15 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		// A folder that was ever shared is committed rather than force-removed, also for a request recorded before it was.
 		const mode = removal.mode === 'delete' && coOwners.length > 0 ? 'commit' : removal.mode;
 		try {
+			this._setRemovalStatus(removal, { state: 'running' });
 			// Asked again after the Git work that precedes the removal, which a folder coming into use meanwhile must stop.
 			const outcome = await this._worktree.removeRecordedWorktree(key, worktree, mode, isUnused);
 			if (outcome === 'inUse') {
+				this._setRemovalStatus(removal, { state: 'inUse' });
 				return;
 			}
 			if (outcome === 'skipped') {
+				this._setRemovalStatus(removal, { state: 'skipped' });
 				// Kept for now, such as an unsynced branch: try again later rather than strand the folder.
 				await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
 				return;
@@ -363,7 +473,9 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				await this._database.clearStaleWorktreeCoOwners(removal.worktreePath);
 			}
 			await this._database.deletePendingWorktreeRemoval(removal.kind, removal.owner, removal);
+			this._removalStatuses.delete(this._removalKey(removal));
 		} catch (error) {
+			this._setRemovalStatus(removal, { state: 'failed', message: errorMessage(error) });
 			const attempts = await this._database.recordPendingWorktreeRemovalFailure(removal, retryAt);
 			const message = `[AgentHostWorktreeCleanup:${key}] Failed to remove worktree '${worktree.worktree.fsPath}' (attempt ${attempts ?? removal.attempts + 1}): ${errorMessage(error)}`;
 			if ((attempts ?? 0) >= WARN_AFTER_ATTEMPTS) {
@@ -378,7 +490,10 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		if (!this._started || this._store.isDisposed) {
 			return;
 		}
-		const remaining = await this._database.listPendingWorktreeRemovals().catch(() => []);
+		const remaining = [
+			...await this._database.listPendingWorktreeRemovals().catch(() => []),
+			...(await this._database.listScratchFolders().catch(() => [])).filter(row => row.state === 'removing' || (row.state === 'allocating' && !this._scratchAllocationsInFlight.has(row.folder))),
+		];
 		if (remaining.length === 0 || this._scheduler.isScheduled()) {
 			return;
 		}

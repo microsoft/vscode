@@ -15,7 +15,7 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession } from './agent.js';
+import { AgentSession, type AuthenticateParams } from './agent.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
@@ -117,7 +117,8 @@ export interface ICloudSandboxCreatedSession {
 }
 
 /** Client task-creation provenance, not a claim about environment readiness. */
-export type CloudSandboxTaskCreationPath = 'newEnvironment' | 'existingEnvironment' | 'reservationClaimed' | 'reservationFallback' | 'reservationUnconfirmed' | 'unknown';
+export const cloudSandboxTaskCreationPaths = ['newEnvironment', 'existingEnvironment', 'reservationClaimed', 'reservationFallback', 'reservationUnconfirmed', 'unknown'] as const;
+export type CloudSandboxTaskCreationPath = typeof cloudSandboxTaskCreationPaths[number];
 
 /** The draft configuration to reserve without submitting a user turn. */
 export interface ICloudSandboxReserveSessionRequest {
@@ -330,6 +331,8 @@ export interface IMissionControlEnvironment {
 
 /** Identifies which sandbox environment/session credentials are being minted for. */
 export interface ICloudSandboxConnectionRequest {
+	/** Local reporting scope; user-local hosts must not emit cloud sandbox lifecycle events. Never sent to the server. */
+	readonly environmentKind?: 'user-local';
 	/** Stable environment identifier (`env_<uuid>`) of the sandbox. */
 	readonly environmentId: string;
 	/**
@@ -421,6 +424,8 @@ export interface ICloudSandboxApiService {
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 	/** Lists the authenticated account's environments without attaching or provisioning compute. */
 	listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]>;
+	/** Hard-delete an environment owned by the expected account; managed sandboxes also delete backing compute and storage. */
+	deleteEnvironment(environmentId: string, token: CancellationToken, expectedAccountKey: string): Promise<void>;
 	/** Returns fresh credential-free inventory for the current account without issuing a request. */
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
@@ -525,6 +530,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly name: string;
 	/** Local identity that owns this staged user-local connection; never sent to MC. */
 	readonly accountKey?: string;
+	/** Recipient keys from this account's environment descriptor, fetched over authenticated HTTPS. */
+	readonly trustedEncryptionKeys?: readonly IHostEncryptionKey[];
 	/** Caller provenance, not a claim about warm or cold compute. */
 	readonly connectionSource?: 'created' | 'existing';
 	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
@@ -563,6 +570,9 @@ export interface ICloudSandboxAgentHostService {
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
+
+	/** Resolves identity-only authentication for a user-local host; the protocol client seals it for each handshake. */
+	resolveUserLocalAuthentication(environmentId: string, resource: string, forceRefresh?: boolean): Promise<AuthenticateParams>;
 
 	/** Renew a live connection's sealed credential, rejecting missing or reused envelopes while sharing its refresh and retry budget. */
 	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;

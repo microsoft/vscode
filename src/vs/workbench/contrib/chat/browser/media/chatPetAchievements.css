@@ -28,22 +28,30 @@
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
 }
 
-.chat-pet-customization-tabs .monaco-button {
+.chat-pet-customization-tab {
 	position: relative;
-	width: auto;
+	display: flex;
+	align-items: center;
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	border: 0;
 	border-radius: var(--vscode-cornerRadius-small);
-	background: transparent;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
+	line-height: 16px;
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
 }
 
-.chat-pet-customization-tabs .monaco-button[aria-selected='true'] {
+/* The shared Modern UI tab styles paint these layers. */
+.chat-pet-customization-tab > :is(.chat-pet-customization-tab-fill, .tab-connected-edge) {
+	display: none;
+}
+
+.chat-pet-customization-tab.active {
 	color: var(--vscode-foreground);
 }
 
-.chat-pet-customization-tabs .monaco-button[aria-selected='true']::after {
+.chat-pet-customization-tab.active::after {
 	content: '';
 	position: absolute;
 	inset-inline: var(--vscode-spacing-size80);
@@ -53,18 +61,82 @@
 	pointer-events: none;
 }
 
-.chat-pet-customization-tabs .monaco-button:hover {
+.chat-pet-customization-tab:hover {
 	color: var(--vscode-foreground);
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
-.chat-pet-customization-tabs .monaco-button:focus:not(:focus-visible) {
+.chat-pet-customization-tabs .chat-pet-customization-tab:focus:not(:focus-visible) {
 	outline: none;
 }
 
-.chat-pet-customization-tabs .monaco-button:focus-visible {
+.chat-pet-customization-tabs .chat-pet-customization-tab:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Modern UI: geometry, colors and states come from the shared editor tab styles. */
+.modern-ui-tabs .chat-pet-customization-tabs {
+	padding-bottom: var(--vscode-spacing-size80);
+	border-bottom: 0;
+}
+
+.modern-ui-tabs .chat-pet-customization-tab {
+	padding-block: 0;
+}
+
+.modern-ui-tabs .chat-pet-customization-tab.active::after {
+	content: none;
+}
+
+/* Keep keyboard focus on the rounded fill; high contrast focus is provided by the shared tab styles. */
+.monaco-workbench.modern-ui-tabs .chat-pet-customization-tabs .chat-pet-customization-tab:focus {
+	outline: none;
+}
+
+.monaco-workbench.modern-ui-tabs:not(:is(.hc-black, .hc-light)) .chat-pet-customization-tab:focus-visible > .chat-pet-customization-tab-fill {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Connected tabs: the selected tab and the page share one surface, as in editor groups. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .chat-pet-achievements-editor {
+	background-color: var(--modern-ui-connected-tab-surface);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .chat-pet-customization-tabs {
+	position: relative;
+	gap: 0;
+	padding-inline-end: 0;
+	--modern-ui-editor-tab-active-background: var(--modern-ui-connected-tab-active-background);
+	--modern-ui-editor-tab-unfocused-active-background: var(--modern-ui-connected-tab-active-background);
+	--modern-ui-editor-tab-active-hover-background: var(--modern-ui-connected-tab-active-hover-background);
+	--modern-ui-editor-tab-unfocused-active-hover-background: var(--modern-ui-connected-tab-active-hover-background);
+}
+
+/* Separator beneath the strip; the selected tab's fill paints over it. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .chat-pet-customization-tabs::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	inset-inline: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	pointer-events: none;
+}
+
+/* Like the first editor tab, a selected first tab is flush with the frame. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .chat-pet-customization-tab.active:first-child > :is(.chat-pet-customization-tab-fill, .tab-connected-edge) {
+	border-start-start-radius: 0;
+	border-inline-start-color: transparent;
+}
+
+/* The connected edge covers the fill outline, so trace focus along the edge and keep the tab open to the page. */
+.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(:is(.hc-black, .hc-light)) .chat-pet-customization-tab.active:focus-visible > .chat-pet-customization-tab-fill {
+	outline: none;
+}
+
+.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(:is(.hc-black, .hc-light)) .chat-pet-customization-tab.active:focus-visible > .tab-connected-edge {
+	border-color: var(--vscode-focusBorder);
 }
 
 .chat-pet-customization-panel {

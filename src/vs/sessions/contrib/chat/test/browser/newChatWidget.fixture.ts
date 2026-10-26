@@ -8,6 +8,7 @@ import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/act
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { assert } from '../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -17,7 +18,9 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -43,6 +46,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatTipProvider, IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -55,8 +59,10 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, GuidanceCustomizationMigration, GuidanceCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
+import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, ChatConfiguration, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
@@ -70,8 +76,9 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
-import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { FixtureMenuService, FixtureMotionAccessibilityService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -199,11 +206,15 @@ interface INewChatWidgetFixtureOptions {
 	readonly phoneLayout?: boolean;
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
+	readonly ignoreMigrations?: boolean;
 	readonly experimentalComposerLayout?: boolean;
 	readonly toggleExperimentalComposerLayout?: boolean;
 	readonly unifiedWorkspacePicker?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
 	readonly welcomePhrases?: boolean;
+	readonly petEnabled?: boolean;
+	readonly petHorizontalPosition?: number;
+	readonly petLandingTarget?: 'visibleOptions' | 'welcome';
 	readonly connectorRecommendations?: boolean;
 	readonly connectorRecommendationsSetting?: boolean;
 	readonly connectorPrompt?: string;
@@ -409,11 +420,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		phoneLayout = false,
 		chatBackground,
 		migrationCount = 0,
+		ignoreMigrations = false,
 		experimentalComposerLayout = false,
 		toggleExperimentalComposerLayout = false,
 		unifiedWorkspacePicker = experimentalComposerLayout,
 		collapsedSessionOptionsShowIcons = false,
 		welcomePhrases = false,
+		petEnabled = false,
+		petHorizontalPosition,
+		petLandingTarget,
 		connectorRecommendations = false,
 		connectorRecommendationsSetting = connectorRecommendations,
 		connectorPrompt,
@@ -424,6 +439,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		dismissConnector = false,
 		focusConnectorRecommendations = false,
 	} = options;
+	if (petEnabled) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -435,6 +453,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		state: AgentFeedbackState.Accepted,
 	}));
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
+	const projectRoot = workspace.folders[0]?.workingDirectory;
 	const sessionTypes = createFixtureSessionTypes();
 	const models = withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : [];
 	const provider = createFixtureProvider(workspace, sessionTypes, models, disposableStore, withControlPickers);
@@ -467,6 +486,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	});
 	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
 	const storageService = disposableStore.add(new InMemoryStorageService());
+	if (ignoreMigrations) {
+		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set([
+			getCustomizationMigrationGroupIgnoreKey(
+				'agent-host-copilotcli',
+				CustomizationMigrationCategoryId.PromptFiles,
+				PromptsStorage.local,
+				projectRoot,
+			),
+		]));
+	}
 	if (showTip || connectorRecommendations) {
 		storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 2, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
@@ -476,6 +505,18 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
+				override readonly enabled = false;
+				override readonly accountKey = undefined;
+				override readonly hosts = constObservable([]);
+			}());
+			if (petEnabled) {
+				reg.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(container, disposableStore));
+				reg.defineInstance(IChatPetService, disposableStore.add(new FixtureChatPetService({
+					enabled: true,
+					horizontalPosition: petHorizontalPosition,
+				})));
+			}
 			reg.defineInstance(IActionViewItemService, actionViewItems);
 			reg.define(IChatService, FixtureComposerChatService);
 			reg.defineInstance(ILanguageModelToolsService, disposableStore.add(new MockLanguageModelToolsService()));
@@ -625,6 +666,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(IHistoryService, new class extends mock<IHistoryService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly activeProjectRoot = constObservable(projectRoot);
+				override getActiveProjectRoot() { return projectRoot; }
 				override async getFilteredPromptSlashCommands() { return []; }
 			}());
 			reg.defineInstance(IPromptsService, new class extends mock<IPromptsService>() {
@@ -644,7 +687,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override computeMigration(resource: URI, type: FileCustomizationMigrationType): Promise<FileCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.McpServers): Promise<McpServerCustomizationMigration>;
 				override computeMigration(resource: URI, type: CustomizationMigrationType.PluginMarketplaces): Promise<PluginMarketplaceCustomizationMigration>;
+				override computeMigration(resource: URI, type: GuidanceCustomizationMigrationType): Promise<GuidanceCustomizationMigration>;
 				override async computeMigration(_resource: URI, type: CustomizationMigrationType): Promise<CustomizationMigration> {
+					if (type === CustomizationMigrationType.ChatParticipants || type === CustomizationMigrationType.ToolSets) {
+						return { type, items: [] };
+					}
 					if (type === CustomizationMigrationType.McpServers) {
 						return { type, candidates: [], servers: [], exclusions: [], discoveryComplete: true, coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false } };
 					}
@@ -658,7 +705,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					return { type, candidates, files: candidates.map(candidate => candidate.uri) };
 				}
 
-				override async computeMigrationHint(): Promise<ICustomizationMigrationHint | undefined> {
+				override async computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+					if (ignoredGroups.some(group => group.type === CustomizationMigrationType.PromptFiles && group.storage === PromptsStorage.local)) {
+						return undefined;
+					}
 					return migrationCount > 0 ? {
 						migrationFlowId: 'fixture-migration',
 						message: `${migrationCount} agent customizations need an update to keep working.`,
@@ -847,10 +897,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 	await nextFrame();
 	await nextFrame();
-	for (let attempt = 0; attempt < 30 && !view.element.querySelector('.sessions-chat-session-type-picker'); attempt++) {
-		await nextFrame();
-	}
-	assert(!!view.element.querySelector('.sessions-chat-session-type-picker'));
+	await waitForFixtureDomCondition(view.element, () => !!view.element.querySelector('.sessions-chat-session-type-picker'), disposableStore);
 	for (const animation of view.element.getAnimations({ subtree: true })) {
 		if (animation.effect?.getComputedTiming().endTime !== Infinity) {
 			animation.finish();
@@ -901,10 +948,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const promptBounds = promptBox.getBoundingClientRect();
 		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
 			'The tray must precede the prompt in reading and keyboard order.');
-		if (!phoneLayout) {
-			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-				'The collapsed tray must sit flush with the prompt.');
-		}
+		assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
+			'The collapsed tray must sit flush with the prompt.');
 		if (phoneLayout) {
 			assert(Math.abs(collapsedTrayBounds.left - promptBounds.left) < 1
 				&& Math.abs(collapsedTrayBounds.right - promptBounds.right) < 1,
@@ -939,10 +984,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
 				'Expanding the tray must compact pickers rather than increase its height.');
 		}
-		if (!phoneLayout) {
-			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-				'The tray must remain flush with the prompt after expansion.');
-		}
+		assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
+			'The tray must remain flush with the prompt after expansion.');
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
 		const inputArea = promptBox.querySelector<HTMLElement>('.chat-input-container');
 		assert(!!inputArea);
@@ -1066,7 +1109,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			await nextFrame();
 		}
 	}
-	if (migrationCount > 0) {
+	if (migrationCount > 0 && !ignoreMigrations) {
 		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
 		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 		assert(!!notice && !!input && targetWindow.getComputedStyle(notice).display !== 'none');
@@ -1078,6 +1121,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			'The migration notice must not move or resize the centered input.');
 		assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
 			'The migration notice must fit below the input.');
+	} else if (ignoreMigrations) {
+		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
+		assert(!!notice && targetWindow.getComputedStyle(notice).display === 'none');
 	}
 	if (connectorRecommendations) {
 		if (connectorPrompt !== undefined) {
@@ -1283,9 +1329,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!!contentBounds && !!welcomeBounds && !!workspaceBounds && !!workspacePickerBounds
 			&& welcomeBounds.top >= containerBounds.top + containerBounds.height * 0.2
 			&& welcomeBounds.bottom < workspacePickerBounds.top
-			&& workspacePickerBounds.top >= containerBounds.top + containerBounds.height * 0.4
-			&& workspacePickerBounds.bottom <= containerBounds.top + containerBounds.height * 0.55,
-			'Phone welcome phrases must move toward the centered workspace hero without shifting the hero itself.');
+			&& (experimentalComposerLayoutEnabled
+				? welcomeBounds.bottom <= promptBox.getBoundingClientRect().top
+				: workspacePickerBounds.top >= containerBounds.top + containerBounds.height * 0.4
+				&& workspacePickerBounds.bottom <= containerBounds.top + containerBounds.height * 0.55),
+			'Phone welcome phrases must stay visible above the workspace controls without overlapping the composer.');
 	}
 	if (withAutoModel) {
 		const statusItems = [...view.element.querySelectorAll<HTMLElement>('.new-chat-status-toolbar .action-item')];
@@ -1370,6 +1418,64 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			view.prefillInput(editedInput);
 		}
 	}
+	if (petEnabled) {
+		await waitForFixtureCondition(() => {
+			const button = view.element.querySelector<HTMLElement>('.chat-pet-button:not(.hidden)');
+			const image = button?.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img[src]');
+			return !!button && !!image?.complete && image.naturalWidth > 0;
+		}, 'The chat pet did not finish rendering.');
+		const image = view.element.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img[src]');
+		await image?.decode();
+		if (petLandingTarget) {
+			const pet = view.element.querySelector<HTMLElement>('.chat-pet-button:not(.hidden)');
+			const target = view.element.querySelector<HTMLElement>(petLandingTarget === 'welcome'
+				? '.new-session-welcome-message-title'
+				: '.new-chat-session-options');
+			assert(!!pet && !!target);
+			const petBounds = pet.getBoundingClientRect();
+			const targetBounds = target.getBoundingClientRect();
+			const pointerId = 1;
+			const targetX = targetBounds.left + targetBounds.width / 2;
+			const targetY = targetBounds.top - petBounds.height / 2 - 24;
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointerdown', {
+				clientX: petBounds.left + petBounds.width / 2,
+				clientY: petBounds.top + petBounds.height / 2,
+				button: 0,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointermove', {
+				clientX: targetX,
+				clientY: targetY,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			await new Promise<void>(resolve => targetWindow.setTimeout(resolve, 200));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointermove', {
+				clientX: targetX,
+				clientY: targetY,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			await new Promise<void>(resolve => targetWindow.setTimeout(resolve, 100));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointerup', {
+				clientX: targetX,
+				clientY: targetY,
+				button: 0,
+				buttons: 0,
+				pointerId,
+				bubbles: true,
+			}));
+			await waitForFixtureCondition(
+				() => Math.abs(pet.getBoundingClientRect().bottom - target.getBoundingClientRect().top) < 1,
+				`The chat pet did not collide with the ${petLandingTarget} platform.`,
+			);
+		}
+		assertChatPetInScreenshot(view.element);
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
@@ -1377,6 +1483,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4 }),
+	}),
+	MigrationsIgnored: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The composer is shown without a migration notice because all available migrations were ignored.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4, ignoreMigrations: true }),
 	}),
 	MigrationsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1471,7 +1583,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
 		expectedVisualDescriptions: ['On a phone-sized Agents window, the contextual connector tip replaces the getting-started tip and forms a compact stack with the migration notice immediately above the bottom-pinned composer.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true, phoneLayout: true }),
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true, welcomePhrases: true, phoneLayout: true }),
 	}),
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1486,9 +1598,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. Inside the input, the Agent picker appears before the model picker, and mode and permissions remain available.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
 	}),
+	NewSessionPetOnInput: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['At its default right-side position, the VS Code pet rests on the visible chat input because the shorter workspace and session-options strip does not extend beneath it.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true }),
+	}),
+	NewSessionPetOnInputNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow composer with session options collapsed, the right-side VS Code pet rests on the visible chat input rather than floating on empty space beyond the short workspace strip.'],
+		render: context => renderNewChatWidget(context, { width: 420, height: 560, withWorkspace: true, withControlPickers: true, expandSessionOptions: false, experimentalComposerLayout: true, petEnabled: true }),
+	}),
+	NewSessionPetOnVisibleOptions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['When horizontally positioned over the visible workspace and session-options strip, the VS Code pet rests on that raised surface.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true, petHorizontalPosition: 0.4, petLandingTarget: 'visibleOptions' }),
+	}),
+	NewSessionPetBelowWelcome: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The VS Code pet stays on its current composer surface beneath the welcome heading; the heading platform stays hidden until a downward collision occurs.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5 }),
+	}),
+	NewSessionPetPhysics: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => {
+			context.container.classList.remove('disable-animations');
+			context.container.classList.add('monaco-enable-motion');
+			return renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true });
+		},
+	}),
+	NewSessionPetOnWelcome: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The VS Code pet rests above the centered “Let’s ship something” welcome heading on a short rounded platform directly beneath its feet.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5, petLandingTarget: 'welcome' }),
+	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer paints only the workspace, worktree, branch, and harness options tray with the opaque main session surface. The picker controls use the tray surface instead of separate resting fills, and the tray has square bottom corners where it meets the unchanged chat input.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the experimental new-session composer paints only the workspace, worktree, branch, and harness options tray with the opaque main session surface. The picker controls use the tray surface instead of separate resting fills or borders, and the tray has square bottom corners where it meets the unchanged chat input.'],
 		render: context => renderNewChatWidget(context, {
 			withWorkspace: true,
 			withControlPickers: true,
@@ -1615,8 +1764,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With the unified workspace picker and experimental composer enabled, the real phone presenter keeps workspace, worktree, branch, and harness controls in one bounded surface. Agent, separate Manual permissions, Model, and Send remain aligned inside the bottom-pinned input.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, phoneLayout: true }),
+		expectedVisualDescriptions: ['With welcome phrases, the unified workspace picker, and experimental composer enabled, the greeting stays visible in the hero above the workspace tray. The real phone presenter keeps workspace, worktree, branch, and harness controls in one bounded surface. Agent, separate Manual permissions, Model, and Send remain aligned inside the bottom-pinned input.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, phoneLayout: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

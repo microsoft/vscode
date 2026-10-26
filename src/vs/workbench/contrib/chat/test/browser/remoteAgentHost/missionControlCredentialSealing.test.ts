@@ -6,23 +6,17 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { IMissionControlCredentialSealingRequest } from '../../../../../../platform/agentHost/common/agentService.js';
-import { createRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { sealMissionControlMcpCredential } from '../../../browser/remoteAgentHost/missionControlCredentialSealing.js';
+import { verifyMissionControlRecipient } from '../../../browser/remoteAgentHost/missionControlCredentialSealing.js';
 
-suite('Mission Control MCP recipient trust', () => {
+suite('Mission Control recipient trust', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	const key = { key_id: 'key', use: 'mcp-auth-token', algorithm: 'x25519-sealedbox', public_key: 'public' };
-	const root = () => ({ ...createRootState(), _meta: { 'copilot.encryptionKeys': [{ keyId: key.key_id, use: key.use, algorithm: key.algorithm, publicKey: key.public_key }] } });
-	const request = { resource: 'https://mcp.example.test', token: 'sensitive-test-token', scopes: ['read'] };
+	const request: IMissionControlCredentialSealingRequest = { resource: 'https://mcp.example.test', token: 'sensitive-test-token', key: { ...key, use: 'mcp-auth-token' } };
 
-	test('requires the same HTTPS descriptor and live host key before disclosing to local sealing', async () => {
-		const calls: IMissionControlCredentialSealingRequest[] = [];
-		const seal = async (value: IMissionControlCredentialSealingRequest) => { calls.push(value); return 'copilot-sealed.v1.test.box'; };
-		await assert.rejects(sealMissionControlMcpCredential(request, undefined, root(), undefined, seal), /authenticated MCP/);
-		await assert.rejects(sealMissionControlMcpCredential(request, [{ ...key, public_key: 'substituted' }], root(), undefined, seal), /does not match/);
-		assert.strictEqual(calls.length, 0);
-		const result = await sealMissionControlMcpCredential(request, [key], root(), { 'copilot.authChallenge': { challenge: 'a'.repeat(32), required: false } }, seal);
-		assert.deepStrictEqual(result, { ...request, token: 'copilot-sealed.v1.test.box' });
-		assert.deepStrictEqual(calls, [{ resource: request.resource, token: request.token, key, challenge: 'a'.repeat(32) }]);
+	test('requires every recipient field to match the independently authenticated descriptor', () => {
+		for (const keys of [undefined, [], [{ ...key, public_key: 'substituted' }], [{ ...key, key_id: 'other' }], [{ ...key, use: 'auth-token' }], [{ ...key, algorithm: 'unknown' }]]) {
+			assert.throws(() => verifyMissionControlRecipient(request, keys), /does not match/);
+		}
+		assert.doesNotThrow(() => verifyMissionControlRecipient(request, [key]));
 	});
 });

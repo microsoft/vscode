@@ -6,9 +6,11 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ActionListWidget, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -35,8 +37,12 @@ import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/com
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from '../../browser/permissionPicker.js';
+import { IUnavailablePermissionLevel } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js';
 import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
+
+const POLICY_DESCRIPTION = '$(briefcase) Disabled by policy';
+const POLICY_HOVER = 'Your organization\'s policy doesn\'t allow this permission level.';
 
 suite('Copilot PermissionPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -122,7 +128,12 @@ suite('Copilot PermissionPicker', () => {
 
 			assert.deepStrictEqual(levels, [
 				{ label: 'Default permissions', badge: undefined, ariaLabel: null, disabled: false },
-				{ label: 'Assisted permissions', badge: 'New', ariaLabel: 'Assisted permissions, New, Evaluates risk before running tools', disabled: policyRestricted },
+				{
+					label: 'Assisted permissions', badge: policyRestricted ? undefined : 'New', disabled: policyRestricted,
+					ariaLabel: policyRestricted
+						? null
+						: 'Assisted permissions, New, Evaluates risk before running tools',
+				},
 				{ label: 'Allow all', badge: undefined, ariaLabel: null, disabled: policyRestricted },
 			]);
 		});
@@ -161,17 +172,109 @@ suite('Copilot PermissionPicker', () => {
 			await assisted.item!.run();
 
 			assert.deepStrictEqual({
-				levels: items.filter(item => item.detail).map(item => ({ label: item.label, badge: item.badge, disabled: item.disabled })),
-				hover: assisted.hover?.content,
+				levels: items.filter(item => item.detail || item.description).map(item => ({ label: item.label, badge: item.badge, disabled: item.disabled, description: typeof item.description === 'object' ? item.description.value : item.description })),
+				hover: isMarkdownString(assisted.hover?.content) ? assisted.hover?.content.value : assisted.hover?.content,
 				writes,
 			}, {
 				levels: [
-					{ label: 'Default permissions', badge: undefined, disabled: false },
-					{ label: 'Assisted permissions', badge: 'New', disabled: policyRestricted },
-					{ label: 'Allow all', badge: undefined, disabled: policyRestricted },
+					{ label: 'Default permissions', badge: undefined, disabled: false, description: undefined },
+					{ label: 'Assisted permissions', badge: policyRestricted ? undefined : 'New', disabled: policyRestricted, description: policyRestricted ? POLICY_DESCRIPTION : undefined },
+					{ label: 'Allow all', badge: undefined, disabled: policyRestricted, description: policyRestricted ? POLICY_DESCRIPTION : undefined },
 				],
-				hover: policyRestricted ? 'Disabled by enterprise policy' : 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.',
+				hover: policyRestricted ? POLICY_HOVER : 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.',
 				writes: policyRestricted ? [] : [ChatPermissionLevel.Assisted],
+			});
+		});
+	}
+
+	for (const activation of ['mouse', 'keyboard'] as const) {
+		test(`keeps host policy-disabled levels visible, explained and non-selectable (${activation})`, async () => {
+			const unavailableLevels = observableValue<readonly IUnavailablePermissionLevel[]>('unavailableLevels', []);
+			const opened: string[] = [];
+			const writes: ChatPermissionLevel[] = [];
+			const opener = new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string) { opened.push(resource.toString()); return true; }
+			}();
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.set(IKeybindingService, new MockKeybindingService());
+			instantiationService.set(IHoverService, NullHoverService);
+			instantiationService.set(IOpenerService, opener);
+			let hides = 0;
+			let selections = 0;
+			const actionWidget = new class extends mock<IActionWidgetService>() {
+				override readonly isVisible = false;
+				override show(): void { }
+				override hide(): void { hides++; }
+			}();
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const picker = store.add(new PermissionPicker({
+				availableLevels: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted],
+				unavailableLevels,
+				currentPermissionLevel: constObservable(ChatPermissionLevel.Default),
+				getPermissionLevelMeta: (_level, meta) => meta,
+				setPermissionLevel: level => { writes.push(level); },
+			}, actionWidget, configuration, new TestDialogService(undefined, { result: true }), opener, store.add(new TestStorageService()),
+				NullTelemetryService, NullHoverService, unmanagedEnablementService));
+
+			// A menu opened before the policy refresh must not select the newly disabled level.
+			const stale = picker.getActionListItems(() => true);
+			const watcher = picker.watchActionItems(stale);
+			unavailableLevels.set([{ level: ChatPermissionLevel.Assisted, byPolicy: true }, { level: ChatPermissionLevel.AutoApprove, byPolicy: false }], undefined);
+			const hidesAfterRefresh = hides;
+			watcher.dispose();
+			await stale.find(item => item.item?.id === 'permissionPicker.assisted')!.item!.run();
+
+			const items = picker.getActionListItems(() => true).filter(item => item.detail || item.description);
+			const widget = store.add(instantiationService.createInstance(
+				ActionListWidget<IAction>, 'policyPermissionPicker', false, items,
+				{ onSelect: () => { selections++; }, onHide: () => { } }, undefined, { showFilter: false },
+			));
+			document.body.appendChild(widget.domNode);
+			store.add(toDisposable(() => widget.domNode.remove()));
+			widget.layout(200, 400);
+			const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+			widget.focusItemById('permissionPicker.assisted');
+			if (activation === 'mouse') {
+				rows[1].click();
+			} else {
+				widget.acceptSelected();
+			}
+			for (const item of items) {
+				await item.item?.run();
+			}
+
+			assert.deepStrictEqual({
+				hidesAfterRefresh,
+				levels: items.map(item => ({
+					label: item.label, disabled: item.disabled, badge: item.badge, detail: item.detail, ariaDescription: item.ariaDescription,
+					description: typeof item.description === 'object' ? item.description.value : item.description,
+					hover: isMarkdownString(item.hover?.content) ? item.hover?.content.value : item.hover?.content,
+				})),
+				rows: rows.map(row => row.classList.contains('option-disabled')),
+				links: widget.domNode.querySelectorAll('.description a').length,
+				badges: Array.from(widget.domNode.querySelectorAll<HTMLElement>('.action-item-badge')).filter(badge => badge.style.display !== 'none').length,
+				opened, selections, writes,
+			}, {
+				hidesAfterRefresh: 1,
+				levels: [
+					{ label: 'Default permissions', disabled: false, badge: undefined, detail: 'Asks when approval settings don\'t apply', ariaDescription: undefined, description: undefined, hover: undefined },
+					{
+						label: 'Assisted permissions', disabled: true, badge: undefined, detail: undefined,
+						ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+						description: POLICY_DESCRIPTION, hover: POLICY_HOVER,
+					},
+					{
+						label: 'Allow all', disabled: true, badge: undefined, detail: undefined,
+						ariaDescription: 'Unavailable. The agent host doesn\'t allow this permission level for this session.',
+						description: 'Unavailable',
+						hover: 'The agent host doesn\'t allow this permission level for this session.',
+					},
+				],
+				rows: [false, true, true],
+				links: 0,
+				badges: 0,
+				opened: [], selections: 0, writes: [ChatPermissionLevel.Default],
 			});
 		});
 	}

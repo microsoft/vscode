@@ -59,6 +59,7 @@ suite('CloudSandboxDraftPreparationService', () => {
 		const deletionAttempts: { taskId: string; expectedAccountKey: string | undefined }[] = [];
 		const warnings: string[] = [];
 		const infos: string[] = [];
+		const lifecycleEvents: Record<string, unknown>[] = [];
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[CloudSandboxEarlyPreparationSettingId]: true,
@@ -68,7 +69,14 @@ suite('CloudSandboxDraftPreparationService', () => {
 			...options.configuration,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const telemetry = new TestExperimentTriggerTelemetryService();
+		const telemetry = new class extends TestExperimentTriggerTelemetryService {
+			override publicLog2(name?: string, data?: object): void {
+				super.publicLog2(name, data);
+				if (name === 'cloudSandboxLifecycle' && data) {
+					lifecycleEvents.push({ ...data });
+				}
+			}
+		}();
 		const api = new class extends mock<ICloudSandboxApiService>() {
 			override readonly onDidChangeAccount = changedAccount.event;
 
@@ -126,7 +134,7 @@ suite('CloudSandboxDraftPreparationService', () => {
 		}());
 		const service = store.add(instantiation.createInstance(CloudSandboxDraftPreparationService));
 		return {
-			service, calls, warnings, infos, reservationRequests, deletionAttempts, configuration, triggers: telemetry.triggers,
+			service, calls, warnings, infos, lifecycleEvents, reservationRequests, deletionAttempts, configuration, triggers: telemetry.triggers,
 			accountLookups: () => accountLookups,
 			enteredAllocation: enteredAllocation.p,
 			enteredVerification: enteredVerification.p,
@@ -156,6 +164,70 @@ suite('CloudSandboxDraftPreparationService', () => {
 			},
 		};
 	}
+
+	for (const failure of [
+		{ error: new CancellationError(), outcome: 'cancelled', category: 'cancelled' },
+		{ error: new CloudSandboxRequestError(403, 'private response'), outcome: 'failed', category: 'authorization' },
+	]) {
+		test(`preparation lifecycle distinguishes ${failure.outcome} without exposing error content`, async () => {
+			const fixture = createFixture({ provision: async () => { throw failure.error; } });
+			fixture.service.prepare(editorDraft);
+			await fixture.enteredAllocation;
+			await timeout(0);
+			assert.deepStrictEqual({
+				events: fixture.lifecycleEvents.map(event => [event.preparationStep, event.outcome, event.errorCategory]),
+				startDuration: fixture.lifecycleEvents[0].durationMs,
+				privateContent: JSON.stringify(fixture.lifecycleEvents).includes('private'),
+			}, {
+				events: [['started', 'started', undefined], ['reservationFailed', failure.outcome, failure.category]],
+				startDuration: undefined, privateContent: false,
+			});
+		});
+	}
+
+	test('discarded pending identity lookup records cancellation without allocating', async () => {
+		const pending = new DeferredPromise<string | undefined>();
+		const fixture = createFixture({ getAccountKey: () => pending.p });
+		fixture.service.prepare(editorDraft);
+		await timeout(0);
+		await fixture.service.discard(editorDraft);
+		assert.deepStrictEqual(fixture.lifecycleEvents.filter(event => event.outcome !== 'observed').map(event => event.outcome), ['started', 'cancelled']);
+		assert.deepStrictEqual({ accountLookups: fixture.accountLookups(), calls: fixture.calls }, { accountLookups: 1, calls: [] });
+	});
+
+	test('cleanup failure retains its structured error even though the draft was cancelled', async () => {
+		const fixture = createFixture({ deleteTask: async () => { throw new CloudSandboxRequestError(403, 'private response'); } });
+		fixture.service.prepare(editorDraft);
+		await fixture.enteredAllocation;
+		await timeout(0);
+		await fixture.service.discard(editorDraft);
+		assert.deepStrictEqual(fixture.lifecycleEvents.filter(event => event.preparationStep === 'releaseFailed').map(event => [event.outcome, event.errorCategory]), [['failed', 'authorization']]);
+	});
+
+	test('a server reservation failure remains a failure after the local draft is discarded', async () => {
+		const pending = new DeferredPromise<string>();
+		const fixture = createFixture({ provision: () => pending.p });
+		fixture.service.prepare(editorDraft);
+		await fixture.enteredAllocation;
+		const discarded = fixture.service.discard(editorDraft);
+		await pending.error(new CloudSandboxRequestError(500, 'private server failure'));
+		await discarded;
+		assert.deepStrictEqual(fixture.lifecycleEvents.filter(event => event.preparationStep === 'reservationFailed').map(event => [event.outcome, event.errorCategory, event.statusCode]), [['failed', 'httpServer', 500]]);
+	});
+
+	test('confirmed preparation emits one terminal event even if confirmation is repeated', async () => {
+		const fixture = createFixture();
+		fixture.service.prepare(editorDraft);
+		const reservation = await fixture.service.take(editorDraft, CancellationToken.None);
+		assert.ok(reservation);
+		const created = { ...reservedSession('env-1'), claimed: true };
+		fixture.service.markSubmitted(reservation, created, undefined);
+		fixture.service.markSubmitted(reservation, created, undefined);
+		assert.deepStrictEqual({
+			terminals: fixture.lifecycleEvents.filter(event => event.outcome === 'succeeded').map(event => event.preparationStep),
+			operations: new Set(fixture.lifecycleEvents.map(event => event.operationId)).size,
+		}, { terminals: ['submitted'], operations: 1 });
+	});
 
 	for (const claimed of [true, false]) {
 		test(`retains a confirmed ${claimed ? 'claim' : 'fallback'} only for its draft lifetime without restoring deletion ownership`, async () => {

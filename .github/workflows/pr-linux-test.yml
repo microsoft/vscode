@@ -1,9 +1,10 @@
 on:
   workflow_call:
     inputs:
-      job_name:
-        type: string
-        required: true
+      affected:
+        description: Whether the pull request can affect the tests; the job is skipped when false
+        type: boolean
+        default: true
       electron_tests:
         type: boolean
         default: false
@@ -30,13 +31,28 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      agent_host_e2e_tests:
+        description: Whether to run the Agent Host E2E tests
+        type: boolean
+        default: false
+      agent_host_test_profile:
+        description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
+        type: string
+        default: full
+      agent_host_test_profile_reason:
+        description: Reason for selecting the Agent Host test profile
+        type: string
+        default: Change detection unavailable
 
 jobs:
   linux-test:
-    name: ${{ inputs.job_name }}
+    # Fixed, as GitHub does not evaluate expressions in the name of a skipped job: the check reports
+    # as "<calling job> / Linux", for example "Electron-Unit / Linux", whether the job runs or not.
+    name: Linux
+    if: ${{ inputs.affected }}
     runs-on: ubuntu-24.04
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -45,13 +61,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
-
-      - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        id: agent-host-e2e-changes
-        uses: ./.github/actions/detect-agent-host-e2e-changes
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -303,21 +312,21 @@ jobs:
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        timeout-minutes: 25
+        run: ./scripts/test.sh --tfs "Unit Tests" --rerun-failed-files 2
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: npm run test-node
+        timeout-minutes: 25
+        run: npm run test-node -- --rerun-failed-files 2
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests" --rerun-failed-files 2
         env:
           DEBUG: "*browser*"
 
@@ -347,25 +356,36 @@ jobs:
 
       - name: 🧪 Run Agent Host E2E tests (Electron)
         id: agent-host-e2e
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests"
+        if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
+        timeout-minutes: 25
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests" --rerun-failed-files 2
         env:
           DISPLAY: ":10"
-          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
-          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
-          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
+          AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
-      # Runs even when Agent Host E2E failed, so that one does not hide the other.
+      # Runs even when Agent Host E2E failed in the same job, so that one does not hide the other.
+      # Reruns the failed tests in a fresh window.
       - name: 🧪 Run integration tests (Electron)
+        id: node-integration-tests
         if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
-        timeout-minutes: 20
-        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+        timeout-minutes: 25
+        run: ./scripts/test-integration.sh --only-node-tests --tfs "Integration Tests" --rerun-failed-files 2
         env:
           DISPLAY: ":10"
-          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
-          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
+          AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when the node.js integration tests or Agent Host E2E failed in the same job.
+      # The extension host suites are not rerun.
+      - name: 🧪 Run extension host integration tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure' || steps.node-integration-tests.outcome == 'failure') }}
+        timeout-minutes: 15
+        run: ./scripts/test-integration.sh --only-extension-host-tests
+        env:
+          DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)

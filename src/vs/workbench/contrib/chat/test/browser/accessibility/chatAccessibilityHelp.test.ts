@@ -15,6 +15,27 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the shared picker and startup lock for Cloud drafts', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			cloud: help.includes('or a new Cloud session'),
+			keyboard: help.includes('Tab reaches separate Mode and Permissions buttons'),
+			locked: help.includes('Cloud draft choices are locked while the first request starts the session'),
+			focus: help.includes('Escape closes the picker and returns focus to the button that opened it'),
+		}, { cloud: true, keyboard: true, locked: true, focus: true });
+	});
+
+	test('documents side questions and concurrent responses in both windows but not inline or quick chat', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('/btw followed by a question') && help.includes('while a response is in progress')), [true, true, true, true, false, false]);
+	});
+
 	test('documents private early preparation and the pending Send handoff', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
 		const preparation = getCloudSandboxPreparationAccessibilityHelp();
@@ -76,18 +97,41 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('changes across the whole session instead of showing a Changes pill') || help.includes('press Tab to reach its Keep button')), [false, false, false, false]);
 	});
 
+	test('explains the context menu and read-only actions when Keep and Undo is hidden', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, true, false);
+		assert.deepStrictEqual({
+			contextMenu: help.includes('Shift+F10 or the Context Menu key'),
+			toggle: help.includes('toggle it to show or hide review controls in both the working set and open editors'),
+			hidden: help.includes('Keep and Undo are hidden in both'),
+			diff: help.includes('View All Edits remains available'),
+			pill: help.includes('Show Pill replaces the working set'),
+			restore: help.includes('Show Working Set to restore it'),
+			noKeepButton: !help.includes('press Tab to reach its Keep button'),
+		}, { contextMenu: true, toggle: true, hidden: true, diff: true, pill: true, restore: true, noKeepButton: true });
+	});
+
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				backend: help.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
-				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
-				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+				enabling: help.includes('Selecting a method updates the setting and enables sharing'),
+				disabling: help.includes('Selecting Off disables sharing'),
+				remembered: help.includes('without changing the preferred method'),
+				footer: help.includes('The footer shows the name used to identify this machine on other clients'),
+				rename: help.includes('press Tab to reach the name link in the footer') && help.includes('Renaming while Off does not enable sharing'),
+				directSetting: help.includes('Changing the setting directly turns sharing off'),
+				keyboard: help.includes('arrow keys in the title bar, Enter or Space to open it'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
 				setting: type !== 'inlineChat' && type !== 'quickChat',
-				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				enabling: type !== 'inlineChat' && type !== 'quickChat',
+				disabling: type !== 'inlineChat' && type !== 'quickChat',
+				remembered: type !== 'inlineChat' && type !== 'quickChat',
+				footer: type !== 'inlineChat' && type !== 'quickChat',
+				rename: type !== 'inlineChat' && type !== 'quickChat',
+				directSetting: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
 		});
@@ -114,7 +158,8 @@ suite('Chat Accessibility Help', () => {
 			optional: help.includes('Installation is optional and chatting is not blocked.'),
 			priority: help.includes('Dependency warnings take priority over this notice.'),
 			dismissal: help.includes('Use Tab to reach Dismiss notification and Enter or Space to hide certificate notices for that host runtime in this window.'),
-			installation: help.includes('use Tab to reach the Install link and Enter to activate it.'),
+			guidance: help.includes('Use Tab to reach Learn more for certificate guidance.'),
+			installation: help.includes('use Tab to reach the Install button and Enter or Space to activate it.'),
 			manageCommand: help.includes('Sandbox: Manage Trusted CA for the last-focused chat.'),
 			keyboard: help.includes('Use Up and Down Arrow to choose Install, Rotate, or Remove, then Enter to continue or Escape to cancel.'),
 			installCommand: help.includes('choose Install in Manage Trusted CA after dismissing the notice.'),
@@ -123,7 +168,7 @@ suite('Chat Accessibility Help', () => {
 			noHost: help.includes('a dialog says No agent host detected.'),
 			restart: help.includes('running tools may need to restart.'),
 			retention: help.includes('The stored certificate authority is kept.'),
-		}, { optional: true, priority: true, dismissal: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
+		}, { optional: true, priority: true, dismissal: true, guidance: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
 	});
 
 	test('explains read-only model options separately from overridable defaults', () => {
@@ -132,7 +177,10 @@ suite('Chat Accessibility Help', () => {
 			managed: help.includes('Its value is announced as managed by the agent host and cannot be changed.'),
 			overridable: help.includes('An overridable default remains selectable.'),
 			modelSpecific: help.includes('Changing models uses the options available for the newly selected model.'),
-		}, { managed: true, overridable: true, modelSpecific: true });
+			unspecified: help.includes('Model default means no effort override is selected'),
+			maximum: help.includes('A value prefixed with Max is the model\'s capacity, not a selected context window.'),
+			cloudValidation: help.includes('New Cloud chat choices are checked against the host before the first request is sent.'),
+		}, { managed: true, overridable: true, modelSpecific: true, unspecified: true, maximum: true, cloudValidation: true });
 	});
 
 	test('documents participant redirection only in workbench panel and editor chats', () => {
@@ -590,7 +638,7 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('only describes the selection side chat affordance in the sessions window', () => {
+	test('describes selection side chats in both windows', () => {
 		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
@@ -598,8 +646,19 @@ suite('Chat Accessibility Help', () => {
 			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
 		}, {
 			sessionsWindow: isResponseSelectionSupported(),
-			regularWindow: false,
+			regularWindow: isResponseSelectionSupported(),
 		});
+	});
+
+	test('documents the editor selection action and quote without describing transient chats', () => {
+		const help = (type: 'agentView' | 'quickChat' | 'inlineChat') => getAccessibilityHelpText(type, new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, true);
+		assert.deepStrictEqual({
+			editor: help('agentView').includes('Choose Ask in Side Chat... to open a small Ask Question input'),
+			quote: help('agentView').includes('through the selected response and its quoted text'),
+			keyboard: help('agentView').includes('context menu with Shift+F10 or the context menu key'),
+			quick: help('quickChat').includes('Ask Question'),
+			inline: help('inlineChat').includes('Ask Question'),
+		}, { editor: true, quote: true, keyboard: true, quick: false, inline: false });
 	});
 
 	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {
@@ -619,7 +678,7 @@ suite('Chat Accessibility Help', () => {
 	test('only describes session result pill activation in the sessions window', () => {
 		const keybindingService = new MockKeybindingService();
 		const describe = (help: string) => ({
-			focus: help.includes('Use Tab to focus it'),
+			focus: help.includes('target session or chat button in the response. Use Tab to focus it'),
 			open: help.includes('Enter or Space to open it normally'),
 			openToSide: help.includes('Alt+Enter (Option+Enter on macOS) to open it to the side'),
 		});
@@ -723,6 +782,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			pullRequestChangesInSessions: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Open Pull Request Changes row action'),
+			pullRequestChangesInEditor: getAccessibilityHelpText('agentView', keybindingService, true).includes('Open Pull Request Changes row action'),
 			copyActions: getAccessibilityHelpText('agentView', keybindingService, true).includes('its context menu offers the item\'s copy actions'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
 			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
@@ -742,6 +803,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: true,
 			agentView: true,
 			pullRequestFilter: true,
+			pullRequestChangesInSessions: true,
+			pullRequestChangesInEditor: false,
 			copyActions: true,
 			filterPersistence: true,
 			filterRecovery: true,

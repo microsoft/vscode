@@ -36,7 +36,22 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
 3. **Point the extension at your local package**
 
-   **A. Use a `file:` dependency for a durable local setup**
+   **A. Override the webview build without changing installed dependencies**
+
+   Set `VSCODE_MARKDOWN_EDITOR_PATH` to the built local package directory in the shell running extension build/watch and manifest-generation commands:
+
+   ```powershell
+   $env:VSCODE_MARKDOWN_EDITOR_PATH = 'D:\src\vscode-packages\vscode-team-tools\packages\markdown-editor'
+   npm run watch-markdown-editor
+   ```
+
+   This overrides esbuild resolution for the package and all its exported subpaths, including CSS. Command contribution generation uses the same package selection. The watcher follows the selected package directory, including built output and source assets, but excludes its `node_modules` and `.git` directories. The build prints the selected real directory as `Markdown editor package override: ...`; `node_modules` still contains the installed dependency. No symlink, dependency-manifest edit, or lockfile edit is needed. Relative paths resolve against the build process's working directory. Invalid overrides fail explicitly instead of falling back to the installed package. Unset the variable to use the installed dependency (`Remove-Item Env:VSCODE_MARKDOWN_EDITOR_PATH` in PowerShell).
+
+   This is a build-time override: standalone TypeScript checks and other tools still resolve types from the installed dependency. Use a dependency link instead if those tools must also consume unpublished local type changes. Generated command contributions may still update tracked manifests when the package's commands change.
+
+   Run the override regression tests with `node --test ./scripts/markdownEditorPackage.test.mts` from this extension directory.
+
+   **B. Use a `file:` dependency for a durable local setup**
 
    Set the dependency in `extensions/markdown-language-features/package.json` to:
 
@@ -46,7 +61,7 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Then run `npm install` in `extensions/markdown-language-features`. This updates `package.json` and `package-lock.json`, creates a local link, and survives later `npm install` runs. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
 
-   **B. Use `npm link` for a temporary setup**
+   **C. Use `npm link` for a temporary setup**
 
    In `vscode-packages/vscode-team-tools/packages/markdown-editor`, run:
 

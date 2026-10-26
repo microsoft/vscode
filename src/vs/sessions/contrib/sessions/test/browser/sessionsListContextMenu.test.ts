@@ -348,7 +348,7 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
 	});
@@ -424,7 +424,7 @@ suite('Sessions list context menus', () => {
 			moveToGroup: { label: moveToGroup?.label, targets: moveToGroup?.actions.map(action => action.label) },
 			created: harness.createdGroups,
 		}, {
-			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			moveToGroup: { label: 'Move to Group', targets: ['Release work', 'Release work › Hotfixes › Urgent', 'Triage'] },
 			created: [
 				{ name: 'New Group', sessionIds: [], parentId: hotfixes.id },
@@ -665,8 +665,8 @@ suite('Sessions list context menus', () => {
 				grouped,
 				actions: {
 					ids: grouped
-						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
-						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup'],
+						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
+						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveSectionToGroup', 'sessions.moveSectionToGroup.target', 'sessions.moveSectionToGroup.group', 'vs.actions.separator', 'sessions.changeGroupIcon', 'sessions.changeGroupColor', 'vs.actions.separator', 'sessions.createGroup'],
 					disposableIds: [],
 				},
 				readSessions: ['Visible', 'Filtered'],
@@ -703,7 +703,7 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual({ movable: canMove('Movable'), fixed: canMove('Fixed') }, { movable: true, fixed: false });
 	});
 
-	test('Promote to Session moves a nested session into a new session, confirming it and explaining a refusal', async () => {
+	test('Promote to Session moves a nested session into a new session without a dialog, explaining a refusal', async () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(candidate => candidate.command.id === PROMOTE_CHAT_TO_SESSION_ACTION_ID);
 		const shownWhen = (values: Record<string, unknown>) => !!item?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
 		const enabled = { 'config.chat.agentHost.moveChats.enabled': true, [ChatContextKeys.enabled.key]: true, 'sessionChatItem.canMove': true };
@@ -713,17 +713,17 @@ suite('Sessions list context menus', () => {
 		const { session: baseSession } = createSession('Session');
 		const session: ISession = { ...baseSession, chats: constObservable([main, peer]), mainChat: constObservable(main) };
 		const events: string[] = [];
-		let answer = { confirmed: true };
 		let refusal: string | undefined;
 		const configurationService = new TestConfigurationService({ 'chat.agentHost.moveChats.enabled': true });
 		const harness = createListHarness(disposables, [session], instantiationService => {
 			instantiationService.stub(IConfigurationService, configurationService);
-			// No sessions list view: nothing to reveal the new session in.
+			// No sessions list view showing: nothing to reveal the new session in, and a refusal is a notification.
 			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override isViewVisible() { return false; }
 				override getViewWithId() { return null; }
 			});
 			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { events.push(`confirm: ${confirmation.message}`); return answer; }
+				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { events.push(`dialog: ${confirmation.message}`); return { confirmed: true }; }
 			});
 			instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 				override warn(message: string) { events.push(`warn: ${message}`); return undefined!; }
@@ -741,9 +741,6 @@ suite('Sessions list context menus', () => {
 		const promote = (chat: IChat) => harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(PROMOTE_CHAT_TO_SESSION_ACTION_ID)!.handler, { session, chat });
 
 		const results = [await promote(peer)];
-		answer = { confirmed: false };
-		results.push(await promote(peer));
-		answer = { confirmed: true };
 		refusal = 'Send a message in this chat before moving it to its own session.';
 		results.push(await promote(peer));
 		refusal = undefined;
@@ -768,15 +765,11 @@ suite('Sessions list context menus', () => {
 			group: '1_move',
 			order: 1,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
-			results: [true, false, false, false, false],
+			results: [true, false, false, false],
 			events: [
-				'confirm: Are you sure you want to move \'Peer\' to a new session?',
 				'move Peer -> newSession',
-				// Cancelled: nothing moves.
-				'confirm: Are you sure you want to move \'Peer\' to a new session?',
-				'confirm: Are you sure you want to move \'Peer\' to a new session?',
 				'warn: Could not move \'Peer\'. Send a message in this chat before moving it to its own session.',
-				// The main chat and a disabled setting don't move or ask.
+				// The main chat and a disabled setting don't move.
 			],
 		});
 	});

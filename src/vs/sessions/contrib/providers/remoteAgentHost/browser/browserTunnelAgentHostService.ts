@@ -14,7 +14,7 @@ import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platfo
 import { IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ReconnectingTransport, type IEstablishedTransport } from '../../../../../platform/agentHost/common/reconnectingTransport.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { NonReconnectableTransportError, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { NonReconnectableTransportError, parseProtocolMessage, type IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import {
 	TunnelAgentHostConnector,
 	parseTunnelInfo,
@@ -651,7 +651,7 @@ export class BrowserTunnelConnectionTransport extends Disposable implements IPro
 		this._register(this._connector.onDidRelayMessage(message => {
 			if (message.connectionId === this._connectionId) {
 				try {
-					this._onMessage.fire(JSON.parse(message.data) as ProtocolMessage);
+					this._onMessage.fire(parseProtocolMessage(message.data));
 				} catch (error) {
 					this._malformedFrames++;
 					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {

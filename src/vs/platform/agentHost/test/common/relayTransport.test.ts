@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import { ReconnectingRelayTransport, RelayTransport, type IRelayChannel, type IRelayConnectionHandle, type IRelayMessage } from '../../common/relayTransport.js';
-import { NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../common/transportConstants.js';
 
 /**
@@ -88,6 +88,15 @@ suite('RelayTransport', () => {
 
 		assert.strictEqual(received.length, 1);
 		assert.deepStrictEqual(received[0], { jsonrpc: '2.0', id: 1 });
+	});
+
+	test('preserves the original relayed JSON size for windowed delivery', () => {
+		const transport = disposables.add(new RelayTransport('conn-1', mockChannel, undefined, new NullLogService(), '[SSHRelayTransport]', AgentHostClientConnectionKind.SSH));
+		const sizes: number[] = [];
+		disposables.add(transport.onMessage(message => sizes.push(getProtocolMessageSize(message))));
+		const data = '{ "jsonrpc": "2.0", "method": "tcp/data", "params": { "channel":"ahp-tcp:/test", "data":"\\u005aA==" } }';
+		mockChannel.fireRelayMessage({ connectionId: 'conn-1', data });
+		assert.deepStrictEqual(sizes, [data.length * 2]);
 	});
 
 	test('ignores messages for other connectionIds', () => {

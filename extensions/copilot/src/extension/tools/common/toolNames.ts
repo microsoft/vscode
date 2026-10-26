@@ -47,7 +47,6 @@ export enum ToolName {
 	GithubSemanticRepoSearch = 'github_repo',
 	GithubTextSearch = 'github_text_search',
 	CreateDirectory = 'create_directory',
-	RunVscodeCmd = 'run_vscode_command',
 	CoreManageTodoList = 'manage_todo_list',
 	CoreRunInTerminal = 'run_in_terminal',
 	CoreGetTerminalOutput = 'get_terminal_output',
@@ -131,7 +130,6 @@ export enum ContributedToolName {
 	GithubSemanticRepoSearch = 'copilot_githubRepo',
 	GithubTextSearch = 'copilot_githubTextSearch',
 	CreateDirectory = 'copilot_createDirectory',
-	RunVscodeCmd = 'copilot_runVscodeCommand',
 	EditFilesPlaceholder = 'copilot_editFiles',
 	SwitchAgent = 'copilot_switchAgent',
 	ResolveMemoryFileUri = 'copilot_resolveMemoryFileUri',
@@ -240,7 +238,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.GetScmChanges]: ToolCategory.VSCodeInteraction,
 	[ToolName.CreateNewWorkspace]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreCreateAndRunTask]: ToolCategory.VSCodeInteraction,
-	[ToolName.RunVscodeCmd]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalSelection]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalLastCommand]: ToolCategory.VSCodeInteraction,
 

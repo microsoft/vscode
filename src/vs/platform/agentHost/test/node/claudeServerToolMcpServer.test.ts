@@ -13,7 +13,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -135,6 +136,10 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		stateManager.addChat(sessionUri, chatUri, creationTimeChatStorageResource(sessionUri, chatUri, buildDefaultChatUri(sessionUri)));
+		stateManager.dispatchServerAction(chatUri, {
+			type: ActionType.ChatTurnStarted, turnId: 'artifact-tools', startedAt: new Date(0).toISOString(),
+			message: { text: 'Manage the recorded artifacts', origin: { kind: MessageKind.User } },
+		});
 		let enabled = true;
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,
