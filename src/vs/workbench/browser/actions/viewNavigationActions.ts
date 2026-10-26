@@ -9,6 +9,7 @@ import { Action2, registerAction2 } from '../../../platform/actions/common/actio
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { ViewPane } from '../parts/views/viewPane.js';
 import { INavigableViewContainer, IViewNavigationRequest, IViewNavigationSnapshot, resolveViewNavigationTarget, ViewNavigationLocation } from './viewNavigationModel.js';
 
 /**
@@ -76,6 +77,15 @@ export async function focusNavigableView(
 
 	const target = resolveViewNavigationTarget(snapshot, request);
 	if (!target) {
+		return;
+	}
+
+	// openView() expands collapsed panes as a side effect. For a collapsed
+	// target, focus its already-rendered, keyboard-accessible header instead.
+	const container = descriptorService.getViewContainerByViewId(target.viewId);
+	if (container && descriptorService.getViewContainerModel(container).isCollapsed(target.viewId)) {
+		const pane = viewsService.getActiveViewWithId<ViewPane>(target.viewId);
+		pane?.draggableElement?.focus();
 		return;
 	}
 
