@@ -59,3 +59,8 @@
 	margin-top: var(--vscode-spacing-size40);
 	height: var(--vscode-spacing-size320);
 }
+
+/* The diffs start one block-to-block gap below the header row's line, so the first card sits as far from it as from the next card. */
+.agent-sessions-workbench .chat-window-card .session-changes-editor-body {
+	padding-top: var(--vscode-spacing-size40);
+}
